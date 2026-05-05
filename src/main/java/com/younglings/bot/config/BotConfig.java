@@ -1,10 +1,13 @@
 package com.younglings.bot.config;
 
 import java.util.Properties;
+import io.github.cdimascio.dotenv.Dotenv;
 
 public class BotConfig {
     private static final Properties properties = new Properties();
-
+    private static final Dotenv dotenv = Dotenv.configure()
+            .ignoreIfMissing()
+            .load();
     static {
         try {
             properties.load(
@@ -17,10 +20,17 @@ public class BotConfig {
     }
 
     public static String getToken() {
-        String env = System.getenv("DISCORD_TOKEN");
-        if (env != null && !env.isBlank()) return env;
+        String token = System.getenv("DISCORD_TOKEN");
 
-        return properties.getProperty("discord.token");
+        if (token == null || token.isBlank()) {
+            token = dotenv.get("DISCORD_TOKEN");
+        }
+
+        if (token == null || token.isBlank()) {
+            throw new IllegalStateException("Missing DISCORD_TOKEN. Add it to environment variables or server .env file.");
+        }
+
+        return token;
     }
 
     public static String getActivity() {
