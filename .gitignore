@@ -43,6 +43,5 @@ build/
 #GPT
 .idea/
 .env
-config.properties
 application.properties
 *.log
