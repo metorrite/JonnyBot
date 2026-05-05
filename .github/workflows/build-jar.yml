@@ -9,11 +9,13 @@ permissions:
 
 jobs:
   build:
-    if: "!contains(github.event.head_commit.message, 'Build JonnyBot.jar')"
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout master
+        uses: actions/checkout@v4
+        with:
+          ref: master
 
       - name: Set up Java 21
         uses: actions/setup-java@v4
@@ -25,11 +27,15 @@ jobs:
       - name: Build with Maven
         run: mvn clean package
 
-      - name: Copy jar to repo root
-        run: cp target/JonnyBot.jar JonnyBot.jar
+      - name: Prepare deploy folder
+        run: |
+          mkdir deploy
+          cp target/JonnyBot.jar deploy/JonnyBot.jar
 
-      - name: Commit built jar
-        uses: stefanzweifel/git-auto-commit-action@v6
+      - name: Push jar to deploy branch
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          commit_message: "Build JonnyBot.jar"
-          file_pattern: JonnyBot.jar
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: deploy
+          publish_dir: ./deploy
+          force_orphan: true
