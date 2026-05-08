@@ -1,29 +1,42 @@
 package com.younglings.bot;
 
 import com.younglings.bot.config.BotConfig;
-import net.dv8tion.jda.api.JDA;
-import net.dv8tion.jda.api.JDABuilder;
-import net.dv8tion.jda.api.OnlineStatus;
-import net.dv8tion.jda.api.entities.Activity;
+import io.github.freya022.botcommands.api.core.JDAService;
+import io.github.freya022.botcommands.api.core.events.BReadyEvent;
+import io.github.freya022.botcommands.api.core.service.annotations.BService;
+import net.dv8tion.jda.api.hooks.IEventManager;
 import net.dv8tion.jda.api.requests.GatewayIntent;
+import net.dv8tion.jda.api.utils.cache.CacheFlag;
+import org.jspecify.annotations.NullMarked;
 
-public class Bot {
+import java.util.Set;
 
-    private JDA jda;
+@BService
+@NullMarked // Everything is non-null unless @Nullable
+public class Bot extends JDAService {
+    private final BotConfig botConfig;
 
-    public void start() throws InterruptedException {
-        jda = JDABuilder.createDefault(BotConfig.getToken())
-                .enableIntents(GatewayIntent.GUILD_MESSAGES)
-                .setStatus(OnlineStatus.ONLINE)
-                .setActivity(Activity.playing(BotConfig.getActivity()))
-                .build();
-
-        jda.awaitReady();
-
-        System.out.println("Bot is online as: " + jda.getSelfUser().getAsTag());
+    public Bot(BotConfig botConfig) {
+        this.botConfig = botConfig;
     }
 
-    public JDA getJda() {
-        return jda;
+    // If you use Spring, you can return values provided by JDAConfiguration in the getters below
+    @Override
+    public Set<CacheFlag> getCacheFlags() {
+        return Set.of(CacheFlag.values());
+    }
+
+    @Override
+    public Set<GatewayIntent> getIntents() {
+        return defaultIntents(GatewayIntent.values());
+    }
+
+    @Override
+    public void createJDA(BReadyEvent event, IEventManager eventManager) {
+        // This uses JDABuilder#createLight, with the intents and the additional cache flags set above
+        // It also sets the EventManager and a special rate limiter
+        createLight(botConfig.getToken())
+                .setActivity(botConfig.getActivity())
+                .build();
     }
 }
