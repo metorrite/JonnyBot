@@ -1,5 +1,6 @@
 package com.younglings.bot;
 
+import com.younglings.bot.commands.signup.SignupInteractionListener;
 import com.younglings.bot.config.BotConfig;
 import io.github.freya022.botcommands.api.core.JDAService;
 import io.github.freya022.botcommands.api.core.events.BReadyEvent;
@@ -15,9 +16,12 @@ import java.util.Set;
 @NullMarked // Everything is non-null unless @Nullable
 public class Bot extends JDAService {
     private final BotConfig botConfig;
+    private final SignupInteractionListener signupInteractionListener;
 
-    public Bot(BotConfig botConfig) {
+
+    public Bot(BotConfig botConfig, SignupInteractionListener signupInteractionListener) {
         this.botConfig = botConfig;
+        this.signupInteractionListener = signupInteractionListener;
     }
 
     // If you use Spring, you can return values provided by JDAConfiguration in the getters below
@@ -37,6 +41,7 @@ public class Bot extends JDAService {
         // It also sets the EventManager and a special rate limiter
         createLight(botConfig.getToken())
                 .setActivity(botConfig.getActivity())
+                .addEventListeners(signupInteractionListener)
                 .build();
     }
 }
