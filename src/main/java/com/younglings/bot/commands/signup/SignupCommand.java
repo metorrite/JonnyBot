@@ -1,6 +1,5 @@
 package com.younglings.bot.commands.signup;
 
-import com.younglings.bot.commands.signup.SignupService;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
 import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.JDASlashCommand;
@@ -23,9 +22,14 @@ public class SignupCommand {
             @SlashOption(description = "Message sent when someone becomes first") String notificationMessage,
             @SlashOption(description = "Max signup number, leave blank for no limit") Integer maxSignupNumber
     ) {
-        TextChannel signupChannel = event.getChannel().asTextChannel();
+        if (event.getGuild() == null) {
+            event.reply("This command can only be used in a server.")
+                    .setEphemeral(true)
+                    .queue();
+            return;
+        }
 
-        event.deferReply(true).queue();
+        TextChannel signupChannel = event.getChannel().asTextChannel();
 
         signupService.createSession(
                 event.getGuild(),
@@ -34,7 +38,11 @@ public class SignupCommand {
                 title,
                 notificationMessage,
                 maxSignupNumber,
-                hook -> event.getHook().sendMessage("Signup queue created.").setEphemeral(true).queue()
+                event.getUser().getIdLong()
         );
+
+        event.reply("Signup queue created.")
+                .setEphemeral(true)
+                .queue();
     }
 }
