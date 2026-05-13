@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Properties;
 
 public class BotConfig {
-    private static BotConfig INSTANCE = null;
+    private static final BotConfig INSTANCE = new BotConfig();
 
     private final Dotenv dotenv;
     private final Properties properties;
@@ -105,10 +105,6 @@ public class BotConfig {
 
     @BService
     public static BotConfig getInstance() {
-        if (INSTANCE == null) {
-            INSTANCE = new BotConfig();
-        }
-
         return INSTANCE;
     }
 }

@@ -1,6 +1,7 @@
 package com.younglings.bot.commands.signup;
 
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
+import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
 import net.dv8tion.jda.api.components.buttons.Button;
 import net.dv8tion.jda.api.components.label.Label;
@@ -20,6 +21,22 @@ public class SignupInteractionListener extends ListenerAdapter {
 
     public SignupInteractionListener(SignupService signupService) {
         this.signupService = signupService;
+    }
+
+    private boolean isAdmin(ButtonInteractionEvent event) {
+        var member = event.getMember();
+        return member != null && member.hasPermission(Permission.MANAGE_SERVER);
+    }
+
+    private boolean isAdmin(ModalInteractionEvent event) {
+        var member = event.getMember();
+        return member != null && member.hasPermission(Permission.MANAGE_SERVER);
+    }
+
+    private void replyNoPermission(ButtonInteractionEvent event) {
+        event.reply("You don't have permission to use admin controls.")
+                .setEphemeral(true)
+                .queue();
     }
 
     @Override
@@ -71,10 +88,7 @@ public class SignupInteractionListener extends ListenerAdapter {
             }
 
             case "signup_leave_confirm" -> {
-                boolean removed = signupService.removeUser(
-                        signupId,
-                        event.getUser().getIdLong()
-                );
+                boolean removed = signupService.removeUser(signupId, event.getUser().getIdLong());
 
                 if (!removed) {
                     event.reply("You are not currently signed up for this queue.")
@@ -95,6 +109,8 @@ public class SignupInteractionListener extends ListenerAdapter {
             }
 
             case "signup_next" -> {
+                if (!isAdmin(event)) { replyNoPermission(event); return; }
+
                 SignupEntry newFirst = signupService.next(signupId);
                 signupService.updateMessages(event.getGuild(), signupId);
                 event.reply("Moved to next signup.")
@@ -106,6 +122,8 @@ public class SignupInteractionListener extends ListenerAdapter {
             }
 
             case "signup_skip" -> {
+                if (!isAdmin(event)) { replyNoPermission(event); return; }
+
                 SignupEntry newFirst = signupService.skip(signupId);
                 signupService.updateMessages(event.getGuild(), signupId);
                 event.reply("Skipped current first signup.")
@@ -117,6 +135,8 @@ public class SignupInteractionListener extends ListenerAdapter {
             }
 
             case "signup_remove" -> {
+                if (!isAdmin(event)) { replyNoPermission(event); return; }
+
                 SignupEntry newFirst = signupService.remove(signupId);
                 signupService.updateMessages(event.getGuild(), signupId);
                 event.reply("Removed current first signup.")
@@ -128,6 +148,8 @@ public class SignupInteractionListener extends ListenerAdapter {
             }
 
             case "signup_clear" -> {
+                if (!isAdmin(event)) { replyNoPermission(event); return; }
+
                 signupService.clear(signupId);
                 signupService.updateMessages(event.getGuild(), signupId);
                 event.reply("Cleared all signups.")
@@ -138,6 +160,8 @@ public class SignupInteractionListener extends ListenerAdapter {
             }
 
             case "signup_notify" -> {
+                if (!isAdmin(event)) { replyNoPermission(event); return; }
+
                 SignupEntry first = signupService.getFirst(signupId);
 
                 if (first == null) {
@@ -159,6 +183,8 @@ public class SignupInteractionListener extends ListenerAdapter {
             }
 
             case "signup_admin_add" -> {
+                if (!isAdmin(event)) { replyNoPermission(event); return; }
+
                 TextInput rsnInput = TextInput.create("signup_admin_rsn", TextInputStyle.SHORT)
                         .setPlaceholder("Enter RSN / username")
                         .setRequired(true)
@@ -182,6 +208,8 @@ public class SignupInteractionListener extends ListenerAdapter {
             }
 
             case "signup_pause" -> {
+                if (!isAdmin(event)) { replyNoPermission(event); return; }
+
                 String newStatus = signupService.togglePause(signupId);
 
                 if (newStatus == null) {
@@ -193,18 +221,18 @@ public class SignupInteractionListener extends ListenerAdapter {
 
                 signupService.updateMessages(event.getGuild(), signupId);
 
-                String message = "ACTIVE".equalsIgnoreCase(newStatus)
-                        ? "Signup resumed."
-                        : "Signup paused.";
+                String message = "ACTIVE".equalsIgnoreCase(newStatus) ? "Signup resumed." : "Signup paused.";
 
                 event.reply(message)
                         .setEphemeral(true)
                         .delay(Duration.ofSeconds(5))
-                        .flatMap(hook -> hook.deleteOriginal())
+                        .flatMap(InteractionHook::deleteOriginal)
                         .queue();
             }
 
             case "signup_delete" -> {
+                if (!isAdmin(event)) { replyNoPermission(event); return; }
+
                 event.reply("Are you sure you want to delete this signup?")
                         .setEphemeral(true)
                         .addComponents(
@@ -217,6 +245,8 @@ public class SignupInteractionListener extends ListenerAdapter {
             }
 
             case "signup_delete_cancel" -> {
+                if (!isAdmin(event)) { replyNoPermission(event); return; }
+
                 event.reply("Delete cancelled.")
                         .setEphemeral(true)
                         .delay(Duration.ofSeconds(5))
@@ -225,6 +255,8 @@ public class SignupInteractionListener extends ListenerAdapter {
             }
 
             case "signup_delete_confirm" -> {
+                if (!isAdmin(event)) { replyNoPermission(event); return; }
+
                 signupService.deleteSignup(event.getGuild(), signupId);
 
                 event.reply("Signup deleted.")
@@ -235,8 +267,6 @@ public class SignupInteractionListener extends ListenerAdapter {
             }
         }
     }
-
-
 
     @Override
     public void onModalInteraction(ModalInteractionEvent event) {
@@ -252,6 +282,13 @@ public class SignupInteractionListener extends ListenerAdapter {
         long signupId = signupService.parseSignupId(modalId);
 
         if (action.equals("signup_admin_add_submit")) {
+            if (!isAdmin(event)) {
+                event.reply("You don't have permission to use admin controls.")
+                        .setEphemeral(true)
+                        .queue();
+                return;
+            }
+
             String rsn = event.getValue("signup_admin_rsn").getAsString().trim();
             String discordRaw = event.getValue("signup_admin_discord").getAsString().trim();
 
@@ -268,12 +305,7 @@ public class SignupInteractionListener extends ListenerAdapter {
                 return;
             }
 
-            boolean added = signupService.addManualUser(
-                    signupId,
-                    userId,
-                    rsn,
-                    event.getUser().getIdLong()
-            );
+            boolean added = signupService.addManualUser(signupId, userId, rsn, event.getUser().getIdLong());
 
             if (!added) {
                 event.reply("That user or RSN is already listed, the list is full, or no signup session exists.")
@@ -300,11 +332,7 @@ public class SignupInteractionListener extends ListenerAdapter {
                     .getAsString()
                     .trim();
 
-            boolean added = signupService.addUser(
-                    signupId,
-                    event.getUser().getIdLong(),
-                    username
-            );
+            boolean added = signupService.addUser(signupId, event.getUser().getIdLong(), username);
 
             if (!added) {
                 event.reply("You are already signed up, that username is already listed, or the list is full.")
@@ -333,10 +361,8 @@ public class SignupInteractionListener extends ListenerAdapter {
         var channel = event.getGuild().getTextChannelById(publicMessage.channelId());
         if (channel == null) return;
 
-        channel.sendMessage("<@" + newFirst.userId() + ">, " + session.getNotificationMessage()).queue();
+        channel.sendMessage("<@" + newFirst.userId() + ">, " + session.notificationMessage()).queue();
     }
-
-
 
     private long parseUserId(String input) {
         String cleaned = input

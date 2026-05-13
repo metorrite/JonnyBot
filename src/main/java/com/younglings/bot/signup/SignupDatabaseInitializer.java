@@ -59,6 +59,16 @@ public class SignupDatabaseInitializer {
                     """);
 
             statement.execute("""
+                    CREATE INDEX IF NOT EXISTS signup_guild_deleted_idx
+                    ON younglings.signup (guild_id, deleted_at);
+                    """);
+
+            statement.execute("""
+                    CREATE INDEX IF NOT EXISTS signup_status_idx
+                    ON younglings.signup (status);
+                    """);
+
+            statement.execute("""
                     CREATE TABLE IF NOT EXISTS younglings.signup_message (
                         message_id BIGINT PRIMARY KEY,
                         signup_id BIGINT NOT NULL REFERENCES younglings.signup(signup_id) ON DELETE CASCADE,

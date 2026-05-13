@@ -56,14 +56,18 @@ public class DatabaseSource implements ConnectionSupplier {
     private static HikariConfig createHikariConfig(String databaseUrl) {
         URI uri = URI.create(databaseUrl.trim());
 
-        String username = uri.getUserInfo().split(":")[0];
-        String password = uri.getUserInfo().split(":", 2)[1];
+        String userInfo = uri.getUserInfo();
+        if (userInfo == null || !userInfo.contains(":")) {
+            throw new IllegalArgumentException(
+                    "DATABASE_URL must include credentials: postgresql://user:password@host:port/db"
+            );
+        }
 
-        String jdbcUrl = "jdbc:postgresql://" +
-                uri.getHost() +
-                ":" +
-                uri.getPort() +
-                uri.getPath();
+        int colonIdx = userInfo.indexOf(':');
+        String username = userInfo.substring(0, colonIdx);
+        String password = userInfo.substring(colonIdx + 1);
+
+        String jdbcUrl = "jdbc:postgresql://" + uri.getHost() + ":" + uri.getPort() + uri.getPath();
 
         HikariConfig config = new HikariConfig();
         config.setJdbcUrl(jdbcUrl);

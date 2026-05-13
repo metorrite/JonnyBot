@@ -31,12 +31,12 @@ public class SignupService {
         List<SignupSession> signups = signupRepository.getOpenSignups();
 
         for (SignupSession signup : signups) {
-            activeSignupsById.put(signup.getSignupId(), signup);
+            activeSignupsById.put(signup.signupId(), signup);
 
             log.info("Loaded signup {} '{}' for guild {} from database.",
-                    signup.getSignupId(),
-                    signup.getTitle(),
-                    signup.getGuildId());
+                    signup.signupId(),
+                    signup.title(),
+                    signup.guildId());
         }
     }
 
@@ -128,15 +128,13 @@ public class SignupService {
             return null;
         }
 
-        String newStatus = "ACTIVE".equalsIgnoreCase(currentStatus)
-                ? "PAUSED"
-                : "ACTIVE";
+        String newStatus = "ACTIVE".equalsIgnoreCase(currentStatus) ? "PAUSED" : "ACTIVE";
 
         signupRepository.setSignupStatus(signupId, newStatus);
 
         SignupSession session = activeSignupsById.get(signupId);
         if (session != null) {
-            log.info("Toggled signup {} '{}' to {}", signupId, session.getTitle(), newStatus);
+            log.info("Toggled signup {} '{}' to {}", signupId, session.title(), newStatus);
         }
 
         return newStatus;
@@ -146,14 +144,14 @@ public class SignupService {
         List<SignupMessage> messages = signupRepository.getActiveMessages(signupId);
 
         EmbedBuilder deletedEmbed = new EmbedBuilder()
-                .setTitle(session.getTitle() + " - Admin Controls")
+                .setTitle(session.title() + " - Admin Controls")
                 .setDescription("""
-                    **SIGNUP FORM DELETED**
+                        **SIGNUP FORM DELETED**
 
-                    This signup has been closed.
-                    Public signup panels were removed.
-                    The queue was cleared.
-                    """)
+                        This signup has been closed.
+                        Public signup panels were removed.
+                        The queue was cleared.
+                        """)
                 .setFooter("Status: DELETED")
                 .setColor(Color.DARK_GRAY);
 
@@ -197,12 +195,12 @@ public class SignupService {
                         .queue(
                                 message -> {
                                     EmbedBuilder closedEmbed = new EmbedBuilder()
-                                            .setTitle(session.getTitle())
+                                            .setTitle(session.title())
                                             .setDescription("""
-                                        ***This signup form has been closed.***
+                                                    ***This signup form has been closed.***
 
-                                        Thanks to everyone who participated.
-                                        """)
+                                                    Thanks to everyone who participated.
+                                                    """)
                                             .setFooter("Status: CLOSED")
                                             .setColor(Color.DARK_GRAY);
 
@@ -223,9 +221,8 @@ public class SignupService {
 
         activeSignupsById.remove(signupId);
 
-        log.info("Deleted signup {} '{}'", signupId, session.getTitle());
+        log.info("Deleted signup {} '{}'", signupId, session.title());
     }
-
 
     public SignupMessage getFirstActivePublicMessage(long signupId) {
         if (!activeSignupsById.containsKey(signupId)) return null;
@@ -241,24 +238,14 @@ public class SignupService {
             return false;
         }
 
-        return signupRepository.addEntry(
-                signupId,
-                userId,
-                username,
-                userId
-        );
+        return signupRepository.addEntry(signupId, userId, username, userId);
     }
 
     public boolean addManualUser(long signupId, long userId, String username, long addedByUserId) {
         SignupSession session = activeSignupsById.get(signupId);
         if (session == null) return false;
 
-        return signupRepository.addEntry(
-                signupId,
-                userId,
-                username,
-                addedByUserId
-        );
+        return signupRepository.addEntry(signupId, userId, username, addedByUserId);
     }
 
     public List<SignupSession> getVisibleSignups(long guildId) {
@@ -296,9 +283,7 @@ public class SignupService {
                         );
 
                         log.info("Posted additional ADMIN signup panel {} for signup {} in channel {}",
-                                message.getIdLong(),
-                                signupId,
-                                channel.getIdLong());
+                                message.getIdLong(), signupId, channel.getIdLong());
                     });
 
             return;
@@ -316,9 +301,7 @@ public class SignupService {
                     );
 
                     log.info("Posted additional PUBLIC signup panel {} for signup {} in channel {}",
-                            message.getIdLong(),
-                            signupId,
-                            channel.getIdLong());
+                            message.getIdLong(), signupId, channel.getIdLong());
                 });
     }
 
@@ -340,15 +323,6 @@ public class SignupService {
                 Button.danger("signup_clear:" + signupId, "Clear all"),
                 Button.danger("signup_delete:" + signupId, "Delete")
         );
-    }
-
-    private String buildFooterText(SignupSession session) {
-        String status = signupRepository.getSignupStatus(session.getSignupId());
-
-        return (session.getMaxSignups() == null
-                ? "No signup limit"
-                : "Limit: " + session.getMaxSignups())
-                + " • Status: " + status;
     }
 
     public SignupEntry getFirst(long signupId) {
@@ -417,26 +391,11 @@ public class SignupService {
                             },
                             failure -> {
                                 signupRepository.markMessageInactive(signupMessage.messageId());
-                                log.warn(
-                                        "Signup message {} could not be retrieved and was marked inactive.",
-                                        signupMessage.messageId()
-                                );
+                                log.warn("Signup message {} could not be retrieved and was marked inactive.",
+                                        signupMessage.messageId());
                             }
                     );
         }
-    }
-
-    public EmbedBuilder buildPublicEmbed(SignupSession session) {
-        String status = signupRepository.getSignupStatus(session.getSignupId());
-        Color color = "PAUSED".equalsIgnoreCase(status)
-                ? Color.RED
-                : Color.GREEN;
-
-        return new EmbedBuilder()
-                .setTitle(session.getTitle())
-                .setDescription(buildQueueText(session))
-                .setFooter(buildFooterText(session))
-                .setColor(color);
     }
 
     public boolean removeUser(long signupId, long userId) {
@@ -452,31 +411,43 @@ public class SignupService {
         );
     }
 
-    public EmbedBuilder buildAdminEmbed(SignupSession session) {
-        String status = signupRepository.getSignupStatus(session.getSignupId());
-        Color color = "PAUSED".equalsIgnoreCase(status)
-                ? Color.RED
-                : Color.GREEN;
-
+    public EmbedBuilder buildPublicEmbed(SignupSession session) {
+        String status = signupRepository.getSignupStatus(session.signupId());
+        Color color = "PAUSED".equalsIgnoreCase(status) ? Color.RED : Color.GREEN;
         return new EmbedBuilder()
-                .setTitle(session.getTitle() + " - Admin Controls")
+                .setTitle(session.title())
                 .setDescription(buildQueueText(session))
-                .setFooter(buildFooterText(session))
+                .setFooter(buildFooterText(session, status))
                 .setColor(color);
     }
 
+    public EmbedBuilder buildAdminEmbed(SignupSession session) {
+        String status = signupRepository.getSignupStatus(session.signupId());
+        Color color = "PAUSED".equalsIgnoreCase(status) ? Color.RED : Color.GREEN;
+        return new EmbedBuilder()
+                .setTitle(session.title() + " - Admin Controls")
+                .setDescription(buildQueueText(session))
+                .setFooter(buildFooterText(session, status))
+                .setColor(color);
+    }
+
+    private String buildFooterText(SignupSession session, String status) {
+        return (session.maxSignups() == null
+                ? "No signup limit"
+                : "Limit: " + session.maxSignups())
+                + " • Status: " + status;
+    }
+
     private String buildQueueText(SignupSession session) {
-        List<SignupEntry> entries = signupRepository.getEntries(session.getSignupId());
+        List<SignupEntry> entries = signupRepository.getEntries(session.signupId());
 
         StringBuilder description = new StringBuilder();
-
         description.append("────────────────────\n");
 
         if (entries.isEmpty()) {
             description.append("*Nobody is signed up yet.*\n");
         } else {
             int position = 1;
-
             for (SignupEntry entry : entries) {
                 description.append("**")
                         .append(position++)
@@ -489,7 +460,6 @@ public class SignupService {
         }
 
         description.append("────────────────────\n");
-
         return description.toString();
     }
 }
