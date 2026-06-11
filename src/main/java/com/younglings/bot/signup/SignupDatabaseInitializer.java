@@ -31,7 +31,7 @@ public class SignupDatabaseInitializer {
                         signup_id BIGSERIAL PRIMARY KEY,
                         guild_id BIGINT NOT NULL,
                         title TEXT NOT NULL,
-                        notification_message TEXT NOT NULL,
+                        notification_message TEXT NULL,
                         max_signups INTEGER NULL,
                         status TEXT NOT NULL DEFAULT 'ACTIVE',
                         created_by_user_id BIGINT NOT NULL,
@@ -78,6 +78,42 @@ public class SignupDatabaseInitializer {
                         active BOOLEAN NOT NULL DEFAULT TRUE,
                         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                     );
+                    """);
+
+            // Migration: add type system columns (safe to run on existing databases)
+            statement.execute("""
+                    ALTER TABLE younglings.signup
+                        ALTER COLUMN notification_message DROP NOT NULL;
+                    """);
+
+            statement.execute("""
+                    ALTER TABLE younglings.signup
+                        ADD COLUMN IF NOT EXISTS signup_type TEXT NOT NULL DEFAULT 'QUEUE';
+                    """);
+
+            statement.execute("""
+                    ALTER TABLE younglings.signup
+                        ADD COLUMN IF NOT EXISTS submission_field_label TEXT NULL;
+                    """);
+
+            statement.execute("""
+                    ALTER TABLE younglings.signup
+                        ADD COLUMN IF NOT EXISTS group_role_id BIGINT NULL;
+                    """);
+
+            statement.execute("""
+                    ALTER TABLE younglings.signup_entry
+                        ADD COLUMN IF NOT EXISTS submission_value TEXT NULL;
+                    """);
+
+            // Migration: relax per-user uniqueness so SUBMISSION signups allow multiple entries per user
+            statement.execute("""
+                    ALTER TABLE younglings.signup_entry
+                        DROP CONSTRAINT IF EXISTS signup_entry_signup_id_discord_user_id_key;
+                    """);
+
+            statement.execute("""
+                    DROP INDEX IF EXISTS younglings.signup_entry_unique_rsn_lower;
                     """);
 
             log.info("Signup database tables initialized successfully.");

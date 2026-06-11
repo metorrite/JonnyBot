@@ -1,4 +1,4 @@
 package com.younglings.bot.commands.signup;
 
-public record SignupEntry(long userId, String username) {
+public record SignupEntry(long userId, String username, String submissionValue) {
 }

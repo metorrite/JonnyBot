@@ -5,5 +5,8 @@ public record SignupSession(
         long guildId,
         String title,
         String notificationMessage,
-        Integer maxSignups
+        Integer maxSignups,
+        SignupType type,
+        String submissionFields,
+        Long groupRoleId
 ) {}

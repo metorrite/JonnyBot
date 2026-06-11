@@ -54,7 +54,7 @@ public class SignupManagementCommand {
             String status = signupService.getSignupStatus(signup.signupId());
 
             String entry = "**" + signup.signupId() + "** — " + signup.title()
-                    + "\nStatus: `" + status + "`\n\n";
+                    + "\nType: `" + signup.type().name() + "` • Status: `" + status + "`\n\n";
 
             if (description.length() + entry.length() > EMBED_DESCRIPTION_LIMIT) {
                 description.append("*...and more. Use `/signuplist` filters to narrow results.*\n");
