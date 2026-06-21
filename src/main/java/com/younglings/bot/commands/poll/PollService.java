@@ -31,11 +31,15 @@ public class PollService {
     }
 
     private void loadActivePolls() {
-        List<PollSession> polls = pollRepository.getAllActivePolls();
-        for (PollSession poll : polls) {
-            activePollsById.put(poll.pollId(), poll);
-            optionsByPollId.put(poll.pollId(), pollRepository.getOptions(poll.pollId()));
-            log.info("Loaded poll {} '{}' for guild {}", poll.pollId(), poll.title(), poll.guildId());
+        try {
+            List<PollSession> polls = pollRepository.getAllActivePolls();
+            for (PollSession poll : polls) {
+                activePollsById.put(poll.pollId(), poll);
+                optionsByPollId.put(poll.pollId(), pollRepository.getOptions(poll.pollId()));
+                log.info("Loaded poll {} '{}' for guild {}", poll.pollId(), poll.title(), poll.guildId());
+            }
+        } catch (Exception e) {
+            log.error("Failed to load active polls from database — starting with empty state", e);
         }
     }
 

@@ -12,6 +12,8 @@ import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.InteractionHook;
 import net.dv8tion.jda.api.modals.Modal;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -19,6 +21,8 @@ import java.util.List;
 
 @BService
 public class SignupInteractionListener extends ListenerAdapter {
+    private static final Logger log = LoggerFactory.getLogger(SignupInteractionListener.class);
+
     private final SignupService signupService;
 
     public SignupInteractionListener(SignupService signupService) {
@@ -48,6 +52,21 @@ public class SignupInteractionListener extends ListenerAdapter {
         String id = event.getComponentId();
 
         if (!id.startsWith("signup_") || !id.contains(":")) return;
+
+        try {
+            handleButton(event, id);
+        } catch (Exception e) {
+            log.error("Unhandled exception in signup button interaction '{}'", id, e);
+            try {
+                if (!event.isAcknowledged()) {
+                    event.reply("An unexpected error occurred. Please try again or contact an admin.")
+                            .setEphemeral(true).queue();
+                }
+            } catch (Exception ignored) {}
+        }
+    }
+
+    private void handleButton(ButtonInteractionEvent event, String id) {
 
         String action = id.split(":")[0];
         long signupId = signupService.parseSignupId(id);
@@ -426,6 +445,20 @@ public class SignupInteractionListener extends ListenerAdapter {
 
         if (!modalId.startsWith("signup_") || !modalId.contains(":")) return;
 
+        try {
+            handleModal(event, modalId);
+        } catch (Exception e) {
+            log.error("Unhandled exception in signup modal interaction '{}'", modalId, e);
+            try {
+                if (!event.isAcknowledged()) {
+                    event.reply("An unexpected error occurred. Please try again or contact an admin.")
+                            .setEphemeral(true).queue();
+                }
+            } catch (Exception ignored) {}
+        }
+    }
+
+    private void handleModal(ModalInteractionEvent event, String modalId) {
         String action = modalId.split(":")[0];
         long signupId = signupService.parseSignupId(modalId);
 
