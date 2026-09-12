@@ -1,22 +1,31 @@
 package com.younglings.bot.commands.teamforming;
 
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
+import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
 import net.dv8tion.jda.api.components.selections.StringSelectMenu;
-import net.dv8tion.jda.api.entities.Guild;
-import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.MessageEmbed;
+import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.StringSelectInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
+import net.dv8tion.jda.api.interactions.InteractionHook;
+import net.dv8tion.jda.api.interactions.callbacks.IReplyCallback;
 import net.dv8tion.jda.api.interactions.components.ComponentInteraction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.awt.Color;
+import java.time.Duration;
 import java.util.List;
 
 @BService
 public class TeamformingInteractionListener extends ListenerAdapter {
     private static final Logger log = LoggerFactory.getLogger(TeamformingInteractionListener.class);
+
+    private static final Color ADDED_COLOR = new Color(0x2E, 0xCC, 0x71);   // green
+    private static final Color REMOVED_COLOR = new Color(0xE7, 0x4C, 0x3C); // red
+    private static final Duration CONFIRMATION_LIFETIME = Duration.ofSeconds(30);
 
     private final TeamformingService teamformingService;
 
@@ -33,6 +42,8 @@ public class TeamformingInteractionListener extends ListenerAdapter {
             handleToggle(event, id);
         } else if (id.equals(TeamformingService.MANAGE_TAGS_BUTTON_ID)) {
             handleOpenRemoveMenu(event);
+        } else if (id.equals(TeamformingService.UPDATE_ROLES_BUTTON_ID)) {
+            handleUpdateRoles(event);
         }
     }
 
@@ -40,11 +51,8 @@ public class TeamformingInteractionListener extends ListenerAdapter {
         String roleName = id.substring(TeamformingService.TOGGLE_PREFIX.length());
 
         try {
-            boolean nowHasRole = teamformingService.toggleRole(event.getGuild(), event.getMember(), roleName);
-            String message = nowHasRole
-                    ? "You now have the **" + roleName + "** tag."
-                    : "The **" + roleName + "** tag has been removed.";
-            event.reply(message).setEphemeral(true).queue();
+            TeamformingService.BatchResult result = teamformingService.toggleRole(event.getGuild(), event.getMember(), roleName);
+            replyWithResult(event, result);
         } catch (Exception e) {
             log.error("Failed to toggle teamforming role '{}' for user {}", roleName, event.getUser().getIdLong(), e);
             replyError(event);
@@ -56,7 +64,8 @@ public class TeamformingInteractionListener extends ListenerAdapter {
         List<String> held = teamformingService.getHeldSectionRoleNames(event.getMember());
 
         if (held.isEmpty()) {
-            event.reply("You don't currently have any teamforming tags to remove.").setEphemeral(true).queue();
+            event.reply("You don't currently have any teamforming tags.").setEphemeral(true)
+                    .delay(CONFIRMATION_LIFETIME).flatMap(InteractionHook::deleteOriginal).queue();
             return;
         }
 
@@ -68,10 +77,27 @@ public class TeamformingInteractionListener extends ListenerAdapter {
             menu.addOption(roleName, roleName);
         }
 
-        event.reply("Select which of your current tags to remove:")
+        event.reply("Pick tags to stage for removal, then click **Update Roles** on the panel to apply.")
                 .setEphemeral(true)
                 .addComponents(ActionRow.of(menu.build()))
                 .queue();
+    }
+
+    private void handleUpdateRoles(ButtonInteractionEvent event) {
+        if (!teamformingService.hasPendingChanges(event.getUser().getIdLong())) {
+            event.reply("You don't have any pending tag changes to apply — pick some tags first.")
+                    .setEphemeral(true)
+                    .delay(CONFIRMATION_LIFETIME).flatMap(InteractionHook::deleteOriginal).queue();
+            return;
+        }
+
+        try {
+            TeamformingService.BatchResult result = teamformingService.applyPendingChanges(event.getGuild(), event.getMember());
+            replyWithResult(event, result);
+        } catch (Exception e) {
+            log.error("Failed to apply pending teamforming changes for user {}", event.getUser().getIdLong(), e);
+            replyError(event);
+        }
     }
 
     @Override
@@ -86,6 +112,7 @@ public class TeamformingInteractionListener extends ListenerAdapter {
         }
     }
 
+    /** Stages the picked tags and silently acknowledges — no confirmation message per pick, only on Update Roles. */
     private void handleSectionSelect(StringSelectInteractionEvent event, String id) {
         String sectionKey = id.substring(TeamformingService.SELECT_PREFIX.length());
         TeamformingSection section = TeamformingCatalog.sectionByKey(sectionKey);
@@ -96,16 +123,10 @@ public class TeamformingInteractionListener extends ListenerAdapter {
         }
 
         try {
-            Guild guild = event.getGuild();
-            Member member = event.getMember();
-            List<String> added = teamformingService.applySelection(guild, member, event.getValues());
-
-            String message = added.isEmpty()
-                    ? "You already have all the tag(s) you selected for " + section.title() + "."
-                    : "Added: **" + String.join("**, **", added) + "**";
-            event.reply(message).setEphemeral(true).queue();
+            teamformingService.stageAdd(event.getUser().getIdLong(), event.getValues());
+            event.deferEdit().queue();
         } catch (Exception e) {
-            log.error("Failed to apply teamforming selection for section '{}', user {}",
+            log.error("Failed to stage teamforming selection for section '{}', user {}",
                     sectionKey, event.getUser().getIdLong(), e);
             replyError(event);
         }
@@ -113,14 +134,65 @@ public class TeamformingInteractionListener extends ListenerAdapter {
 
     private void handleRemoveSelect(StringSelectInteractionEvent event) {
         try {
-            List<String> removed = teamformingService.removeRoles(event.getGuild(), event.getMember(), event.getValues());
-            String message = removed.isEmpty()
-                    ? "No tags were removed."
-                    : "Removed: **" + String.join("**, **", removed) + "**";
-            event.editMessage(message).setComponents().queue();
+            teamformingService.stageRemove(event.getUser().getIdLong(), event.getValues());
+            event.editMessage("Staged for removal: **" + String.join("**, **", event.getValues()) + "**\n" +
+                            "Click **Update Roles** on the panel to apply.")
+                    .setComponents()
+                    .delay(CONFIRMATION_LIFETIME)
+                    .flatMap(InteractionHook::deleteOriginal)
+                    .queue();
         } catch (Exception e) {
-            log.error("Failed to remove teamforming roles for user {}", event.getUser().getIdLong(), e);
+            log.error("Failed to stage teamforming removal for user {}", event.getUser().getIdLong(), e);
             replyError(event);
+        }
+    }
+
+    // --- Reply building ---
+
+    /** Sends the green-added / red-removed confirmation embed(s) for a completed change, role-mentioning without pinging. */
+    private void replyWithResult(IReplyCallback event, TeamformingService.BatchResult result) {
+        if (result.isEmpty()) {
+            event.reply("No changes were made — you already had everything you selected.")
+                    .setEphemeral(true)
+                    .delay(CONFIRMATION_LIFETIME).flatMap(InteractionHook::deleteOriginal).queue();
+            return;
+        }
+
+        if (!result.added().isEmpty()) {
+            sendResultEmbed(event, "Added", ADDED_COLOR, result.added(), true);
+        }
+        if (!result.removed().isEmpty()) {
+            sendResultEmbed(event, "Removed", REMOVED_COLOR, result.removed(), result.added().isEmpty());
+        }
+    }
+
+    /**
+     * An interaction can only be replied to once — {@code isFirstReply} picks between
+     * {@code event.reply(...)} (the interaction's one reply) and a followup message sent via its
+     * hook (for a second embed on the same interaction, e.g. both an "Added" and a "Removed"
+     * embed from one Update Roles click).
+     */
+    private void sendResultEmbed(IReplyCallback event, String verb, Color color, List<Role> roles, boolean isFirstReply) {
+        String mentions = roles.stream()
+                .map(role -> "<@&" + role.getIdLong() + ">")
+                .reduce((a, b) -> a + " " + b)
+                .orElse("");
+        MessageEmbed embed = new EmbedBuilder().setColor(color).setDescription(verb + " role: " + mentions).build();
+
+        if (isFirstReply) {
+            event.replyEmbeds(embed)
+                    .setEphemeral(true)
+                    .setAllowedMentions(List.of()) // show the role mention without actually pinging it
+                    .delay(CONFIRMATION_LIFETIME)
+                    .flatMap(InteractionHook::deleteOriginal)
+                    .queue();
+        } else {
+            event.getHook().sendMessageEmbeds(embed)
+                    .setEphemeral(true)
+                    .setAllowedMentions(List.of())
+                    .delay(CONFIRMATION_LIFETIME)
+                    .flatMap(message -> event.getHook().deleteMessageById(message.getIdLong()))
+                    .queue();
         }
     }
 

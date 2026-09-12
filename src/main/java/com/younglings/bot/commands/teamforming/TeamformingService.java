@@ -26,26 +26,31 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Builds the teamforming panel message and resolves dropdown/button interactions to actual
- * Discord role assignments. Entirely stateless — no database, no in-memory cache. Every role this
- * feature touches is looked up by its exact (case-insensitive) name via {@link TeamformingCatalog},
- * created on first use if missing, and every interaction reads a member's roles live at the time
- * of that interaction. That means a bot restart loses nothing (there's nothing cached to lose),
- * and roles changed by an admin outside the panel are reflected immediately the next time someone
- * interacts — Discord's own role assignments <i>are</i> the source of truth here.
+ * Discord role assignments. Every role this feature touches is looked up by its exact
+ * (case-insensitive) name via {@link TeamformingCatalog}, created on first use if missing, and
+ * every batch reads a member's roles live at the time it's applied. A bot restart loses no actual
+ * role assignment (there's nothing cached for those), and roles changed by an admin outside the
+ * panel are reflected the next time someone interacts — Discord's own role assignments <i>are</i>
+ * the source of truth.
  * <p>
- * The one thing that can't be made "live": Discord does not support per-viewer default/pre-checked
- * values on a shared, persistent message's select menu — everyone always sees every dropdown as
- * empty when they open it, regardless of what they already hold. Building the dropdowns as
- * "submit = my complete desired state, remove anything unchecked" would silently strip roles a
- * member already had just because they didn't know to re-check them. So the dropdowns are
- * add-only ({@link #applySelection}) — selecting a tag can only grant it, never revoke one you
- * didn't select — and removal happens through a separate, personalized ephemeral menu
- * ({@link #getHeldSectionRoleNames}/{@link #removeRoles}) that's built fresh from the member's
- * actual current roles each time it's opened, so it's always accurate.
+ * The one thing kept in memory is short-lived: {@link #pendingByUserId}, a per-user staging area
+ * for "tags picked but not yet applied" (see below). Losing that on a restart just means a member
+ * has to re-pick before clicking Update Roles — it never affects an already-applied role.
+ * <p>
+ * <b>Why staged batches instead of applying immediately:</b> Discord does not support per-viewer
+ * default/pre-checked values on a shared, persistent message's select menu — everyone always sees
+ * every dropdown as empty when they open it, regardless of what they already hold. That makes
+ * "submit = my complete desired state" dangerous (it would silently strip roles a member already
+ * had), so selections across every dropdown are staged (added to {@link #pendingByUserId}) and
+ * only actually applied when the member clicks <b>Update Roles</b>, which also lets several
+ * picks across different boss dropdowns turn into one batched change instead of one confirmation
+ * message per click.
  */
 @BService
 public class TeamformingService {
@@ -59,6 +64,22 @@ public class TeamformingService {
     public static final String SELECT_PREFIX = "teamforming_select:";
     public static final String MANAGE_TAGS_BUTTON_ID = "teamforming_manage_tags";
     public static final String REMOVE_SELECT_ID = "teamforming_remove_submit";
+    public static final String UPDATE_ROLES_BUTTON_ID = "teamforming_update_roles";
+
+    /** Per-user staged changes, applied together on "Update Roles". Not persisted — see class doc. */
+    private final Map<Long, PendingChanges> pendingByUserId = new ConcurrentHashMap<>();
+
+    private static final class PendingChanges {
+        final Set<String> toAdd = ConcurrentHashMap.newKeySet();
+        final Set<String> toRemove = ConcurrentHashMap.newKeySet();
+    }
+
+    /** What a batch (or a single toggle) actually changed, as resolved {@link Role}s for mention-friendly replies. */
+    public record BatchResult(List<Role> added, List<Role> removed) {
+        public boolean isEmpty() {
+            return added.isEmpty() && removed.isEmpty();
+        }
+    }
 
     // --- Panel building ---
 
@@ -68,20 +89,20 @@ public class TeamformingService {
 
         children.add(buildHeader());
         children.add(ActionRow.of(buildTopButtons()));
-        children.add(Separator.createDivider(Separator.Spacing.SMALL));
+        children.add(Separator.createDivider(Separator.Spacing.LARGE));
 
         for (int i = 0; i < TeamformingCatalog.SECTIONS.size(); i++) {
             TeamformingSection section = TeamformingCatalog.SECTIONS.get(i);
             children.add(TextDisplay.of("**" + section.emoji() + " " + section.title() + "**\n" + section.prompt()));
             children.add(ActionRow.of(buildSelectMenu(section)));
             if (i < TeamformingCatalog.SECTIONS.size() - 1) {
-                children.add(Separator.createDivider(Separator.Spacing.SMALL));
+                children.add(Separator.createDivider(Separator.Spacing.LARGE));
             }
         }
 
-        children.add(Separator.createDivider(Separator.Spacing.SMALL));
+        children.add(ActionRow.of(buildBottomButtons()));
         children.add(TextDisplay.of(
-                "-# Selecting a tag adds it. Use 🗑️ Remove Tags above to remove any tag you're holding."));
+                "-# Picking a tag stages it — click **Update Roles** to apply everything you've picked."));
 
         Container container = Container.of(children).withAccentColor(PANEL_ACCENT_COLOR);
 
@@ -129,8 +150,14 @@ public class TeamformingService {
         for (TeamformingToggle toggle : TeamformingCatalog.TOGGLES) {
             buttons.add(Button.secondary(TOGGLE_PREFIX + toggle.roleName(), toggle.emoji() + " " + toggle.label()));
         }
-        buttons.add(Button.danger(MANAGE_TAGS_BUTTON_ID, "🗑️ Remove Tags"));
         return buttons;
+    }
+
+    private List<Button> buildBottomButtons() {
+        return List.of(
+                Button.secondary(MANAGE_TAGS_BUTTON_ID, "🗑️ Pick Tags to Remove"),
+                Button.success(UPDATE_ROLES_BUTTON_ID, "✅ Update Roles")
+        );
     }
 
     private StringSelectMenu buildSelectMenu(TeamformingSection section) {
@@ -224,56 +251,58 @@ public class TeamformingService {
         return deleted;
     }
 
-    // --- Interaction handling ---
+    // --- Immediate toggle (Monthly Mass) ---
 
     /**
-     * Toggles a single role on a member: removes it if they have it, adds it if they don't.
-     *
-     * @return {@code true} if the member now has the role, {@code false} if it was just removed
+     * Toggles a single role on a member immediately: removes it if they have it, adds it if they
+     * don't. Not part of the staged-batch flow — a single standalone tag doesn't need one.
      */
-    public boolean toggleRole(Guild guild, Member member, String roleName) {
+    public BatchResult toggleRole(Guild guild, Member member, String roleName) {
         Role role = ensureRole(guild, roleName);
         boolean hadRole = member.getRoles().contains(role);
 
         if (hadRole) {
             guild.removeRoleFromMember(member, role).complete();
+            return new BatchResult(List.of(), List.of(role));
         } else {
             guild.addRoleToMember(member, role).complete();
+            return new BatchResult(List.of(role), List.of());
         }
-
-        return !hadRole;
     }
 
-    /**
-     * Grants roles for a dropdown submission. Add-only by design (see class doc): a role in this
-     * section that the member already has but didn't (re-)select is left untouched.
-     *
-     * @return the role names newly granted (empty if they already had everything they selected)
-     */
-    public List<String> applySelection(Guild guild, Member member, List<String> selectedRoleNames) {
-        Set<String> memberRoleNames = new HashSet<>();
-        for (Role role : member.getRoles()) memberRoleNames.add(role.getName());
+    // --- Staged batch (boss dropdowns + Pick Tags to Remove + Update Roles) ---
 
-        List<Role> toAdd = new ArrayList<>();
-        List<String> added = new ArrayList<>();
+    private PendingChanges pendingFor(long userId) {
+        return pendingByUserId.computeIfAbsent(userId, id -> new PendingChanges());
+    }
 
-        for (String roleName : selectedRoleNames) {
-            if (memberRoleNames.contains(roleName)) continue;
-            toAdd.add(ensureRole(guild, roleName));
-            added.add(roleName);
+    /** Stages roles from a dropdown submission to be granted on the next "Update Roles". */
+    public void stageAdd(long userId, List<String> roleNames) {
+        PendingChanges pending = pendingFor(userId);
+        for (String roleName : roleNames) {
+            pending.toAdd.add(roleName);
+            pending.toRemove.remove(roleName);
         }
+    }
 
-        if (!toAdd.isEmpty()) {
-            guild.modifyMemberRoles(member, toAdd, List.of()).complete();
+    /** Stages roles from the "Pick Tags to Remove" menu to be revoked on the next "Update Roles". */
+    public void stageRemove(long userId, List<String> roleNames) {
+        PendingChanges pending = pendingFor(userId);
+        for (String roleName : roleNames) {
+            pending.toRemove.add(roleName);
+            pending.toAdd.remove(roleName);
         }
+    }
 
-        return added;
+    public boolean hasPendingChanges(long userId) {
+        PendingChanges pending = pendingByUserId.get(userId);
+        return pending != null && (!pending.toAdd.isEmpty() || !pending.toRemove.isEmpty());
     }
 
     /**
      * The teamforming tags this member currently holds, freshly read from their live role list —
-     * used to build a personalized "remove tags" menu that's always accurate, since it's built
-     * from what they actually have rather than any cached/assumed state.
+     * used to build the personalized "Pick Tags to Remove" menu, which is always accurate since
+     * it's built from what they actually have rather than any cached/assumed state.
      */
     public List<String> getHeldSectionRoleNames(Member member) {
         Set<String> catalogRoleNames = TeamformingCatalog.allSectionRoleNames();
@@ -284,22 +313,34 @@ public class TeamformingService {
         return held;
     }
 
-    /** Removes exactly the given roles (by name) from the member. */
-    public List<String> removeRoles(Guild guild, Member member, List<String> roleNames) {
-        List<Role> toRemove = new ArrayList<>();
-        List<String> removed = new ArrayList<>();
+    /**
+     * Applies (and clears) everything staged for this member in one batch: creates any roles that
+     * don't exist yet, grants the staged adds, revokes the staged removes, and does it all as a
+     * single {@code modifyMemberRoles} call.
+     */
+    public BatchResult applyPendingChanges(Guild guild, Member member) {
+        PendingChanges pending = pendingByUserId.remove(member.getIdLong());
+        if (pending == null) return new BatchResult(List.of(), List.of());
 
-        for (String roleName : roleNames) {
-            guild.getRolesByName(roleName, true).stream().findFirst().ifPresent(role -> {
-                toRemove.add(role);
-                removed.add(roleName);
-            });
+        Set<String> memberRoleNames = new HashSet<>();
+        for (Role role : member.getRoles()) memberRoleNames.add(role.getName());
+
+        List<Role> rolesToAdd = new ArrayList<>();
+        for (String roleName : pending.toAdd) {
+            if (memberRoleNames.contains(roleName)) continue;
+            rolesToAdd.add(ensureRole(guild, roleName));
         }
 
-        if (!toRemove.isEmpty()) {
-            guild.modifyMemberRoles(member, List.of(), toRemove).complete();
+        List<Role> rolesToRemove = new ArrayList<>();
+        for (String roleName : pending.toRemove) {
+            if (!memberRoleNames.contains(roleName)) continue;
+            guild.getRolesByName(roleName, true).stream().findFirst().ifPresent(rolesToRemove::add);
         }
 
-        return removed;
+        if (!rolesToAdd.isEmpty() || !rolesToRemove.isEmpty()) {
+            guild.modifyMemberRoles(member, rolesToAdd, rolesToRemove).complete();
+        }
+
+        return new BatchResult(rolesToAdd, rolesToRemove);
     }
 }
