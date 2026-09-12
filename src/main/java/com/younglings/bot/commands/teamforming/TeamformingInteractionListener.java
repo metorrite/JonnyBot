@@ -28,7 +28,7 @@ public class TeamformingInteractionListener extends ListenerAdapter {
 
     private static final Color ADDED_COLOR = new Color(0x2E, 0xCC, 0x71);   // green
     private static final Color REMOVED_COLOR = new Color(0xE7, 0x4C, 0x3C); // red
-    private static final Duration CONFIRMATION_LIFETIME = Duration.ofSeconds(30);
+    private static final Duration CONFIRMATION_LIFETIME = Duration.ofSeconds(90);
 
     private final TeamformingService teamformingService;
 

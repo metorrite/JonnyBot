@@ -30,7 +30,7 @@ public final class TeamformingCatalog {
     private static final Color NEX_RED = new Color(0xD6, 0x28, 0x39);       // deep crimson (deeper/more visible than before)
     private static final Color SOLAK_GREEN = new Color(0x16, 0xA0, 0x85);   // sea green (distinct from Amascut)
     private static final Color VORAGO_ORANGE = new Color(0xE6, 0x7E, 0x22); // carrot orange
-    private static final Color ZAMORAK_RED = new Color(0x8B, 0x00, 0x00);   // deep dark red (deeper/more visible than before, distinct from Nex)
+    private static final Color ZAMORAK_RED = new Color(0xE7, 0x4C, 0x3C);   // bright coral-red — the previous deep dark red (0x8B0000) was too low-contrast to read on Discord's dark theme
     private static final Color ELITE_DUNGEONS_PURPLE = new Color(0x9B, 0x59, 0xB6); // amethyst
     private static final Color KALPHITE_KING_ORANGE = new Color(0xD3, 0x54, 0x00);  // burnt orange (distinct from Vorago)
     private static final Color ROTS_PURPLE = new Color(0x8E, 0x44, 0xAD);           // wisteria (distinct from Elite Dungeons)
@@ -52,8 +52,12 @@ public final class TeamformingCatalog {
                                     "General teamforming tag for Amascut, the Devourer.", "Amascut", null),
                             new TeamformingOption("Amascut Low Enrage",
                                     "Teams for 100%, 500% or 750% enrage version of this boss.", "Amascut Low Enrage", null),
+                            new TeamformingOption("Amascut Low Enrage - Base",
+                                    "Can perform the base tank role for the Low Enrage version of this boss.", "Amascut Low Enrage - Base", null),
                             new TeamformingOption("Amascut High Enrage",
-                                    "Teams for 1,000%, 2,000% or 4,000% version of the boss.", "Amascut High Enrage", null)
+                                    "Teams for 1,000%, 2,000% or 4,000% version of the boss.", "Amascut High Enrage", null),
+                            new TeamformingOption("Amascut High Enrage - Base",
+                                    "Can perform the base tank role for the High Enrage version of this boss.", "Amascut High Enrage - Base", null)
                     )
             ),
             new TeamformingSection(
@@ -92,7 +96,9 @@ public final class TeamformingCatalog {
                     "Pick an AOD Role", NEX_RED,
                     List.of(
                             new TeamformingOption("AOD",
-                                    "General teamforming tag for AOD.", "AOD", null)
+                                    "General teamforming tag for AOD.", "AOD", null),
+                            new TeamformingOption("AOD - Base",
+                                    "Can perform the base tank role at AOD.", "AOD - Base", null)
                     )
             ),
             new TeamformingSection(
@@ -101,7 +107,9 @@ public final class TeamformingCatalog {
                     "Pick a Solak Role", SOLAK_GREEN,
                     List.of(
                             new TeamformingOption("Solak",
-                                    "General teamforming tag for Solak, Guardian of the Grove.", "Solak", null)
+                                    "General teamforming tag for Solak, Guardian of the Grove.", "Solak", null),
+                            new TeamformingOption("Solak - Base",
+                                    "Can perform the base tank role at Solak, Guardian of the Grove.", "Solak - Base", null)
                     )
             ),
             new TeamformingSection(
@@ -126,10 +134,16 @@ public final class TeamformingCatalog {
                                     "Normal Mode or Lower Enrages.", "Zamorak", null),
                             new TeamformingOption("Zamorak 500%",
                                     "500% Enrage at Zamorak, Lord of Chaos.", "Zamorak 500%", null),
+                            new TeamformingOption("Zamorak 500% - Base",
+                                    "Can perform the base tank role at 500% Enrage.", "Zamorak 500% - Base", null),
                             new TeamformingOption("Zamorak 1000%",
                                     "1,000% Enrage at Zamorak, Lord of Chaos.", "Zamorak 1000%", null),
+                            new TeamformingOption("Zamorak 1000% - Base",
+                                    "Can perform the base tank role at 1,000% Enrage.", "Zamorak 1000% - Base", null),
                             new TeamformingOption("Zamorak High Enrage",
-                                    "High Enrage kills above 1,000%.", "Zamorak High Enrage", null)
+                                    "High Enrage kills above 1,000%.", "Zamorak High Enrage", null),
+                            new TeamformingOption("Zamorak High Enrage - Base",
+                                    "Can perform the base tank role at High Enrage.", "Zamorak High Enrage - Base", null)
                     )
             )
     );
