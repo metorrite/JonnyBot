@@ -3,6 +3,7 @@ package com.younglings.bot;
 import com.younglings.bot.commands.coffer.CofferInteractionListener;
 import com.younglings.bot.commands.poll.PollInteractionListener;
 import com.younglings.bot.commands.signup.SignupInteractionListener;
+import com.younglings.bot.commands.teamforming.TeamformingInteractionListener;
 import com.younglings.bot.config.BotConfig;
 import io.github.freya022.botcommands.api.core.JDAService;
 import io.github.freya022.botcommands.api.core.events.BReadyEvent;
@@ -21,14 +22,17 @@ public class Bot extends JDAService {
     private final SignupInteractionListener signupInteractionListener;
     private final PollInteractionListener pollInteractionListener;
     private final CofferInteractionListener cofferInteractionListener;
+    private final TeamformingInteractionListener teamformingInteractionListener;
 
     public Bot(BotConfig botConfig, SignupInteractionListener signupInteractionListener,
                PollInteractionListener pollInteractionListener,
-               CofferInteractionListener cofferInteractionListener) {
+               CofferInteractionListener cofferInteractionListener,
+               TeamformingInteractionListener teamformingInteractionListener) {
         this.botConfig = botConfig;
         this.signupInteractionListener = signupInteractionListener;
         this.pollInteractionListener = pollInteractionListener;
         this.cofferInteractionListener = cofferInteractionListener;
+        this.teamformingInteractionListener = teamformingInteractionListener;
     }
 
     // If you use Spring, you can return values provided by JDAConfiguration in the getters below
@@ -48,7 +52,8 @@ public class Bot extends JDAService {
         // It also sets the EventManager and a special rate limiter
         createLight(botConfig.getToken())
                 .setActivity(botConfig.getActivity())
-                .addEventListeners(signupInteractionListener, pollInteractionListener, cofferInteractionListener)
+                .addEventListeners(signupInteractionListener, pollInteractionListener, cofferInteractionListener,
+                        teamformingInteractionListener)
                 .build();
     }
 }
