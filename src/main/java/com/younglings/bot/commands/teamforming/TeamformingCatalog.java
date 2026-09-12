@@ -167,15 +167,4 @@ public final class TeamformingCatalog {
         }
         return names;
     }
-
-    /** Every role name owned by the dropdown sections (i.e. excluding standalone toggle buttons). */
-    public static Set<String> allSectionRoleNames() {
-        Set<String> names = new LinkedHashSet<>();
-        for (TeamformingSection section : SECTIONS) {
-            for (TeamformingOption option : section.options()) {
-                names.add(option.roleName());
-            }
-        }
-        return names;
-    }
 }

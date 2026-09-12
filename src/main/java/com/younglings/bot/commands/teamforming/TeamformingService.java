@@ -25,84 +25,85 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Builds the teamforming panel message and resolves dropdown/button interactions to actual
- * Discord role assignments. Every role this feature touches is looked up by its exact
- * (case-insensitive) name via {@link TeamformingCatalog}, created on first use if missing, and
- * every batch reads a member's roles live at the time it's applied. A bot restart loses no actual
- * role assignment (there's nothing cached for those), and roles changed by an admin outside the
- * panel are reflected the next time someone interacts — Discord's own role assignments <i>are</i>
- * the source of truth.
+ * Builds the teamforming panels and resolves interactions to actual Discord role assignments.
  * <p>
- * The one thing kept in memory is short-lived: {@link #pendingByUserId}, a per-user staging area
- * for "tags picked but not yet applied" (see below). Losing that on a restart just means a member
- * has to re-pick before clicking Update Roles — it never affects an already-applied role.
+ * There are two messages:
+ * <ul>
+ *     <li>The <b>public panel</b> ({@link #buildPublicPanelMessage()}), posted once by an admin via
+ *     {@code /teamforming post}. It's the same for everyone and just has an entry-point button —
+ *     it can't show per-viewer state (see below).</li>
+ *     <li>The <b>personal panel</b> ({@link #buildPersonalPanelComponents}), opened fresh (ephemeral,
+ *     so only its viewer can see it) every time a member clicks that button. Every dropdown's
+ *     checkmarks and the Monthly Mass button's color reflect that specific member's actual current
+ *     roles, because — unlike the public panel — an ephemeral message <i>is</i> personalizable.</li>
+ * </ul>
+ * <b>Why two messages:</b> Discord does not support per-viewer default/checked values on a shared,
+ * persistent message's components — a public message looks identical to every viewer, always. An
+ * ephemeral reply has no such restriction, since it's generated fresh for one specific viewer each
+ * time. Building the personal panel this way is what makes accurate checkmarks (and an accurately
+ * colored Monthly Mass button) possible at all.
  * <p>
- * <b>Why staged batches instead of applying immediately:</b> Discord does not support per-viewer
- * default/pre-checked values on a shared, persistent message's select menu — everyone always sees
- * every dropdown as empty when they open it, regardless of what they already hold. That makes
- * "submit = my complete desired state" dangerous (it would silently strip roles a member already
- * had), so selections across every dropdown are staged (added to {@link #pendingByUserId}) and
- * only actually applied when the member clicks <b>Update Roles</b>, which also lets several
- * picks across different boss dropdowns turn into one batched change instead of one confirmation
- * message per click.
+ * Editing a selection or the Monthly Mass button inside the personal panel stages the change and
+ * re-renders that same message in place (no new messages); clicking <b>Update Roles</b> diffs the
+ * final on-screen state against the member's live roles and applies exactly that difference in one
+ * {@code modifyMemberRoles} call. The only in-memory state is that staging area
+ * ({@link #pendingByUserId}) — losing it on a restart just means re-picking before applying, it can
+ * never affect an already-applied role, since actual role assignments are never cached; they're
+ * always read live from Discord at the moment a panel is opened or applied.
  */
 @BService
 public class TeamformingService {
     private static final Logger log = LoggerFactory.getLogger(TeamformingService.class);
 
-    private static final Color PANEL_ACCENT_COLOR = new Color(0xB3, 0x00, 0x00); // dark red, matches the clan logo
+    static final Color PANEL_ACCENT_COLOR = new Color(0xB3, 0x00, 0x00); // dark red, matches the clan logo
     private static final String LOGO_RESOURCE = "images/clan_logo.png";
     private static final String LOGO_FILENAME = "clan_logo.png";
 
+    public static final String OPEN_PANEL_BUTTON_ID = "teamforming_open";
     public static final String TOGGLE_PREFIX = "teamforming_toggle:";
     public static final String SELECT_PREFIX = "teamforming_select:";
-    public static final String MANAGE_TAGS_BUTTON_ID = "teamforming_manage_tags";
-    public static final String REMOVE_SELECT_ID = "teamforming_remove_submit";
     public static final String UPDATE_ROLES_BUTTON_ID = "teamforming_update_roles";
 
-    /** Per-user staged changes, applied together on "Update Roles". Not persisted — see class doc. */
+    /** Per-user staged selections for the personal panel, applied together on "Update Roles". */
     private final Map<Long, PendingChanges> pendingByUserId = new ConcurrentHashMap<>();
 
     private static final class PendingChanges {
-        final Set<String> toAdd = ConcurrentHashMap.newKeySet();
-        final Set<String> toRemove = ConcurrentHashMap.newKeySet();
+        // sectionKey -> the exact set of role names checked for that section, last time it was submitted.
+        // A section absent here hasn't been touched this session, so it's read from live roles instead.
+        final Map<String, Set<String>> sectionSelections = new ConcurrentHashMap<>();
+        volatile Boolean monthlyMassDesired; // null = unchanged from live state
     }
 
-    /** What a batch (or a single toggle) actually changed, as resolved {@link Role}s for mention-friendly replies. */
+    /** What "Update Roles" actually changed, as resolved {@link Role}s for mention-friendly replies. */
     public record BatchResult(List<Role> added, List<Role> removed) {
         public boolean isEmpty() {
             return added.isEmpty() && removed.isEmpty();
         }
     }
 
-    // --- Panel building ---
+    // --- Public panel (posted once by an admin) ---
 
-    /** Builds the full teamforming panel as a single Components V2 message. */
-    public MessageCreateData buildPanelMessage() {
+    public MessageCreateData buildPublicPanelMessage() {
         List<ContainerChildComponent> children = new ArrayList<>();
 
         children.add(buildHeader());
-        children.add(ActionRow.of(buildTopButtons()));
-        children.add(Separator.createDivider(Separator.Spacing.LARGE));
 
-        for (int i = 0; i < TeamformingCatalog.SECTIONS.size(); i++) {
-            TeamformingSection section = TeamformingCatalog.SECTIONS.get(i);
-            children.add(TextDisplay.of("**" + section.emoji() + " " + section.title() + "**\n" + section.prompt()));
-            children.add(ActionRow.of(buildSelectMenu(section)));
-            if (i < TeamformingCatalog.SECTIONS.size() - 1) {
-                children.add(Separator.createDivider(Separator.Spacing.LARGE));
-            }
+        StringBuilder categories = new StringBuilder();
+        for (TeamformingSection section : TeamformingCatalog.SECTIONS) {
+            if (!categories.isEmpty()) categories.append("   ");
+            categories.append(section.emoji()).append(" ").append(section.title());
         }
+        children.add(TextDisplay.of(categories.toString()));
 
-        children.add(ActionRow.of(buildBottomButtons()));
-        children.add(TextDisplay.of(
-                "-# Picking a tag stages it — click **Update Roles** to apply everything you've picked."));
+        children.add(ActionRow.of(Button.primary(OPEN_PANEL_BUTTON_ID, "🎯 Manage My Teamforming Tags")));
+        children.add(TextDisplay.of("-# Click above to see your current tags and update them."));
 
         Container container = Container.of(children).withAccentColor(PANEL_ACCENT_COLOR);
 
@@ -120,7 +121,7 @@ public class TeamformingService {
      */
     private ContainerChildComponent buildHeader() {
         TextDisplay headerText = TextDisplay.of(
-                "### Younglings Teamforming\nClick the buttons and dropdowns below to assign yourself these boss event roles!");
+                "### Younglings Teamforming\nClick the button below to assign yourself boss event roles!");
 
         FileUpload logo = loadLogo();
         if (logo == null) {
@@ -145,22 +146,48 @@ public class TeamformingService {
         }
     }
 
-    private List<Button> buildTopButtons() {
-        List<Button> buttons = new ArrayList<>();
-        for (TeamformingToggle toggle : TeamformingCatalog.TOGGLES) {
-            buttons.add(Button.secondary(TOGGLE_PREFIX + toggle.roleName(), toggle.emoji() + " " + toggle.label()));
+    // --- Personal panel (ephemeral, rebuilt for/by whoever clicks "Manage My Teamforming Tags") ---
+
+    /**
+     * Builds the personal panel's components for this specific member: every dropdown defaults to
+     * exactly what they currently hold (blended with anything they've already changed this
+     * session — see {@link #effectiveSectionSelection}), and the Monthly Mass button is colored
+     * to match its effective state.
+     */
+    public List<ContainerChildComponent> buildPersonalPanelComponents(Member member) {
+        List<ContainerChildComponent> children = new ArrayList<>();
+
+        children.add(TextDisplay.of("### Your Teamforming Tags\nCheck or uncheck tags below, then click **Update Roles**."));
+        children.add(ActionRow.of(buildMonthlyMassButton(member)));
+        children.add(Separator.createDivider(Separator.Spacing.LARGE));
+
+        for (int i = 0; i < TeamformingCatalog.SECTIONS.size(); i++) {
+            TeamformingSection section = TeamformingCatalog.SECTIONS.get(i);
+            children.add(TextDisplay.of("**" + section.emoji() + " " + section.title() + "**\n" + section.prompt()));
+            children.add(ActionRow.of(buildPersonalSelectMenu(member, section)));
+            if (i < TeamformingCatalog.SECTIONS.size() - 1) {
+                children.add(Separator.createDivider(Separator.Spacing.LARGE));
+            }
         }
-        return buttons;
+
+        children.add(ActionRow.of(Button.success(UPDATE_ROLES_BUTTON_ID, "✅ Update Roles")));
+
+        return children;
     }
 
-    private List<Button> buildBottomButtons() {
-        return List.of(
-                Button.secondary(MANAGE_TAGS_BUTTON_ID, "🗑️ Pick Tags to Remove"),
-                Button.success(UPDATE_ROLES_BUTTON_ID, "✅ Update Roles")
-        );
+    private Button buildMonthlyMassButton(Member member) {
+        TeamformingToggle toggle = TeamformingCatalog.TOGGLES.getFirst();
+        String label = toggle.emoji() + " " + toggle.label();
+        String customId = TOGGLE_PREFIX + toggle.roleName();
+
+        return effectiveMonthlyMass(member)
+                ? Button.success(customId, label)
+                : Button.secondary(customId, label);
     }
 
-    private StringSelectMenu buildSelectMenu(TeamformingSection section) {
+    private StringSelectMenu buildPersonalSelectMenu(Member member, TeamformingSection section) {
+        Set<String> defaults = effectiveSectionSelection(member, section);
+
         StringSelectMenu.Builder builder = StringSelectMenu.create(SELECT_PREFIX + section.key())
                 .setPlaceholder(section.selectPlaceholder())
                 .setRequiredRange(0, section.options().size());
@@ -168,8 +195,99 @@ public class TeamformingService {
         for (TeamformingOption option : section.options()) {
             builder.addOption(option.label(), option.roleName(), option.description());
         }
+        if (!defaults.isEmpty()) {
+            builder.setDefaultValues(defaults);
+        }
 
         return builder.build();
+    }
+
+    /** This section's role names the member currently holds, live from Discord — no caching. */
+    private Set<String> liveSectionSelection(Member member, TeamformingSection section) {
+        Set<String> optionRoleNames = new HashSet<>();
+        for (TeamformingOption option : section.options()) optionRoleNames.add(option.roleName());
+
+        Set<String> held = new LinkedHashSet<>();
+        for (Role role : member.getRoles()) {
+            if (optionRoleNames.contains(role.getName())) held.add(role.getName());
+        }
+        return held;
+    }
+
+    /** What a section's dropdown should show as checked right now: staged pick if touched this session, else live roles. */
+    private Set<String> effectiveSectionSelection(Member member, TeamformingSection section) {
+        PendingChanges pending = pendingByUserId.get(member.getIdLong());
+        if (pending != null) {
+            Set<String> staged = pending.sectionSelections.get(section.key());
+            if (staged != null) return staged;
+        }
+        return liveSectionSelection(member, section);
+    }
+
+    /** Whether the Monthly Mass button should render as "on" right now: staged toggle if set, else live role. */
+    private boolean effectiveMonthlyMass(Member member) {
+        PendingChanges pending = pendingByUserId.get(member.getIdLong());
+        if (pending != null && pending.monthlyMassDesired != null) return pending.monthlyMassDesired;
+
+        String roleName = TeamformingCatalog.TOGGLES.getFirst().roleName();
+        for (Role role : member.getRoles()) {
+            if (role.getName().equals(roleName)) return true;
+        }
+        return false;
+    }
+
+    /** Stages a section's dropdown submission — replaces (not merges with) any earlier pick for that section this session. */
+    public void stageSectionSelection(long userId, String sectionKey, List<String> selectedRoleNames) {
+        pendingByUserId.computeIfAbsent(userId, id -> new PendingChanges())
+                .sectionSelections.put(sectionKey, new LinkedHashSet<>(selectedRoleNames));
+    }
+
+    /** Stages the Monthly Mass button's new desired on/off state. */
+    public void stageMonthlyMass(long userId, boolean desired) {
+        pendingByUserId.computeIfAbsent(userId, id -> new PendingChanges()).monthlyMassDesired = desired;
+    }
+
+    /**
+     * Applies (and clears) everything currently shown as checked/on in this member's personal
+     * panel: diffs the effective state of every section plus Monthly Mass against their live
+     * roles, and applies exactly the difference in one {@code modifyMemberRoles} call.
+     */
+    public BatchResult applyPersonalPanel(Guild guild, Member member) {
+        List<Role> toAdd = new ArrayList<>();
+        List<Role> toRemove = new ArrayList<>();
+
+        for (TeamformingSection section : TeamformingCatalog.SECTIONS) {
+            Set<String> desired = effectiveSectionSelection(member, section);
+            Set<String> live = liveSectionSelection(member, section);
+
+            for (TeamformingOption option : section.options()) {
+                String roleName = option.roleName();
+                boolean wants = desired.contains(roleName);
+                boolean has = live.contains(roleName);
+
+                if (wants && !has) {
+                    toAdd.add(ensureRole(guild, roleName));
+                } else if (!wants && has) {
+                    guild.getRolesByName(roleName, true).stream().findFirst().ifPresent(toRemove::add);
+                }
+            }
+        }
+
+        TeamformingToggle monthlyMass = TeamformingCatalog.TOGGLES.getFirst();
+        boolean wantsMonthlyMass = effectiveMonthlyMass(member);
+        boolean hasMonthlyMass = member.getRoles().stream().anyMatch(r -> r.getName().equals(monthlyMass.roleName()));
+        if (wantsMonthlyMass && !hasMonthlyMass) {
+            toAdd.add(ensureRole(guild, monthlyMass.roleName()));
+        } else if (!wantsMonthlyMass && hasMonthlyMass) {
+            guild.getRolesByName(monthlyMass.roleName(), true).stream().findFirst().ifPresent(toRemove::add);
+        }
+
+        if (!toAdd.isEmpty() || !toRemove.isEmpty()) {
+            guild.modifyMemberRoles(member, toAdd, toRemove).complete();
+        }
+
+        pendingByUserId.remove(member.getIdLong());
+        return new BatchResult(toAdd, toRemove);
     }
 
     // --- Role management ---
@@ -249,98 +367,5 @@ public class TeamformingService {
             }
         }
         return deleted;
-    }
-
-    // --- Immediate toggle (Monthly Mass) ---
-
-    /**
-     * Toggles a single role on a member immediately: removes it if they have it, adds it if they
-     * don't. Not part of the staged-batch flow — a single standalone tag doesn't need one.
-     */
-    public BatchResult toggleRole(Guild guild, Member member, String roleName) {
-        Role role = ensureRole(guild, roleName);
-        boolean hadRole = member.getRoles().contains(role);
-
-        if (hadRole) {
-            guild.removeRoleFromMember(member, role).complete();
-            return new BatchResult(List.of(), List.of(role));
-        } else {
-            guild.addRoleToMember(member, role).complete();
-            return new BatchResult(List.of(role), List.of());
-        }
-    }
-
-    // --- Staged batch (boss dropdowns + Pick Tags to Remove + Update Roles) ---
-
-    private PendingChanges pendingFor(long userId) {
-        return pendingByUserId.computeIfAbsent(userId, id -> new PendingChanges());
-    }
-
-    /** Stages roles from a dropdown submission to be granted on the next "Update Roles". */
-    public void stageAdd(long userId, List<String> roleNames) {
-        PendingChanges pending = pendingFor(userId);
-        for (String roleName : roleNames) {
-            pending.toAdd.add(roleName);
-            pending.toRemove.remove(roleName);
-        }
-    }
-
-    /** Stages roles from the "Pick Tags to Remove" menu to be revoked on the next "Update Roles". */
-    public void stageRemove(long userId, List<String> roleNames) {
-        PendingChanges pending = pendingFor(userId);
-        for (String roleName : roleNames) {
-            pending.toRemove.add(roleName);
-            pending.toAdd.remove(roleName);
-        }
-    }
-
-    public boolean hasPendingChanges(long userId) {
-        PendingChanges pending = pendingByUserId.get(userId);
-        return pending != null && (!pending.toAdd.isEmpty() || !pending.toRemove.isEmpty());
-    }
-
-    /**
-     * The teamforming tags this member currently holds, freshly read from their live role list —
-     * used to build the personalized "Pick Tags to Remove" menu, which is always accurate since
-     * it's built from what they actually have rather than any cached/assumed state.
-     */
-    public List<String> getHeldSectionRoleNames(Member member) {
-        Set<String> catalogRoleNames = TeamformingCatalog.allSectionRoleNames();
-        List<String> held = new ArrayList<>();
-        for (Role role : member.getRoles()) {
-            if (catalogRoleNames.contains(role.getName())) held.add(role.getName());
-        }
-        return held;
-    }
-
-    /**
-     * Applies (and clears) everything staged for this member in one batch: creates any roles that
-     * don't exist yet, grants the staged adds, revokes the staged removes, and does it all as a
-     * single {@code modifyMemberRoles} call.
-     */
-    public BatchResult applyPendingChanges(Guild guild, Member member) {
-        PendingChanges pending = pendingByUserId.remove(member.getIdLong());
-        if (pending == null) return new BatchResult(List.of(), List.of());
-
-        Set<String> memberRoleNames = new HashSet<>();
-        for (Role role : member.getRoles()) memberRoleNames.add(role.getName());
-
-        List<Role> rolesToAdd = new ArrayList<>();
-        for (String roleName : pending.toAdd) {
-            if (memberRoleNames.contains(roleName)) continue;
-            rolesToAdd.add(ensureRole(guild, roleName));
-        }
-
-        List<Role> rolesToRemove = new ArrayList<>();
-        for (String roleName : pending.toRemove) {
-            if (!memberRoleNames.contains(roleName)) continue;
-            guild.getRolesByName(roleName, true).stream().findFirst().ifPresent(rolesToRemove::add);
-        }
-
-        if (!rolesToAdd.isEmpty() || !rolesToRemove.isEmpty()) {
-            guild.modifyMemberRoles(member, rolesToAdd, rolesToRemove).complete();
-        }
-
-        return new BatchResult(rolesToAdd, rolesToRemove);
     }
 }

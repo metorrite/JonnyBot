@@ -46,7 +46,7 @@ public class TeamformingCommand {
         event.deferReply(true).queue();
 
         List<String> createdRoles = teamformingService.ensureAllRolesExist(guild);
-        MessageCreateData panel = teamformingService.buildPanelMessage();
+        MessageCreateData panel = teamformingService.buildPublicPanelMessage();
 
         channel.sendMessage(panel).queue(
                 message -> {

@@ -1,22 +1,23 @@
 package com.younglings.bot.commands.teamforming;
 
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
-import net.dv8tion.jda.api.EmbedBuilder;
-import net.dv8tion.jda.api.components.actionrow.ActionRow;
-import net.dv8tion.jda.api.components.selections.StringSelectMenu;
-import net.dv8tion.jda.api.entities.MessageEmbed;
+import net.dv8tion.jda.api.components.MessageTopLevelComponent;
+import net.dv8tion.jda.api.components.buttons.ButtonStyle;
+import net.dv8tion.jda.api.components.container.Container;
+import net.dv8tion.jda.api.components.container.ContainerChildComponent;
+import net.dv8tion.jda.api.components.textdisplay.TextDisplay;
 import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.StringSelectInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.InteractionHook;
-import net.dv8tion.jda.api.interactions.callbacks.IReplyCallback;
 import net.dv8tion.jda.api.interactions.components.ComponentInteraction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.Color;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 
 @BService
@@ -38,64 +39,50 @@ public class TeamformingInteractionListener extends ListenerAdapter {
         String id = event.getComponentId();
         if (event.getGuild() == null || event.getMember() == null) return;
 
-        if (id.startsWith(TeamformingService.TOGGLE_PREFIX)) {
-            handleToggle(event, id);
-        } else if (id.equals(TeamformingService.MANAGE_TAGS_BUTTON_ID)) {
-            handleOpenRemoveMenu(event);
+        if (id.equals(TeamformingService.OPEN_PANEL_BUTTON_ID)) {
+            handleOpenPanel(event);
+        } else if (id.startsWith(TeamformingService.TOGGLE_PREFIX)) {
+            handleToggleMonthlyMass(event);
         } else if (id.equals(TeamformingService.UPDATE_ROLES_BUTTON_ID)) {
             handleUpdateRoles(event);
         }
     }
 
-    private void handleToggle(ButtonInteractionEvent event, String id) {
-        String roleName = id.substring(TeamformingService.TOGGLE_PREFIX.length());
-
+    /** Opens a fresh, personalized ephemeral panel — every checkmark/button color reflects this member's actual roles. */
+    private void handleOpenPanel(ButtonInteractionEvent event) {
         try {
-            TeamformingService.BatchResult result = teamformingService.toggleRole(event.getGuild(), event.getMember(), roleName);
-            replyWithResult(event, result);
+            List<ContainerChildComponent> components = teamformingService.buildPersonalPanelComponents(event.getMember());
+            Container container = Container.of(components).withAccentColor(TeamformingService.PANEL_ACCENT_COLOR);
+
+            event.replyComponents(List.of(container))
+                    .setEphemeral(true)
+                    .useComponentsV2()
+                    .queue();
         } catch (Exception e) {
-            log.error("Failed to toggle teamforming role '{}' for user {}", roleName, event.getUser().getIdLong(), e);
+            log.error("Failed to open personal teamforming panel for user {}", event.getUser().getIdLong(), e);
             replyError(event);
         }
     }
 
-    /** Opens a personalized, ephemeral "pick tags to remove" menu built from the member's actual current roles. */
-    private void handleOpenRemoveMenu(ButtonInteractionEvent event) {
-        List<String> held = teamformingService.getHeldSectionRoleNames(event.getMember());
+    /** Flips the staged Monthly Mass state and re-renders the same ephemeral panel in place. */
+    private void handleToggleMonthlyMass(ButtonInteractionEvent event) {
+        try {
+            boolean currentlyOn = event.getButton().getStyle() == ButtonStyle.SUCCESS;
+            teamformingService.stageMonthlyMass(event.getUser().getIdLong(), !currentlyOn);
 
-        if (held.isEmpty()) {
-            event.reply("You don't currently have any teamforming tags.").setEphemeral(true)
-                    .delay(CONFIRMATION_LIFETIME).flatMap(InteractionHook::deleteOriginal).queue();
-            return;
+            rerenderPanel(event);
+        } catch (Exception e) {
+            log.error("Failed to toggle Monthly Mass for user {}", event.getUser().getIdLong(), e);
+            replyError(event);
         }
-
-        StringSelectMenu.Builder menu = StringSelectMenu.create(TeamformingService.REMOVE_SELECT_ID)
-                .setPlaceholder("Select tag(s) to remove")
-                .setRequiredRange(1, held.size());
-
-        for (String roleName : held) {
-            menu.addOption(roleName, roleName);
-        }
-
-        event.reply("Pick tags to stage for removal, then click **Update Roles** on the panel to apply.")
-                .setEphemeral(true)
-                .addComponents(ActionRow.of(menu.build()))
-                .queue();
     }
 
     private void handleUpdateRoles(ButtonInteractionEvent event) {
-        if (!teamformingService.hasPendingChanges(event.getUser().getIdLong())) {
-            event.reply("You don't have any pending tag changes to apply — pick some tags first.")
-                    .setEphemeral(true)
-                    .delay(CONFIRMATION_LIFETIME).flatMap(InteractionHook::deleteOriginal).queue();
-            return;
-        }
-
         try {
-            TeamformingService.BatchResult result = teamformingService.applyPendingChanges(event.getGuild(), event.getMember());
-            replyWithResult(event, result);
+            TeamformingService.BatchResult result = teamformingService.applyPersonalPanel(event.getGuild(), event.getMember());
+            showResult(event, result);
         } catch (Exception e) {
-            log.error("Failed to apply pending teamforming changes for user {}", event.getUser().getIdLong(), e);
+            log.error("Failed to apply personal teamforming panel for user {}", event.getUser().getIdLong(), e);
             replyError(event);
         }
     }
@@ -104,27 +91,18 @@ public class TeamformingInteractionListener extends ListenerAdapter {
     public void onStringSelectInteraction(StringSelectInteractionEvent event) {
         String id = event.getComponentId();
         if (event.getGuild() == null || event.getMember() == null) return;
+        if (!id.startsWith(TeamformingService.SELECT_PREFIX)) return;
 
-        if (id.startsWith(TeamformingService.SELECT_PREFIX)) {
-            handleSectionSelect(event, id);
-        } else if (id.equals(TeamformingService.REMOVE_SELECT_ID)) {
-            handleRemoveSelect(event);
-        }
-    }
-
-    /** Stages the picked tags and silently acknowledges — no confirmation message per pick, only on Update Roles. */
-    private void handleSectionSelect(StringSelectInteractionEvent event, String id) {
         String sectionKey = id.substring(TeamformingService.SELECT_PREFIX.length());
-        TeamformingSection section = TeamformingCatalog.sectionByKey(sectionKey);
-        if (section == null) {
+        if (TeamformingCatalog.sectionByKey(sectionKey) == null) {
             event.reply("This teamforming section no longer exists — ask an admin to re-post the panel.")
                     .setEphemeral(true).queue();
             return;
         }
 
         try {
-            teamformingService.stageAdd(event.getUser().getIdLong(), event.getValues());
-            event.deferEdit().queue();
+            teamformingService.stageSectionSelection(event.getUser().getIdLong(), sectionKey, event.getValues());
+            rerenderPanel(event);
         } catch (Exception e) {
             log.error("Failed to stage teamforming selection for section '{}', user {}",
                     sectionKey, event.getUser().getIdLong(), e);
@@ -132,68 +110,48 @@ public class TeamformingInteractionListener extends ListenerAdapter {
         }
     }
 
-    private void handleRemoveSelect(StringSelectInteractionEvent event) {
-        try {
-            teamformingService.stageRemove(event.getUser().getIdLong(), event.getValues());
-            event.editMessage("Staged for removal: **" + String.join("**, **", event.getValues()) + "**\n" +
-                            "Click **Update Roles** on the panel to apply.")
-                    .setComponents()
-                    .delay(CONFIRMATION_LIFETIME)
-                    .flatMap(InteractionHook::deleteOriginal)
-                    .queue();
-        } catch (Exception e) {
-            log.error("Failed to stage teamforming removal for user {}", event.getUser().getIdLong(), e);
-            replyError(event);
-        }
+    /** Rebuilds the personal panel from current staged+live state and edits the same (ephemeral) message in place. */
+    private void rerenderPanel(ComponentInteraction event) {
+        List<ContainerChildComponent> components = teamformingService.buildPersonalPanelComponents(event.getMember());
+        Container container = Container.of(components).withAccentColor(TeamformingService.PANEL_ACCENT_COLOR);
+
+        event.editComponents(List.of(container))
+                .useComponentsV2(true)
+                .queue();
     }
 
-    // --- Reply building ---
+    /** Replaces the personal panel with a final "Added"/"Removed" result view, then auto-deletes it. */
+    private void showResult(ButtonInteractionEvent event, TeamformingService.BatchResult result) {
+        List<MessageTopLevelComponent> components = new ArrayList<>();
 
-    /** Sends the green-added / red-removed confirmation embed(s) for a completed change, role-mentioning without pinging. */
-    private void replyWithResult(IReplyCallback event, TeamformingService.BatchResult result) {
         if (result.isEmpty()) {
-            event.reply("No changes were made — you already had everything you selected.")
-                    .setEphemeral(true)
-                    .delay(CONFIRMATION_LIFETIME).flatMap(InteractionHook::deleteOriginal).queue();
-            return;
+            components.add(TextDisplay.of("No changes were made — your tags already matched your selections."));
+        } else {
+            if (!result.added().isEmpty()) {
+                components.add(Container.of(TextDisplay.of("Added role: " + mentionAll(result.added())))
+                        .withAccentColor(ADDED_COLOR));
+            }
+            if (!result.removed().isEmpty()) {
+                components.add(Container.of(TextDisplay.of("Removed role: " + mentionAll(result.removed())))
+                        .withAccentColor(REMOVED_COLOR));
+            }
         }
 
-        if (!result.added().isEmpty()) {
-            sendResultEmbed(event, "Added", ADDED_COLOR, result.added(), true);
-        }
-        if (!result.removed().isEmpty()) {
-            sendResultEmbed(event, "Removed", REMOVED_COLOR, result.removed(), result.added().isEmpty());
-        }
+        event.editComponents(components)
+                .useComponentsV2(true)
+                .setAllowedMentions(List.of()) // show the role mention(s) without actually pinging them
+                .delay(CONFIRMATION_LIFETIME)
+                .flatMap(InteractionHook::deleteOriginal)
+                .queue();
     }
 
-    /**
-     * An interaction can only be replied to once — {@code isFirstReply} picks between
-     * {@code event.reply(...)} (the interaction's one reply) and a followup message sent via its
-     * hook (for a second embed on the same interaction, e.g. both an "Added" and a "Removed"
-     * embed from one Update Roles click).
-     */
-    private void sendResultEmbed(IReplyCallback event, String verb, Color color, List<Role> roles, boolean isFirstReply) {
-        String mentions = roles.stream()
-                .map(role -> "<@&" + role.getIdLong() + ">")
-                .reduce((a, b) -> a + " " + b)
-                .orElse("");
-        MessageEmbed embed = new EmbedBuilder().setColor(color).setDescription(verb + " role: " + mentions).build();
-
-        if (isFirstReply) {
-            event.replyEmbeds(embed)
-                    .setEphemeral(true)
-                    .setAllowedMentions(List.of()) // show the role mention without actually pinging it
-                    .delay(CONFIRMATION_LIFETIME)
-                    .flatMap(InteractionHook::deleteOriginal)
-                    .queue();
-        } else {
-            event.getHook().sendMessageEmbeds(embed)
-                    .setEphemeral(true)
-                    .setAllowedMentions(List.of())
-                    .delay(CONFIRMATION_LIFETIME)
-                    .flatMap(message -> event.getHook().deleteMessageById(message.getIdLong()))
-                    .queue();
+    private String mentionAll(List<Role> roles) {
+        StringBuilder sb = new StringBuilder();
+        for (Role role : roles) {
+            if (!sb.isEmpty()) sb.append(" ");
+            sb.append("<@&").append(role.getIdLong()).append(">");
         }
+        return sb.toString();
     }
 
     private void replyError(ComponentInteraction event) {
