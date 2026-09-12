@@ -10,14 +10,15 @@ import java.util.Set;
  * top of the panel and the per-boss dropdown sections below it. This is the single source of
  * truth for role names and colors: {@link TeamformingService} uses it to create/find/delete/color
  * roles, and {@link TeamformingCommand} / {@link TeamformingInteractionListener} use it to build
- * the panel and route interactions back to a role.
+ * the panels and route interactions back to a role.
  * <p>
- * To add, rename, recolor, or remove a teamforming tag, edit this file only — nothing else needs
- * to change. Note the total component budget: the panel is built as a single Components V2
- * message (see {@link TeamformingService#buildPanelMessage()}), capped by Discord at 40
- * components in the tree. Each section currently costs 4 (a divider + header text + a select-menu
- * row + its select menu), so there's limited room for more sections/options before that limit
- * needs to be worked around (e.g. splitting into two messages).
+ * {@link #SECTIONS} is kept in alphabetical order by {@link TeamformingSection#title()} — insert
+ * new entries in the right place to keep it that way. To add, rename, recolor, or remove a
+ * teamforming tag, edit this file only — nothing else needs to change. Note the total component
+ * budget: the personal panel is built as a single Components V2 message (see
+ * {@link TeamformingService#buildPersonalPanelComponents}), capped by Discord at 40 components in
+ * the tree — there's limited room for more sections/options before that needs to be worked around
+ * (e.g. splitting into two messages).
  */
 public final class TeamformingCatalog {
 
@@ -26,10 +27,10 @@ public final class TeamformingCatalog {
     // a distinct shade so they don't render identically in the member's role list.
     private static final Color AMASCUT_GREEN = new Color(0x2E, 0xCC, 0x71); // Emerald
     private static final Color RAIDS_YELLOW = new Color(0xF1, 0xC4, 0x0F);  // Sunflower
-    private static final Color AOD_RED = new Color(0xE7, 0x4C, 0x3C);       // bright/blood red
+    private static final Color NEX_RED = new Color(0xD6, 0x28, 0x39);       // deep crimson (deeper/more visible than before)
     private static final Color SOLAK_GREEN = new Color(0x16, 0xA0, 0x85);   // sea green (distinct from Amascut)
     private static final Color VORAGO_ORANGE = new Color(0xE6, 0x7E, 0x22); // carrot orange
-    private static final Color ZAMORAK_RED = new Color(0x99, 0x2D, 0x22);   // deep/dark red (distinct from AOD)
+    private static final Color ZAMORAK_RED = new Color(0x8B, 0x00, 0x00);   // deep dark red (deeper/more visible than before, distinct from Nex)
     private static final Color ELITE_DUNGEONS_PURPLE = new Color(0x9B, 0x59, 0xB6); // amethyst
     private static final Color KALPHITE_KING_ORANGE = new Color(0xD3, 0x54, 0x00);  // burnt orange (distinct from Vorago)
     private static final Color ROTS_PURPLE = new Color(0x8E, 0x44, 0xAD);           // wisteria (distinct from Elite Dungeons)
@@ -56,6 +57,23 @@ public final class TeamformingCatalog {
                     )
             ),
             new TeamformingSection(
+                    "group", "⚔️", "Group Encounters",
+                    "Select the matchmaking tag(s) for other group encounters:",
+                    "Pick a Group Boss Role", null,
+                    List.of(
+                            new TeamformingOption("Elite Dungeons",
+                                    "Teamforming for Elite Dungeon(s) 1-3.", "Elite Dungeons", ELITE_DUNGEONS_PURPLE),
+                            new TeamformingOption("Kalphite King",
+                                    "Teamforming for Kalphite King.", "Kalphite King", KALPHITE_KING_ORANGE),
+                            new TeamformingOption("ROTS",
+                                    "Teamforming for Barrows: Rise of the Six.", "ROTS", ROTS_PURPLE),
+                            new TeamformingOption("Croesus",
+                                    "Skilling Boss tag for Croesus and the Gate of Elidinis.", "Croesus", CROESUS_GREEN),
+                            new TeamformingOption("Sanctum of Rebirth",
+                                    "Teamforming for the Sanctum of Rebirth.", "Sanctum of Rebirth", SANCTUM_BLUE)
+                    )
+            ),
+            new TeamformingSection(
                     "raids", "🏛️", "Liberations of Mazcab",
                     "Select the matchmaking tag(s) for teamforming to face Yakamaru and Beastmaster Durzag:",
                     "Pick a Raids Role", RAIDS_YELLOW,
@@ -67,9 +85,11 @@ public final class TeamformingCatalog {
                     )
             ),
             new TeamformingSection(
-                    "aod", "🐉", "AOD",
+                    // Display title is "Nex, Angel of Death" per the repo owner's request; the tag
+                    // (role name), option label, and description all intentionally stay "AOD".
+                    "aod", "🐉", "Nex, Angel of Death",
                     "Select the matchmaking tag for AOD:",
-                    "Pick an AOD Role", AOD_RED,
+                    "Pick an AOD Role", NEX_RED,
                     List.of(
                             new TeamformingOption("AOD",
                                     "General teamforming tag for AOD.", "AOD", null)
@@ -111,23 +131,6 @@ public final class TeamformingCatalog {
                             new TeamformingOption("Zamorak High Enrage",
                                     "High Enrage kills above 1,000%.", "Zamorak High Enrage", null)
                     )
-            ),
-            new TeamformingSection(
-                    "group", "⚔️", "Group Encounters",
-                    "Select the matchmaking tag(s) for other group encounters:",
-                    "Pick a Group Boss Role", null,
-                    List.of(
-                            new TeamformingOption("Elite Dungeons",
-                                    "Teamforming for Elite Dungeon(s) 1-3.", "Elite Dungeons", ELITE_DUNGEONS_PURPLE),
-                            new TeamformingOption("Kalphite King",
-                                    "Teamforming for Kalphite King.", "Kalphite King", KALPHITE_KING_ORANGE),
-                            new TeamformingOption("ROTS",
-                                    "Teamforming for Barrows: Rise of the Six.", "ROTS", ROTS_PURPLE),
-                            new TeamformingOption("Croesus",
-                                    "Skilling Boss tag for Croesus and the Gate of Elidinis.", "Croesus", CROESUS_GREEN),
-                            new TeamformingOption("Sanctum of Rebirth",
-                                    "Teamforming for the Sanctum of Rebirth.", "Sanctum of Rebirth", SANCTUM_BLUE)
-                    )
             )
     );
 
@@ -137,6 +140,16 @@ public final class TeamformingCatalog {
     public static TeamformingSection sectionByKey(String key) {
         for (TeamformingSection section : SECTIONS) {
             if (section.key().equals(key)) return section;
+        }
+        return null;
+    }
+
+    /** The section that owns this role name, or {@code null} if it's a toggle role (or unknown). */
+    public static TeamformingSection sectionForRoleName(String roleName) {
+        for (TeamformingSection section : SECTIONS) {
+            for (TeamformingOption option : section.options()) {
+                if (option.roleName().equals(roleName)) return section;
+            }
         }
         return null;
     }

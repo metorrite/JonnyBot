@@ -18,7 +18,9 @@ import org.slf4j.LoggerFactory;
 import java.awt.Color;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @BService
 public class TeamformingInteractionListener extends ListenerAdapter {
@@ -128,11 +130,11 @@ public class TeamformingInteractionListener extends ListenerAdapter {
             components.add(TextDisplay.of("No changes were made — your tags already matched your selections."));
         } else {
             if (!result.added().isEmpty()) {
-                components.add(Container.of(TextDisplay.of("Added role: " + mentionAll(result.added())))
+                components.add(Container.of(TextDisplay.of("Added roles:\n" + mentionsGroupedByBoss(result.added())))
                         .withAccentColor(ADDED_COLOR));
             }
             if (!result.removed().isEmpty()) {
-                components.add(Container.of(TextDisplay.of("Removed role: " + mentionAll(result.removed())))
+                components.add(Container.of(TextDisplay.of("Removed roles:\n" + mentionsGroupedByBoss(result.removed())))
                         .withAccentColor(REMOVED_COLOR));
             }
         }
@@ -143,6 +145,34 @@ public class TeamformingInteractionListener extends ListenerAdapter {
                 .delay(CONFIRMATION_LIFETIME)
                 .flatMap(InteractionHook::deleteOriginal)
                 .queue();
+    }
+
+    /**
+     * Groups roles by the boss/category they belong to (in catalog order), one line per group, so
+     * a batch touching several bosses reads as clearly separated blocks instead of one long run of
+     * mentions. Roles not tied to any section (e.g. Monthly Mass) are listed on their own first line.
+     */
+    private String mentionsGroupedByBoss(List<Role> roles) {
+        List<Role> ungrouped = new ArrayList<>();
+        Map<TeamformingSection, List<Role>> bySection = new LinkedHashMap<>();
+
+        for (Role role : roles) {
+            TeamformingSection section = TeamformingCatalog.sectionForRoleName(role.getName());
+            if (section == null) {
+                ungrouped.add(role);
+            } else {
+                bySection.computeIfAbsent(section, s -> new ArrayList<>()).add(role);
+            }
+        }
+
+        List<String> lines = new ArrayList<>();
+        if (!ungrouped.isEmpty()) lines.add(mentionAll(ungrouped));
+        for (TeamformingSection section : TeamformingCatalog.SECTIONS) {
+            List<Role> group = bySection.get(section);
+            if (group != null && !group.isEmpty()) lines.add(mentionAll(group));
+        }
+
+        return String.join("\n\n", lines);
     }
 
     private String mentionAll(List<Role> roles) {
