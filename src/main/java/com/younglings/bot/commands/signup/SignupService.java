@@ -364,76 +364,48 @@ public class SignupService {
 
         for (SignupMessage signupMessage : messages) {
             TextChannel channel = guild.getTextChannelById(signupMessage.channelId());
+            final long messageId = signupMessage.messageId();
 
             if (channel == null) {
-                signupRepository.markMessageInactive(signupMessage.messageId());
+                signupRepository.markMessageInactive(messageId);
                 continue;
             }
 
-            if ("PUBLIC".equalsIgnoreCase(signupMessage.messageType())) {
-                channel.retrieveMessageById(signupMessage.messageId())
-                        .queue(
-                                message -> {
-                                    EmbedBuilder closedEmbed = new EmbedBuilder()
-                                            .setTitle(session.title())
-                                            .setDescription("""
-                                                    ***This signup form has been closed.***
-
-                                                    Thanks to everyone who participated.
-                                                    """)
-                                            .setFooter("Status: CLOSED")
-                                            .setColor(Color.DARK_GRAY);
-
-                                    message.editMessageEmbeds(closedEmbed.build())
-                                            .setComponents()
-                                            .queue();
-
-                                    signupRepository.markMessageInactive(signupMessage.messageId());
-                                },
-                                failure -> signupRepository.markMessageInactive(signupMessage.messageId())
-                        );
-            }
+            channel.deleteMessageById(messageId).queue(
+                    success -> signupRepository.markMessageInactive(messageId),
+                    failure -> {
+                        signupRepository.markMessageInactive(messageId);
+                        log.warn("Could not delete signup message {} ({})", messageId, signupMessage.messageType());
+                    }
+            );
         }
 
         signupRepository.deleteSignupForAdminArchive(signupId);
-        updateDeletedAdminPanels(guild, signupId, session);
-
         activeSignupsById.remove(signupId);
         log.info("Deleted signup {} '{}'", signupId, session.title());
     }
 
-    private void updateDeletedAdminPanels(Guild guild, long signupId, SignupSession session) {
-        List<SignupMessage> messages = signupRepository.getActiveMessages(signupId);
-
-        EmbedBuilder deletedEmbed = new EmbedBuilder()
-                .setTitle(session.title() + " - Admin Controls")
-                .setDescription("""
-                        **SIGNUP FORM DELETED**
-
-                        This signup has been closed.
-                        Public signup panels were removed.
-                        The entries were cleared.
-                        """)
-                .setFooter("Status: DELETED")
-                .setColor(Color.DARK_GRAY);
-
-        for (SignupMessage signupMessage : messages) {
-            if (!"ADMIN".equalsIgnoreCase(signupMessage.messageType())) continue;
-
-            TextChannel channel = guild.getTextChannelById(signupMessage.channelId());
+    public void deletePingMessages(Guild guild, long signupId) {
+        List<SignupMessage> pings = signupRepository.getActivePingMessages(signupId);
+        for (SignupMessage msg : pings) {
+            TextChannel channel = guild.getTextChannelById(msg.channelId());
+            final long messageId = msg.messageId();
             if (channel == null) {
-                signupRepository.markMessageInactive(signupMessage.messageId());
+                signupRepository.markMessageInactive(messageId);
                 continue;
             }
-
-            channel.retrieveMessageById(signupMessage.messageId())
-                    .queue(
-                            message -> message.editMessageEmbeds(deletedEmbed.build())
-                                    .setComponents()
-                                    .queue(),
-                            failure -> signupRepository.markMessageInactive(signupMessage.messageId())
-                    );
+            channel.deleteMessageById(messageId).queue(
+                    success -> signupRepository.markMessageInactive(messageId),
+                    failure -> {
+                        signupRepository.markMessageInactive(messageId);
+                        log.warn("Could not delete ping message {}", messageId);
+                    }
+            );
         }
+    }
+
+    public void savePingMessage(long signupId, long guildId, long channelId, long messageId) {
+        signupRepository.saveMessage(signupId, guildId, channelId, messageId, "PING");
     }
 
     // --- Panel posting ---

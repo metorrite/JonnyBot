@@ -256,7 +256,12 @@ public class SignupInteractionListener extends ListenerAdapter {
                     return;
                 }
 
-                channel.sendMessage("<@&" + session.groupRoleId() + ">").queue();
+                signupService.deletePingMessages(event.getGuild(), signupId);
+
+                long guildId = event.getGuild().getIdLong();
+                long channelId = channel.getIdLong();
+                channel.sendMessage("<@&" + session.groupRoleId() + ">")
+                        .queue(msg -> signupService.savePingMessage(signupId, guildId, channelId, msg.getIdLong()));
 
                 event.reply("Group notified!")
                         .setEphemeral(true)
@@ -712,7 +717,12 @@ public class SignupInteractionListener extends ListenerAdapter {
         var channel = event.getGuild().getTextChannelById(publicMessage.channelId());
         if (channel == null) return;
 
-        channel.sendMessage("<@" + newFirst.userId() + ">, " + session.notificationMessage()).queue();
+        signupService.deletePingMessages(event.getGuild(), signupId);
+
+        long guildId = event.getGuild().getIdLong();
+        long channelId = channel.getIdLong();
+        channel.sendMessage("<@" + newFirst.userId() + ">, " + session.notificationMessage())
+                .queue(msg -> signupService.savePingMessage(signupId, guildId, channelId, msg.getIdLong()));
     }
 
     private long parseUserId(String input) {
