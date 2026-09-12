@@ -5,7 +5,6 @@ import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import io.github.freya022.botcommands.api.core.db.ConnectionSupplier;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
-import org.flywaydb.core.Flyway;
 import org.jspecify.annotations.NonNull;
 
 import java.net.URI;
@@ -23,19 +22,6 @@ public class DatabaseSource implements ConnectionSupplier {
         hikariConfig.setMaximumPoolSize(5);
 
         this.dataSource = new HikariDataSource(hikariConfig);
-
-        runMigrations();
-    }
-
-    private void runMigrations() {
-        Flyway.configure(getClass().getClassLoader())
-                .dataSource(dataSource)
-                .schemas("bc")
-                .locations("bc_database_scripts")
-                .validateMigrationNaming(true)
-                .loggers("slf4j")
-                .load()
-                .migrate();
     }
 
     @Override
