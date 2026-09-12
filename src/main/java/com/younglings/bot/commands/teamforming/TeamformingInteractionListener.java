@@ -1,6 +1,8 @@
 package com.younglings.bot.commands.teamforming;
 
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
+import net.dv8tion.jda.api.components.actionrow.ActionRow;
+import net.dv8tion.jda.api.components.selections.StringSelectMenu;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
@@ -9,6 +11,8 @@ import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.components.ComponentInteraction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.List;
 
 @BService
 public class TeamformingInteractionListener extends ListenerAdapter {
@@ -23,9 +27,16 @@ public class TeamformingInteractionListener extends ListenerAdapter {
     @Override
     public void onButtonInteraction(ButtonInteractionEvent event) {
         String id = event.getComponentId();
-        if (!id.startsWith(TeamformingService.TOGGLE_PREFIX)) return;
         if (event.getGuild() == null || event.getMember() == null) return;
 
+        if (id.startsWith(TeamformingService.TOGGLE_PREFIX)) {
+            handleToggle(event, id);
+        } else if (id.equals(TeamformingService.MANAGE_TAGS_BUTTON_ID)) {
+            handleOpenRemoveMenu(event);
+        }
+    }
+
+    private void handleToggle(ButtonInteractionEvent event, String id) {
         String roleName = id.substring(TeamformingService.TOGGLE_PREFIX.length());
 
         try {
@@ -40,12 +51,42 @@ public class TeamformingInteractionListener extends ListenerAdapter {
         }
     }
 
+    /** Opens a personalized, ephemeral "pick tags to remove" menu built from the member's actual current roles. */
+    private void handleOpenRemoveMenu(ButtonInteractionEvent event) {
+        List<String> held = teamformingService.getHeldSectionRoleNames(event.getMember());
+
+        if (held.isEmpty()) {
+            event.reply("You don't currently have any teamforming tags to remove.").setEphemeral(true).queue();
+            return;
+        }
+
+        StringSelectMenu.Builder menu = StringSelectMenu.create(TeamformingService.REMOVE_SELECT_ID)
+                .setPlaceholder("Select tag(s) to remove")
+                .setRequiredRange(1, held.size());
+
+        for (String roleName : held) {
+            menu.addOption(roleName, roleName);
+        }
+
+        event.reply("Select which of your current tags to remove:")
+                .setEphemeral(true)
+                .addComponents(ActionRow.of(menu.build()))
+                .queue();
+    }
+
     @Override
     public void onStringSelectInteraction(StringSelectInteractionEvent event) {
         String id = event.getComponentId();
-        if (!id.startsWith(TeamformingService.SELECT_PREFIX)) return;
         if (event.getGuild() == null || event.getMember() == null) return;
 
+        if (id.startsWith(TeamformingService.SELECT_PREFIX)) {
+            handleSectionSelect(event, id);
+        } else if (id.equals(TeamformingService.REMOVE_SELECT_ID)) {
+            handleRemoveSelect(event);
+        }
+    }
+
+    private void handleSectionSelect(StringSelectInteractionEvent event, String id) {
         String sectionKey = id.substring(TeamformingService.SELECT_PREFIX.length());
         TeamformingSection section = TeamformingCatalog.sectionByKey(sectionKey);
         if (section == null) {
@@ -57,30 +98,30 @@ public class TeamformingInteractionListener extends ListenerAdapter {
         try {
             Guild guild = event.getGuild();
             Member member = event.getMember();
-            TeamformingService.SyncResult result = teamformingService.syncSelection(guild, member, section, event.getValues());
+            List<String> added = teamformingService.applySelection(guild, member, event.getValues());
 
-            event.reply(buildSyncMessage(section, result)).setEphemeral(true).queue();
+            String message = added.isEmpty()
+                    ? "You already have all the tag(s) you selected for " + section.title() + "."
+                    : "Added: **" + String.join("**, **", added) + "**";
+            event.reply(message).setEphemeral(true).queue();
         } catch (Exception e) {
-            log.error("Failed to sync teamforming selection for section '{}', user {}",
+            log.error("Failed to apply teamforming selection for section '{}', user {}",
                     sectionKey, event.getUser().getIdLong(), e);
             replyError(event);
         }
     }
 
-    private String buildSyncMessage(TeamformingSection section, TeamformingService.SyncResult result) {
-        if (result.added().isEmpty() && result.removed().isEmpty()) {
-            return "Your " + section.title() + " tags are unchanged.";
+    private void handleRemoveSelect(StringSelectInteractionEvent event) {
+        try {
+            List<String> removed = teamformingService.removeRoles(event.getGuild(), event.getMember(), event.getValues());
+            String message = removed.isEmpty()
+                    ? "No tags were removed."
+                    : "Removed: **" + String.join("**, **", removed) + "**";
+            event.editMessage(message).setComponents().queue();
+        } catch (Exception e) {
+            log.error("Failed to remove teamforming roles for user {}", event.getUser().getIdLong(), e);
+            replyError(event);
         }
-
-        StringBuilder sb = new StringBuilder();
-        if (!result.added().isEmpty()) {
-            sb.append("Added: **").append(String.join("**, **", result.added())).append("**");
-        }
-        if (!result.removed().isEmpty()) {
-            if (!sb.isEmpty()) sb.append("\n");
-            sb.append("Removed: **").append(String.join("**, **", result.removed())).append("**");
-        }
-        return sb.toString();
     }
 
     private void replyError(ComponentInteraction event) {

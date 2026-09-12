@@ -1,5 +1,6 @@
 package com.younglings.bot.commands.teamforming;
 
+import java.awt.Color;
 import java.util.List;
 
 /**
@@ -13,8 +14,12 @@ import java.util.List;
  * @param title             boss/category display name
  * @param prompt            one-line instruction shown under the title
  * @param selectPlaceholder placeholder text shown on the (unopened) dropdown
+ * @param color             role color for every option in this section, unless an option
+ *                          specifies its own (see {@link TeamformingOption#color()}); {@code null}
+ *                          if every option here needs its own distinct color (e.g. "Group
+ *                          Encounters", where each option is an unrelated boss)
  * @param options           the tags selectable in this section's dropdown
  */
 public record TeamformingSection(String key, String emoji, String title, String prompt,
-                                  String selectPlaceholder, List<TeamformingOption> options) {
+                                  String selectPlaceholder, Color color, List<TeamformingOption> options) {
 }

@@ -13,6 +13,7 @@ import net.dv8tion.jda.api.components.thumbnail.Thumbnail;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Role;
+import net.dv8tion.jda.api.requests.restaction.RoleAction;
 import net.dv8tion.jda.api.utils.FileUpload;
 import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
 import net.dv8tion.jda.api.utils.messages.MessageCreateData;
@@ -29,23 +30,35 @@ import java.util.Set;
 
 /**
  * Builds the teamforming panel message and resolves dropdown/button interactions to actual
- * Discord role assignments. Entirely stateless — no database involved. Every role this feature
- * touches is looked up by its exact (case-insensitive) name via {@link TeamformingCatalog}, and
- * created on first use if it doesn't exist yet.
+ * Discord role assignments. Entirely stateless — no database, no in-memory cache. Every role this
+ * feature touches is looked up by its exact (case-insensitive) name via {@link TeamformingCatalog},
+ * created on first use if missing, and every interaction reads a member's roles live at the time
+ * of that interaction. That means a bot restart loses nothing (there's nothing cached to lose),
+ * and roles changed by an admin outside the panel are reflected immediately the next time someone
+ * interacts — Discord's own role assignments <i>are</i> the source of truth here.
+ * <p>
+ * The one thing that can't be made "live": Discord does not support per-viewer default/pre-checked
+ * values on a shared, persistent message's select menu — everyone always sees every dropdown as
+ * empty when they open it, regardless of what they already hold. Building the dropdowns as
+ * "submit = my complete desired state, remove anything unchecked" would silently strip roles a
+ * member already had just because they didn't know to re-check them. So the dropdowns are
+ * add-only ({@link #applySelection}) — selecting a tag can only grant it, never revoke one you
+ * didn't select — and removal happens through a separate, personalized ephemeral menu
+ * ({@link #getHeldSectionRoleNames}/{@link #removeRoles}) that's built fresh from the member's
+ * actual current roles each time it's opened, so it's always accurate.
  */
 @BService
 public class TeamformingService {
     private static final Logger log = LoggerFactory.getLogger(TeamformingService.class);
 
-    private static final Color ACCENT_COLOR = new Color(0xB3, 0x00, 0x00); // dark red, matches the clan logo
+    private static final Color PANEL_ACCENT_COLOR = new Color(0xB3, 0x00, 0x00); // dark red, matches the clan logo
     private static final String LOGO_RESOURCE = "images/clan_logo.png";
     private static final String LOGO_FILENAME = "clan_logo.png";
 
     public static final String TOGGLE_PREFIX = "teamforming_toggle:";
     public static final String SELECT_PREFIX = "teamforming_select:";
-
-    /** What changed on a member's roles after a dropdown submission, for the confirmation reply. */
-    public record SyncResult(List<String> added, List<String> removed) {}
+    public static final String MANAGE_TAGS_BUTTON_ID = "teamforming_manage_tags";
+    public static final String REMOVE_SELECT_ID = "teamforming_remove_submit";
 
     // --- Panel building ---
 
@@ -54,18 +67,23 @@ public class TeamformingService {
         List<ContainerChildComponent> children = new ArrayList<>();
 
         children.add(buildHeader());
-        children.add(ActionRow.of(buildToggleButtons()));
+        children.add(ActionRow.of(buildTopButtons()));
         children.add(Separator.createDivider(Separator.Spacing.SMALL));
 
-        for (TeamformingSection section : TeamformingCatalog.SECTIONS) {
+        for (int i = 0; i < TeamformingCatalog.SECTIONS.size(); i++) {
+            TeamformingSection section = TeamformingCatalog.SECTIONS.get(i);
             children.add(TextDisplay.of("**" + section.emoji() + " " + section.title() + "**\n" + section.prompt()));
             children.add(ActionRow.of(buildSelectMenu(section)));
+            if (i < TeamformingCatalog.SECTIONS.size() - 1) {
+                children.add(Separator.createDivider(Separator.Spacing.SMALL));
+            }
         }
 
         children.add(Separator.createDivider(Separator.Spacing.SMALL));
-        children.add(TextDisplay.of("-# Roles update instantly based on your selections."));
+        children.add(TextDisplay.of(
+                "-# Selecting a tag adds it. Use 🗑️ Remove Tags above to remove any tag you're holding."));
 
-        Container container = Container.of(children).withAccentColor(ACCENT_COLOR);
+        Container container = Container.of(children).withAccentColor(PANEL_ACCENT_COLOR);
 
         return new MessageCreateBuilder()
                 .useComponentsV2()
@@ -73,7 +91,12 @@ public class TeamformingService {
                 .build();
     }
 
-    /** Header block: clan logo thumbnail (if the resource is present) next to the title/blurb. */
+    /**
+     * Header block: clan logo thumbnail (if the resource is present) next to the title/blurb.
+     * <p>
+     * Note: Discord's {@link Section} component is fixed as "content on the left, accessory on
+     * the right" — there's no supported way to put the thumbnail on the left instead.
+     */
     private ContainerChildComponent buildHeader() {
         TextDisplay headerText = TextDisplay.of(
                 "### Younglings Teamforming\nClick the buttons and dropdowns below to assign yourself these boss event roles!");
@@ -101,11 +124,12 @@ public class TeamformingService {
         }
     }
 
-    private List<Button> buildToggleButtons() {
+    private List<Button> buildTopButtons() {
         List<Button> buttons = new ArrayList<>();
         for (TeamformingToggle toggle : TeamformingCatalog.TOGGLES) {
             buttons.add(Button.secondary(TOGGLE_PREFIX + toggle.roleName(), toggle.emoji() + " " + toggle.label()));
         }
+        buttons.add(Button.danger(MANAGE_TAGS_BUTTON_ID, "🗑️ Remove Tags"));
         return buttons;
     }
 
@@ -123,36 +147,54 @@ public class TeamformingService {
 
     // --- Role management ---
 
-    /** Finds an existing role by exact (case-insensitive) name, or creates it if none exists. */
+    /**
+     * Finds an existing role by exact (case-insensitive) name, creating it (with its catalog
+     * color) if none exists. If it already exists but its color doesn't match the catalog, its
+     * color is updated to match — so re-running {@code /teamforming post} after a color change in
+     * the catalog fixes already-created roles too.
+     */
     public Role ensureRole(Guild guild, String roleName) {
-        List<Role> existing = guild.getRolesByName(roleName, true);
-        if (!existing.isEmpty()) return existing.getFirst();
+        Color catalogColor = TeamformingCatalog.colorForRoleName(roleName);
 
-        Role created = guild.createRole()
-                .setName(roleName)
-                .setMentionable(true)
-                .complete();
+        List<Role> existing = guild.getRolesByName(roleName, true);
+        if (!existing.isEmpty()) {
+            Role role = existing.getFirst();
+            if (catalogColor != null) {
+                int currentRgb = role.getColors().getPrimaryRaw() & 0xFFFFFF;
+                int catalogRgb = catalogColor.getRGB() & 0xFFFFFF;
+                if (currentRgb != catalogRgb) {
+                    role.getManager().setColor(catalogColor).complete();
+                }
+            }
+            return role;
+        }
+
+        RoleAction action = guild.createRole().setName(roleName).setMentionable(true);
+        if (catalogColor != null) {
+            action = action.setColor(catalogColor);
+        }
+
+        Role created = action.complete();
         log.info("Created teamforming role '{}' in guild {}", roleName, guild.getIdLong());
         return created;
     }
 
     /**
-     * Ensures every role in the teamforming catalog exists in the guild, creating any that are
-     * missing. Meant to be run once from {@code /teamforming post}, so every dropdown/button works
-     * immediately once the panel is live.
+     * Ensures every role in the teamforming catalog exists (and is colored correctly) in the
+     * guild, creating any that are missing. Meant to be run once from {@code /teamforming post},
+     * so every dropdown/button works immediately once the panel is live.
      *
      * @return the names of roles that were newly created (empty if they all already existed)
      */
     public List<String> ensureAllRolesExist(Guild guild) {
         List<String> created = new ArrayList<>();
         for (String roleName : TeamformingCatalog.allRoleNames()) {
-            if (!guild.getRolesByName(roleName, true).isEmpty()) continue;
+            boolean existed = !guild.getRolesByName(roleName, true).isEmpty();
             try {
-                guild.createRole().setName(roleName).setMentionable(true).complete();
-                created.add(roleName);
-                log.info("Created teamforming role '{}' in guild {}", roleName, guild.getIdLong());
+                ensureRole(guild, roleName);
+                if (!existed) created.add(roleName);
             } catch (Exception e) {
-                log.warn("Failed to create teamforming role '{}' in guild {}", roleName, guild.getIdLong(), e);
+                log.warn("Failed to create/color teamforming role '{}' in guild {}", roleName, guild.getIdLong(), e);
             }
         }
         return created;
@@ -203,41 +245,61 @@ public class TeamformingService {
     }
 
     /**
-     * Syncs a member's roles for one section to exactly match their latest dropdown submission:
-     * grants roles for newly selected options and revokes roles for this section's options that
-     * are no longer selected. Roles outside this section are never touched.
+     * Grants roles for a dropdown submission. Add-only by design (see class doc): a role in this
+     * section that the member already has but didn't (re-)select is left untouched.
+     *
+     * @return the role names newly granted (empty if they already had everything they selected)
      */
-    public SyncResult syncSelection(Guild guild, Member member, TeamformingSection section, List<String> selectedRoleNames) {
-        Set<String> selected = new HashSet<>(selectedRoleNames);
-
+    public List<String> applySelection(Guild guild, Member member, List<String> selectedRoleNames) {
         Set<String> memberRoleNames = new HashSet<>();
         for (Role role : member.getRoles()) memberRoleNames.add(role.getName());
 
         List<Role> toAdd = new ArrayList<>();
-        List<Role> toRemove = new ArrayList<>();
         List<String> added = new ArrayList<>();
+
+        for (String roleName : selectedRoleNames) {
+            if (memberRoleNames.contains(roleName)) continue;
+            toAdd.add(ensureRole(guild, roleName));
+            added.add(roleName);
+        }
+
+        if (!toAdd.isEmpty()) {
+            guild.modifyMemberRoles(member, toAdd, List.of()).complete();
+        }
+
+        return added;
+    }
+
+    /**
+     * The teamforming tags this member currently holds, freshly read from their live role list —
+     * used to build a personalized "remove tags" menu that's always accurate, since it's built
+     * from what they actually have rather than any cached/assumed state.
+     */
+    public List<String> getHeldSectionRoleNames(Member member) {
+        Set<String> catalogRoleNames = TeamformingCatalog.allSectionRoleNames();
+        List<String> held = new ArrayList<>();
+        for (Role role : member.getRoles()) {
+            if (catalogRoleNames.contains(role.getName())) held.add(role.getName());
+        }
+        return held;
+    }
+
+    /** Removes exactly the given roles (by name) from the member. */
+    public List<String> removeRoles(Guild guild, Member member, List<String> roleNames) {
+        List<Role> toRemove = new ArrayList<>();
         List<String> removed = new ArrayList<>();
 
-        for (TeamformingOption option : section.options()) {
-            String roleName = option.roleName();
-            boolean isSelected = selected.contains(roleName);
-            boolean hasRole = memberRoleNames.contains(roleName);
-
-            if (isSelected && !hasRole) {
-                toAdd.add(ensureRole(guild, roleName));
-                added.add(roleName);
-            } else if (!isSelected && hasRole) {
-                guild.getRolesByName(roleName, true).stream().findFirst().ifPresent(role -> {
-                    toRemove.add(role);
-                    removed.add(roleName);
-                });
-            }
+        for (String roleName : roleNames) {
+            guild.getRolesByName(roleName, true).stream().findFirst().ifPresent(role -> {
+                toRemove.add(role);
+                removed.add(roleName);
+            });
         }
 
-        if (!toAdd.isEmpty() || !toRemove.isEmpty()) {
-            guild.modifyMemberRoles(member, toAdd, toRemove).complete();
+        if (!toRemove.isEmpty()) {
+            guild.modifyMemberRoles(member, List.of(), toRemove).complete();
         }
 
-        return new SyncResult(added, removed);
+        return removed;
     }
 }
