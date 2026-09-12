@@ -59,7 +59,7 @@ public class CofferRepository {
         );
     }
 
-    // --- Holder balance (shared helper) ---
+    // --- Holder balance (shared helpers) ---
 
     private void adjustHolderBalance(Connection conn, long guildId, long discordUserId, long delta) throws SQLException {
         String sql = """
@@ -74,6 +74,32 @@ public class CofferRepository {
             ps.setLong(2, discordUserId);
             ps.setLong(3, delta);
             ps.execute();
+        }
+    }
+
+    /**
+     * Atomically debits {@code amount} from a holder's balance, but only if they currently hold
+     * enough. The balance check and the write happen in a single conditional UPDATE, so this is
+     * safe to call from concurrent transactions without a separate "check, then write" step
+     * (which would otherwise allow two racing calls to each pass a balance check before either
+     * commits, letting a holder spend more than they actually have).
+     *
+     * @return {@code true} if the holder had sufficient balance and was debited, {@code false}
+     *         if their balance was insufficient (no row is written in that case).
+     */
+    private boolean tryDebitHolderBalance(Connection conn, long guildId, long discordUserId, long amount) throws SQLException {
+        String sql = """
+                UPDATE younglings.coffer_holder
+                SET amount = amount - ?
+                WHERE guild_id = ? AND discord_user_id = ? AND amount >= ?
+                """;
+
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, amount);
+            ps.setLong(2, guildId);
+            ps.setLong(3, discordUserId);
+            ps.setLong(4, amount);
+            return ps.executeUpdate() > 0;
         }
     }
 
@@ -182,7 +208,15 @@ public class CofferRepository {
 
     // --- Transfers ---
 
-    public void executeTransfer(long guildId, long fromId, long toId, long amount) {
+    /**
+     * Debits {@code fromId} and credits {@code toId} atomically, rejecting the transfer entirely
+     * if {@code fromId} doesn't have sufficient balance at the moment of the write (see
+     * {@link #tryDebitHolderBalance}).
+     *
+     * @return {@code true} if the transfer was executed, {@code false} if it was rejected for
+     *         insufficient balance (nothing is written in that case).
+     */
+    public boolean executeTransfer(long guildId, long fromId, long toId, long amount) {
         String insertTransfer = """
                 INSERT INTO younglings.coffer_transfer
                     (guild_id, from_discord_id, to_discord_id, amount, status, resolved_at)
@@ -192,7 +226,11 @@ public class CofferRepository {
         try (Connection conn = connectionSupplier.getConnection()) {
             conn.setAutoCommit(false);
             try {
-                adjustHolderBalance(conn, guildId, fromId, -amount);
+                if (!tryDebitHolderBalance(conn, guildId, fromId, amount)) {
+                    conn.rollback();
+                    return false;
+                }
+
                 adjustHolderBalance(conn, guildId, toId, amount);
 
                 try (PreparedStatement ps = conn.prepareStatement(insertTransfer)) {
@@ -204,6 +242,7 @@ public class CofferRepository {
                 }
 
                 conn.commit();
+                return true;
             } catch (SQLException e) {
                 conn.rollback();
                 throw e;
@@ -258,7 +297,12 @@ public class CofferRepository {
         }
     }
 
-    public void acceptTransfer(long transferId) {
+    /**
+     * @return {@code true} if the pending transfer was found and had sufficient balance to
+     *         complete, {@code false} if the sender's balance is no longer sufficient (the
+     *         transfer is left PENDING in that case so it can be retried or rejected).
+     */
+    public boolean acceptTransfer(long transferId) {
         String getTransfer = "SELECT * FROM younglings.coffer_transfer WHERE transfer_id = ? AND status = 'PENDING'";
         String updateStatus = """
                 UPDATE younglings.coffer_transfer
@@ -277,7 +321,11 @@ public class CofferRepository {
                     transfer = mapTransfer(rs);
                 }
 
-                adjustHolderBalance(conn, transfer.guildId(), transfer.fromDiscordId(), -transfer.amount());
+                if (!tryDebitHolderBalance(conn, transfer.guildId(), transfer.fromDiscordId(), transfer.amount())) {
+                    conn.rollback();
+                    return false;
+                }
+
                 adjustHolderBalance(conn, transfer.guildId(), transfer.toDiscordId(), transfer.amount());
 
                 try (PreparedStatement ps = conn.prepareStatement(updateStatus)) {
@@ -286,6 +334,7 @@ public class CofferRepository {
                 }
 
                 conn.commit();
+                return true;
             } catch (SQLException e) {
                 conn.rollback();
                 throw e;
@@ -319,7 +368,11 @@ public class CofferRepository {
 
     // --- Giveaways ---
 
-    public void insertGiveaway(long guildId, long givenById, long recipientId, long amount, String description) {
+    /**
+     * @return {@code true} if the giver had sufficient balance and the giveaway was recorded,
+     *         {@code false} if their balance was insufficient (nothing is written in that case).
+     */
+    public boolean insertGiveaway(long guildId, long givenById, long recipientId, long amount, String description) {
         String insertGiveaway = """
                 INSERT INTO younglings.coffer_giveaway
                     (guild_id, given_by_discord_id, recipient_discord_id, amount, description)
@@ -329,6 +382,11 @@ public class CofferRepository {
         try (Connection conn = connectionSupplier.getConnection()) {
             conn.setAutoCommit(false);
             try {
+                if (!tryDebitHolderBalance(conn, guildId, givenById, amount)) {
+                    conn.rollback();
+                    return false;
+                }
+
                 try (PreparedStatement ps = conn.prepareStatement(insertGiveaway)) {
                     ps.setLong(1, guildId);
                     ps.setLong(2, givenById);
@@ -337,8 +395,9 @@ public class CofferRepository {
                     ps.setString(5, description);
                     ps.execute();
                 }
-                adjustHolderBalance(conn, guildId, givenById, -amount);
+
                 conn.commit();
+                return true;
             } catch (SQLException e) {
                 conn.rollback();
                 throw e;
