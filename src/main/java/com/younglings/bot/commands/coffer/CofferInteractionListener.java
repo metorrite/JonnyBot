@@ -50,7 +50,12 @@ public class CofferInteractionListener extends ListenerAdapter {
             return;
         }
 
-        repository.acceptTransfer(transferId);
+        boolean accepted = repository.acceptTransfer(transferId);
+        if (!accepted) {
+            event.reply("The sender no longer holds enough GP to complete this transfer.")
+                    .setEphemeral(true).queue();
+            return;
+        }
         event.reply("✅ Transfer of **" + GpAmountParser.format(transfer.amount()) + "** accepted.").queue();
     }
 

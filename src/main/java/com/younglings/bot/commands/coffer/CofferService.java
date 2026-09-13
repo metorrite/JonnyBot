@@ -127,6 +127,9 @@ public class CofferService {
             return;
         }
 
+        // Note: the balance check that actually matters happens atomically inside
+        // executeTransfer/insertPendingTransfer's debit — this is just an early, friendly
+        // rejection so most "you don't have enough" cases don't need a round trip to find out.
         long balance = repository.getHolderBalance(guildId, fromId);
         if (balance < amount) {
             event.reply("You only hold **" + GpAmountParser.format(balance) + "** in the coffer. " +
@@ -142,7 +145,14 @@ public class CofferService {
                         " is pending their acceptance. (Transfer ID: `" + transferId + "`)")
                     .setEphemeral(true).queue();
         } else {
-            repository.executeTransfer(guildId, fromId, toId, amount);
+            boolean success = repository.executeTransfer(guildId, fromId, toId, amount);
+            if (!success) {
+                // Balance changed between the check above and the atomic debit (e.g. a
+                // concurrent transfer/giveaway). Reject rather than allow an overdraft.
+                event.reply("Your balance changed before this transfer could complete — please try again.")
+                        .setEphemeral(true).queue();
+                return;
+            }
 
             EmbedBuilder embed = new EmbedBuilder()
                     .setTitle("Coffer Transfer")
@@ -170,6 +180,7 @@ public class CofferService {
         long givenById = holderUser != null ? holderUser.getIdLong() : event.getUser().getIdLong();
         User givenByUser = holderUser != null ? holderUser : event.getUser();
 
+        // Early, friendly check — the atomic debit inside insertGiveaway is the real guard.
         long balance = repository.getHolderBalance(guildId, givenById);
         if (balance < amount) {
             String subject = holderUser != null ? holderUser.getAsMention() + " only holds" : "You only hold";
@@ -179,7 +190,13 @@ public class CofferService {
             return;
         }
 
-        repository.insertGiveaway(guildId, givenById, recipientUser.getIdLong(), amount, description);
+        boolean success = repository.insertGiveaway(guildId, givenById, recipientUser.getIdLong(), amount, description);
+        if (!success) {
+            String subject = holderUser != null ? holderUser.getAsMention() + "'s balance" : "Your balance";
+            event.reply(subject + " changed before this giveaway could complete — please try again.")
+                    .setEphemeral(true).queue();
+            return;
+        }
 
         StringBuilder desc = new StringBuilder()
                 .append("🏆 **").append(GpAmountParser.toShorthand(amount))
