@@ -212,14 +212,13 @@ public class SignupRepository {
                         UPDATE younglings.signup_message
                         SET active = FALSE
                         WHERE signup_id = ?
-                          AND message_type = 'PUBLIC'
                         """)) {
                     statement.setLong(1, signupId);
                     statement.executeUpdate();
                 }
 
                 connection.commit();
-                log.info("Deleted signup {}: status DELETED, entries cleared, public messages inactive", signupId);
+                log.info("Deleted signup {}: status DELETED, entries cleared, all messages inactive", signupId);
 
             } catch (SQLException e) {
                 connection.rollback();
@@ -697,6 +696,36 @@ public class SignupRepository {
         } catch (SQLException e) {
             log.error("Failed to get active messages for signup {}", signupId, e);
             throw new RuntimeException("Failed to get signup messages", e);
+        }
+    }
+
+    public List<SignupMessage> getActivePingMessages(long signupId) {
+        String sql = """
+                SELECT message_id, signup_id, guild_id, channel_id, message_type
+                FROM younglings.signup_message
+                WHERE signup_id = ?
+                  AND active = TRUE
+                  AND message_type = 'PING'
+                """;
+
+        List<SignupMessage> messages = new ArrayList<>();
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setLong(1, signupId);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    messages.add(mapSignupMessage(resultSet));
+                }
+            }
+
+            return messages;
+
+        } catch (SQLException e) {
+            log.error("Failed to get ping messages for signup {}", signupId, e);
+            throw new RuntimeException("Failed to get ping messages", e);
         }
     }
 
