@@ -360,23 +360,18 @@ public class SignupRepository {
         }
     }
 
+    /**
+     * Adds a signup entry, enforcing per-type uniqueness rules (duplicate user for QUEUE/GROUP,
+     * duplicate case-insensitive RSN for QUEUE). The duplicate checks and the insert run inside a
+     * single transaction guarded by a {@code pg_advisory_xact_lock} keyed on {@code signupId}, so
+     * concurrent calls for the same signup are serialized and can't both pass the check before
+     * either commits — closing the check-then-insert race without requiring a schema change
+     * (there's no DB-level unique constraint backing this since SUBMISSION signups intentionally
+     * allow multiple entries per user).
+     */
     public boolean addEntry(long signupId, long discordUserId, String rsn, String submissionValue,
                              long addedByUserId, SignupType type) {
-        // SUBMISSION allows multiple entries per user; QUEUE and GROUP do not
-        if (type != SignupType.SUBMISSION) {
-            if (isUserInSignup(signupId, discordUserId)) {
-                log.info("Skipped duplicate user {} for signup {}", discordUserId, signupId);
-                return false;
-            }
-        }
-
-        // QUEUE enforces case-insensitive RSN uniqueness
-        if (type == SignupType.QUEUE && isRsnInSignup(signupId, rsn)) {
-            log.info("Skipped duplicate RSN '{}' for signup {}", rsn, signupId);
-            return false;
-        }
-
-        String sql = """
+        String insertSql = """
                 INSERT INTO younglings.signup_entry
                     (signup_id, discord_user_id, rsn, queue_position, added_by_user_id, submission_value)
                 VALUES (
@@ -386,47 +381,79 @@ public class SignupRepository {
                 )
                 """;
 
-        try (Connection connection = connectionSupplier.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (Connection connection = connectionSupplier.getConnection()) {
+            connection.setAutoCommit(false);
+            try {
+                lockSignupForEntryChanges(connection, signupId);
 
-            statement.setLong(1, signupId);
-            statement.setLong(2, discordUserId);
-            statement.setString(3, rsn);
-            statement.setLong(4, signupId);
-            statement.setLong(5, addedByUserId);
-            statement.setString(6, submissionValue);
+                // SUBMISSION allows multiple entries per user; QUEUE and GROUP do not
+                if (type != SignupType.SUBMISSION && isUserInSignup(connection, signupId, discordUserId)) {
+                    connection.rollback();
+                    log.info("Skipped duplicate user {} for signup {}", discordUserId, signupId);
+                    return false;
+                }
 
-            boolean added = statement.executeUpdate() > 0;
-            if (added) log.info("Added entry rsn='{}' / Discord {} to signup {}", rsn, discordUserId, signupId);
-            return added;
+                // QUEUE enforces case-insensitive RSN uniqueness
+                if (type == SignupType.QUEUE && isRsnInSignup(connection, signupId, rsn)) {
+                    connection.rollback();
+                    log.info("Skipped duplicate RSN '{}' for signup {}", rsn, signupId);
+                    return false;
+                }
 
+                boolean added;
+                try (PreparedStatement statement = connection.prepareStatement(insertSql)) {
+                    statement.setLong(1, signupId);
+                    statement.setLong(2, discordUserId);
+                    statement.setString(3, rsn);
+                    statement.setLong(4, signupId);
+                    statement.setLong(5, addedByUserId);
+                    statement.setString(6, submissionValue);
+                    added = statement.executeUpdate() > 0;
+                }
+
+                connection.commit();
+                if (added) log.info("Added entry rsn='{}' / Discord {} to signup {}", rsn, discordUserId, signupId);
+                return added;
+
+            } catch (SQLException e) {
+                connection.rollback();
+                throw e;
+            } finally {
+                connection.setAutoCommit(true);
+            }
         } catch (SQLException e) {
             log.error("Failed to add entry to signup {}", signupId, e);
             throw new RuntimeException("Failed to add signup entry", e);
         }
     }
 
-    private boolean isUserInSignup(long signupId, long discordUserId) {
-        try (Connection connection = connectionSupplier.getConnection();
-             PreparedStatement statement = connection.prepareStatement(
-                     "SELECT 1 FROM younglings.signup_entry WHERE signup_id = ? AND discord_user_id = ? LIMIT 1")) {
+    /**
+     * Takes a transaction-scoped Postgres advisory lock keyed on {@code signupId}. Automatically
+     * released on commit/rollback. Used to serialize concurrent entry-changing operations for the
+     * same signup (see {@link #addEntry}).
+     */
+    private void lockSignupForEntryChanges(Connection connection, long signupId) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement("SELECT pg_advisory_xact_lock(?)")) {
             statement.setLong(1, signupId);
-            statement.setLong(2, discordUserId);
-            try (ResultSet rs = statement.executeQuery()) { return rs.next(); }
-        } catch (SQLException e) {
-            throw new RuntimeException("Failed to check user in signup", e);
+            statement.execute();
         }
     }
 
-    private boolean isRsnInSignup(long signupId, String rsn) {
-        try (Connection connection = connectionSupplier.getConnection();
-             PreparedStatement statement = connection.prepareStatement(
-                     "SELECT 1 FROM younglings.signup_entry WHERE signup_id = ? AND LOWER(rsn) = LOWER(?) LIMIT 1")) {
+    private boolean isUserInSignup(Connection connection, long signupId, long discordUserId) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT 1 FROM younglings.signup_entry WHERE signup_id = ? AND discord_user_id = ? LIMIT 1")) {
+            statement.setLong(1, signupId);
+            statement.setLong(2, discordUserId);
+            try (ResultSet rs = statement.executeQuery()) { return rs.next(); }
+        }
+    }
+
+    private boolean isRsnInSignup(Connection connection, long signupId, String rsn) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT 1 FROM younglings.signup_entry WHERE signup_id = ? AND LOWER(rsn) = LOWER(?) LIMIT 1")) {
             statement.setLong(1, signupId);
             statement.setString(2, rsn);
             try (ResultSet rs = statement.executeQuery()) { return rs.next(); }
-        } catch (SQLException e) {
-            throw new RuntimeException("Failed to check RSN in signup", e);
         }
     }
 
