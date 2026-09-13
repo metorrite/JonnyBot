@@ -38,7 +38,7 @@ public class TeamformingCommand {
             @SlashOption(description = "Channel to post the panel in") TextChannel channel
     ) {
         if (!isAdmin(event)) {
-            event.reply("You need **Manage Server** permission to use this command.").setEphemeral(true).queue();
+            event.reply("You need **Administrator** permission to use this command.").setEphemeral(true).queue();
             return;
         }
 
@@ -75,7 +75,7 @@ public class TeamformingCommand {
             @Nullable String panelMessage
     ) {
         if (!isAdmin(event)) {
-            event.reply("You need **Manage Server** permission to use this command.").setEphemeral(true).queue();
+            event.reply("You need **Administrator** permission to use this command.").setEphemeral(true).queue();
             return;
         }
 
@@ -127,8 +127,14 @@ public class TeamformingCommand {
         }
     }
 
+    /**
+     * Gates {@code /teamforming post} and {@code /teamforming revert} to Administrator-level
+     * members (Discord's actual Administrator permission bit, which the "Admin" role and above
+     * would hold) rather than the lesser "Manage Server" permission other commands in this bot use —
+     * posting/reverting the panel creates and deletes real server roles, so it's held to a higher bar.
+     */
     private boolean isAdmin(GuildSlashEvent event) {
         var member = event.getMember();
-        return member != null && member.hasPermission(Permission.MANAGE_SERVER);
+        return member != null && member.hasPermission(Permission.ADMINISTRATOR);
     }
 }
