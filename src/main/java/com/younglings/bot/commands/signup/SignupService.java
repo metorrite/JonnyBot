@@ -13,16 +13,19 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
 @BService
 public class SignupService {
     private static final Logger log = LoggerFactory.getLogger(SignupService.class);
 
-    private final Map<Long, SignupSession> activeSignupsById = new HashMap<>();
+    // ConcurrentHashMap: JDA/BotCommands can dispatch interaction callbacks (button clicks,
+    // modal submits) from a pooled executor rather than a single thread, so this map can be
+    // read/written concurrently from separate signups' interactions.
+    private final Map<Long, SignupSession> activeSignupsById = new ConcurrentHashMap<>();
     private final SignupRepository signupRepository;
 
     public SignupService(SignupRepository signupRepository) {

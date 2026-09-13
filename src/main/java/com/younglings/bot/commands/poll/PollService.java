@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import java.awt.*;
 import java.util.*;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 
 @BService
 public class PollService {
@@ -21,8 +22,11 @@ public class PollService {
     private static final String[] PARTIAL_BLOCKS = {"", "▏", "▎", "▍", "▌", "▋", "▊", "▉"};
     private static final String[] NUMBER_EMOJIS = {"1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣"};
 
-    private final Map<Long, PollSession> activePollsById = new HashMap<>();
-    private final Map<Long, List<PollOption>> optionsByPollId = new HashMap<>();
+    // ConcurrentHashMap: JDA/BotCommands can dispatch interaction callbacks (button clicks) from
+    // a pooled executor rather than a single thread, so these maps can be read/written
+    // concurrently from separate polls' interactions.
+    private final Map<Long, PollSession> activePollsById = new ConcurrentHashMap<>();
+    private final Map<Long, List<PollOption>> optionsByPollId = new ConcurrentHashMap<>();
     private final PollRepository pollRepository;
 
     public PollService(PollRepository pollRepository) {
