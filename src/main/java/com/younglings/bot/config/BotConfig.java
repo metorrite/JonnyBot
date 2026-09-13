@@ -84,6 +84,55 @@ public class BotConfig {
         return Activity.customStatus(properties.getProperty("bot.activity", "Online"));
     }
 
+    /**
+     * The Younglings guild ID, needed by the internal API (see {@code com.younglings.bot.internal})
+     * to know which guild to read online members / scheduled events from. Returns {@code null} if
+     * unset — callers that need it should treat that as "internal API not configured".
+     */
+    public Long getGuildId() {
+        String raw = System.getenv("GUILD_ID");
+
+        if (raw == null || raw.isBlank()) {
+            raw = dotenv.get("GUILD_ID");
+        }
+
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+
+        return Long.parseLong(raw.trim());
+    }
+
+    /**
+     * Shared secret the internal API requires on every request (via the {@code X-Internal-Secret}
+     * header). Returns {@code null} if unset, in which case the internal API server does not start
+     * at all — it's opt-in, not required for the bot's core functionality.
+     */
+    public String getInternalApiSecret() {
+        String secret = System.getenv("INTERNAL_API_SECRET");
+
+        if (secret == null || secret.isBlank()) {
+            secret = dotenv.get("INTERNAL_API_SECRET");
+        }
+
+        return (secret == null || secret.isBlank()) ? null : secret;
+    }
+
+    /** Port the internal API listens on. Defaults to 8081 if unset. */
+    public int getInternalApiPort() {
+        String raw = System.getenv("INTERNAL_API_PORT");
+
+        if (raw == null || raw.isBlank()) {
+            raw = dotenv.get("INTERNAL_API_PORT");
+        }
+
+        if (raw == null || raw.isBlank()) {
+            return 8081;
+        }
+
+        return Integer.parseInt(raw.trim());
+    }
+
     public List<Long> getOwnerIds() {
         String rawOwnerIds = System.getenv("OWNER_IDS");
 
