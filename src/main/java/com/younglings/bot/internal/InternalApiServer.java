@@ -3,6 +3,8 @@ package com.younglings.bot.internal;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import com.younglings.bot.config.BotConfig;
+import io.github.freya022.botcommands.api.core.annotations.BEventListener;
+import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.OnlineStatus;
@@ -37,6 +39,12 @@ import java.util.concurrent.Executors;
  * only pushes member presence (online/idle/dnd/offline) over a persistent Gateway connection, the
  * kind this bot already maintains. A website's backend can't cheaply get that on its own without
  * running a second, redundant Gateway connection — so it asks the bot, which already knows.
+ * <p>
+ * {@link JDA} isn't available yet when {@code @BService}s are normally constructed at startup — it
+ * only exists once {@link com.younglings.bot.Bot#createJDA} actually runs. So instead of taking it as a constructor
+ * parameter (which would fail immediately, before the bot even logs in), this waits for
+ * {@link InjectedJDAEvent}, which BotCommands fires once JDA is ready, and starts the HTTP server
+ * at that point.
  */
 @BService
 public class InternalApiServer {
@@ -44,11 +52,15 @@ public class InternalApiServer {
     private static final String SECRET_HEADER = "X-Internal-Secret";
 
     private final BotConfig botConfig;
-    private final JDA jda;
+    private JDA jda;
 
-    public InternalApiServer(BotConfig botConfig, JDA jda) {
+    public InternalApiServer(BotConfig botConfig) {
         this.botConfig = botConfig;
-        this.jda = jda;
+    }
+
+    @BEventListener
+    public void onJdaReady(InjectedJDAEvent event) {
+        this.jda = event.getJda();
         start();
     }
 
