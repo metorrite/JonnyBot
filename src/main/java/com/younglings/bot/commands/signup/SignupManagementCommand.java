@@ -1,11 +1,12 @@
 package com.younglings.bot.commands.signup;
 
+import com.younglings.bot.permission.AdminRoleFilter;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
+import io.github.freya022.botcommands.api.commands.annotations.Filter;
 import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.JDASlashCommand;
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.SlashOption;
 import net.dv8tion.jda.api.EmbedBuilder;
-import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.interactions.InteractionHook;
 
@@ -24,7 +25,7 @@ public class SignupManagementCommand {
         this.signupService = signupService;
     }
 
-    @JDASlashCommand(name = "signuplist", description = "Lists all current signup queues")
+    @JDASlashCommand(name = "signup", subcommand = "list", description = "Lists all current signup queues")
     public void onSignupList(GuildSlashEvent event) {
         if (event.getGuild() == null) {
             event.reply("This command can only be used in a server.")
@@ -57,7 +58,7 @@ public class SignupManagementCommand {
                     + "\nType: `" + signup.type().name() + "` • Status: `" + status + "`\n\n";
 
             if (description.length() + entry.length() > EMBED_DESCRIPTION_LIMIT) {
-                description.append("*...and more. Use `/signuplist` filters to narrow results.*\n");
+                description.append("*...and more. Use `/signup list` filters to narrow results.*\n");
                 break;
             }
 
@@ -82,11 +83,11 @@ public class SignupManagementCommand {
                 .queue();
     }
 
-    @JDASlashCommand(name = "signuppost", description = "Posts another signup panel in this channel, use /signuplist for a list of active signup forms")
+    @JDASlashCommand(name = "signup", subcommand = "post", description = "Posts another signup panel in this channel, use /signup list for a list of active signup forms")
     public void onSignupPost(
             GuildSlashEvent event,
             @SlashOption(description = "Which panel to post: PUBLIC or ADMIN") String panelType,
-            @SlashOption(description = "Signup ID from /signuplist") Long signupId
+            @SlashOption(description = "Signup ID from /signup list") Long signupId
     ) {
         if (event.getGuild() == null) {
             event.reply("This command can only be used in a server.")
@@ -128,18 +129,11 @@ public class SignupManagementCommand {
         }
     }
 
-    @JDASlashCommand(name = "updatepanels", description = "Refreshes all active signup panels with the latest layout and buttons")
+    @Filter(AdminRoleFilter.class)
+    @JDASlashCommand(name = "signup", subcommand = "refresh", description = "Refreshes all active signup panels with the latest layout and buttons")
     public void onUpdatePanels(GuildSlashEvent event) {
         if (event.getGuild() == null) {
             event.reply("This command can only be used in a server.")
-                    .setEphemeral(true)
-                    .queue();
-            return;
-        }
-
-        var member = event.getMember();
-        if (member == null || !member.hasPermission(Permission.MANAGE_SERVER)) {
-            event.reply("You don't have permission to use this command.")
                     .setEphemeral(true)
                     .queue();
             return;

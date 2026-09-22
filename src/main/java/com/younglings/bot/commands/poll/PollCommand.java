@@ -1,16 +1,17 @@
 package com.younglings.bot.commands.poll;
 
+import com.younglings.bot.permission.AdminRoleFilter;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
+import io.github.freya022.botcommands.api.commands.annotations.Filter;
+import io.github.freya022.botcommands.api.commands.annotations.VarArgs;
 import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.JDASlashCommand;
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.SlashOption;
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.TopLevelSlashCommandData;
-import net.dv8tion.jda.api.Permission;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
 import java.util.List;
 
 @Command
@@ -28,12 +29,8 @@ public class PollCommand {
     public void onPollCreate(
             GuildSlashEvent event,
             @SlashOption(description = "Poll question / title") String title,
-            @SlashOption(description = "First option (required)") String option1,
-            @SlashOption(description = "Second option (required)") String option2,
-            @SlashOption(description = "Third option") @Nullable String option3,
-            @SlashOption(description = "Fourth option") @Nullable String option4,
-            @SlashOption(description = "Fifth option") @Nullable String option5,
-            @SlashOption(description = "Sixth option") @Nullable String option6,
+            @SlashOption(name = "option", description = "A poll option, in order (2 required, up to 6 total)")
+            @VarArgs(value = 6, numRequired = 2) List<String> options,
             @SlashOption(description = "Allow each person to vote for multiple options? (default: no)") @Nullable Boolean multipleVotes,
             @SlashOption(description = "Hide who voted for what? (default: no)") @Nullable Boolean anonymous
     ) {
@@ -42,27 +39,20 @@ public class PollCommand {
             return;
         }
 
-        List<String> options = new ArrayList<>();
-        options.add(option1.trim());
-        options.add(option2.trim());
-        if (option3 != null && !option3.isBlank()) options.add(option3.trim());
-        if (option4 != null && !option4.isBlank()) options.add(option4.trim());
-        if (option5 != null && !option5.isBlank()) options.add(option5.trim());
-        if (option6 != null && !option6.isBlank()) options.add(option6.trim());
-
         pollService.createPoll(
                 event.getGuild(),
                 event.getChannel().asTextChannel(),
                 title.trim(),
                 anonymous != null && anonymous,
                 multipleVotes != null && multipleVotes,
-                options,
+                options.stream().map(String::trim).toList(),
                 event.getUser().getIdLong()
         );
 
         event.reply("Poll created!").setEphemeral(true).queue();
     }
 
+    @Filter(AdminRoleFilter.class)
     @JDASlashCommand(name = "poll", subcommand = "end", description = "Close an active poll")
     public void onPollEnd(
             GuildSlashEvent event,
@@ -71,11 +61,6 @@ public class PollCommand {
     ) {
         if (event.getGuild() == null) {
             event.reply("This command can only be used in a server.").setEphemeral(true).queue();
-            return;
-        }
-
-        if (!event.getMember().hasPermission(Permission.MANAGE_SERVER)) {
-            event.reply("You need **Manage Server** permission to end polls.").setEphemeral(true).queue();
             return;
         }
 

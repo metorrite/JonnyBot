@@ -84,6 +84,26 @@ public class BotConfig {
         return Activity.customStatus(properties.getProperty("bot.activity", "Online"));
     }
 
+    /**
+     * ID of the "Admin" role (or equivalent) used to gate admin-tier commands — see
+     * {@code com.younglings.bot.permission.AdminRoleFilter}, which treats this role and anything
+     * ranked above it in the guild's role hierarchy as authorized. Returns {@code null} if unset,
+     * in which case {@code AdminRoleFilter} fails closed (rejects everyone) rather than guessing.
+     */
+    public Long getAdminRoleId() {
+        String raw = System.getenv("ADMIN_ROLE_ID");
+
+        if (raw == null || raw.isBlank()) {
+            raw = dotenv.get("ADMIN_ROLE_ID");
+        }
+
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+
+        return Long.parseLong(raw.trim());
+    }
+
     public List<Long> getOwnerIds() {
         String rawOwnerIds = System.getenv("OWNER_IDS");
 

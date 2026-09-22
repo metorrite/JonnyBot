@@ -1,11 +1,12 @@
 package com.younglings.bot.commands.teamforming;
 
+import com.younglings.bot.permission.AdminRoleFilter;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
+import io.github.freya022.botcommands.api.commands.annotations.Filter;
 import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.JDASlashCommand;
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.SlashOption;
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.TopLevelSlashCommandData;
-import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.utils.messages.MessageCreateData;
@@ -31,17 +32,13 @@ public class TeamformingCommand {
     }
 
     @TopLevelSlashCommandData(description = "Manage the boss-event teamforming role panel")
+    @Filter(AdminRoleFilter.class)
     @JDASlashCommand(name = "teamforming", subcommand = "post",
             description = "Posts the teamforming role panel in a channel, creating any missing roles")
     public void onPost(
             GuildSlashEvent event,
             @SlashOption(description = "Channel to post the panel in") TextChannel channel
     ) {
-        if (!isAdmin(event)) {
-            event.reply("You need **Administrator** permission to use this command.").setEphemeral(true).queue();
-            return;
-        }
-
         Guild guild = event.getGuild();
         event.deferReply(true).queue();
 
@@ -67,6 +64,7 @@ public class TeamformingCommand {
         );
     }
 
+    @Filter(AdminRoleFilter.class)
     @JDASlashCommand(name = "teamforming", subcommand = "revert",
             description = "[Testing] Deletes every teamforming role, optionally deleting a posted panel message too")
     public void onRevert(
@@ -74,11 +72,6 @@ public class TeamformingCommand {
             @SlashOption(description = "Link (or ID, if in this channel) of the panel message to also delete")
             @Nullable String panelMessage
     ) {
-        if (!isAdmin(event)) {
-            event.reply("You need **Administrator** permission to use this command.").setEphemeral(true).queue();
-            return;
-        }
-
         Guild guild = event.getGuild();
         List<String> deletedRoles = teamformingService.deleteAllCatalogRoles(guild);
 
@@ -125,16 +118,5 @@ public class TeamformingCommand {
             log.warn("Failed to delete teamforming panel message {} in channel {}", messageId, channelId, e);
             return false;
         }
-    }
-
-    /**
-     * Gates {@code /teamforming post} and {@code /teamforming revert} to Administrator-level
-     * members (Discord's actual Administrator permission bit, which the "Admin" role and above
-     * would hold) rather than the lesser "Manage Server" permission other commands in this bot use —
-     * posting/reverting the panel creates and deletes real server roles, so it's held to a higher bar.
-     */
-    private boolean isAdmin(GuildSlashEvent event) {
-        var member = event.getMember();
-        return member != null && member.hasPermission(Permission.ADMINISTRATOR);
     }
 }

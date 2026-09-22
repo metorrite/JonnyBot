@@ -16,7 +16,7 @@ public class CofferService {
     private static final Logger log = LoggerFactory.getLogger(CofferService.class);
 
     /**
-     * When true, /coffertransfer creates a pending transfer that the recipient must accept before
+     * When true, /coffer transfer creates a pending transfer that the recipient must accept before
      * balances move. When false, transfers execute immediately. Toggle here — no command changes needed.
      */
     public static final boolean REQUIRE_TRANSFER_VERIFICATION = false;
