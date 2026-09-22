@@ -57,26 +57,62 @@ public class Bot extends JDAService {
 
     @Override
     public void createJDA(BReadyEvent event, IEventManager eventManager) {
+        boolean manageOwnShutdown = shouldRemoveCommandsOnShutdown();
+
         // This uses JDABuilder#createLight, with the intents and the additional cache flags set above
         // It also sets the EventManager and a special rate limiter
-        //
-        // createLight's low-memory profile defaults to a restrictive member cache policy — fine
-        // for a bot that only ever looks up members it already has an ID for (signup, coffer,
-        // etc.), but the internal API's online-members endpoint needs the full member list
-        // chunked and cached, so it's explicitly overridden to ALL here.
-        JDA jda = createLight(botConfig.getToken())
+        var builder = createLight(botConfig.getToken())
                 .setActivity(botConfig.getActivity())
+                // createLight's low-memory profile defaults to a restrictive member cache policy —
+                // fine for a bot that only ever looks up members it already has an ID for (signup,
+                // coffer, etc.), but the internal API's online-members endpoint needs the full
+                // member list chunked and cached, so it's explicitly overridden to ALL here.
                 .setMemberCachePolicy(MemberCachePolicy.ALL)
                 .addEventListeners(signupInteractionListener, pollInteractionListener, cofferInteractionListener,
-                        teamformingInteractionListener)
-                .build();
+                        teamformingInteractionListener);
 
-        registerCommandCleanupShutdownHook(jda);
+        if (manageOwnShutdown) {
+            // JDA registers its own shutdown hook by default that closes its REST requester. That
+            // hook and ours would both run on JVM shutdown with no guaranteed ordering between
+            // them — if JDA's happens to run first, our attempt to remove guild commands fails
+            // with "RejectedExecutionException: The Requester has been stopped!" (this is exactly
+            // what happened the first time this ran). Disabling JDA's hook and calling
+            // jda.shutdown() ourselves at the end of ours removes the race entirely: our hook is
+            // then the only one, so the ordering (remove commands, then shut down) is guaranteed.
+            builder.setEnableShutdownHook(false);
+        }
+
+        JDA jda = builder.build();
+
+        if (manageOwnShutdown) {
+            registerCommandCleanupShutdownHook(jda);
+        }
     }
 
     /**
-     * Outside of production, if {@link BotConfig#getRemoveCommandsOnShutdown()} is enabled,
-     * removes every guild slash command from {@link BotConfig#getGuildId()} on JVM shutdown —
+     * Whether {@link #registerCommandCleanupShutdownHook} should run at all: outside of
+     * production, with {@link BotConfig#getRemoveCommandsOnShutdown()} enabled and
+     * {@link BotConfig#getGuildId()} set. Checked before {@link #createJDA} decides whether to
+     * disable JDA's own shutdown hook, so that decision and the hook registration always agree.
+     * <p>
+     * The {@code !getLiveEnvironment()} check here means production can never wipe its own
+     * (global) commands from this, even if the flag were ever set there by mistake — this only
+     * ever touches the {@code GUILD_ID} guild's commands, which production doesn't use (see Main).
+     */
+    private boolean shouldRemoveCommandsOnShutdown() {
+        if (botConfig.getLiveEnvironment()) return false;
+        if (!botConfig.getRemoveCommandsOnShutdown()) return false;
+
+        if (botConfig.getGuildId() == null) {
+            log.warn("REMOVE_COMMANDS_ON_SHUTDOWN is true but GUILD_ID is not set — can't remove guild commands on shutdown.");
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Removes every guild slash command from {@link BotConfig#getGuildId()} on JVM shutdown —
      * normal exit, Ctrl+C, or a graceful stop from the IDE/OS (a {@code SIGTERM}-style signal) all
      * run shutdown hooks. A hard kill (task manager "End task", {@code taskkill /F}, a crashed
      * host, power loss) does not and cannot — no process, in any language, can run cleanup code
@@ -84,38 +120,32 @@ public class Bot extends JDAService {
      * the bot re-syncs them either way (see Main's {@code forceGuildCommands} setup), so the worst
      * case is just "they're still there next time," not anything broken.
      * <p>
-     * Gated on {@code !getLiveEnvironment()} independently of the flag itself, so production can
-     * never wipe its own (global) commands from this, even if the flag were ever set there by
-     * mistake — this only ever touches the {@code GUILD_ID} guild's commands, which production
-     * doesn't use (see Main).
+     * Only ever called when {@link #shouldRemoveCommandsOnShutdown()} was already true at JDA
+     * build time (which also disabled JDA's own shutdown hook) — see {@link #createJDA}.
      */
     private void registerCommandCleanupShutdownHook(JDA jda) {
-        if (botConfig.getLiveEnvironment()) return;
-        if (!botConfig.getRemoveCommandsOnShutdown()) return;
-
-        Long guildId = botConfig.getGuildId();
-        if (guildId == null) {
-            log.warn("REMOVE_COMMANDS_ON_SHUTDOWN is true but GUILD_ID is not set — can't remove guild commands on shutdown.");
-            return;
-        }
+        long guildId = botConfig.getGuildId(); // known non-null: shouldRemoveCommandsOnShutdown() already checked
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            Guild guild = jda.getGuildById(guildId);
-            if (guild == null) {
-                log.warn("Guild {} not available at shutdown — could not remove its commands.", guildId);
-                return;
-            }
-
             try {
-                // .complete()/.submit() rather than .queue(): the JVM won't wait around for an
-                // async callback once this thread returns, so the removal has to actually finish
-                // (or time out) before shutdown proceeds.
-                guild.updateCommands().submit().get(10, TimeUnit.SECONDS);
-                log.info("Removed all guild commands from {} on shutdown.", guildId);
+                Guild guild = jda.getGuildById(guildId);
+                if (guild == null) {
+                    log.warn("Guild {} not available at shutdown — could not remove its commands.", guildId);
+                } else {
+                    // .submit() rather than .queue(): the JVM won't wait around for an async
+                    // callback once this thread returns, so the removal has to actually finish
+                    // (or time out) before shutdown proceeds.
+                    guild.updateCommands().submit().get(10, TimeUnit.SECONDS);
+                    log.info("Removed all guild commands from {} on shutdown.", guildId);
+                }
             } catch (TimeoutException e) {
                 log.warn("Timed out removing guild commands from {} on shutdown (10s) — they may still be present.", guildId);
             } catch (Exception e) {
                 log.warn("Failed to remove guild commands from {} on shutdown.", guildId, e);
+            } finally {
+                // We disabled JDA's own shutdown hook to avoid racing it for the call above, so
+                // we're responsible for shutting JDA down ourselves now that it's done.
+                jda.shutdown();
             }
         }, "guild-command-cleanup"));
     }
