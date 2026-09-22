@@ -39,6 +39,16 @@ public class Main {
                     applicationCommands.getTestGuildIds().add(config.getGuildId());
                 });
             }
+
+            // When Bot is going to register its own command-cleanup shutdown hook, disable
+            // BotCommands' own built-in one (BCShutdownHook) so it can't race that custom hook.
+            // BotCommands' hook calls context.shutdownNow(), which independently calls
+            // jda.shutdownNow() on its own — confirmed live: leaving it enabled interrupted the
+            // guild-command-removal REST call mid-flight with an InterruptedIOException, even
+            // after JDA's own separate shutdown hook (see Bot#createJDA) was already disabled.
+            if (config.shouldManageOwnShutdown()) {
+                builder.setEnableShutdownHook(false);
+            }
         });
     }
 }

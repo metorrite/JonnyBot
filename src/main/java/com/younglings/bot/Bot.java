@@ -5,8 +5,12 @@ import com.younglings.bot.commands.poll.PollInteractionListener;
 import com.younglings.bot.commands.signup.SignupInteractionListener;
 import com.younglings.bot.commands.teamforming.TeamformingInteractionListener;
 import com.younglings.bot.config.BotConfig;
+import io.github.freya022.botcommands.api.core.BContext;
 import io.github.freya022.botcommands.api.core.JDAService;
+import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.BReadyEvent;
+import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
+import io.github.freya022.botcommands.api.core.events.PostLoadEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.Guild;
@@ -15,12 +19,14 @@ import net.dv8tion.jda.api.requests.GatewayIntent;
 import net.dv8tion.jda.api.utils.MemberCachePolicy;
 import net.dv8tion.jda.api.utils.cache.CacheFlag;
 import org.jspecify.annotations.NullMarked;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @BService
 @NullMarked // Everything is non-null unless @Nullable
@@ -32,6 +38,11 @@ public class Bot extends JDAService {
     private final PollInteractionListener pollInteractionListener;
     private final CofferInteractionListener cofferInteractionListener;
     private final TeamformingInteractionListener teamformingInteractionListener;
+
+    // Populated by onJdaReady/onPostLoad respectively — see registerCommandCleanupShutdownHookIfReady.
+    private volatile @Nullable JDA jda;
+    private volatile @Nullable BContext context;
+    private final AtomicBoolean shutdownHookRegistered = new AtomicBoolean(false);
 
     public Bot(BotConfig botConfig, SignupInteractionListener signupInteractionListener,
                PollInteractionListener pollInteractionListener,
@@ -57,8 +68,6 @@ public class Bot extends JDAService {
 
     @Override
     public void createJDA(BReadyEvent event, IEventManager eventManager) {
-        boolean manageOwnShutdown = shouldRemoveCommandsOnShutdown();
-
         // This uses JDABuilder#createLight, with the intents and the additional cache flags set above
         // It also sets the EventManager and a special rate limiter
         var builder = createLight(botConfig.getToken())
@@ -71,69 +80,57 @@ public class Bot extends JDAService {
                 .addEventListeners(signupInteractionListener, pollInteractionListener, cofferInteractionListener,
                         teamformingInteractionListener);
 
-        if (manageOwnShutdown) {
+        if (botConfig.shouldManageOwnShutdown()) {
             // JDA registers its own shutdown hook by default (literally just
             // `new Thread(this::shutdownNow, "JDA Shutdown Hook")`, per JDAImpl) that closes its
-            // REST requester. That hook and ours would both run on JVM shutdown with no
-            // guaranteed ordering between them — if JDA's happens to run first, our attempt to
-            // remove guild commands fails with "RejectedExecutionException: The Requester has
-            // been stopped!" (this is exactly what happened the first time this ran). JDA doesn't
-            // expose any public "run this before you close the requester" hook to piggyback on —
-            // its ShutdownEvent fires only after the requester is already stopped, which would
-            // hit the same error from a different call site. Disabling JDA's hook and calling
-            // jda.shutdownNow() ourselves at the end of ours (matching exactly what JDA's own hook
-            // would have called) removes the race entirely: our hook is then the only one, so the
-            // ordering (remove commands, then shut down) is guaranteed instead of lucky.
+            // REST requester. Disabling it here is necessary but not sufficient on its own — see
+            // Main, which disables BotCommands' own separate framework-level shutdown hook too.
+            // Both would otherwise race our custom one below for the same "remove guild commands"
+            // REST call, and either one winning that race breaks it (confirmed live, twice, one
+            // error each — RejectedExecutionException from JDA's, then InterruptedIOException from
+            // BotCommands' after only disabling JDA's).
             builder.setEnableShutdownHook(false);
         }
 
-        JDA jda = builder.build();
-
-        if (manageOwnShutdown) {
-            registerCommandCleanupShutdownHook(jda);
-        }
+        this.jda = builder.build();
+        registerCommandCleanupShutdownHookIfReady();
     }
 
     /**
-     * Whether {@link #registerCommandCleanupShutdownHook} should run at all: outside of
-     * production, with {@link BotConfig#getRemoveCommandsOnShutdown()} enabled and
-     * {@link BotConfig#getGuildId()} set. Checked before {@link #createJDA} decides whether to
-     * disable JDA's own shutdown hook, so that decision and the hook registration always agree.
-     * <p>
-     * The {@code !getLiveEnvironment()} check here means production can never wipe its own
-     * (global) commands from this, even if the flag were ever set there by mistake — this only
-     * ever touches the {@code GUILD_ID} guild's commands, which production doesn't use (see Main).
+     * BotCommands fires this once the framework has finished its own startup, independently of
+     * (and, as far as observed, before) {@link InjectedJDAEvent} — captured here purely to get a
+     * {@link BContext} reference for {@link #registerCommandCleanupShutdownHookIfReady}, so our
+     * shutdown hook can call the framework's own full shutdown ({@link BContext#shutdownNow()})
+     * instead of reimplementing a partial version of it by calling {@code jda.shutdownNow()}
+     * directly — {@code BContext.shutdownNow()} already does that internally, plus its own
+     * additional cleanup (coroutine-backed executors) that calling JDA's shutdown alone would skip.
      */
-    private boolean shouldRemoveCommandsOnShutdown() {
-        if (botConfig.getLiveEnvironment()) return false;
-        if (!botConfig.getRemoveCommandsOnShutdown()) return false;
-
-        if (botConfig.getGuildId() == null) {
-            log.warn("REMOVE_COMMANDS_ON_SHUTDOWN is true but GUILD_ID is not set — can't remove guild commands on shutdown.");
-            return false;
-        }
-
-        return true;
+    @BEventListener
+    public void onPostLoad(PostLoadEvent event) {
+        this.context = event.getContext();
+        registerCommandCleanupShutdownHookIfReady();
     }
 
     /**
-     * Removes every guild slash command from {@link BotConfig#getGuildId()} on JVM shutdown —
-     * normal exit, Ctrl+C, or a graceful stop from the IDE/OS (a {@code SIGTERM}-style signal) all
-     * run shutdown hooks. A hard kill (task manager "End task", {@code taskkill /F}, a crashed
-     * host, power loss) does not and cannot — no process, in any language, can run cleanup code
-     * after being forcibly killed, so commands may occasionally survive an abrupt stop. Re-running
-     * the bot re-syncs them either way (see Main's {@code forceGuildCommands} setup), so the worst
-     * case is just "they're still there next time," not anything broken.
-     * <p>
-     * Only ever called when {@link #shouldRemoveCommandsOnShutdown()} was already true at JDA
-     * build time (which also disabled JDA's own shutdown hook) — see {@link #createJDA}.
+     * Registers the cleanup hook once both {@link #jda} (from {@link #createJDA}) and
+     * {@link #context} (from {@link #onPostLoad}) are available — order-independent, since which
+     * of those two fires first isn't documented/guaranteed. Only actually registers anything if
+     * {@link BotConfig#shouldManageOwnShutdown()} is true; otherwise this is a no-op every time
+     * it's called, and both of JDA's/BotCommands' built-in shutdown hooks are left enabled as normal.
      */
-    private void registerCommandCleanupShutdownHook(JDA jda) {
-        long guildId = botConfig.getGuildId(); // known non-null: shouldRemoveCommandsOnShutdown() already checked
+    private void registerCommandCleanupShutdownHookIfReady() {
+        JDA jdaInstance = this.jda;
+        BContext contextInstance = this.context;
+        if (jdaInstance == null || contextInstance == null) return;
+
+        if (!botConfig.shouldManageOwnShutdown()) return;
+        if (!shutdownHookRegistered.compareAndSet(false, true)) return; // already registered
+
+        long guildId = botConfig.getGuildId(); // known non-null: shouldManageOwnShutdown() already checked
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             try {
-                Guild guild = jda.getGuildById(guildId);
+                Guild guild = jdaInstance.getGuildById(guildId);
                 if (guild == null) {
                     log.warn("Guild {} not available at shutdown — could not remove its commands.", guildId);
                 } else {
@@ -148,11 +145,12 @@ public class Bot extends JDAService {
             } catch (Exception e) {
                 log.warn("Failed to remove guild commands from {} on shutdown.", guildId, e);
             } finally {
-                // We disabled JDA's own shutdown hook to avoid racing it for the call above, so
-                // we're responsible for shutting JDA down ourselves now that it's done — using
-                // shutdownNow() specifically, matching exactly what JDA's own (now-disabled) hook
-                // would have called, rather than the gracefully-draining shutdown().
-                jda.shutdownNow();
+                // We disabled both JDA's and BotCommands' own shutdown hooks to avoid racing them
+                // for the call above, so we're responsible for a full shutdown ourselves now that
+                // it's done. context.shutdownNow() (not jda.shutdownNow()) because it already
+                // calls jda.shutdownNow() internally, plus BotCommands' own additional cleanup —
+                // this is the actual call BotCommands' own (now-disabled) hook would have made.
+                contextInstance.shutdownNow();
             }
         }, "guild-command-cleanup"));
     }
