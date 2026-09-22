@@ -153,17 +153,14 @@ public class BotConfig {
     }
 
     /**
-     * Whether this run should take over its own shutdown sequence — disabling <b>both</b> JDA's
-     * and BotCommands' own built-in shutdown hooks in favor of a single custom one (see
-     * {@code Main} and {@code Bot#registerCommandCleanupShutdownHook}) that removes guild
-     * commands before closing everything else down. There are two separate built-in hooks to
-     * disable, not one: BotCommands registers its own framework-level hook in addition to JDA's,
-     * and it independently calls {@code jda.shutdownNow()} too — leaving either one enabled means
-     * it can still race a custom hook for the same REST call.
+     * Whether this run should register the guild-command-cleanup shutdown hook (see
+     * {@code Bot#registerCommandCleanupShutdownHook}) that removes guild commands on JVM
+     * shutdown. That hook sends a plain HTTPS request independent of JDA/BotCommands, so unlike
+     * an earlier attempt, nothing here needs to touch either framework's own built-in shutdown
+     * hook — both stay enabled, exactly as they ship by default.
      * <p>
      * True only outside of production, with {@link #getRemoveCommandsOnShutdown()} enabled and a
-     * {@link #getGuildId()} set — this is a pure check with no side effects, safe to call from
-     * both {@code Main} (before JDA/BotCommands even start) and {@code Bot} (once they have).
+     * {@link #getGuildId()} set — a pure check with no side effects.
      */
     public boolean shouldManageOwnShutdown() {
         return !getLiveEnvironment() && getRemoveCommandsOnShutdown() && getGuildId() != null;

@@ -40,15 +40,14 @@ public class Main {
                 });
             }
 
-            // When Bot is going to register its own command-cleanup shutdown hook, disable
-            // BotCommands' own built-in one (BCShutdownHook) so it can't race that custom hook.
-            // BotCommands' hook calls context.shutdownNow(), which independently calls
-            // jda.shutdownNow() on its own — confirmed live: leaving it enabled interrupted the
-            // guild-command-removal REST call mid-flight with an InterruptedIOException, even
-            // after JDA's own separate shutdown hook (see Bot#createJDA) was already disabled.
-            if (config.shouldManageOwnShutdown()) {
-                builder.setEnableShutdownHook(false);
-            }
+            // Note: the guild-command-cleanup shutdown hook (see Bot#registerCommandCleanupShutdownHook)
+            // deliberately does NOT touch this builder's/JDA's own shutdown hook settings. An
+            // earlier attempt disabled both JDA's and BotCommands' built-in shutdown hooks to
+            // avoid racing a custom one for the same REST call — each attempt uncovered a new
+            // failure mode from fighting the framework's shutdown machinery (a race against JDA's
+            // hook, then a race against BotCommands' own, then a crash from a @Lazy service
+            // resolution edge case when that second hook is disabled). Sending the cleanup request
+            // via a plain HTTPS call instead of through JDA sidesteps needing to touch any of this.
         });
     }
 }
