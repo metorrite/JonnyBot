@@ -133,6 +133,25 @@ public class BotConfig {
         return Integer.parseInt(raw.trim());
     }
 
+    /**
+     * Whether to remove every guild slash command on shutdown, so they don't linger in Discord's
+     * command picker between dev runs. Defaults to {@code false} (safe default: if unset, or set
+     * to anything that isn't exactly "true", commands are left alone) — for a final run before
+     * stepping away, set this to {@code true} for a clean sweep on the way out.
+     * <p>
+     * Only ever takes effect outside of production ({@code !getLiveEnvironment()}), regardless of
+     * this value — see {@code Bot#registerCommandCleanupShutdownHook}.
+     */
+    public boolean getRemoveCommandsOnShutdown() {
+        String raw = System.getenv("REMOVE_COMMANDS_ON_SHUTDOWN");
+
+        if (raw == null || raw.isBlank()) {
+            raw = dotenv.get("REMOVE_COMMANDS_ON_SHUTDOWN");
+        }
+
+        return Boolean.parseBoolean(raw); // null/blank/anything but "true" (case-insensitive) -> false
+    }
+
     public List<Long> getOwnerIds() {
         String rawOwnerIds = System.getenv("OWNER_IDS");
 

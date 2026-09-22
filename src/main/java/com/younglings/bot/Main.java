@@ -3,7 +3,6 @@ package com.younglings.bot;
 import com.younglings.bot.config.BotConfig;
 import dev.freya02.botcommands.restarter.api.BotCommandsRestarter;
 import io.github.freya022.botcommands.api.core.BotCommands;
-import io.github.freya022.botcommands.api.core.config.BApplicationConfigBuilder;
 
 public class Main {
     public static void main(String[] args) {
@@ -28,6 +27,18 @@ public class Main {
             builder.textCommands(textCommands -> {
                 textCommands.usePingAsPrefix(true);
             });
+
+            // Outside of production, register commands to GUILD_ID only instead of globally.
+            // Guild commands sync near-instantly; global commands can take up to an hour to
+            // propagate, which makes iterating on commands during development painful. Production
+            // keeps registering commands globally (unaffected — this whole block is skipped when
+            // LIVE_ENV is true, no matter what GUILD_ID is set to).
+            if (!config.getLiveEnvironment() && config.getGuildId() != null) {
+                builder.applicationCommands(applicationCommands -> {
+                    applicationCommands.forceGuildCommands(true);
+                    applicationCommands.getTestGuildIds().add(config.getGuildId());
+                });
+            }
         });
     }
 }
