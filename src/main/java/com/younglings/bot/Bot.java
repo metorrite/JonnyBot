@@ -72,13 +72,18 @@ public class Bot extends JDAService {
                         teamformingInteractionListener);
 
         if (manageOwnShutdown) {
-            // JDA registers its own shutdown hook by default that closes its REST requester. That
-            // hook and ours would both run on JVM shutdown with no guaranteed ordering between
-            // them — if JDA's happens to run first, our attempt to remove guild commands fails
-            // with "RejectedExecutionException: The Requester has been stopped!" (this is exactly
-            // what happened the first time this ran). Disabling JDA's hook and calling
-            // jda.shutdown() ourselves at the end of ours removes the race entirely: our hook is
-            // then the only one, so the ordering (remove commands, then shut down) is guaranteed.
+            // JDA registers its own shutdown hook by default (literally just
+            // `new Thread(this::shutdownNow, "JDA Shutdown Hook")`, per JDAImpl) that closes its
+            // REST requester. That hook and ours would both run on JVM shutdown with no
+            // guaranteed ordering between them — if JDA's happens to run first, our attempt to
+            // remove guild commands fails with "RejectedExecutionException: The Requester has
+            // been stopped!" (this is exactly what happened the first time this ran). JDA doesn't
+            // expose any public "run this before you close the requester" hook to piggyback on —
+            // its ShutdownEvent fires only after the requester is already stopped, which would
+            // hit the same error from a different call site. Disabling JDA's hook and calling
+            // jda.shutdownNow() ourselves at the end of ours (matching exactly what JDA's own hook
+            // would have called) removes the race entirely: our hook is then the only one, so the
+            // ordering (remove commands, then shut down) is guaranteed instead of lucky.
             builder.setEnableShutdownHook(false);
         }
 
@@ -144,8 +149,10 @@ public class Bot extends JDAService {
                 log.warn("Failed to remove guild commands from {} on shutdown.", guildId, e);
             } finally {
                 // We disabled JDA's own shutdown hook to avoid racing it for the call above, so
-                // we're responsible for shutting JDA down ourselves now that it's done.
-                jda.shutdown();
+                // we're responsible for shutting JDA down ourselves now that it's done — using
+                // shutdownNow() specifically, matching exactly what JDA's own (now-disabled) hook
+                // would have called, rather than the gracefully-draining shutdown().
+                jda.shutdownNow();
             }
         }, "guild-command-cleanup"));
     }
