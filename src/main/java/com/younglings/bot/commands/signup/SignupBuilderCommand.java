@@ -1,16 +1,20 @@
 package com.younglings.bot.commands.signup;
 
-import io.github.freya022.botcommands.api.commands.annotations.Command;
 import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
-import io.github.freya022.botcommands.api.commands.application.slash.annotations.JDASlashCommand;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
 import net.dv8tion.jda.api.components.buttons.Button;
 
-@Command
+/**
+ * Retired in favor of {@link SignupHubCommand}, whose single embed puts the Queue/Group/Submission
+ * buttons directly on the main {@code /signup} menu instead of behind a separate command and an
+ * intermediate type-picker step — kept (not deleted) as reference/fallback, but no longer
+ * registered. BotCommands validates that every {@code @JDASlashCommand} method's declaring class
+ * is {@code @Command} (and throws at startup otherwise), so all the framework annotations are
+ * stripped here, not just the class-level one — this is now plain, uncalled Java, not a disabled
+ * command.
+ */
 public class SignupBuilderCommand {
 
-    @JDASlashCommand(name = "signupbuilder",
-            description = "Build a signup step by step instead of filling out one big command")
     public void onSignupBuilder(GuildSlashEvent event) {
         if (event.getGuild() == null) {
             event.reply("This command can only be used in a server.").setEphemeral(true).queue();

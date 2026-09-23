@@ -1,17 +1,19 @@
 package com.younglings.bot.commands.signup;
 
-import io.github.freya022.botcommands.api.commands.annotations.Command;
 import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
-import io.github.freya022.botcommands.api.commands.application.slash.annotations.JDASlashCommand;
-import io.github.freya022.botcommands.api.commands.application.slash.annotations.SlashOption;
-import io.github.freya022.botcommands.api.commands.application.slash.annotations.TopLevelSlashCommandData;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
 
-@Command
+/**
+ * Retired in favor of {@link SignupHubCommand}'s single {@code /signup} entry point with buttons
+ * and modals — kept (not deleted) as reference/fallback, but no longer registered. BotCommands
+ * validates that every {@code @JDASlashCommand} method's declaring class is {@code @Command} (and
+ * throws at startup otherwise), so all the framework annotations are stripped here, not just the
+ * class-level one — this is now plain, uncalled Java, not a disabled command.
+ */
 public class SignupCommand {
     private final SignupService signupService;
 
@@ -19,14 +21,12 @@ public class SignupCommand {
         this.signupService = signupService;
     }
 
-    @TopLevelSlashCommandData(description = "Create a signup form in this channel")
-    @JDASlashCommand(name = "signup", subcommand = "queue", description = "Ordered queue — call next, skip, and notify users one at a time")
     public void onSignupQueue(
             GuildSlashEvent event,
-            @SlashOption(description = "Embed title") String title,
-            @SlashOption(description = "Channel where admin controls will be posted") TextChannel adminChannel,
-            @SlashOption(description = "Message sent to the user when they reach the front of the queue") String notificationMessage,
-            @SlashOption(description = "Maximum number of signups — leave blank for unlimited") @Nullable Integer maxSignups
+            String title,
+            TextChannel adminChannel,
+            String notificationMessage,
+            @Nullable Integer maxSignups
     ) {
         if (event.getGuild() == null) {
             event.reply("This command can only be used in a server.").setEphemeral(true).queue();
@@ -46,11 +46,10 @@ public class SignupCommand {
         event.reply("Queue signup created.").setEphemeral(true).queue();
     }
 
-    @JDASlashCommand(name = "signup", subcommand = "group", description = "Collective group — members join and are assigned a temporary role you can ping or pick a winner from")
     public void onSignupGroup(
             GuildSlashEvent event,
-            @SlashOption(description = "Embed title") String title,
-            @SlashOption(description = "Channel where admin controls will be posted") TextChannel adminChannel
+            String title,
+            TextChannel adminChannel
     ) {
         if (event.getGuild() == null) {
             event.reply("This command can only be used in a server.").setEphemeral(true).queue();
@@ -68,21 +67,20 @@ public class SignupCommand {
         event.reply("Group signup created. A role is being set up — the panel will appear shortly.").setEphemeral(true).queue();
     }
 
-    @JDASlashCommand(name = "signup", subcommand = "submission", description = "Submission form — users provide data entries (e.g. movie suggestions). Supports up to 3 fields.")
     public void onSignupSubmission(
             GuildSlashEvent event,
-            @SlashOption(description = "Embed title") String title,
-            @SlashOption(description = "Channel where admin controls will be posted") TextChannel adminChannel,
-            @SlashOption(description = "First field label (e.g. Movie, Song, Idea)") String field1,
-            @SlashOption(description = "First field type: TEXT, LINK, or IMAGE (default: TEXT)") @Nullable String field1Type,
-            @SlashOption(description = "Is first field required? (default: yes)") @Nullable Boolean field1Required,
-            @SlashOption(description = "Second field label (optional)") @Nullable String field2,
-            @SlashOption(description = "Second field type: TEXT, LINK, or IMAGE (default: TEXT)") @Nullable String field2Type,
-            @SlashOption(description = "Is second field required? (default: yes)") @Nullable Boolean field2Required,
-            @SlashOption(description = "Third field label (optional)") @Nullable String field3,
-            @SlashOption(description = "Third field type: TEXT, LINK, or IMAGE (default: TEXT)") @Nullable String field3Type,
-            @SlashOption(description = "Is third field required? (default: yes)") @Nullable Boolean field3Required,
-            @SlashOption(description = "Maximum number of submissions — leave blank for unlimited") @Nullable Integer maxEntries
+            String title,
+            TextChannel adminChannel,
+            String field1,
+            @Nullable String field1Type,
+            @Nullable Boolean field1Required,
+            @Nullable String field2,
+            @Nullable String field2Type,
+            @Nullable Boolean field2Required,
+            @Nullable String field3,
+            @Nullable String field3Type,
+            @Nullable Boolean field3Required,
+            @Nullable Integer maxEntries
     ) {
         if (event.getGuild() == null) {
             event.reply("This command can only be used in a server.").setEphemeral(true).queue();

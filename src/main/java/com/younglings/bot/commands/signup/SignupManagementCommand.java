@@ -1,12 +1,7 @@
 package com.younglings.bot.commands.signup;
 
-import com.younglings.bot.permission.AdminRoleFilter;
-import io.github.freya022.botcommands.api.commands.annotations.Command;
-import io.github.freya022.botcommands.api.commands.annotations.Filter;
-import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
-import io.github.freya022.botcommands.api.commands.application.slash.annotations.JDASlashCommand;
-import io.github.freya022.botcommands.api.commands.application.slash.annotations.SlashOption;
 import net.dv8tion.jda.api.EmbedBuilder;
+import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.interactions.InteractionHook;
 
@@ -14,7 +9,14 @@ import java.awt.Color;
 import java.time.Duration;
 import java.util.List;
 
-@Command
+/**
+ * Retired in favor of {@link SignupHubCommand}'s single {@code /signup} entry point with buttons
+ * and modals (its list/post/refresh logic lives in {@link SignupInteractionListener} now) — kept
+ * (not deleted) as reference/fallback, but no longer registered. BotCommands validates that every
+ * {@code @JDASlashCommand} method's declaring class is {@code @Command} (and throws at startup
+ * otherwise), so all the framework annotations are stripped here, not just the class-level one —
+ * this is now plain, uncalled Java, not a disabled command.
+ */
 public class SignupManagementCommand {
     private static final int MAX_LIST_ENTRIES = 20;
     private static final int EMBED_DESCRIPTION_LIMIT = 4000;
@@ -25,7 +27,6 @@ public class SignupManagementCommand {
         this.signupService = signupService;
     }
 
-    @JDASlashCommand(name = "signup", subcommand = "list", description = "Lists all current signup queues")
     public void onSignupList(GuildSlashEvent event) {
         if (event.getGuild() == null) {
             event.reply("This command can only be used in a server.")
@@ -83,11 +84,10 @@ public class SignupManagementCommand {
                 .queue();
     }
 
-    @JDASlashCommand(name = "signup", subcommand = "post", description = "Posts another signup panel in this channel, use /signup list for a list of active signup forms")
     public void onSignupPost(
             GuildSlashEvent event,
-            @SlashOption(description = "Which panel to post", usePredefinedChoices = true) SignupPanelType panelType,
-            @SlashOption(description = "Signup ID from /signup list") Long signupId
+            SignupPanelType panelType,
+            Long signupId
     ) {
         if (event.getGuild() == null) {
             event.reply("This command can only be used in a server.")
@@ -116,8 +116,6 @@ public class SignupManagementCommand {
         }
     }
 
-    @Filter(AdminRoleFilter.class)
-    @JDASlashCommand(name = "signup", subcommand = "refresh", description = "Refreshes all active signup panels with the latest layout and buttons")
     public void onUpdatePanels(GuildSlashEvent event) {
         if (event.getGuild() == null) {
             event.reply("This command can only be used in a server.")

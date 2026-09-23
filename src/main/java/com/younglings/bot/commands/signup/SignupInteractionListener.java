@@ -1,7 +1,9 @@
 package com.younglings.bot.commands.signup;
 
 import com.younglings.bot.config.BotConfig;
+import com.younglings.bot.permission.AdminRoleFilter;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
+import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
 import net.dv8tion.jda.api.components.buttons.Button;
@@ -9,8 +11,10 @@ import net.dv8tion.jda.api.components.label.Label;
 import net.dv8tion.jda.api.components.textinput.TextInput;
 import net.dv8tion.jda.api.components.textinput.TextInputStyle;
 import net.dv8tion.jda.api.components.selections.EntitySelectMenu;
+import net.dv8tion.jda.api.components.selections.SelectMenu;
 import net.dv8tion.jda.api.components.selections.StringSelectMenu;
 import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.channel.ChannelType;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.events.interaction.ModalInteractionEvent;
@@ -21,6 +25,7 @@ import net.dv8tion.jda.api.modals.Modal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.awt.Color;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -28,13 +33,17 @@ import java.util.List;
 @BService
 public class SignupInteractionListener extends ListenerAdapter {
     private static final Logger log = LoggerFactory.getLogger(SignupInteractionListener.class);
+    private static final int MAX_LIST_ENTRIES = 20;
+    private static final int EMBED_DESCRIPTION_LIMIT = 4000;
 
     private final SignupService signupService;
     private final BotConfig botConfig;
+    private final AdminRoleFilter adminRoleFilter;
 
-    public SignupInteractionListener(SignupService signupService, BotConfig botConfig) {
+    public SignupInteractionListener(SignupService signupService, BotConfig botConfig, AdminRoleFilter adminRoleFilter) {
         this.signupService = signupService;
         this.botConfig = botConfig;
+        this.adminRoleFilter = adminRoleFilter;
     }
 
     private boolean isAdmin(ButtonInteractionEvent event) {
@@ -81,6 +90,10 @@ public class SignupInteractionListener extends ListenerAdapter {
         }
         if (id.startsWith("signup_dev_close_all")) {
             handleDevCloseAll(event, id);
+            return;
+        }
+        if (id.startsWith("signup_hub_")) {
+            handleHubButton(event, id);
             return;
         }
 
@@ -484,6 +497,10 @@ public class SignupInteractionListener extends ListenerAdapter {
             handleBuilderModal(event, modalId);
             return;
         }
+        if (modalId.startsWith("signup_hub_")) {
+            handleHubModal(event, modalId);
+            return;
+        }
 
         String action = modalId.split(":")[0];
         long signupId = signupService.parseSignupId(modalId);
@@ -673,6 +690,158 @@ public class SignupInteractionListener extends ListenerAdapter {
                     .flatMap(InteractionHook::deleteOriginal)
                     .queue();
         }
+    }
+
+    // --- /signup hub: list/post/refresh (queue/group/submission builders reuse signup_builder_* as-is) ---
+
+    private void handleHubButton(ButtonInteractionEvent event, String id) {
+        switch (id) {
+            case "signup_hub_list:_" -> replySignupList(event);
+
+            case "signup_hub_post:_" -> {
+                List<SignupSession> visible = signupService.getVisibleSignups(event.getGuild().getIdLong());
+                if (visible.isEmpty()) {
+                    event.reply("There are no current signups to post.").setEphemeral(true).queue();
+                    return;
+                }
+                event.replyModal(buildHubPostModal(visible)).queue();
+            }
+
+            case "signup_hub_refresh:_" -> {
+                Member member = event.getMember();
+                if (member == null || !adminRoleFilter.isAuthorized(event.getGuild(), member)) {
+                    event.reply("You need the Admin role (or higher) to use this.").setEphemeral(true).queue();
+                    return;
+                }
+                refreshAllPanels(event, event.getGuild());
+            }
+        }
+    }
+
+    private void handleHubModal(ModalInteractionEvent event, String modalId) {
+        if (!modalId.equals("signup_hub_post_modal")) return;
+
+        SignupPanelType panelType = SignupPanelType.valueOf(
+                event.getValue("signup_hub_post_type").getAsStringList().getFirst());
+        long signupId = Long.parseLong(event.getValue("signup_hub_post_signup").getAsStringList().getFirst());
+
+        Guild guild = event.getGuild();
+        TextChannel channel = event.getChannel().asTextChannel();
+
+        try {
+            signupService.postSignupEmbed(guild, channel, signupId, panelType);
+            event.reply("Posted `" + panelType + "` signup panel.")
+                    .setEphemeral(true)
+                    .delay(Duration.ofSeconds(5))
+                    .flatMap(InteractionHook::deleteOriginal)
+                    .queue();
+        } catch (IllegalArgumentException e) {
+            event.reply("That signup no longer exists.")
+                    .setEphemeral(true)
+                    .delay(Duration.ofSeconds(5))
+                    .flatMap(InteractionHook::deleteOriginal)
+                    .queue();
+        }
+    }
+
+    private void replySignupList(ButtonInteractionEvent event) {
+        List<SignupSession> signups = signupService.getVisibleSignups(event.getGuild().getIdLong());
+
+        if (signups.isEmpty()) {
+            event.reply("There are no current signups.")
+                    .setEphemeral(true)
+                    .delay(Duration.ofSeconds(5))
+                    .flatMap(InteractionHook::deleteOriginal)
+                    .queue();
+            return;
+        }
+
+        List<SignupSession> page = signups.size() > MAX_LIST_ENTRIES
+                ? signups.subList(0, MAX_LIST_ENTRIES)
+                : signups;
+
+        StringBuilder description = new StringBuilder();
+
+        for (SignupSession signup : page) {
+            String status = signupService.getSignupStatus(signup.signupId());
+
+            String entry = "**" + signup.signupId() + "** — " + signup.title()
+                    + "\nType: `" + signup.type().name() + "` • Status: `" + status + "`\n\n";
+
+            if (description.length() + entry.length() > EMBED_DESCRIPTION_LIMIT) {
+                description.append("*...and more.*\n");
+                break;
+            }
+
+            description.append(entry);
+        }
+
+        if (signups.size() > MAX_LIST_ENTRIES) {
+            description.append("*Showing ").append(MAX_LIST_ENTRIES)
+                    .append(" of ").append(signups.size()).append(" signups.*");
+        }
+
+        EmbedBuilder embed = new EmbedBuilder()
+                .setTitle("Current Signups")
+                .setDescription(description.toString())
+                .setColor(Color.BLUE);
+
+        event.replyEmbeds(embed.build()).setEphemeral(true).queue();
+    }
+
+    private void refreshAllPanels(ButtonInteractionEvent event, Guild guild) {
+        List<SignupSession> signups = signupService.getVisibleSignups(guild.getIdLong());
+
+        if (signups.isEmpty()) {
+            event.reply("No active signup panels to update.")
+                    .setEphemeral(true)
+                    .delay(Duration.ofSeconds(5))
+                    .flatMap(InteractionHook::deleteOriginal)
+                    .queue();
+            return;
+        }
+
+        int count = signups.size();
+        for (SignupSession signup : signups) {
+            signupService.updateMessages(guild, signup.signupId());
+        }
+
+        event.reply("Refreshing " + count + " signup panel" + (count == 1 ? "" : "s") + ". Changes will appear shortly.")
+                .setEphemeral(true)
+                .delay(Duration.ofSeconds(5))
+                .flatMap(InteractionHook::deleteOriginal)
+                .queue();
+    }
+
+    /** Signup titles double as option labels — capped at Discord's 25-option-per-select limit. */
+    private Modal buildHubPostModal(List<SignupSession> visible) {
+        StringSelectMenu typeSelect = StringSelectMenu.create("signup_hub_post_type")
+                .addOption("Public", SignupPanelType.PUBLIC.name())
+                .addOption("Admin", SignupPanelType.ADMIN.name())
+                .setRequiredRange(1, 1)
+                .build();
+
+        StringSelectMenu.Builder signupSelectBuilder = StringSelectMenu.create("signup_hub_post_signup")
+                .setRequiredRange(1, 1)
+                .setPlaceholder("Which signup?");
+
+        int limit = Math.min(visible.size(), SelectMenu.OPTIONS_MAX_AMOUNT);
+        for (int i = 0; i < limit; i++) {
+            SignupSession signup = visible.get(i);
+            String label = "#" + signup.signupId() + " — " + truncate(signup.title(), 70) + " (" + signup.type() + ")";
+            signupSelectBuilder.addOption(truncate(label, 100), String.valueOf(signup.signupId()));
+        }
+
+        return Modal.create("signup_hub_post_modal", "Post a Signup Panel")
+                .addComponents(
+                        Label.of("Panel type", typeSelect),
+                        Label.of("Signup", signupSelectBuilder.build())
+                )
+                .build();
+    }
+
+    private String truncate(String s, int max) {
+        return s.length() <= max ? s : s.substring(0, max - 1) + "…";
     }
 
     // --- /signupbuilder: buttons ---
