@@ -86,7 +86,7 @@ public class SignupManagementCommand {
     @JDASlashCommand(name = "signup", subcommand = "post", description = "Posts another signup panel in this channel, use /signup list for a list of active signup forms")
     public void onSignupPost(
             GuildSlashEvent event,
-            @SlashOption(description = "Which panel to post: PUBLIC or ADMIN") String panelType,
+            @SlashOption(description = "Which panel to post", usePredefinedChoices = true) SignupPanelType panelType,
             @SlashOption(description = "Signup ID from /signup list") Long signupId
     ) {
         if (event.getGuild() == null) {
@@ -98,23 +98,10 @@ public class SignupManagementCommand {
 
         TextChannel channel = event.getChannel().asTextChannel();
 
-        SignupPanelType type;
-
         try {
-            type = SignupPanelType.valueOf(panelType.trim().toUpperCase());
-        } catch (IllegalArgumentException e) {
-            event.reply("Panel type must be `PUBLIC` or `ADMIN`.")
-                    .setEphemeral(true)
-                    .delay(Duration.ofSeconds(5))
-                    .flatMap(InteractionHook::deleteOriginal)
-                    .queue();
-            return;
-        }
+            signupService.postSignupEmbed(event.getGuild(), channel, signupId, panelType);
 
-        try {
-            signupService.postSignupEmbed(event.getGuild(), channel, signupId, type);
-
-            event.reply("Posted `" + type + "` signup panel.")
+            event.reply("Posted `" + panelType + "` signup panel.")
                     .setEphemeral(true)
                     .delay(Duration.ofSeconds(5))
                     .flatMap(InteractionHook::deleteOriginal)
