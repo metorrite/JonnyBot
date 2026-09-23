@@ -69,6 +69,18 @@ public class RuneScapeApiClient {
                 skills.add(new SkillValue(skill.getInt("id"), skill.getInt("level"), skill.getLong("xp"), skill.getInt("rank")));
             }
 
+            List<PlayerActivity> activities = new ArrayList<>();
+            if (json.hasKey("activities")) {
+                DataArray activityArray = json.getArray("activities");
+                for (int i = 0; i < activityArray.length(); i++) {
+                    DataObject activity = activityArray.getObject(i);
+                    activities.add(new PlayerActivity(
+                            activity.getString("date", ""),
+                            activity.getString("text", ""),
+                            activity.getString("details", "")));
+                }
+            }
+
             return Optional.of(new RuneScapeProfile(
                     json.getString("name"),
                     json.getInt("totalskill"),
@@ -77,7 +89,8 @@ public class RuneScapeApiClient {
                     json.getInt("questscomplete"),
                     json.getInt("questsstarted"),
                     json.getInt("questsnotstarted"),
-                    skills
+                    skills,
+                    activities
             ));
 
         } catch (IOException | InterruptedException e) {
@@ -126,13 +139,15 @@ public class RuneScapeApiClient {
     }
 
     /**
-     * The "Overall" line from the classic hiscores CSV — a separate, older endpoint from
-     * RuneMetrics, kept independently toggleable by players, so it's a useful fallback for a
-     * player whose RuneMetrics profile is private but hiscores aren't. Verified live (position 0
-     * of the CSV response) against a real account's matching RuneMetrics totals rather than
-     * assumed from documentation — only "Overall" is parsed here, not the full skill-by-skill
-     * breakdown, since correctly mapping every subsequent CSV line to the right skill/activity
-     * isn't something I could verify with the same confidence.
+     * The "Overall" line plus all 29 individual skill lines from the classic hiscores CSV — a
+     * separate, older endpoint from RuneMetrics, kept independently toggleable by players, so it's
+     * a useful fallback for a player whose RuneMetrics profile is private but hiscores aren't.
+     * <p>
+     * Line order (0 = Overall, 1-29 = skills in {@link RuneScapeSkillCatalog} order) confirmed live
+     * by cross-referencing a real account's per-line rank against RuneMetrics' {@code skillvalues}
+     * ranks for the same account — every one of the 29 skills matched by rank in sequence, not
+     * assumed from documentation. Lines after the 30th (minigames/bosses/clue scrolls) aren't
+     * parsed — that list is far less stable and wasn't verified with the same confidence.
      */
     public Optional<HiscoresOverall> fetchHiscoresOverall(String rsn) {
         try {
@@ -148,20 +163,32 @@ public class RuneScapeApiClient {
                 return Optional.empty();
             }
 
-            String firstLine = response.body().lines().findFirst().orElse(null);
-            if (firstLine == null) return Optional.empty();
+            List<String> lines = response.body().lines().toList();
+            if (lines.isEmpty()) return Optional.empty();
 
-            String[] parts = firstLine.split(",");
-            if (parts.length < 3) return Optional.empty();
+            String[] overallParts = lines.getFirst().split(",");
+            if (overallParts.length < 3) return Optional.empty();
 
-            long rank = Long.parseLong(parts[0].trim());
-            int totalLevel = Integer.parseInt(parts[1].trim());
-            long totalXp = Long.parseLong(parts[2].trim());
+            long rank = Long.parseLong(overallParts[0].trim());
+            int totalLevel = Integer.parseInt(overallParts[1].trim());
+            long totalXp = Long.parseLong(overallParts[2].trim());
 
             // -1 is the hiscores sentinel for "unranked" (also used for a nonexistent player).
             if (rank < 0) return Optional.empty();
 
-            return Optional.of(new HiscoresOverall(rank, totalLevel, totalXp));
+            List<SkillValue> skills = new ArrayList<>();
+            int skillLines = Math.min(RuneScapeSkillCatalog.skillCount(), lines.size() - 1);
+            for (int skillId = 0; skillId < skillLines; skillId++) {
+                String[] parts = lines.get(skillId + 1).split(",");
+                if (parts.length < 3) continue;
+
+                int skillRank = Integer.parseInt(parts[0].trim());
+                int skillLevel = Integer.parseInt(parts[1].trim());
+                long skillXp = Long.parseLong(parts[2].trim());
+                skills.add(new SkillValue(skillId, skillLevel, skillXp, skillRank));
+            }
+
+            return Optional.of(new HiscoresOverall(rank, totalLevel, totalXp, skills));
 
         } catch (IOException | InterruptedException e) {
             if (e instanceof InterruptedException) Thread.currentThread().interrupt();

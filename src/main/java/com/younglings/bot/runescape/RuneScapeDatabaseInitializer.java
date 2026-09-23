@@ -69,9 +69,11 @@ public class RuneScapeDatabaseInitializer {
                 ON younglings.player_verification_attempt (guild_id, status);
                 """,
 
-                // Periodic snapshot of a linked player's RuneMetrics profile — one row per poll,
+                // Periodic snapshot of a linked player's RuneMetrics profile — one row per poll
+                // (manual only, see RuneScapeStatsScheduler/BotConfig#getRunescapeAutoPollEnabled),
                 // so XP-gain-over-time can be derived by comparing rows rather than only ever
-                // seeing the current total.
+                // seeing the current total. skills_json is kept as a redundant denormalized copy —
+                // player_skill_snapshot below is the real read path for per-skill history/queries.
                 """
                 CREATE TABLE IF NOT EXISTS younglings.player_stats_snapshot (
                     snapshot_id BIGSERIAL PRIMARY KEY,
@@ -89,6 +91,67 @@ public class RuneScapeDatabaseInitializer {
                 """
                 CREATE INDEX IF NOT EXISTS player_stats_snapshot_rsn_idx
                 ON younglings.player_stats_snapshot (guild_id, LOWER(rsn), snapshot_at DESC);
+                """,
+
+                // Added after the table already existed in some environments — ADD COLUMN IF NOT
+                // EXISTS instead of baking these into the CREATE TABLE above, since this
+                // initializer has no other way to evolve a table that's already been created.
+                """
+                ALTER TABLE younglings.player_stats_snapshot
+                    ADD COLUMN IF NOT EXISTS quests_started INTEGER NOT NULL DEFAULT 0;
+                """,
+
+                """
+                ALTER TABLE younglings.player_stats_snapshot
+                    ADD COLUMN IF NOT EXISTS quests_not_started INTEGER NOT NULL DEFAULT 0;
+                """,
+
+                // Per-skill history, one row per skill per snapshot — the normalized read path for
+                // "show me Attack XP over time" style queries that a JSON blob can't do cheaply.
+                """
+                CREATE TABLE IF NOT EXISTS younglings.player_skill_snapshot (
+                    id BIGSERIAL PRIMARY KEY,
+                    snapshot_id BIGINT NOT NULL REFERENCES younglings.player_stats_snapshot(snapshot_id) ON DELETE CASCADE,
+                    skill_id INTEGER NOT NULL,
+                    level INTEGER NOT NULL,
+                    xp BIGINT NOT NULL,
+                    rank BIGINT NOT NULL
+                );
+                """,
+
+                """
+                CREATE INDEX IF NOT EXISTS player_skill_snapshot_snapshot_idx
+                ON younglings.player_skill_snapshot (snapshot_id);
+                """,
+
+                // RuneMetrics' own "recent activities" feed (quest completions, level-ups, etc.),
+                // captured every time we poll so we build up our own permanent history instead of
+                // relying on Jagex's rolling feed (which only ever shows the most recent handful).
+                // activity_date is kept as the API's own raw string ("23-Sep-2026 23:30") rather
+                // than parsed into a timestamp — RuneScape doesn't document which timezone that's
+                // in, and guessing would bake in a wrong assumption; recorded_at (when *we* saw it)
+                // is what's actually reliable for our own ordering. The unique index dedupes across
+                // repeated polls, since the same recent events reappear in the feed every time.
+                """
+                CREATE TABLE IF NOT EXISTS younglings.player_activity (
+                    id BIGSERIAL PRIMARY KEY,
+                    guild_id BIGINT NOT NULL,
+                    rsn TEXT NOT NULL,
+                    activity_date TEXT NOT NULL,
+                    activity_text TEXT NOT NULL,
+                    activity_details TEXT NOT NULL,
+                    recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+                """,
+
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS player_activity_unique_idx
+                ON younglings.player_activity (guild_id, LOWER(rsn), activity_date, activity_text);
+                """,
+
+                """
+                CREATE INDEX IF NOT EXISTS player_activity_rsn_idx
+                ON younglings.player_activity (guild_id, LOWER(rsn), recorded_at DESC);
                 """
         ));
     }

@@ -17,15 +17,37 @@ public class RuneScapeStatsService {
         this.repository = repository;
     }
 
-    /** Fetches the player's current profile and saves a snapshot of it. Empty if the profile couldn't be fetched (private, doesn't exist, or the request failed). */
+    /**
+     * Fetches the player's current profile and saves a snapshot of it — the per-skill breakdown
+     * and any new activities go into their own tables (see {@link PlayerLinkRepository}), not just
+     * the summary row. Empty if the profile couldn't be fetched (private, doesn't exist, or the
+     * request failed) — nothing is saved in that case.
+     */
     public Optional<RuneScapeProfile> pollAndSnapshot(long guildId, String rsn) {
         Optional<RuneScapeProfile> profile = apiClient.fetchProfile(rsn);
-        profile.ifPresent(p -> repository.saveSnapshot(guildId, rsn, p, serializeSkills(p.skills())));
+        profile.ifPresent(p -> {
+            long snapshotId = repository.saveSnapshot(guildId, rsn, p, serializeSkills(p.skills()));
+            repository.saveSkillSnapshot(snapshotId, p.skills());
+            repository.saveActivities(guildId, rsn, p.activities());
+        });
         return profile;
     }
 
     public PlayerLinkRepository.StatsSnapshotRow getLatestSnapshot(long guildId, String rsn) {
         return repository.getLatestSnapshot(guildId, rsn);
+    }
+
+    /** Snapshot history, most recent first — the data source for a "gains over time" view. */
+    public List<PlayerLinkRepository.StatsSnapshotRow> getSnapshotHistory(long guildId, String rsn, int limit) {
+        return repository.getSnapshotHistory(guildId, rsn, limit);
+    }
+
+    public List<SkillValue> getSkillsForSnapshot(long snapshotId) {
+        return repository.getSkillsForSnapshot(snapshotId);
+    }
+
+    public List<PlayerActivity> getRecentActivities(long guildId, String rsn, int limit) {
+        return repository.getRecentActivities(guildId, rsn, limit);
     }
 
     private String serializeSkills(List<SkillValue> skills) {

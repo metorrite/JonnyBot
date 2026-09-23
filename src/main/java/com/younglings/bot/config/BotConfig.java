@@ -157,6 +157,23 @@ public class BotConfig {
     }
 
     /**
+     * Whether {@code RuneScapeStatsScheduler} polls automatically at all. Defaults to
+     * {@code false} while the RS3 tracking system is still being built out — polling is manual
+     * only for now, via the admin panel's "Poll Now" button (see {@code RsnAdminCommand}), so every
+     * poll happens on purpose instead of on a timer while the storage format is still changing.
+     * Set {@code RUNESCAPE_AUTO_POLL_ENABLED=true} to turn the timer back on.
+     */
+    public boolean getRunescapeAutoPollEnabled() {
+        String raw = System.getenv("RUNESCAPE_AUTO_POLL_ENABLED");
+
+        if (raw == null || raw.isBlank()) {
+            raw = dotenv.get("RUNESCAPE_AUTO_POLL_ENABLED");
+        }
+
+        return Boolean.parseBoolean(raw);
+    }
+
+    /**
      * How often, in minutes, {@code RuneScapeStatsScheduler} re-polls every linked player's
      * profile. Defaults to 360 (6 hours) if unset — set {@code RUNESCAPE_POLL_INTERVAL_MINUTES}
      * to tune this without a code change or redeploy.

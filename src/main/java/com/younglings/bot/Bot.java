@@ -3,6 +3,7 @@ package com.younglings.bot;
 import com.younglings.bot.commands.coffer.CofferInteractionListener;
 import com.younglings.bot.commands.embed.EmbedInteractionListener;
 import com.younglings.bot.commands.poll.PollInteractionListener;
+import com.younglings.bot.commands.runescape.RsnAdminInteractionListener;
 import com.younglings.bot.commands.runescape.RsnInteractionListener;
 import com.younglings.bot.commands.signup.SignupInteractionListener;
 import com.younglings.bot.commands.teamforming.TeamformingInteractionListener;
@@ -28,13 +29,15 @@ public class Bot extends JDAService {
     private final TeamformingInteractionListener teamformingInteractionListener;
     private final EmbedInteractionListener embedInteractionListener;
     private final RsnInteractionListener rsnInteractionListener;
+    private final RsnAdminInteractionListener rsnAdminInteractionListener;
 
     public Bot(BotConfig botConfig, SignupInteractionListener signupInteractionListener,
                PollInteractionListener pollInteractionListener,
                CofferInteractionListener cofferInteractionListener,
                TeamformingInteractionListener teamformingInteractionListener,
                EmbedInteractionListener embedInteractionListener,
-               RsnInteractionListener rsnInteractionListener) {
+               RsnInteractionListener rsnInteractionListener,
+               RsnAdminInteractionListener rsnAdminInteractionListener) {
         this.botConfig = botConfig;
         this.signupInteractionListener = signupInteractionListener;
         this.pollInteractionListener = pollInteractionListener;
@@ -42,6 +45,7 @@ public class Bot extends JDAService {
         this.teamformingInteractionListener = teamformingInteractionListener;
         this.embedInteractionListener = embedInteractionListener;
         this.rsnInteractionListener = rsnInteractionListener;
+        this.rsnAdminInteractionListener = rsnAdminInteractionListener;
     }
 
     // If you use Spring, you can return values provided by JDAConfiguration in the getters below
@@ -67,7 +71,8 @@ public class Bot extends JDAService {
                 // member list chunked and cached, so it's explicitly overridden to ALL here.
                 .setMemberCachePolicy(MemberCachePolicy.ALL)
                 .addEventListeners(signupInteractionListener, pollInteractionListener, cofferInteractionListener,
-                        teamformingInteractionListener, embedInteractionListener, rsnInteractionListener)
+                        teamformingInteractionListener, embedInteractionListener, rsnInteractionListener,
+                        rsnAdminInteractionListener)
                 .build();
     }
 }

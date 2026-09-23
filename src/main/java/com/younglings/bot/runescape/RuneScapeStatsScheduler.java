@@ -16,8 +16,14 @@ import java.util.concurrent.TimeUnit;
  * Periodically re-polls every linked player's RuneMetrics profile and stores a snapshot, so XP
  * gains and level-ups can be tracked over time instead of only ever seeing a live-fetched total.
  * <p>
- * <b>Tuning:</b> poll interval and per-player spacing are runtime settings, not code — see
- * {@link BotConfig#getRunescapePollIntervalMinutes()} and
+ * <b>Currently disabled by default</b> — see {@link BotConfig#getRunescapeAutoPollEnabled()}
+ * ({@code RUNESCAPE_AUTO_POLL_ENABLED}, defaults to {@code false}). While the storage format is
+ * still changing, every poll happens on purpose via the admin panel's "Poll Now" button
+ * ({@code RsnAdminCommand}) instead of on a timer neither of us is watching. Set that env var to
+ * {@code true} to bring the timer back once the format's settled.
+ * <p>
+ * <b>Tuning (when enabled):</b> poll interval and per-player spacing are runtime settings, not
+ * code — see {@link BotConfig#getRunescapePollIntervalMinutes()} and
  * {@link BotConfig#getRunescapePollDelaySeconds()} ({@code RUNESCAPE_POLL_INTERVAL_MINUTES} /
  * {@code RUNESCAPE_POLL_DELAY_SECONDS} env vars) — change either without a code change or
  * redeploy, just a bot restart to pick up the new value. Per-player spacing exists so a large
@@ -48,6 +54,11 @@ public class RuneScapeStatsScheduler {
         this.linkService = linkService;
         this.statsService = statsService;
         this.delayBetweenPlayers = Duration.ofSeconds(botConfig.getRunescapePollDelaySeconds());
+
+        if (!botConfig.getRunescapeAutoPollEnabled()) {
+            log.info("RuneScape auto-poll is disabled (RUNESCAPE_AUTO_POLL_ENABLED not set) — use the admin panel's Poll Now button instead.");
+            return;
+        }
 
         Duration pollInterval = Duration.ofMinutes(botConfig.getRunescapePollIntervalMinutes());
         log.info("RuneScape stats poller starting: interval={}, delayBetweenPlayers={}", pollInterval, delayBetweenPlayers);

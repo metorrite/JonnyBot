@@ -5,12 +5,15 @@ import com.younglings.bot.discord.Pagination;
 import com.younglings.bot.permission.AdminRoleFilter;
 import com.younglings.bot.runescape.AvatarResult;
 import com.younglings.bot.runescape.MakeoverAppearance;
+import com.younglings.bot.runescape.PlayerActivity;
 import com.younglings.bot.runescape.PlayerLink;
 import com.younglings.bot.runescape.PlayerLinkRepository;
 import com.younglings.bot.runescape.PlayerLinkService;
 import com.younglings.bot.runescape.RuneScapeApiClient;
 import com.younglings.bot.runescape.RuneScapeProfile;
+import com.younglings.bot.runescape.RuneScapeSkillCatalog;
 import com.younglings.bot.runescape.RuneScapeStatsService;
+import com.younglings.bot.runescape.SkillValue;
 import com.younglings.bot.runescape.VerificationAttempt;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
@@ -28,6 +31,7 @@ import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.events.interaction.ModalInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
+import net.dv8tion.jda.api.interactions.callbacks.IReplyCallback;
 import net.dv8tion.jda.api.modals.Modal;
 import net.dv8tion.jda.api.utils.FileUpload;
 import org.slf4j.Logger;
@@ -102,6 +106,31 @@ public class RsnInteractionListener extends ListenerAdapter {
             }
 
             case "rsn_stats" -> showStats(event, event.getGuild(), event.getUser().getIdLong());
+
+            case "rsn_stats_pick" -> {
+                event.deferReply(true).queue();
+                showStatsForRsn(event, event.getGuild(), id.split(":", 2)[1]);
+            }
+
+            case "rsn_lookup" -> {
+                TextInput rsnInput = TextInput.create("rsn_lookup_name", TextInputStyle.SHORT)
+                        .setPlaceholder("Exact in-game display name")
+                        .setRequired(true)
+                        .setRequiredRange(1, 12)
+                        .build();
+
+                Modal modal = Modal.create("rsn_lookup_modal:_", "Look Up a Player")
+                        .addComponents(Label.of("RuneScape Name", rsnInput))
+                        .build();
+
+                event.replyModal(modal).queue();
+            }
+
+            case "rsn_skills" -> showSkills(event, event.getGuild(), id.split(":", 2)[1]);
+
+            case "rsn_history" -> showHistory(event, event.getGuild(), id.split(":", 2)[1]);
+
+            case "rsn_activity" -> showActivity(event, event.getGuild(), id.split(":", 2)[1]);
 
             case "rsn_leaderboard" -> showLeaderboard(event, event.getGuild());
 
@@ -259,6 +288,13 @@ public class RsnInteractionListener extends ListenerAdapter {
     }
 
     private void handleModal(ModalInteractionEvent event, String modalId) {
+        if (modalId.equals("rsn_lookup_modal:_")) {
+            String rsn = event.getValue("rsn_lookup_name").getAsString().trim();
+            event.deferReply(true).queue();
+            showStatsForRsn(event, event.getGuild(), rsn);
+            return;
+        }
+
         if (!modalId.equals("rsn_link_modal:_")) return;
 
         String rsn = event.getValue("rsn_link_name").getAsString().trim();
@@ -343,6 +379,7 @@ public class RsnInteractionListener extends ListenerAdapter {
 
     // --- Stats display ---
 
+    /** "My Stats" entry point: shows the one linked RSN directly, or a picker if there's more than one — see {@link PlayerLink}'s doc on multi-RSN support. */
     private void showStats(ButtonInteractionEvent event, Guild guild, long discordUserId) {
         List<PlayerLink> links = linkService.getLinksForUser(guild.getIdLong(), discordUserId);
         if (links.isEmpty()) {
@@ -350,14 +387,36 @@ public class RsnInteractionListener extends ListenerAdapter {
             return;
         }
 
-        event.deferReply(true).queue();
+        if (links.size() == 1) {
+            event.deferReply(true).queue();
+            showStatsForRsn(event, guild, links.getFirst().rsn());
+            return;
+        }
 
-        PlayerLink link = links.getFirst();
-        PlayerLinkRepository.StatsSnapshotRow previous = statsService.getLatestSnapshot(guild.getIdLong(), link.rsn());
-        var profile = statsService.pollAndSnapshot(guild.getIdLong(), link.rsn());
+        List<Button> buttons = links.stream()
+                .limit(5) // ActionRow.of's own cap — a person with more than 5 linked RSNs is not a case worth building a second row for yet
+                .map(link -> Button.secondary("rsn_stats_pick:" + link.rsn(), link.rsn()))
+                .toList();
+
+        Container container = Containers.card(Containers.PRIMARY,
+                TextDisplay.of("You have **" + links.size() + "** RuneScape names linked. Which one?"),
+                ActionRow.of(buttons));
+
+        event.replyComponents(List.of(container)).useComponentsV2(true).setEphemeral(true).queue();
+    }
+
+    /**
+     * The shared stats-rendering path for "My Stats" (single link), picking one of several linked
+     * RSNs, and "Look Up Player" (any RSN, linked or not) alike — always polls live rather than
+     * reading a possibly-stale snapshot, since with automatic polling disabled this button is the
+     * only thing that keeps a player's data current. Caller must have already deferred the reply.
+     */
+    private void showStatsForRsn(IReplyCallback event, Guild guild, String rsn) {
+        PlayerLinkRepository.StatsSnapshotRow previous = statsService.getLatestSnapshot(guild.getIdLong(), rsn);
+        var profile = statsService.pollAndSnapshot(guild.getIdLong(), rsn);
 
         if (profile.isPresent()) {
-            event.getHook().editOriginalComponents(List.of(buildStatsContainer(link.rsn(), profile.get(), previous)))
+            event.getHook().editOriginalComponents(List.of(buildStatsContainer(rsn, profile.get(), previous)))
                     .useComponentsV2(true).queue();
             return;
         }
@@ -365,10 +424,10 @@ public class RsnInteractionListener extends ListenerAdapter {
         // RuneMetrics and hiscores are independently toggleable privacy settings in-game — a
         // player with RuneMetrics set private may still show up on hiscores, so it's worth trying
         // before giving up entirely.
-        var overall = apiClient.fetchHiscoresOverall(link.rsn());
+        var overall = apiClient.fetchHiscoresOverall(rsn);
         if (overall.isPresent()) {
             Container container = Containers.card(RS3_ORANGE,
-                    TextDisplay.of("### " + link.rsn() + " — RuneScape 3 Stats (hiscores only)"),
+                    TextDisplay.of("### " + rsn + " — RuneScape 3 Stats (hiscores only)"),
                     TextDisplay.of("Full profile is private — showing hiscores totals instead.\n\n" +
                             "**Total Level:** " + overall.get().totalLevel() + "\n" +
                             "**Total XP:** " + String.format("%,d", overall.get().totalXp()) + "\n" +
@@ -378,8 +437,85 @@ public class RsnInteractionListener extends ListenerAdapter {
         }
 
         event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.WARNING,
-                "Couldn't fetch stats for **" + link.rsn() + "** right now — their profile and hiscores may both be " +
-                "private, or the RuneScape API may be temporarily unavailable."))).useComponentsV2(true).queue();
+                "Couldn't fetch stats for **" + rsn + "** right now — their profile and hiscores may both be " +
+                "private, the name may not exist, or the RuneScape API may be temporarily unavailable."))).useComponentsV2(true).queue();
+    }
+
+    private void showSkills(ButtonInteractionEvent event, Guild guild, String rsn) {
+        PlayerLinkRepository.StatsSnapshotRow latest = statsService.getLatestSnapshot(guild.getIdLong(), rsn);
+        if (latest == null) {
+            Containers.replyEphemeral(event, Containers.WARNING,
+                    "No synced data for **" + rsn + "** yet — use **My Stats** or **Look Up Player** first.");
+            return;
+        }
+
+        List<SkillValue> skills = statsService.getSkillsForSnapshot(latest.snapshotId());
+        StringBuilder sb = new StringBuilder();
+        for (SkillValue skill : skills) {
+            sb.append("**").append(RuneScapeSkillCatalog.nameFor(skill.skillId())).append(":** ")
+                    .append(skill.level()).append(" (").append(String.format("%,d", skill.xp())).append(" xp)\n");
+        }
+
+        Container container = Containers.card(RS3_ORANGE,
+                TextDisplay.of("### " + rsn + " — Skills"),
+                TextDisplay.of(sb.isEmpty() ? "*No skill data in this snapshot.*" : sb.toString()),
+                TextDisplay.of("-# As of <t:" + latest.snapshotAt().toEpochSecond() + ":R>"));
+
+        event.replyComponents(List.of(container)).useComponentsV2(true).setEphemeral(true).queue();
+    }
+
+    private static final int HISTORY_SIZE = 10;
+
+    private void showHistory(ButtonInteractionEvent event, Guild guild, String rsn) {
+        List<PlayerLinkRepository.StatsSnapshotRow> history = statsService.getSnapshotHistory(guild.getIdLong(), rsn, HISTORY_SIZE);
+        if (history.isEmpty()) {
+            Containers.replyEphemeral(event, Containers.WARNING,
+                    "No synced data for **" + rsn + "** yet — use **My Stats** or **Look Up Player** first.");
+            return;
+        }
+
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < history.size(); i++) {
+            PlayerLinkRepository.StatsSnapshotRow row = history.get(i);
+            sb.append("<t:").append(row.snapshotAt().toEpochSecond()).append(":R> — Level ")
+                    .append(row.totalLevel()).append(", ").append(String.format("%,d", row.totalXp())).append(" xp");
+
+            if (i + 1 < history.size()) {
+                long xpGained = row.totalXp() - history.get(i + 1).totalXp();
+                if (xpGained != 0) sb.append(" (").append(xpGained > 0 ? "+" : "").append(String.format("%,d", xpGained)).append(")");
+            }
+            sb.append("\n");
+        }
+
+        Container container = Containers.card(RS3_ORANGE,
+                TextDisplay.of("### " + rsn + " — Recent History"),
+                TextDisplay.of(sb.toString()),
+                TextDisplay.of("-# Most recent " + history.size() + " poll(s), newest first."));
+
+        event.replyComponents(List.of(container)).useComponentsV2(true).setEphemeral(true).queue();
+    }
+
+    private static final int ACTIVITY_SIZE = 15;
+
+    private void showActivity(ButtonInteractionEvent event, Guild guild, String rsn) {
+        List<PlayerActivity> activities = statsService.getRecentActivities(guild.getIdLong(), rsn, ACTIVITY_SIZE);
+        if (activities.isEmpty()) {
+            Containers.replyEphemeral(event, Containers.WARNING,
+                    "No recorded activity for **" + rsn + "** yet — activity is captured the next time their stats are polled.");
+            return;
+        }
+
+        StringBuilder sb = new StringBuilder();
+        for (PlayerActivity activity : activities) {
+            sb.append("`").append(activity.date()).append("` — ").append(activity.text()).append("\n");
+        }
+
+        Container container = Containers.card(RS3_ORANGE,
+                TextDisplay.of("### " + rsn + " — Recent Activity"),
+                TextDisplay.of(sb.toString()),
+                TextDisplay.of("-# Dates are RuneScape's own timestamps, timezone as reported by the game."));
+
+        event.replyComponents(List.of(container)).useComponentsV2(true).setEphemeral(true).queue();
     }
 
     private static final int LEADERBOARD_SIZE = 10;
@@ -440,7 +576,14 @@ public class RsnInteractionListener extends ListenerAdapter {
             }
         }
 
-        return Containers.card(RS3_ORANGE, TextDisplay.of("### " + rsn + " — RuneScape 3 Stats"), TextDisplay.of(sb.toString()));
+        return Containers.card(RS3_ORANGE,
+                TextDisplay.of("### " + rsn + " — RuneScape 3 Stats"),
+                TextDisplay.of(sb.toString()),
+                ActionRow.of(
+                        Button.secondary("rsn_skills:" + rsn, "View Skills"),
+                        Button.secondary("rsn_history:" + rsn, "History"),
+                        Button.secondary("rsn_activity:" + rsn, "Recent Activity")
+                ));
     }
 
     // --- Helpers ---
