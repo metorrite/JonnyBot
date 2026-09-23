@@ -59,7 +59,7 @@ public class AdminRoleFilter implements ApplicationCommandFilter {
      * Fails closed (returns {@code false}) if no Admin role is configured, it no longer exists in
      * this guild, or the member holds no roles above {@code @everyone}.
      */
-    private boolean isAuthorized(Guild guild, Member member) {
+    boolean isAuthorized(Guild guild, Member member) {
         Long adminRoleId = botConfig.getAdminRoleId();
         if (adminRoleId == null) return false;
 
