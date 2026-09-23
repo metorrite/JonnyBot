@@ -1,13 +1,7 @@
 package com.younglings.bot.commands.teamforming;
 
-import com.younglings.bot.permission.AdminRoleFilter;
-import io.github.freya022.botcommands.api.commands.annotations.Command;
-import io.github.freya022.botcommands.api.commands.annotations.Filter;
-import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
-import io.github.freya022.botcommands.api.commands.application.slash.annotations.JDASlashCommand;
-import io.github.freya022.botcommands.api.commands.application.slash.annotations.SlashOption;
-import io.github.freya022.botcommands.api.commands.application.slash.annotations.TopLevelSlashCommandData;
 import net.dv8tion.jda.api.entities.Guild;
+import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.utils.messages.MessageCreateData;
 import org.jetbrains.annotations.Nullable;
@@ -18,7 +12,19 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-@Command
+/**
+ * Retired in favor of {@code /embed}'s generic post/remove system (see
+ * {@code com.younglings.bot.commands.embed}), which posts the teamforming panel via
+ * {@link TeamformingService#buildPublicPanelMessage()} directly instead of through this class —
+ * kept (not deleted) as reference/fallback, but no longer registered. BotCommands validates that
+ * every {@code @JDASlashCommand} method's declaring class is {@code @Command} (and throws at
+ * startup otherwise), so all the framework annotations are stripped here, not just the
+ * class-level one — this is now plain, uncalled Java, not a disabled command. Note the
+ * role-deletion half of the old {@code /teamforming revert} ({@link
+ * TeamformingService#deleteAllCatalogRoles}) isn't wired into the new flow — {@code /embed remove}
+ * only un-posts the message, matching its generic, embed-type-agnostic contract; role cleanup
+ * would need its own tool if still needed.
+ */
 public class TeamformingCommand {
     private static final Logger log = LoggerFactory.getLogger(TeamformingCommand.class);
 
@@ -31,13 +37,9 @@ public class TeamformingCommand {
         this.teamformingService = teamformingService;
     }
 
-    @TopLevelSlashCommandData(description = "Manage the boss-event teamforming role panel")
-    @Filter(AdminRoleFilter.class)
-    @JDASlashCommand(name = "teamforming", subcommand = "post",
-            description = "Posts the teamforming role panel in a channel, creating any missing roles")
     public void onPost(
             GuildSlashEvent event,
-            @SlashOption(description = "Channel to post the panel in") TextChannel channel
+            TextChannel channel
     ) {
         Guild guild = event.getGuild();
         event.deferReply(true).queue();
@@ -64,12 +66,8 @@ public class TeamformingCommand {
         );
     }
 
-    @Filter(AdminRoleFilter.class)
-    @JDASlashCommand(name = "teamforming", subcommand = "revert",
-            description = "[Testing] Deletes every teamforming role, optionally deleting a posted panel message too")
     public void onRevert(
             GuildSlashEvent event,
-            @SlashOption(description = "Link (or ID, if in this channel) of the panel message to also delete")
             @Nullable String panelMessage
     ) {
         Guild guild = event.getGuild();
