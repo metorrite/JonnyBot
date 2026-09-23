@@ -18,7 +18,9 @@ import java.util.List;
  * anything ranked above it in the guild's role hierarchy — not Discord's own "Administrator"
  * permission bit, since a role can be named "Admin" without actually carrying that bit. Opt-in
  * per command via {@code @Filter(AdminRoleFilter.class)} on a {@code @JDASlashCommand} method
- * (not applied globally).
+ * (not applied globally). {@link #isAuthorized} is public so button/modal handlers gating a
+ * specific action inside a hub command (where {@code @Filter} doesn't apply) can reuse the exact
+ * same check instead of duplicating it.
  */
 @BService
 @NullMarked
@@ -59,7 +61,7 @@ public class AdminRoleFilter implements ApplicationCommandFilter {
      * Fails closed (returns {@code false}) if no Admin role is configured, it no longer exists in
      * this guild, or the member holds no roles above {@code @everyone}.
      */
-    boolean isAuthorized(Guild guild, Member member) {
+    public boolean isAuthorized(Guild guild, Member member) {
         Long adminRoleId = botConfig.getAdminRoleId();
         if (adminRoleId == null) return false;
 

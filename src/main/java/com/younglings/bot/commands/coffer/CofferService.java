@@ -1,10 +1,10 @@
 package com.younglings.bot.commands.coffer;
 
 import com.younglings.bot.coffer.CofferRepository;
-import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.User;
+import net.dv8tion.jda.api.interactions.callbacks.IReplyCallback;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,7 +32,7 @@ public class CofferService {
         this.repository = repository;
     }
 
-    public void submitDonation(GuildSlashEvent event, String donorName, String amountStr) {
+    public void submitDonation(IReplyCallback event, String donorName, String amountStr) {
         long amount;
         try {
             amount = GpAmountParser.parse(amountStr);
@@ -57,7 +57,7 @@ public class CofferService {
         event.replyEmbeds(embed.build()).queue();
     }
 
-    public void displayCoffer(GuildSlashEvent event) {
+    public void displayCoffer(IReplyCallback event) {
         long guildId = event.getGuild().getIdLong();
         List<CofferHolder> holders = repository.getHolders(guildId);
         long total = holders.stream().mapToLong(CofferHolder::amount).sum();
@@ -83,7 +83,7 @@ public class CofferService {
         event.replyEmbeds(embed.build()).queue();
     }
 
-    public void displayLog(GuildSlashEvent event) {
+    public void displayLog(IReplyCallback event) {
         long guildId = event.getGuild().getIdLong();
         List<CofferDonation> donations = repository.getRecentDonations(guildId, 25);
 
@@ -109,7 +109,7 @@ public class CofferService {
         event.replyEmbeds(embed.build()).queue();
     }
 
-    public void transferCoffer(GuildSlashEvent event, User toUser, String amountStr) {
+    public void transferCoffer(IReplyCallback event, User toUser, String amountStr) {
         long amount;
         try {
             amount = GpAmountParser.parse(amountStr);
@@ -166,7 +166,7 @@ public class CofferService {
         }
     }
 
-    public void recordGiveaway(GuildSlashEvent event, @Nullable User holderUser, User recipientUser,
+    public void recordGiveaway(IReplyCallback event, @Nullable User holderUser, User recipientUser,
                                String amountStr, @Nullable String description) {
         long amount;
         try {

@@ -1,0 +1,40 @@
+package com.younglings.bot.commands.coffer;
+
+import io.github.freya022.botcommands.api.commands.annotations.Command;
+import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
+import io.github.freya022.botcommands.api.commands.application.slash.annotations.JDASlashCommand;
+import net.dv8tion.jda.api.components.actionrow.ActionRow;
+import net.dv8tion.jda.api.components.buttons.Button;
+
+/**
+ * Single entry point for the coffer system — replaces the five separate coffersubmit/cofferdisplay/
+ * cofferdisplaylog/coffertransfer/coffergiveaway commands (retired, not deleted — see
+ * {@link CofferCommand}) with one command that opens a personal menu of buttons, each leading to a
+ * modal ({@link CofferInteractionListener}) instead of a slash command's own typed parameters.
+ */
+@Command
+public class CofferHubCommand {
+
+    @JDASlashCommand(name = "coffer", description = "Manage the clan coffer")
+    public void onCoffer(GuildSlashEvent event) {
+        if (event.getGuild() == null) {
+            event.reply("This command can only be used in a server.").setEphemeral(true).queue();
+            return;
+        }
+
+        event.reply("**Clan Coffer** — choose an action:")
+                .setEphemeral(true)
+                .addComponents(
+                        ActionRow.of(
+                                Button.primary("coffer_hub_submit", "Submit Donation"),
+                                Button.secondary("coffer_hub_display", "Display"),
+                                Button.secondary("coffer_hub_log", "Log")
+                        ),
+                        ActionRow.of(
+                                Button.danger("coffer_hub_transfer", "Transfer"),
+                                Button.danger("coffer_hub_giveaway", "Giveaway")
+                        )
+                )
+                .queue();
+    }
+}
