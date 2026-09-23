@@ -55,7 +55,7 @@ public class CofferCommand {
             event.reply("This command can only be used in a server.").setEphemeral(true).queue();
             return;
         }
-        cofferService.transferCoffer(event, recipient, amount);
+        cofferService.transferCoffer(event, null, recipient, amount);
     }
 
     public void onGiveaway(

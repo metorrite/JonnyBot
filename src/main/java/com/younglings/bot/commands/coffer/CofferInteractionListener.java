@@ -44,26 +44,54 @@ public class CofferInteractionListener extends ListenerAdapter {
     public void onButtonInteraction(ButtonInteractionEvent event) {
         String id = event.getComponentId();
 
-        if (id.startsWith("coffer_hub_")) {
-            handleHubButton(event, id);
-            return;
-        }
+        try {
+            if (id.startsWith("coffer_hub_")) {
+                handleHubButton(event, id);
+                return;
+            }
 
-        if (!CofferService.REQUIRE_TRANSFER_VERIFICATION) return;
+            if (!CofferService.REQUIRE_TRANSFER_VERIFICATION) return;
 
-        if (id.startsWith(ACCEPT_PREFIX)) {
-            handleAccept(event, id.substring(ACCEPT_PREFIX.length()));
-        } else if (id.startsWith(REJECT_PREFIX)) {
-            handleReject(event, id.substring(REJECT_PREFIX.length()));
+            if (id.startsWith(ACCEPT_PREFIX)) {
+                handleAccept(event, id.substring(ACCEPT_PREFIX.length()));
+            } else if (id.startsWith(REJECT_PREFIX)) {
+                handleReject(event, id.substring(REJECT_PREFIX.length()));
+            }
+        } catch (Exception e) {
+            log.error("Unhandled exception in coffer button interaction '{}'", id, e);
+            replyError(event);
         }
     }
 
     @Override
     public void onModalInteraction(ModalInteractionEvent event) {
         String id = event.getModalId();
-        if (id.startsWith("coffer_hub_")) {
+        if (!id.startsWith("coffer_hub_")) return;
+
+        try {
             handleHubModal(event, id);
+        } catch (Exception e) {
+            log.error("Unhandled exception in coffer modal interaction '{}'", id, e);
+            replyError(event);
         }
+    }
+
+    private void replyError(ButtonInteractionEvent event) {
+        try {
+            if (!event.isAcknowledged()) {
+                event.reply("An unexpected error occurred. Please try again or contact an admin.")
+                        .setEphemeral(true).queue();
+            }
+        } catch (Exception ignored) {}
+    }
+
+    private void replyError(ModalInteractionEvent event) {
+        try {
+            if (!event.isAcknowledged()) {
+                event.reply("An unexpected error occurred. Please try again or contact an admin.")
+                        .setEphemeral(true).queue();
+            }
+        } catch (Exception ignored) {}
     }
 
     // --- /coffer hub: buttons ---
@@ -120,7 +148,13 @@ public class CofferInteractionListener extends ListenerAdapter {
 
                 User recipient = event.getValue("coffer_hub_transfer_recipient").getAsMentions().getUsers().getFirst();
                 String amount = event.getValue("coffer_hub_amount").getAsString().trim();
-                cofferService.transferCoffer(event, recipient, amount);
+
+                var fromMapping = event.getValue("coffer_hub_transfer_from");
+                User from = (fromMapping != null && !fromMapping.getAsMentions().getUsers().isEmpty())
+                        ? fromMapping.getAsMentions().getUsers().getFirst()
+                        : null;
+
+                cofferService.transferCoffer(event, from, recipient, amount);
             }
 
             case "coffer_hub_giveaway_modal" -> {
@@ -172,6 +206,12 @@ public class CofferInteractionListener extends ListenerAdapter {
     }
 
     private Modal buildTransferModal() {
+        EntitySelectMenu fromSelect = EntitySelectMenu.create(
+                        "coffer_hub_transfer_from", EntitySelectMenu.SelectTarget.USER)
+                .setRequired(false)
+                .setRequiredRange(0, 1)
+                .setPlaceholder("Holder transferring the GP (defaults to you)")
+                .build();
         EntitySelectMenu recipientSelect = EntitySelectMenu.create(
                         "coffer_hub_transfer_recipient", EntitySelectMenu.SelectTarget.USER)
                 .setRequiredRange(1, 1)
@@ -185,6 +225,7 @@ public class CofferInteractionListener extends ListenerAdapter {
 
         return Modal.create("coffer_hub_transfer_modal", "Transfer Coffer GP")
                 .addComponents(
+                        Label.of("From (optional)", fromSelect),
                         Label.of("Recipient", recipientSelect),
                         Label.of("Amount", amountInput)
                 )
@@ -204,6 +245,7 @@ public class CofferInteractionListener extends ListenerAdapter {
                 .build();
         EntitySelectMenu holderSelect = EntitySelectMenu.create(
                         "coffer_hub_giveaway_holder", EntitySelectMenu.SelectTarget.USER)
+                .setRequired(false)
                 .setRequiredRange(0, 1)
                 .setPlaceholder("Holder paying out the prize (defaults to you)")
                 .build();

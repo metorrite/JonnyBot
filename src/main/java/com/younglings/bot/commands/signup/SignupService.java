@@ -165,7 +165,7 @@ public class SignupService {
     public void startSubmissionDraft(long userId, long guildId, long adminChannelId, long publicChannelId,
                                       String title, Integer maxEntries) {
         submissionDraftsByUserId.put(userId, new SubmissionDraft(
-                guildId, adminChannelId, publicChannelId, title, maxEntries, List.of(), null, Instant.now()));
+                guildId, adminChannelId, publicChannelId, title, maxEntries, List.of(), Instant.now()));
     }
 
     /** Returns {@code null} (and evicts) if there's no draft for this user, or it's gone stale past {@link #DRAFT_TTL}. */
@@ -179,11 +179,6 @@ public class SignupService {
         }
 
         return draft;
-    }
-
-    /** No-op if the draft no longer exists (e.g. finished/cancelled just before this landed). */
-    public void setDraftStatusMessage(long userId, long messageId) {
-        submissionDraftsByUserId.computeIfPresent(userId, (id, draft) -> draft.withStatusMessageId(messageId));
     }
 
     /** Returns false without changing anything if there's no live draft for this user, or it's already full (3 fields). */

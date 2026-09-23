@@ -719,14 +719,22 @@ public class SignupInteractionListener extends ListenerAdapter {
     }
 
     private void handleHubModal(ModalInteractionEvent event, String modalId) {
-        if (!modalId.equals("signup_hub_post_modal")) return;
+        if (!modalId.equals("signup_hub_post_modal:_")) return;
 
         SignupPanelType panelType = SignupPanelType.valueOf(
                 event.getValue("signup_hub_post_type").getAsStringList().getFirst());
         long signupId = Long.parseLong(event.getValue("signup_hub_post_signup").getAsStringList().getFirst());
 
         Guild guild = event.getGuild();
-        TextChannel channel = event.getChannel().asTextChannel();
+        var channelMapping = event.getValue("signup_hub_post_channel");
+        TextChannel channel = (channelMapping != null && !channelMapping.getAsLongList().isEmpty())
+                ? guild.getTextChannelById(channelMapping.getAsLongList().getFirst())
+                : event.getChannel().asTextChannel();
+
+        if (channel == null) {
+            event.reply("That channel isn't a usable text channel.").setEphemeral(true).queue();
+            return;
+        }
 
         try {
             signupService.postSignupEmbed(guild, channel, signupId, panelType);
@@ -832,10 +840,18 @@ public class SignupInteractionListener extends ListenerAdapter {
             signupSelectBuilder.addOption(truncate(label, 100), String.valueOf(signup.signupId()));
         }
 
-        return Modal.create("signup_hub_post_modal", "Post a Signup Panel")
+        EntitySelectMenu channelSelect = EntitySelectMenu.create("signup_hub_post_channel", EntitySelectMenu.SelectTarget.CHANNEL)
+                .setChannelTypes(ChannelType.TEXT)
+                .setRequired(false)
+                .setRequiredRange(0, 1)
+                .setPlaceholder("Defaults to this channel if left blank")
+                .build();
+
+        return Modal.create("signup_hub_post_modal:_", "Post a Signup Panel")
                 .addComponents(
                         Label.of("Panel type", typeSelect),
-                        Label.of("Signup", signupSelectBuilder.build())
+                        Label.of("Signup", signupSelectBuilder.build()),
+                        Label.of("Channel (optional)", channelSelect)
                 )
                 .build();
     }
@@ -850,16 +866,7 @@ public class SignupInteractionListener extends ListenerAdapter {
         String action = id.split(":")[0];
 
         switch (action) {
-            case "signup_builder_type" -> {
-                String type = id.split(":")[1];
-                event.replyModal(buildTypeModal(type)).queue();
-                // The picker's done its job the moment a type is picked — Discord gives no event
-                // for "the user dismissed the modal instead of submitting it", so there's no way
-                // to tell a cancelled modal apart from one still in progress. Deleting eagerly
-                // here (rather than waiting for a submit that might never come) is what keeps this
-                // message from lingering; worst case if they back out, they just re-run the command.
-                event.getMessage().delete().queue(null, failure -> {});
-            }
+            case "signup_builder_type" -> event.replyModal(buildTypeModal(id.split(":")[1])).queue();
 
             case "signup_builder_add_field" -> {
                 long userId = event.getUser().getIdLong();
@@ -948,6 +955,10 @@ public class SignupInteractionListener extends ListenerAdapter {
                     return;
                 }
 
+                // The type modal is always opened from a button on the /signup hub message, so
+                // editMessage() here edits *that* message in place — no need to track its ID
+                // ourselves (ModalInteractionEvent#getMessage() carries it automatically for any
+                // modal opened from a component).
                 switch (type) {
                     case "QUEUE" -> {
                         String notify = event.getValue("signup_builder_notify").getAsString().trim();
@@ -959,8 +970,8 @@ public class SignupInteractionListener extends ListenerAdapter {
                         }
 
                         signupService.createQueueSession(guild, publicChannel, adminChannel, title, notify, max, userId);
-                        event.reply("Queue signup **" + title + "** created.")
-                                .setEphemeral(true)
+                        event.editMessage("Queue signup **" + title + "** created.")
+                                .setComponents()
                                 .delay(Duration.ofSeconds(5))
                                 .flatMap(InteractionHook::deleteOriginal)
                                 .queue();
@@ -968,8 +979,8 @@ public class SignupInteractionListener extends ListenerAdapter {
 
                     case "GROUP" -> {
                         signupService.createGroupSession(guild, publicChannel, adminChannel, title, userId);
-                        event.reply("Group signup **" + title + "** created. A role is being set up.")
-                                .setEphemeral(true)
+                        event.editMessage("Group signup **" + title + "** created. A role is being set up.")
+                                .setComponents()
                                 .delay(Duration.ofSeconds(5))
                                 .flatMap(InteractionHook::deleteOriginal)
                                 .queue();
@@ -987,11 +998,9 @@ public class SignupInteractionListener extends ListenerAdapter {
                                 adminChannelId, publicChannelId, title, max);
                         SubmissionDraft draft = signupService.getSubmissionDraft(userId);
 
-                        event.reply(renderDraftSummary(draft))
-                                .setEphemeral(true)
-                                .addComponents(ActionRow.of(draftButtons(draft)))
-                                .queue(hook -> hook.retrieveOriginal().queue(
-                                        message -> signupService.setDraftStatusMessage(userId, message.getIdLong())));
+                        event.editMessage(renderDraftSummary(draft))
+                                .setComponents(ActionRow.of(draftButtons(draft)))
+                                .queue();
                     }
                 }
             }
@@ -1012,19 +1021,11 @@ public class SignupInteractionListener extends ListenerAdapter {
                     return;
                 }
 
+                // Same as above: this modal was opened from the "Add Field" button on the
+                // Submission Builder status message, so editMessage() updates that exact message.
                 SubmissionDraft draft = signupService.getSubmissionDraft(userId);
-
-                if (draft.statusMessageId() != null) {
-                    event.getChannel().editMessageById(draft.statusMessageId(), renderDraftSummary(draft))
-                            .setComponents(ActionRow.of(draftButtons(draft)))
-                            .queue(null, failure -> log.warn(
-                                    "Failed to update signup builder status message {}", draft.statusMessageId(), failure));
-                }
-
-                event.reply("Added field **" + field.label() + "**.")
-                        .setEphemeral(true)
-                        .delay(Duration.ofSeconds(3))
-                        .flatMap(InteractionHook::deleteOriginal)
+                event.editMessage(renderDraftSummary(draft))
+                        .setComponents(ActionRow.of(draftButtons(draft)))
                         .queue();
             }
         }

@@ -109,7 +109,8 @@ public class CofferService {
         event.replyEmbeds(embed.build()).queue();
     }
 
-    public void transferCoffer(IReplyCallback event, User toUser, String amountStr) {
+    /** {@code fromUser} is who actually holds/transfers the GP — defaults to the command runner if {@code null}, so an admin can log a transfer on someone else's behalf. */
+    public void transferCoffer(IReplyCallback event, @Nullable User fromUser, User toUser, String amountStr) {
         long amount;
         try {
             amount = GpAmountParser.parse(amountStr);
@@ -119,7 +120,8 @@ public class CofferService {
         }
 
         long guildId = event.getGuild().getIdLong();
-        long fromId = event.getUser().getIdLong();
+        User actualFromUser = fromUser != null ? fromUser : event.getUser();
+        long fromId = actualFromUser.getIdLong();
         long toId = toUser.getIdLong();
 
         if (fromId == toId) {
@@ -132,7 +134,8 @@ public class CofferService {
         // rejection so most "you don't have enough" cases don't need a round trip to find out.
         long balance = repository.getHolderBalance(guildId, fromId);
         if (balance < amount) {
-            event.reply("You only hold **" + GpAmountParser.format(balance) + "** in the coffer. " +
+            String subject = fromUser != null ? fromUser.getAsMention() + " only holds" : "You only hold";
+            event.reply(subject + " **" + GpAmountParser.format(balance) + "** in the coffer. " +
                         "Cannot transfer **" + GpAmountParser.format(amount) + "**.")
                     .setEphemeral(true).queue();
             return;
@@ -149,7 +152,8 @@ public class CofferService {
             if (!success) {
                 // Balance changed between the check above and the atomic debit (e.g. a
                 // concurrent transfer/giveaway). Reject rather than allow an overdraft.
-                event.reply("Your balance changed before this transfer could complete — please try again.")
+                String subject = fromUser != null ? fromUser.getAsMention() + "'s balance" : "Your balance";
+                event.reply(subject + " changed before this transfer could complete — please try again.")
                         .setEphemeral(true).queue();
                 return;
             }
@@ -158,7 +162,7 @@ public class CofferService {
                     .setTitle("Coffer Transfer")
                     .setColor(COLOR_ORANGE)
                     .setDescription(
-                            event.getUser().getAsMention() + " transferred **" + GpAmountParser.format(amount) +
+                            actualFromUser.getAsMention() + " transferred **" + GpAmountParser.format(amount) +
                             "** to " + toUser.getAsMention()
                     );
 

@@ -104,6 +104,27 @@ public class BotConfig {
         return Long.parseLong(raw.trim());
     }
 
+    /**
+     * The dev/test guild ID — outside of production, commands are pushed here as guild commands
+     * (near-instant sync) instead of globally, and {@code @Test}-annotated commands (e.g.
+     * {@code /devsignups}) are only ever pushed here regardless of environment. Returns {@code
+     * null} if unset, in which case dev falls back to global command registration and {@code
+     * @Test} commands register nowhere at all.
+     */
+    public Long getGuildId() {
+        String raw = System.getenv("GUILD_ID");
+
+        if (raw == null || raw.isBlank()) {
+            raw = dotenv.get("GUILD_ID");
+        }
+
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+
+        return Long.parseLong(raw.trim());
+    }
+
     public List<Long> getOwnerIds() {
         String rawOwnerIds = System.getenv("OWNER_IDS");
 

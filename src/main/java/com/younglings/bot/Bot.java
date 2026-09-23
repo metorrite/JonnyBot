@@ -1,6 +1,7 @@
 package com.younglings.bot;
 
 import com.younglings.bot.commands.coffer.CofferInteractionListener;
+import com.younglings.bot.commands.embed.EmbedInteractionListener;
 import com.younglings.bot.commands.poll.PollInteractionListener;
 import com.younglings.bot.commands.signup.SignupInteractionListener;
 import com.younglings.bot.commands.teamforming.TeamformingInteractionListener;
@@ -23,16 +24,19 @@ public class Bot extends JDAService {
     private final PollInteractionListener pollInteractionListener;
     private final CofferInteractionListener cofferInteractionListener;
     private final TeamformingInteractionListener teamformingInteractionListener;
+    private final EmbedInteractionListener embedInteractionListener;
 
     public Bot(BotConfig botConfig, SignupInteractionListener signupInteractionListener,
                PollInteractionListener pollInteractionListener,
                CofferInteractionListener cofferInteractionListener,
-               TeamformingInteractionListener teamformingInteractionListener) {
+               TeamformingInteractionListener teamformingInteractionListener,
+               EmbedInteractionListener embedInteractionListener) {
         this.botConfig = botConfig;
         this.signupInteractionListener = signupInteractionListener;
         this.pollInteractionListener = pollInteractionListener;
         this.cofferInteractionListener = cofferInteractionListener;
         this.teamformingInteractionListener = teamformingInteractionListener;
+        this.embedInteractionListener = embedInteractionListener;
     }
 
     // If you use Spring, you can return values provided by JDAConfiguration in the getters below
@@ -53,7 +57,7 @@ public class Bot extends JDAService {
         createLight(botConfig.getToken())
                 .setActivity(botConfig.getActivity())
                 .addEventListeners(signupInteractionListener, pollInteractionListener, cofferInteractionListener,
-                        teamformingInteractionListener)
+                        teamformingInteractionListener, embedInteractionListener)
                 .build();
     }
 }
