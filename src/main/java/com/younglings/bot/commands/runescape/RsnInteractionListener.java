@@ -221,6 +221,20 @@ public class RsnInteractionListener extends ListenerAdapter {
             return;
         }
 
+        VerificationAttempt pending = linkService.getPendingAttemptForUser(guildId, userId);
+        if (pending != null) {
+            MakeoverAppearance pendingAppearance = new MakeoverAppearance(
+                    pending.assignedHairstyle(), pending.assignedHairColor(), pending.assignedSkinTone());
+
+            event.reply("You already have a verification in progress for **" + pending.rsn() + "**.\n\n" +
+                            "Assigned appearance: " + pendingAppearance.describe() + "\n\n" +
+                            "Apply that look in-game, then click below — or contact an admin to cancel it first if you meant a different name.")
+                    .setEphemeral(true)
+                    .addComponents(ActionRow.of(Button.primary("rsn_verify_ready:" + pending.attemptId(), "I've Applied My Look")))
+                    .queue();
+            return;
+        }
+
         VerificationAttempt attempt = linkService.startVerification(guildId, userId, rsn);
         MakeoverAppearance appearance = new MakeoverAppearance(
                 attempt.assignedHairstyle(), attempt.assignedHairColor(), attempt.assignedSkinTone());

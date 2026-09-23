@@ -30,6 +30,10 @@ public class PlayerLinkService {
         return repository.getAttempt(attemptId);
     }
 
+    public VerificationAttempt getPendingAttemptForUser(long guildId, long discordUserId) {
+        return repository.getPendingAttemptForUser(guildId, discordUserId);
+    }
+
     public List<VerificationAttempt> getPendingAttempts(long guildId) {
         return repository.getPendingAttempts(guildId);
     }

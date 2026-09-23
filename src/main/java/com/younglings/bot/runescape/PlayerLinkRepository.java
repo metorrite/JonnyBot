@@ -153,6 +153,33 @@ public class PlayerLinkRepository {
         }
     }
 
+    /** This user's own in-progress attempt, if any — so starting a new one doesn't leave orphaned duplicates behind. */
+    public VerificationAttempt getPendingAttemptForUser(long guildId, long discordUserId) {
+        String sql = """
+                SELECT attempt_id, guild_id, discord_user_id, rsn, assigned_hairstyle,
+                       assigned_hair_color, assigned_skin_tone, status
+                FROM younglings.player_verification_attempt
+                WHERE guild_id = ? AND discord_user_id = ? AND status = 'PENDING'
+                ORDER BY requested_at DESC
+                LIMIT 1
+                """;
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setLong(1, guildId);
+            statement.setLong(2, discordUserId);
+
+            try (ResultSet rs = statement.executeQuery()) {
+                return rs.next() ? mapAttempt(rs) : null;
+            }
+
+        } catch (SQLException e) {
+            log.error("Failed to get pending verification attempt for user {}", discordUserId, e);
+            throw new RuntimeException("Failed to get pending verification attempt", e);
+        }
+    }
+
     // --- Confirmed links ---
 
     public void createLink(long guildId, long discordUserId, String rsn, String verificationMethod) {
