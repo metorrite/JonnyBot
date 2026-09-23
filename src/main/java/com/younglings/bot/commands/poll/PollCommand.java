@@ -74,9 +74,11 @@ public class PollCommand {
         if (dmResults != null && dmResults) {
             String summary = pollService.buildResultsSummary(poll.pollId());
             event.getUser().openPrivateChannel().queue(
-                    dm -> dm.sendMessage(summary).queue(
-                            null,
-                            err -> log.warn("Failed to DM poll results to {}", event.getUser().getIdLong(), err)),
+                    dm -> dm.sendMessageComponents(List.of(Containers.toast(Containers.PRIMARY, summary)))
+                            .useComponentsV2(true)
+                            .queue(
+                                    null,
+                                    err -> log.warn("Failed to DM poll results to {}", event.getUser().getIdLong(), err)),
                     err -> log.warn("Could not open DM channel to {}", event.getUser().getIdLong(), err));
         }
 
