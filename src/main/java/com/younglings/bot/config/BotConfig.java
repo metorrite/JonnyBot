@@ -126,6 +126,27 @@ public class BotConfig {
     }
 
     /**
+     * When true, guild-scoped slash commands registered to {@link #getGuildId()} are cleared on
+     * JVM shutdown — meant for the dev bot only (set via {@code REMOVE_COMMANDS_ON_SHUTDOWN}),
+     * since it shares the same Discord server as production and would otherwise leave every
+     * {@code @Test} command (and every ordinary command, while {@code LIVE_ENV} is false) sitting
+     * on that server after the dev process exits, with no automatic cleanup. Defaults to false.
+     */
+    public boolean getRemoveCommandsOnShutdown() {
+        String raw = System.getenv("REMOVE_COMMANDS_ON_SHUTDOWN");
+
+        if (raw == null || raw.isBlank()) {
+            raw = dotenv.get("REMOVE_COMMANDS_ON_SHUTDOWN");
+        }
+
+        if (raw == null || raw.isBlank()) {
+            return false;
+        }
+
+        return Boolean.parseBoolean(raw.trim());
+    }
+
+    /**
      * How often, in minutes, {@code RuneScapeStatsScheduler} re-polls every linked player's
      * profile. Defaults to 360 (6 hours) if unset — set {@code RUNESCAPE_POLL_INTERVAL_MINUTES}
      * to tune this without a code change or redeploy.
