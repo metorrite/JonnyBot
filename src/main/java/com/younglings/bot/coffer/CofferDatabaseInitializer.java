@@ -18,7 +18,7 @@ public class CofferDatabaseInitializer {
                 CREATE SCHEMA IF NOT EXISTS younglings;
                 """,
 
-                // Donation log — one row per /coffersubmit call
+                // Donation log — one row per /coffer submit call
                 """
                 CREATE TABLE IF NOT EXISTS younglings.coffer_donation (
                     donation_id BIGSERIAL PRIMARY KEY,
@@ -60,7 +60,7 @@ public class CofferDatabaseInitializer {
                 );
                 """,
 
-                // Giveaway log — one row per /coffergiveaway call
+                // Giveaway log — one row per /coffer giveaway call
                 """
                 CREATE TABLE IF NOT EXISTS younglings.coffer_giveaway (
                     giveaway_id BIGSERIAL PRIMARY KEY,

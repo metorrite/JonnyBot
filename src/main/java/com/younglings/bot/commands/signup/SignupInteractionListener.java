@@ -1,16 +1,30 @@
 package com.younglings.bot.commands.signup;
 
+import com.younglings.bot.config.BotConfig;
+import com.younglings.bot.discord.Containers;
+import com.younglings.bot.discord.Pagination;
+import com.younglings.bot.permission.AdminRoleFilter;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
 import net.dv8tion.jda.api.components.buttons.Button;
+import net.dv8tion.jda.api.components.container.Container;
+import net.dv8tion.jda.api.components.container.ContainerChildComponent;
 import net.dv8tion.jda.api.components.label.Label;
 import net.dv8tion.jda.api.components.textinput.TextInput;
 import net.dv8tion.jda.api.components.textinput.TextInputStyle;
+import net.dv8tion.jda.api.components.selections.EntitySelectMenu;
+import net.dv8tion.jda.api.components.selections.SelectMenu;
+import net.dv8tion.jda.api.components.selections.StringSelectMenu;
+import net.dv8tion.jda.api.components.separator.Separator;
+import net.dv8tion.jda.api.components.textdisplay.TextDisplay;
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.channel.ChannelType;
+import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.events.interaction.ModalInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
-import net.dv8tion.jda.api.interactions.InteractionHook;
 import net.dv8tion.jda.api.modals.Modal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,11 +36,14 @@ import java.util.List;
 @BService
 public class SignupInteractionListener extends ListenerAdapter {
     private static final Logger log = LoggerFactory.getLogger(SignupInteractionListener.class);
-
     private final SignupService signupService;
+    private final BotConfig botConfig;
+    private final AdminRoleFilter adminRoleFilter;
 
-    public SignupInteractionListener(SignupService signupService) {
+    public SignupInteractionListener(SignupService signupService, BotConfig botConfig, AdminRoleFilter adminRoleFilter) {
         this.signupService = signupService;
+        this.botConfig = botConfig;
+        this.adminRoleFilter = adminRoleFilter;
     }
 
     private boolean isAdmin(ButtonInteractionEvent event) {
@@ -40,9 +57,7 @@ public class SignupInteractionListener extends ListenerAdapter {
     }
 
     private void replyNoPermission(ButtonInteractionEvent event) {
-        event.reply("You don't have permission to use admin controls.")
-                .setEphemeral(true)
-                .queue();
+        Containers.replyEphemeral(event, Containers.WARNING, "You don't have permission to use admin controls.");
     }
 
     @Override
@@ -57,16 +72,27 @@ public class SignupInteractionListener extends ListenerAdapter {
             handleButton(event, id);
         } catch (Exception e) {
             log.error("Unhandled exception in signup button interaction '{}'", id, e);
-            try {
-                if (!event.isAcknowledged()) {
-                    event.reply("An unexpected error occurred. Please try again or contact an admin.")
-                            .setEphemeral(true).queue();
-                }
-            } catch (Exception ignored) {}
+            Containers.replyError(event);
         }
     }
 
     private void handleButton(ButtonInteractionEvent event, String id) {
+        if (id.startsWith("signup_builder_")) {
+            handleBuilderButton(event, id);
+            return;
+        }
+        if (id.startsWith("signup_dev_close_all")) {
+            handleDevCloseAll(event, id);
+            return;
+        }
+        if (id.startsWith("signup_hub_")) {
+            handleHubButton(event, id);
+            return;
+        }
+        if (id.startsWith("signup_view_full")) {
+            handleViewFullList(event, id);
+            return;
+        }
 
         String action = id.split(":")[0];
         long signupId = signupService.parseSignupId(id);
@@ -77,12 +103,12 @@ public class SignupInteractionListener extends ListenerAdapter {
             case "signup_join" -> {
                 SignupSession session = signupService.getSessionById(signupId);
                 if (session == null) {
-                    event.reply("This signup no longer exists.").setEphemeral(true).queue();
+                    Containers.replyEphemeral(event, Containers.WARNING, "This signup no longer exists.");
                     return;
                 }
 
                 if (!signupService.isSignupActive(signupId)) {
-                    event.reply("This signup is currently paused.").setEphemeral(true).queue();
+                    Containers.replyEphemeral(event, Containers.WARNING, "This signup is currently paused.");
                     return;
                 }
 
@@ -110,13 +136,13 @@ public class SignupInteractionListener extends ListenerAdapter {
                         );
 
                         if (!added) {
-                            event.reply("You are already in this group, or it is currently paused.")
-                                    .setEphemeral(true).queue();
+                            Containers.replyEphemeral(event, Containers.WARNING,
+                                    "You are already in this group, or it is currently paused.");
                             return;
                         }
 
                         signupService.updateMessages(event.getGuild(), signupId);
-                        event.reply("You have joined the group!").setEphemeral(true).queue();
+                        Containers.replyEphemeral(event, Containers.SUCCESS, "You have joined the group!");
                     }
 
                     case SUBMISSION -> {
@@ -134,42 +160,29 @@ public class SignupInteractionListener extends ListenerAdapter {
                         ? "Are you sure you want to leave this queue? If you sign up again later, you will be added to the bottom and lose your current spot."
                         : "Are you sure you want to leave?";
 
-                event.reply(leaveWarning)
-                        .setEphemeral(true)
-                        .addComponents(ActionRow.of(
+                Container confirm = Containers.card(Containers.WARNING,
+                        TextDisplay.of(leaveWarning),
+                        ActionRow.of(
                                 Button.danger("signup_leave_confirm:" + signupId, "Yes, leave"),
                                 Button.secondary("signup_leave_cancel:" + signupId, "Cancel")
-                        ))
-                        .queue();
+                        ));
+
+                event.replyComponents(List.of(confirm)).useComponentsV2(true).setEphemeral(true).queue();
             }
 
-            case "signup_leave_cancel" -> {
-                event.editMessage("Leave cancelled.")
-                        .setComponents()
-                        .delay(Duration.ofSeconds(3))
-                        .flatMap(InteractionHook::deleteOriginal)
-                        .queue();
-            }
+            case "signup_leave_cancel" -> Containers.editThenDelete(event, Containers.WARNING, Duration.ofSeconds(3), "Leave cancelled.");
 
             case "signup_leave_confirm" -> {
                 boolean removed = signupService.removeUser(
                         event.getGuild(), signupId, event.getUser().getIdLong());
 
                 if (!removed) {
-                    event.editMessage("You are not currently signed up.")
-                            .setComponents()
-                            .delay(Duration.ofSeconds(3))
-                            .flatMap(InteractionHook::deleteOriginal)
-                            .queue();
+                    Containers.editThenDelete(event, Containers.WARNING, Duration.ofSeconds(3), "You are not currently signed up.");
                     return;
                 }
 
                 signupService.updateMessages(event.getGuild(), signupId);
-                event.editMessage("You have been removed.")
-                        .setComponents()
-                        .delay(Duration.ofSeconds(3))
-                        .flatMap(InteractionHook::deleteOriginal)
-                        .queue();
+                Containers.editThenDelete(event, Containers.SUCCESS, Duration.ofSeconds(3), "You have been removed.");
             }
 
             // --- Admin: queue-only ---
@@ -179,11 +192,7 @@ public class SignupInteractionListener extends ListenerAdapter {
                 SignupEntry newFirst = signupService.next(signupId);
                 signupService.updateMessages(event.getGuild(), signupId);
                 notifyNewFirst(event, signupId, newFirst);
-                event.reply("Moved to next signup.")
-                        .setEphemeral(true)
-                        .delay(Duration.ofSeconds(5))
-                        .flatMap(InteractionHook::deleteOriginal)
-                        .queue();
+                Containers.replyThenDelete(event, Containers.SUCCESS, "Moved to next signup.");
             }
 
             case "signup_skip" -> {
@@ -192,11 +201,7 @@ public class SignupInteractionListener extends ListenerAdapter {
                 SignupEntry newFirst = signupService.skip(signupId);
                 signupService.updateMessages(event.getGuild(), signupId);
                 notifyNewFirst(event, signupId, newFirst);
-                event.reply("Skipped current first signup.")
-                        .setEphemeral(true)
-                        .delay(Duration.ofSeconds(5))
-                        .flatMap(InteractionHook::deleteOriginal)
-                        .queue();
+                Containers.replyThenDelete(event, Containers.SUCCESS, "Skipped current first signup.");
             }
 
             case "signup_remove" -> {
@@ -205,11 +210,7 @@ public class SignupInteractionListener extends ListenerAdapter {
                 SignupEntry newFirst = signupService.remove(signupId);
                 signupService.updateMessages(event.getGuild(), signupId);
                 notifyNewFirst(event, signupId, newFirst);
-                event.reply("Removed current first signup.")
-                        .setEphemeral(true)
-                        .delay(Duration.ofSeconds(5))
-                        .flatMap(InteractionHook::deleteOriginal)
-                        .queue();
+                Containers.replyThenDelete(event, Containers.SUCCESS, "Removed current first signup.");
             }
 
             case "signup_notify" -> {
@@ -218,20 +219,12 @@ public class SignupInteractionListener extends ListenerAdapter {
                 SignupEntry first = signupService.getFirst(signupId);
 
                 if (first == null) {
-                    event.reply("There is nobody to notify.")
-                            .setEphemeral(true)
-                            .delay(Duration.ofSeconds(5))
-                            .flatMap(InteractionHook::deleteOriginal)
-                            .queue();
+                    Containers.replyThenDelete(event, Containers.WARNING, "There is nobody to notify.");
                     return;
                 }
 
                 notifyNewFirst(event, signupId, first);
-                event.reply("Notified the current first signup.")
-                        .setEphemeral(true)
-                        .delay(Duration.ofSeconds(5))
-                        .flatMap(InteractionHook::deleteOriginal)
-                        .queue();
+                Containers.replyThenDelete(event, Containers.SUCCESS, "Notified the current first signup.");
             }
 
             // --- Admin: group-only ---
@@ -240,19 +233,19 @@ public class SignupInteractionListener extends ListenerAdapter {
 
                 SignupSession session = signupService.getSessionById(signupId);
                 if (session == null || session.groupRoleId() == null) {
-                    event.reply("Group role not found.").setEphemeral(true).queue();
+                    Containers.replyEphemeral(event, Containers.WARNING, "Group role not found.");
                     return;
                 }
 
                 SignupMessage publicMessage = signupService.getFirstActivePublicMessage(signupId);
                 if (publicMessage == null) {
-                    event.reply("No public panel found to send the ping in.").setEphemeral(true).queue();
+                    Containers.replyEphemeral(event, Containers.WARNING, "No public panel found to send the ping in.");
                     return;
                 }
 
                 var channel = event.getGuild().getTextChannelById(publicMessage.channelId());
                 if (channel == null) {
-                    event.reply("Signup channel not found.").setEphemeral(true).queue();
+                    Containers.replyEphemeral(event, Containers.WARNING, "Signup channel not found.");
                     return;
                 }
 
@@ -260,14 +253,11 @@ public class SignupInteractionListener extends ListenerAdapter {
 
                 long guildId = event.getGuild().getIdLong();
                 long channelId = channel.getIdLong();
-                channel.sendMessage("<@&" + session.groupRoleId() + ">")
+                channel.sendMessageComponents(List.of(Containers.toast(Containers.PRIMARY, "<@&" + session.groupRoleId() + ">")))
+                        .useComponentsV2(true)
                         .queue(msg -> signupService.savePingMessage(signupId, guildId, channelId, msg.getIdLong()));
 
-                event.reply("Group notified!")
-                        .setEphemeral(true)
-                        .delay(Duration.ofSeconds(5))
-                        .flatMap(InteractionHook::deleteOriginal)
-                        .queue();
+                Containers.replyThenDelete(event, Containers.SUCCESS, "Group notified!");
             }
 
             // --- Admin: pick random (submission) / pick winner (group) ---
@@ -276,24 +266,21 @@ public class SignupInteractionListener extends ListenerAdapter {
 
                 List<SignupEntry> entries = signupService.getEntries(signupId);
                 if (entries.isEmpty()) {
-                    event.reply("There are no entries to pick from.")
-                            .setEphemeral(true)
-                            .delay(Duration.ofSeconds(5))
-                            .flatMap(InteractionHook::deleteOriginal)
-                            .queue();
+                    Containers.replyThenDelete(event, Containers.WARNING, "There are no entries to pick from.");
                     return;
                 }
 
                 String label = action.equals("signup_pick_random") ? "random submission" : "winner";
 
-                event.reply("Pick a " + label + " from **" + entries.size() + "** entr"
-                                + (entries.size() == 1 ? "y" : "ies") + "? **This will close the signup.**")
-                        .setEphemeral(true)
-                        .addComponents(ActionRow.of(
+                Container confirm = Containers.card(Containers.WARNING,
+                        TextDisplay.of("Pick a " + label + " from **" + entries.size() + "** entr"
+                                + (entries.size() == 1 ? "y" : "ies") + "? **This will close the signup.**"),
+                        ActionRow.of(
                                 Button.success("signup_pick_confirm:" + signupId, "Yes, pick!"),
                                 Button.secondary("signup_pick_cancel:" + signupId, "Cancel")
-                        ))
-                        .queue();
+                        ));
+
+                event.replyComponents(List.of(confirm)).useComponentsV2(true).setEphemeral(true).queue();
             }
 
             case "signup_pick_confirm" -> {
@@ -304,11 +291,7 @@ public class SignupInteractionListener extends ListenerAdapter {
                 SignupEntry winner = signupService.pickRandom(signupId);
 
                 if (winner == null || session == null) {
-                    event.editMessage("No entries found — nothing was picked.")
-                            .setComponents()
-                            .delay(Duration.ofSeconds(5))
-                            .flatMap(InteractionHook::deleteOriginal)
-                            .queue();
+                    Containers.editThenDelete(event, Containers.WARNING, "No entries found — nothing was picked.");
                     return;
                 }
 
@@ -317,28 +300,22 @@ public class SignupInteractionListener extends ListenerAdapter {
                 if (publicMessage != null) {
                     var channel = event.getGuild().getTextChannelById(publicMessage.channelId());
                     if (channel != null) {
-                        channel.sendMessageEmbeds(signupService.buildWinnerEmbed(session, winner).build()).queue();
+                        channel.sendMessageComponents(List.of(signupService.buildWinnerContainer(session, winner)))
+                                .useComponentsV2(true)
+                                .queue();
                     }
                 }
 
                 // Close the signup
                 signupService.deleteSignup(event.getGuild(), signupId);
 
-                event.editMessage("Winner picked! The signup is now closed.")
-                        .setComponents()
-                        .delay(Duration.ofSeconds(5))
-                        .flatMap(InteractionHook::deleteOriginal)
-                        .queue();
+                Containers.editThenDelete(event, Containers.SUCCESS, "Winner picked! The signup is now closed.");
             }
 
             case "signup_pick_cancel" -> {
                 if (!isAdmin(event)) { replyNoPermission(event); return; }
 
-                event.editMessage("Pick cancelled.")
-                        .setComponents()
-                        .delay(Duration.ofSeconds(3))
-                        .flatMap(InteractionHook::deleteOriginal)
-                        .queue();
+                Containers.editThenDelete(event, Containers.WARNING, Duration.ofSeconds(3), "Pick cancelled.");
             }
 
             // --- Admin: remove member/entry by Discord ID ---
@@ -367,7 +344,7 @@ public class SignupInteractionListener extends ListenerAdapter {
 
                 SignupSession session = signupService.getSessionById(signupId);
                 if (session == null) {
-                    event.reply("This signup no longer exists.").setEphemeral(true).queue();
+                    Containers.replyEphemeral(event, Containers.WARNING, "This signup no longer exists.");
                     return;
                 }
 
@@ -380,11 +357,7 @@ public class SignupInteractionListener extends ListenerAdapter {
 
                 signupService.clear(event.getGuild(), signupId);
                 signupService.updateMessages(event.getGuild(), signupId);
-                event.reply("Cleared all entries.")
-                        .setEphemeral(true)
-                        .delay(Duration.ofSeconds(5))
-                        .flatMap(InteractionHook::deleteOriginal)
-                        .queue();
+                Containers.replyThenDelete(event, Containers.SUCCESS, "Cleared all entries.");
             }
 
             case "signup_pause" -> {
@@ -393,39 +366,32 @@ public class SignupInteractionListener extends ListenerAdapter {
                 String newStatus = signupService.togglePause(signupId);
 
                 if (newStatus == null) {
-                    event.reply("This signup no longer exists.").setEphemeral(true).queue();
+                    Containers.replyEphemeral(event, Containers.WARNING, "This signup no longer exists.");
                     return;
                 }
 
                 signupService.updateMessages(event.getGuild(), signupId);
                 String message = "ACTIVE".equalsIgnoreCase(newStatus) ? "Signup resumed." : "Signup paused.";
-                event.reply(message)
-                        .setEphemeral(true)
-                        .delay(Duration.ofSeconds(5))
-                        .flatMap(InteractionHook::deleteOriginal)
-                        .queue();
+                Containers.replyThenDelete(event, Containers.SUCCESS, message);
             }
 
             case "signup_delete" -> {
                 if (!isAdmin(event)) { replyNoPermission(event); return; }
 
-                event.reply("Are you sure you want to delete this signup?")
-                        .setEphemeral(true)
-                        .addComponents(ActionRow.of(
+                Container confirm = Containers.card(Containers.DANGER,
+                        TextDisplay.of("Are you sure you want to delete this signup?"),
+                        ActionRow.of(
                                 Button.danger("signup_delete_confirm:" + signupId, "Yes, delete"),
                                 Button.secondary("signup_delete_cancel:" + signupId, "Cancel")
-                        ))
-                        .queue();
+                        ));
+
+                event.replyComponents(List.of(confirm)).useComponentsV2(true).setEphemeral(true).queue();
             }
 
             case "signup_delete_cancel" -> {
                 if (!isAdmin(event)) { replyNoPermission(event); return; }
 
-                event.editMessage("Delete cancelled.")
-                        .setComponents()
-                        .delay(Duration.ofSeconds(3))
-                        .flatMap(InteractionHook::deleteOriginal)
-                        .queue();
+                Containers.editThenDelete(event, Containers.WARNING, Duration.ofSeconds(3), "Delete cancelled.");
             }
 
             case "signup_delete_confirm" -> {
@@ -433,11 +399,7 @@ public class SignupInteractionListener extends ListenerAdapter {
 
                 signupService.deleteSignup(event.getGuild(), signupId);
 
-                event.editMessage("Signup deleted.")
-                        .setComponents()
-                        .delay(Duration.ofSeconds(3))
-                        .flatMap(InteractionHook::deleteOriginal)
-                        .queue();
+                Containers.editThenDelete(event, Containers.SUCCESS, Duration.ofSeconds(3), "Signup deleted.");
             }
         }
     }
@@ -454,16 +416,20 @@ public class SignupInteractionListener extends ListenerAdapter {
             handleModal(event, modalId);
         } catch (Exception e) {
             log.error("Unhandled exception in signup modal interaction '{}'", modalId, e);
-            try {
-                if (!event.isAcknowledged()) {
-                    event.reply("An unexpected error occurred. Please try again or contact an admin.")
-                            .setEphemeral(true).queue();
-                }
-            } catch (Exception ignored) {}
+            Containers.replyError(event);
         }
     }
 
     private void handleModal(ModalInteractionEvent event, String modalId) {
+        if (modalId.startsWith("signup_builder_")) {
+            handleBuilderModal(event, modalId);
+            return;
+        }
+        if (modalId.startsWith("signup_hub_")) {
+            handleHubModal(event, modalId);
+            return;
+        }
+
         String action = modalId.split(":")[0];
         long signupId = signupService.parseSignupId(modalId);
 
@@ -472,7 +438,7 @@ public class SignupInteractionListener extends ListenerAdapter {
             case "signup_submit" -> {
                 SignupSession session = signupService.getSessionById(signupId);
                 if (session == null) {
-                    event.reply("This signup no longer exists.").setEphemeral(true).queue();
+                    Containers.replyEphemeral(event, Containers.WARNING, "This signup no longer exists.");
                     return;
                 }
 
@@ -496,30 +462,30 @@ public class SignupInteractionListener extends ListenerAdapter {
                                 String.valueOf(userId), submissionValue);
                     }
                     case GROUP -> {
-                        event.reply("Unexpected modal for this signup type.").setEphemeral(true).queue();
+                        Containers.replyEphemeral(event, Containers.WARNING, "Unexpected modal for this signup type.");
                         return;
                     }
                 }
 
                 if (!added) {
-                    event.reply("You are already signed up, the entry is a duplicate, or the list is full.")
-                            .setEphemeral(true).queue();
+                    Containers.replyEphemeral(event, Containers.WARNING,
+                            "You are already signed up, the entry is a duplicate, or the list is full.");
                     return;
                 }
 
                 signupService.updateMessages(event.getGuild(), signupId);
-                event.reply("You have been added!").setEphemeral(true).queue();
+                Containers.replyEphemeral(event, Containers.SUCCESS, "You have been added!");
             }
 
             case "signup_admin_add_submit" -> {
                 if (!isAdmin(event)) {
-                    event.reply("You don't have permission to use admin controls.").setEphemeral(true).queue();
+                    Containers.replyEphemeral(event, Containers.WARNING, "You don't have permission to use admin controls.");
                     return;
                 }
 
                 SignupSession session = signupService.getSessionById(signupId);
                 if (session == null) {
-                    event.reply("This signup no longer exists.").setEphemeral(true).queue();
+                    Containers.replyEphemeral(event, Containers.WARNING, "This signup no longer exists.");
                     return;
                 }
 
@@ -529,11 +495,7 @@ public class SignupInteractionListener extends ListenerAdapter {
                 try {
                     userId = parseUserId(discordRaw);
                 } catch (NumberFormatException e) {
-                    event.reply("Invalid Discord user. Please mention the user or paste their Discord ID.")
-                            .setEphemeral(true)
-                            .delay(Duration.ofSeconds(5))
-                            .flatMap(InteractionHook::deleteOriginal)
-                            .queue();
+                    Containers.replyThenDelete(event, Containers.WARNING, "Invalid Discord user. Please mention the user or paste their Discord ID.");
                     return;
                 }
 
@@ -563,25 +525,18 @@ public class SignupInteractionListener extends ListenerAdapter {
                 }
 
                 if (!added) {
-                    event.reply("That user or entry is already listed, the list is full, or no signup session exists.")
-                            .setEphemeral(true)
-                            .delay(Duration.ofSeconds(5))
-                            .flatMap(InteractionHook::deleteOriginal)
-                            .queue();
+                    Containers.replyThenDelete(event, Containers.WARNING,
+                            "That user or entry is already listed, the list is full, or no signup session exists.");
                     return;
                 }
 
                 signupService.updateMessages(event.getGuild(), signupId);
-                event.reply("Added <@" + userId + "> to the signup.")
-                        .setEphemeral(true)
-                        .delay(Duration.ofSeconds(5))
-                        .flatMap(InteractionHook::deleteOriginal)
-                        .queue();
+                Containers.replyThenDelete(event, Containers.SUCCESS, "Added <@" + userId + "> to the signup.");
             }
 
             case "signup_admin_remove_submit" -> {
                 if (!isAdmin(event)) {
-                    event.reply("You don't have permission to use admin controls.").setEphemeral(true).queue();
+                    Containers.replyEphemeral(event, Containers.WARNING, "You don't have permission to use admin controls.");
                     return;
                 }
 
@@ -591,33 +546,536 @@ public class SignupInteractionListener extends ListenerAdapter {
                 try {
                     userId = parseUserId(discordRaw);
                 } catch (NumberFormatException e) {
-                    event.reply("Invalid Discord user. Please mention the user or paste their Discord ID.")
-                            .setEphemeral(true)
-                            .delay(Duration.ofSeconds(5))
-                            .flatMap(InteractionHook::deleteOriginal)
-                            .queue();
+                    Containers.replyThenDelete(event, Containers.WARNING, "Invalid Discord user. Please mention the user or paste their Discord ID.");
                     return;
                 }
 
                 boolean removed = signupService.removeUser(event.getGuild(), signupId, userId);
 
                 if (!removed) {
-                    event.reply("That user is not in this signup.")
-                            .setEphemeral(true)
-                            .delay(Duration.ofSeconds(5))
-                            .flatMap(InteractionHook::deleteOriginal)
-                            .queue();
+                    Containers.replyThenDelete(event, Containers.WARNING, "That user is not in this signup.");
                     return;
                 }
 
                 signupService.updateMessages(event.getGuild(), signupId);
-                event.reply("Removed <@" + userId + "> from the signup.")
-                        .setEphemeral(true)
-                        .delay(Duration.ofSeconds(5))
-                        .flatMap(InteractionHook::deleteOriginal)
+                Containers.replyThenDelete(event, Containers.SUCCESS, "Removed <@" + userId + "> from the signup.");
+            }
+        }
+    }
+
+    // --- /devsignups: bulk close (dev only, double-checked here even though @Test already keeps
+    // the slash command itself out of production) ---
+
+    private void handleDevCloseAll(ButtonInteractionEvent event, String id) {
+        if (botConfig.getLiveEnvironment()) {
+            Containers.replyEphemeral(event, Containers.WARNING, "This command is dev-only.");
+            return;
+        }
+
+        switch (id) {
+            case "signup_dev_close_all" -> {
+                Container confirm = Containers.card(Containers.DANGER,
+                        TextDisplay.of("Are you sure? This closes **every active signup on every server** the bot is in."),
+                        ActionRow.of(
+                                Button.danger("signup_dev_close_all_confirm", "Yes, close everything"),
+                                Button.secondary("signup_dev_close_all_cancel", "Cancel")
+                        ));
+                event.replyComponents(List.of(confirm)).useComponentsV2(true).setEphemeral(true).queue();
+            }
+
+            case "signup_dev_close_all_confirm" -> {
+                int count = signupService.closeAllActiveSignups(event.getJDA());
+                Containers.edit(event, Containers.SUCCESS, "Closed " + count + " signup(s) across all servers.");
+            }
+
+            case "signup_dev_close_all_cancel" -> Containers.editThenDelete(event, Containers.WARNING, Duration.ofSeconds(3), "Cancelled.");
+        }
+    }
+
+    // --- Per-signup "View Full List" pager (opened from the entries section of any panel) ---
+
+    /**
+     * Handles both {@code signup_view_full:<id>} (the initial button on a shared panel — replies
+     * with a fresh ephemeral pager) and {@code signup_view_full_page:<id>:<page>} (Prev/Next inside
+     * that pager — edits it in place). Distinguishing by the button's own ID rather than a separate
+     * dispatch keeps this stateless: the page number lives entirely in the button, never server-side.
+     */
+    private void handleViewFullList(ButtonInteractionEvent event, String id) {
+        String[] parts = id.split(":");
+        long signupId = Long.parseLong(parts[1]);
+        int page = parts.length > 2 ? Integer.parseInt(parts[2]) : 0;
+
+        SignupSession session = signupService.getSessionById(signupId);
+        if (session == null) {
+            Containers.replyEphemeral(event, Containers.WARNING, "This signup no longer exists.");
+            return;
+        }
+
+        Container container = signupService.buildEntriesListContainer(session, page);
+
+        if (id.startsWith("signup_view_full_page:")) {
+            event.editComponents(List.of(container)).useComponentsV2(true).queue();
+        } else {
+            event.replyComponents(List.of(container)).useComponentsV2(true).setEphemeral(true).queue();
+        }
+    }
+
+    // --- /signup hub: list/post/refresh (queue/group/submission builders reuse signup_builder_* as-is) ---
+
+    private void handleHubButton(ButtonInteractionEvent event, String id) {
+        if (id.startsWith("signup_hub_list_page:")) {
+            replySignupList(event, Integer.parseInt(id.split(":")[1]), true);
+            return;
+        }
+
+        switch (id) {
+            case "signup_hub_list:_" -> replySignupList(event, 0, false);
+
+            case "signup_hub_post:_" -> {
+                List<SignupSession> visible = signupService.getVisibleSignups(event.getGuild().getIdLong());
+                if (visible.isEmpty()) {
+                    Containers.replyEphemeral(event, Containers.WARNING, "There are no current signups to post.");
+                    return;
+                }
+                event.replyModal(buildHubPostModal(visible)).queue();
+            }
+
+            case "signup_hub_refresh:_" -> {
+                Member member = event.getMember();
+                if (member == null || !adminRoleFilter.isAuthorized(event.getGuild(), member)) {
+                    Containers.replyEphemeral(event, Containers.WARNING, "You need the Admin role (or higher) to use this.");
+                    return;
+                }
+                refreshAllPanels(event, event.getGuild());
+            }
+        }
+    }
+
+    private void handleHubModal(ModalInteractionEvent event, String modalId) {
+        if (!modalId.equals("signup_hub_post_modal:_")) return;
+
+        SignupPanelType panelType = SignupPanelType.valueOf(
+                event.getValue("signup_hub_post_type").getAsStringList().getFirst());
+        long signupId = Long.parseLong(event.getValue("signup_hub_post_signup").getAsStringList().getFirst());
+
+        Guild guild = event.getGuild();
+        var channelMapping = event.getValue("signup_hub_post_channel");
+        TextChannel channel = (channelMapping != null && !channelMapping.getAsLongList().isEmpty())
+                ? guild.getTextChannelById(channelMapping.getAsLongList().getFirst())
+                : event.getChannel().asTextChannel();
+
+        if (channel == null) {
+            Containers.replyEphemeral(event, Containers.WARNING, "That channel isn't a usable text channel.");
+            return;
+        }
+
+        try {
+            signupService.postSignupEmbed(guild, channel, signupId, panelType);
+            Containers.replyThenDelete(event, Containers.SUCCESS, "Posted `" + panelType + "` signup panel.");
+        } catch (IllegalArgumentException e) {
+            Containers.replyThenDelete(event, Containers.WARNING, "That signup no longer exists.");
+        }
+    }
+
+    private void replySignupList(ButtonInteractionEvent event, int pageIndex, boolean isPageNav) {
+        List<SignupSession> signups = signupService.getVisibleSignups(event.getGuild().getIdLong());
+
+        if (signups.isEmpty()) {
+            Containers.replyThenDelete(event, Containers.INFO, "There are no current signups.");
+            return;
+        }
+
+        var page = Pagination.paginate(signups, pageIndex);
+
+        StringBuilder text = new StringBuilder();
+        for (SignupSession signup : page.items()) {
+            String status = signupService.getSignupStatus(signup.signupId());
+            text.append("**").append(signup.signupId()).append("** — ").append(signup.title())
+                    .append("\nType: `").append(signup.type().name()).append("` • Status: `").append(status).append("`\n\n");
+        }
+
+        List<ContainerChildComponent> children = new ArrayList<>();
+        children.add(TextDisplay.of("# Current Signups (" + signups.size() + ")"));
+        children.add(Separator.createDivider(Separator.Spacing.SMALL));
+        children.add(TextDisplay.of(text.toString().trim()));
+        if (!page.isSinglePage()) {
+            children.add(Pagination.navRow(page, "signup_hub_list_page:"));
+        }
+
+        Container container = Containers.card(Containers.INFO, children);
+
+        if (isPageNav) {
+            event.editComponents(List.of(container)).useComponentsV2(true).queue();
+        } else {
+            event.replyComponents(List.of(container)).useComponentsV2(true).setEphemeral(true).queue();
+        }
+    }
+
+    private void refreshAllPanels(ButtonInteractionEvent event, Guild guild) {
+        List<SignupSession> signups = signupService.getVisibleSignups(guild.getIdLong());
+
+        if (signups.isEmpty()) {
+            Containers.replyThenDelete(event, Containers.INFO, "No active signup panels to update.");
+            return;
+        }
+
+        int count = signups.size();
+        for (SignupSession signup : signups) {
+            signupService.updateMessages(guild, signup.signupId());
+        }
+
+        Containers.replyThenDelete(event, Containers.SUCCESS,
+                "Refreshing " + count + " signup panel" + (count == 1 ? "" : "s") + ". Changes will appear shortly.");
+    }
+
+    /** Signup titles double as option labels — capped at Discord's 25-option-per-select limit. */
+    private Modal buildHubPostModal(List<SignupSession> visible) {
+        StringSelectMenu typeSelect = StringSelectMenu.create("signup_hub_post_type")
+                .addOption("Public", SignupPanelType.PUBLIC.name())
+                .addOption("Admin", SignupPanelType.ADMIN.name())
+                .setRequiredRange(1, 1)
+                .build();
+
+        StringSelectMenu.Builder signupSelectBuilder = StringSelectMenu.create("signup_hub_post_signup")
+                .setRequiredRange(1, 1)
+                .setPlaceholder("Which signup?");
+
+        int limit = Math.min(visible.size(), SelectMenu.OPTIONS_MAX_AMOUNT);
+        for (int i = 0; i < limit; i++) {
+            SignupSession signup = visible.get(i);
+            String label = "#" + signup.signupId() + " — " + truncate(signup.title(), 70) + " (" + signup.type() + ")";
+            signupSelectBuilder.addOption(truncate(label, 100), String.valueOf(signup.signupId()));
+        }
+
+        EntitySelectMenu channelSelect = EntitySelectMenu.create("signup_hub_post_channel", EntitySelectMenu.SelectTarget.CHANNEL)
+                .setChannelTypes(ChannelType.TEXT)
+                .setRequired(false)
+                .setRequiredRange(0, 1)
+                .setPlaceholder("Defaults to this channel if left blank")
+                .build();
+
+        return Modal.create("signup_hub_post_modal:_", "Post a Signup Panel")
+                .addComponents(
+                        Label.of("Panel type", typeSelect),
+                        Label.of("Signup", signupSelectBuilder.build()),
+                        Label.of("Channel (optional)", channelSelect)
+                )
+                .build();
+    }
+
+    private String truncate(String s, int max) {
+        return s.length() <= max ? s : s.substring(0, max - 1) + "…";
+    }
+
+    // --- /signupbuilder: buttons ---
+
+    private void handleBuilderButton(ButtonInteractionEvent event, String id) {
+        String action = id.split(":")[0];
+
+        switch (action) {
+            case "signup_builder_type" -> event.replyModal(buildTypeModal(id.split(":")[1])).queue();
+
+            case "signup_builder_add_field" -> {
+                long userId = event.getUser().getIdLong();
+                if (signupService.getSubmissionDraft(userId) == null) {
+                    Containers.replyEphemeral(event, Containers.WARNING,
+                            "This builder session has expired. Start over with `/signup`.");
+                    return;
+                }
+
+                event.replyModal(buildFieldModal()).queue();
+            }
+
+            case "signup_builder_finish" -> {
+                long userId = event.getUser().getIdLong();
+                SubmissionDraft draft = signupService.getSubmissionDraft(userId);
+
+                if (draft == null) {
+                    Containers.editThenDelete(event, Containers.WARNING, "This builder session has expired. Start over with `/signup`.");
+                    return;
+                }
+
+                Guild guild = event.getGuild();
+                TextChannel adminChannel = guild.getTextChannelById(draft.adminChannelId());
+                TextChannel publicChannel = guild.getTextChannelById(draft.publicChannelId());
+
+                if (adminChannel == null || publicChannel == null) {
+                    Containers.editThenDelete(event, Containers.WARNING, "One of the selected channels no longer exists. Start over with `/signup`.");
+                    signupService.cancelSubmissionDraft(userId);
+                    return;
+                }
+
+                signupService.createSubmissionSession(guild, publicChannel, adminChannel, draft.title(),
+                        draft.fields(), draft.maxEntries(), userId);
+                signupService.cancelSubmissionDraft(userId);
+
+                Containers.editThenDelete(event, Containers.SUCCESS, "Submission signup **" + draft.title() + "** created with "
+                        + draft.fields().size() + " field(s).");
+            }
+
+            case "signup_builder_cancel" -> {
+                signupService.cancelSubmissionDraft(event.getUser().getIdLong());
+                Containers.editThenDelete(event, Containers.WARNING, Duration.ofSeconds(3), "Cancelled.");
+            }
+        }
+    }
+
+    // --- /signupbuilder: modals ---
+
+    private void handleBuilderModal(ModalInteractionEvent event, String modalId) {
+        String action = modalId.split(":")[0];
+
+        switch (action) {
+            case "signup_builder_submit" -> {
+                String type = modalId.split(":")[1];
+                String title = event.getValue("signup_builder_title").getAsString().trim();
+                Guild guild = event.getGuild();
+                long userId = event.getUser().getIdLong();
+
+                long adminChannelId = event.getValue("signup_builder_admin_channel").getAsLongList().getFirst();
+                long publicChannelId = event.getValue("signup_builder_public_channel").getAsLongList().getFirst();
+                TextChannel adminChannel = guild.getTextChannelById(adminChannelId);
+                TextChannel publicChannel = guild.getTextChannelById(publicChannelId);
+
+                if (adminChannel == null || publicChannel == null) {
+                    Containers.replyThenDelete(event, Containers.WARNING, "One of the selected channels isn't a usable text channel — try again.");
+                    return;
+                }
+
+                // The type modal is always opened from a button on the /signup hub message, so
+                // editComponents() here edits *that* message in place — no need to track its ID
+                // ourselves (ModalInteractionEvent#getMessage() carries it automatically for any
+                // modal opened from a component).
+                switch (type) {
+                    case "QUEUE" -> {
+                        String notify = event.getValue("signup_builder_notify").getAsString().trim();
+                        Integer max = parseOptionalPositiveInt(event, "signup_builder_max");
+
+                        if (max == INVALID_NUMBER) {
+                            replyInvalidNumber(event);
+                            return;
+                        }
+
+                        signupService.createQueueSession(guild, publicChannel, adminChannel, title, notify, max, userId);
+                        Containers.editThenDelete(event, Containers.SUCCESS, "Queue signup **" + title + "** created.");
+                    }
+
+                    case "GROUP" -> {
+                        signupService.createGroupSession(guild, publicChannel, adminChannel, title, userId);
+                        Containers.editThenDelete(event, Containers.SUCCESS, "Group signup **" + title + "** created. A role is being set up.");
+                    }
+
+                    case "SUBMISSION" -> {
+                        Integer max = parseOptionalPositiveInt(event, "signup_builder_max");
+
+                        if (max == INVALID_NUMBER) {
+                            replyInvalidNumber(event);
+                            return;
+                        }
+
+                        signupService.startSubmissionDraft(userId, guild.getIdLong(),
+                                adminChannelId, publicChannelId, title, max);
+                        SubmissionDraft draft = signupService.getSubmissionDraft(userId);
+
+                        event.editComponents(List.of(draftContainer(draft)))
+                                .useComponentsV2(true)
+                                .queue();
+                    }
+                }
+            }
+
+            case "signup_builder_field_submit" -> {
+                long userId = event.getUser().getIdLong();
+
+                String label = event.getValue("signup_builder_field_label").getAsString().trim();
+                String type = event.getValue("signup_builder_field_type").getAsStringList().getFirst();
+                boolean required = "YES".equals(event.getValue("signup_builder_field_required").getAsStringList().getFirst());
+
+                SubmissionField field = new SubmissionField(label, type, required);
+
+                boolean added = signupService.addDraftField(userId, field);
+                if (!added) {
+                    Containers.replyEphemeral(event, Containers.WARNING,
+                            "This builder session has expired, or already has the maximum of 3 fields.");
+                    return;
+                }
+
+                // Same as above: this modal was opened from the "Add Field" button on the
+                // Submission Builder status message, so editComponents() updates that exact message.
+                SubmissionDraft draft = signupService.getSubmissionDraft(userId);
+                event.editComponents(List.of(draftContainer(draft)))
+                        .useComponentsV2(true)
                         .queue();
             }
         }
+    }
+
+    private static final Integer INVALID_NUMBER = Integer.MIN_VALUE;
+
+    /** Returns {@code null} for blank input (unlimited), the parsed value, or {@link #INVALID_NUMBER} on bad input. */
+    private Integer parseOptionalPositiveInt(ModalInteractionEvent event, String inputId) {
+        var value = event.getValue(inputId);
+        if (value == null) return null;
+
+        String raw = value.getAsString().trim();
+        if (raw.isBlank()) return null;
+
+        try {
+            int parsed = Integer.parseInt(raw);
+            return parsed > 0 ? parsed : INVALID_NUMBER;
+        } catch (NumberFormatException e) {
+            return INVALID_NUMBER;
+        }
+    }
+
+    private void replyInvalidNumber(ModalInteractionEvent event) {
+        Containers.replyThenDelete(event, Containers.WARNING,
+                "That number field must be a whole number greater than 0, or left blank for unlimited.");
+    }
+
+    private Container draftContainer(SubmissionDraft draft) {
+        List<ContainerChildComponent> children = new ArrayList<>();
+        children.add(TextDisplay.of("**Submission Builder — " + draft.title() + "**"));
+
+        if (draft.fields().isEmpty()) {
+            children.add(TextDisplay.of("*No fields yet — add at least one.*"));
+        } else {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < draft.fields().size(); i++) {
+                SubmissionField field = draft.fields().get(i);
+                sb.append(i + 1).append(". **").append(field.label()).append("** (")
+                        .append(field.type()).append(field.required() ? ", required" : ", optional").append(")\n");
+            }
+            children.add(TextDisplay.of(sb.toString()));
+        }
+
+        children.add(Separator.createDivider(Separator.Spacing.SMALL));
+        children.add(ActionRow.of(draftButtons(draft)));
+
+        return Containers.card(Containers.PRIMARY, children);
+    }
+
+    private List<Button> draftButtons(SubmissionDraft draft) {
+        List<Button> buttons = new ArrayList<>();
+
+        if (draft.fields().size() < 3) {
+            buttons.add(Button.primary("signup_builder_add_field:_", "Add Field"));
+        }
+        if (!draft.fields().isEmpty()) {
+            buttons.add(Button.success("signup_builder_finish:_", "Create Signup"));
+        }
+        buttons.add(Button.danger("signup_builder_cancel:_", "Cancel"));
+
+        return buttons;
+    }
+
+    /** Both channels are always explicit picks — never implicitly "wherever /signup was run". */
+    private Label adminChannelSelect() {
+        return Label.of("Admin channel", EntitySelectMenu.create("signup_builder_admin_channel", EntitySelectMenu.SelectTarget.CHANNEL)
+                .setChannelTypes(ChannelType.TEXT)
+                .setPlaceholder("Where admin controls get posted")
+                .setRequiredRange(1, 1)
+                .build());
+    }
+
+    private Label publicChannelSelect() {
+        return Label.of("Public channel", EntitySelectMenu.create("signup_builder_public_channel", EntitySelectMenu.SelectTarget.CHANNEL)
+                .setChannelTypes(ChannelType.TEXT)
+                .setPlaceholder("Where the public signup panel gets posted")
+                .setRequiredRange(1, 1)
+                .build());
+    }
+
+    private Modal buildTypeModal(String type) {
+        TextInput titleInput = TextInput.create("signup_builder_title", TextInputStyle.SHORT)
+                .setPlaceholder("Signup title")
+                .setRequired(true)
+                .setRequiredRange(1, 100)
+                .build();
+
+        return switch (type) {
+            case "QUEUE" -> {
+                TextInput notifyInput = TextInput.create("signup_builder_notify", TextInputStyle.PARAGRAPH)
+                        .setPlaceholder("Message sent when a user reaches the front of the queue")
+                        .setRequired(true)
+                        .setRequiredRange(1, 300)
+                        .build();
+                TextInput maxInput = TextInput.create("signup_builder_max", TextInputStyle.SHORT)
+                        .setPlaceholder("Max signups — leave blank for unlimited")
+                        .setRequired(false)
+                        .setRequiredRange(0, 10)
+                        .build();
+
+                // Exactly 5 of 5 components Discord allows in one modal — no room to spare here.
+                yield Modal.create("signup_builder_submit:QUEUE", "New Queue Signup")
+                        .addComponents(
+                                Label.of("Title", titleInput),
+                                Label.of("Notification message", notifyInput),
+                                Label.of("Max signups (optional)", maxInput),
+                                adminChannelSelect(),
+                                publicChannelSelect()
+                        )
+                        .build();
+            }
+
+            case "GROUP" -> Modal.create("signup_builder_submit:GROUP", "New Group Signup")
+                    .addComponents(
+                            Label.of("Title", titleInput),
+                            adminChannelSelect(),
+                            publicChannelSelect()
+                    )
+                    .build();
+
+            case "SUBMISSION" -> {
+                TextInput maxInput = TextInput.create("signup_builder_max", TextInputStyle.SHORT)
+                        .setPlaceholder("Max submissions — leave blank for unlimited")
+                        .setRequired(false)
+                        .setRequiredRange(0, 10)
+                        .build();
+
+                yield Modal.create("signup_builder_submit:SUBMISSION", "New Submission Signup")
+                        .addComponents(
+                                Label.of("Title", titleInput),
+                                Label.of("Max submissions (optional)", maxInput),
+                                adminChannelSelect(),
+                                publicChannelSelect()
+                        )
+                        .build();
+            }
+
+            default -> throw new IllegalStateException("Unknown signup builder type: " + type);
+        };
+    }
+
+    private Modal buildFieldModal() {
+        TextInput labelInput = TextInput.create("signup_builder_field_label", TextInputStyle.SHORT)
+                .setPlaceholder("e.g. Movie, Song, Idea")
+                .setRequired(true)
+                .setRequiredRange(1, 45)
+                .build();
+
+        StringSelectMenu typeSelect = StringSelectMenu.create("signup_builder_field_type")
+                .addOption("Text", SubmissionField.TYPE_TEXT)
+                .addOption("Link", SubmissionField.TYPE_LINK)
+                .addOption("Image", SubmissionField.TYPE_IMAGE)
+                .setDefaultValues(SubmissionField.TYPE_TEXT)
+                .setRequiredRange(1, 1)
+                .build();
+
+        StringSelectMenu requiredSelect = StringSelectMenu.create("signup_builder_field_required")
+                .addOption("Yes", "YES")
+                .addOption("No", "NO")
+                .setDefaultValues("YES")
+                .setRequiredRange(1, 1)
+                .build();
+
+        return Modal.create("signup_builder_field_submit:_", "Add Field")
+                .addComponents(
+                        Label.of("Field label", labelInput),
+                        Label.of("Type", typeSelect),
+                        Label.of("Required?", requiredSelect)
+                )
+                .build();
     }
 
     // --- Modal builders ---
@@ -721,7 +1179,9 @@ public class SignupInteractionListener extends ListenerAdapter {
 
         long guildId = event.getGuild().getIdLong();
         long channelId = channel.getIdLong();
-        channel.sendMessage("<@" + newFirst.userId() + ">, " + session.notificationMessage())
+        channel.sendMessageComponents(List.of(Containers.toast(Containers.PRIMARY,
+                        "<@" + newFirst.userId() + ">, " + session.notificationMessage())))
+                .useComponentsV2(true)
                 .queue(msg -> signupService.savePingMessage(signupId, guildId, channelId, msg.getIdLong()));
     }
 

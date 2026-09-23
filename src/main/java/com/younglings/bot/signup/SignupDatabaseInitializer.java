@@ -106,6 +106,18 @@ public class SignupDatabaseInitializer {
 
                 """
                 DROP INDEX IF EXISTS younglings.signup_entry_unique_rsn_lower;
+                """,
+
+                // Migration: track last activity (bumped whenever an entry is added) so stale,
+                // untouched signups can be auto-closed after a long period of inactivity.
+                """
+                ALTER TABLE younglings.signup
+                    ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+                """,
+
+                """
+                CREATE INDEX IF NOT EXISTS signup_last_activity_idx
+                ON younglings.signup (last_activity_at) WHERE deleted_at IS NULL;
                 """
         ));
     }

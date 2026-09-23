@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.*;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -158,6 +159,61 @@ public class SignupRepository {
         } catch (SQLException e) {
             log.error("Failed to load open signups from database.", e);
             throw new RuntimeException("Failed to load open signups", e);
+        }
+    }
+
+    /** Signups untouched (no new entries) since before {@code cutoff} — candidates for auto-close. */
+    public List<SignupSession> getInactiveSignups(Instant cutoff) {
+        String sql = """
+                SELECT signup_id, guild_id, title, notification_message, max_signups,
+                       signup_type, submission_field_label, group_role_id
+                FROM younglings.signup
+                WHERE deleted_at IS NULL
+                  AND last_activity_at < ?
+                ORDER BY signup_id ASC
+                """;
+
+        List<SignupSession> signups = new ArrayList<>();
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setTimestamp(1, Timestamp.from(cutoff));
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    signups.add(mapSignupSession(resultSet));
+                }
+            }
+
+            return signups;
+
+        } catch (SQLException e) {
+            log.error("Failed to get inactive signups older than {}", cutoff, e);
+            throw new RuntimeException("Failed to get inactive signups", e);
+        }
+    }
+
+    /** Hard-deletes (cascading to entries/messages) signups soft-deleted before {@code cutoff}. Returns the count purged. */
+    public int purgeDeletedBefore(Instant cutoff) {
+        String sql = """
+                DELETE FROM younglings.signup
+                WHERE deleted_at IS NOT NULL
+                  AND deleted_at < ?
+                """;
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setTimestamp(1, Timestamp.from(cutoff));
+            int purged = statement.executeUpdate();
+
+            if (purged > 0) log.info("Purged {} signup(s) soft-deleted before {}", purged, cutoff);
+            return purged;
+
+        } catch (SQLException e) {
+            log.error("Failed to purge signups deleted before {}", cutoff, e);
+            throw new RuntimeException("Failed to purge deleted signups", e);
         }
     }
 
@@ -409,6 +465,14 @@ public class SignupRepository {
                     statement.setLong(5, addedByUserId);
                     statement.setString(6, submissionValue);
                     added = statement.executeUpdate() > 0;
+                }
+
+                if (added) {
+                    try (PreparedStatement statement = connection.prepareStatement(
+                            "UPDATE younglings.signup SET last_activity_at = NOW() WHERE signup_id = ?")) {
+                        statement.setLong(1, signupId);
+                        statement.executeUpdate();
+                    }
                 }
 
                 connection.commit();

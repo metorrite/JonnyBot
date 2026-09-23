@@ -1,7 +1,9 @@
 package com.younglings.bot;
 
 import com.younglings.bot.commands.coffer.CofferInteractionListener;
+import com.younglings.bot.commands.embed.EmbedInteractionListener;
 import com.younglings.bot.commands.poll.PollInteractionListener;
+import com.younglings.bot.commands.runescape.RsnInteractionListener;
 import com.younglings.bot.commands.signup.SignupInteractionListener;
 import com.younglings.bot.commands.teamforming.TeamformingInteractionListener;
 import com.younglings.bot.config.BotConfig;
@@ -23,16 +25,22 @@ public class Bot extends JDAService {
     private final PollInteractionListener pollInteractionListener;
     private final CofferInteractionListener cofferInteractionListener;
     private final TeamformingInteractionListener teamformingInteractionListener;
+    private final EmbedInteractionListener embedInteractionListener;
+    private final RsnInteractionListener rsnInteractionListener;
 
     public Bot(BotConfig botConfig, SignupInteractionListener signupInteractionListener,
                PollInteractionListener pollInteractionListener,
                CofferInteractionListener cofferInteractionListener,
-               TeamformingInteractionListener teamformingInteractionListener) {
+               TeamformingInteractionListener teamformingInteractionListener,
+               EmbedInteractionListener embedInteractionListener,
+               RsnInteractionListener rsnInteractionListener) {
         this.botConfig = botConfig;
         this.signupInteractionListener = signupInteractionListener;
         this.pollInteractionListener = pollInteractionListener;
         this.cofferInteractionListener = cofferInteractionListener;
         this.teamformingInteractionListener = teamformingInteractionListener;
+        this.embedInteractionListener = embedInteractionListener;
+        this.rsnInteractionListener = rsnInteractionListener;
     }
 
     // If you use Spring, you can return values provided by JDAConfiguration in the getters below
@@ -53,7 +61,7 @@ public class Bot extends JDAService {
         createLight(botConfig.getToken())
                 .setActivity(botConfig.getActivity())
                 .addEventListeners(signupInteractionListener, pollInteractionListener, cofferInteractionListener,
-                        teamformingInteractionListener)
+                        teamformingInteractionListener, embedInteractionListener, rsnInteractionListener)
                 .build();
     }
 }

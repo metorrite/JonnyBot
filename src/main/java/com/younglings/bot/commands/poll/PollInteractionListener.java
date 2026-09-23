@@ -1,9 +1,9 @@
 package com.younglings.bot.commands.poll;
 
+import com.younglings.bot.discord.Containers;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
-import net.dv8tion.jda.api.interactions.InteractionHook;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,12 +31,7 @@ public class PollInteractionListener extends ListenerAdapter {
             handleVote(event, id);
         } catch (Exception e) {
             log.error("Unhandled exception in poll button interaction '{}'", id, e);
-            try {
-                if (!event.isAcknowledged()) {
-                    event.reply("An unexpected error occurred. Please try again.")
-                            .setEphemeral(true).queue();
-                }
-            } catch (Exception ignored) {}
+            Containers.replyError(event);
         }
     }
 
@@ -55,7 +50,7 @@ public class PollInteractionListener extends ListenerAdapter {
 
         PollSession session = pollService.getSessionById(pollId);
         if (session == null || !"ACTIVE".equalsIgnoreCase(session.status())) {
-            event.reply("This poll is no longer active.").setEphemeral(true).queue();
+            Containers.replyEphemeral(event, Containers.WARNING, "This poll is no longer active.");
             return;
         }
 
@@ -66,14 +61,14 @@ public class PollInteractionListener extends ListenerAdapter {
                 .orElse(null);
 
         if (option == null) {
-            event.reply("This poll option no longer exists.").setEphemeral(true).queue();
+            Containers.replyEphemeral(event, Containers.WARNING, "This poll option no longer exists.");
             return;
         }
 
         PollService.VoteResult result = pollService.toggleVote(pollId, option.optionId(), event.getUser().getIdLong());
 
         if (result == PollService.VoteResult.POLL_CLOSED) {
-            event.reply("This poll is no longer active.").setEphemeral(true).queue();
+            Containers.replyEphemeral(event, Containers.WARNING, "This poll is no longer active.");
             return;
         }
 
@@ -86,10 +81,6 @@ public class PollInteractionListener extends ListenerAdapter {
 
         pollService.updateMessage(event.getGuild(), pollId);
 
-        event.reply(feedback)
-                .setEphemeral(true)
-                .delay(Duration.ofSeconds(4))
-                .flatMap(InteractionHook::deleteOriginal)
-                .queue();
+        Containers.replyThenDelete(event, Containers.SUCCESS, Duration.ofSeconds(4), feedback);
     }
 }
