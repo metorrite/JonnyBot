@@ -1,6 +1,7 @@
 package com.younglings.bot.commands.runescape;
 
 import com.younglings.bot.permission.AdminRoleFilter;
+import com.younglings.bot.runescape.AvatarResult;
 import com.younglings.bot.runescape.MakeoverAppearance;
 import com.younglings.bot.runescape.PlayerLink;
 import com.younglings.bot.runescape.PlayerLinkRepository;
@@ -134,34 +135,43 @@ public class RsnInteractionListener extends ListenerAdapter {
 
                 event.deferReply(true).queue();
 
-                var imageBytes = apiClient.fetchAvatarImage(attempt.rsn());
-                if (imageBytes.isEmpty()) {
-                    event.getHook().editOriginal(
-                            "Couldn't fetch an avatar for **" + attempt.rsn() + "** — double check the name is exact, " +
-                            "and that your Adventurer's Log / avatar isn't set to private in your RuneScape account settings.").queue();
-                    return;
+                AvatarResult avatarResult = apiClient.fetchAvatarImage(attempt.rsn());
+
+                switch (avatarResult) {
+                    case AvatarResult.NotCustomized ignored -> event.getHook().editOriginal(
+                            "**" + attempt.rsn() + "** doesn't have a customized avatar yet — RuneScape is showing " +
+                            "the generic default image, which can't be used to verify anything (this also shows up " +
+                            "if the name is misspelled or doesn't exist). Double-check the spelling, and make sure " +
+                            "you've visited the Adventurer's Log (or otherwise generated an avatar) at least once " +
+                            "in-game, then click **I've Applied My Look** again.").queue();
+
+                    case AvatarResult.Unavailable ignored -> event.getHook().editOriginal(
+                            "Couldn't fetch an avatar for **" + attempt.rsn() + "** right now — the RuneScape API " +
+                            "may be temporarily unavailable. Try again in a bit.").queue();
+
+                    case AvatarResult.Found(byte[] imageBytes) -> {
+                        MakeoverAppearance appearance = new MakeoverAppearance(
+                                attempt.assignedHairstyle(), attempt.assignedHairColor(), attempt.assignedSkinTone());
+
+                        EmbedBuilder embed = new EmbedBuilder()
+                                .setTitle("RSN Verification Request")
+                                .setColor(Color.CYAN)
+                                .setDescription("<@" + attempt.discordUserId() + "> claims to be **" + attempt.rsn() + "**\n\n" +
+                                        "Assigned appearance: " + appearance.describe() + "\n\n" +
+                                        "Compare the avatar below against the assigned appearance, then Approve or Reject.")
+                                .setImage("attachment://avatar.png");
+
+                        event.getChannel().sendMessageEmbeds(embed.build())
+                                .addFiles(FileUpload.fromData(imageBytes, "avatar.png"))
+                                .addComponents(ActionRow.of(
+                                        Button.success("rsn_verify_approve:" + attemptId, "Approve"),
+                                        Button.danger("rsn_verify_reject:" + attemptId, "Reject")
+                                ))
+                                .queue();
+
+                        event.getHook().editOriginal("Submitted for admin review — you'll be notified once it's checked.").queue();
+                    }
                 }
-
-                MakeoverAppearance appearance = new MakeoverAppearance(
-                        attempt.assignedHairstyle(), attempt.assignedHairColor(), attempt.assignedSkinTone());
-
-                EmbedBuilder embed = new EmbedBuilder()
-                        .setTitle("RSN Verification Request")
-                        .setColor(Color.CYAN)
-                        .setDescription("<@" + attempt.discordUserId() + "> claims to be **" + attempt.rsn() + "**\n\n" +
-                                "Assigned appearance: " + appearance.describe() + "\n\n" +
-                                "Compare the avatar below against the assigned appearance, then Approve or Reject.")
-                        .setImage("attachment://avatar.png");
-
-                event.getChannel().sendMessageEmbeds(embed.build())
-                        .addFiles(FileUpload.fromData(imageBytes.get(), "avatar.png"))
-                        .addComponents(ActionRow.of(
-                                Button.success("rsn_verify_approve:" + attemptId, "Approve"),
-                                Button.danger("rsn_verify_reject:" + attemptId, "Reject")
-                        ))
-                        .queue();
-
-                event.getHook().editOriginal("Submitted for admin review — you'll be notified once it's checked.").queue();
             }
 
             case "rsn_verify_approve" -> {

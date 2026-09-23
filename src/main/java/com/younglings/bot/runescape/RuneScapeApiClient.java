@@ -32,8 +32,13 @@ public class RuneScapeApiClient {
     private static final String AVATAR_URL = "https://secure.runescape.com/m=avatar-rs/%s/chat.png";
     private static final String HISCORES_URL = "https://secure.runescape.com/m=hiscore/index_lite.ws?player=%s";
 
+    // NORMAL is required: every one of these endpoints (avatar image especially) responds with an
+    // HTTP redirect rather than the resource directly (verified live), and HttpClient's default
+    // policy when unset is Redirect.NEVER — without this, every avatar fetch silently "failed"
+    // with a bare 302 and no body, never actually reaching the image.
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
+            .followRedirects(HttpClient.Redirect.NORMAL)
             .build();
 
     /** Empty if the player doesn't exist, has their profile set to private, or the request failed. */
@@ -86,13 +91,14 @@ public class RuneScapeApiClient {
     }
 
     /**
-     * Raw PNG bytes of the player's current chat-head avatar (reflects their actual in-game
-     * customization, not achievements or activity). Note: an invalid/unrecognized name still
-     * returns HTTP 200 with a generic placeholder image rather than an error — this method can't
-     * tell that apart from a real avatar, so callers relying on it for verification should have a
-     * human look at the result rather than trust presence alone.
+     * The player's current chat-head avatar (reflects their actual in-game customization, not
+     * achievements or activity) — see {@link AvatarResult} for the three possible outcomes. An
+     * invalid/unrecognized RSN redirects to the same shared placeholder as a real account that's
+     * never set a custom look, so those two report as the same {@link AvatarResult.NotCustomized}
+     * outcome — this method can't tell them apart, and callers should say so rather than imply the
+     * name was necessarily wrong.
      */
-    public Optional<byte[]> fetchAvatarImage(String rsn) {
+    public AvatarResult fetchAvatarImage(String rsn) {
         try {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(AVATAR_URL.formatted(encode(rsn))))
@@ -103,15 +109,19 @@ public class RuneScapeApiClient {
             HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
             if (response.statusCode() / 100 != 2) {
                 log.warn("Avatar image request for '{}' returned HTTP {}", rsn, response.statusCode());
-                return Optional.empty();
+                return new AvatarResult.Unavailable();
             }
 
-            return Optional.of(response.body());
+            if (response.uri().getPath().endsWith("default_chat.png")) {
+                return new AvatarResult.NotCustomized();
+            }
+
+            return new AvatarResult.Found(response.body());
 
         } catch (IOException | InterruptedException e) {
             if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             log.warn("Failed to fetch avatar image for '{}'", rsn, e);
-            return Optional.empty();
+            return new AvatarResult.Unavailable();
         }
     }
 
