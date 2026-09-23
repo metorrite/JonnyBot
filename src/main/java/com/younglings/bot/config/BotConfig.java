@@ -125,6 +125,44 @@ public class BotConfig {
         return Long.parseLong(raw.trim());
     }
 
+    /**
+     * How often, in minutes, {@code RuneScapeStatsScheduler} re-polls every linked player's
+     * profile. Defaults to 360 (6 hours) if unset — set {@code RUNESCAPE_POLL_INTERVAL_MINUTES}
+     * to tune this without a code change or redeploy.
+     */
+    public long getRunescapePollIntervalMinutes() {
+        String raw = System.getenv("RUNESCAPE_POLL_INTERVAL_MINUTES");
+
+        if (raw == null || raw.isBlank()) {
+            raw = dotenv.get("RUNESCAPE_POLL_INTERVAL_MINUTES");
+        }
+
+        if (raw == null || raw.isBlank()) {
+            return 360;
+        }
+
+        return Long.parseLong(raw.trim());
+    }
+
+    /**
+     * Delay, in seconds, between individual player polls within one sync pass — spaces out
+     * requests against the RuneScape API instead of bursting them. Defaults to 2 if unset; set
+     * {@code RUNESCAPE_POLL_DELAY_SECONDS} to tune this without a code change or redeploy.
+     */
+    public long getRunescapePollDelaySeconds() {
+        String raw = System.getenv("RUNESCAPE_POLL_DELAY_SECONDS");
+
+        if (raw == null || raw.isBlank()) {
+            raw = dotenv.get("RUNESCAPE_POLL_DELAY_SECONDS");
+        }
+
+        if (raw == null || raw.isBlank()) {
+            return 2;
+        }
+
+        return Long.parseLong(raw.trim());
+    }
+
     public List<Long> getOwnerIds() {
         String rawOwnerIds = System.getenv("OWNER_IDS");
 
