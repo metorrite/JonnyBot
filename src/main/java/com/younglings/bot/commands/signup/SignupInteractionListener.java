@@ -1,5 +1,6 @@
 package com.younglings.bot.commands.signup;
 
+import com.younglings.bot.config.BotConfig;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
@@ -7,6 +8,11 @@ import net.dv8tion.jda.api.components.buttons.Button;
 import net.dv8tion.jda.api.components.label.Label;
 import net.dv8tion.jda.api.components.textinput.TextInput;
 import net.dv8tion.jda.api.components.textinput.TextInputStyle;
+import net.dv8tion.jda.api.components.selections.EntitySelectMenu;
+import net.dv8tion.jda.api.components.selections.StringSelectMenu;
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.channel.ChannelType;
+import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.events.interaction.ModalInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
@@ -24,9 +30,11 @@ public class SignupInteractionListener extends ListenerAdapter {
     private static final Logger log = LoggerFactory.getLogger(SignupInteractionListener.class);
 
     private final SignupService signupService;
+    private final BotConfig botConfig;
 
-    public SignupInteractionListener(SignupService signupService) {
+    public SignupInteractionListener(SignupService signupService, BotConfig botConfig) {
         this.signupService = signupService;
+        this.botConfig = botConfig;
     }
 
     private boolean isAdmin(ButtonInteractionEvent event) {
@@ -67,6 +75,14 @@ public class SignupInteractionListener extends ListenerAdapter {
     }
 
     private void handleButton(ButtonInteractionEvent event, String id) {
+        if (id.startsWith("signup_builder_")) {
+            handleBuilderButton(event, id);
+            return;
+        }
+        if (id.startsWith("signup_dev_close_all")) {
+            handleDevCloseAll(event, id);
+            return;
+        }
 
         String action = id.split(":")[0];
         long signupId = signupService.parseSignupId(id);
@@ -464,6 +480,11 @@ public class SignupInteractionListener extends ListenerAdapter {
     }
 
     private void handleModal(ModalInteractionEvent event, String modalId) {
+        if (modalId.startsWith("signup_builder_")) {
+            handleBuilderModal(event, modalId);
+            return;
+        }
+
         String action = modalId.split(":")[0];
         long signupId = signupService.parseSignupId(modalId);
 
@@ -618,6 +639,391 @@ public class SignupInteractionListener extends ListenerAdapter {
                         .queue();
             }
         }
+    }
+
+    // --- /devsignups: bulk close (dev only, double-checked here even though @Test already keeps
+    // the slash command itself out of production) ---
+
+    private void handleDevCloseAll(ButtonInteractionEvent event, String id) {
+        if (botConfig.getLiveEnvironment()) {
+            event.reply("This command is dev-only.").setEphemeral(true).queue();
+            return;
+        }
+
+        switch (id) {
+            case "signup_dev_close_all" -> event.reply(
+                            "Are you sure? This closes **every active signup on every server** the bot is in.")
+                    .setEphemeral(true)
+                    .addComponents(ActionRow.of(
+                            Button.danger("signup_dev_close_all_confirm", "Yes, close everything"),
+                            Button.secondary("signup_dev_close_all_cancel", "Cancel")
+                    ))
+                    .queue();
+
+            case "signup_dev_close_all_confirm" -> {
+                int count = signupService.closeAllActiveSignups(event.getJDA());
+                event.editMessage("Closed " + count + " signup(s) across all servers.")
+                        .setComponents()
+                        .queue();
+            }
+
+            case "signup_dev_close_all_cancel" -> event.editMessage("Cancelled.")
+                    .setComponents()
+                    .delay(Duration.ofSeconds(3))
+                    .flatMap(InteractionHook::deleteOriginal)
+                    .queue();
+        }
+    }
+
+    // --- /signupbuilder: buttons ---
+
+    private void handleBuilderButton(ButtonInteractionEvent event, String id) {
+        String action = id.split(":")[0];
+
+        switch (action) {
+            case "signup_builder_type" -> {
+                String type = id.split(":")[1];
+                event.replyModal(buildTypeModal(type)).queue();
+                // The picker's done its job the moment a type is picked — Discord gives no event
+                // for "the user dismissed the modal instead of submitting it", so there's no way
+                // to tell a cancelled modal apart from one still in progress. Deleting eagerly
+                // here (rather than waiting for a submit that might never come) is what keeps this
+                // message from lingering; worst case if they back out, they just re-run the command.
+                event.getMessage().delete().queue(null, failure -> {});
+            }
+
+            case "signup_builder_add_field" -> {
+                long userId = event.getUser().getIdLong();
+                if (signupService.getSubmissionDraft(userId) == null) {
+                    event.reply("This builder session has expired. Start over with `/signupbuilder`.")
+                            .setEphemeral(true).queue();
+                    return;
+                }
+
+                event.replyModal(buildFieldModal()).queue();
+            }
+
+            case "signup_builder_finish" -> {
+                long userId = event.getUser().getIdLong();
+                SubmissionDraft draft = signupService.getSubmissionDraft(userId);
+
+                if (draft == null) {
+                    event.editMessage("This builder session has expired. Start over with `/signupbuilder`.")
+                            .setComponents()
+                            .delay(Duration.ofSeconds(5))
+                            .flatMap(InteractionHook::deleteOriginal)
+                            .queue();
+                    return;
+                }
+
+                Guild guild = event.getGuild();
+                TextChannel adminChannel = guild.getTextChannelById(draft.adminChannelId());
+                TextChannel publicChannel = guild.getTextChannelById(draft.publicChannelId());
+
+                if (adminChannel == null || publicChannel == null) {
+                    event.editMessage("One of the selected channels no longer exists. Start over with `/signupbuilder`.")
+                            .setComponents()
+                            .delay(Duration.ofSeconds(5))
+                            .flatMap(InteractionHook::deleteOriginal)
+                            .queue();
+                    signupService.cancelSubmissionDraft(userId);
+                    return;
+                }
+
+                signupService.createSubmissionSession(guild, publicChannel, adminChannel, draft.title(),
+                        draft.fields(), draft.maxEntries(), userId);
+                signupService.cancelSubmissionDraft(userId);
+
+                event.editMessage("Submission signup **" + draft.title() + "** created with "
+                                + draft.fields().size() + " field(s).")
+                        .setComponents()
+                        .delay(Duration.ofSeconds(5))
+                        .flatMap(InteractionHook::deleteOriginal)
+                        .queue();
+            }
+
+            case "signup_builder_cancel" -> {
+                signupService.cancelSubmissionDraft(event.getUser().getIdLong());
+                event.editMessage("Cancelled.")
+                        .setComponents()
+                        .delay(Duration.ofSeconds(3))
+                        .flatMap(InteractionHook::deleteOriginal)
+                        .queue();
+            }
+        }
+    }
+
+    // --- /signupbuilder: modals ---
+
+    private void handleBuilderModal(ModalInteractionEvent event, String modalId) {
+        String action = modalId.split(":")[0];
+
+        switch (action) {
+            case "signup_builder_submit" -> {
+                String type = modalId.split(":")[1];
+                String title = event.getValue("signup_builder_title").getAsString().trim();
+                Guild guild = event.getGuild();
+                long userId = event.getUser().getIdLong();
+
+                long adminChannelId = event.getValue("signup_builder_admin_channel").getAsLongList().getFirst();
+                long publicChannelId = event.getValue("signup_builder_public_channel").getAsLongList().getFirst();
+                TextChannel adminChannel = guild.getTextChannelById(adminChannelId);
+                TextChannel publicChannel = guild.getTextChannelById(publicChannelId);
+
+                if (adminChannel == null || publicChannel == null) {
+                    event.reply("One of the selected channels isn't a usable text channel — try again.")
+                            .setEphemeral(true)
+                            .delay(Duration.ofSeconds(5))
+                            .flatMap(InteractionHook::deleteOriginal)
+                            .queue();
+                    return;
+                }
+
+                switch (type) {
+                    case "QUEUE" -> {
+                        String notify = event.getValue("signup_builder_notify").getAsString().trim();
+                        Integer max = parseOptionalPositiveInt(event, "signup_builder_max");
+
+                        if (max == INVALID_NUMBER) {
+                            replyInvalidNumber(event);
+                            return;
+                        }
+
+                        signupService.createQueueSession(guild, publicChannel, adminChannel, title, notify, max, userId);
+                        event.reply("Queue signup **" + title + "** created.")
+                                .setEphemeral(true)
+                                .delay(Duration.ofSeconds(5))
+                                .flatMap(InteractionHook::deleteOriginal)
+                                .queue();
+                    }
+
+                    case "GROUP" -> {
+                        signupService.createGroupSession(guild, publicChannel, adminChannel, title, userId);
+                        event.reply("Group signup **" + title + "** created. A role is being set up.")
+                                .setEphemeral(true)
+                                .delay(Duration.ofSeconds(5))
+                                .flatMap(InteractionHook::deleteOriginal)
+                                .queue();
+                    }
+
+                    case "SUBMISSION" -> {
+                        Integer max = parseOptionalPositiveInt(event, "signup_builder_max");
+
+                        if (max == INVALID_NUMBER) {
+                            replyInvalidNumber(event);
+                            return;
+                        }
+
+                        signupService.startSubmissionDraft(userId, guild.getIdLong(),
+                                adminChannelId, publicChannelId, title, max);
+                        SubmissionDraft draft = signupService.getSubmissionDraft(userId);
+
+                        event.reply(renderDraftSummary(draft))
+                                .setEphemeral(true)
+                                .addComponents(ActionRow.of(draftButtons(draft)))
+                                .queue(hook -> hook.retrieveOriginal().queue(
+                                        message -> signupService.setDraftStatusMessage(userId, message.getIdLong())));
+                    }
+                }
+            }
+
+            case "signup_builder_field_submit" -> {
+                long userId = event.getUser().getIdLong();
+
+                String label = event.getValue("signup_builder_field_label").getAsString().trim();
+                String type = event.getValue("signup_builder_field_type").getAsStringList().getFirst();
+                boolean required = "YES".equals(event.getValue("signup_builder_field_required").getAsStringList().getFirst());
+
+                SubmissionField field = new SubmissionField(label, type, required);
+
+                boolean added = signupService.addDraftField(userId, field);
+                if (!added) {
+                    event.reply("This builder session has expired, or already has the maximum of 3 fields.")
+                            .setEphemeral(true).queue();
+                    return;
+                }
+
+                SubmissionDraft draft = signupService.getSubmissionDraft(userId);
+
+                if (draft.statusMessageId() != null) {
+                    event.getChannel().editMessageById(draft.statusMessageId(), renderDraftSummary(draft))
+                            .setComponents(ActionRow.of(draftButtons(draft)))
+                            .queue(null, failure -> log.warn(
+                                    "Failed to update signup builder status message {}", draft.statusMessageId(), failure));
+                }
+
+                event.reply("Added field **" + field.label() + "**.")
+                        .setEphemeral(true)
+                        .delay(Duration.ofSeconds(3))
+                        .flatMap(InteractionHook::deleteOriginal)
+                        .queue();
+            }
+        }
+    }
+
+    private static final Integer INVALID_NUMBER = Integer.MIN_VALUE;
+
+    /** Returns {@code null} for blank input (unlimited), the parsed value, or {@link #INVALID_NUMBER} on bad input. */
+    private Integer parseOptionalPositiveInt(ModalInteractionEvent event, String inputId) {
+        var value = event.getValue(inputId);
+        if (value == null) return null;
+
+        String raw = value.getAsString().trim();
+        if (raw.isBlank()) return null;
+
+        try {
+            int parsed = Integer.parseInt(raw);
+            return parsed > 0 ? parsed : INVALID_NUMBER;
+        } catch (NumberFormatException e) {
+            return INVALID_NUMBER;
+        }
+    }
+
+    private void replyInvalidNumber(ModalInteractionEvent event) {
+        event.reply("That number field must be a whole number greater than 0, or left blank for unlimited.")
+                .setEphemeral(true)
+                .delay(Duration.ofSeconds(5))
+                .flatMap(InteractionHook::deleteOriginal)
+                .queue();
+    }
+
+    private String renderDraftSummary(SubmissionDraft draft) {
+        StringBuilder sb = new StringBuilder("**Submission Builder — ").append(draft.title()).append("**\n\n");
+
+        if (draft.fields().isEmpty()) {
+            sb.append("*No fields yet — add at least one.*");
+        } else {
+            for (int i = 0; i < draft.fields().size(); i++) {
+                SubmissionField field = draft.fields().get(i);
+                sb.append(i + 1).append(". **").append(field.label()).append("** (")
+                        .append(field.type()).append(field.required() ? ", required" : ", optional").append(")\n");
+            }
+        }
+
+        return sb.toString();
+    }
+
+    private List<Button> draftButtons(SubmissionDraft draft) {
+        List<Button> buttons = new ArrayList<>();
+
+        if (draft.fields().size() < 3) {
+            buttons.add(Button.primary("signup_builder_add_field:_", "Add Field"));
+        }
+        if (!draft.fields().isEmpty()) {
+            buttons.add(Button.success("signup_builder_finish:_", "Create Signup"));
+        }
+        buttons.add(Button.danger("signup_builder_cancel:_", "Cancel"));
+
+        return buttons;
+    }
+
+    /** Both channels are always explicit picks — never implicitly "wherever /signupbuilder was run". */
+    private Label adminChannelSelect() {
+        return Label.of("Admin channel", EntitySelectMenu.create("signup_builder_admin_channel", EntitySelectMenu.SelectTarget.CHANNEL)
+                .setChannelTypes(ChannelType.TEXT)
+                .setPlaceholder("Where admin controls get posted")
+                .setRequiredRange(1, 1)
+                .build());
+    }
+
+    private Label publicChannelSelect() {
+        return Label.of("Public channel", EntitySelectMenu.create("signup_builder_public_channel", EntitySelectMenu.SelectTarget.CHANNEL)
+                .setChannelTypes(ChannelType.TEXT)
+                .setPlaceholder("Where the public signup panel gets posted")
+                .setRequiredRange(1, 1)
+                .build());
+    }
+
+    private Modal buildTypeModal(String type) {
+        TextInput titleInput = TextInput.create("signup_builder_title", TextInputStyle.SHORT)
+                .setPlaceholder("Signup title")
+                .setRequired(true)
+                .setRequiredRange(1, 100)
+                .build();
+
+        return switch (type) {
+            case "QUEUE" -> {
+                TextInput notifyInput = TextInput.create("signup_builder_notify", TextInputStyle.PARAGRAPH)
+                        .setPlaceholder("Message sent when a user reaches the front of the queue")
+                        .setRequired(true)
+                        .setRequiredRange(1, 300)
+                        .build();
+                TextInput maxInput = TextInput.create("signup_builder_max", TextInputStyle.SHORT)
+                        .setPlaceholder("Max signups — leave blank for unlimited")
+                        .setRequired(false)
+                        .setRequiredRange(0, 10)
+                        .build();
+
+                // Exactly 5 of 5 components Discord allows in one modal — no room to spare here.
+                yield Modal.create("signup_builder_submit:QUEUE", "New Queue Signup")
+                        .addComponents(
+                                Label.of("Title", titleInput),
+                                Label.of("Notification message", notifyInput),
+                                Label.of("Max signups (optional)", maxInput),
+                                adminChannelSelect(),
+                                publicChannelSelect()
+                        )
+                        .build();
+            }
+
+            case "GROUP" -> Modal.create("signup_builder_submit:GROUP", "New Group Signup")
+                    .addComponents(
+                            Label.of("Title", titleInput),
+                            adminChannelSelect(),
+                            publicChannelSelect()
+                    )
+                    .build();
+
+            case "SUBMISSION" -> {
+                TextInput maxInput = TextInput.create("signup_builder_max", TextInputStyle.SHORT)
+                        .setPlaceholder("Max submissions — leave blank for unlimited")
+                        .setRequired(false)
+                        .setRequiredRange(0, 10)
+                        .build();
+
+                yield Modal.create("signup_builder_submit:SUBMISSION", "New Submission Signup")
+                        .addComponents(
+                                Label.of("Title", titleInput),
+                                Label.of("Max submissions (optional)", maxInput),
+                                adminChannelSelect(),
+                                publicChannelSelect()
+                        )
+                        .build();
+            }
+
+            default -> throw new IllegalStateException("Unknown signup builder type: " + type);
+        };
+    }
+
+    private Modal buildFieldModal() {
+        TextInput labelInput = TextInput.create("signup_builder_field_label", TextInputStyle.SHORT)
+                .setPlaceholder("e.g. Movie, Song, Idea")
+                .setRequired(true)
+                .setRequiredRange(1, 45)
+                .build();
+
+        StringSelectMenu typeSelect = StringSelectMenu.create("signup_builder_field_type")
+                .addOption("Text", SubmissionField.TYPE_TEXT)
+                .addOption("Link", SubmissionField.TYPE_LINK)
+                .addOption("Image", SubmissionField.TYPE_IMAGE)
+                .setDefaultValues(SubmissionField.TYPE_TEXT)
+                .setRequiredRange(1, 1)
+                .build();
+
+        StringSelectMenu requiredSelect = StringSelectMenu.create("signup_builder_field_required")
+                .addOption("Yes", "YES")
+                .addOption("No", "NO")
+                .setDefaultValues("YES")
+                .setRequiredRange(1, 1)
+                .build();
+
+        return Modal.create("signup_builder_field_submit:_", "Add Field")
+                .addComponents(
+                        Label.of("Field label", labelInput),
+                        Label.of("Type", typeSelect),
+                        Label.of("Required?", requiredSelect)
+                )
+                .build();
     }
 
     // --- Modal builders ---

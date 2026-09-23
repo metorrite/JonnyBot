@@ -3,6 +3,7 @@ package com.younglings.bot.commands.signup;
 import com.younglings.bot.signup.SignupRepository;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.EmbedBuilder;
+import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.entities.UserSnowflake;
@@ -13,6 +14,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -26,6 +29,10 @@ public class SignupService {
     // modal submits) from a pooled executor rather than a single thread, so this map can be
     // read/written concurrently from separate signups' interactions.
     private final Map<Long, SignupSession> activeSignupsById = new ConcurrentHashMap<>();
+    // Keyed by the Discord user building it — one in-progress /signupbuilder SUBMISSION draft per
+    // user at a time. Never persisted: abandoned drafts just sit here harmlessly until finished,
+    // cancelled, or the bot restarts (same tradeoff TeamformingService makes for its own staged state).
+    private final Map<Long, SubmissionDraft> submissionDraftsByUserId = new ConcurrentHashMap<>();
     private final SignupRepository signupRepository;
 
     public SignupService(SignupRepository signupRepository) {
@@ -147,6 +154,49 @@ public class SignupService {
                                     signupId, guild.getIdLong(),
                                     adminChannel.getIdLong(), adminMessage.getIdLong(), "ADMIN"));
                 });
+    }
+
+    // --- /signupbuilder SUBMISSION drafts ---
+
+    // No Discord event fires when a user dismisses the ephemeral message a draft lives behind, so
+    // an abandoned draft has no natural end — this bounds how long one lingers in memory instead.
+    private static final Duration DRAFT_TTL = Duration.ofMinutes(10);
+
+    public void startSubmissionDraft(long userId, long guildId, long adminChannelId, long publicChannelId,
+                                      String title, Integer maxEntries) {
+        submissionDraftsByUserId.put(userId, new SubmissionDraft(
+                guildId, adminChannelId, publicChannelId, title, maxEntries, List.of(), null, Instant.now()));
+    }
+
+    /** Returns {@code null} (and evicts) if there's no draft for this user, or it's gone stale past {@link #DRAFT_TTL}. */
+    public SubmissionDraft getSubmissionDraft(long userId) {
+        SubmissionDraft draft = submissionDraftsByUserId.get(userId);
+        if (draft == null) return null;
+
+        if (Duration.between(draft.lastTouchedAt(), Instant.now()).compareTo(DRAFT_TTL) > 0) {
+            submissionDraftsByUserId.remove(userId);
+            return null;
+        }
+
+        return draft;
+    }
+
+    /** No-op if the draft no longer exists (e.g. finished/cancelled just before this landed). */
+    public void setDraftStatusMessage(long userId, long messageId) {
+        submissionDraftsByUserId.computeIfPresent(userId, (id, draft) -> draft.withStatusMessageId(messageId));
+    }
+
+    /** Returns false without changing anything if there's no live draft for this user, or it's already full (3 fields). */
+    public boolean addDraftField(long userId, SubmissionField field) {
+        SubmissionDraft draft = getSubmissionDraft(userId); // staleness-checked
+        if (draft == null || draft.fields().size() >= 3) return false;
+
+        submissionDraftsByUserId.put(userId, draft.withField(field));
+        return true;
+    }
+
+    public void cancelSubmissionDraft(long userId) {
+        submissionDraftsByUserId.remove(userId);
     }
 
     // --- Status ---
@@ -386,6 +436,44 @@ public class SignupService {
         signupRepository.deleteSignupForAdminArchive(signupId);
         activeSignupsById.remove(signupId);
         log.info("Deleted signup {} '{}'", signupId, session.title());
+    }
+
+    // --- Maintenance (dev bulk-close, auto-close, purge) ---
+
+    /** Closes every currently-tracked active signup, across every guild the bot can still resolve. Returns how many. */
+    public int closeAllActiveSignups(JDA jda) {
+        int count = 0;
+        for (SignupSession session : List.copyOf(activeSignupsById.values())) {
+            Guild guild = jda.getGuildById(session.guildId());
+            if (guild == null) continue;
+            deleteSignup(guild, session.signupId());
+            count++;
+        }
+        return count;
+    }
+
+    /** Closes signups with no new entries since before {@code cutoff}. Returns how many were closed. */
+    public int autoCloseInactiveSignups(JDA jda, Instant cutoff) {
+        int count = 0;
+        for (SignupSession session : signupRepository.getInactiveSignups(cutoff)) {
+            Guild guild = jda.getGuildById(session.guildId());
+            if (guild == null) continue;
+            deleteSignup(guild, session.signupId());
+            count++;
+            log.info("Auto-closed signup {} '{}' in guild {} — inactive since before {}",
+                    session.signupId(), session.title(), session.guildId(), cutoff);
+        }
+        return count;
+    }
+
+    /** Hard-deletes signups soft-deleted before {@code cutoff}. Returns how many were purged. */
+    public int purgeOldDeletedSignups(Instant cutoff) {
+        return signupRepository.purgeDeletedBefore(cutoff);
+    }
+
+    /** All currently-tracked active signups, across every guild. Used by the dev-only cross-server list. */
+    public List<SignupSession> getAllActiveSignups() {
+        return List.copyOf(activeSignupsById.values());
     }
 
     public void deletePingMessages(Guild guild, long signupId) {
