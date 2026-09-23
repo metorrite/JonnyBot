@@ -138,12 +138,40 @@ public class RsnInteractionListener extends ListenerAdapter {
                 AvatarResult avatarResult = apiClient.fetchAvatarImage(attempt.rsn());
 
                 switch (avatarResult) {
-                    case AvatarResult.NotCustomized ignored -> event.getHook().editOriginal(
-                            "**" + attempt.rsn() + "** doesn't have a customized avatar yet — RuneScape is showing " +
-                            "the generic default image, which can't be used to verify anything (this also shows up " +
-                            "if the name is misspelled or doesn't exist). Double-check the spelling, and make sure " +
-                            "you've visited the Adventurer's Log (or otherwise generated an avatar) at least once " +
-                            "in-game, then click **I've Applied My Look** again.").queue();
+                    case AvatarResult.NotCustomized ignored -> {
+                        // As of RuneScape's 8 June 2026 avatar-system migration, the "photobooth" that
+                        // renders this image site-wide is temporarily disabled — every RSN currently
+                        // resolves to the default placeholder regardless of whether it's customized or
+                        // even real, not just accounts with privacy settings. Rather than dead-end the
+                        // whole verification flow until Jagex restores it, this still routes to an admin
+                        // for a manual override decision — no photo comparison is possible, so it's a
+                        // trust call instead of a visual one until the photobooth comes back.
+                        MakeoverAppearance appearance = new MakeoverAppearance(
+                                attempt.assignedHairstyle(), attempt.assignedHairColor(), attempt.assignedSkinTone());
+
+                        EmbedBuilder embed = new EmbedBuilder()
+                                .setTitle("RSN Verification Request — No Avatar Available")
+                                .setColor(Color.YELLOW)
+                                .setDescription("<@" + attempt.discordUserId() + "> claims to be **" + attempt.rsn() + "**\n\n" +
+                                        "Assigned appearance: " + appearance.describe() + "\n\n" +
+                                        "RuneScape returned its generic default avatar instead of a real one. This can mean " +
+                                        "the name is misspelled, doesn't exist, the account has never customized its look — " +
+                                        "**or that RuneScape's avatar photobooth is currently disabled game-wide** " +
+                                        "(taken down for an avatar system migration as of June 2026, no announced return date). " +
+                                        "No photo comparison is possible right now, so this needs a manual override call instead.")
+                                .setFooter("Admin override — no avatar image to compare against.");
+
+                        event.getChannel().sendMessageEmbeds(embed.build())
+                                .addComponents(ActionRow.of(
+                                        Button.success("rsn_verify_approve:" + attemptId, "Approve (Override)"),
+                                        Button.danger("rsn_verify_reject:" + attemptId, "Reject")
+                                ))
+                                .queue();
+
+                        event.getHook().editOriginal(
+                                "No avatar could be fetched right now (RuneScape's photobooth may be disabled) — submitted " +
+                                "for manual admin review anyway. You'll be notified once it's checked.").queue();
+                    }
 
                     case AvatarResult.Unavailable ignored -> event.getHook().editOriginal(
                             "Couldn't fetch an avatar for **" + attempt.rsn() + "** right now — the RuneScape API " +
