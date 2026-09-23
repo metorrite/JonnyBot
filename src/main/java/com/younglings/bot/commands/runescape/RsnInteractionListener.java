@@ -185,6 +185,19 @@ public class RsnInteractionListener extends ListenerAdapter {
                         .queue();
             }
 
+            case "rsn_cancel_own" -> {
+                long attemptId = Long.parseLong(id.split(":")[1]);
+                boolean cancelled = linkService.cancelOwn(attemptId, event.getUser().getIdLong());
+
+                if (!cancelled) {
+                    event.reply("That request is no longer active.").setEphemeral(true).queue();
+                    return;
+                }
+
+                event.reply("Cancelled — click **Link My RSN** again to start over with a different name.")
+                        .setEphemeral(true).queue();
+            }
+
             case "rsn_verify_reject" -> {
                 if (!isAdmin(event)) {
                     event.reply("You need the Admin role (or higher) to use this.").setEphemeral(true).queue();
@@ -228,9 +241,12 @@ public class RsnInteractionListener extends ListenerAdapter {
 
             event.reply("You already have a verification in progress for **" + pending.rsn() + "**.\n\n" +
                             "Assigned appearance: " + pendingAppearance.describe() + "\n\n" +
-                            "Apply that look in-game, then click below — or contact an admin to cancel it first if you meant a different name.")
+                            "Apply that look in-game, then click below — or start over if you meant a different name.")
                     .setEphemeral(true)
-                    .addComponents(ActionRow.of(Button.primary("rsn_verify_ready:" + pending.attemptId(), "I've Applied My Look")))
+                    .addComponents(ActionRow.of(
+                            Button.primary("rsn_verify_ready:" + pending.attemptId(), "I've Applied My Look"),
+                            Button.secondary("rsn_cancel_own:" + pending.attemptId(), "Start Over (Wrong Name?)")
+                    ))
                     .queue();
             return;
         }

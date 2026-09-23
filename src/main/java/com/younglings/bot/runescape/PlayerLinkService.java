@@ -34,6 +34,17 @@ public class PlayerLinkService {
         return repository.getPendingAttemptForUser(guildId, discordUserId);
     }
 
+    /** Lets a user abandon their own pending attempt (e.g. a mistyped RSN) without needing an admin. */
+    public boolean cancelOwn(long attemptId, long discordUserId) {
+        VerificationAttempt attempt = repository.getAttempt(attemptId);
+        if (attempt == null || !"PENDING".equals(attempt.status()) || attempt.discordUserId() != discordUserId) {
+            return false;
+        }
+
+        repository.resolveAttempt(attemptId, "CANCELLED", discordUserId);
+        return true;
+    }
+
     public List<VerificationAttempt> getPendingAttempts(long guildId) {
         return repository.getPendingAttempts(guildId);
     }
