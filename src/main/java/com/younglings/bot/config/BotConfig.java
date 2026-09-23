@@ -126,6 +126,37 @@ public class BotConfig {
     }
 
     /**
+     * Shared secret the internal API (see {@code com.younglings.bot.internal.InternalApiServer})
+     * requires on every request, via the {@code X-Internal-Secret} header. Returns {@code null} if
+     * unset, in which case the internal API server does not start at all — it's opt-in, not
+     * required for the bot's core functionality.
+     */
+    public String getInternalApiSecret() {
+        String secret = System.getenv("INTERNAL_API_SECRET");
+
+        if (secret == null || secret.isBlank()) {
+            secret = dotenv.get("INTERNAL_API_SECRET");
+        }
+
+        return (secret == null || secret.isBlank()) ? null : secret;
+    }
+
+    /** Port the internal API listens on. Defaults to 8081 if unset. */
+    public int getInternalApiPort() {
+        String raw = System.getenv("INTERNAL_API_PORT");
+
+        if (raw == null || raw.isBlank()) {
+            raw = dotenv.get("INTERNAL_API_PORT");
+        }
+
+        if (raw == null || raw.isBlank()) {
+            return 8081;
+        }
+
+        return Integer.parseInt(raw.trim());
+    }
+
+    /**
      * How often, in minutes, {@code RuneScapeStatsScheduler} re-polls every linked player's
      * profile. Defaults to 360 (6 hours) if unset — set {@code RUNESCAPE_POLL_INTERVAL_MINUTES}
      * to tune this without a code change or redeploy.
