@@ -1,6 +1,7 @@
 package com.younglings.bot.commands.signup;
 
 import com.younglings.bot.config.BotConfig;
+import com.younglings.bot.discord.Containers;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
 import io.github.freya022.botcommands.api.commands.application.CommandScope;
 import io.github.freya022.botcommands.api.commands.application.annotations.Test;
@@ -9,6 +10,9 @@ import io.github.freya022.botcommands.api.commands.application.slash.annotations
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.TopLevelSlashCommandData;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
 import net.dv8tion.jda.api.components.buttons.Button;
+import net.dv8tion.jda.api.components.container.Container;
+import net.dv8tion.jda.api.components.separator.Separator;
+import net.dv8tion.jda.api.components.textdisplay.TextDisplay;
 import net.dv8tion.jda.api.entities.Guild;
 
 import java.util.ArrayList;
@@ -41,14 +45,14 @@ public class SignupDevCommand {
     @JDASlashCommand(name = "devsignups", description = "[Dev only] Lists every active signup across every server this bot is in")
     public void onDevSignups(GuildSlashEvent event) {
         if (botConfig.getLiveEnvironment()) {
-            event.reply("This command is dev-only.").setEphemeral(true).queue();
+            Containers.replyEphemeral(event, Containers.WARNING, "This command is dev-only.");
             return;
         }
 
         List<SignupSession> all = signupService.getAllActiveSignups();
 
         if (all.isEmpty()) {
-            event.reply("No active signups found across any server.").setEphemeral(true).queue();
+            Containers.replyEphemeral(event, Containers.INFO, "No active signups found across any server.");
             return;
         }
 
@@ -79,9 +83,12 @@ public class SignupDevCommand {
         sb.append("\n**Total: ").append(all.size()).append(" active signup(s) across ")
                 .append(byGuild.size()).append(" server(s).**");
 
-        event.reply(sb.toString())
-                .setEphemeral(true)
-                .addComponents(ActionRow.of(Button.danger("signup_dev_close_all", "Close ALL Active Signups")))
-                .queue();
+        Container container = Containers.card(Containers.WARNING,
+                TextDisplay.of("# Active Signups (all servers)"),
+                Separator.createDivider(Separator.Spacing.SMALL),
+                TextDisplay.of(sb.toString()),
+                ActionRow.of(Button.danger("signup_dev_close_all", "Close ALL Active Signups")));
+
+        event.replyComponents(List.of(container)).useComponentsV2(true).setEphemeral(true).queue();
     }
 }

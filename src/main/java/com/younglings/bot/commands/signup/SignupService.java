@@ -1,8 +1,8 @@
 package com.younglings.bot.commands.signup;
 
+import com.younglings.bot.discord.Containers;
 import com.younglings.bot.signup.SignupRepository;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
-import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Role;
@@ -10,12 +10,18 @@ import net.dv8tion.jda.api.entities.UserSnowflake;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
 import net.dv8tion.jda.api.components.buttons.Button;
+import net.dv8tion.jda.api.components.container.Container;
+import net.dv8tion.jda.api.components.container.ContainerChildComponent;
+import net.dv8tion.jda.api.components.mediagallery.MediaGallery;
+import net.dv8tion.jda.api.components.mediagallery.MediaGalleryItem;
+import net.dv8tion.jda.api.components.textdisplay.TextDisplay;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -142,14 +148,14 @@ public class SignupService {
                                 SignupSession session) {
         long signupId = session.signupId();
 
-        signupChannel.sendMessageEmbeds(buildPublicEmbed(session).build())
-                .addComponents(buildPublicActionRow(session))
+        signupChannel.sendMessageComponents(List.of(buildPublicContainer(session)))
+                .useComponentsV2(true)
                 .queue(publicMessage -> {
                     signupRepository.saveMessage(signupId, guild.getIdLong(),
                             signupChannel.getIdLong(), publicMessage.getIdLong(), "PUBLIC");
 
-                    adminChannel.sendMessageEmbeds(buildAdminEmbed(session).build())
-                            .addComponents(buildAdminActionRows(session))
+                    adminChannel.sendMessageComponents(List.of(buildAdminContainer(session)))
+                            .useComponentsV2(true)
                             .queue(adminMessage -> signupRepository.saveMessage(
                                     signupId, guild.getIdLong(),
                                     adminChannel.getIdLong(), adminMessage.getIdLong(), "ADMIN"));
@@ -338,15 +344,16 @@ public class SignupService {
         return entries.get(ThreadLocalRandom.current().nextInt(entries.size()));
     }
 
-    /** Builds the winner announcement embed posted in the public channel. */
-    public EmbedBuilder buildWinnerEmbed(SignupSession session, SignupEntry winner) {
-        EmbedBuilder eb = new EmbedBuilder()
-                .setTitle("🎉 " + session.title() + " — Winner!")
-                .setColor(new Color(255, 215, 0));
+    private static final Color COLOR_GOLD = new Color(255, 215, 0);
+
+    /** Builds the winner announcement container posted in the public channel. */
+    public Container buildWinnerContainer(SignupSession session, SignupEntry winner) {
+        List<ContainerChildComponent> children = new ArrayList<>();
+        children.add(TextDisplay.of("### 🎉 " + session.title() + " — Winner!"));
 
         switch (session.type()) {
-            case GROUP -> eb.setDescription(
-                    "**<@" + winner.userId() + ">** has been selected!\n\nCongratulations! 🎊");
+            case GROUP -> children.add(TextDisplay.of(
+                    "**<@" + winner.userId() + ">** has been selected!\n\nCongratulations! 🎊"));
 
             case SUBMISSION -> {
                 List<SubmissionField> fields = SubmissionField.deserialize(session.submissionFields());
@@ -377,16 +384,18 @@ public class SignupService {
                 }
 
                 desc.append("\nCongratulations! 🎊");
-                eb.setDescription(desc.toString());
+                children.add(TextDisplay.of(desc.toString()));
 
-                // Show the first image field inline in the winner embed
-                if (firstImageUrl != null) eb.setImage(firstImageUrl);
+                // Show the first image field inline in the winner card
+                if (firstImageUrl != null) {
+                    children.add(MediaGallery.of(MediaGalleryItem.fromUrl(firstImageUrl)));
+                }
             }
 
-            default -> eb.setDescription("**<@" + winner.userId() + ">** was selected! 🎊");
+            default -> children.add(TextDisplay.of("**<@" + winner.userId() + ">** was selected! 🎊"));
         }
 
-        return eb;
+        return Containers.card(COLOR_GOLD, children);
     }
 
     // --- Delete ---
@@ -509,8 +518,8 @@ public class SignupService {
         }
 
         if (panelType == SignupPanelType.ADMIN) {
-            channel.sendMessageEmbeds(buildAdminEmbed(session).build())
-                    .addComponents(buildAdminActionRows(session))
+            channel.sendMessageComponents(List.of(buildAdminContainer(session)))
+                    .useComponentsV2(true)
                     .queue(message -> {
                         signupRepository.saveMessage(signupId, guild.getIdLong(),
                                 channel.getIdLong(), message.getIdLong(), "ADMIN");
@@ -520,8 +529,8 @@ public class SignupService {
             return;
         }
 
-        channel.sendMessageEmbeds(buildPublicEmbed(session).build())
-                .addComponents(buildPublicActionRow(session))
+        channel.sendMessageComponents(List.of(buildPublicContainer(session)))
+                .useComponentsV2(true)
                 .queue(message -> {
                     signupRepository.saveMessage(signupId, guild.getIdLong(),
                             channel.getIdLong(), message.getIdLong(), "PUBLIC");
@@ -548,12 +557,12 @@ public class SignupService {
                     .queue(
                             message -> {
                                 if ("ADMIN".equalsIgnoreCase(signupMessage.messageType())) {
-                                    message.editMessageEmbeds(buildAdminEmbed(session).build())
-                                            .setComponents(buildAdminActionRows(session))
+                                    message.editMessageComponents(List.of(buildAdminContainer(session)))
+                                            .useComponentsV2(true)
                                             .queue();
                                 } else {
-                                    message.editMessageEmbeds(buildPublicEmbed(session).build())
-                                            .setComponents(buildPublicActionRow(session))
+                                    message.editMessageComponents(List.of(buildPublicContainer(session)))
+                                            .useComponentsV2(true)
                                             .queue();
                                 }
                             },
@@ -566,26 +575,32 @@ public class SignupService {
         }
     }
 
-    // --- Embed builders ---
+    // --- Panel containers ---
 
-    public EmbedBuilder buildPublicEmbed(SignupSession session) {
+    public Container buildPublicContainer(SignupSession session) {
         String status = signupRepository.getSignupStatus(session.signupId());
         Color color = "PAUSED".equalsIgnoreCase(status) ? Color.RED : Color.GREEN;
-        return new EmbedBuilder()
-                .setTitle(session.title())
-                .setDescription(buildEntriesText(session))
-                .setFooter(buildFooterText(session, status))
-                .setColor(color);
+
+        List<ContainerChildComponent> children = new ArrayList<>();
+        children.add(TextDisplay.of("### " + session.title()));
+        children.add(TextDisplay.of(buildEntriesText(session)));
+        children.add(TextDisplay.of("-# " + buildFooterText(session, status)));
+        children.add(buildPublicActionRow(session));
+
+        return Containers.card(color, children);
     }
 
-    public EmbedBuilder buildAdminEmbed(SignupSession session) {
+    public Container buildAdminContainer(SignupSession session) {
         String status = signupRepository.getSignupStatus(session.signupId());
         Color color = "PAUSED".equalsIgnoreCase(status) ? Color.RED : Color.GREEN;
-        return new EmbedBuilder()
-                .setTitle(session.title() + " - Admin Controls")
-                .setDescription(buildEntriesText(session))
-                .setFooter(buildFooterText(session, status))
-                .setColor(color);
+
+        List<ContainerChildComponent> children = new ArrayList<>();
+        children.add(TextDisplay.of("### " + session.title() + " - Admin Controls"));
+        children.add(TextDisplay.of(buildEntriesText(session)));
+        children.add(TextDisplay.of("-# " + buildFooterText(session, status)));
+        children.addAll(buildAdminActionRows(session));
+
+        return Containers.card(color, children);
     }
 
     private String buildEntriesText(SignupSession session) {
