@@ -1,6 +1,7 @@
 package com.younglings.bot.commands.runescape;
 
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.discord.Pagination;
 import com.younglings.bot.permission.AdminRoleFilter;
 import com.younglings.bot.runescape.AvatarResult;
 import com.younglings.bot.runescape.MakeoverAppearance;
@@ -15,6 +16,7 @@ import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
 import net.dv8tion.jda.api.components.buttons.Button;
 import net.dv8tion.jda.api.components.container.Container;
+import net.dv8tion.jda.api.components.container.ContainerChildComponent;
 import net.dv8tion.jda.api.components.label.Label;
 import net.dv8tion.jda.api.components.mediagallery.MediaGallery;
 import net.dv8tion.jda.api.components.mediagallery.MediaGalleryItem;
@@ -32,6 +34,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.Color;
+import java.util.ArrayList;
 import java.util.List;
 
 @BService
@@ -107,24 +110,15 @@ public class RsnInteractionListener extends ListenerAdapter {
                     Containers.replyEphemeral(event, Containers.WARNING, "You need the Admin role (or higher) to use this.");
                     return;
                 }
+                showPendingVerifications(event, 0, false);
+            }
 
-                List<VerificationAttempt> pending = linkService.getPendingAttempts(event.getGuild().getIdLong());
-                if (pending.isEmpty()) {
-                    Containers.replyEphemeral(event, Containers.INFO, "No pending verification requests.");
+            case "rsn_pending_page" -> {
+                if (!isAdmin(event)) {
+                    Containers.replyEphemeral(event, Containers.WARNING, "You need the Admin role (or higher) to use this.");
                     return;
                 }
-
-                StringBuilder sb = new StringBuilder();
-                for (VerificationAttempt attempt : pending) {
-                    sb.append("`#").append(attempt.attemptId()).append("` — ").append(attempt.rsn())
-                            .append(" (<@").append(attempt.discordUserId()).append(">) — ")
-                            .append(new MakeoverAppearance(attempt.assignedHairstyle(), attempt.assignedHairColor(), attempt.assignedSkinTone()).describe())
-                            .append("\n");
-                }
-
-                Container container = Containers.card(Containers.INFO,
-                        TextDisplay.of("# Pending Verifications"), TextDisplay.of(sb.toString()));
-                event.replyComponents(List.of(container)).useComponentsV2(true).setEphemeral(true).queue();
+                showPendingVerifications(event, Integer.parseInt(id.split(":")[1]), true);
             }
 
             case "rsn_verify_ready" -> {
@@ -310,6 +304,41 @@ public class RsnInteractionListener extends ListenerAdapter {
                 ActionRow.of(Button.primary("rsn_verify_ready:" + attempt.attemptId(), "I've Applied My Look")));
 
         event.replyComponents(List.of(container)).useComponentsV2(true).setEphemeral(true).queue();
+    }
+
+    // --- Pending verifications (admin) ---
+
+    private void showPendingVerifications(ButtonInteractionEvent event, int pageIndex, boolean isPageNav) {
+        List<VerificationAttempt> pending = linkService.getPendingAttempts(event.getGuild().getIdLong());
+        if (pending.isEmpty()) {
+            Containers.replyEphemeral(event, Containers.INFO, "No pending verification requests.");
+            return;
+        }
+
+        var page = Pagination.paginate(pending, pageIndex);
+
+        StringBuilder sb = new StringBuilder();
+        for (VerificationAttempt attempt : page.items()) {
+            sb.append("`#").append(attempt.attemptId()).append("` — ").append(attempt.rsn())
+                    .append(" (<@").append(attempt.discordUserId()).append(">) — ")
+                    .append(new MakeoverAppearance(attempt.assignedHairstyle(), attempt.assignedHairColor(), attempt.assignedSkinTone()).describe())
+                    .append("\n");
+        }
+
+        List<ContainerChildComponent> children = new ArrayList<>();
+        children.add(TextDisplay.of("# Pending Verifications (" + pending.size() + ")"));
+        children.add(TextDisplay.of(sb.toString()));
+        if (!page.isSinglePage()) {
+            children.add(Pagination.navRow(page, "rsn_pending_page:"));
+        }
+
+        Container container = Containers.card(Containers.INFO, children);
+
+        if (isPageNav) {
+            event.editComponents(List.of(container)).useComponentsV2(true).queue();
+        } else {
+            event.replyComponents(List.of(container)).useComponentsV2(true).setEphemeral(true).queue();
+        }
     }
 
     // --- Stats display ---

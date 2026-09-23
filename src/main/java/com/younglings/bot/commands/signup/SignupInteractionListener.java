@@ -2,6 +2,7 @@ package com.younglings.bot.commands.signup;
 
 import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.discord.Pagination;
 import com.younglings.bot.permission.AdminRoleFilter;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.Permission;
@@ -35,9 +36,6 @@ import java.util.List;
 @BService
 public class SignupInteractionListener extends ListenerAdapter {
     private static final Logger log = LoggerFactory.getLogger(SignupInteractionListener.class);
-    private static final int MAX_LIST_ENTRIES = 20;
-    private static final int LIST_TEXT_LIMIT = 3800;
-
     private final SignupService signupService;
     private final BotConfig botConfig;
     private final AdminRoleFilter adminRoleFilter;
@@ -89,6 +87,10 @@ public class SignupInteractionListener extends ListenerAdapter {
         }
         if (id.startsWith("signup_hub_")) {
             handleHubButton(event, id);
+            return;
+        }
+        if (id.startsWith("signup_view_full")) {
+            handleViewFullList(event, id);
             return;
         }
 
@@ -590,11 +592,44 @@ public class SignupInteractionListener extends ListenerAdapter {
         }
     }
 
+    // --- Per-signup "View Full List" pager (opened from the entries section of any panel) ---
+
+    /**
+     * Handles both {@code signup_view_full:<id>} (the initial button on a shared panel — replies
+     * with a fresh ephemeral pager) and {@code signup_view_full_page:<id>:<page>} (Prev/Next inside
+     * that pager — edits it in place). Distinguishing by the button's own ID rather than a separate
+     * dispatch keeps this stateless: the page number lives entirely in the button, never server-side.
+     */
+    private void handleViewFullList(ButtonInteractionEvent event, String id) {
+        String[] parts = id.split(":");
+        long signupId = Long.parseLong(parts[1]);
+        int page = parts.length > 2 ? Integer.parseInt(parts[2]) : 0;
+
+        SignupSession session = signupService.getSessionById(signupId);
+        if (session == null) {
+            Containers.replyEphemeral(event, Containers.WARNING, "This signup no longer exists.");
+            return;
+        }
+
+        Container container = signupService.buildEntriesListContainer(session, page);
+
+        if (id.startsWith("signup_view_full_page:")) {
+            event.editComponents(List.of(container)).useComponentsV2(true).queue();
+        } else {
+            event.replyComponents(List.of(container)).useComponentsV2(true).setEphemeral(true).queue();
+        }
+    }
+
     // --- /signup hub: list/post/refresh (queue/group/submission builders reuse signup_builder_* as-is) ---
 
     private void handleHubButton(ButtonInteractionEvent event, String id) {
+        if (id.startsWith("signup_hub_list_page:")) {
+            replySignupList(event, Integer.parseInt(id.split(":")[1]), true);
+            return;
+        }
+
         switch (id) {
-            case "signup_hub_list:_" -> replySignupList(event);
+            case "signup_hub_list:_" -> replySignupList(event, 0, false);
 
             case "signup_hub_post:_" -> {
                 List<SignupSession> visible = signupService.getVisibleSignups(event.getGuild().getIdLong());
@@ -642,7 +677,7 @@ public class SignupInteractionListener extends ListenerAdapter {
         }
     }
 
-    private void replySignupList(ButtonInteractionEvent event) {
+    private void replySignupList(ButtonInteractionEvent event, int pageIndex, boolean isPageNav) {
         List<SignupSession> signups = signupService.getVisibleSignups(event.getGuild().getIdLong());
 
         if (signups.isEmpty()) {
@@ -650,37 +685,30 @@ public class SignupInteractionListener extends ListenerAdapter {
             return;
         }
 
-        List<SignupSession> page = signups.size() > MAX_LIST_ENTRIES
-                ? signups.subList(0, MAX_LIST_ENTRIES)
-                : signups;
+        var page = Pagination.paginate(signups, pageIndex);
 
         StringBuilder text = new StringBuilder();
-
-        for (SignupSession signup : page) {
+        for (SignupSession signup : page.items()) {
             String status = signupService.getSignupStatus(signup.signupId());
-
-            String entry = "**" + signup.signupId() + "** — " + signup.title()
-                    + "\nType: `" + signup.type().name() + "` • Status: `" + status + "`\n\n";
-
-            if (text.length() + entry.length() > LIST_TEXT_LIMIT) {
-                text.append("*...and more.*\n");
-                break;
-            }
-
-            text.append(entry);
+            text.append("**").append(signup.signupId()).append("** — ").append(signup.title())
+                    .append("\nType: `").append(signup.type().name()).append("` • Status: `").append(status).append("`\n\n");
         }
 
-        if (signups.size() > MAX_LIST_ENTRIES) {
-            text.append("*Showing ").append(MAX_LIST_ENTRIES)
-                    .append(" of ").append(signups.size()).append(" signups.*");
+        List<ContainerChildComponent> children = new ArrayList<>();
+        children.add(TextDisplay.of("# Current Signups (" + signups.size() + ")"));
+        children.add(Separator.createDivider(Separator.Spacing.SMALL));
+        children.add(TextDisplay.of(text.toString().trim()));
+        if (!page.isSinglePage()) {
+            children.add(Pagination.navRow(page, "signup_hub_list_page:"));
         }
 
-        Container container = Containers.card(Containers.INFO,
-                TextDisplay.of("# Current Signups"),
-                Separator.createDivider(Separator.Spacing.SMALL),
-                TextDisplay.of(text.toString()));
+        Container container = Containers.card(Containers.INFO, children);
 
-        event.replyComponents(List.of(container)).useComponentsV2(true).setEphemeral(true).queue();
+        if (isPageNav) {
+            event.editComponents(List.of(container)).useComponentsV2(true).queue();
+        } else {
+            event.replyComponents(List.of(container)).useComponentsV2(true).setEphemeral(true).queue();
+        }
     }
 
     private void refreshAllPanels(ButtonInteractionEvent event, Guild guild) {

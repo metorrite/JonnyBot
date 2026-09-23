@@ -1,6 +1,7 @@
 package com.younglings.bot.commands.signup;
 
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.discord.Pagination;
 import com.younglings.bot.signup.SignupRepository;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.JDA;
@@ -14,6 +15,7 @@ import net.dv8tion.jda.api.components.container.Container;
 import net.dv8tion.jda.api.components.container.ContainerChildComponent;
 import net.dv8tion.jda.api.components.mediagallery.MediaGallery;
 import net.dv8tion.jda.api.components.mediagallery.MediaGalleryItem;
+import net.dv8tion.jda.api.components.separator.Separator;
 import net.dv8tion.jda.api.components.textdisplay.TextDisplay;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -583,7 +585,7 @@ public class SignupService {
 
         List<ContainerChildComponent> children = new ArrayList<>();
         children.add(TextDisplay.of("### " + session.title()));
-        children.add(TextDisplay.of(buildEntriesText(session)));
+        children.addAll(buildEntriesSection(session));
         children.add(TextDisplay.of("-# " + buildFooterText(session, status)));
         children.add(buildPublicActionRow(session));
 
@@ -596,104 +598,158 @@ public class SignupService {
 
         List<ContainerChildComponent> children = new ArrayList<>();
         children.add(TextDisplay.of("### " + session.title() + " - Admin Controls"));
-        children.add(TextDisplay.of(buildEntriesText(session)));
+        children.addAll(buildEntriesSection(session));
         children.add(TextDisplay.of("-# " + buildFooterText(session, status)));
         children.addAll(buildAdminActionRows(session));
 
         return Containers.card(color, children);
     }
 
-    private String buildEntriesText(SignupSession session) {
-        return switch (session.type()) {
-            case QUEUE      -> buildQueueText(session);
-            case GROUP      -> buildGroupText(session);
-            case SUBMISSION -> buildSubmissionText(session);
+    /**
+     * The entries block shown inline on a panel: a header naming what's listed, up to one page
+     * worth of entries, and — only when there's more than one page — a count line plus a "View
+     * Full List" button that opens {@link #buildEntriesListContainer} as a private, per-viewer
+     * pager (see {@code SignupInteractionListener#handleViewFullList}) instead of trying to cram
+     * everything into the shared panel.
+     */
+    private List<ContainerChildComponent> buildEntriesSection(SignupSession session) {
+        List<SignupEntry> entries = signupRepository.getEntries(session.signupId());
+
+        List<ContainerChildComponent> children = new ArrayList<>();
+        children.add(Separator.createDivider(Separator.Spacing.SMALL));
+
+        if (session.type() == SignupType.SUBMISSION) {
+            String fieldsLine = buildFieldsLine(session);
+            if (fieldsLine != null) children.add(TextDisplay.of(fieldsLine));
+        }
+
+        children.add(TextDisplay.of("**" + entriesHeaderLabel(session.type()) + "** (" + entries.size() + ")"));
+
+        if (entries.isEmpty()) {
+            children.add(TextDisplay.of(emptyEntriesMessage(session.type())));
+        } else {
+            var page = Pagination.paginate(entries, 0);
+            children.add(TextDisplay.of(formatEntries(session, page.items(), 0)));
+
+            if (!page.isSinglePage()) {
+                children.add(TextDisplay.of("-# Showing " + page.items().size() + " of " + entries.size() + "."));
+                children.add(ActionRow.of(Button.secondary("signup_view_full:" + session.signupId(), "View Full List")));
+            }
+        }
+
+        children.add(Separator.createDivider(Separator.Spacing.SMALL));
+        return children;
+    }
+
+    /** The private, paginated full-entries view opened from "View Full List" — see {@code SignupInteractionListener#handleViewFullList}. */
+    public Container buildEntriesListContainer(SignupSession session, int pageIndex) {
+        List<SignupEntry> entries = signupRepository.getEntries(session.signupId());
+        var page = Pagination.paginate(entries, pageIndex);
+
+        List<ContainerChildComponent> children = new ArrayList<>();
+        children.add(TextDisplay.of("### " + session.title() + " — " + entriesHeaderLabel(session.type())));
+        children.add(TextDisplay.of("-# This is a private view only you can see — paging here doesn't affect the shared panel."));
+        children.add(Separator.createDivider(Separator.Spacing.SMALL));
+
+        if (entries.isEmpty()) {
+            children.add(TextDisplay.of(emptyEntriesMessage(session.type())));
+        } else {
+            children.add(TextDisplay.of(formatEntries(session, page.items(), page.pageIndex() * Pagination.DEFAULT_PAGE_SIZE)));
+        }
+
+        if (!page.isSinglePage()) {
+            children.add(Pagination.navRow(page, "signup_view_full_page:" + session.signupId() + ":"));
+        }
+
+        return Containers.card(Containers.INFO, children);
+    }
+
+    private String entriesHeaderLabel(SignupType type) {
+        return switch (type) {
+            case QUEUE -> "Queue";
+            case GROUP -> "Members";
+            case SUBMISSION -> "Submissions";
         };
     }
 
-    private String buildQueueText(SignupSession session) {
-        List<SignupEntry> entries = signupRepository.getEntries(session.signupId());
-        StringBuilder sb = new StringBuilder("────────────────────\n");
-
-        if (entries.isEmpty()) {
-            sb.append("*Nobody is signed up yet.*\n");
-        } else {
-            int position = 1;
-            for (SignupEntry entry : entries) {
-                sb.append("**").append(position++).append(".** ")
-                        .append(entry.username())
-                        .append(" — <@").append(entry.userId()).append(">\n");
-            }
-        }
-
-        sb.append("────────────────────\n");
-        return sb.toString();
+    private String emptyEntriesMessage(SignupType type) {
+        return switch (type) {
+            case QUEUE -> "*Nobody is signed up yet.*";
+            case GROUP -> "*No members yet.*";
+            case SUBMISSION -> "*No submissions yet.*";
+        };
     }
 
-    private String buildGroupText(SignupSession session) {
-        List<SignupEntry> entries = signupRepository.getEntries(session.signupId());
-        StringBuilder sb = new StringBuilder("────────────────────\n");
-
-        if (entries.isEmpty()) {
-            sb.append("*No members yet.*\n");
-        } else {
-            for (SignupEntry entry : entries) {
-                sb.append("• <@").append(entry.userId()).append(">\n");
-            }
-        }
-
-        sb.append("────────────────────\n");
-        return sb.toString();
+    private String formatEntries(SignupSession session, List<SignupEntry> entries, int startIndex) {
+        return switch (session.type()) {
+            case QUEUE      -> formatQueueEntries(entries, startIndex);
+            case GROUP      -> formatGroupEntries(entries);
+            case SUBMISSION -> formatSubmissionEntries(session, entries, startIndex);
+        };
     }
 
-    private String buildSubmissionText(SignupSession session) {
-        List<SubmissionField> fields = SubmissionField.deserialize(session.submissionFields());
-        List<SignupEntry> entries = signupRepository.getEntries(session.signupId());
-
+    private String formatQueueEntries(List<SignupEntry> entries, int startIndex) {
         StringBuilder sb = new StringBuilder();
-        if (!fields.isEmpty()) {
-            sb.append("**Fields:** ");
+        int position = startIndex + 1;
+        for (SignupEntry entry : entries) {
+            sb.append("**").append(position++).append(".** ")
+                    .append(entry.username())
+                    .append(" — <@").append(entry.userId()).append(">\n");
+        }
+        return sb.toString();
+    }
+
+    private String formatGroupEntries(List<SignupEntry> entries) {
+        StringBuilder sb = new StringBuilder();
+        for (SignupEntry entry : entries) {
+            sb.append("• <@").append(entry.userId()).append(">\n");
+        }
+        return sb.toString();
+    }
+
+    private String formatSubmissionEntries(SignupSession session, List<SignupEntry> entries, int startIndex) {
+        List<SubmissionField> fields = SubmissionField.deserialize(session.submissionFields());
+        StringBuilder sb = new StringBuilder();
+        int position = startIndex + 1;
+
+        for (SignupEntry entry : entries) {
+            List<String> values = SubmissionField.parseValues(entry.submissionValue());
+
+            sb.append("**").append(position++).append(".** <@").append(entry.userId()).append(">\n");
+
             for (int i = 0; i < fields.size(); i++) {
-                if (i > 0) sb.append(" • ");
-                sb.append(fields.get(i).label());
-                String meta = buildFieldMeta(fields.get(i));
-                if (!meta.isEmpty()) sb.append(" *(").append(meta).append(")*");
-            }
-            sb.append("\n");
-        }
+                SubmissionField field = fields.get(i);
+                String value = i < values.size() ? values.get(i) : "";
 
-        sb.append("────────────────────\n");
+                if (value.isBlank() && !field.required()) continue;
 
-        if (entries.isEmpty()) {
-            sb.append("*No submissions yet.*\n");
-        } else {
-            int position = 1;
-            for (SignupEntry entry : entries) {
-                List<String> values = SubmissionField.parseValues(entry.submissionValue());
+                sb.append("   **").append(field.label()).append(":** ");
 
-                sb.append("**").append(position++).append(".** <@").append(entry.userId()).append(">\n");
-
-                for (int i = 0; i < fields.size(); i++) {
-                    SubmissionField field = fields.get(i);
-                    String value = i < values.size() ? values.get(i) : "";
-
-                    if (value.isBlank() && !field.required()) continue;
-
-                    sb.append("   **").append(field.label()).append(":** ");
-
-                    if (SubmissionField.TYPE_IMAGE.equals(field.type())) {
-                        sb.append("[View Image](").append(value).append(")");
-                    } else if (SubmissionField.TYPE_LINK.equals(field.type())) {
-                        sb.append("[Link](").append(value).append(")");
-                    } else {
-                        sb.append(value.isBlank() ? "*(not provided)*" : value);
-                    }
-                    sb.append("\n");
+                if (SubmissionField.TYPE_IMAGE.equals(field.type())) {
+                    sb.append("[View Image](").append(value).append(")");
+                } else if (SubmissionField.TYPE_LINK.equals(field.type())) {
+                    sb.append("[Link](").append(value).append(")");
+                } else {
+                    sb.append(value.isBlank() ? "*(not provided)*" : value);
                 }
+                sb.append("\n");
             }
         }
 
-        sb.append("────────────────────\n");
+        return sb.toString();
+    }
+
+    private String buildFieldsLine(SignupSession session) {
+        List<SubmissionField> fields = SubmissionField.deserialize(session.submissionFields());
+        if (fields.isEmpty()) return null;
+
+        StringBuilder sb = new StringBuilder("**Fields:** ");
+        for (int i = 0; i < fields.size(); i++) {
+            if (i > 0) sb.append(" • ");
+            sb.append(fields.get(i).label());
+            String meta = buildFieldMeta(fields.get(i));
+            if (!meta.isEmpty()) sb.append(" *(").append(meta).append(")*");
+        }
         return sb.toString();
     }
 
@@ -730,53 +786,83 @@ public class SignupService {
         };
     }
 
-    private List<ActionRow> buildAdminActionRows(SignupSession session) {
+    /**
+     * Admin controls grouped by what they act on, not just crammed across two flat rows: acting
+     * on the current entries/members, managing who's on the list (or the list's own status), and
+     * the two big destructive actions — each group gets a small subtext header, with dividers
+     * between groups.
+     */
+    private List<ContainerChildComponent> buildAdminActionRows(SignupSession session) {
         long id = session.signupId();
         Button pauseResume = isSignupActive(id)
                 ? Button.secondary("signup_pause:" + id, "Pause")
                 : Button.success("signup_pause:" + id, "Resume");
 
-        return switch (session.type()) {
-            case QUEUE -> List.of(
-                    ActionRow.of(
-                            Button.success("signup_next:" + id, "Next"),
-                            Button.primary("signup_notify:" + id, "Notify"),
-                            Button.secondary("signup_admin_add:" + id, "Add"),
-                            pauseResume
-                    ),
-                    ActionRow.of(
-                            Button.secondary("signup_skip:" + id, "Skip"),
-                            Button.secondary("signup_remove:" + id, "Remove"),
-                            Button.danger("signup_clear:" + id, "Clear all"),
-                            Button.danger("signup_delete:" + id, "Delete")
-                    )
-            );
-            case GROUP -> List.of(
-                    ActionRow.of(
-                            Button.primary("signup_notify_all:" + id, "Notify All"),
-                            Button.success("signup_pick_winner:" + id, "Pick Winner"),
-                            Button.secondary("signup_admin_add:" + id, "Add Member"),
-                            pauseResume
-                    ),
-                    ActionRow.of(
-                            Button.secondary("signup_admin_remove:" + id, "Remove Member"),
-                            Button.danger("signup_clear:" + id, "Clear all"),
-                            Button.danger("signup_delete:" + id, "Delete")
-                    )
-            );
-            case SUBMISSION -> List.of(
-                    ActionRow.of(
-                            Button.secondary("signup_admin_add:" + id, "Add Entry"),
-                            Button.secondary("signup_admin_remove:" + id, "Remove Entry"),
-                            pauseResume,
-                            Button.danger("signup_delete:" + id, "Delete")
-                    ),
-                    ActionRow.of(
-                            Button.success("signup_pick_random:" + id, "Pick Random"),
-                            Button.danger("signup_clear:" + id, "Clear all")
-                    )
-            );
-        };
+        List<ContainerChildComponent> children = new ArrayList<>();
+        Separator divider = Separator.createDivider(Separator.Spacing.SMALL);
+
+        switch (session.type()) {
+            case QUEUE -> {
+                children.add(TextDisplay.of("-# Queue Actions"));
+                children.add(ActionRow.of(
+                        Button.success("signup_next:" + id, "Next"),
+                        Button.secondary("signup_skip:" + id, "Skip"),
+                        Button.secondary("signup_remove:" + id, "Remove"),
+                        Button.primary("signup_notify:" + id, "Notify")
+                ));
+                children.add(divider);
+                children.add(TextDisplay.of("-# List Management"));
+                children.add(ActionRow.of(
+                        Button.secondary("signup_admin_add:" + id, "Add"),
+                        pauseResume
+                ));
+                children.add(divider);
+                children.add(TextDisplay.of("-# Danger Zone"));
+                children.add(ActionRow.of(
+                        Button.danger("signup_clear:" + id, "Clear all"),
+                        Button.danger("signup_delete:" + id, "Delete")
+                ));
+            }
+            case GROUP -> {
+                children.add(TextDisplay.of("-# Member Actions"));
+                children.add(ActionRow.of(
+                        Button.primary("signup_notify_all:" + id, "Notify All"),
+                        Button.success("signup_pick_winner:" + id, "Pick Winner")
+                ));
+                children.add(divider);
+                children.add(TextDisplay.of("-# List Management"));
+                children.add(ActionRow.of(
+                        Button.secondary("signup_admin_add:" + id, "Add Member"),
+                        Button.secondary("signup_admin_remove:" + id, "Remove Member"),
+                        pauseResume
+                ));
+                children.add(divider);
+                children.add(TextDisplay.of("-# Danger Zone"));
+                children.add(ActionRow.of(
+                        Button.danger("signup_clear:" + id, "Clear all"),
+                        Button.danger("signup_delete:" + id, "Delete")
+                ));
+            }
+            case SUBMISSION -> {
+                children.add(TextDisplay.of("-# Entry Actions"));
+                children.add(ActionRow.of(Button.success("signup_pick_random:" + id, "Pick Random")));
+                children.add(divider);
+                children.add(TextDisplay.of("-# List Management"));
+                children.add(ActionRow.of(
+                        Button.secondary("signup_admin_add:" + id, "Add Entry"),
+                        Button.secondary("signup_admin_remove:" + id, "Remove Entry"),
+                        pauseResume
+                ));
+                children.add(divider);
+                children.add(TextDisplay.of("-# Danger Zone"));
+                children.add(ActionRow.of(
+                        Button.danger("signup_clear:" + id, "Clear all"),
+                        Button.danger("signup_delete:" + id, "Delete")
+                ));
+            }
+        }
+
+        return children;
     }
 
     // --- Role helpers ---

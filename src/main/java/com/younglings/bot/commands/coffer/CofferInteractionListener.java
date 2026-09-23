@@ -80,10 +80,19 @@ public class CofferInteractionListener extends ListenerAdapter {
     // --- /coffer hub: buttons ---
 
     private void handleHubButton(ButtonInteractionEvent event, String id) {
+        if (id.startsWith("coffer_hub_display_page:")) {
+            cofferService.displayCoffer(event, Integer.parseInt(id.split(":")[1]), true);
+            return;
+        }
+        if (id.startsWith("coffer_hub_log_page:")) {
+            cofferService.displayLog(event, Integer.parseInt(id.split(":")[1]), true);
+            return;
+        }
+
         switch (id) {
             case "coffer_hub_submit" -> event.replyModal(buildSubmitModal()).queue();
-            case "coffer_hub_display" -> cofferService.displayCoffer(event);
-            case "coffer_hub_log" -> cofferService.displayLog(event);
+            case "coffer_hub_display" -> cofferService.displayCoffer(event, 0, false);
+            case "coffer_hub_log" -> cofferService.displayLog(event, 0, false);
 
             case "coffer_hub_transfer" -> {
                 if (!isAdmin(event)) {

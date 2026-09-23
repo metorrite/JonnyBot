@@ -2,11 +2,14 @@ package com.younglings.bot.commands.coffer;
 
 import com.younglings.bot.coffer.CofferRepository;
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.discord.Pagination;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.components.container.Container;
+import net.dv8tion.jda.api.components.container.ContainerChildComponent;
 import net.dv8tion.jda.api.components.textdisplay.TextDisplay;
 import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.interactions.callbacks.IReplyCallback;
+import net.dv8tion.jda.api.interactions.components.ComponentInteraction;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,54 +62,74 @@ public class CofferService {
         event.replyComponents(List.of(container)).useComponentsV2(true).queue();
     }
 
-    public void displayCoffer(IReplyCallback event) {
+    public void displayCoffer(ComponentInteraction event, int pageIndex, boolean isPageNav) {
         long guildId = event.getGuild().getIdLong();
         List<CofferHolder> holders = repository.getHolders(guildId);
         long total = holders.stream().mapToLong(CofferHolder::amount).sum();
 
-        List<TextDisplay> body = new ArrayList<>();
-        body.add(TextDisplay.of("### Clan Coffer"));
+        List<ContainerChildComponent> children = new ArrayList<>();
+        children.add(TextDisplay.of("### Clan Coffer"));
 
         if (total == 0) {
-            body.add(TextDisplay.of("The clan coffer is currently empty."));
+            children.add(TextDisplay.of("The clan coffer is currently empty."));
         } else {
-            body.add(TextDisplay.of("💰 **Total:** `" + GpAmountParser.format(total) + "`"));
+            children.add(TextDisplay.of("💰 **Total:** `" + GpAmountParser.format(total) + "`"));
 
-            StringBuilder holdersText = new StringBuilder("**Holders**\n");
-            for (CofferHolder holder : holders) {
+            var page = Pagination.paginate(holders, pageIndex);
+            StringBuilder holdersText = new StringBuilder("**Holders** (" + holders.size() + ")\n");
+            for (CofferHolder holder : page.items()) {
                 holdersText.append("<@").append(holder.discordUserId()).append("> — **")
                         .append(GpAmountParser.toShorthand(holder.amount())).append("** (`")
                         .append(String.format("%,d", holder.amount())).append(" GP`)\n");
             }
-            body.add(TextDisplay.of(holdersText.toString().trim()));
+            children.add(TextDisplay.of(holdersText.toString().trim()));
+
+            if (!page.isSinglePage()) {
+                children.add(Pagination.navRow(page, "coffer_hub_display_page:"));
+            }
         }
 
-        Container container = Containers.card(COLOR_GOLD, body);
-        event.replyComponents(List.of(container)).useComponentsV2(true).queue();
+        replyOrEdit(event, Containers.card(COLOR_GOLD, children), isPageNav);
     }
 
-    public void displayLog(IReplyCallback event) {
-        long guildId = event.getGuild().getIdLong();
-        List<CofferDonation> donations = repository.getRecentDonations(guildId, 25);
+    private static final int LOG_FETCH_LIMIT = 500;
 
-        String body;
+    public void displayLog(ComponentInteraction event, int pageIndex, boolean isPageNav) {
+        long guildId = event.getGuild().getIdLong();
+        List<CofferDonation> donations = repository.getRecentDonations(guildId, LOG_FETCH_LIMIT);
+
+        List<ContainerChildComponent> children = new ArrayList<>();
+        children.add(TextDisplay.of("### Recent Coffer Donations (" + donations.size() + ")"));
+
         if (donations.isEmpty()) {
-            body = "No donations have been logged yet.";
+            children.add(TextDisplay.of("No donations have been logged yet."));
         } else {
+            var page = Pagination.paginate(donations, pageIndex);
             StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < donations.size(); i++) {
-                CofferDonation d = donations.get(i);
-                sb.append(String.format("`#%02d`", i + 1))
+            int position = page.pageIndex() * Pagination.DEFAULT_PAGE_SIZE + 1;
+            for (CofferDonation d : page.items()) {
+                sb.append(String.format("`#%02d`", position++))
                         .append(" **").append(escMd(d.donorName())).append("** donated **")
                         .append(GpAmountParser.toShorthand(d.amount())).append("**")
                         .append(" — <@").append(d.submittedByDiscordId()).append(">")
                         .append(" • <t:").append(d.submittedAt().toEpochSecond()).append(":d>\n");
             }
-            body = sb.toString().trim();
+            children.add(TextDisplay.of(sb.toString().trim()));
+
+            if (!page.isSinglePage()) {
+                children.add(Pagination.navRow(page, "coffer_hub_log_page:"));
+            }
         }
 
-        Container container = Containers.card(COLOR_PURPLE, TextDisplay.of("### Recent Coffer Donations"), TextDisplay.of(body));
-        event.replyComponents(List.of(container)).useComponentsV2(true).queue();
+        replyOrEdit(event, Containers.card(COLOR_PURPLE, children), isPageNav);
+    }
+
+    private void replyOrEdit(ComponentInteraction event, Container container, boolean isPageNav) {
+        if (isPageNav) {
+            event.editComponents(List.of(container)).useComponentsV2(true).queue();
+        } else {
+            event.replyComponents(List.of(container)).useComponentsV2(true).queue();
+        }
     }
 
     /** {@code fromUser} is who actually holds/transfers the GP — defaults to the command runner if {@code null}, so an admin can log a transfer on someone else's behalf. */

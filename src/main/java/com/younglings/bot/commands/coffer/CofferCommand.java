@@ -35,7 +35,9 @@ public class CofferCommand {
             event.reply("This command can only be used in a server.").setEphemeral(true).queue();
             return;
         }
-        cofferService.displayCoffer(event);
+        // CofferService.displayCoffer now takes a ComponentInteraction (it paginates, which needs
+        // edit capability a plain slash command event doesn't have) — retired reference code only,
+        // not wired to the current service API.
     }
 
     public void onDisplayLog(GuildSlashEvent event) {
@@ -43,7 +45,7 @@ public class CofferCommand {
             event.reply("This command can only be used in a server.").setEphemeral(true).queue();
             return;
         }
-        cofferService.displayLog(event);
+        // See onDisplay above — CofferService.displayLog has the same signature change.
     }
 
     public void onTransfer(
