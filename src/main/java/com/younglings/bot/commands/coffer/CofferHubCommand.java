@@ -1,10 +1,15 @@
 package com.younglings.bot.commands.coffer;
 
+import com.younglings.bot.discord.Containers;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
 import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.JDASlashCommand;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
 import net.dv8tion.jda.api.components.buttons.Button;
+import net.dv8tion.jda.api.components.container.Container;
+import net.dv8tion.jda.api.components.textdisplay.TextDisplay;
+
+import java.util.List;
 
 /**
  * Single entry point for the coffer system — replaces the five separate coffersubmit/cofferdisplay/
@@ -22,19 +27,20 @@ public class CofferHubCommand {
             return;
         }
 
-        event.reply("**Clan Coffer** — choose an action:")
-                .setEphemeral(true)
-                .addComponents(
-                        ActionRow.of(
-                                Button.primary("coffer_hub_submit", "Submit Donation"),
-                                Button.secondary("coffer_hub_display", "Display"),
-                                Button.secondary("coffer_hub_log", "Log")
-                        ),
-                        ActionRow.of(
-                                Button.danger("coffer_hub_transfer", "Transfer"),
-                                Button.danger("coffer_hub_giveaway", "Giveaway")
-                        )
+        Container hub = Container.of(
+                TextDisplay.of("# Clan Coffer"),
+                TextDisplay.of("Choose an action:"),
+                ActionRow.of(
+                        Button.primary("coffer_hub_submit", "Submit Donation"),
+                        Button.secondary("coffer_hub_display", "Display"),
+                        Button.secondary("coffer_hub_log", "Log")
+                ),
+                ActionRow.of(
+                        Button.danger("coffer_hub_transfer", "Transfer"),
+                        Button.danger("coffer_hub_giveaway", "Giveaway")
                 )
-                .queue();
+        ).withAccentColor(Containers.PRIMARY);
+
+        event.replyComponents(List.of(hub)).useComponentsV2(true).setEphemeral(true).queue();
     }
 }

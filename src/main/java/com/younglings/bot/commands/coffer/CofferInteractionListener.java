@@ -1,6 +1,7 @@
 package com.younglings.bot.commands.coffer;
 
 import com.younglings.bot.coffer.CofferRepository;
+import com.younglings.bot.discord.Containers;
 import com.younglings.bot.permission.AdminRoleFilter;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.components.label.Label;
@@ -59,7 +60,7 @@ public class CofferInteractionListener extends ListenerAdapter {
             }
         } catch (Exception e) {
             log.error("Unhandled exception in coffer button interaction '{}'", id, e);
-            replyError(event);
+            Containers.replyError(event);
         }
     }
 
@@ -72,26 +73,8 @@ public class CofferInteractionListener extends ListenerAdapter {
             handleHubModal(event, id);
         } catch (Exception e) {
             log.error("Unhandled exception in coffer modal interaction '{}'", id, e);
-            replyError(event);
+            Containers.replyError(event);
         }
-    }
-
-    private void replyError(ButtonInteractionEvent event) {
-        try {
-            if (!event.isAcknowledged()) {
-                event.reply("An unexpected error occurred. Please try again or contact an admin.")
-                        .setEphemeral(true).queue();
-            }
-        } catch (Exception ignored) {}
-    }
-
-    private void replyError(ModalInteractionEvent event) {
-        try {
-            if (!event.isAcknowledged()) {
-                event.reply("An unexpected error occurred. Please try again or contact an admin.")
-                        .setEphemeral(true).queue();
-            }
-        } catch (Exception ignored) {}
     }
 
     // --- /coffer hub: buttons ---
@@ -127,7 +110,7 @@ public class CofferInteractionListener extends ListenerAdapter {
     }
 
     private void replyNotAdmin(ButtonInteractionEvent event) {
-        event.reply("You need the Admin role (or higher) to use this.").setEphemeral(true).queue();
+        Containers.replyEphemeral(event, Containers.WARNING, "You need the Admin role (or higher) to use this.");
     }
 
     // --- /coffer hub: modals ---
@@ -142,7 +125,7 @@ public class CofferInteractionListener extends ListenerAdapter {
 
             case "coffer_hub_transfer_modal" -> {
                 if (!isAdmin(event)) {
-                    event.reply("You need the Admin role (or higher) to use this.").setEphemeral(true).queue();
+                    Containers.replyEphemeral(event, Containers.WARNING, "You need the Admin role (or higher) to use this.");
                     return;
                 }
 
@@ -159,7 +142,7 @@ public class CofferInteractionListener extends ListenerAdapter {
 
             case "coffer_hub_giveaway_modal" -> {
                 if (!isAdmin(event)) {
-                    event.reply("You need the Admin role (or higher) to use this.").setEphemeral(true).queue();
+                    Containers.replyEphemeral(event, Containers.WARNING, "You need the Admin role (or higher) to use this.");
                     return;
                 }
 
@@ -271,21 +254,21 @@ public class CofferInteractionListener extends ListenerAdapter {
 
         CofferTransfer transfer = repository.getPendingTransfer(transferId);
         if (transfer == null) {
-            event.reply("This transfer no longer exists or has already been resolved.").setEphemeral(true).queue();
+            Containers.replyEphemeral(event, Containers.WARNING, "This transfer no longer exists or has already been resolved.");
             return;
         }
         if (transfer.toDiscordId() != event.getUser().getIdLong()) {
-            event.reply("Only the intended recipient can accept this transfer.").setEphemeral(true).queue();
+            Containers.replyEphemeral(event, Containers.WARNING, "Only the intended recipient can accept this transfer.");
             return;
         }
 
         boolean accepted = repository.acceptTransfer(transferId);
         if (!accepted) {
-            event.reply("The sender no longer holds enough GP to complete this transfer.")
-                    .setEphemeral(true).queue();
+            Containers.replyEphemeral(event, Containers.WARNING, "The sender no longer holds enough GP to complete this transfer.");
             return;
         }
-        event.reply("✅ Transfer of **" + GpAmountParser.format(transfer.amount()) + "** accepted.").queue();
+        Containers.reply(event, Containers.SUCCESS, false,
+                "✅ Transfer of **" + GpAmountParser.format(transfer.amount()) + "** accepted.");
     }
 
     private void handleReject(ButtonInteractionEvent event, String transferIdStr) {
@@ -294,23 +277,24 @@ public class CofferInteractionListener extends ListenerAdapter {
 
         CofferTransfer transfer = repository.getPendingTransfer(transferId);
         if (transfer == null) {
-            event.reply("This transfer no longer exists or has already been resolved.").setEphemeral(true).queue();
+            Containers.replyEphemeral(event, Containers.WARNING, "This transfer no longer exists or has already been resolved.");
             return;
         }
         if (transfer.toDiscordId() != event.getUser().getIdLong()) {
-            event.reply("Only the intended recipient can reject this transfer.").setEphemeral(true).queue();
+            Containers.replyEphemeral(event, Containers.WARNING, "Only the intended recipient can reject this transfer.");
             return;
         }
 
         repository.rejectTransfer(transferId);
-        event.reply("❌ Transfer of **" + GpAmountParser.format(transfer.amount()) + "** rejected.").queue();
+        Containers.reply(event, Containers.DANGER, false,
+                "❌ Transfer of **" + GpAmountParser.format(transfer.amount()) + "** rejected.");
     }
 
     private long parseTransferId(ButtonInteractionEvent event, String raw) {
         try {
             return Long.parseLong(raw);
         } catch (NumberFormatException e) {
-            event.reply("Invalid transfer ID.").setEphemeral(true).queue();
+            Containers.replyEphemeral(event, Containers.WARNING, "Invalid transfer ID.");
             return -1;
         }
     }

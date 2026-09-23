@@ -1,5 +1,6 @@
 package com.younglings.bot.commands.teamforming;
 
+import com.younglings.bot.discord.Containers;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.components.MessageTopLevelComponent;
 import net.dv8tion.jda.api.components.buttons.ButtonStyle;
@@ -185,11 +186,6 @@ public class TeamformingInteractionListener extends ListenerAdapter {
     }
 
     private void replyError(ComponentInteraction event) {
-        try {
-            if (!event.isAcknowledged()) {
-                event.reply("An unexpected error occurred. Please try again or contact an admin.")
-                        .setEphemeral(true).queue();
-            }
-        } catch (Exception ignored) {}
+        Containers.replyError(event);
     }
 }

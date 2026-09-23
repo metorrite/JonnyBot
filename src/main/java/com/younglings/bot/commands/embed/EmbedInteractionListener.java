@@ -1,19 +1,21 @@
 package com.younglings.bot.commands.embed;
 
+import com.younglings.bot.discord.Containers;
 import com.younglings.bot.embed.PostedEmbed;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
 import net.dv8tion.jda.api.components.buttons.Button;
+import net.dv8tion.jda.api.components.container.Container;
 import net.dv8tion.jda.api.components.label.Label;
 import net.dv8tion.jda.api.components.selections.EntitySelectMenu;
 import net.dv8tion.jda.api.components.selections.StringSelectMenu;
+import net.dv8tion.jda.api.components.textdisplay.TextDisplay;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.channel.ChannelType;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.events.interaction.ModalInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
-import net.dv8tion.jda.api.interactions.InteractionHook;
 import net.dv8tion.jda.api.modals.Modal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,7 +45,7 @@ public class EmbedInteractionListener extends ListenerAdapter {
             handleButton(event, id);
         } catch (Exception e) {
             log.error("Unhandled exception in embed button interaction '{}'", id, e);
-            replyError(event);
+            Containers.replyError(event);
         }
     }
 
@@ -57,7 +59,7 @@ public class EmbedInteractionListener extends ListenerAdapter {
             handleModal(event, id);
         } catch (Exception e) {
             log.error("Unhandled exception in embed modal interaction '{}'", id, e);
-            replyError(event);
+            Containers.replyError(event);
         }
     }
 
@@ -68,33 +70,28 @@ public class EmbedInteractionListener extends ListenerAdapter {
             case "embed_remove:_" -> {
                 Modal modal = buildRemoveModal(event.getGuild());
                 if (modal == null) {
-                    event.reply("Nothing is currently tracked as posted.").setEphemeral(true).queue();
+                    Containers.replyEphemeral(event, Containers.WARNING, "Nothing is currently tracked as posted.");
                     return;
                 }
                 event.replyModal(modal).queue();
             }
 
-            case "embed_remove_all:_" -> event.reply(
-                            "Are you sure? This removes **every** tracked posted embed in this server.")
-                    .setEphemeral(true)
-                    .addComponents(ActionRow.of(
-                            Button.danger("embed_remove_all_confirm:_", "Yes, remove everything"),
-                            Button.secondary("embed_remove_all_cancel:_", "Cancel")
-                    ))
-                    .queue();
+            case "embed_remove_all:_" -> {
+                Container confirm = Containers.card(Containers.DANGER,
+                        TextDisplay.of("Are you sure? This removes **every** tracked posted embed in this server."),
+                        ActionRow.of(
+                                Button.danger("embed_remove_all_confirm:_", "Yes, remove everything"),
+                                Button.secondary("embed_remove_all_cancel:_", "Cancel")
+                        ));
+                event.replyComponents(List.of(confirm)).useComponentsV2(true).setEphemeral(true).queue();
+            }
 
             case "embed_remove_all_confirm:_" -> {
                 int count = embedService.removeAll(event.getGuild());
-                event.editMessage("Removed " + count + " posted embed(s).")
-                        .setComponents()
-                        .queue();
+                Containers.edit(event, Containers.SUCCESS, "Removed " + count + " posted embed(s).");
             }
 
-            case "embed_remove_all_cancel:_" -> event.editMessage("Cancelled.")
-                    .setComponents()
-                    .delay(Duration.ofSeconds(3))
-                    .flatMap(InteractionHook::deleteOriginal)
-                    .queue();
+            case "embed_remove_all_cancel:_" -> Containers.editThenDelete(event, Containers.WARNING, Duration.ofSeconds(3), "Cancelled.");
         }
     }
 
@@ -107,24 +104,24 @@ public class EmbedInteractionListener extends ListenerAdapter {
                 Guild guild = event.getGuild();
                 TextChannel channel = guild.getTextChannelById(channelId);
                 if (channel == null) {
-                    event.reply("That channel isn't a usable text channel.").setEphemeral(true).queue();
+                    Containers.replyEphemeral(event, Containers.WARNING, "That channel isn't a usable text channel.");
                     return;
                 }
 
                 event.deferReply(true).queue();
                 embedService.postEmbed(guild, channel, type, createdRoles -> {
                     if (createdRoles == null) {
-                        event.getHook().editOriginal(
-                                "Failed to post the embed — check the bot can send messages in that channel.").queue();
+                        event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.WARNING,
+                                "Failed to post the embed — check the bot can send messages in that channel."))).useComponentsV2(true).queue();
                         return;
                     }
 
                     String summary = createdRoles.isEmpty()
                             ? ""
                             : "\nCreated " + createdRoles.size() + " new role(s): " + String.join(", ", createdRoles) + ".";
-                    event.getHook().editOriginal(
+                    event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.SUCCESS,
                             "Posted **" + type.displayName() + "** in " + channel.getAsMention() + "." + summary
-                    ).queue();
+                    ))).useComponentsV2(true).queue();
                 });
             }
 
@@ -133,13 +130,9 @@ public class EmbedInteractionListener extends ListenerAdapter {
                 EmbedType type = EmbedType.valueOf(event.getValue("embed_remove_type").getAsStringList().getFirst());
 
                 boolean removed = embedService.removeOne(event.getGuild(), channelId, type);
-                event.reply(removed
+                Containers.replyThenDelete(event, removed ? Containers.SUCCESS : Containers.WARNING, removed
                                 ? "Removed the **" + type.displayName() + "** embed from that channel."
-                                : "No **" + type.displayName() + "** embed is tracked in that channel.")
-                        .setEphemeral(true)
-                        .delay(Duration.ofSeconds(5))
-                        .flatMap(InteractionHook::deleteOriginal)
-                        .queue();
+                                : "No **" + type.displayName() + "** embed is tracked in that channel.");
             }
         }
     }
@@ -211,21 +204,4 @@ public class EmbedInteractionListener extends ListenerAdapter {
                 .build();
     }
 
-    private void replyError(ButtonInteractionEvent event) {
-        try {
-            if (!event.isAcknowledged()) {
-                event.reply("An unexpected error occurred. Please try again or contact an admin.")
-                        .setEphemeral(true).queue();
-            }
-        } catch (Exception ignored) {}
-    }
-
-    private void replyError(ModalInteractionEvent event) {
-        try {
-            if (!event.isAcknowledged()) {
-                event.reply("An unexpected error occurred. Please try again or contact an admin.")
-                        .setEphemeral(true).queue();
-            }
-        } catch (Exception ignored) {}
-    }
 }
