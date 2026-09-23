@@ -94,6 +94,8 @@ public class RsnInteractionListener extends ListenerAdapter {
 
             case "rsn_stats" -> showStats(event, event.getGuild(), event.getUser().getIdLong());
 
+            case "rsn_leaderboard" -> showLeaderboard(event, event.getGuild());
+
             case "rsn_review_pending" -> {
                 if (!isAdmin(event)) {
                     event.reply("You need the Admin role (or higher) to use this.").setEphemeral(true).queue();
@@ -248,14 +250,73 @@ public class RsnInteractionListener extends ListenerAdapter {
         PlayerLinkRepository.StatsSnapshotRow previous = statsService.getLatestSnapshot(guild.getIdLong(), link.rsn());
         var profile = statsService.pollAndSnapshot(guild.getIdLong(), link.rsn());
 
-        if (profile.isEmpty()) {
-            event.getHook().editOriginal(
-                    "Couldn't fetch live stats for **" + link.rsn() + "** right now — their profile may be private, " +
-                    "or the RuneScape API may be temporarily unavailable.").queue();
+        if (profile.isPresent()) {
+            event.getHook().editOriginalEmbeds(buildStatsEmbed(link.rsn(), profile.get(), previous).build()).queue();
             return;
         }
 
-        event.getHook().editOriginalEmbeds(buildStatsEmbed(link.rsn(), profile.get(), previous).build()).queue();
+        // RuneMetrics and hiscores are independently toggleable privacy settings in-game — a
+        // player with RuneMetrics set private may still show up on hiscores, so it's worth trying
+        // before giving up entirely.
+        var overall = apiClient.fetchHiscoresOverall(link.rsn());
+        if (overall.isPresent()) {
+            EmbedBuilder embed = new EmbedBuilder()
+                    .setTitle(link.rsn() + " — RuneScape 3 Stats (hiscores only)")
+                    .setColor(Color.ORANGE)
+                    .setDescription("Full profile is private — showing hiscores totals instead.")
+                    .addField("Total Level", String.valueOf(overall.get().totalLevel()), true)
+                    .addField("Total XP", String.format("%,d", overall.get().totalXp()), true)
+                    .addField("Hiscores Rank", String.format("%,d", overall.get().rank()), true);
+            event.getHook().editOriginalEmbeds(embed.build()).queue();
+            return;
+        }
+
+        event.getHook().editOriginal(
+                "Couldn't fetch stats for **" + link.rsn() + "** right now — their profile and hiscores may both be " +
+                "private, or the RuneScape API may be temporarily unavailable.").queue();
+    }
+
+    private static final int LEADERBOARD_SIZE = 10;
+
+    /** Ranks by each linked player's most recent snapshot — doesn't trigger a live poll itself, so this stays fast and doesn't hammer the API on every view. */
+    private void showLeaderboard(ButtonInteractionEvent event, Guild guild) {
+        List<PlayerLink> links = linkService.getAllLinks(guild.getIdLong());
+        if (links.isEmpty()) {
+            event.reply("No linked players yet.").setEphemeral(true).queue();
+            return;
+        }
+
+        record Entry(PlayerLink link, PlayerLinkRepository.StatsSnapshotRow snapshot) {}
+
+        List<Entry> entries = links.stream()
+                .map(link -> new Entry(link, statsService.getLatestSnapshot(guild.getIdLong(), link.rsn())))
+                .filter(entry -> entry.snapshot() != null)
+                .sorted((a, b) -> Long.compare(b.snapshot().totalXp(), a.snapshot().totalXp()))
+                .limit(LEADERBOARD_SIZE)
+                .toList();
+
+        if (entries.isEmpty()) {
+            event.reply("No stats have been synced yet — check back after the next automatic poll, " +
+                            "or have members use **My Stats** once to sync immediately.")
+                    .setEphemeral(true).queue();
+            return;
+        }
+
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < entries.size(); i++) {
+            Entry entry = entries.get(i);
+            sb.append("**").append(i + 1).append(".** ").append(entry.link().rsn())
+                    .append(" — ").append(String.format("%,d", entry.snapshot().totalXp())).append(" XP")
+                    .append(" (Level ").append(entry.snapshot().totalLevel()).append(")\n");
+        }
+
+        EmbedBuilder embed = new EmbedBuilder()
+                .setTitle("RuneScape 3 Leaderboard — Total XP")
+                .setColor(Color.ORANGE)
+                .setDescription(sb.toString())
+                .setFooter("Based on each player's last synced snapshot, not a live poll.");
+
+        event.replyEmbeds(embed.build()).setEphemeral(true).queue();
     }
 
     private EmbedBuilder buildStatsEmbed(String rsn, RuneScapeProfile profile, PlayerLinkRepository.StatsSnapshotRow previous) {

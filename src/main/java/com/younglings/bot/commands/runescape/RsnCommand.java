@@ -30,7 +30,8 @@ public class RsnCommand {
                 .addComponents(
                         ActionRow.of(
                                 Button.primary("rsn_link:_", "Link My RSN"),
-                                Button.secondary("rsn_stats:_", "My Stats")
+                                Button.secondary("rsn_stats:_", "My Stats"),
+                                Button.secondary("rsn_leaderboard:_", "Leaderboard")
                         ),
                         ActionRow.of(
                                 Button.secondary("rsn_review_pending:_", "Review Pending (Admin)")

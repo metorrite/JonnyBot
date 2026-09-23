@@ -30,6 +30,7 @@ public class RuneScapeApiClient {
 
     private static final String PROFILE_URL = "https://apps.runescape.com/runemetrics/profile/profile?user=%s&activities=1";
     private static final String AVATAR_URL = "https://secure.runescape.com/m=avatar-rs/%s/chat.png";
+    private static final String HISCORES_URL = "https://secure.runescape.com/m=hiscore/index_lite.ws?player=%s";
 
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
@@ -110,6 +111,54 @@ public class RuneScapeApiClient {
         } catch (IOException | InterruptedException e) {
             if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             log.warn("Failed to fetch avatar image for '{}'", rsn, e);
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * The "Overall" line from the classic hiscores CSV — a separate, older endpoint from
+     * RuneMetrics, kept independently toggleable by players, so it's a useful fallback for a
+     * player whose RuneMetrics profile is private but hiscores aren't. Verified live (position 0
+     * of the CSV response) against a real account's matching RuneMetrics totals rather than
+     * assumed from documentation — only "Overall" is parsed here, not the full skill-by-skill
+     * breakdown, since correctly mapping every subsequent CSV line to the right skill/activity
+     * isn't something I could verify with the same confidence.
+     */
+    public Optional<HiscoresOverall> fetchHiscoresOverall(String rsn) {
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(HISCORES_URL.formatted(encode(rsn))))
+                    .timeout(Duration.ofSeconds(10))
+                    .GET()
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() / 100 != 2) {
+                log.warn("Hiscores request for '{}' returned HTTP {}", rsn, response.statusCode());
+                return Optional.empty();
+            }
+
+            String firstLine = response.body().lines().findFirst().orElse(null);
+            if (firstLine == null) return Optional.empty();
+
+            String[] parts = firstLine.split(",");
+            if (parts.length < 3) return Optional.empty();
+
+            long rank = Long.parseLong(parts[0].trim());
+            int totalLevel = Integer.parseInt(parts[1].trim());
+            long totalXp = Long.parseLong(parts[2].trim());
+
+            // -1 is the hiscores sentinel for "unranked" (also used for a nonexistent player).
+            if (rank < 0) return Optional.empty();
+
+            return Optional.of(new HiscoresOverall(rank, totalLevel, totalXp));
+
+        } catch (IOException | InterruptedException e) {
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
+            log.warn("Failed to fetch hiscores for '{}'", rsn, e);
+            return Optional.empty();
+        } catch (Exception e) {
+            log.warn("Failed to parse hiscores for '{}'", rsn, e);
             return Optional.empty();
         }
     }
