@@ -29,7 +29,7 @@ public class EmbedCommand {
     @JDASlashCommand(name = "embed", description = "Post or remove one of the server's pre-designed embeds")
     public void onEmbed(GuildSlashEvent event) {
         if (event.getGuild() == null) {
-            event.reply("This command can only be used in a server.").setEphemeral(true).queue();
+            Containers.replyEphemeral(event, Containers.WARNING, "This command can only be used in a server.");
             return;
         }
 

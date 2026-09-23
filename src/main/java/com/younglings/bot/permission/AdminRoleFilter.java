@@ -1,6 +1,7 @@
 package com.younglings.bot.permission;
 
 import com.younglings.bot.config.BotConfig;
+import com.younglings.bot.discord.Containers;
 import io.github.freya022.botcommands.api.commands.application.ApplicationCommandFilter;
 import io.github.freya022.botcommands.api.commands.application.ApplicationCommandInfo;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -42,7 +43,7 @@ public class AdminRoleFilter implements ApplicationCommandFilter {
         Member member = event.getMember();
 
         if (guild == null || member == null) {
-            event.reply("This command can only be used in a server.").setEphemeral(true).queue();
+            Containers.replyEphemeral(event, Containers.WARNING, "This command can only be used in a server.");
             return "Not used in a guild";
         }
 
@@ -50,7 +51,7 @@ public class AdminRoleFilter implements ApplicationCommandFilter {
             return null;
         }
 
-        event.reply("You need the Admin role (or higher) to use this command.").setEphemeral(true).queue();
+        Containers.replyEphemeral(event, Containers.WARNING, "You need the Admin role (or higher) to use this command.");
         return "Member lacks the Admin role or higher";
     }
 

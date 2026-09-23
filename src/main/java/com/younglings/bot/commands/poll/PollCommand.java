@@ -1,5 +1,6 @@
 package com.younglings.bot.commands.poll;
 
+import com.younglings.bot.discord.Containers;
 import com.younglings.bot.permission.AdminRoleFilter;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
 import io.github.freya022.botcommands.api.commands.annotations.Filter;
@@ -35,7 +36,7 @@ public class PollCommand {
             @SlashOption(description = "Hide who voted for what? (default: no)") @Nullable Boolean anonymous
     ) {
         if (event.getGuild() == null) {
-            event.reply("This command can only be used in a server.").setEphemeral(true).queue();
+            Containers.replyEphemeral(event, Containers.WARNING, "This command can only be used in a server.");
             return;
         }
 
@@ -49,7 +50,7 @@ public class PollCommand {
                 event.getUser().getIdLong()
         );
 
-        event.reply("Poll created!").setEphemeral(true).queue();
+        Containers.replyEphemeral(event, Containers.SUCCESS, "Poll created!");
     }
 
     @Filter(AdminRoleFilter.class)
@@ -60,14 +61,13 @@ public class PollCommand {
             @SlashOption(description = "DM you a full breakdown of who voted for what? (default: no)") @Nullable Boolean dmResults
     ) {
         if (event.getGuild() == null) {
-            event.reply("This command can only be used in a server.").setEphemeral(true).queue();
+            Containers.replyEphemeral(event, Containers.WARNING, "This command can only be used in a server.");
             return;
         }
 
         PollSession poll = pollService.findByTitle(event.getGuild().getIdLong(), title);
         if (poll == null) {
-            event.reply("No active poll found matching **\"" + title + "\"**.")
-                    .setEphemeral(true).queue();
+            Containers.replyEphemeral(event, Containers.WARNING, "No active poll found matching **\"" + title + "\"**.");
             return;
         }
 
@@ -82,6 +82,6 @@ public class PollCommand {
 
         pollService.closePoll(event.getGuild(), poll.pollId());
 
-        event.reply("Poll **\"" + poll.title() + "\"** has been closed.").setEphemeral(true).queue();
+        Containers.replyEphemeral(event, Containers.SUCCESS, "Poll **\"" + poll.title() + "\"** has been closed.");
     }
 }

@@ -98,8 +98,7 @@ public class TeamformingInteractionListener extends ListenerAdapter {
 
         String sectionKey = id.substring(TeamformingService.SELECT_PREFIX.length());
         if (TeamformingCatalog.sectionByKey(sectionKey) == null) {
-            event.reply("This teamforming section no longer exists — ask an admin to re-post the panel.")
-                    .setEphemeral(true).queue();
+            Containers.replyEphemeral(event, Containers.WARNING, "This teamforming section no longer exists — ask an admin to re-post the panel.");
             return;
         }
 

@@ -25,7 +25,7 @@ public class SignupHubCommand {
     @JDASlashCommand(name = "signup", description = "Create and manage signups")
     public void onSignup(GuildSlashEvent event) {
         if (event.getGuild() == null) {
-            event.reply("This command can only be used in a server.").setEphemeral(true).queue();
+            Containers.replyEphemeral(event, Containers.WARNING, "This command can only be used in a server.");
             return;
         }
 

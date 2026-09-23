@@ -1,12 +1,15 @@
 package com.younglings.bot.commands.poll;
 
+import com.younglings.bot.discord.Containers;
 import com.younglings.bot.poll.PollRepository;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
-import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
 import net.dv8tion.jda.api.components.buttons.Button;
+import net.dv8tion.jda.api.components.container.Container;
+import net.dv8tion.jda.api.components.container.ContainerChildComponent;
+import net.dv8tion.jda.api.components.textdisplay.TextDisplay;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -65,8 +68,8 @@ public class PollService {
         activePollsById.put(pollId, session);
         optionsByPollId.put(pollId, options);
 
-        channel.sendMessageEmbeds(buildEmbed(session, options, Map.of(), Map.of()).build())
-                .addComponents(buildVoteRows(options, false))
+        channel.sendMessageComponents(List.of(buildContainer(session, options, Map.of(), Map.of())))
+                .useComponentsV2(true)
                 .queue(message -> {
                     pollRepository.saveMessageId(pollId, message.getIdLong());
                     activePollsById.put(pollId, new PollSession(pollId, guild.getIdLong(), channel.getIdLong(),
@@ -135,8 +138,8 @@ public class PollService {
         Map<Long, List<Long>> voters = session.anonymous() ? Map.of() : pollRepository.getVotersByOption(pollId);
 
         channel.retrieveMessageById(session.messageId()).queue(
-                msg -> msg.editMessageEmbeds(buildEmbed(session, options, counts, voters).build())
-                          .setComponents(buildVoteRows(options, false))
+                msg -> msg.editMessageComponents(List.of(buildContainer(session, options, counts, voters)))
+                          .useComponentsV2(true)
                           .queue(),
                 err -> log.warn("Failed to retrieve message for poll {}", pollId));
     }
@@ -160,8 +163,8 @@ public class PollService {
                         session.messageId(), session.title(), session.anonymous(), session.multipleVotes(), "CLOSED");
 
                 channel.retrieveMessageById(session.messageId()).queue(
-                        msg -> msg.editMessageEmbeds(buildClosedEmbed(closed, options, counts, voters).build())
-                                  .setComponents(buildVoteRows(options, true))
+                        msg -> msg.editMessageComponents(List.of(buildClosedContainer(closed, options, counts, voters)))
+                                  .useComponentsV2(true)
                                   .queue(),
                         err -> log.warn("Failed to retrieve message to close poll {}", pollId));
             }
@@ -207,10 +210,34 @@ public class PollService {
         return sb.toString().trim();
     }
 
-    // --- Embed builders ---
+    // --- Container builders ---
 
-    EmbedBuilder buildEmbed(PollSession session, List<PollOption> options,
-                             Map<Long, Integer> counts, Map<Long, List<Long>> voters) {
+    private static final Color POLL_COLOR = new Color(0x5865F2);
+
+    Container buildContainer(PollSession session, List<PollOption> options,
+                              Map<Long, Integer> counts, Map<Long, List<Long>> voters) {
+        List<ContainerChildComponent> children = new ArrayList<>();
+        children.add(TextDisplay.of("### 📊  " + session.title()));
+        children.add(TextDisplay.of(buildResultsText(session, options, counts, voters)));
+        children.add(TextDisplay.of("-# Vote using the numbered buttons below  ·  Tap again to remove your vote"));
+        children.addAll(buildVoteRows(options, false));
+
+        return Containers.card(POLL_COLOR, children);
+    }
+
+    private Container buildClosedContainer(PollSession session, List<PollOption> options,
+                                            Map<Long, Integer> counts, Map<Long, List<Long>> voters) {
+        List<ContainerChildComponent> children = new ArrayList<>();
+        children.add(TextDisplay.of("### 📊  " + session.title() + " — Closed"));
+        children.add(TextDisplay.of(buildResultsText(session, options, counts, voters)));
+        children.add(TextDisplay.of("-# This poll has been closed."));
+        children.addAll(buildVoteRows(options, true));
+
+        return Containers.card(Color.DARK_GRAY, children);
+    }
+
+    private String buildResultsText(PollSession session, List<PollOption> options,
+                                     Map<Long, Integer> counts, Map<Long, List<Long>> voters) {
         int total = counts.values().stream().mapToInt(Integer::intValue).sum();
         StringBuilder desc = new StringBuilder();
 
@@ -219,10 +246,10 @@ public class PollService {
             double pct = total > 0 ? (double) votes / total : 0.0;
 
             desc.append(NUMBER_EMOJIS[option.optionNumber() - 1])
-                .append(" **").append(option.label()).append("**\n");
+                    .append(" **").append(option.label()).append("**\n");
 
             desc.append(buildBar(pct)).append("  ").append(votes)
-                .append(votes == 1 ? " vote" : " votes");
+                    .append(votes == 1 ? " vote" : " votes");
             if (total > 0) desc.append("  **").append(String.format("%.0f%%", pct * 100)).append("**");
             desc.append("\n");
 
@@ -251,19 +278,7 @@ public class PollService {
         if (session.anonymous()) meta.add("anonymous");
         desc.append("🗳️ *").append(String.join("  ·  ", meta)).append("*");
 
-        return new EmbedBuilder()
-                .setTitle("📊  " + session.title())
-                .setDescription(desc.toString())
-                .setColor(new Color(0x5865F2))
-                .setFooter("Vote using the numbered buttons below  ·  Tap again to remove your vote");
-    }
-
-    private EmbedBuilder buildClosedEmbed(PollSession session, List<PollOption> options,
-                                           Map<Long, Integer> counts, Map<Long, List<Long>> voters) {
-        return buildEmbed(session, options, counts, voters)
-                .setTitle("📊  " + session.title() + " — Closed")
-                .setColor(Color.DARK_GRAY)
-                .setFooter("This poll has been closed.");
+        return desc.toString();
     }
 
     private String buildBar(double pct) {

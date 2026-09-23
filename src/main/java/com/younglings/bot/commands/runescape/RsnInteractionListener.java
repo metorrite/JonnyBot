@@ -1,5 +1,6 @@
 package com.younglings.bot.commands.runescape;
 
+import com.younglings.bot.discord.Containers;
 import com.younglings.bot.permission.AdminRoleFilter;
 import com.younglings.bot.runescape.AvatarResult;
 import com.younglings.bot.runescape.MakeoverAppearance;
@@ -11,10 +12,13 @@ import com.younglings.bot.runescape.RuneScapeProfile;
 import com.younglings.bot.runescape.RuneScapeStatsService;
 import com.younglings.bot.runescape.VerificationAttempt;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
-import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
 import net.dv8tion.jda.api.components.buttons.Button;
+import net.dv8tion.jda.api.components.container.Container;
 import net.dv8tion.jda.api.components.label.Label;
+import net.dv8tion.jda.api.components.mediagallery.MediaGallery;
+import net.dv8tion.jda.api.components.mediagallery.MediaGalleryItem;
+import net.dv8tion.jda.api.components.textdisplay.TextDisplay;
 import net.dv8tion.jda.api.components.textinput.TextInput;
 import net.dv8tion.jda.api.components.textinput.TextInputStyle;
 import net.dv8tion.jda.api.entities.Guild;
@@ -33,6 +37,7 @@ import java.util.List;
 @BService
 public class RsnInteractionListener extends ListenerAdapter {
     private static final Logger log = LoggerFactory.getLogger(RsnInteractionListener.class);
+    private static final Color RS3_ORANGE = Color.ORANGE;
 
     private final PlayerLinkService linkService;
     private final RuneScapeApiClient apiClient;
@@ -57,7 +62,7 @@ public class RsnInteractionListener extends ListenerAdapter {
             handleButton(event, id);
         } catch (Exception e) {
             log.error("Unhandled exception in rsn button interaction '{}'", id, e);
-            replyError(event);
+            Containers.replyError(event);
         }
     }
 
@@ -71,7 +76,7 @@ public class RsnInteractionListener extends ListenerAdapter {
             handleModal(event, id);
         } catch (Exception e) {
             log.error("Unhandled exception in rsn modal interaction '{}'", id, e);
-            replyError(event);
+            Containers.replyError(event);
         }
     }
 
@@ -99,17 +104,17 @@ public class RsnInteractionListener extends ListenerAdapter {
 
             case "rsn_review_pending" -> {
                 if (!isAdmin(event)) {
-                    event.reply("You need the Admin role (or higher) to use this.").setEphemeral(true).queue();
+                    Containers.replyEphemeral(event, Containers.WARNING, "You need the Admin role (or higher) to use this.");
                     return;
                 }
 
                 List<VerificationAttempt> pending = linkService.getPendingAttempts(event.getGuild().getIdLong());
                 if (pending.isEmpty()) {
-                    event.reply("No pending verification requests.").setEphemeral(true).queue();
+                    Containers.replyEphemeral(event, Containers.INFO, "No pending verification requests.");
                     return;
                 }
 
-                StringBuilder sb = new StringBuilder("**Pending verifications:**\n");
+                StringBuilder sb = new StringBuilder();
                 for (VerificationAttempt attempt : pending) {
                     sb.append("`#").append(attempt.attemptId()).append("` — ").append(attempt.rsn())
                             .append(" (<@").append(attempt.discordUserId()).append(">) — ")
@@ -117,7 +122,9 @@ public class RsnInteractionListener extends ListenerAdapter {
                             .append("\n");
                 }
 
-                event.reply(sb.toString()).setEphemeral(true).queue();
+                Container container = Containers.card(Containers.INFO,
+                        TextDisplay.of("# Pending Verifications"), TextDisplay.of(sb.toString()));
+                event.replyComponents(List.of(container)).useComponentsV2(true).setEphemeral(true).queue();
             }
 
             case "rsn_verify_ready" -> {
@@ -125,11 +132,11 @@ public class RsnInteractionListener extends ListenerAdapter {
                 VerificationAttempt attempt = linkService.getAttempt(attemptId);
 
                 if (attempt == null || !"PENDING".equals(attempt.status())) {
-                    event.reply("This verification request is no longer active.").setEphemeral(true).queue();
+                    Containers.replyEphemeral(event, Containers.WARNING, "This verification request is no longer active.");
                     return;
                 }
                 if (attempt.discordUserId() != event.getUser().getIdLong()) {
-                    event.reply("This isn't your verification request.").setEphemeral(true).queue();
+                    Containers.replyEphemeral(event, Containers.WARNING, "This isn't your verification request.");
                     return;
                 }
 
@@ -149,62 +156,60 @@ public class RsnInteractionListener extends ListenerAdapter {
                         MakeoverAppearance appearance = new MakeoverAppearance(
                                 attempt.assignedHairstyle(), attempt.assignedHairColor(), attempt.assignedSkinTone());
 
-                        EmbedBuilder embed = new EmbedBuilder()
-                                .setTitle("RSN Verification Request — No Avatar Available")
-                                .setColor(Color.YELLOW)
-                                .setDescription("<@" + attempt.discordUserId() + "> claims to be **" + attempt.rsn() + "**\n\n" +
+                        Container review = Containers.card(Containers.WARNING,
+                                TextDisplay.of("### RSN Verification Request — No Avatar Available"),
+                                TextDisplay.of("<@" + attempt.discordUserId() + "> claims to be **" + attempt.rsn() + "**\n\n" +
                                         "Assigned appearance: " + appearance.describe() + "\n\n" +
                                         "RuneScape returned its generic default avatar instead of a real one. This can mean " +
                                         "the name is misspelled, doesn't exist, the account has never customized its look — " +
                                         "**or that RuneScape's avatar photobooth is currently disabled game-wide** " +
                                         "(taken down for an avatar system migration as of June 2026, no announced return date). " +
-                                        "No photo comparison is possible right now, so this needs a manual override call instead.")
-                                .setFooter("Admin override — no avatar image to compare against.");
-
-                        event.getChannel().sendMessageEmbeds(embed.build())
-                                .addComponents(ActionRow.of(
+                                        "No photo comparison is possible right now, so this needs a manual override call instead."),
+                                TextDisplay.of("-# Admin override — no avatar image to compare against."),
+                                ActionRow.of(
                                         Button.success("rsn_verify_approve:" + attemptId, "Approve (Override)"),
                                         Button.danger("rsn_verify_reject:" + attemptId, "Reject")
-                                ))
-                                .queue();
+                                ));
 
-                        event.getHook().editOriginal(
+                        event.getChannel().sendMessageComponents(List.of(review)).useComponentsV2(true).queue();
+
+                        event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.INFO,
                                 "No avatar could be fetched right now (RuneScape's photobooth may be disabled) — submitted " +
-                                "for manual admin review anyway. You'll be notified once it's checked.").queue();
+                                "for manual admin review anyway. You'll be notified once it's checked."))).useComponentsV2(true).queue();
                     }
 
-                    case AvatarResult.Unavailable ignored -> event.getHook().editOriginal(
+                    case AvatarResult.Unavailable ignored -> event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.WARNING,
                             "Couldn't fetch an avatar for **" + attempt.rsn() + "** right now — the RuneScape API " +
-                            "may be temporarily unavailable. Try again in a bit.").queue();
+                            "may be temporarily unavailable. Try again in a bit."))).useComponentsV2(true).queue();
 
                     case AvatarResult.Found(byte[] imageBytes) -> {
                         MakeoverAppearance appearance = new MakeoverAppearance(
                                 attempt.assignedHairstyle(), attempt.assignedHairColor(), attempt.assignedSkinTone());
 
-                        EmbedBuilder embed = new EmbedBuilder()
-                                .setTitle("RSN Verification Request")
-                                .setColor(Color.CYAN)
-                                .setDescription("<@" + attempt.discordUserId() + "> claims to be **" + attempt.rsn() + "**\n\n" +
-                                        "Assigned appearance: " + appearance.describe() + "\n\n" +
-                                        "Compare the avatar below against the assigned appearance, then Approve or Reject.")
-                                .setImage("attachment://avatar.png");
+                        FileUpload avatarFile = FileUpload.fromData(imageBytes, "avatar.png");
 
-                        event.getChannel().sendMessageEmbeds(embed.build())
-                                .addFiles(FileUpload.fromData(imageBytes, "avatar.png"))
-                                .addComponents(ActionRow.of(
+                        Container review = Containers.card(Containers.PRIMARY,
+                                TextDisplay.of("### RSN Verification Request"),
+                                TextDisplay.of("<@" + attempt.discordUserId() + "> claims to be **" + attempt.rsn() + "**\n\n" +
+                                        "Assigned appearance: " + appearance.describe() + "\n\n" +
+                                        "Compare the avatar below against the assigned appearance, then Approve or Reject."),
+                                MediaGallery.of(MediaGalleryItem.fromFile(avatarFile)),
+                                ActionRow.of(
                                         Button.success("rsn_verify_approve:" + attemptId, "Approve"),
                                         Button.danger("rsn_verify_reject:" + attemptId, "Reject")
-                                ))
-                                .queue();
+                                ));
 
-                        event.getHook().editOriginal("Submitted for admin review — you'll be notified once it's checked.").queue();
+                        event.getChannel().sendMessageComponents(List.of(review)).useComponentsV2(true).queue();
+
+                        event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.SUCCESS,
+                                "Submitted for admin review — you'll be notified once it's checked."))).useComponentsV2(true).queue();
                     }
                 }
             }
 
             case "rsn_verify_approve" -> {
                 if (!isAdmin(event)) {
-                    event.reply("You need the Admin role (or higher) to use this.").setEphemeral(true).queue();
+                    Containers.replyEphemeral(event, Containers.WARNING, "You need the Admin role (or higher) to use this.");
                     return;
                 }
 
@@ -213,14 +218,15 @@ public class RsnInteractionListener extends ListenerAdapter {
                 boolean approved = linkService.approve(attemptId, event.getUser().getIdLong());
 
                 if (!approved) {
-                    event.reply("This request was already resolved.").setEphemeral(true).queue();
+                    Containers.replyEphemeral(event, Containers.WARNING, "This request was already resolved.");
                     return;
                 }
 
                 event.editComponents().queue();
-                event.getMessage().reply("✅ Approved by " + event.getUser().getAsMention() +
-                                " — **" + attempt.rsn() + "** is now linked to <@" + attempt.discordUserId() + ">.")
-                        .queue();
+                event.getMessage().replyComponents(List.of(Containers.toast(Containers.SUCCESS,
+                        "✅ Approved by " + event.getUser().getAsMention() +
+                                " — **" + attempt.rsn() + "** is now linked to <@" + attempt.discordUserId() + ">.")))
+                        .useComponentsV2(true).queue();
             }
 
             case "rsn_cancel_own" -> {
@@ -228,17 +234,17 @@ public class RsnInteractionListener extends ListenerAdapter {
                 boolean cancelled = linkService.cancelOwn(attemptId, event.getUser().getIdLong());
 
                 if (!cancelled) {
-                    event.reply("That request is no longer active.").setEphemeral(true).queue();
+                    Containers.replyEphemeral(event, Containers.WARNING, "That request is no longer active.");
                     return;
                 }
 
-                event.reply("Cancelled — click **Link My RSN** again to start over with a different name.")
-                        .setEphemeral(true).queue();
+                Containers.replyEphemeral(event, Containers.SUCCESS,
+                        "Cancelled — click **Link My RSN** again to start over with a different name.");
             }
 
             case "rsn_verify_reject" -> {
                 if (!isAdmin(event)) {
-                    event.reply("You need the Admin role (or higher) to use this.").setEphemeral(true).queue();
+                    Containers.replyEphemeral(event, Containers.WARNING, "You need the Admin role (or higher) to use this.");
                     return;
                 }
 
@@ -246,12 +252,14 @@ public class RsnInteractionListener extends ListenerAdapter {
                 boolean rejected = linkService.reject(attemptId, event.getUser().getIdLong());
 
                 if (!rejected) {
-                    event.reply("This request was already resolved.").setEphemeral(true).queue();
+                    Containers.replyEphemeral(event, Containers.WARNING, "This request was already resolved.");
                     return;
                 }
 
                 event.editComponents().queue();
-                event.getMessage().reply("❌ Rejected by " + event.getUser().getAsMention() + ".").queue();
+                event.getMessage().replyComponents(List.of(Containers.toast(Containers.DANGER,
+                                "❌ Rejected by " + event.getUser().getAsMention() + ".")))
+                        .useComponentsV2(true).queue();
             }
         }
     }
@@ -265,10 +273,9 @@ public class RsnInteractionListener extends ListenerAdapter {
 
         PlayerLink existing = linkService.getLinkForRsn(guildId, rsn);
         if (existing != null) {
-            event.reply(existing.discordUserId() == userId
-                            ? "**" + rsn + "** is already linked to your account."
-                            : "**" + rsn + "** is already linked to another Discord account.")
-                    .setEphemeral(true).queue();
+            Containers.replyEphemeral(event, Containers.WARNING, existing.discordUserId() == userId
+                    ? "**" + rsn + "** is already linked to your account."
+                    : "**" + rsn + "** is already linked to another Discord account.");
             return;
         }
 
@@ -277,15 +284,16 @@ public class RsnInteractionListener extends ListenerAdapter {
             MakeoverAppearance pendingAppearance = new MakeoverAppearance(
                     pending.assignedHairstyle(), pending.assignedHairColor(), pending.assignedSkinTone());
 
-            event.reply("You already have a verification in progress for **" + pending.rsn() + "**.\n\n" +
+            Container container = Containers.card(Containers.WARNING,
+                    TextDisplay.of("You already have a verification in progress for **" + pending.rsn() + "**.\n\n" +
                             "Assigned appearance: " + pendingAppearance.describe() + "\n\n" +
-                            "Apply that look in-game, then click below — or start over if you meant a different name.")
-                    .setEphemeral(true)
-                    .addComponents(ActionRow.of(
+                            "Apply that look in-game, then click below — or start over if you meant a different name."),
+                    ActionRow.of(
                             Button.primary("rsn_verify_ready:" + pending.attemptId(), "I've Applied My Look"),
                             Button.secondary("rsn_cancel_own:" + pending.attemptId(), "Start Over (Wrong Name?)")
-                    ))
-                    .queue();
+                    ));
+
+            event.replyComponents(List.of(container)).useComponentsV2(true).setEphemeral(true).queue();
             return;
         }
 
@@ -293,14 +301,15 @@ public class RsnInteractionListener extends ListenerAdapter {
         MakeoverAppearance appearance = new MakeoverAppearance(
                 attempt.assignedHairstyle(), attempt.assignedHairColor(), attempt.assignedSkinTone());
 
-        event.reply("**Verify you are " + rsn + "**\n\n" +
+        Container container = Containers.card(Containers.PRIMARY,
+                TextDisplay.of("**Verify you are " + rsn + "**\n\n" +
                         "1. Log in and visit the Makeover Mage.\n" +
                         "2. Set your appearance to: " + appearance.describe() + "\n" +
                         "3. Come back and click the button below.\n\n" +
-                        "*Your look will need to be checked by an admin before the link is confirmed.*")
-                .setEphemeral(true)
-                .addComponents(ActionRow.of(Button.primary("rsn_verify_ready:" + attempt.attemptId(), "I've Applied My Look")))
-                .queue();
+                        "*Your look will need to be checked by an admin before the link is confirmed.*"),
+                ActionRow.of(Button.primary("rsn_verify_ready:" + attempt.attemptId(), "I've Applied My Look")));
+
+        event.replyComponents(List.of(container)).useComponentsV2(true).setEphemeral(true).queue();
     }
 
     // --- Stats display ---
@@ -308,7 +317,7 @@ public class RsnInteractionListener extends ListenerAdapter {
     private void showStats(ButtonInteractionEvent event, Guild guild, long discordUserId) {
         List<PlayerLink> links = linkService.getLinksForUser(guild.getIdLong(), discordUserId);
         if (links.isEmpty()) {
-            event.reply("You don't have a linked RSN yet — use **Link My RSN** first.").setEphemeral(true).queue();
+            Containers.replyEphemeral(event, Containers.WARNING, "You don't have a linked RSN yet — use **Link My RSN** first.");
             return;
         }
 
@@ -319,7 +328,8 @@ public class RsnInteractionListener extends ListenerAdapter {
         var profile = statsService.pollAndSnapshot(guild.getIdLong(), link.rsn());
 
         if (profile.isPresent()) {
-            event.getHook().editOriginalEmbeds(buildStatsEmbed(link.rsn(), profile.get(), previous).build()).queue();
+            event.getHook().editOriginalComponents(List.of(buildStatsContainer(link.rsn(), profile.get(), previous)))
+                    .useComponentsV2(true).queue();
             return;
         }
 
@@ -328,20 +338,19 @@ public class RsnInteractionListener extends ListenerAdapter {
         // before giving up entirely.
         var overall = apiClient.fetchHiscoresOverall(link.rsn());
         if (overall.isPresent()) {
-            EmbedBuilder embed = new EmbedBuilder()
-                    .setTitle(link.rsn() + " — RuneScape 3 Stats (hiscores only)")
-                    .setColor(Color.ORANGE)
-                    .setDescription("Full profile is private — showing hiscores totals instead.")
-                    .addField("Total Level", String.valueOf(overall.get().totalLevel()), true)
-                    .addField("Total XP", String.format("%,d", overall.get().totalXp()), true)
-                    .addField("Hiscores Rank", String.format("%,d", overall.get().rank()), true);
-            event.getHook().editOriginalEmbeds(embed.build()).queue();
+            Container container = Containers.card(RS3_ORANGE,
+                    TextDisplay.of("### " + link.rsn() + " — RuneScape 3 Stats (hiscores only)"),
+                    TextDisplay.of("Full profile is private — showing hiscores totals instead.\n\n" +
+                            "**Total Level:** " + overall.get().totalLevel() + "\n" +
+                            "**Total XP:** " + String.format("%,d", overall.get().totalXp()) + "\n" +
+                            "**Hiscores Rank:** " + String.format("%,d", overall.get().rank())));
+            event.getHook().editOriginalComponents(List.of(container)).useComponentsV2(true).queue();
             return;
         }
 
-        event.getHook().editOriginal(
+        event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.WARNING,
                 "Couldn't fetch stats for **" + link.rsn() + "** right now — their profile and hiscores may both be " +
-                "private, or the RuneScape API may be temporarily unavailable.").queue();
+                "private, or the RuneScape API may be temporarily unavailable."))).useComponentsV2(true).queue();
     }
 
     private static final int LEADERBOARD_SIZE = 10;
@@ -350,7 +359,7 @@ public class RsnInteractionListener extends ListenerAdapter {
     private void showLeaderboard(ButtonInteractionEvent event, Guild guild) {
         List<PlayerLink> links = linkService.getAllLinks(guild.getIdLong());
         if (links.isEmpty()) {
-            event.reply("No linked players yet.").setEphemeral(true).queue();
+            Containers.replyEphemeral(event, Containers.INFO, "No linked players yet.");
             return;
         }
 
@@ -364,9 +373,9 @@ public class RsnInteractionListener extends ListenerAdapter {
                 .toList();
 
         if (entries.isEmpty()) {
-            event.reply("No stats have been synced yet — check back after the next automatic poll, " +
-                            "or have members use **My Stats** once to sync immediately.")
-                    .setEphemeral(true).queue();
+            Containers.replyEphemeral(event, Containers.INFO,
+                    "No stats have been synced yet — check back after the next automatic poll, " +
+                            "or have members use **My Stats** once to sync immediately.");
             return;
         }
 
@@ -378,34 +387,31 @@ public class RsnInteractionListener extends ListenerAdapter {
                     .append(" (Level ").append(entry.snapshot().totalLevel()).append(")\n");
         }
 
-        EmbedBuilder embed = new EmbedBuilder()
-                .setTitle("RuneScape 3 Leaderboard — Total XP")
-                .setColor(Color.ORANGE)
-                .setDescription(sb.toString())
-                .setFooter("Based on each player's last synced snapshot, not a live poll.");
+        Container container = Containers.card(RS3_ORANGE,
+                TextDisplay.of("### RuneScape 3 Leaderboard — Total XP"),
+                TextDisplay.of(sb.toString()),
+                TextDisplay.of("-# Based on each player's last synced snapshot, not a live poll."));
 
-        event.replyEmbeds(embed.build()).setEphemeral(true).queue();
+        event.replyComponents(List.of(container)).useComponentsV2(true).setEphemeral(true).queue();
     }
 
-    private EmbedBuilder buildStatsEmbed(String rsn, RuneScapeProfile profile, PlayerLinkRepository.StatsSnapshotRow previous) {
-        EmbedBuilder embed = new EmbedBuilder()
-                .setTitle(rsn + " — RuneScape 3 Stats")
-                .setColor(Color.ORANGE)
-                .addField("Total Level", String.valueOf(profile.totalLevel()), true)
-                .addField("Combat Level", String.valueOf(profile.combatLevel()), true)
-                .addField("Quests Complete", String.valueOf(profile.questsComplete()), true)
-                .addField("Total XP", String.format("%,d", profile.totalXp()), true);
+    private Container buildStatsContainer(String rsn, RuneScapeProfile profile, PlayerLinkRepository.StatsSnapshotRow previous) {
+        StringBuilder sb = new StringBuilder()
+                .append("**Total Level:** ").append(profile.totalLevel()).append("\n")
+                .append("**Combat Level:** ").append(profile.combatLevel()).append("\n")
+                .append("**Quests Complete:** ").append(profile.questsComplete()).append("\n")
+                .append("**Total XP:** ").append(String.format("%,d", profile.totalXp()));
 
         if (previous != null) {
             long xpGained = profile.totalXp() - previous.totalXp();
             int levelsGained = profile.totalLevel() - previous.totalLevel();
             if (xpGained > 0 || levelsGained > 0) {
-                embed.addField("Since last check",
-                        String.format("+%,d XP, +%d level(s)", xpGained, levelsGained), false);
+                sb.append("\n\n**Since last check:** ")
+                        .append(String.format("+%,d XP, +%d level(s)", xpGained, levelsGained));
             }
         }
 
-        return embed;
+        return Containers.card(RS3_ORANGE, TextDisplay.of("### " + rsn + " — RuneScape 3 Stats"), TextDisplay.of(sb.toString()));
     }
 
     // --- Helpers ---
@@ -414,23 +420,5 @@ public class RsnInteractionListener extends ListenerAdapter {
         Guild guild = event.getGuild();
         Member member = event.getMember();
         return guild != null && member != null && adminRoleFilter.isAuthorized(guild, member);
-    }
-
-    private void replyError(ButtonInteractionEvent event) {
-        try {
-            if (!event.isAcknowledged()) {
-                event.reply("An unexpected error occurred. Please try again or contact an admin.")
-                        .setEphemeral(true).queue();
-            }
-        } catch (Exception ignored) {}
-    }
-
-    private void replyError(ModalInteractionEvent event) {
-        try {
-            if (!event.isAcknowledged()) {
-                event.reply("An unexpected error occurred. Please try again or contact an admin.")
-                        .setEphemeral(true).queue();
-            }
-        } catch (Exception ignored) {}
     }
 }

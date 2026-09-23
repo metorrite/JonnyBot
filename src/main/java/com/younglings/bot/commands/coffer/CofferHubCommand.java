@@ -23,7 +23,7 @@ public class CofferHubCommand {
     @JDASlashCommand(name = "coffer", description = "Manage the clan coffer")
     public void onCoffer(GuildSlashEvent event) {
         if (event.getGuild() == null) {
-            event.reply("This command can only be used in a server.").setEphemeral(true).queue();
+            Containers.replyEphemeral(event, Containers.WARNING, "This command can only be used in a server.");
             return;
         }
 
