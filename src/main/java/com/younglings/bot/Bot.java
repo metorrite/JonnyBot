@@ -12,6 +12,7 @@ import io.github.freya022.botcommands.api.core.events.BReadyEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.hooks.IEventManager;
 import net.dv8tion.jda.api.requests.GatewayIntent;
+import net.dv8tion.jda.api.utils.MemberCachePolicy;
 import net.dv8tion.jda.api.utils.cache.CacheFlag;
 import org.jspecify.annotations.NullMarked;
 
@@ -60,6 +61,11 @@ public class Bot extends JDAService {
         // It also sets the EventManager and a special rate limiter
         createLight(botConfig.getToken())
                 .setActivity(botConfig.getActivity())
+                // createLight's low-memory profile defaults to a restrictive member cache policy —
+                // fine for a bot that only ever looks up members it already has an ID for (signup,
+                // coffer, etc.), but the internal API's online-members endpoint needs the full
+                // member list chunked and cached, so it's explicitly overridden to ALL here.
+                .setMemberCachePolicy(MemberCachePolicy.ALL)
                 .addEventListeners(signupInteractionListener, pollInteractionListener, cofferInteractionListener,
                         teamformingInteractionListener, embedInteractionListener, rsnInteractionListener)
                 .build();
