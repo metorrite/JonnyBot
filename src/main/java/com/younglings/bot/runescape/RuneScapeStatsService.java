@@ -60,6 +60,11 @@ public class RuneScapeStatsService {
         return repository.getSnapshotsSince(guildId, rsn, since);
     }
 
+    /** Activities recorded since {@code since}, oldest first. */
+    public List<PlayerActivity> getActivitiesSince(long guildId, String rsn, java.time.OffsetDateTime since) {
+        return repository.getActivitiesSince(guildId, rsn, since);
+    }
+
     static String serializeSkills(List<SkillValue> skills) {
         DataArray array = DataArray.empty();
         for (SkillValue skill : skills) {

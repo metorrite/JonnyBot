@@ -4,6 +4,8 @@ import com.younglings.bot.discord.Containers;
 import com.younglings.bot.discord.Pagination;
 import com.younglings.bot.permission.AdminRoleFilter;
 import com.younglings.bot.runescape.ClanMemberRepository;
+import com.younglings.bot.runescape.ClanOverviewRenderer;
+import com.younglings.bot.runescape.ClanOverviewService;
 import com.younglings.bot.runescape.ClanSyncService;
 import com.younglings.bot.runescape.MonthlyRecapRenderer;
 import com.younglings.bot.runescape.MonthlyRecapService;
@@ -81,13 +83,15 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
     private final RuneScapeTestDataSeeder testDataSeeder;
     private final MonthlyRecapService monthlyRecapService;
     private final ClanSyncService clanSyncService;
+    private final ClanOverviewService clanOverviewService;
     private final VerificationRoleSyncService roleSyncService;
     private final HttpClient httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
 
     public RsnAdminInteractionListener(PlayerLinkService linkService, RuneScapeStatsService statsService,
                                         AdminRoleFilter adminRoleFilter, SkillEmojiCatalog skillEmojiCatalog,
                                         RuneScapeTestDataSeeder testDataSeeder, MonthlyRecapService monthlyRecapService,
-                                        ClanSyncService clanSyncService, VerificationRoleSyncService roleSyncService) {
+                                        ClanSyncService clanSyncService, ClanOverviewService clanOverviewService,
+                                        VerificationRoleSyncService roleSyncService) {
         this.linkService = linkService;
         this.statsService = statsService;
         this.adminRoleFilter = adminRoleFilter;
@@ -95,6 +99,7 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
         this.testDataSeeder = testDataSeeder;
         this.monthlyRecapService = monthlyRecapService;
         this.clanSyncService = clanSyncService;
+        this.clanOverviewService = clanOverviewService;
         this.roleSyncService = roleSyncService;
     }
 
@@ -270,6 +275,33 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
                     .addComponents(Label.of("Discord User ID", discordIdInput), Label.of("RuneScape Name", rsnInput))
                     .build();
             event.replyModal(modal).queue();
+            return;
+        }
+
+        if (id.startsWith("rsnadmin_clanoverview")) {
+            // Deferred — this walks every active clan member's snapshots, skills, and activities
+            // (all local DB reads, but a few hundred of them for a clan this size), plus rendering
+            // a leaderboard image. Comfortably more than 3 seconds worth of work.
+            event.deferReply(true).queue();
+
+            var stats = clanOverviewService.getOverview(guild.getIdLong());
+            if (stats == null) {
+                event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.WARNING,
+                        "Nothing tracked yet — run **Sync Clan** first."))).useComponentsV2(true).queue();
+                return;
+            }
+
+            FileUpload image = ClanOverviewRenderer.render(ClanSyncService.CLAN_NAME, stats, fetchGuildIcon(guild));
+            if (image == null) {
+                event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.WARNING,
+                        "Couldn't render the clan overview image right now."))).useComponentsV2(true).queue();
+                return;
+            }
+
+            Container container = Containers.card(Containers.PRIMARY,
+                    TextDisplay.of("### Clan Overview"),
+                    MediaGallery.of(MediaGalleryItem.fromFile(image)));
+            event.getHook().editOriginalComponents(List.of(container)).useComponentsV2(true).queue();
             return;
         }
 
@@ -594,7 +626,8 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
         children.add(ActionRow.of(
                 Button.secondary("rsnadmin_manualverify:_", "Manually Verify"),
                 Button.secondary("rsnadmin_clanlist:_", "Clan Member List"),
-                Button.secondary("rsnadmin_verifiedlist:_", "Verified Players")
+                Button.secondary("rsnadmin_verifiedlist:_", "Verified Players"),
+                Button.secondary("rsnadmin_clanoverview:_", "Clan Overview")
         ));
         children.add(Separator.createDivider(Separator.Spacing.SMALL));
 
