@@ -11,6 +11,7 @@ public class PlayerLinkService {
     private static final Logger log = LoggerFactory.getLogger(PlayerLinkService.class);
 
     public static final String METHOD_MAKEOVER_MAGE = "MAKEOVER_MAGE";
+    public static final String METHOD_ADMIN_MANUAL = "ADMIN_MANUAL";
 
     private final PlayerLinkRepository repository;
 
@@ -68,6 +69,18 @@ public class PlayerLinkService {
 
         repository.resolveAttempt(attemptId, "REJECTED", resolvedByUserId);
         return true;
+    }
+
+    /**
+     * Links an RSN straight to a Discord user, bypassing the makeover-mage flow entirely — for an
+     * admin who already knows a name is theirs and doesn't need the appearance-comparison dance.
+     * Same underlying {@code createLink} as approving a real verification attempt, so it overwrites
+     * any existing link for that RSN exactly the same way (see {@code PlayerLinkRepository#createLink}'s
+     * {@code ON CONFLICT}).
+     */
+    public void manualLink(long guildId, long discordUserId, String rsn, long adminUserId) {
+        repository.createLink(guildId, discordUserId, rsn, METHOD_ADMIN_MANUAL);
+        log.info("RSN '{}' manually linked to {} by admin {}", rsn, discordUserId, adminUserId);
     }
 
     public List<PlayerLink> getLinksForUser(long guildId, long discordUserId) {

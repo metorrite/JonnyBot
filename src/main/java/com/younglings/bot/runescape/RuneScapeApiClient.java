@@ -35,6 +35,7 @@ public class RuneScapeApiClient {
     private static final String PROFILE_URL = "https://apps.runescape.com/runemetrics/profile/profile?user=%s&activities=20";
     private static final String AVATAR_URL = "https://secure.runescape.com/m=avatar-rs/%s/chat.png";
     private static final String HISCORES_URL = "https://secure.runescape.com/m=hiscore/index_lite.ws?player=%s";
+    private static final String CLAN_HISCORES_URL = "https://secure.runescape.com/m=clan-hiscores/members_lite.ws?clanName=%s";
 
     // NORMAL is required: every one of these endpoints (avatar image especially) responds with an
     // HTTP redirect rather than the resource directly (verified live), and HttpClient's default
@@ -206,6 +207,64 @@ public class RuneScapeApiClient {
         } catch (Exception e) {
             log.warn("Failed to parse hiscores for '{}'", rsn, e);
             return Optional.empty();
+        }
+    }
+
+    /** One row of the Clan Hiscores' member roster — see {@link #fetchClanRoster}. */
+    public record ClanMember(String rsn, String clanRank, long totalXp, long kills) {}
+
+    /**
+     * The clan's current member roster — verified live against clan "Younglings" (CSV: {@code
+     * Clanmate, Clan Rank, Total XP, Kills}). No join dates: nothing in this response, the classic
+     * hiscores, or the public clan website surfaces when a member joined — that's only visible
+     * in-game. {@code kills} came back {@code 0} for every member tested, so it may no longer be
+     * populated by Jagex; kept anyway since it costs nothing to parse.
+     * <p>
+     * Empty if the clan doesn't exist or the request failed — not something to crash a sync over.
+     */
+    public List<ClanMember> fetchClanRoster(String clanName) {
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(CLAN_HISCORES_URL.formatted(encode(clanName))))
+                    .timeout(Duration.ofSeconds(15))
+                    .GET()
+                    .build();
+
+            // ISO-8859-1, not the default UTF-8 — the response declares no charset (verified live:
+            // "Content-Type: text/comma-separated-values", nothing else), and the name-space byte
+            // (0xA0) is invalid standalone UTF-8. Decoded as UTF-8 it silently becomes U+FFFD before
+            // this method ever sees it, which would make the   replacement below never match.
+            // ISO-8859-1 maps every byte 1:1 to the same-numbered code point, so 0xA0 comes through
+            // as the real U+00A0 non-breaking space.
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(java.nio.charset.StandardCharsets.ISO_8859_1));
+            if (response.statusCode() / 100 != 2) {
+                log.warn("Clan hiscores request for '{}' returned HTTP {}", clanName, response.statusCode());
+                return List.of();
+            }
+
+            List<String> lines = response.body().lines().toList();
+            if (lines.size() < 2) return List.of();
+
+            List<ClanMember> members = new ArrayList<>();
+            for (int i = 1; i < lines.size(); i++) { // line 0 is the header row
+                String[] parts = lines.get(i).split(",");
+                if (parts.length < 4) continue;
+
+                // Jagex encodes spaces in clan member names as U+00A0 (non-breaking space), not a
+                // plain space — verified live in the raw response for clan "Younglings".
+                String rsn = parts[0].replace(' ', ' ').trim();
+                members.add(new ClanMember(rsn, parts[1].trim(),
+                        Long.parseLong(parts[2].trim()), Long.parseLong(parts[3].trim())));
+            }
+            return members;
+
+        } catch (IOException | InterruptedException e) {
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
+            log.warn("Failed to fetch clan roster for '{}'", clanName, e);
+            return List.of();
+        } catch (Exception e) {
+            log.warn("Failed to parse clan roster for '{}'", clanName, e);
+            return List.of();
         }
     }
 

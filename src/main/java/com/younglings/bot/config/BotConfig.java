@@ -105,6 +105,33 @@ public class BotConfig {
     }
 
     /**
+     * Name of the role granted to a member the moment their RSN gets linked (either the makeover-
+     * mage flow or an admin's manual verify) — looked up by name, not ID, since it's set directly
+     * in chat rather than by copying a Discord snowflake. {@code null} if unset, in which case
+     * {@code VerificationRoleSyncService} skips granting anything rather than guessing a role.
+     */
+    public String getVerifiedRoleName() {
+        String raw = System.getenv("VERIFIED_ROLE_NAME");
+
+        if (raw == null || raw.isBlank()) {
+            raw = dotenv.get("VERIFIED_ROLE_NAME");
+        }
+
+        return (raw == null || raw.isBlank()) ? null : raw.trim();
+    }
+
+    /** Name of the role removed on the same verification event {@link #getVerifiedRoleName()} is granted on. {@code null} if unset. */
+    public String getUnverifiedRoleName() {
+        String raw = System.getenv("UNVERIFIED_ROLE_NAME");
+
+        if (raw == null || raw.isBlank()) {
+            raw = dotenv.get("UNVERIFIED_ROLE_NAME");
+        }
+
+        return (raw == null || raw.isBlank()) ? null : raw.trim();
+    }
+
+    /**
      * The dev/test guild ID — outside of production, commands are pushed here as guild commands
      * (near-instant sync) instead of globally, and {@code @Test}-annotated commands (e.g.
      * {@code /devsignups}) are only ever pushed here regardless of environment. Returns {@code

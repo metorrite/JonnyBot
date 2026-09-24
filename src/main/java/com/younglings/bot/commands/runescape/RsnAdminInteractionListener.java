@@ -3,6 +3,7 @@ package com.younglings.bot.commands.runescape;
 import com.younglings.bot.discord.Containers;
 import com.younglings.bot.discord.Pagination;
 import com.younglings.bot.permission.AdminRoleFilter;
+import com.younglings.bot.runescape.ClanSyncService;
 import com.younglings.bot.runescape.MonthlyRecapRenderer;
 import com.younglings.bot.runescape.MonthlyRecapService;
 import com.younglings.bot.runescape.MonthlyRecapStats;
@@ -16,23 +17,29 @@ import com.younglings.bot.runescape.RuneScapeXpTable;
 import com.younglings.bot.runescape.SkillEmojiCatalog;
 import com.younglings.bot.runescape.SkillValue;
 import com.younglings.bot.runescape.SkillXpPoint;
+import com.younglings.bot.runescape.VerificationRoleSyncService;
 import com.younglings.bot.runescape.XpChartRenderer;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
 import net.dv8tion.jda.api.components.buttons.Button;
 import net.dv8tion.jda.api.components.container.Container;
 import net.dv8tion.jda.api.components.container.ContainerChildComponent;
+import net.dv8tion.jda.api.components.label.Label;
 import net.dv8tion.jda.api.components.mediagallery.MediaGallery;
 import net.dv8tion.jda.api.components.mediagallery.MediaGalleryItem;
 import net.dv8tion.jda.api.components.selections.StringSelectMenu;
 import net.dv8tion.jda.api.components.separator.Separator;
 import net.dv8tion.jda.api.components.textdisplay.TextDisplay;
+import net.dv8tion.jda.api.components.textinput.TextInput;
+import net.dv8tion.jda.api.components.textinput.TextInputStyle;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.emoji.Emoji;
+import net.dv8tion.jda.api.events.interaction.ModalInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.StringSelectInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
+import net.dv8tion.jda.api.modals.Modal;
 import net.dv8tion.jda.api.utils.FileUpload;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -70,17 +77,22 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
     private final SkillEmojiCatalog skillEmojiCatalog;
     private final RuneScapeTestDataSeeder testDataSeeder;
     private final MonthlyRecapService monthlyRecapService;
+    private final ClanSyncService clanSyncService;
+    private final VerificationRoleSyncService roleSyncService;
     private final HttpClient httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
 
     public RsnAdminInteractionListener(PlayerLinkService linkService, RuneScapeStatsService statsService,
                                         AdminRoleFilter adminRoleFilter, SkillEmojiCatalog skillEmojiCatalog,
-                                        RuneScapeTestDataSeeder testDataSeeder, MonthlyRecapService monthlyRecapService) {
+                                        RuneScapeTestDataSeeder testDataSeeder, MonthlyRecapService monthlyRecapService,
+                                        ClanSyncService clanSyncService, VerificationRoleSyncService roleSyncService) {
         this.linkService = linkService;
         this.statsService = statsService;
         this.adminRoleFilter = adminRoleFilter;
         this.skillEmojiCatalog = skillEmojiCatalog;
         this.testDataSeeder = testDataSeeder;
         this.monthlyRecapService = monthlyRecapService;
+        this.clanSyncService = clanSyncService;
+        this.roleSyncService = roleSyncService;
     }
 
     @Override
@@ -121,6 +133,46 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
             log.error("Unhandled exception in rsnadmin select interaction '{}'", id, e);
             Containers.replyError(event);
         }
+    }
+
+    @Override
+    public void onModalInteraction(ModalInteractionEvent event) {
+        Guild guild = event.getGuild();
+        Member member = event.getMember();
+        String id = event.getModalId();
+        if (guild == null || member == null || !id.startsWith("rsnadmin_")) return;
+
+        try {
+            if (!adminRoleFilter.isAuthorized(guild, member)) {
+                Containers.replyEphemeral(event, Containers.WARNING, "You need the Admin role (or higher) to use this.");
+                return;
+            }
+            if (id.equals("rsnadmin_manualverify_modal:_")) {
+                handleManualVerifyModal(event, guild, member);
+            }
+        } catch (Exception e) {
+            log.error("Unhandled exception in rsnadmin modal interaction '{}'", id, e);
+            Containers.replyError(event);
+        }
+    }
+
+    /** Links an RSN straight to a Discord user and applies the same role sync a real verification approval would — no makeover-mage dance needed. */
+    private void handleManualVerifyModal(ModalInteractionEvent event, Guild guild, Member admin) {
+        String rawUserId = event.getValue("manual_verify_discord_id").getAsString().trim().replaceAll("[<@!>]", "");
+        String rsn = event.getValue("manual_verify_rsn").getAsString().trim();
+
+        long discordUserId;
+        try {
+            discordUserId = Long.parseLong(rawUserId);
+        } catch (NumberFormatException e) {
+            Containers.replyEphemeral(event, Containers.WARNING,
+                    "'" + rawUserId + "' doesn't look like a Discord user ID — right-click the member (Developer Mode must be on) and Copy User ID.");
+            return;
+        }
+
+        linkService.manualLink(guild.getIdLong(), discordUserId, rsn, admin.getIdLong());
+        roleSyncService.syncRoles(guild, discordUserId);
+        Containers.replyEphemeral(event, Containers.SUCCESS, "Linked **" + rsn + "** to <@" + discordUserId + ">.");
     }
 
     private void handleButton(ButtonInteractionEvent event, Guild guild, String id) {
@@ -177,6 +229,44 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
                     TextDisplay.of("### Guild XP Trend"),
                     MediaGallery.of(MediaGalleryItem.fromFile(chart)));
             event.getHook().editOriginalComponents(List.of(container)).useComponentsV2(true).queue();
+            return;
+        }
+
+        if (id.startsWith("rsnadmin_syncclan")) {
+            // Deferred — fetches the whole clan roster, then polls every member with a delay
+            // between each (RUNESCAPE_POLL_DELAY_SECONDS), so this can genuinely take a couple of
+            // minutes for a clan this size. That's expected, not a hang.
+            event.deferReply(true).queue();
+            var result = clanSyncService.syncAndPoll(guild.getIdLong());
+
+            if (result.rosterSize() == 0) {
+                event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.WARNING,
+                        "Couldn't fetch the clan roster for **" + ClanSyncService.CLAN_NAME + "** — check the clan name and try again."))).useComponentsV2(true).queue();
+                return;
+            }
+
+            event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.SUCCESS,
+                    "Synced **" + ClanSyncService.CLAN_NAME + "**: " + result.rosterSize() + " member(s) in the roster " +
+                    "(" + result.newMembers() + " new, " + result.departedMembers() + " no longer listed), " +
+                    result.polled() + "/" + result.rosterSize() + " polled successfully."))).useComponentsV2(true).queue();
+            return;
+        }
+
+        if (id.startsWith("rsnadmin_manualverify")) {
+            TextInput discordIdInput = TextInput.create("manual_verify_discord_id", TextInputStyle.SHORT)
+                    .setPlaceholder("Right-click the member > Copy User ID")
+                    .setRequired(true)
+                    .build();
+            TextInput rsnInput = TextInput.create("manual_verify_rsn", TextInputStyle.SHORT)
+                    .setPlaceholder("Exact in-game display name")
+                    .setRequired(true)
+                    .setRequiredRange(1, 12)
+                    .build();
+
+            Modal modal = Modal.create("rsnadmin_manualverify_modal:_", "Manually Verify a Player")
+                    .addComponents(Label.of("Discord User ID", discordIdInput), Label.of("RuneScape Name", rsnInput))
+                    .build();
+            event.replyModal(modal).queue();
             return;
         }
 
@@ -400,7 +490,9 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
         children.add(TextDisplay.of("-# Bulk Actions — automatic polling is disabled, everything here is manual"));
         children.add(ActionRow.of(
                 Button.primary("rsnadmin_poll_all:_", "Poll All"),
-                Button.secondary("rsnadmin_guildchart:_", "Guild XP Trend")
+                Button.secondary("rsnadmin_guildchart:_", "Guild XP Trend"),
+                Button.secondary("rsnadmin_syncclan:_", "Sync Clan"),
+                Button.secondary("rsnadmin_manualverify:_", "Manually Verify")
         ));
         children.add(Separator.createDivider(Separator.Spacing.SMALL));
 

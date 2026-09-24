@@ -152,6 +152,28 @@ public class RuneScapeDatabaseInitializer {
                 """
                 CREATE INDEX IF NOT EXISTS player_activity_rsn_idx
                 ON younglings.player_activity (guild_id, LOWER(rsn), recorded_at DESC);
+                """,
+
+                // The clan's roster, tracked independently of player_link — a name shows up here
+                // the moment a clan sync sees it in the Clan Hiscores response, whether or not
+                // anyone has ever verified that it's their own account. active flips to false (not
+                // deleted) when a later sync no longer sees the name, so "left the clan" is a fact
+                // you can see, not a silently vanished row.
+                """
+                CREATE TABLE IF NOT EXISTS younglings.clan_member (
+                    id BIGSERIAL PRIMARY KEY,
+                    guild_id BIGINT NOT NULL,
+                    rsn TEXT NOT NULL,
+                    clan_rank TEXT NOT NULL,
+                    first_seen TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    last_seen TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    active BOOLEAN NOT NULL DEFAULT TRUE
+                );
+                """,
+
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS clan_member_unique_rsn_lower
+                ON younglings.clan_member (guild_id, LOWER(rsn));
                 """
         ));
     }

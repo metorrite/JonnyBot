@@ -15,6 +15,7 @@ import com.younglings.bot.runescape.RuneScapeStatsService;
 import com.younglings.bot.runescape.SkillEmojiCatalog;
 import com.younglings.bot.runescape.SkillValue;
 import com.younglings.bot.runescape.VerificationAttempt;
+import com.younglings.bot.runescape.VerificationRoleSyncService;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
 import net.dv8tion.jda.api.components.buttons.Button;
@@ -51,15 +52,17 @@ public class RsnInteractionListener extends ListenerAdapter {
     private final RuneScapeStatsService statsService;
     private final AdminRoleFilter adminRoleFilter;
     private final SkillEmojiCatalog skillEmojiCatalog;
+    private final VerificationRoleSyncService roleSyncService;
 
     public RsnInteractionListener(PlayerLinkService linkService, RuneScapeApiClient apiClient,
                                    RuneScapeStatsService statsService, AdminRoleFilter adminRoleFilter,
-                                   SkillEmojiCatalog skillEmojiCatalog) {
+                                   SkillEmojiCatalog skillEmojiCatalog, VerificationRoleSyncService roleSyncService) {
         this.linkService = linkService;
         this.apiClient = apiClient;
         this.statsService = statsService;
         this.adminRoleFilter = adminRoleFilter;
         this.skillEmojiCatalog = skillEmojiCatalog;
+        this.roleSyncService = roleSyncService;
     }
 
     @Override
@@ -249,6 +252,8 @@ public class RsnInteractionListener extends ListenerAdapter {
                     Containers.replyEphemeral(event, Containers.WARNING, "This request was already resolved.");
                     return;
                 }
+
+                roleSyncService.syncRoles(event.getGuild(), attempt.discordUserId());
 
                 event.editComponents().queue();
                 event.getMessage().replyComponents(List.of(Containers.toast(Containers.SUCCESS,
