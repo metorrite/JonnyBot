@@ -10,9 +10,9 @@ import com.younglings.bot.runescape.PlayerLink;
 import com.younglings.bot.runescape.PlayerLinkRepository;
 import com.younglings.bot.runescape.PlayerLinkService;
 import com.younglings.bot.runescape.RuneScapeApiClient;
-import com.younglings.bot.runescape.RuneScapeProfile;
 import com.younglings.bot.runescape.RuneScapeSkillCatalog;
 import com.younglings.bot.runescape.RuneScapeStatsService;
+import com.younglings.bot.runescape.SkillIconCatalog;
 import com.younglings.bot.runescape.SkillValue;
 import com.younglings.bot.runescape.VerificationAttempt;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -23,7 +23,9 @@ import net.dv8tion.jda.api.components.container.ContainerChildComponent;
 import net.dv8tion.jda.api.components.label.Label;
 import net.dv8tion.jda.api.components.mediagallery.MediaGallery;
 import net.dv8tion.jda.api.components.mediagallery.MediaGalleryItem;
+import net.dv8tion.jda.api.components.section.Section;
 import net.dv8tion.jda.api.components.textdisplay.TextDisplay;
+import net.dv8tion.jda.api.components.thumbnail.Thumbnail;
 import net.dv8tion.jda.api.components.textinput.TextInput;
 import net.dv8tion.jda.api.components.textinput.TextInputStyle;
 import net.dv8tion.jda.api.entities.Guild;
@@ -126,7 +128,14 @@ public class RsnInteractionListener extends ListenerAdapter {
                 event.replyModal(modal).queue();
             }
 
+            case "rsn_poll" -> pollRsnAndShow(event, event.getGuild(), id.split(":", 2)[1]);
+
             case "rsn_skills" -> showSkills(event, event.getGuild(), id.split(":", 2)[1]);
+
+            case "rsn_skills_page" -> {
+                String[] parts = id.split(":", 3);
+                showSkillsPage(event, event.getGuild(), parts[1], Integer.parseInt(parts[2]), true);
+            }
 
             case "rsn_history" -> showHistory(event, event.getGuild(), id.split(":", 2)[1]);
 
@@ -406,18 +415,38 @@ public class RsnInteractionListener extends ListenerAdapter {
     }
 
     /**
-     * The shared stats-rendering path for "My Stats" (single link), picking one of several linked
-     * RSNs, and "Look Up Player" (any RSN, linked or not) alike — always polls live rather than
-     * reading a possibly-stale snapshot, since with automatic polling disabled this button is the
-     * only thing that keeps a player's data current. Caller must have already deferred the reply.
+     * The shared "show me what we already know" path for "My Stats" (single link), picking one of
+     * several linked RSNs, and "Look Up Player" alike. Reads the latest stored snapshot only — no
+     * live API call — so viewing stats never triggers a poll on its own; the stats card's own
+     * "Poll Now" button ({@link #pollRsnAndShow}) is the only thing that does. Caller must have
+     * already deferred the reply.
      */
     private void showStatsForRsn(IReplyCallback event, Guild guild, String rsn) {
-        PlayerLinkRepository.StatsSnapshotRow previous = statsService.getLatestSnapshot(guild.getIdLong(), rsn);
-        var profile = statsService.pollAndSnapshot(guild.getIdLong(), rsn);
+        List<PlayerLinkRepository.StatsSnapshotRow> recent = statsService.getSnapshotHistory(guild.getIdLong(), rsn, 2);
 
+        if (recent.isEmpty()) {
+            Container container = Containers.card(Containers.WARNING,
+                    TextDisplay.of("### " + rsn),
+                    TextDisplay.of("No synced data yet for this name — click **Poll Now** to fetch it."),
+                    ActionRow.of(Button.primary("rsn_poll:" + rsn, "Poll Now")));
+            event.getHook().editOriginalComponents(List.of(container)).useComponentsV2(true).queue();
+            return;
+        }
+
+        PlayerLinkRepository.StatsSnapshotRow latest = recent.getFirst();
+        PlayerLinkRepository.StatsSnapshotRow previous = recent.size() > 1 ? recent.get(1) : null;
+
+        event.getHook().editOriginalComponents(List.of(buildStatsContainer(rsn, latest, previous)))
+                .useComponentsV2(true).queue();
+    }
+
+    /** The only member-facing action that actually calls the RuneScape API — triggered by the stats card's own "Poll Now" button. */
+    private void pollRsnAndShow(ButtonInteractionEvent event, Guild guild, String rsn) {
+        event.deferReply(true).queue();
+
+        var profile = statsService.pollAndSnapshot(guild.getIdLong(), rsn);
         if (profile.isPresent()) {
-            event.getHook().editOriginalComponents(List.of(buildStatsContainer(rsn, profile.get(), previous)))
-                    .useComponentsV2(true).queue();
+            showStatsForRsn(event, guild, rsn);
             return;
         }
 
@@ -442,26 +471,56 @@ public class RsnInteractionListener extends ListenerAdapter {
     }
 
     private void showSkills(ButtonInteractionEvent event, Guild guild, String rsn) {
+        showSkillsPage(event, guild, rsn, 0, false);
+    }
+
+    /**
+     * Paginated (not all 29 at once — each icon+text pairing is its own {@link Section}, 3
+     * component-tree nodes apiece, so all 29 would blow past the 40-node total budget on their
+     * own) skills view with each skill's icon shown via {@link SkillIconCatalog} next to its
+     * level/XP. Page size matches Discord's 10-attachment-per-message cap, which conveniently
+     * lines up with {@link Pagination#DEFAULT_PAGE_SIZE} anyway.
+     */
+    private void showSkillsPage(ButtonInteractionEvent event, Guild guild, String rsn, int pageIndex, boolean isPageNav) {
         PlayerLinkRepository.StatsSnapshotRow latest = statsService.getLatestSnapshot(guild.getIdLong(), rsn);
         if (latest == null) {
             Containers.replyEphemeral(event, Containers.WARNING,
-                    "No synced data for **" + rsn + "** yet — use **My Stats** or **Look Up Player** first.");
+                    "No synced data for **" + rsn + "** yet — use **Poll Now** on their stats card first.");
             return;
         }
 
         List<SkillValue> skills = statsService.getSkillsForSnapshot(latest.snapshotId());
-        StringBuilder sb = new StringBuilder();
-        for (SkillValue skill : skills) {
-            sb.append("**").append(RuneScapeSkillCatalog.nameFor(skill.skillId())).append(":** ")
-                    .append(skill.level()).append(" (").append(String.format("%,d", skill.xp())).append(" xp)\n");
+        if (skills.isEmpty()) {
+            Containers.replyEphemeral(event, Containers.WARNING, "No skill data in this snapshot.");
+            return;
         }
 
-        Container container = Containers.card(RS3_ORANGE,
-                TextDisplay.of("### " + rsn + " — Skills"),
-                TextDisplay.of(sb.isEmpty() ? "*No skill data in this snapshot.*" : sb.toString()),
-                TextDisplay.of("-# As of <t:" + latest.snapshotAt().toEpochSecond() + ":R>"));
+        var page = Pagination.paginate(skills, pageIndex);
 
-        event.replyComponents(List.of(container)).useComponentsV2(true).setEphemeral(true).queue();
+        List<ContainerChildComponent> children = new ArrayList<>();
+        children.add(TextDisplay.of("### " + rsn + " — Skills"));
+
+        for (SkillValue skill : page.items()) {
+            String line = "**" + RuneScapeSkillCatalog.nameFor(skill.skillId()) + ":** " + skill.level()
+                    + " (" + String.format("%,d", skill.xp()) + " xp)";
+            FileUpload icon = SkillIconCatalog.fileFor(skill.skillId());
+            children.add(icon != null
+                    ? Section.of(Thumbnail.fromFile(icon), TextDisplay.of(line))
+                    : TextDisplay.of(line));
+        }
+
+        children.add(TextDisplay.of("-# As of <t:" + latest.snapshotAt().toEpochSecond() + ":R>"));
+        if (!page.isSinglePage()) {
+            children.add(Pagination.navRow(page, "rsn_skills_page:" + rsn + ":"));
+        }
+
+        Container container = Containers.card(RS3_ORANGE, children);
+
+        if (isPageNav) {
+            event.editComponents(List.of(container)).useComponentsV2(true).queue();
+        } else {
+            event.replyComponents(List.of(container)).useComponentsV2(true).setEphemeral(true).queue();
+        }
     }
 
     private static final int HISTORY_SIZE = 10;
@@ -539,8 +598,8 @@ public class RsnInteractionListener extends ListenerAdapter {
 
         if (entries.isEmpty()) {
             Containers.replyEphemeral(event, Containers.INFO,
-                    "No stats have been synced yet — check back after the next automatic poll, " +
-                            "or have members use **My Stats** once to sync immediately.");
+                    "No stats have been synced yet — polling is manual right now, "
+                            + "so someone needs to click **Poll Now** on their stats (or an admin needs to poll from the admin panel) first.");
             return;
         }
 
@@ -560,18 +619,18 @@ public class RsnInteractionListener extends ListenerAdapter {
         event.replyComponents(List.of(container)).useComponentsV2(true).setEphemeral(true).queue();
     }
 
-    private Container buildStatsContainer(String rsn, RuneScapeProfile profile, PlayerLinkRepository.StatsSnapshotRow previous) {
+    private Container buildStatsContainer(String rsn, PlayerLinkRepository.StatsSnapshotRow latest, PlayerLinkRepository.StatsSnapshotRow previous) {
         StringBuilder sb = new StringBuilder()
-                .append("**Total Level:** ").append(profile.totalLevel()).append("\n")
-                .append("**Combat Level:** ").append(profile.combatLevel()).append("\n")
-                .append("**Quests Complete:** ").append(profile.questsComplete()).append("\n")
-                .append("**Total XP:** ").append(String.format("%,d", profile.totalXp()));
+                .append("**Total Level:** ").append(latest.totalLevel()).append("\n")
+                .append("**Combat Level:** ").append(latest.combatLevel()).append("\n")
+                .append("**Quests Complete:** ").append(latest.questsComplete()).append("\n")
+                .append("**Total XP:** ").append(String.format("%,d", latest.totalXp()));
 
         if (previous != null) {
-            long xpGained = profile.totalXp() - previous.totalXp();
-            int levelsGained = profile.totalLevel() - previous.totalLevel();
+            long xpGained = latest.totalXp() - previous.totalXp();
+            int levelsGained = latest.totalLevel() - previous.totalLevel();
             if (xpGained > 0 || levelsGained > 0) {
-                sb.append("\n\n**Since last check:** ")
+                sb.append("\n\n**Since last poll:** ")
                         .append(String.format("+%,d XP, +%d level(s)", xpGained, levelsGained));
             }
         }
@@ -579,7 +638,9 @@ public class RsnInteractionListener extends ListenerAdapter {
         return Containers.card(RS3_ORANGE,
                 TextDisplay.of("### " + rsn + " — RuneScape 3 Stats"),
                 TextDisplay.of(sb.toString()),
+                TextDisplay.of("-# As of <t:" + latest.snapshotAt().toEpochSecond() + ":R>"),
                 ActionRow.of(
+                        Button.primary("rsn_poll:" + rsn, "Poll Now"),
                         Button.secondary("rsn_skills:" + rsn, "View Skills"),
                         Button.secondary("rsn_history:" + rsn, "History"),
                         Button.secondary("rsn_activity:" + rsn, "Recent Activity")

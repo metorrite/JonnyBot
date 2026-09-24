@@ -77,36 +77,43 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
         }
 
         if (id.startsWith("rsnadmin_poll_all")) {
-            event.deferReply(true).queue();
+            // Deferred edit, not a plain edit — polling every linked player is a series of HTTP
+            // calls that will very likely take longer than Discord's 3-second ack window once
+            // there's more than a couple of players.
+            event.deferEdit().queue();
             List<PlayerLink> links = linkService.getAllLinks(guild.getIdLong());
-            int succeeded = 0;
             for (PlayerLink link : links) {
-                if (statsService.pollAndSnapshot(guild.getIdLong(), link.rsn()).isPresent()) succeeded++;
+                statsService.pollAndSnapshot(guild.getIdLong(), link.rsn());
             }
-            event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.SUCCESS,
-                    "Polled " + succeeded + "/" + links.size() + " linked player(s)."))).useComponentsV2(true).queue();
+            event.getHook().editOriginalComponents(List.of(buildPanel(linkService, statsService, guild, 0)))
+                    .useComponentsV2(true).queue();
             return;
         }
 
         if (id.startsWith("rsnadmin_poll:")) {
             String rsn = id.split(":", 2)[1];
-            event.deferReply(true).queue();
-            var profile = statsService.pollAndSnapshot(guild.getIdLong(), rsn);
-            event.getHook().editOriginalComponents(List.of(profile.isPresent()
-                    ? Containers.toast(Containers.SUCCESS, "Polled **" + rsn + "** — Level " + profile.get().totalLevel()
-                            + ", " + String.format("%,d", profile.get().totalXp()) + " xp.")
-                    : Containers.toast(Containers.WARNING, "Couldn't poll **" + rsn + "** — profile may be private or the name may not exist.")
-            )).useComponentsV2(true).queue();
+            event.deferEdit().queue();
+            statsService.pollAndSnapshot(guild.getIdLong(), rsn);
+            event.getHook().editOriginalComponents(List.of(buildPanel(linkService, statsService, guild, 0)))
+                    .useComponentsV2(true).queue();
         }
     }
 
-    /** Shared by {@link RsnAdminCommand}'s initial reply and this listener's own pagination/re-renders. */
+    /**
+     * Shared by {@link RsnAdminCommand}'s initial reply and this listener's own pagination/
+     * re-renders. Grouped like the signup admin controls: a "Bulk Actions" section up top, then
+     * each linked player gets its own labeled block with an inline at-a-glance overview (level/
+     * combat/XP/quests, trend since the previous poll, and the latest activity headline — no click
+     * needed for any of that) plus a row of buttons for the full drill-downs (all 29 skills with
+     * icons, full poll history, full activity log) that genuinely don't fit inline once there's
+     * more than a couple of players or skills involved.
+     */
     static Container buildPanel(PlayerLinkService linkService, RuneScapeStatsService statsService, Guild guild, int pageIndex) {
         List<PlayerLink> links = linkService.getAllLinks(guild.getIdLong());
 
         List<ContainerChildComponent> children = new ArrayList<>();
         children.add(TextDisplay.of("# RS3 Admin Panel"));
-        children.add(TextDisplay.of("-# Automatic polling is disabled — everything here is manual."));
+        children.add(TextDisplay.of("-# Bulk Actions — automatic polling is disabled, everything here is manual"));
         children.add(ActionRow.of(Button.primary("rsnadmin_poll_all:_", "Poll All")));
         children.add(Separator.createDivider(Separator.Spacing.SMALL));
 
@@ -116,21 +123,19 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
         }
 
         var page = Pagination.paginate(links, pageIndex, PAGE_SIZE);
-        children.add(TextDisplay.of("**Linked Players** (" + links.size() + ")"));
+        children.add(TextDisplay.of("-# Linked Players (" + links.size() + ")"));
 
         for (PlayerLink link : page.items()) {
-            var latest = statsService.getLatestSnapshot(guild.getIdLong(), link.rsn());
-            String lastPolled = latest == null ? "never" : "<t:" + latest.snapshotAt().toEpochSecond() + ":R>";
-
             children.add(TextDisplay.of("**" + link.rsn() + "** — <@" + link.discordUserId() + ">\n" +
-                    "-# Verified <t:" + link.verifiedAt().toEpochSecond() + ":R> via " + link.verificationMethod()
-                    + " • Last polled: " + lastPolled));
+                    "-# Verified <t:" + link.verifiedAt().toEpochSecond() + ":R> via " + link.verificationMethod()));
+            children.add(TextDisplay.of(buildOverviewLine(statsService, guild, link.rsn())));
             children.add(ActionRow.of(
                     Button.primary("rsnadmin_poll:" + link.rsn(), "Poll Now"),
-                    Button.secondary("rsn_skills:" + link.rsn(), "Skills"),
-                    Button.secondary("rsn_history:" + link.rsn(), "History"),
-                    Button.secondary("rsn_activity:" + link.rsn(), "Activity")
+                    Button.secondary("rsn_skills:" + link.rsn(), "Full Skills"),
+                    Button.secondary("rsn_history:" + link.rsn(), "Full History"),
+                    Button.secondary("rsn_activity:" + link.rsn(), "Full Activity")
             ));
+            children.add(Separator.createDivider(Separator.Spacing.SMALL));
         }
 
         if (!page.isSinglePage()) {
@@ -138,5 +143,35 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
         }
 
         return Containers.card(Containers.PRIMARY, children);
+    }
+
+    /** The inline "everything at a glance" line — overview, trend since the last poll, and the latest activity headline. */
+    private static String buildOverviewLine(RuneScapeStatsService statsService, Guild guild, String rsn) {
+        var history = statsService.getSnapshotHistory(guild.getIdLong(), rsn, 2);
+        if (history.isEmpty()) {
+            return "*Never polled.*";
+        }
+
+        var latest = history.getFirst();
+        StringBuilder sb = new StringBuilder()
+                .append("**Level:** ").append(latest.totalLevel())
+                .append(" • **Combat:** ").append(latest.combatLevel())
+                .append(" • **XP:** ").append(String.format("%,d", latest.totalXp()))
+                .append(" • **Quests:** ").append(latest.questsComplete())
+                .append("\n-# Polled <t:").append(latest.snapshotAt().toEpochSecond()).append(":R>");
+
+        if (history.size() > 1) {
+            long xpGained = latest.totalXp() - history.get(1).totalXp();
+            if (xpGained != 0) {
+                sb.append(" • ").append(xpGained > 0 ? "+" : "").append(String.format("%,d", xpGained)).append(" xp since previous poll");
+            }
+        }
+
+        var activity = statsService.getRecentActivities(guild.getIdLong(), rsn, 1);
+        if (!activity.isEmpty()) {
+            sb.append("\n-# Latest activity: ").append(activity.getFirst().text());
+        }
+
+        return sb.toString();
     }
 }

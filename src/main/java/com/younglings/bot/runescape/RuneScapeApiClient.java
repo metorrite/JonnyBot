@@ -28,7 +28,11 @@ import java.util.Optional;
 public class RuneScapeApiClient {
     private static final Logger log = LoggerFactory.getLogger(RuneScapeApiClient.class);
 
-    private static final String PROFILE_URL = "https://apps.runescape.com/runemetrics/profile/profile?user=%s&activities=1";
+    // activities=N genuinely controls how many recent-activity entries come back (verified live —
+    // activities=1 returns exactly 1, activities=20 returns up to 20), not a boolean "include
+    // activities" flag as the original value here assumed. 20 is comfortably above what RuneMetrics'
+    // own rolling feed tends to hold at once.
+    private static final String PROFILE_URL = "https://apps.runescape.com/runemetrics/profile/profile?user=%s&activities=20";
     private static final String AVATAR_URL = "https://secure.runescape.com/m=avatar-rs/%s/chat.png";
     private static final String HISCORES_URL = "https://secure.runescape.com/m=hiscore/index_lite.ws?player=%s";
 
@@ -66,7 +70,12 @@ public class RuneScapeApiClient {
             DataArray skillArray = json.getArray("skillvalues");
             for (int i = 0; i < skillArray.length(); i++) {
                 DataObject skill = skillArray.getObject(i);
-                skills.add(new SkillValue(skill.getInt("id"), skill.getInt("level"), skill.getLong("xp"), skill.getInt("rank")));
+                // RuneMetrics reports each skill's xp at 10x true XP (verified live: a level-99-capped
+                // skill's true XP is exactly 200,000,000, but this field reads 2,000,000,000 for the
+                // same skill at the same moment — confirmed exact-10x on two independently-capped
+                // skills, cross-referenced against the classic hiscores' true value for the same
+                // account). totalxp at the top level is NOT affected, only these per-skill values.
+                skills.add(new SkillValue(skill.getInt("id"), skill.getInt("level"), skill.getLong("xp") / 10, skill.getInt("rank")));
             }
 
             List<PlayerActivity> activities = new ArrayList<>();
