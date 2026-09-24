@@ -43,6 +43,7 @@ import net.dv8tion.jda.api.events.interaction.ModalInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.StringSelectInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
+import net.dv8tion.jda.api.interactions.components.ComponentInteraction;
 import net.dv8tion.jda.api.modals.Modal;
 import net.dv8tion.jda.api.utils.FileUpload;
 import org.slf4j.Logger;
@@ -85,13 +86,14 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
     private final ClanSyncService clanSyncService;
     private final ClanOverviewService clanOverviewService;
     private final VerificationRoleSyncService roleSyncService;
+    private final RsnInteractionListener rsnInteractionListener;
     private final HttpClient httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
 
     public RsnAdminInteractionListener(PlayerLinkService linkService, RuneScapeStatsService statsService,
                                         AdminRoleFilter adminRoleFilter, SkillEmojiCatalog skillEmojiCatalog,
                                         RuneScapeTestDataSeeder testDataSeeder, MonthlyRecapService monthlyRecapService,
                                         ClanSyncService clanSyncService, ClanOverviewService clanOverviewService,
-                                        VerificationRoleSyncService roleSyncService) {
+                                        VerificationRoleSyncService roleSyncService, RsnInteractionListener rsnInteractionListener) {
         this.linkService = linkService;
         this.statsService = statsService;
         this.adminRoleFilter = adminRoleFilter;
@@ -101,6 +103,7 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
         this.clanSyncService = clanSyncService;
         this.clanOverviewService = clanOverviewService;
         this.roleSyncService = roleSyncService;
+        this.rsnInteractionListener = rsnInteractionListener;
     }
 
     @Override
@@ -127,19 +130,61 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
         Guild guild = event.getGuild();
         Member member = event.getMember();
         String id = event.getComponentId();
-        if (guild == null || member == null || !id.startsWith("rsnadmin_chart_select")) return;
+        if (guild == null || member == null || !id.startsWith("rsnadmin_")) return;
 
         try {
             if (!adminRoleFilter.isAuthorized(guild, member)) {
                 Containers.replyEphemeral(event, Containers.WARNING, "You need the Admin role (or higher) to use this.");
                 return;
             }
-            String rsn = id.split(":", 2)[1];
-            int skillId = Integer.parseInt(event.getValues().getFirst());
-            event.editComponents(List.of(buildChartContainer(guild, rsn, skillId))).useComponentsV2(true).queue();
+
+            if (id.startsWith("rsnadmin_chart_select")) {
+                String rsn = id.split(":", 2)[1];
+                int skillId = Integer.parseInt(event.getValues().getFirst());
+                event.editComponents(List.of(buildChartContainer(guild, rsn, skillId))).useComponentsV2(true).queue();
+                return;
+            }
+
+            if (id.startsWith("rsnadmin_bulk_action:")) {
+                handleBulkAction(event, guild, event.getValues().getFirst());
+                return;
+            }
+
+            if (id.startsWith("rsnadmin_player_action:")) {
+                String rsn = id.split(":", 2)[1];
+                handlePlayerAction(event, guild, rsn, event.getValues().getFirst());
+            }
         } catch (Exception e) {
             log.error("Unhandled exception in rsnadmin select interaction '{}'", id, e);
             Containers.replyError(event);
+        }
+    }
+
+    /** One option picked from the panel's top-level "Bulk Actions" dropdown — see {@link #buildPanel} for why this is a select menu rather than a row of buttons. */
+    private void handleBulkAction(ComponentInteraction event, Guild guild, String action) {
+        switch (action) {
+            case "poll_all" -> doPollAll(event, guild);
+            case "guild_chart" -> doGuildChart(event, guild);
+            case "sync_clan" -> doSyncClan(event, guild);
+            case "manual_verify" -> doManualVerifyPrompt(event);
+            case "clan_list" -> doClanList(event, guild);
+            case "verified_list" -> doVerifiedList(event, guild);
+            case "clan_overview" -> doClanOverview(event, guild);
+        }
+    }
+
+    /** One option picked from a specific player's row dropdown — see {@link #buildPanel}. */
+    private void handlePlayerAction(ComponentInteraction event, Guild guild, String rsn, String action) {
+        switch (action) {
+            case "poll" -> doPollOne(event, guild, rsn);
+            case "skills" -> rsnInteractionListener.showSkills(event, guild, rsn);
+            case "history" -> rsnInteractionListener.showHistory(event, guild, rsn);
+            case "activity" -> rsnInteractionListener.showActivity(event, guild, rsn);
+            case "seed" -> doSeedTestData(event, guild, rsn);
+            case "chart" -> doXpChart(event, guild, rsn);
+            case "recap" -> doMonthlyRecap(event, guild, rsn);
+            case "nearly" -> doNearlyThere(event, guild, rsn);
+            case "unlink" -> doUnlinkPrompt(event, rsn);
         }
     }
 
@@ -191,129 +236,9 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
             return;
         }
 
-        if (id.startsWith("rsnadmin_poll_all")) {
-            // Deferred edit, not a plain edit — polling every linked player is a series of HTTP
-            // calls that will very likely take longer than Discord's 3-second ack window once
-            // there's more than a couple of players.
-            event.deferEdit().queue();
-            List<PlayerLink> links = linkService.getAllLinks(guild.getIdLong());
-            for (PlayerLink link : links) {
-                statsService.pollAndSnapshot(guild.getIdLong(), link.rsn());
-            }
-            event.getHook().editOriginalComponents(List.of(buildPanel(linkService, statsService, skillEmojiCatalog, guild, 0)))
-                    .useComponentsV2(true).queue();
-            return;
-        }
-
-        if (id.startsWith("rsnadmin_poll:")) {
-            String rsn = id.split(":", 2)[1];
-            event.deferEdit().queue();
-            statsService.pollAndSnapshot(guild.getIdLong(), rsn);
-            event.getHook().editOriginalComponents(List.of(buildPanel(linkService, statsService, skillEmojiCatalog, guild, 0)))
-                    .useComponentsV2(true).queue();
-            return;
-        }
-
-        if (id.startsWith("rsnadmin_guildchart")) {
-            // Deferred — one history query per linked player, plus chart rendering, adds up.
-            event.deferReply(true).queue();
-
-            List<PlayerLink> links = linkService.getAllLinks(guild.getIdLong());
-            Map<String, List<PlayerLinkRepository.StatsSnapshotRow>> historyByRsn = new LinkedHashMap<>();
-            OffsetDateTime since = OffsetDateTime.now().minusDays(GUILD_CHART_HISTORY_DAYS);
-            for (PlayerLink link : links) {
-                historyByRsn.put(link.rsn(), statsService.getSnapshotsSince(guild.getIdLong(), link.rsn(), since));
-            }
-
-            FileUpload chart = XpChartRenderer.renderMultiPlayer(historyByRsn);
-            if (chart == null) {
-                event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.WARNING,
-                        "Not enough poll history yet — need at least 2 polls for at least one linked player " +
-                        "in the last " + GUILD_CHART_HISTORY_DAYS + " days."))).useComponentsV2(true).queue();
-                return;
-            }
-
-            Container container = Containers.card(Containers.PRIMARY,
-                    TextDisplay.of("### Guild XP Trend"),
-                    MediaGallery.of(MediaGalleryItem.fromFile(chart)));
-            event.getHook().editOriginalComponents(List.of(container)).useComponentsV2(true).queue();
-            return;
-        }
-
-        if (id.startsWith("rsnadmin_syncclan")) {
-            // Deferred — fetches the whole clan roster, then polls every member with a delay
-            // between each (RUNESCAPE_POLL_DELAY_SECONDS), so this can genuinely take a couple of
-            // minutes for a clan this size. That's expected, not a hang.
-            event.deferReply(true).queue();
-            var result = clanSyncService.syncAndPoll(guild.getIdLong());
-
-            if (result.rosterSize() == 0) {
-                event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.WARNING,
-                        "Couldn't fetch the clan roster for **" + ClanSyncService.CLAN_NAME + "** — check the clan name and try again."))).useComponentsV2(true).queue();
-                return;
-            }
-
-            event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.SUCCESS,
-                    "Synced **" + ClanSyncService.CLAN_NAME + "**: " + result.rosterSize() + " member(s) in the roster " +
-                    "(" + result.newMembers() + " new, " + result.departedMembers() + " no longer listed), " +
-                    result.polled() + "/" + result.rosterSize() + " polled successfully."))).useComponentsV2(true).queue();
-            return;
-        }
-
-        if (id.startsWith("rsnadmin_manualverify")) {
-            TextInput discordIdInput = TextInput.create("manual_verify_discord_id", TextInputStyle.SHORT)
-                    .setPlaceholder("Right-click the member > Copy User ID")
-                    .setRequired(true)
-                    .build();
-            TextInput rsnInput = TextInput.create("manual_verify_rsn", TextInputStyle.SHORT)
-                    .setPlaceholder("Exact in-game display name")
-                    .setRequired(true)
-                    .setRequiredRange(1, 12)
-                    .build();
-
-            Modal modal = Modal.create("rsnadmin_manualverify_modal:_", "Manually Verify a Player")
-                    .addComponents(Label.of("Discord User ID", discordIdInput), Label.of("RuneScape Name", rsnInput))
-                    .build();
-            event.replyModal(modal).queue();
-            return;
-        }
-
-        if (id.startsWith("rsnadmin_clanoverview")) {
-            // Deferred — this walks every active clan member's snapshots, skills, and activities
-            // (all local DB reads, but a few hundred of them for a clan this size), plus rendering
-            // a leaderboard image. Comfortably more than 3 seconds worth of work.
-            event.deferReply(true).queue();
-
-            var stats = clanOverviewService.getOverview(guild.getIdLong());
-            if (stats == null) {
-                event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.WARNING,
-                        "Nothing tracked yet — run **Sync Clan** first."))).useComponentsV2(true).queue();
-                return;
-            }
-
-            FileUpload image = ClanOverviewRenderer.render(ClanSyncService.CLAN_NAME, stats, fetchGuildIcon(guild));
-            if (image == null) {
-                event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.WARNING,
-                        "Couldn't render the clan overview image right now."))).useComponentsV2(true).queue();
-                return;
-            }
-
-            Container container = Containers.card(Containers.PRIMARY,
-                    TextDisplay.of("### Clan Overview"),
-                    MediaGallery.of(MediaGalleryItem.fromFile(image)));
-            event.getHook().editOriginalComponents(List.of(container)).useComponentsV2(true).queue();
-            return;
-        }
-
         if (id.startsWith("rsnadmin_clanlist_page:")) {
             int page = Integer.parseInt(id.split(":")[1]);
             event.editComponents(List.of(buildClanListContainer(guild, page))).useComponentsV2(true)
-                    .setAllowedMentions(EnumSet.noneOf(Message.MentionType.class)).queue();
-            return;
-        }
-
-        if (id.startsWith("rsnadmin_clanlist")) {
-            event.replyComponents(List.of(buildClanListContainer(guild, 0))).useComponentsV2(true).setEphemeral(true)
                     .setAllowedMentions(EnumSet.noneOf(Message.MentionType.class)).queue();
             return;
         }
@@ -322,81 +247,6 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
             int page = Integer.parseInt(id.split(":")[1]);
             event.editComponents(List.of(buildVerifiedListContainer(guild, page))).useComponentsV2(true)
                     .setAllowedMentions(EnumSet.noneOf(Message.MentionType.class)).queue();
-            return;
-        }
-
-        if (id.startsWith("rsnadmin_verifiedlist")) {
-            event.replyComponents(List.of(buildVerifiedListContainer(guild, 0))).useComponentsV2(true).setEphemeral(true)
-                    .setAllowedMentions(EnumSet.noneOf(Message.MentionType.class)).queue();
-            return;
-        }
-
-        if (id.startsWith("rsnadmin_seed:")) {
-            // Deferred, not a plain reply — 30 backdated snapshots means ~60 round trips to the
-            // database, comfortably longer than Discord's 3-second ack window.
-            String rsn = id.split(":", 2)[1];
-            event.deferReply(true).queue();
-            int created = testDataSeeder.seed(guild.getIdLong(), rsn);
-
-            if (created == 0) {
-                event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.WARNING,
-                        "Can't seed test data for **" + rsn + "** — it needs at least one real poll first (Poll Now)."))).useComponentsV2(true).queue();
-                return;
-            }
-            event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.SUCCESS,
-                    "Seeded " + created + " days of fake history for **" + rsn + "** — try the XP Chart now. " +
-                    "Clicking this again will stack more fake history on top, so only use it once."))).useComponentsV2(true).queue();
-            return;
-        }
-
-        if (id.startsWith("rsnadmin_chart:")) {
-            String rsn = id.split(":", 2)[1];
-            if (statsService.getLatestSnapshot(guild.getIdLong(), rsn) == null) {
-                Containers.replyEphemeral(event, Containers.WARNING,
-                        "No synced data for **" + rsn + "** yet — use **Poll Now** first.");
-                return;
-            }
-            event.replyComponents(List.of(buildChartContainer(guild, rsn, 0))).useComponentsV2(true).setEphemeral(true).queue();
-            return;
-        }
-
-        if (id.startsWith("rsnadmin_recap:")) {
-            // Deferred — building the donut chart plus a network fetch for the guild icon is
-            // comfortably more than the 3-second ack window allows for.
-            String rsn = id.split(":", 2)[1];
-            event.deferReply(true).queue();
-
-            MonthlyRecapStats stats = monthlyRecapService.getStats(guild.getIdLong(), rsn);
-            if (stats == null) {
-                event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.WARNING,
-                        "No snapshots for **" + rsn + "** yet this month — poll (or seed test data) first."))).useComponentsV2(true).queue();
-                return;
-            }
-
-            FileUpload image = MonthlyRecapRenderer.render(stats, fetchGuildIcon(guild));
-            if (image == null) {
-                event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.WARNING,
-                        "Couldn't render the recap image right now."))).useComponentsV2(true).queue();
-                return;
-            }
-
-            Container container = Containers.card(Containers.PRIMARY,
-                    TextDisplay.of("### " + rsn + " — Monthly Recap"),
-                    MediaGallery.of(MediaGalleryItem.fromFile(image)));
-            event.getHook().editOriginalComponents(List.of(container)).useComponentsV2(true).queue();
-            return;
-        }
-
-        if (id.startsWith("rsnadmin_nearly:")) {
-            String rsn = id.split(":", 2)[1];
-            PlayerLinkRepository.StatsSnapshotRow latest = statsService.getLatestSnapshot(guild.getIdLong(), rsn);
-            if (latest == null) {
-                Containers.replyEphemeral(event, Containers.WARNING,
-                        "No synced data for **" + rsn + "** yet — use **Poll Now** first.");
-                return;
-            }
-            List<SkillValue> skills = statsService.getSkillsForSnapshot(latest.snapshotId());
-            event.replyComponents(List.of(buildNearlyThereContainer(rsn, skills, latest))).useComponentsV2(true).setEphemeral(true).queue();
             return;
         }
 
@@ -411,20 +261,200 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
 
         if (id.startsWith("rsnadmin_unlink_cancel")) {
             Containers.edit(event, Containers.INFO, "Cancelled — nothing was unlinked.");
+        }
+    }
+
+    // --- Bulk actions (picked from buildPanel's top-level select menu) ---
+
+    private void doPollAll(ComponentInteraction event, Guild guild) {
+        // Deferred edit, not a plain edit — polling every linked player is a series of HTTP calls
+        // that will very likely take longer than Discord's 3-second ack window once there's more
+        // than a couple of players.
+        event.deferEdit().queue();
+        List<PlayerLink> links = linkService.getAllLinks(guild.getIdLong());
+        for (PlayerLink link : links) {
+            statsService.pollAndSnapshot(guild.getIdLong(), link.rsn());
+        }
+        event.getHook().editOriginalComponents(List.of(buildPanel(linkService, statsService, skillEmojiCatalog, guild, 0)))
+                .useComponentsV2(true).queue();
+    }
+
+    private void doGuildChart(ComponentInteraction event, Guild guild) {
+        // Deferred — one history query per linked player, plus chart rendering, adds up.
+        event.deferReply(true).queue();
+
+        List<PlayerLink> links = linkService.getAllLinks(guild.getIdLong());
+        Map<String, List<PlayerLinkRepository.StatsSnapshotRow>> historyByRsn = new LinkedHashMap<>();
+        OffsetDateTime since = OffsetDateTime.now().minusDays(GUILD_CHART_HISTORY_DAYS);
+        for (PlayerLink link : links) {
+            historyByRsn.put(link.rsn(), statsService.getSnapshotsSince(guild.getIdLong(), link.rsn(), since));
+        }
+
+        FileUpload chart = XpChartRenderer.renderMultiPlayer(historyByRsn);
+        if (chart == null) {
+            event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.WARNING,
+                    "Not enough poll history yet — need at least 2 polls for at least one linked player " +
+                    "in the last " + GUILD_CHART_HISTORY_DAYS + " days."))).useComponentsV2(true).queue();
             return;
         }
 
-        if (id.startsWith("rsnadmin_unlink:")) {
-            String rsn = id.split(":", 2)[1];
-            Container confirm = Containers.card(Containers.WARNING,
-                    TextDisplay.of("### Unlink " + rsn + "?"),
-                    TextDisplay.of("This removes the link between the linked Discord account and **" + rsn + "**. Historical poll data is kept."),
-                    ActionRow.of(
-                            Button.danger("rsnadmin_unlink_confirm:" + rsn, "Yes, Unlink"),
-                            Button.secondary("rsnadmin_unlink_cancel:_", "Cancel")
-                    ));
-            event.replyComponents(List.of(confirm)).useComponentsV2(true).setEphemeral(true).queue();
+        Container container = Containers.card(Containers.PRIMARY,
+                TextDisplay.of("### Guild XP Trend"),
+                MediaGallery.of(MediaGalleryItem.fromFile(chart)));
+        event.getHook().editOriginalComponents(List.of(container)).useComponentsV2(true).queue();
+    }
+
+    private void doSyncClan(ComponentInteraction event, Guild guild) {
+        // Deferred — fetches the whole clan roster, then polls every member with a delay between
+        // each (RUNESCAPE_POLL_DELAY_SECONDS), so this can genuinely take a couple of minutes for a
+        // clan this size. That's expected, not a hang.
+        event.deferReply(true).queue();
+        var result = clanSyncService.syncAndPoll(guild.getIdLong());
+
+        if (result.rosterSize() == 0) {
+            event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.WARNING,
+                    "Couldn't fetch the clan roster for **" + ClanSyncService.CLAN_NAME + "** — check the clan name and try again."))).useComponentsV2(true).queue();
+            return;
         }
+
+        event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.SUCCESS,
+                "Synced **" + ClanSyncService.CLAN_NAME + "**: " + result.rosterSize() + " member(s) in the roster " +
+                "(" + result.newMembers() + " new, " + result.departedMembers() + " no longer listed), " +
+                result.polled() + "/" + result.rosterSize() + " polled successfully."))).useComponentsV2(true).queue();
+    }
+
+    private void doManualVerifyPrompt(ComponentInteraction event) {
+        TextInput discordIdInput = TextInput.create("manual_verify_discord_id", TextInputStyle.SHORT)
+                .setPlaceholder("Right-click the member > Copy User ID")
+                .setRequired(true)
+                .build();
+        TextInput rsnInput = TextInput.create("manual_verify_rsn", TextInputStyle.SHORT)
+                .setPlaceholder("Exact in-game display name")
+                .setRequired(true)
+                .setRequiredRange(1, 12)
+                .build();
+
+        Modal modal = Modal.create("rsnadmin_manualverify_modal:_", "Manually Verify a Player")
+                .addComponents(Label.of("Discord User ID", discordIdInput), Label.of("RuneScape Name", rsnInput))
+                .build();
+        event.replyModal(modal).queue();
+    }
+
+    private void doClanList(ComponentInteraction event, Guild guild) {
+        event.replyComponents(List.of(buildClanListContainer(guild, 0))).useComponentsV2(true).setEphemeral(true)
+                .setAllowedMentions(EnumSet.noneOf(Message.MentionType.class)).queue();
+    }
+
+    private void doVerifiedList(ComponentInteraction event, Guild guild) {
+        event.replyComponents(List.of(buildVerifiedListContainer(guild, 0))).useComponentsV2(true).setEphemeral(true)
+                .setAllowedMentions(EnumSet.noneOf(Message.MentionType.class)).queue();
+    }
+
+    private void doClanOverview(ComponentInteraction event, Guild guild) {
+        // Deferred — this walks every active clan member's snapshots, skills, and activities (all
+        // local DB reads, but a few hundred of them for a clan this size), plus rendering a
+        // leaderboard image. Comfortably more than 3 seconds worth of work.
+        event.deferReply(true).queue();
+
+        var stats = clanOverviewService.getOverview(guild.getIdLong());
+        if (stats == null) {
+            event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.WARNING,
+                    "Nothing tracked yet — run **Sync Clan** first."))).useComponentsV2(true).queue();
+            return;
+        }
+
+        FileUpload image = ClanOverviewRenderer.render(ClanSyncService.CLAN_NAME, stats, fetchGuildIcon(guild));
+        if (image == null) {
+            event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.WARNING,
+                    "Couldn't render the clan overview image right now."))).useComponentsV2(true).queue();
+            return;
+        }
+
+        Container container = Containers.card(Containers.PRIMARY,
+                TextDisplay.of("### Clan Overview"),
+                MediaGallery.of(MediaGalleryItem.fromFile(image)));
+        event.getHook().editOriginalComponents(List.of(container)).useComponentsV2(true).queue();
+    }
+
+    // --- Per-player actions (picked from buildPanel's per-row select menu) ---
+
+    private void doPollOne(ComponentInteraction event, Guild guild, String rsn) {
+        event.deferEdit().queue();
+        statsService.pollAndSnapshot(guild.getIdLong(), rsn);
+        event.getHook().editOriginalComponents(List.of(buildPanel(linkService, statsService, skillEmojiCatalog, guild, 0)))
+                .useComponentsV2(true).queue();
+    }
+
+    private void doSeedTestData(ComponentInteraction event, Guild guild, String rsn) {
+        // Deferred, not a plain reply — 30 backdated snapshots means ~60 round trips to the
+        // database, comfortably longer than Discord's 3-second ack window.
+        event.deferReply(true).queue();
+        int created = testDataSeeder.seed(guild.getIdLong(), rsn);
+
+        if (created == 0) {
+            event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.WARNING,
+                    "Can't seed test data for **" + rsn + "** — it needs at least one real poll first (Poll Now)."))).useComponentsV2(true).queue();
+            return;
+        }
+        event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.SUCCESS,
+                "Seeded " + created + " days of fake history for **" + rsn + "** — try the XP Chart now. " +
+                "Clicking this again will stack more fake history on top, so only use it once."))).useComponentsV2(true).queue();
+    }
+
+    private void doXpChart(ComponentInteraction event, Guild guild, String rsn) {
+        if (statsService.getLatestSnapshot(guild.getIdLong(), rsn) == null) {
+            Containers.replyEphemeral(event, Containers.WARNING,
+                    "No synced data for **" + rsn + "** yet — use **Poll Now** first.");
+            return;
+        }
+        event.replyComponents(List.of(buildChartContainer(guild, rsn, 0))).useComponentsV2(true).setEphemeral(true).queue();
+    }
+
+    private void doMonthlyRecap(ComponentInteraction event, Guild guild, String rsn) {
+        // Deferred — building the donut chart plus a network fetch for the guild icon is
+        // comfortably more than the 3-second ack window allows for.
+        event.deferReply(true).queue();
+
+        MonthlyRecapStats stats = monthlyRecapService.getStats(guild.getIdLong(), rsn);
+        if (stats == null) {
+            event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.WARNING,
+                    "No snapshots for **" + rsn + "** yet this month — poll (or seed test data) first."))).useComponentsV2(true).queue();
+            return;
+        }
+
+        FileUpload image = MonthlyRecapRenderer.render(stats, fetchGuildIcon(guild));
+        if (image == null) {
+            event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.WARNING,
+                    "Couldn't render the recap image right now."))).useComponentsV2(true).queue();
+            return;
+        }
+
+        Container container = Containers.card(Containers.PRIMARY,
+                TextDisplay.of("### " + rsn + " — Monthly Recap"),
+                MediaGallery.of(MediaGalleryItem.fromFile(image)));
+        event.getHook().editOriginalComponents(List.of(container)).useComponentsV2(true).queue();
+    }
+
+    private void doNearlyThere(ComponentInteraction event, Guild guild, String rsn) {
+        PlayerLinkRepository.StatsSnapshotRow latest = statsService.getLatestSnapshot(guild.getIdLong(), rsn);
+        if (latest == null) {
+            Containers.replyEphemeral(event, Containers.WARNING,
+                    "No synced data for **" + rsn + "** yet — use **Poll Now** first.");
+            return;
+        }
+        List<SkillValue> skills = statsService.getSkillsForSnapshot(latest.snapshotId());
+        event.replyComponents(List.of(buildNearlyThereContainer(rsn, skills, latest))).useComponentsV2(true).setEphemeral(true).queue();
+    }
+
+    private void doUnlinkPrompt(ComponentInteraction event, String rsn) {
+        Container confirm = Containers.card(Containers.WARNING,
+                TextDisplay.of("### Unlink " + rsn + "?"),
+                TextDisplay.of("This removes the link between the linked Discord account and **" + rsn + "**. Historical poll data is kept."),
+                ActionRow.of(
+                        Button.danger("rsnadmin_unlink_confirm:" + rsn, "Yes, Unlink"),
+                        Button.secondary("rsnadmin_unlink_cancel:_", "Cancel")
+                ));
+        event.replyComponents(List.of(confirm)).useComponentsV2(true).setEphemeral(true).queue();
     }
 
     private static final int NEARLY_THERE_COUNT = 10;
@@ -607,9 +637,15 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
      * re-renders. Grouped like the signup admin controls: a "Bulk Actions" section up top, then
      * each linked player gets its own labeled block with an inline at-a-glance overview (level/
      * combat/XP/quests, trend since the previous poll, and the latest activity headline — no click
-     * needed for any of that) plus a row of buttons for the full drill-downs (all 29 skills with
-     * icons, full poll history, full activity log) that genuinely don't fit inline once there's
-     * more than a couple of players or skills involved.
+     * needed for any of that).
+     * <p>
+     * Every action — bulk and per-player alike — is a {@code StringSelectMenu} option rather than
+     * its own {@code Button}. This isn't a style choice: Discord counts every button as its own
+     * node against a message's 40-component-tree budget, but a select menu's options are just data
+     * inside it, not separate nodes (1 row + 1 menu regardless of how many options it holds) — with
+     * as many actions as this panel now has per player, the old one-button-per-action layout blew
+     * past 40 total components the moment more than a couple of players were linked
+     * ("Cannot build message with over 40 total components").
      */
     static Container buildPanel(PlayerLinkService linkService, RuneScapeStatsService statsService,
                                  SkillEmojiCatalog skillEmojiCatalog, Guild guild, int pageIndex) {
@@ -618,17 +654,18 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
         List<ContainerChildComponent> children = new ArrayList<>();
         children.add(TextDisplay.of("# RS3 Admin Panel"));
         children.add(TextDisplay.of("-# Bulk Actions — automatic polling is disabled, everything here is manual"));
-        children.add(ActionRow.of(
-                Button.primary("rsnadmin_poll_all:_", "Poll All"),
-                Button.secondary("rsnadmin_guildchart:_", "Guild XP Trend"),
-                Button.secondary("rsnadmin_syncclan:_", "Sync Clan")
-        ));
-        children.add(ActionRow.of(
-                Button.secondary("rsnadmin_manualverify:_", "Manually Verify"),
-                Button.secondary("rsnadmin_clanlist:_", "Clan Member List"),
-                Button.secondary("rsnadmin_verifiedlist:_", "Verified Players"),
-                Button.secondary("rsnadmin_clanoverview:_", "Clan Overview")
-        ));
+
+        StringSelectMenu bulkMenu = StringSelectMenu.create("rsnadmin_bulk_action:_")
+                .setPlaceholder("Choose a bulk action...")
+                .addOption("Poll All", "poll_all")
+                .addOption("Guild XP Trend", "guild_chart")
+                .addOption("Sync Clan", "sync_clan")
+                .addOption("Manually Verify", "manual_verify")
+                .addOption("Clan Member List", "clan_list")
+                .addOption("Verified Players", "verified_list")
+                .addOption("Clan Overview", "clan_overview")
+                .build();
+        children.add(ActionRow.of(bulkMenu));
         children.add(Separator.createDivider(Separator.Spacing.SMALL));
 
         if (links.isEmpty()) {
@@ -643,19 +680,20 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
             children.add(TextDisplay.of("**" + link.rsn() + "** — <@" + link.discordUserId() + ">\n" +
                     "-# Verified <t:" + link.verifiedAt().toEpochSecond() + ":R> via " + link.verificationMethod()));
             children.add(TextDisplay.of(buildOverviewLine(statsService, skillEmojiCatalog, guild, link.rsn())));
-            children.add(ActionRow.of(
-                    Button.primary("rsnadmin_poll:" + link.rsn(), "Poll Now"),
-                    Button.secondary("rsn_skills:" + link.rsn(), "Full Skills"),
-                    Button.secondary("rsn_history:" + link.rsn(), "Full History"),
-                    Button.secondary("rsn_activity:" + link.rsn(), "Full Activity"),
-                    Button.secondary("rsnadmin_seed:" + link.rsn(), "Seed Test Data")
-            ));
-            children.add(ActionRow.of(
-                    Button.secondary("rsnadmin_chart:" + link.rsn(), "XP Chart"),
-                    Button.secondary("rsnadmin_recap:" + link.rsn(), "Monthly Recap"),
-                    Button.secondary("rsnadmin_nearly:" + link.rsn(), "Nearly There"),
-                    Button.danger("rsnadmin_unlink:" + link.rsn(), "Unlink")
-            ));
+
+            StringSelectMenu playerMenu = StringSelectMenu.create("rsnadmin_player_action:" + link.rsn())
+                    .setPlaceholder("Actions for " + link.rsn() + "...")
+                    .addOption("Poll Now", "poll")
+                    .addOption("Full Skills", "skills")
+                    .addOption("Full History", "history")
+                    .addOption("Full Activity", "activity")
+                    .addOption("Seed Test Data", "seed")
+                    .addOption("XP Chart", "chart")
+                    .addOption("Monthly Recap", "recap")
+                    .addOption("Nearly There", "nearly")
+                    .addOption("Unlink", "unlink")
+                    .build();
+            children.add(ActionRow.of(playerMenu));
             children.add(Separator.createDivider(Separator.Spacing.SMALL));
         }
 

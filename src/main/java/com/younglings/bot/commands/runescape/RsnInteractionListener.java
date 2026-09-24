@@ -33,6 +33,7 @@ import net.dv8tion.jda.api.events.interaction.ModalInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.callbacks.IReplyCallback;
+import net.dv8tion.jda.api.interactions.components.ComponentInteraction;
 import net.dv8tion.jda.api.modals.Modal;
 import net.dv8tion.jda.api.utils.FileUpload;
 import org.slf4j.Logger;
@@ -487,7 +488,11 @@ public class RsnInteractionListener extends ListenerAdapter {
      * component-tree budget and the 4000-character content budget, so there's no need to
      * paginate — one read from the database, one render, done.
      */
-    private void showSkills(ButtonInteractionEvent event, Guild guild, String rsn) {
+    // Package-visible and typed against the common component-interaction interface (not the
+    // narrower ButtonInteractionEvent) so RsnAdminInteractionListener can call these same render
+    // methods directly from its own select-menu handler — a select menu, not a button, is what
+    // the admin panel uses to reach these to keep its own component-tree budget under control.
+    void showSkills(ComponentInteraction event, Guild guild, String rsn) {
         PlayerLinkRepository.StatsSnapshotRow latest = statsService.getLatestSnapshot(guild.getIdLong(), rsn);
         if (latest == null) {
             Containers.replyEphemeral(event, Containers.WARNING,
@@ -519,7 +524,7 @@ public class RsnInteractionListener extends ListenerAdapter {
 
     private static final int HISTORY_SIZE = 10;
 
-    private void showHistory(ButtonInteractionEvent event, Guild guild, String rsn) {
+    void showHistory(ComponentInteraction event, Guild guild, String rsn) {
         List<PlayerLinkRepository.StatsSnapshotRow> history = statsService.getSnapshotHistory(guild.getIdLong(), rsn, HISTORY_SIZE);
         if (history.isEmpty()) {
             Containers.replyEphemeral(event, Containers.WARNING,
@@ -550,7 +555,7 @@ public class RsnInteractionListener extends ListenerAdapter {
 
     private static final int ACTIVITY_SIZE = 15;
 
-    private void showActivity(ButtonInteractionEvent event, Guild guild, String rsn) {
+    void showActivity(ComponentInteraction event, Guild guild, String rsn) {
         List<PlayerActivity> activities = statsService.getRecentActivities(guild.getIdLong(), rsn, ACTIVITY_SIZE);
         if (activities.isEmpty()) {
             Containers.replyEphemeral(event, Containers.WARNING,
