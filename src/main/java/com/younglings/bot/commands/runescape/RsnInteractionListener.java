@@ -635,9 +635,15 @@ public class RsnInteractionListener extends ListenerAdapter {
             }
         }
 
+        TextDisplay statsText = TextDisplay.of(sb.toString());
+        FileUpload overallIcon = SkillIconCatalog.overallFile();
+        ContainerChildComponent statsBlock = overallIcon == null
+                ? statsText
+                : Section.of(Thumbnail.fromFile(overallIcon), statsText);
+
         return Containers.card(RS3_ORANGE,
                 TextDisplay.of("### " + rsn + " — RuneScape 3 Stats"),
-                TextDisplay.of(sb.toString()),
+                statsBlock,
                 TextDisplay.of("-# As of <t:" + latest.snapshotAt().toEpochSecond() + ":R>"),
                 ActionRow.of(
                         Button.primary("rsn_poll:" + rsn, "Poll Now"),

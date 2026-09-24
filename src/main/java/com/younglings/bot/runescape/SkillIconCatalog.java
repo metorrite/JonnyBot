@@ -19,6 +19,9 @@ import java.util.Map;
 public final class SkillIconCatalog {
     private static final Logger log = LoggerFactory.getLogger(SkillIconCatalog.class);
     private static final Map<Integer, byte[]> ICONS = new HashMap<>();
+    // "Overall"/Total level isn't one of the 29 trainable skills in RuneScapeSkillCatalog, so its
+    // icon (the wiki's Stats_Overall_icon_highscores.png) is loaded and served separately.
+    private static byte[] overallIcon;
 
     static {
         for (int skillId = 0; skillId < RuneScapeSkillCatalog.skillCount(); skillId++) {
@@ -34,6 +37,16 @@ public final class SkillIconCatalog {
             }
         }
         log.info("Loaded {}/{} skill icons.", ICONS.size(), RuneScapeSkillCatalog.skillCount());
+
+        try (InputStream stream = SkillIconCatalog.class.getClassLoader().getResourceAsStream("images/skills/overall.png")) {
+            if (stream == null) {
+                log.warn("Overall icon resource 'images/skills/overall.png' not found on the classpath.");
+            } else {
+                overallIcon = stream.readAllBytes();
+            }
+        } catch (IOException e) {
+            log.warn("Failed to load overall icon resource", e);
+        }
     }
 
     private SkillIconCatalog() {}
@@ -43,5 +56,11 @@ public final class SkillIconCatalog {
         byte[] bytes = ICONS.get(skillId);
         if (bytes == null) return null;
         return FileUpload.fromData(bytes, RuneScapeSkillCatalog.nameFor(skillId).toLowerCase() + ".png");
+    }
+
+    /** A fresh upload of the Overall/Total level icon, or {@code null} if it wasn't found at startup. */
+    public static FileUpload overallFile() {
+        if (overallIcon == null) return null;
+        return FileUpload.fromData(overallIcon, "overall.png");
     }
 }
