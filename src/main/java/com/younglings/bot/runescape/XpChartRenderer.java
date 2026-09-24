@@ -15,7 +15,9 @@ import java.awt.Font;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Renders a skill's XP-over-time trend as a PNG, since Discord's Components V2 has no live/
@@ -32,6 +34,14 @@ public final class XpChartRenderer {
     private static final Color GRID = new Color(0x45, 0x47, 0x4d);
     private static final Color TEXT = new Color(0xdb, 0xdd, 0xde);
     private static final Color LINE = Color.ORANGE;
+    // Fixed categorical order for the guild-wide chart's per-player lines, cycled by XChart in
+    // insertion order — not tied to any particular player's identity, since who's plotted changes
+    // guild to guild.
+    private static final Color[] SERIES_COLORS = {
+            Color.ORANGE, new Color(0x3B, 0x82, 0xF6), new Color(0x22, 0xC5, 0x5E),
+            new Color(0xED, 0x42, 0x45), new Color(0x8B, 0x5C, 0xF6), new Color(0xFB, 0xBF, 0x24),
+            new Color(0x06, 0xB6, 0xD4), new Color(0xEC, 0x48, 0x99)
+    };
 
     private XpChartRenderer() {}
 
@@ -77,6 +87,57 @@ public final class XpChartRenderer {
             return FileUpload.fromData(out.toByteArray(), "xp_chart.png");
         } catch (IOException e) {
             log.warn("Failed to render XP chart for '{}' skill '{}'", rsn, skillName, e);
+            return null;
+        }
+    }
+
+    /** {@code null} if fewer than one player has at least 2 snapshots (nothing worth plotting). */
+    public static FileUpload renderMultiPlayer(Map<String, List<PlayerLinkRepository.StatsSnapshotRow>> historyByRsn) {
+        Map<String, List<PlayerLinkRepository.StatsSnapshotRow>> plottable = new LinkedHashMap<>();
+        for (var entry : historyByRsn.entrySet()) {
+            if (entry.getValue().size() >= 2) plottable.put(entry.getKey(), entry.getValue());
+        }
+        if (plottable.isEmpty()) return null;
+
+        XYChart chart = new XYChartBuilder()
+                .width(800).height(450)
+                .title("Guild XP Trend")
+                .xAxisTitle("Date")
+                .yAxisTitle("Total XP")
+                .build();
+
+        var styler = chart.getStyler();
+        styler.setChartBackgroundColor(BACKGROUND);
+        styler.setPlotBackgroundColor(BACKGROUND);
+        styler.setLegendBackgroundColor(BACKGROUND);
+        styler.setPlotBorderVisible(false);
+        styler.setLegendVisible(true);
+        styler.setLegendFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
+        styler.setChartFontColor(TEXT);
+        styler.setAxisTickLabelsColor(TEXT);
+        styler.setPlotGridLinesColor(GRID);
+        styler.setChartTitleFont(new Font(Font.SANS_SERIF, Font.BOLD, 16));
+        styler.setAxisTickLabelsFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
+        styler.setDatePattern("MMM d");
+        styler.setYAxisDecimalPattern("#,###");
+        styler.setPlotMargin(10);
+        styler.setSeriesColors(SERIES_COLORS);
+
+        for (var entry : plottable.entrySet()) {
+            List<Date> xData = entry.getValue().stream().map(r -> Date.from(r.snapshotAt().toInstant())).toList();
+            List<Long> yData = entry.getValue().stream().map(PlayerLinkRepository.StatsSnapshotRow::totalXp).toList();
+            XYSeries series = chart.addSeries(entry.getKey(), xData, yData);
+            series.setMarker(SeriesMarkers.NONE);
+            series.setLineStyle(new BasicStroke(2.5f));
+        }
+
+        try {
+            var image = BitmapEncoder.getBufferedImage(chart);
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            javax.imageio.ImageIO.write(image, "png", out);
+            return FileUpload.fromData(out.toByteArray(), "guild_xp_trend.png");
+        } catch (IOException e) {
+            log.warn("Failed to render guild XP trend chart", e);
             return null;
         }
     }

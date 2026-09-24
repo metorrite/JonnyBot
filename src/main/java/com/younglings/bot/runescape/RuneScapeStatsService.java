@@ -55,6 +55,11 @@ public class RuneScapeStatsService {
         return repository.getSkillXpHistory(guildId, rsn, skillId, java.time.OffsetDateTime.now().minusDays(days));
     }
 
+    /** Every snapshot since {@code since}, oldest first. */
+    public List<PlayerLinkRepository.StatsSnapshotRow> getSnapshotsSince(long guildId, String rsn, java.time.OffsetDateTime since) {
+        return repository.getSnapshotsSince(guildId, rsn, since);
+    }
+
     static String serializeSkills(List<SkillValue> skills) {
         DataArray array = DataArray.empty();
         for (SkillValue skill : skills) {

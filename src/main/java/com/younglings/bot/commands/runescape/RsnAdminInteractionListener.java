@@ -42,9 +42,12 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Buttons for {@link RsnAdminCommand}'s panel: pagination, manual poll (single player or
@@ -148,6 +151,32 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
             statsService.pollAndSnapshot(guild.getIdLong(), rsn);
             event.getHook().editOriginalComponents(List.of(buildPanel(linkService, statsService, skillEmojiCatalog, guild, 0)))
                     .useComponentsV2(true).queue();
+            return;
+        }
+
+        if (id.startsWith("rsnadmin_guildchart")) {
+            // Deferred — one history query per linked player, plus chart rendering, adds up.
+            event.deferReply(true).queue();
+
+            List<PlayerLink> links = linkService.getAllLinks(guild.getIdLong());
+            Map<String, List<PlayerLinkRepository.StatsSnapshotRow>> historyByRsn = new LinkedHashMap<>();
+            OffsetDateTime since = OffsetDateTime.now().minusDays(GUILD_CHART_HISTORY_DAYS);
+            for (PlayerLink link : links) {
+                historyByRsn.put(link.rsn(), statsService.getSnapshotsSince(guild.getIdLong(), link.rsn(), since));
+            }
+
+            FileUpload chart = XpChartRenderer.renderMultiPlayer(historyByRsn);
+            if (chart == null) {
+                event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.WARNING,
+                        "Not enough poll history yet — need at least 2 polls for at least one linked player " +
+                        "in the last " + GUILD_CHART_HISTORY_DAYS + " days."))).useComponentsV2(true).queue();
+                return;
+            }
+
+            Container container = Containers.card(Containers.PRIMARY,
+                    TextDisplay.of("### Guild XP Trend"),
+                    MediaGallery.of(MediaGalleryItem.fromFile(chart)));
+            event.getHook().editOriginalComponents(List.of(container)).useComponentsV2(true).queue();
             return;
         }
 
@@ -300,6 +329,7 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
     }
 
     private static final int CHART_HISTORY_DAYS = 30;
+    private static final int GUILD_CHART_HISTORY_DAYS = 30;
     // Discord caps a single select menu at 25 options — 29 skills needs two menus, each with its
     // own custom_id (Discord rejects duplicate custom_ids within the same message).
     private static final int SKILL_SELECT_LIMIT = 25;
@@ -368,7 +398,10 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
         List<ContainerChildComponent> children = new ArrayList<>();
         children.add(TextDisplay.of("# RS3 Admin Panel"));
         children.add(TextDisplay.of("-# Bulk Actions — automatic polling is disabled, everything here is manual"));
-        children.add(ActionRow.of(Button.primary("rsnadmin_poll_all:_", "Poll All")));
+        children.add(ActionRow.of(
+                Button.primary("rsnadmin_poll_all:_", "Poll All"),
+                Button.secondary("rsnadmin_guildchart:_", "Guild XP Trend")
+        ));
         children.add(Separator.createDivider(Separator.Spacing.SMALL));
 
         if (links.isEmpty()) {
