@@ -23,7 +23,6 @@ import net.dv8tion.jda.api.components.container.ContainerChildComponent;
 import net.dv8tion.jda.api.components.label.Label;
 import net.dv8tion.jda.api.components.mediagallery.MediaGallery;
 import net.dv8tion.jda.api.components.mediagallery.MediaGalleryItem;
-import net.dv8tion.jda.api.components.separator.Separator;
 import net.dv8tion.jda.api.components.textdisplay.TextDisplay;
 import net.dv8tion.jda.api.components.textinput.TextInput;
 import net.dv8tion.jda.api.components.textinput.TextInputStyle;
@@ -467,14 +466,21 @@ public class RsnInteractionListener extends ListenerAdapter {
                 "private, the name may not exist, or the RuneScape API may be temporarily unavailable."))).useComponentsV2(true).queue();
     }
 
+    // Longest skill name ("Dungeoneering") sets the name column's width so every row's "Level"
+    // and XP columns start at the same character position — plain monospace padding, since a
+    // proportional (bold) font can't be aligned this way, and Discord's inline emoji mentions
+    // can't appear inside a code span at all, hence sitting outside it below.
+    private static final int SKILL_NAME_COLUMN_WIDTH = 13;
+
     /**
-     * All 29 skills on one screen, grouped by the game's own skill-tab categories, each line led
+     * All 29 skills on one screen, in hiscores order (skill ID order — same as
+     * {@link RuneScapeStatsService#getSkillsForSnapshot} already returns them in), each line led
      * by its inline emoji ({@link SkillEmojiCatalog}) — an emoji mention renders to the LEFT of
      * the text that follows it, unlike a {@code Section}'s thumbnail accessory which Discord
-     * always renders on the right with no way to flip it. Bundling every skill into a handful of
-     * TextDisplay blocks (one per category, not one per skill) also keeps this comfortably under
-     * both the 40-node component-tree budget and the 4000-character content budget, so there's no
-     * need to paginate — one read from the database, one render, done.
+     * always renders on the right with no way to flip it. Bundling every skill into one
+     * TextDisplay (not one per skill) also keeps this comfortably under both the 40-node
+     * component-tree budget and the 4000-character content budget, so there's no need to
+     * paginate — one read from the database, one render, done.
      */
     private void showSkills(ButtonInteractionEvent event, Guild guild, String rsn) {
         PlayerLinkRepository.StatsSnapshotRow latest = statsService.getLatestSnapshot(guild.getIdLong(), rsn);
@@ -490,36 +496,20 @@ public class RsnInteractionListener extends ListenerAdapter {
             return;
         }
 
-        List<ContainerChildComponent> children = new ArrayList<>();
-        children.add(TextDisplay.of("### " + rsn + " — Skills"));
-
-        for (RuneScapeSkillCatalog.Category category : RuneScapeSkillCatalog.Category.values()) {
-            List<SkillValue> inCategory = skills.stream()
-                    .filter(skill -> RuneScapeSkillCatalog.categoryFor(skill.skillId()) == category)
-                    .toList();
-            if (inCategory.isEmpty()) continue;
-
-            StringBuilder body = new StringBuilder();
-            for (SkillValue skill : inCategory) {
-                String mention = skillEmojiCatalog.mentionFor(skill.skillId());
-                if (mention != null) body.append(mention).append(" ");
-                body.append("**").append(RuneScapeSkillCatalog.nameFor(skill.skillId())).append("** — Level **")
-                        .append(skill.level()).append("** · `").append(String.format("%,d", skill.xp())).append(" xp`\n");
-            }
-
-            children.add(TextDisplay.of("-# " + titleCase(category.name())));
-            children.add(TextDisplay.of(body.toString().stripTrailing()));
-            children.add(Separator.createDivider(Separator.Spacing.SMALL));
+        StringBuilder body = new StringBuilder();
+        for (SkillValue skill : skills) {
+            String mention = skillEmojiCatalog.mentionFor(skill.skillId());
+            String row = String.format("%-" + SKILL_NAME_COLUMN_WIDTH + "s  Level %-3d  %-11s xp",
+                    RuneScapeSkillCatalog.nameFor(skill.skillId()), skill.level(), String.format("%,d", skill.xp()));
+            if (mention != null) body.append(mention).append(" ");
+            body.append("`").append(row).append("`\n\n");
         }
 
-        children.add(TextDisplay.of("-# As of <t:" + latest.snapshotAt().toEpochSecond() + ":R>"));
-
-        Container container = Containers.card(RS3_ORANGE, children);
+        Container container = Containers.card(RS3_ORANGE,
+                TextDisplay.of("### " + rsn + " — Skills"),
+                TextDisplay.of(body.toString().stripTrailing()),
+                TextDisplay.of("-# As of <t:" + latest.snapshotAt().toEpochSecond() + ":R>"));
         event.replyComponents(List.of(container)).useComponentsV2(true).setEphemeral(true).queue();
-    }
-
-    private static String titleCase(String upperSnakeCase) {
-        return upperSnakeCase.charAt(0) + upperSnakeCase.substring(1).toLowerCase();
     }
 
     private static final int HISTORY_SIZE = 10;
