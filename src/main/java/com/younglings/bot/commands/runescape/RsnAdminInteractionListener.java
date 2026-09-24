@@ -6,6 +6,7 @@ import com.younglings.bot.permission.AdminRoleFilter;
 import com.younglings.bot.runescape.PlayerLink;
 import com.younglings.bot.runescape.PlayerLinkService;
 import com.younglings.bot.runescape.RuneScapeStatsService;
+import com.younglings.bot.runescape.RuneScapeTestDataSeeder;
 import com.younglings.bot.runescape.SkillEmojiCatalog;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
@@ -43,13 +44,16 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
     private final RuneScapeStatsService statsService;
     private final AdminRoleFilter adminRoleFilter;
     private final SkillEmojiCatalog skillEmojiCatalog;
+    private final RuneScapeTestDataSeeder testDataSeeder;
 
     public RsnAdminInteractionListener(PlayerLinkService linkService, RuneScapeStatsService statsService,
-                                        AdminRoleFilter adminRoleFilter, SkillEmojiCatalog skillEmojiCatalog) {
+                                        AdminRoleFilter adminRoleFilter, SkillEmojiCatalog skillEmojiCatalog,
+                                        RuneScapeTestDataSeeder testDataSeeder) {
         this.linkService = linkService;
         this.statsService = statsService;
         this.adminRoleFilter = adminRoleFilter;
         this.skillEmojiCatalog = skillEmojiCatalog;
+        this.testDataSeeder = testDataSeeder;
     }
 
     @Override
@@ -99,6 +103,20 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
             statsService.pollAndSnapshot(guild.getIdLong(), rsn);
             event.getHook().editOriginalComponents(List.of(buildPanel(linkService, statsService, skillEmojiCatalog, guild, 0)))
                     .useComponentsV2(true).queue();
+            return;
+        }
+
+        if (id.startsWith("rsnadmin_seed:")) {
+            String rsn = id.split(":", 2)[1];
+            int created = testDataSeeder.seed(guild.getIdLong(), rsn);
+            if (created == 0) {
+                Containers.replyEphemeral(event, Containers.WARNING,
+                        "Can't seed test data for **" + rsn + "** — it needs at least one real poll first (Poll Now).");
+                return;
+            }
+            Containers.replyThenDelete(event, Containers.SUCCESS,
+                    "Seeded " + created + " days of fake history for **" + rsn + "** — try the XP Chart now. " +
+                    "Clicking this again will stack more fake history on top, so only use it once.");
         }
     }
 
@@ -137,7 +155,8 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
                     Button.primary("rsnadmin_poll:" + link.rsn(), "Poll Now"),
                     Button.secondary("rsn_skills:" + link.rsn(), "Full Skills"),
                     Button.secondary("rsn_history:" + link.rsn(), "Full History"),
-                    Button.secondary("rsn_activity:" + link.rsn(), "Full Activity")
+                    Button.secondary("rsn_activity:" + link.rsn(), "Full Activity"),
+                    Button.secondary("rsnadmin_seed:" + link.rsn(), "Seed Test Data")
             ));
             children.add(Separator.createDivider(Separator.Spacing.SMALL));
         }

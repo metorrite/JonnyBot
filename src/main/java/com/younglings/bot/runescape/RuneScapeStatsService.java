@@ -50,7 +50,12 @@ public class RuneScapeStatsService {
         return repository.getRecentActivities(guildId, rsn, limit);
     }
 
-    private String serializeSkills(List<SkillValue> skills) {
+    /** One skill's XP at each poll over the last {@code days} days, oldest first — the XP chart's data source. */
+    public List<SkillXpPoint> getSkillXpHistory(long guildId, String rsn, int skillId, int days) {
+        return repository.getSkillXpHistory(guildId, rsn, skillId, java.time.OffsetDateTime.now().minusDays(days));
+    }
+
+    static String serializeSkills(List<SkillValue> skills) {
         DataArray array = DataArray.empty();
         for (SkillValue skill : skills) {
             array.add(DataObject.empty()

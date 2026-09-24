@@ -14,7 +14,9 @@ import com.younglings.bot.runescape.RuneScapeSkillCatalog;
 import com.younglings.bot.runescape.RuneScapeStatsService;
 import com.younglings.bot.runescape.SkillEmojiCatalog;
 import com.younglings.bot.runescape.SkillValue;
+import com.younglings.bot.runescape.SkillXpPoint;
 import com.younglings.bot.runescape.VerificationAttempt;
+import com.younglings.bot.runescape.XpChartRenderer;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
 import net.dv8tion.jda.api.components.buttons.Button;
@@ -23,13 +25,16 @@ import net.dv8tion.jda.api.components.container.ContainerChildComponent;
 import net.dv8tion.jda.api.components.label.Label;
 import net.dv8tion.jda.api.components.mediagallery.MediaGallery;
 import net.dv8tion.jda.api.components.mediagallery.MediaGalleryItem;
+import net.dv8tion.jda.api.components.selections.StringSelectMenu;
 import net.dv8tion.jda.api.components.textdisplay.TextDisplay;
 import net.dv8tion.jda.api.components.textinput.TextInput;
 import net.dv8tion.jda.api.components.textinput.TextInputStyle;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.emoji.Emoji;
 import net.dv8tion.jda.api.events.interaction.ModalInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
+import net.dv8tion.jda.api.events.interaction.component.StringSelectInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.callbacks.IReplyCallback;
 import net.dv8tion.jda.api.modals.Modal;
@@ -90,6 +95,23 @@ public class RsnInteractionListener extends ListenerAdapter {
         }
     }
 
+    @Override
+    public void onStringSelectInteraction(StringSelectInteractionEvent event) {
+        if (event.getGuild() == null) return;
+        String id = event.getComponentId();
+        if (!id.startsWith("rsn_chart_select:")) return;
+
+        try {
+            String rsn = id.split(":", 2)[1];
+            int skillId = Integer.parseInt(event.getValues().getFirst());
+            event.editComponents(List.of(buildChartContainer(event.getGuild(), rsn, skillId)))
+                    .useComponentsV2(true).queue();
+        } catch (Exception e) {
+            log.error("Unhandled exception in rsn select interaction '{}'", id, e);
+            Containers.replyError(event);
+        }
+    }
+
     private void handleButton(ButtonInteractionEvent event, String id) {
         String action = id.split(":")[0];
 
@@ -136,6 +158,14 @@ public class RsnInteractionListener extends ListenerAdapter {
             case "rsn_history" -> showHistory(event, event.getGuild(), id.split(":", 2)[1]);
 
             case "rsn_activity" -> showActivity(event, event.getGuild(), id.split(":", 2)[1]);
+
+            case "rsn_chart" -> showChart(event, event.getGuild(), id.split(":", 2)[1]);
+
+            case "rsn_unlink" -> showUnlinkConfirm(event, id.split(":", 2)[1]);
+
+            case "rsn_unlink_confirm" -> confirmUnlink(event, event.getGuild(), id.split(":", 2)[1]);
+
+            case "rsn_unlink_cancel" -> cancelUnlink(event, event.getGuild(), id.split(":", 2)[1]);
 
             case "rsn_leaderboard" -> showLeaderboard(event, event.getGuild());
 
@@ -431,9 +461,15 @@ public class RsnInteractionListener extends ListenerAdapter {
 
         PlayerLinkRepository.StatsSnapshotRow latest = recent.getFirst();
         PlayerLinkRepository.StatsSnapshotRow previous = recent.size() > 1 ? recent.get(1) : null;
+        boolean isOwnStats = isOwnLink(guild, rsn, event.getUser().getIdLong());
 
-        event.getHook().editOriginalComponents(List.of(buildStatsContainer(rsn, latest, previous)))
+        event.getHook().editOriginalComponents(List.of(buildStatsContainer(rsn, latest, previous, isOwnStats)))
                 .useComponentsV2(true).queue();
+    }
+
+    private boolean isOwnLink(Guild guild, String rsn, long discordUserId) {
+        PlayerLink link = linkService.getLinkForRsn(guild.getIdLong(), rsn);
+        return link != null && link.discordUserId() == discordUserId;
     }
 
     /** The only member-facing action that actually calls the RuneScape API — triggered by the stats card's own "Poll Now" button. */
@@ -608,7 +644,8 @@ public class RsnInteractionListener extends ListenerAdapter {
         event.replyComponents(List.of(container)).useComponentsV2(true).setEphemeral(true).queue();
     }
 
-    private Container buildStatsContainer(String rsn, PlayerLinkRepository.StatsSnapshotRow latest, PlayerLinkRepository.StatsSnapshotRow previous) {
+    private Container buildStatsContainer(String rsn, PlayerLinkRepository.StatsSnapshotRow latest,
+                                           PlayerLinkRepository.StatsSnapshotRow previous, boolean isOwnStats) {
         String overallMention = skillEmojiCatalog.overallMention();
         String lead = overallMention != null ? overallMention + " " : "";
 
@@ -627,16 +664,125 @@ public class RsnInteractionListener extends ListenerAdapter {
             }
         }
 
-        return Containers.card(RS3_ORANGE,
-                TextDisplay.of("### " + rsn + " — RuneScape 3 Stats"),
-                TextDisplay.of(sb.toString()),
-                TextDisplay.of("-# As of <t:" + latest.snapshotAt().toEpochSecond() + ":R>"),
+        List<ContainerChildComponent> children = new ArrayList<>();
+        children.add(TextDisplay.of("### " + rsn + " — RuneScape 3 Stats"));
+        children.add(TextDisplay.of(sb.toString()));
+        children.add(TextDisplay.of("-# As of <t:" + latest.snapshotAt().toEpochSecond() + ":R>"));
+        children.add(ActionRow.of(
+                Button.primary("rsn_poll:" + rsn, "Poll Now"),
+                Button.secondary("rsn_skills:" + rsn, "View Skills"),
+                Button.secondary("rsn_history:" + rsn, "History"),
+                Button.secondary("rsn_activity:" + rsn, "Recent Activity"),
+                Button.secondary("rsn_chart:" + rsn, "XP Chart")
+        ));
+        // Only the owner can unlink their own account — this card is also used for "Look Up Player",
+        // where showing an unlink button for someone else's RSN would be both confusing and wrong.
+        if (isOwnStats) {
+            children.add(ActionRow.of(Button.danger("rsn_unlink:" + rsn, "Unlink Account")));
+        }
+
+        return Containers.card(RS3_ORANGE, children);
+    }
+
+    private static final int CHART_HISTORY_DAYS = 30;
+
+    private void showChart(ButtonInteractionEvent event, Guild guild, String rsn) {
+        PlayerLinkRepository.StatsSnapshotRow latest = statsService.getLatestSnapshot(guild.getIdLong(), rsn);
+        if (latest == null) {
+            Containers.replyEphemeral(event, Containers.WARNING,
+                    "No synced data for **" + rsn + "** yet — use **Poll Now** on their stats card first.");
+            return;
+        }
+
+        Container container = buildChartContainer(guild, rsn, 0);
+        event.replyComponents(List.of(container)).useComponentsV2(true).setEphemeral(true).queue();
+    }
+
+    /** Shared by the chart's initial open and every skill-dropdown re-selection (an edit, not a new message). */
+    private Container buildChartContainer(Guild guild, String rsn, int selectedSkillId) {
+        List<SkillXpPoint> points = statsService.getSkillXpHistory(guild.getIdLong(), rsn, selectedSkillId, CHART_HISTORY_DAYS);
+        String skillName = RuneScapeSkillCatalog.nameFor(selectedSkillId);
+
+        List<ContainerChildComponent> children = new ArrayList<>();
+        children.add(TextDisplay.of("### " + rsn + " — XP Chart"));
+
+        FileUpload chart = XpChartRenderer.render(rsn, skillName, points);
+        if (chart != null) {
+            children.add(MediaGallery.of(MediaGalleryItem.fromFile(chart)));
+        } else {
+            children.add(TextDisplay.of("Not enough poll history for **" + skillName + "** in the last " + CHART_HISTORY_DAYS +
+                    " days yet — need at least 2 polls to draw a trend. Pick a different skill, or check back after a few more polls."));
+        }
+
+        children.addAll(buildSkillSelectRows(rsn, selectedSkillId));
+        return Containers.card(RS3_ORANGE, children);
+    }
+
+    // Discord caps a single select menu at 25 options — 29 skills needs two menus, so this just
+    // slices RuneScapeSkillCatalog into 25-sized chunks rather than hand-picking which skills go where.
+    private static final int SKILL_SELECT_LIMIT = 25;
+
+    private List<ActionRow> buildSkillSelectRows(String rsn, int selectedSkillId) {
+        List<ActionRow> rows = new ArrayList<>();
+        int skillCount = RuneScapeSkillCatalog.skillCount();
+
+        for (int start = 0; start < skillCount; start += SKILL_SELECT_LIMIT) {
+            int end = Math.min(start + SKILL_SELECT_LIMIT, skillCount);
+            StringSelectMenu.Builder menu = StringSelectMenu.create("rsn_chart_select:" + rsn)
+                    .setPlaceholder(rows.isEmpty() ? "Choose a skill" : "More skills");
+
+            for (int skillId = start; skillId < end; skillId++) {
+                String name = RuneScapeSkillCatalog.nameFor(skillId);
+                String mention = skillEmojiCatalog.mentionFor(skillId);
+                if (mention != null) {
+                    menu.addOption(name, String.valueOf(skillId), Emoji.fromFormatted(mention));
+                } else {
+                    menu.addOption(name, String.valueOf(skillId));
+                }
+            }
+            if (selectedSkillId >= start && selectedSkillId < end) {
+                menu.setDefaultValues(String.valueOf(selectedSkillId));
+            }
+            rows.add(ActionRow.of(menu.build()));
+        }
+        return rows;
+    }
+
+    private void showUnlinkConfirm(ButtonInteractionEvent event, String rsn) {
+        Container container = Containers.card(Containers.WARNING,
+                TextDisplay.of("### Unlink " + rsn + "?"),
+                TextDisplay.of("This removes the link between your Discord account and **" + rsn + "**. " +
+                        "Historical poll data is kept, but you'll need to verify again to re-link it."),
                 ActionRow.of(
-                        Button.primary("rsn_poll:" + rsn, "Poll Now"),
-                        Button.secondary("rsn_skills:" + rsn, "View Skills"),
-                        Button.secondary("rsn_history:" + rsn, "History"),
-                        Button.secondary("rsn_activity:" + rsn, "Recent Activity")
+                        Button.danger("rsn_unlink_confirm:" + rsn, "Yes, Unlink"),
+                        Button.secondary("rsn_unlink_cancel:" + rsn, "Cancel")
                 ));
+        event.editComponents(List.of(container)).useComponentsV2(true).queue();
+    }
+
+    private void confirmUnlink(ButtonInteractionEvent event, Guild guild, String rsn) {
+        PlayerLink link = linkService.getLinkForRsn(guild.getIdLong(), rsn);
+        boolean unlinked = link != null && linkService.unlink(guild.getIdLong(), event.getUser().getIdLong(), link.linkId());
+
+        if (!unlinked) {
+            Containers.edit(event, Containers.WARNING, "Couldn't unlink — that link may already be gone.");
+            return;
+        }
+        Containers.edit(event, Containers.SUCCESS, "Unlinked **" + rsn + "**. Use **Link My RSN** again if you want to re-link it.");
+    }
+
+    private void cancelUnlink(ButtonInteractionEvent event, Guild guild, String rsn) {
+        List<PlayerLinkRepository.StatsSnapshotRow> recent = statsService.getSnapshotHistory(guild.getIdLong(), rsn, 2);
+        if (recent.isEmpty()) {
+            Containers.edit(event, Containers.WARNING, "No synced data for **" + rsn + "** yet.");
+            return;
+        }
+
+        PlayerLinkRepository.StatsSnapshotRow latest = recent.getFirst();
+        PlayerLinkRepository.StatsSnapshotRow previous = recent.size() > 1 ? recent.get(1) : null;
+        boolean isOwnStats = isOwnLink(guild, rsn, event.getUser().getIdLong());
+        event.editComponents(List.of(buildStatsContainer(rsn, latest, previous, isOwnStats)))
+                .useComponentsV2(true).queue();
     }
 
     // --- Helpers ---
