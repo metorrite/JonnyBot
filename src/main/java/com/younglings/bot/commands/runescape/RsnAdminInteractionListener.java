@@ -3,6 +3,9 @@ package com.younglings.bot.commands.runescape;
 import com.younglings.bot.discord.Containers;
 import com.younglings.bot.discord.Pagination;
 import com.younglings.bot.permission.AdminRoleFilter;
+import com.younglings.bot.runescape.MonthlyRecapRenderer;
+import com.younglings.bot.runescape.MonthlyRecapService;
+import com.younglings.bot.runescape.MonthlyRecapStats;
 import com.younglings.bot.runescape.PlayerLink;
 import com.younglings.bot.runescape.PlayerLinkService;
 import com.younglings.bot.runescape.RuneScapeSkillCatalog;
@@ -31,6 +34,11 @@ import net.dv8tion.jda.api.utils.FileUpload;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -54,15 +62,18 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
     private final AdminRoleFilter adminRoleFilter;
     private final SkillEmojiCatalog skillEmojiCatalog;
     private final RuneScapeTestDataSeeder testDataSeeder;
+    private final MonthlyRecapService monthlyRecapService;
+    private final HttpClient httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
 
     public RsnAdminInteractionListener(PlayerLinkService linkService, RuneScapeStatsService statsService,
                                         AdminRoleFilter adminRoleFilter, SkillEmojiCatalog skillEmojiCatalog,
-                                        RuneScapeTestDataSeeder testDataSeeder) {
+                                        RuneScapeTestDataSeeder testDataSeeder, MonthlyRecapService monthlyRecapService) {
         this.linkService = linkService;
         this.statsService = statsService;
         this.adminRoleFilter = adminRoleFilter;
         this.skillEmojiCatalog = skillEmojiCatalog;
         this.testDataSeeder = testDataSeeder;
+        this.monthlyRecapService = monthlyRecapService;
     }
 
     @Override
@@ -165,6 +176,33 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
             return;
         }
 
+        if (id.startsWith("rsnadmin_recap:")) {
+            // Deferred — building the donut chart plus a network fetch for the guild icon is
+            // comfortably more than the 3-second ack window allows for.
+            String rsn = id.split(":", 2)[1];
+            event.deferReply(true).queue();
+
+            MonthlyRecapStats stats = monthlyRecapService.getStats(guild.getIdLong(), rsn);
+            if (stats == null) {
+                event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.WARNING,
+                        "No snapshots for **" + rsn + "** yet this month — poll (or seed test data) first."))).useComponentsV2(true).queue();
+                return;
+            }
+
+            FileUpload image = MonthlyRecapRenderer.render(stats, fetchGuildIcon(guild));
+            if (image == null) {
+                event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.WARNING,
+                        "Couldn't render the recap image right now."))).useComponentsV2(true).queue();
+                return;
+            }
+
+            Container container = Containers.card(Containers.PRIMARY,
+                    TextDisplay.of("### " + rsn + " — Monthly Recap"),
+                    MediaGallery.of(MediaGalleryItem.fromFile(image)));
+            event.getHook().editOriginalComponents(List.of(container)).useComponentsV2(true).queue();
+            return;
+        }
+
         if (id.startsWith("rsnadmin_unlink_confirm:")) {
             String rsn = id.split(":", 2)[1];
             PlayerLink link = linkService.getLinkForRsn(guild.getIdLong(), rsn);
@@ -189,6 +227,21 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
                             Button.secondary("rsnadmin_unlink_cancel:_", "Cancel")
                     ));
             event.replyComponents(List.of(confirm)).useComponentsV2(true).setEphemeral(true).queue();
+        }
+    }
+
+    /** The server's own icon, used as the recap image's "clan logo" — {@code null} if the guild has no icon set, or the fetch fails. */
+    private byte[] fetchGuildIcon(Guild guild) {
+        String iconUrl = guild.getIconUrl();
+        if (iconUrl == null) return null;
+
+        try {
+            HttpRequest request = HttpRequest.newBuilder().uri(URI.create(iconUrl + "?size=256")).GET().build();
+            HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
+            return response.statusCode() / 100 == 2 ? response.body() : null;
+        } catch (Exception e) {
+            log.warn("Failed to fetch guild icon for monthly recap", e);
+            return null;
         }
     }
 
@@ -285,6 +338,7 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
             ));
             children.add(ActionRow.of(
                     Button.secondary("rsnadmin_chart:" + link.rsn(), "XP Chart"),
+                    Button.secondary("rsnadmin_recap:" + link.rsn(), "Monthly Recap"),
                     Button.danger("rsnadmin_unlink:" + link.rsn(), "Unlink")
             ));
             children.add(Separator.createDivider(Separator.Spacing.SMALL));

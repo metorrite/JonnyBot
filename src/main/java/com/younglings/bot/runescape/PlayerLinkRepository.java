@@ -460,6 +460,104 @@ public class PlayerLinkRepository {
         }
     }
 
+    /** Every snapshot since {@code since}, oldest first — used to find "first vs. latest this period" totals. */
+    public List<StatsSnapshotRow> getSnapshotsSince(long guildId, String rsn, java.time.OffsetDateTime since) {
+        String sql = """
+                SELECT snapshot_id, snapshot_at, total_level, total_xp, combat_level,
+                       quests_complete, quests_started, quests_not_started
+                FROM younglings.player_stats_snapshot
+                WHERE guild_id = ? AND LOWER(rsn) = LOWER(?) AND snapshot_at >= ?
+                ORDER BY snapshot_at ASC
+                """;
+
+        List<StatsSnapshotRow> results = new ArrayList<>();
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setLong(1, guildId);
+            statement.setString(2, rsn);
+            statement.setObject(3, since);
+
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) results.add(mapSnapshotRow(rs));
+            }
+            return results;
+
+        } catch (SQLException e) {
+            log.error("Failed to get snapshots since {} for '{}'", since, rsn, e);
+            throw new RuntimeException("Failed to get snapshots since", e);
+        }
+    }
+
+    /** Every skill's XP at every poll since {@code since}, oldest first — grouped/reduced in Java to find per-skill gains over the period. */
+    public List<SkillHistoryPoint> getAllSkillsXpHistorySince(long guildId, String rsn, java.time.OffsetDateTime since) {
+        String sql = """
+                SELECT sk.skill_id, s.snapshot_at, sk.xp
+                FROM younglings.player_skill_snapshot sk
+                JOIN younglings.player_stats_snapshot s ON s.snapshot_id = sk.snapshot_id
+                WHERE s.guild_id = ? AND LOWER(s.rsn) = LOWER(?) AND s.snapshot_at >= ?
+                ORDER BY sk.skill_id, s.snapshot_at ASC
+                """;
+
+        List<SkillHistoryPoint> results = new ArrayList<>();
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setLong(1, guildId);
+            statement.setString(2, rsn);
+            statement.setObject(3, since);
+
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) {
+                    results.add(new SkillHistoryPoint(rs.getInt("skill_id"),
+                            rs.getObject("snapshot_at", java.time.OffsetDateTime.class), rs.getLong("xp")));
+                }
+            }
+            return results;
+
+        } catch (SQLException e) {
+            log.error("Failed to get all-skills XP history since {} for '{}'", since, rsn, e);
+            throw new RuntimeException("Failed to get all-skills XP history", e);
+        }
+    }
+
+    public record SkillHistoryPoint(int skillId, java.time.OffsetDateTime timestamp, long xp) {
+    }
+
+    /** Activities recorded since {@code since}, oldest first — the monthly recap's data source for "times capped" and "most challenged". */
+    public List<PlayerActivity> getActivitiesSince(long guildId, String rsn, java.time.OffsetDateTime since) {
+        String sql = """
+                SELECT activity_date, activity_text, activity_details
+                FROM younglings.player_activity
+                WHERE guild_id = ? AND LOWER(rsn) = LOWER(?) AND recorded_at >= ?
+                ORDER BY recorded_at ASC
+                """;
+
+        List<PlayerActivity> results = new ArrayList<>();
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setLong(1, guildId);
+            statement.setString(2, rsn);
+            statement.setObject(3, since);
+
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) {
+                    results.add(new PlayerActivity(rs.getString("activity_date"),
+                            rs.getString("activity_text"), rs.getString("activity_details")));
+                }
+            }
+            return results;
+
+        } catch (SQLException e) {
+            log.error("Failed to get activities since {} for '{}'", since, rsn, e);
+            throw new RuntimeException("Failed to get activities since", e);
+        }
+    }
+
     /** One skill's XP at each poll since {@code since}, oldest first — the XP-over-time chart's data source. */
     public List<SkillXpPoint> getSkillXpHistory(long guildId, String rsn, int skillId, java.time.OffsetDateTime since) {
         String sql = """
