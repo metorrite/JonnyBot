@@ -6,6 +6,7 @@ import com.younglings.bot.permission.AdminRoleFilter;
 import com.younglings.bot.runescape.PlayerLink;
 import com.younglings.bot.runescape.PlayerLinkService;
 import com.younglings.bot.runescape.RuneScapeStatsService;
+import com.younglings.bot.runescape.SkillEmojiCatalog;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
 import net.dv8tion.jda.api.components.buttons.Button;
@@ -41,12 +42,14 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
     private final PlayerLinkService linkService;
     private final RuneScapeStatsService statsService;
     private final AdminRoleFilter adminRoleFilter;
+    private final SkillEmojiCatalog skillEmojiCatalog;
 
     public RsnAdminInteractionListener(PlayerLinkService linkService, RuneScapeStatsService statsService,
-                                        AdminRoleFilter adminRoleFilter) {
+                                        AdminRoleFilter adminRoleFilter, SkillEmojiCatalog skillEmojiCatalog) {
         this.linkService = linkService;
         this.statsService = statsService;
         this.adminRoleFilter = adminRoleFilter;
+        this.skillEmojiCatalog = skillEmojiCatalog;
     }
 
     @Override
@@ -71,7 +74,7 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
     private void handleButton(ButtonInteractionEvent event, Guild guild, String id) {
         if (id.startsWith("rsnadmin_list_page:")) {
             int page = Integer.parseInt(id.split(":")[1]);
-            event.editComponents(List.of(buildPanel(linkService, statsService, guild, page)))
+            event.editComponents(List.of(buildPanel(linkService, statsService, skillEmojiCatalog, guild, page)))
                     .useComponentsV2(true).queue();
             return;
         }
@@ -85,7 +88,7 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
             for (PlayerLink link : links) {
                 statsService.pollAndSnapshot(guild.getIdLong(), link.rsn());
             }
-            event.getHook().editOriginalComponents(List.of(buildPanel(linkService, statsService, guild, 0)))
+            event.getHook().editOriginalComponents(List.of(buildPanel(linkService, statsService, skillEmojiCatalog, guild, 0)))
                     .useComponentsV2(true).queue();
             return;
         }
@@ -94,7 +97,7 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
             String rsn = id.split(":", 2)[1];
             event.deferEdit().queue();
             statsService.pollAndSnapshot(guild.getIdLong(), rsn);
-            event.getHook().editOriginalComponents(List.of(buildPanel(linkService, statsService, guild, 0)))
+            event.getHook().editOriginalComponents(List.of(buildPanel(linkService, statsService, skillEmojiCatalog, guild, 0)))
                     .useComponentsV2(true).queue();
         }
     }
@@ -108,7 +111,8 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
      * icons, full poll history, full activity log) that genuinely don't fit inline once there's
      * more than a couple of players or skills involved.
      */
-    static Container buildPanel(PlayerLinkService linkService, RuneScapeStatsService statsService, Guild guild, int pageIndex) {
+    static Container buildPanel(PlayerLinkService linkService, RuneScapeStatsService statsService,
+                                 SkillEmojiCatalog skillEmojiCatalog, Guild guild, int pageIndex) {
         List<PlayerLink> links = linkService.getAllLinks(guild.getIdLong());
 
         List<ContainerChildComponent> children = new ArrayList<>();
@@ -128,7 +132,7 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
         for (PlayerLink link : page.items()) {
             children.add(TextDisplay.of("**" + link.rsn() + "** — <@" + link.discordUserId() + ">\n" +
                     "-# Verified <t:" + link.verifiedAt().toEpochSecond() + ":R> via " + link.verificationMethod()));
-            children.add(TextDisplay.of(buildOverviewLine(statsService, guild, link.rsn())));
+            children.add(TextDisplay.of(buildOverviewLine(statsService, skillEmojiCatalog, guild, link.rsn())));
             children.add(ActionRow.of(
                     Button.primary("rsnadmin_poll:" + link.rsn(), "Poll Now"),
                     Button.secondary("rsn_skills:" + link.rsn(), "Full Skills"),
@@ -146,17 +150,19 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
     }
 
     /** The inline "everything at a glance" line — overview, trend since the last poll, and the latest activity headline. */
-    private static String buildOverviewLine(RuneScapeStatsService statsService, Guild guild, String rsn) {
+    private static String buildOverviewLine(RuneScapeStatsService statsService, SkillEmojiCatalog skillEmojiCatalog, Guild guild, String rsn) {
         var history = statsService.getSnapshotHistory(guild.getIdLong(), rsn, 2);
         if (history.isEmpty()) {
             return "*Never polled.*";
         }
 
         var latest = history.getFirst();
+        String overallMention = skillEmojiCatalog.overallMention();
         StringBuilder sb = new StringBuilder()
+                .append(overallMention != null ? overallMention + " " : "")
                 .append("**Level:** ").append(latest.totalLevel())
                 .append(" • **Combat:** ").append(latest.combatLevel())
-                .append(" • **XP:** ").append(String.format("%,d", latest.totalXp()))
+                .append(" • **XP:** `").append(String.format("%,d", latest.totalXp())).append("`")
                 .append(" • **Quests:** ").append(latest.questsComplete())
                 .append("\n-# Polled <t:").append(latest.snapshotAt().toEpochSecond()).append(":R>");
 

@@ -4,6 +4,7 @@ import com.younglings.bot.discord.Containers;
 import com.younglings.bot.permission.AdminRoleFilter;
 import com.younglings.bot.runescape.PlayerLinkService;
 import com.younglings.bot.runescape.RuneScapeStatsService;
+import com.younglings.bot.runescape.SkillEmojiCatalog;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
 import io.github.freya022.botcommands.api.commands.application.CommandScope;
 import io.github.freya022.botcommands.api.commands.application.annotations.Test;
@@ -30,11 +31,14 @@ public class RsnAdminCommand {
     private final PlayerLinkService linkService;
     private final RuneScapeStatsService statsService;
     private final AdminRoleFilter adminRoleFilter;
+    private final SkillEmojiCatalog skillEmojiCatalog;
 
-    public RsnAdminCommand(PlayerLinkService linkService, RuneScapeStatsService statsService, AdminRoleFilter adminRoleFilter) {
+    public RsnAdminCommand(PlayerLinkService linkService, RuneScapeStatsService statsService,
+                            AdminRoleFilter adminRoleFilter, SkillEmojiCatalog skillEmojiCatalog) {
         this.linkService = linkService;
         this.statsService = statsService;
         this.adminRoleFilter = adminRoleFilter;
+        this.skillEmojiCatalog = skillEmojiCatalog;
     }
 
     @TopLevelSlashCommandData(scope = CommandScope.GUILD)
@@ -54,7 +58,7 @@ public class RsnAdminCommand {
             return;
         }
 
-        Container panel = RsnAdminInteractionListener.buildPanel(linkService, statsService, guild, 0);
+        Container panel = RsnAdminInteractionListener.buildPanel(linkService, statsService, skillEmojiCatalog, guild, 0);
         event.replyComponents(List.of(panel)).useComponentsV2(true).setEphemeral(true).queue();
     }
 }

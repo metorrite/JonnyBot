@@ -8,6 +8,7 @@ import com.younglings.bot.commands.runescape.RsnInteractionListener;
 import com.younglings.bot.commands.signup.SignupInteractionListener;
 import com.younglings.bot.commands.teamforming.TeamformingInteractionListener;
 import com.younglings.bot.config.BotConfig;
+import com.younglings.bot.runescape.SkillEmojiCatalog;
 import io.github.freya022.botcommands.api.core.JDAService;
 import io.github.freya022.botcommands.api.core.events.BReadyEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -30,6 +31,7 @@ public class Bot extends JDAService {
     private final EmbedInteractionListener embedInteractionListener;
     private final RsnInteractionListener rsnInteractionListener;
     private final RsnAdminInteractionListener rsnAdminInteractionListener;
+    private final SkillEmojiCatalog skillEmojiCatalog;
 
     public Bot(BotConfig botConfig, SignupInteractionListener signupInteractionListener,
                PollInteractionListener pollInteractionListener,
@@ -37,7 +39,8 @@ public class Bot extends JDAService {
                TeamformingInteractionListener teamformingInteractionListener,
                EmbedInteractionListener embedInteractionListener,
                RsnInteractionListener rsnInteractionListener,
-               RsnAdminInteractionListener rsnAdminInteractionListener) {
+               RsnAdminInteractionListener rsnAdminInteractionListener,
+               SkillEmojiCatalog skillEmojiCatalog) {
         this.botConfig = botConfig;
         this.signupInteractionListener = signupInteractionListener;
         this.pollInteractionListener = pollInteractionListener;
@@ -46,6 +49,7 @@ public class Bot extends JDAService {
         this.embedInteractionListener = embedInteractionListener;
         this.rsnInteractionListener = rsnInteractionListener;
         this.rsnAdminInteractionListener = rsnAdminInteractionListener;
+        this.skillEmojiCatalog = skillEmojiCatalog;
     }
 
     // If you use Spring, you can return values provided by JDAConfiguration in the getters below
@@ -72,7 +76,7 @@ public class Bot extends JDAService {
                 .setMemberCachePolicy(MemberCachePolicy.ALL)
                 .addEventListeners(signupInteractionListener, pollInteractionListener, cofferInteractionListener,
                         teamformingInteractionListener, embedInteractionListener, rsnInteractionListener,
-                        rsnAdminInteractionListener)
+                        rsnAdminInteractionListener, skillEmojiCatalog)
                 .build();
     }
 }

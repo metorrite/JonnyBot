@@ -12,7 +12,7 @@ import com.younglings.bot.runescape.PlayerLinkService;
 import com.younglings.bot.runescape.RuneScapeApiClient;
 import com.younglings.bot.runescape.RuneScapeSkillCatalog;
 import com.younglings.bot.runescape.RuneScapeStatsService;
-import com.younglings.bot.runescape.SkillIconCatalog;
+import com.younglings.bot.runescape.SkillEmojiCatalog;
 import com.younglings.bot.runescape.SkillValue;
 import com.younglings.bot.runescape.VerificationAttempt;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -23,9 +23,8 @@ import net.dv8tion.jda.api.components.container.ContainerChildComponent;
 import net.dv8tion.jda.api.components.label.Label;
 import net.dv8tion.jda.api.components.mediagallery.MediaGallery;
 import net.dv8tion.jda.api.components.mediagallery.MediaGalleryItem;
-import net.dv8tion.jda.api.components.section.Section;
+import net.dv8tion.jda.api.components.separator.Separator;
 import net.dv8tion.jda.api.components.textdisplay.TextDisplay;
-import net.dv8tion.jda.api.components.thumbnail.Thumbnail;
 import net.dv8tion.jda.api.components.textinput.TextInput;
 import net.dv8tion.jda.api.components.textinput.TextInputStyle;
 import net.dv8tion.jda.api.entities.Guild;
@@ -52,13 +51,16 @@ public class RsnInteractionListener extends ListenerAdapter {
     private final RuneScapeApiClient apiClient;
     private final RuneScapeStatsService statsService;
     private final AdminRoleFilter adminRoleFilter;
+    private final SkillEmojiCatalog skillEmojiCatalog;
 
     public RsnInteractionListener(PlayerLinkService linkService, RuneScapeApiClient apiClient,
-                                   RuneScapeStatsService statsService, AdminRoleFilter adminRoleFilter) {
+                                   RuneScapeStatsService statsService, AdminRoleFilter adminRoleFilter,
+                                   SkillEmojiCatalog skillEmojiCatalog) {
         this.linkService = linkService;
         this.apiClient = apiClient;
         this.statsService = statsService;
         this.adminRoleFilter = adminRoleFilter;
+        this.skillEmojiCatalog = skillEmojiCatalog;
     }
 
     @Override
@@ -131,11 +133,6 @@ public class RsnInteractionListener extends ListenerAdapter {
             case "rsn_poll" -> pollRsnAndShow(event, event.getGuild(), id.split(":", 2)[1]);
 
             case "rsn_skills" -> showSkills(event, event.getGuild(), id.split(":", 2)[1]);
-
-            case "rsn_skills_page" -> {
-                String[] parts = id.split(":", 3);
-                showSkillsPage(event, event.getGuild(), parts[1], Integer.parseInt(parts[2]), true);
-            }
 
             case "rsn_history" -> showHistory(event, event.getGuild(), id.split(":", 2)[1]);
 
@@ -470,18 +467,16 @@ public class RsnInteractionListener extends ListenerAdapter {
                 "private, the name may not exist, or the RuneScape API may be temporarily unavailable."))).useComponentsV2(true).queue();
     }
 
-    private void showSkills(ButtonInteractionEvent event, Guild guild, String rsn) {
-        showSkillsPage(event, guild, rsn, 0, false);
-    }
-
     /**
-     * Paginated (not all 29 at once — each icon+text pairing is its own {@link Section}, 3
-     * component-tree nodes apiece, so all 29 would blow past the 40-node total budget on their
-     * own) skills view with each skill's icon shown via {@link SkillIconCatalog} next to its
-     * level/XP. Page size matches Discord's 10-attachment-per-message cap, which conveniently
-     * lines up with {@link Pagination#DEFAULT_PAGE_SIZE} anyway.
+     * All 29 skills on one screen, grouped by the game's own skill-tab categories, each line led
+     * by its inline emoji ({@link SkillEmojiCatalog}) — an emoji mention renders to the LEFT of
+     * the text that follows it, unlike a {@code Section}'s thumbnail accessory which Discord
+     * always renders on the right with no way to flip it. Bundling every skill into a handful of
+     * TextDisplay blocks (one per category, not one per skill) also keeps this comfortably under
+     * both the 40-node component-tree budget and the 4000-character content budget, so there's no
+     * need to paginate — one read from the database, one render, done.
      */
-    private void showSkillsPage(ButtonInteractionEvent event, Guild guild, String rsn, int pageIndex, boolean isPageNav) {
+    private void showSkills(ButtonInteractionEvent event, Guild guild, String rsn) {
         PlayerLinkRepository.StatsSnapshotRow latest = statsService.getLatestSnapshot(guild.getIdLong(), rsn);
         if (latest == null) {
             Containers.replyEphemeral(event, Containers.WARNING,
@@ -495,32 +490,36 @@ public class RsnInteractionListener extends ListenerAdapter {
             return;
         }
 
-        var page = Pagination.paginate(skills, pageIndex);
-
         List<ContainerChildComponent> children = new ArrayList<>();
         children.add(TextDisplay.of("### " + rsn + " — Skills"));
 
-        for (SkillValue skill : page.items()) {
-            String line = "**" + RuneScapeSkillCatalog.nameFor(skill.skillId()) + ":** " + skill.level()
-                    + " (" + String.format("%,d", skill.xp()) + " xp)";
-            FileUpload icon = SkillIconCatalog.fileFor(skill.skillId());
-            children.add(icon != null
-                    ? Section.of(Thumbnail.fromFile(icon), TextDisplay.of(line))
-                    : TextDisplay.of(line));
+        for (RuneScapeSkillCatalog.Category category : RuneScapeSkillCatalog.Category.values()) {
+            List<SkillValue> inCategory = skills.stream()
+                    .filter(skill -> RuneScapeSkillCatalog.categoryFor(skill.skillId()) == category)
+                    .toList();
+            if (inCategory.isEmpty()) continue;
+
+            StringBuilder body = new StringBuilder();
+            for (SkillValue skill : inCategory) {
+                String mention = skillEmojiCatalog.mentionFor(skill.skillId());
+                if (mention != null) body.append(mention).append(" ");
+                body.append("**").append(RuneScapeSkillCatalog.nameFor(skill.skillId())).append("** — Level **")
+                        .append(skill.level()).append("** · `").append(String.format("%,d", skill.xp())).append(" xp`\n");
+            }
+
+            children.add(TextDisplay.of("-# " + titleCase(category.name())));
+            children.add(TextDisplay.of(body.toString().stripTrailing()));
+            children.add(Separator.createDivider(Separator.Spacing.SMALL));
         }
 
         children.add(TextDisplay.of("-# As of <t:" + latest.snapshotAt().toEpochSecond() + ":R>"));
-        if (!page.isSinglePage()) {
-            children.add(Pagination.navRow(page, "rsn_skills_page:" + rsn + ":"));
-        }
 
         Container container = Containers.card(RS3_ORANGE, children);
+        event.replyComponents(List.of(container)).useComponentsV2(true).setEphemeral(true).queue();
+    }
 
-        if (isPageNav) {
-            event.editComponents(List.of(container)).useComponentsV2(true).queue();
-        } else {
-            event.replyComponents(List.of(container)).useComponentsV2(true).setEphemeral(true).queue();
-        }
+    private static String titleCase(String upperSnakeCase) {
+        return upperSnakeCase.charAt(0) + upperSnakeCase.substring(1).toLowerCase();
     }
 
     private static final int HISTORY_SIZE = 10;
@@ -620,30 +619,27 @@ public class RsnInteractionListener extends ListenerAdapter {
     }
 
     private Container buildStatsContainer(String rsn, PlayerLinkRepository.StatsSnapshotRow latest, PlayerLinkRepository.StatsSnapshotRow previous) {
+        String overallMention = skillEmojiCatalog.overallMention();
+        String lead = overallMention != null ? overallMention + " " : "";
+
         StringBuilder sb = new StringBuilder()
-                .append("**Total Level:** ").append(latest.totalLevel()).append("\n")
+                .append(lead).append("**Total Level:** ").append(latest.totalLevel()).append("\n")
                 .append("**Combat Level:** ").append(latest.combatLevel()).append("\n")
                 .append("**Quests Complete:** ").append(latest.questsComplete()).append("\n")
-                .append("**Total XP:** ").append(String.format("%,d", latest.totalXp()));
+                .append("**Total XP:** `").append(String.format("%,d", latest.totalXp())).append(" xp`");
 
         if (previous != null) {
             long xpGained = latest.totalXp() - previous.totalXp();
             int levelsGained = latest.totalLevel() - previous.totalLevel();
             if (xpGained > 0 || levelsGained > 0) {
-                sb.append("\n\n**Since last poll:** ")
-                        .append(String.format("+%,d XP, +%d level(s)", xpGained, levelsGained));
+                sb.append("\n\n**Since last poll:** +").append(levelsGained).append(" level(s), `+")
+                        .append(String.format("%,d", xpGained)).append(" xp`");
             }
         }
 
-        TextDisplay statsText = TextDisplay.of(sb.toString());
-        FileUpload overallIcon = SkillIconCatalog.overallFile();
-        ContainerChildComponent statsBlock = overallIcon == null
-                ? statsText
-                : Section.of(Thumbnail.fromFile(overallIcon), statsText);
-
         return Containers.card(RS3_ORANGE,
                 TextDisplay.of("### " + rsn + " — RuneScape 3 Stats"),
-                statsBlock,
+                TextDisplay.of(sb.toString()),
                 TextDisplay.of("-# As of <t:" + latest.snapshotAt().toEpochSecond() + ":R>"),
                 ActionRow.of(
                         Button.primary("rsn_poll:" + rsn, "Poll Now"),
