@@ -5,20 +5,29 @@ import com.younglings.bot.discord.Pagination;
 import com.younglings.bot.permission.AdminRoleFilter;
 import com.younglings.bot.runescape.PlayerLink;
 import com.younglings.bot.runescape.PlayerLinkService;
+import com.younglings.bot.runescape.RuneScapeSkillCatalog;
 import com.younglings.bot.runescape.RuneScapeStatsService;
 import com.younglings.bot.runescape.RuneScapeTestDataSeeder;
 import com.younglings.bot.runescape.SkillEmojiCatalog;
+import com.younglings.bot.runescape.SkillXpPoint;
+import com.younglings.bot.runescape.XpChartRenderer;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
 import net.dv8tion.jda.api.components.buttons.Button;
 import net.dv8tion.jda.api.components.container.Container;
 import net.dv8tion.jda.api.components.container.ContainerChildComponent;
+import net.dv8tion.jda.api.components.mediagallery.MediaGallery;
+import net.dv8tion.jda.api.components.mediagallery.MediaGalleryItem;
+import net.dv8tion.jda.api.components.selections.StringSelectMenu;
 import net.dv8tion.jda.api.components.separator.Separator;
 import net.dv8tion.jda.api.components.textdisplay.TextDisplay;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.emoji.Emoji;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
+import net.dv8tion.jda.api.events.interaction.component.StringSelectInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
+import net.dv8tion.jda.api.utils.FileUpload;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -75,6 +84,27 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
         }
     }
 
+    @Override
+    public void onStringSelectInteraction(StringSelectInteractionEvent event) {
+        Guild guild = event.getGuild();
+        Member member = event.getMember();
+        String id = event.getComponentId();
+        if (guild == null || member == null || !id.startsWith("rsnadmin_chart_select")) return;
+
+        try {
+            if (!adminRoleFilter.isAuthorized(guild, member)) {
+                Containers.replyEphemeral(event, Containers.WARNING, "You need the Admin role (or higher) to use this.");
+                return;
+            }
+            String rsn = id.split(":", 2)[1];
+            int skillId = Integer.parseInt(event.getValues().getFirst());
+            event.editComponents(List.of(buildChartContainer(guild, rsn, skillId))).useComponentsV2(true).queue();
+        } catch (Exception e) {
+            log.error("Unhandled exception in rsnadmin select interaction '{}'", id, e);
+            Containers.replyError(event);
+        }
+    }
+
     private void handleButton(ButtonInteractionEvent event, Guild guild, String id) {
         if (id.startsWith("rsnadmin_list_page:")) {
             int page = Integer.parseInt(id.split(":")[1]);
@@ -121,7 +151,98 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
             event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.SUCCESS,
                     "Seeded " + created + " days of fake history for **" + rsn + "** — try the XP Chart now. " +
                     "Clicking this again will stack more fake history on top, so only use it once."))).useComponentsV2(true).queue();
+            return;
         }
+
+        if (id.startsWith("rsnadmin_chart:")) {
+            String rsn = id.split(":", 2)[1];
+            if (statsService.getLatestSnapshot(guild.getIdLong(), rsn) == null) {
+                Containers.replyEphemeral(event, Containers.WARNING,
+                        "No synced data for **" + rsn + "** yet — use **Poll Now** first.");
+                return;
+            }
+            event.replyComponents(List.of(buildChartContainer(guild, rsn, 0))).useComponentsV2(true).setEphemeral(true).queue();
+            return;
+        }
+
+        if (id.startsWith("rsnadmin_unlink_confirm:")) {
+            String rsn = id.split(":", 2)[1];
+            PlayerLink link = linkService.getLinkForRsn(guild.getIdLong(), rsn);
+            boolean unlinked = link != null && linkService.unlink(guild.getIdLong(), link.discordUserId(), link.linkId());
+            Containers.edit(event, unlinked ? Containers.SUCCESS : Containers.WARNING,
+                    unlinked ? "Unlinked **" + rsn + "**." : "Couldn't unlink — that link may already be gone.");
+            return;
+        }
+
+        if (id.startsWith("rsnadmin_unlink_cancel")) {
+            Containers.edit(event, Containers.INFO, "Cancelled — nothing was unlinked.");
+            return;
+        }
+
+        if (id.startsWith("rsnadmin_unlink:")) {
+            String rsn = id.split(":", 2)[1];
+            Container confirm = Containers.card(Containers.WARNING,
+                    TextDisplay.of("### Unlink " + rsn + "?"),
+                    TextDisplay.of("This removes the link between the linked Discord account and **" + rsn + "**. Historical poll data is kept."),
+                    ActionRow.of(
+                            Button.danger("rsnadmin_unlink_confirm:" + rsn, "Yes, Unlink"),
+                            Button.secondary("rsnadmin_unlink_cancel:_", "Cancel")
+                    ));
+            event.replyComponents(List.of(confirm)).useComponentsV2(true).setEphemeral(true).queue();
+        }
+    }
+
+    private static final int CHART_HISTORY_DAYS = 30;
+    // Discord caps a single select menu at 25 options — 29 skills needs two menus, each with its
+    // own custom_id (Discord rejects duplicate custom_ids within the same message).
+    private static final int SKILL_SELECT_LIMIT = 25;
+    private static final String[] SKILL_SELECT_PREFIXES = {"rsnadmin_chart_select_a:", "rsnadmin_chart_select_b:"};
+
+    /** Shared by the chart's initial open and every skill-dropdown re-selection (an edit, not a new message). */
+    private Container buildChartContainer(Guild guild, String rsn, int selectedSkillId) {
+        List<SkillXpPoint> points = statsService.getSkillXpHistory(guild.getIdLong(), rsn, selectedSkillId, CHART_HISTORY_DAYS);
+        String skillName = RuneScapeSkillCatalog.nameFor(selectedSkillId);
+
+        List<ContainerChildComponent> children = new ArrayList<>();
+        children.add(TextDisplay.of("### " + rsn + " — XP Chart"));
+
+        FileUpload chart = XpChartRenderer.render(rsn, skillName, points);
+        if (chart != null) {
+            children.add(MediaGallery.of(MediaGalleryItem.fromFile(chart)));
+        } else {
+            children.add(TextDisplay.of("Not enough poll history for **" + skillName + "** in the last " + CHART_HISTORY_DAYS +
+                    " days yet — need at least 2 polls to draw a trend. Pick a different skill, or seed test data first."));
+        }
+
+        children.addAll(buildSkillSelectRows(rsn, selectedSkillId));
+        return Containers.card(Containers.PRIMARY, children);
+    }
+
+    private List<ActionRow> buildSkillSelectRows(String rsn, int selectedSkillId) {
+        List<ActionRow> rows = new ArrayList<>();
+        int skillCount = RuneScapeSkillCatalog.skillCount();
+        int chunk = 0;
+
+        for (int start = 0; start < skillCount; start += SKILL_SELECT_LIMIT, chunk++) {
+            int end = Math.min(start + SKILL_SELECT_LIMIT, skillCount);
+            StringSelectMenu.Builder menu = StringSelectMenu.create(SKILL_SELECT_PREFIXES[chunk] + rsn)
+                    .setPlaceholder(chunk == 0 ? "Choose a skill" : "More skills");
+
+            for (int skillId = start; skillId < end; skillId++) {
+                String name = RuneScapeSkillCatalog.nameFor(skillId);
+                String mention = skillEmojiCatalog.mentionFor(skillId);
+                if (mention != null) {
+                    menu.addOption(name, String.valueOf(skillId), Emoji.fromFormatted(mention));
+                } else {
+                    menu.addOption(name, String.valueOf(skillId));
+                }
+            }
+            if (selectedSkillId >= start && selectedSkillId < end) {
+                menu.setDefaultValues(String.valueOf(selectedSkillId));
+            }
+            rows.add(ActionRow.of(menu.build()));
+        }
+        return rows;
     }
 
     /**
@@ -161,6 +282,10 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
                     Button.secondary("rsn_history:" + link.rsn(), "Full History"),
                     Button.secondary("rsn_activity:" + link.rsn(), "Full Activity"),
                     Button.secondary("rsnadmin_seed:" + link.rsn(), "Seed Test Data")
+            ));
+            children.add(ActionRow.of(
+                    Button.secondary("rsnadmin_chart:" + link.rsn(), "XP Chart"),
+                    Button.danger("rsnadmin_unlink:" + link.rsn(), "Unlink")
             ));
             children.add(Separator.createDivider(Separator.Spacing.SMALL));
         }
