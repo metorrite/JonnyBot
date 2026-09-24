@@ -3,6 +3,7 @@ package com.younglings.bot.commands.runescape;
 import com.younglings.bot.discord.Containers;
 import com.younglings.bot.discord.Pagination;
 import com.younglings.bot.permission.AdminRoleFilter;
+import com.younglings.bot.runescape.ClanMemberRepository;
 import com.younglings.bot.runescape.ClanSyncService;
 import com.younglings.bot.runescape.MonthlyRecapRenderer;
 import com.younglings.bot.runescape.MonthlyRecapService;
@@ -34,6 +35,7 @@ import net.dv8tion.jda.api.components.textinput.TextInput;
 import net.dv8tion.jda.api.components.textinput.TextInputStyle;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.emoji.Emoji;
 import net.dv8tion.jda.api.events.interaction.ModalInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
@@ -52,6 +54,7 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -270,6 +273,32 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
             return;
         }
 
+        if (id.startsWith("rsnadmin_clanlist_page:")) {
+            int page = Integer.parseInt(id.split(":")[1]);
+            event.editComponents(List.of(buildClanListContainer(guild, page))).useComponentsV2(true)
+                    .setAllowedMentions(EnumSet.noneOf(Message.MentionType.class)).queue();
+            return;
+        }
+
+        if (id.startsWith("rsnadmin_clanlist")) {
+            event.replyComponents(List.of(buildClanListContainer(guild, 0))).useComponentsV2(true).setEphemeral(true)
+                    .setAllowedMentions(EnumSet.noneOf(Message.MentionType.class)).queue();
+            return;
+        }
+
+        if (id.startsWith("rsnadmin_verifiedlist_page:")) {
+            int page = Integer.parseInt(id.split(":")[1]);
+            event.editComponents(List.of(buildVerifiedListContainer(guild, page))).useComponentsV2(true)
+                    .setAllowedMentions(EnumSet.noneOf(Message.MentionType.class)).queue();
+            return;
+        }
+
+        if (id.startsWith("rsnadmin_verifiedlist")) {
+            event.replyComponents(List.of(buildVerifiedListContainer(guild, 0))).useComponentsV2(true).setEphemeral(true)
+                    .setAllowedMentions(EnumSet.noneOf(Message.MentionType.class)).queue();
+            return;
+        }
+
         if (id.startsWith("rsnadmin_seed:")) {
             // Deferred, not a plain reply — 30 backdated snapshots means ~60 round trips to the
             // database, comfortably longer than Discord's 3-second ack window.
@@ -403,6 +432,75 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
                 TextDisplay.of("-# As of <t:" + latest.snapshotAt().toEpochSecond() + ":R> — closest " + gaps.size() + " skill(s) to leveling up"));
     }
 
+    private static final int CLAN_LIST_PAGE_SIZE = 15;
+
+    /**
+     * Every currently-active clan_member row (i.e. still seen in the last Sync Clan), cross-
+     * referenced against player_link so it's obvious at a glance who still needs verifying.
+     * Mentions use {@code setAllowedMentions} to suppress the ping — see {@link #buildVerifiedListContainer}
+     * for why a real mention (not a plain username string) is used at all.
+     */
+    private Container buildClanListContainer(Guild guild, int pageIndex) {
+        List<ClanMemberRepository.ClanMemberRow> members = clanSyncService.getRoster(guild.getIdLong(), true);
+        if (members.isEmpty()) {
+            return Containers.card(Containers.PRIMARY,
+                    TextDisplay.of("### Clan Member List"),
+                    TextDisplay.of("*Nothing tracked yet — run **Sync Clan** first.*"));
+        }
+
+        var page = Pagination.paginate(members, pageIndex, CLAN_LIST_PAGE_SIZE);
+
+        StringBuilder sb = new StringBuilder();
+        for (ClanMemberRepository.ClanMemberRow row : page.items()) {
+            PlayerLink link = linkService.getLinkForRsn(guild.getIdLong(), row.rsn());
+            sb.append("**").append(row.rsn()).append("** — ").append(row.clanRank());
+            sb.append(link != null ? " — ✅ <@" + link.discordUserId() + ">" : " — *unverified*");
+            sb.append("\n");
+        }
+
+        List<ContainerChildComponent> children = new ArrayList<>();
+        children.add(TextDisplay.of("### Clan Member List (" + members.size() + " active)"));
+        children.add(TextDisplay.of(sb.toString().stripTrailing()));
+        if (!page.isSinglePage()) children.add(Pagination.navRow(page, "rsnadmin_clanlist_page:"));
+
+        return Containers.card(Containers.PRIMARY, children);
+    }
+
+    private static final int VERIFIED_LIST_PAGE_SIZE = 15;
+
+    /**
+     * Every confirmed player_link, regardless of whether the RSN is (still) in the clan roster.
+     * Uses a real {@code <@id>} mention rather than a stored username, since a mention always shows
+     * the person's current name/avatar (a cached username would go stale the moment they change
+     * it) — {@code setAllowedMentions} on the reply strips the actual ping, and since this whole
+     * panel is ephemeral (visible only to the admin who opened it) nobody else could be notified by
+     * it anyway; the explicit suppression is just a second, unconditional guarantee of that.
+     */
+    private Container buildVerifiedListContainer(Guild guild, int pageIndex) {
+        List<PlayerLink> links = linkService.getAllLinks(guild.getIdLong());
+        if (links.isEmpty()) {
+            return Containers.card(Containers.PRIMARY,
+                    TextDisplay.of("### Verified Players"),
+                    TextDisplay.of("*No verified players yet.*"));
+        }
+
+        var page = Pagination.paginate(links, pageIndex, VERIFIED_LIST_PAGE_SIZE);
+
+        StringBuilder sb = new StringBuilder();
+        for (PlayerLink link : page.items()) {
+            sb.append("**").append(link.rsn()).append("** — <@").append(link.discordUserId()).append(">")
+                    .append(" — ").append(link.verificationMethod())
+                    .append(" — verified <t:").append(link.verifiedAt().toEpochSecond()).append(":R>\n");
+        }
+
+        List<ContainerChildComponent> children = new ArrayList<>();
+        children.add(TextDisplay.of("### Verified Players (" + links.size() + ")"));
+        children.add(TextDisplay.of(sb.toString().stripTrailing()));
+        if (!page.isSinglePage()) children.add(Pagination.navRow(page, "rsnadmin_verifiedlist_page:"));
+
+        return Containers.card(Containers.PRIMARY, children);
+    }
+
     /** The server's own icon, used as the recap image's "clan logo" — {@code null} if the guild has no icon set, or the fetch fails. */
     private byte[] fetchGuildIcon(Guild guild) {
         String iconUrl = guild.getIconUrl();
@@ -491,8 +589,12 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
         children.add(ActionRow.of(
                 Button.primary("rsnadmin_poll_all:_", "Poll All"),
                 Button.secondary("rsnadmin_guildchart:_", "Guild XP Trend"),
-                Button.secondary("rsnadmin_syncclan:_", "Sync Clan"),
-                Button.secondary("rsnadmin_manualverify:_", "Manually Verify")
+                Button.secondary("rsnadmin_syncclan:_", "Sync Clan")
+        ));
+        children.add(ActionRow.of(
+                Button.secondary("rsnadmin_manualverify:_", "Manually Verify"),
+                Button.secondary("rsnadmin_clanlist:_", "Clan Member List"),
+                Button.secondary("rsnadmin_verifiedlist:_", "Verified Players")
         ));
         children.add(Separator.createDivider(Separator.Spacing.SMALL));
 

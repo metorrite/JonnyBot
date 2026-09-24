@@ -40,6 +40,11 @@ public class ClanSyncService {
 
     public record SyncResult(int rosterSize, int newMembers, int departedMembers, int polled, int pollFailed) {}
 
+    /** The tracked roster from the last sync — {@code activeOnly} excludes members no longer seen in the clan. */
+    public List<ClanMemberRepository.ClanMemberRow> getRoster(long guildId, boolean activeOnly) {
+        return clanMemberRepository.getAll(guildId, activeOnly);
+    }
+
     /**
      * Refreshes the roster (adds new members, updates ranks, marks anyone no longer listed as
      * inactive) and then polls every currently-listed member's full RuneMetrics profile, same as
