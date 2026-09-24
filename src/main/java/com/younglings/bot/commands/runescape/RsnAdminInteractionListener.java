@@ -107,16 +107,20 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
         }
 
         if (id.startsWith("rsnadmin_seed:")) {
+            // Deferred, not a plain reply — 30 backdated snapshots means ~60 round trips to the
+            // database, comfortably longer than Discord's 3-second ack window.
             String rsn = id.split(":", 2)[1];
+            event.deferReply(true).queue();
             int created = testDataSeeder.seed(guild.getIdLong(), rsn);
+
             if (created == 0) {
-                Containers.replyEphemeral(event, Containers.WARNING,
-                        "Can't seed test data for **" + rsn + "** — it needs at least one real poll first (Poll Now).");
+                event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.WARNING,
+                        "Can't seed test data for **" + rsn + "** — it needs at least one real poll first (Poll Now)."))).useComponentsV2(true).queue();
                 return;
             }
-            Containers.replyThenDelete(event, Containers.SUCCESS,
+            event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.SUCCESS,
                     "Seeded " + created + " days of fake history for **" + rsn + "** — try the XP Chart now. " +
-                    "Clicking this again will stack more fake history on top, so only use it once.");
+                    "Clicking this again will stack more fake history on top, so only use it once."))).useComponentsV2(true).queue();
         }
     }
 
