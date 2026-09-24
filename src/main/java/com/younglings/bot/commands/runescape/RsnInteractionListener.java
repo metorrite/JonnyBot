@@ -502,7 +502,7 @@ public class RsnInteractionListener extends ListenerAdapter {
             String row = String.format("%-" + SKILL_NAME_COLUMN_WIDTH + "s  Level %-3d  %-11s xp",
                     RuneScapeSkillCatalog.nameFor(skill.skillId()), skill.level(), String.format("%,d", skill.xp()));
             if (mention != null) body.append(mention).append(" ");
-            body.append("`").append(row).append("`\n\n");
+            body.append("`").append(row).append("`\n");
         }
 
         Container container = Containers.card(RS3_ORANGE,
