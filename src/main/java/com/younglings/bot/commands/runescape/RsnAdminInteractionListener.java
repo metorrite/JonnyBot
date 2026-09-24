@@ -7,11 +7,14 @@ import com.younglings.bot.runescape.MonthlyRecapRenderer;
 import com.younglings.bot.runescape.MonthlyRecapService;
 import com.younglings.bot.runescape.MonthlyRecapStats;
 import com.younglings.bot.runescape.PlayerLink;
+import com.younglings.bot.runescape.PlayerLinkRepository;
 import com.younglings.bot.runescape.PlayerLinkService;
 import com.younglings.bot.runescape.RuneScapeSkillCatalog;
 import com.younglings.bot.runescape.RuneScapeStatsService;
 import com.younglings.bot.runescape.RuneScapeTestDataSeeder;
+import com.younglings.bot.runescape.RuneScapeXpTable;
 import com.younglings.bot.runescape.SkillEmojiCatalog;
+import com.younglings.bot.runescape.SkillValue;
 import com.younglings.bot.runescape.SkillXpPoint;
 import com.younglings.bot.runescape.XpChartRenderer;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -40,6 +43,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -203,6 +207,19 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
             return;
         }
 
+        if (id.startsWith("rsnadmin_nearly:")) {
+            String rsn = id.split(":", 2)[1];
+            PlayerLinkRepository.StatsSnapshotRow latest = statsService.getLatestSnapshot(guild.getIdLong(), rsn);
+            if (latest == null) {
+                Containers.replyEphemeral(event, Containers.WARNING,
+                        "No synced data for **" + rsn + "** yet — use **Poll Now** first.");
+                return;
+            }
+            List<SkillValue> skills = statsService.getSkillsForSnapshot(latest.snapshotId());
+            event.replyComponents(List.of(buildNearlyThereContainer(rsn, skills, latest))).useComponentsV2(true).setEphemeral(true).queue();
+            return;
+        }
+
         if (id.startsWith("rsnadmin_unlink_confirm:")) {
             String rsn = id.split(":", 2)[1];
             PlayerLink link = linkService.getLinkForRsn(guild.getIdLong(), rsn);
@@ -228,6 +245,43 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
                     ));
             event.replyComponents(List.of(confirm)).useComponentsV2(true).setEphemeral(true).queue();
         }
+    }
+
+    private static final int NEARLY_THERE_COUNT = 10;
+    // Wide enough for "Dungeoneering" (13 chars), same reasoning as RsnInteractionListener's Skills view.
+    private static final int NEARLY_THERE_NAME_WIDTH = 13;
+
+    /** The 10 skills closest to their next level, by XP still needed — {@link RuneScapeXpTable} is the game's own level curve, not an approximation. */
+    private Container buildNearlyThereContainer(String rsn, List<SkillValue> skills, PlayerLinkRepository.StatsSnapshotRow latest) {
+        record Gap(SkillValue skill, long xpNeeded) {}
+
+        List<Gap> gaps = skills.stream()
+                .filter(skill -> skill.level() < 120)
+                .map(skill -> new Gap(skill, RuneScapeXpTable.xpToNextLevel(skill.skillId(), skill.level(), skill.xp())))
+                .sorted(Comparator.comparingLong(Gap::xpNeeded))
+                .limit(NEARLY_THERE_COUNT)
+                .toList();
+
+        if (gaps.isEmpty()) {
+            return Containers.card(Containers.SUCCESS,
+                    TextDisplay.of("### " + rsn + " — Nearly There"),
+                    TextDisplay.of("Every skill is already level 120!"));
+        }
+
+        StringBuilder body = new StringBuilder();
+        for (Gap gap : gaps) {
+            String mention = skillEmojiCatalog.mentionFor(gap.skill().skillId());
+            String row = String.format("%-" + NEARLY_THERE_NAME_WIDTH + "s  Lv %-3d -> %-3d  %11s xp",
+                    RuneScapeSkillCatalog.nameFor(gap.skill().skillId()), gap.skill().level(), gap.skill().level() + 1,
+                    String.format("%,d", gap.xpNeeded()));
+            if (mention != null) body.append(mention).append(" ");
+            body.append("`").append(row).append("`\n");
+        }
+
+        return Containers.card(Containers.PRIMARY,
+                TextDisplay.of("### " + rsn + " — Nearly There"),
+                TextDisplay.of(body.toString().stripTrailing()),
+                TextDisplay.of("-# As of <t:" + latest.snapshotAt().toEpochSecond() + ":R> — closest " + gaps.size() + " skill(s) to leveling up"));
     }
 
     /** The server's own icon, used as the recap image's "clan logo" — {@code null} if the guild has no icon set, or the fetch fails. */
@@ -339,6 +393,7 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
             children.add(ActionRow.of(
                     Button.secondary("rsnadmin_chart:" + link.rsn(), "XP Chart"),
                     Button.secondary("rsnadmin_recap:" + link.rsn(), "Monthly Recap"),
+                    Button.secondary("rsnadmin_nearly:" + link.rsn(), "Nearly There"),
                     Button.danger("rsnadmin_unlink:" + link.rsn(), "Unlink")
             ));
             children.add(Separator.createDivider(Separator.Spacing.SMALL));
@@ -372,6 +427,15 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
             long xpGained = latest.totalXp() - history.get(1).totalXp();
             if (xpGained != 0) {
                 sb.append(" • ").append(xpGained > 0 ? "+" : "").append(String.format("%,d", xpGained)).append(" xp since previous poll");
+
+                // Rate is only meaningful once there's a real gap between polls — two polls a few
+                // seconds apart (e.g. testing) would otherwise divide by a near-zero duration and
+                // print a meaningless, huge xp/hr figure.
+                Duration elapsed = Duration.between(history.get(1).snapshotAt(), latest.snapshotAt());
+                if (xpGained > 0 && elapsed.toMinutes() >= 15) {
+                    long ratePerHour = (long) (xpGained / (elapsed.toMinutes() / 60.0));
+                    sb.append(" (~").append(String.format("%,d", ratePerHour)).append(" xp/hr)");
+                }
             }
         }
 
