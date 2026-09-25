@@ -2,11 +2,8 @@ package com.younglings.bot.commands.configure;
 
 import com.younglings.bot.discord.Containers;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
-import io.github.freya022.botcommands.api.commands.application.CommandScope;
-import io.github.freya022.botcommands.api.commands.application.annotations.Test;
 import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.JDASlashCommand;
-import io.github.freya022.botcommands.api.commands.application.slash.annotations.TopLevelSlashCommandData;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.components.container.Container;
 import net.dv8tion.jda.api.entities.Guild;
@@ -20,16 +17,11 @@ import java.util.List;
  * here (see {@link ConfigureInteractionListener}'s Clan section), so bootstrapping a brand-new guild
  * can't depend on it already existing — Administrator is the one permission every guild already has
  * someone holding, with nothing to set up first.
- * <p>
- * {@code @Test} scope for now, same as {@code /rsn}/{@code /rsnadmin} — this whole command family
- * graduates out of dev-guild-only together once the RS3 system is considered live-ready.
  */
 @Command
 public class ConfigureCommand {
 
-    @TopLevelSlashCommandData(scope = CommandScope.GUILD)
-    @Test({})
-    @JDASlashCommand(name = "configure", description = "[Dev only] Configure this server's bot settings (Administrator only)")
+    @JDASlashCommand(name = "configure", description = "Configure this server's bot settings (Administrator only)")
     public void onConfigure(GuildSlashEvent event) {
         Guild guild = event.getGuild();
         Member member = event.getMember();
