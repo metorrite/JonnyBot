@@ -5,11 +5,8 @@ import com.younglings.bot.runescape.PlayerLink;
 import com.younglings.bot.runescape.PlayerLinkService;
 import com.younglings.bot.runescape.VerificationAttempt;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
-import io.github.freya022.botcommands.api.commands.application.CommandScope;
-import io.github.freya022.botcommands.api.commands.application.annotations.Test;
 import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.JDASlashCommand;
-import io.github.freya022.botcommands.api.commands.application.slash.annotations.TopLevelSlashCommandData;
 import net.dv8tion.jda.api.components.container.Container;
 
 import java.util.List;
@@ -20,14 +17,7 @@ import java.util.List;
  * link modal immediately — there's no hub screen to wander past it from. Once a verification is
  * underway, this shows a self-service status view instead (not the admin's full queue — see
  * {@link RsAdminInteractionListener} for that); once linked, it shows the member's own profile(s)
- * directly. See {@link RsInteractionListener} for all of the above and the Makeover Mage flow
- * itself.
- * <p>
- * {@code @Test} scope keeps this dev-guild-only for now (same mechanism as {@code /devsignups}):
- * RuneScape's avatar photobooth is currently disabled game-wide (see the admin-override note in
- * {@link RsInteractionListener}), the Makeover Mage option lists are an unverified approximation of
- * the real in-game menu, and the full link→verify→approve loop hasn't had a human click through it
- * yet. Remove {@code @Test} (and the forced {@code CommandScope.GUILD}) once that's happened.
+ * directly. See {@link RsInteractionListener} for all of the above.
  */
 @Command
 public class RsCommand {
@@ -39,8 +29,6 @@ public class RsCommand {
         this.interactionListener = interactionListener;
     }
 
-    @TopLevelSlashCommandData(scope = CommandScope.GUILD)
-    @Test({})
     @JDASlashCommand(name = "rs", description = "Link your RuneScape 3 name, check verification status, or manage your linked account(s)")
     public void onRs(GuildSlashEvent event) {
         if (event.getGuild() == null) {
