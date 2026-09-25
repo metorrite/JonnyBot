@@ -1,6 +1,6 @@
 package com.younglings.bot.permission;
 
-import com.younglings.bot.config.BotConfig;
+import com.younglings.bot.configure.GuildSettingsService;
 import com.younglings.bot.discord.Containers;
 import io.github.freya022.botcommands.api.commands.application.ApplicationCommandFilter;
 import io.github.freya022.botcommands.api.commands.application.ApplicationCommandInfo;
@@ -15,21 +15,26 @@ import org.jspecify.annotations.Nullable;
 import java.util.List;
 
 /**
- * Gates a command to the configured Admin role (see {@link BotConfig#getAdminRoleId()}) and
- * anything ranked above it in the guild's role hierarchy — not Discord's own "Administrator"
- * permission bit, since a role can be named "Admin" without actually carrying that bit. Opt-in
- * per command via {@code @Filter(AdminRoleFilter.class)} on a {@code @JDASlashCommand} method
- * (not applied globally). {@link #isAuthorized} is public so button/modal handlers gating a
- * specific action inside a hub command (where {@code @Filter} doesn't apply) can reuse the exact
- * same check instead of duplicating it.
+ * Gates a command to the configured Admin role (see {@link GuildSettingsService}, which resolves
+ * this guild's own override or falls back to {@code BotConfig}'s env var) and anything ranked above
+ * it in the guild's role hierarchy — not Discord's own "Administrator" permission bit, since a role
+ * can be named "Admin" without actually carrying that bit. Opt-in per command via
+ * {@code @Filter(AdminRoleFilter.class)} on a {@code @JDASlashCommand} method (not applied
+ * globally). {@link #isAuthorized} is public so button/modal handlers gating a specific action
+ * inside a hub command (where {@code @Filter} doesn't apply) can reuse the exact same check instead
+ * of duplicating it.
+ * <p>
+ * Deliberately <em>not</em> what gates {@code /configure} — this role is itself one of the things
+ * {@code /configure} sets, so bootstrapping a brand-new guild can't depend on it already existing.
+ * {@code /configure} checks Discord's native Administrator permission instead.
  */
 @BService
 @NullMarked
 public class AdminRoleFilter implements ApplicationCommandFilter {
-    private final BotConfig botConfig;
+    private final GuildSettingsService guildSettingsService;
 
-    public AdminRoleFilter(BotConfig botConfig) {
-        this.botConfig = botConfig;
+    public AdminRoleFilter(GuildSettingsService guildSettingsService) {
+        this.guildSettingsService = guildSettingsService;
     }
 
     @Override
@@ -63,7 +68,7 @@ public class AdminRoleFilter implements ApplicationCommandFilter {
      * this guild, or the member holds no roles above {@code @everyone}.
      */
     public boolean isAuthorized(Guild guild, Member member) {
-        Long adminRoleId = botConfig.getAdminRoleId();
+        Long adminRoleId = guildSettingsService.getEffective(guild.getIdLong()).adminRoleId();
         if (adminRoleId == null) return false;
 
         Role adminRole = guild.getRoleById(adminRoleId);

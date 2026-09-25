@@ -42,7 +42,9 @@ public class PlayerLinkRepository {
                 rs.getLong("guild_id"),
                 rs.getLong("discord_user_id"),
                 rs.getString("rsn"),
-                rs.getString("verification_method")
+                rs.getString("verification_method"),
+                rs.getObject("verified_at", java.time.OffsetDateTime.class),
+                rs.getObject("last_self_poll_at", java.time.OffsetDateTime.class)
         );
     }
 
@@ -211,7 +213,7 @@ public class PlayerLinkRepository {
 
     public List<PlayerLink> getLinksForUser(long guildId, long discordUserId) {
         String sql = """
-                SELECT link_id, guild_id, discord_user_id, rsn, verification_method
+                SELECT link_id, guild_id, discord_user_id, rsn, verification_method, verified_at, last_self_poll_at
                 FROM younglings.player_link
                 WHERE guild_id = ? AND discord_user_id = ?
                 ORDER BY verified_at ASC
@@ -239,7 +241,7 @@ public class PlayerLinkRepository {
 
     public PlayerLink getLinkForRsn(long guildId, String rsn) {
         String sql = """
-                SELECT link_id, guild_id, discord_user_id, rsn, verification_method
+                SELECT link_id, guild_id, discord_user_id, rsn, verification_method, verified_at, last_self_poll_at
                 FROM younglings.player_link
                 WHERE guild_id = ? AND LOWER(rsn) = LOWER(?)
                 """;
@@ -257,6 +259,31 @@ public class PlayerLinkRepository {
         } catch (SQLException e) {
             log.error("Failed to get link for RSN '{}'", rsn, e);
             throw new RuntimeException("Failed to get player link", e);
+        }
+    }
+
+    /**
+     * Repoints an existing link at a new RSN in place (same {@code link_id}), instead of deleting
+     * and recreating it — for a name change, not a re-verification, so no history should look like
+     * it belonged to two different accounts. Throws if {@code newRsn} collides with a different
+     * link's RSN (the same unique index {@link #createLink} relies on).
+     */
+    public void updateRsn(long guildId, long linkId, String newRsn) {
+        String sql = "UPDATE younglings.player_link SET rsn = ? WHERE guild_id = ? AND link_id = ?";
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setString(1, newRsn);
+            statement.setLong(2, guildId);
+            statement.setLong(3, linkId);
+            statement.executeUpdate();
+
+            log.info("Renamed player_link {} to RSN '{}' in guild {}", linkId, newRsn, guildId);
+
+        } catch (SQLException e) {
+            log.error("Failed to rename link {} to '{}'", linkId, newRsn, e);
+            throw new RuntimeException("Failed to rename link", e);
         }
     }
 
@@ -278,10 +305,26 @@ public class PlayerLinkRepository {
         }
     }
 
+    /** Stamps {@code last_self_poll_at} to now — called only from the member's own "Poll Now" click under {@code /rs}, never from an admin or auto poll. */
+    public void recordSelfPoll(long linkId) {
+        String sql = "UPDATE younglings.player_link SET last_self_poll_at = NOW() WHERE link_id = ?";
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setLong(1, linkId);
+            statement.executeUpdate();
+
+        } catch (SQLException e) {
+            log.error("Failed to record self-poll for link {}", linkId, e);
+            throw new RuntimeException("Failed to record self-poll", e);
+        }
+    }
+
     /** All currently-linked RSNs across the guild, for the stats scheduler to poll. */
     public List<PlayerLink> getAllLinks(long guildId) {
         String sql = """
-                SELECT link_id, guild_id, discord_user_id, rsn, verification_method
+                SELECT link_id, guild_id, discord_user_id, rsn, verification_method, verified_at, last_self_poll_at
                 FROM younglings.player_link
                 WHERE guild_id = ?
                 """;
@@ -308,7 +351,7 @@ public class PlayerLinkRepository {
     /** Every confirmed link across every guild — used by the stats scheduler, which isn't scoped to one guild. */
     public List<PlayerLink> getAllLinksAcrossGuilds() {
         String sql = """
-                SELECT link_id, guild_id, discord_user_id, rsn, verification_method
+                SELECT link_id, guild_id, discord_user_id, rsn, verification_method, verified_at, last_self_poll_at
                 FROM younglings.player_link
                 """;
 
@@ -329,15 +372,17 @@ public class PlayerLinkRepository {
 
     // --- Stats snapshots ---
 
-    public void saveSnapshot(long guildId, String rsn, RuneScapeProfile profile, String skillsJson) {
+    /** Saves a snapshot and returns its generated {@code snapshot_id}, so per-skill rows can reference it. */
+    public long saveSnapshot(long guildId, String rsn, RuneScapeProfile profile, String skillsJson) {
         String sql = """
                 INSERT INTO younglings.player_stats_snapshot
-                    (rsn, guild_id, total_level, total_xp, combat_level, quests_complete, skills_json)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                    (rsn, guild_id, total_level, total_xp, combat_level, quests_complete,
+                     quests_started, quests_not_started, skills_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """;
 
         try (Connection connection = connectionSupplier.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
+             PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
 
             statement.setString(1, rsn);
             statement.setLong(2, guildId);
@@ -345,8 +390,15 @@ public class PlayerLinkRepository {
             statement.setLong(4, profile.totalXp());
             statement.setInt(5, profile.combatLevel());
             statement.setInt(6, profile.questsComplete());
-            statement.setString(7, skillsJson);
+            statement.setInt(7, profile.questsStarted());
+            statement.setInt(8, profile.questsNotStarted());
+            statement.setString(9, skillsJson);
             statement.executeUpdate();
+
+            try (ResultSet keys = statement.getGeneratedKeys()) {
+                if (keys.next()) return keys.getLong(1);
+            }
+            throw new SQLException("No snapshot_id returned after saving stats snapshot.");
 
         } catch (SQLException e) {
             log.error("Failed to save stats snapshot for '{}'", rsn, e);
@@ -354,10 +406,260 @@ public class PlayerLinkRepository {
         }
     }
 
+    /**
+     * Same as {@link #saveSnapshot}, but with an explicit {@code snapshotAt} instead of relying on
+     * the column's {@code NOW()} default — only real callers need "right now"; backfilling test/
+     * historical data needs to place rows in the past instead.
+     */
+    public long saveSnapshotAt(long guildId, String rsn, java.time.OffsetDateTime snapshotAt, RuneScapeProfile profile, String skillsJson) {
+        String sql = """
+                INSERT INTO younglings.player_stats_snapshot
+                    (rsn, guild_id, snapshot_at, total_level, total_xp, combat_level, quests_complete,
+                     quests_started, quests_not_started, skills_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """;
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+
+            statement.setString(1, rsn);
+            statement.setLong(2, guildId);
+            statement.setObject(3, snapshotAt);
+            statement.setInt(4, profile.totalLevel());
+            statement.setLong(5, profile.totalXp());
+            statement.setInt(6, profile.combatLevel());
+            statement.setInt(7, profile.questsComplete());
+            statement.setInt(8, profile.questsStarted());
+            statement.setInt(9, profile.questsNotStarted());
+            statement.setString(10, skillsJson);
+            statement.executeUpdate();
+
+            try (ResultSet keys = statement.getGeneratedKeys()) {
+                if (keys.next()) return keys.getLong(1);
+            }
+            throw new SQLException("No snapshot_id returned after saving stats snapshot.");
+
+        } catch (SQLException e) {
+            log.error("Failed to save backdated stats snapshot for '{}'", rsn, e);
+            throw new RuntimeException("Failed to save backdated stats snapshot", e);
+        }
+    }
+
+    /**
+     * Bumps an existing snapshot's {@code snapshot_at} to now, without touching anything else —
+     * used instead of a full new snapshot when a poll comes back with nothing actually different
+     * from last time (see {@link RuneScapeStatsService}), so "polled X ago" still reflects the truth
+     * without paying for a full insert cascade (snapshot + up to 29 skill rows + activity upserts)
+     * every single poll.
+     */
+    public void touchSnapshot(long snapshotId) {
+        String sql = "UPDATE younglings.player_stats_snapshot SET snapshot_at = NOW() WHERE snapshot_id = ?";
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setLong(1, snapshotId);
+            statement.executeUpdate();
+
+        } catch (SQLException e) {
+            log.error("Failed to touch snapshot {}", snapshotId, e);
+            throw new RuntimeException("Failed to touch snapshot", e);
+        }
+    }
+
+    public void saveSkillSnapshot(long snapshotId, List<SkillValue> skills) {
+        if (skills.isEmpty()) return;
+
+        String sql = """
+                INSERT INTO younglings.player_skill_snapshot (snapshot_id, skill_id, level, xp, rank)
+                VALUES (?, ?, ?, ?, ?)
+                """;
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            for (SkillValue skill : skills) {
+                statement.setLong(1, snapshotId);
+                statement.setInt(2, skill.skillId());
+                statement.setInt(3, skill.level());
+                statement.setLong(4, skill.xp());
+                statement.setInt(5, skill.rank());
+                statement.addBatch();
+            }
+            statement.executeBatch();
+
+        } catch (SQLException e) {
+            log.error("Failed to save skill snapshot rows for snapshot {}", snapshotId, e);
+            throw new RuntimeException("Failed to save skill snapshot", e);
+        }
+    }
+
+    /** Per-skill breakdown for one snapshot, ordered by skill ID (the game's own skill order). */
+    public List<SkillValue> getSkillsForSnapshot(long snapshotId) {
+        String sql = """
+                SELECT skill_id, level, xp, rank
+                FROM younglings.player_skill_snapshot
+                WHERE snapshot_id = ?
+                ORDER BY skill_id
+                """;
+
+        List<SkillValue> results = new ArrayList<>();
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setLong(1, snapshotId);
+
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) {
+                    results.add(new SkillValue(rs.getInt("skill_id"), rs.getInt("level"),
+                            rs.getLong("xp"), rs.getInt("rank")));
+                }
+            }
+            return results;
+
+        } catch (SQLException e) {
+            log.error("Failed to get skills for snapshot {}", snapshotId, e);
+            throw new RuntimeException("Failed to get skill snapshot", e);
+        }
+    }
+
+    /** Every snapshot since {@code since}, oldest first — used to find "first vs. latest this period" totals. */
+    public List<StatsSnapshotRow> getSnapshotsSince(long guildId, String rsn, java.time.OffsetDateTime since) {
+        String sql = """
+                SELECT snapshot_id, snapshot_at, total_level, total_xp, combat_level,
+                       quests_complete, quests_started, quests_not_started
+                FROM younglings.player_stats_snapshot
+                WHERE guild_id = ? AND LOWER(rsn) = LOWER(?) AND snapshot_at >= ?
+                ORDER BY snapshot_at ASC
+                """;
+
+        List<StatsSnapshotRow> results = new ArrayList<>();
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setLong(1, guildId);
+            statement.setString(2, rsn);
+            statement.setObject(3, since);
+
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) results.add(mapSnapshotRow(rs));
+            }
+            return results;
+
+        } catch (SQLException e) {
+            log.error("Failed to get snapshots since {} for '{}'", since, rsn, e);
+            throw new RuntimeException("Failed to get snapshots since", e);
+        }
+    }
+
+    /** Every skill's XP at every poll since {@code since}, oldest first — grouped/reduced in Java to find per-skill gains over the period. */
+    public List<SkillHistoryPoint> getAllSkillsXpHistorySince(long guildId, String rsn, java.time.OffsetDateTime since) {
+        String sql = """
+                SELECT sk.skill_id, s.snapshot_at, sk.xp
+                FROM younglings.player_skill_snapshot sk
+                JOIN younglings.player_stats_snapshot s ON s.snapshot_id = sk.snapshot_id
+                WHERE s.guild_id = ? AND LOWER(s.rsn) = LOWER(?) AND s.snapshot_at >= ?
+                ORDER BY sk.skill_id, s.snapshot_at ASC
+                """;
+
+        List<SkillHistoryPoint> results = new ArrayList<>();
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setLong(1, guildId);
+            statement.setString(2, rsn);
+            statement.setObject(3, since);
+
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) {
+                    results.add(new SkillHistoryPoint(rs.getInt("skill_id"),
+                            rs.getObject("snapshot_at", java.time.OffsetDateTime.class), rs.getLong("xp")));
+                }
+            }
+            return results;
+
+        } catch (SQLException e) {
+            log.error("Failed to get all-skills XP history since {} for '{}'", since, rsn, e);
+            throw new RuntimeException("Failed to get all-skills XP history", e);
+        }
+    }
+
+    public record SkillHistoryPoint(int skillId, java.time.OffsetDateTime timestamp, long xp) {
+    }
+
+    /** Activities recorded since {@code since}, oldest first — the monthly recap's data source for "times capped" and "most challenged". */
+    public List<PlayerActivity> getActivitiesSince(long guildId, String rsn, java.time.OffsetDateTime since) {
+        String sql = """
+                SELECT activity_date, activity_text, activity_details
+                FROM younglings.player_activity
+                WHERE guild_id = ? AND LOWER(rsn) = LOWER(?) AND recorded_at >= ?
+                ORDER BY recorded_at ASC
+                """;
+
+        List<PlayerActivity> results = new ArrayList<>();
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setLong(1, guildId);
+            statement.setString(2, rsn);
+            statement.setObject(3, since);
+
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) {
+                    results.add(new PlayerActivity(rs.getString("activity_date"),
+                            rs.getString("activity_text"), rs.getString("activity_details")));
+                }
+            }
+            return results;
+
+        } catch (SQLException e) {
+            log.error("Failed to get activities since {} for '{}'", since, rsn, e);
+            throw new RuntimeException("Failed to get activities since", e);
+        }
+    }
+
+    /** One skill's XP at each poll since {@code since}, oldest first — the XP-over-time chart's data source. */
+    public List<SkillXpPoint> getSkillXpHistory(long guildId, String rsn, int skillId, java.time.OffsetDateTime since) {
+        String sql = """
+                SELECT s.snapshot_at, sk.xp
+                FROM younglings.player_skill_snapshot sk
+                JOIN younglings.player_stats_snapshot s ON s.snapshot_id = sk.snapshot_id
+                WHERE s.guild_id = ? AND LOWER(s.rsn) = LOWER(?) AND sk.skill_id = ? AND s.snapshot_at >= ?
+                ORDER BY s.snapshot_at ASC
+                """;
+
+        List<SkillXpPoint> results = new ArrayList<>();
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setLong(1, guildId);
+            statement.setString(2, rsn);
+            statement.setInt(3, skillId);
+            statement.setObject(4, since);
+
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) {
+                    results.add(new SkillXpPoint(rs.getObject("snapshot_at", java.time.OffsetDateTime.class), rs.getLong("xp")));
+                }
+            }
+            return results;
+
+        } catch (SQLException e) {
+            log.error("Failed to get skill XP history for '{}' skill {}", rsn, skillId, e);
+            throw new RuntimeException("Failed to get skill XP history", e);
+        }
+    }
+
     /** Most recent snapshot for {@code rsn}, or {@code null} if it's never been polled. */
     public StatsSnapshotRow getLatestSnapshot(long guildId, String rsn) {
         String sql = """
-                SELECT snapshot_at, total_level, total_xp, combat_level, quests_complete
+                SELECT snapshot_id, snapshot_at, total_level, total_xp, combat_level,
+                       quests_complete, quests_started, quests_not_started
                 FROM younglings.player_stats_snapshot
                 WHERE guild_id = ? AND LOWER(rsn) = LOWER(?)
                 ORDER BY snapshot_at DESC
@@ -371,14 +673,7 @@ public class PlayerLinkRepository {
             statement.setString(2, rsn);
 
             try (ResultSet rs = statement.executeQuery()) {
-                if (!rs.next()) return null;
-                return new StatsSnapshotRow(
-                        rs.getObject("snapshot_at", java.time.OffsetDateTime.class),
-                        rs.getInt("total_level"),
-                        rs.getLong("total_xp"),
-                        rs.getInt("combat_level"),
-                        rs.getInt("quests_complete")
-                );
+                return rs.next() ? mapSnapshotRow(rs) : null;
             }
 
         } catch (SQLException e) {
@@ -387,7 +682,115 @@ public class PlayerLinkRepository {
         }
     }
 
-    public record StatsSnapshotRow(java.time.OffsetDateTime snapshotAt, int totalLevel, long totalXp,
-                                    int combatLevel, int questsComplete) {
+    /** Every snapshot for {@code rsn}, most recent first, capped at {@code limit} — the trend/history view's data source. */
+    public List<StatsSnapshotRow> getSnapshotHistory(long guildId, String rsn, int limit) {
+        String sql = """
+                SELECT snapshot_id, snapshot_at, total_level, total_xp, combat_level,
+                       quests_complete, quests_started, quests_not_started
+                FROM younglings.player_stats_snapshot
+                WHERE guild_id = ? AND LOWER(rsn) = LOWER(?)
+                ORDER BY snapshot_at DESC
+                LIMIT ?
+                """;
+
+        List<StatsSnapshotRow> results = new ArrayList<>();
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setLong(1, guildId);
+            statement.setString(2, rsn);
+            statement.setInt(3, limit);
+
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) results.add(mapSnapshotRow(rs));
+            }
+            return results;
+
+        } catch (SQLException e) {
+            log.error("Failed to get snapshot history for '{}'", rsn, e);
+            throw new RuntimeException("Failed to get snapshot history", e);
+        }
+    }
+
+    private static StatsSnapshotRow mapSnapshotRow(ResultSet rs) throws SQLException {
+        return new StatsSnapshotRow(
+                rs.getLong("snapshot_id"),
+                rs.getObject("snapshot_at", java.time.OffsetDateTime.class),
+                rs.getInt("total_level"),
+                rs.getLong("total_xp"),
+                rs.getInt("combat_level"),
+                rs.getInt("quests_complete"),
+                rs.getInt("quests_started"),
+                rs.getInt("quests_not_started")
+        );
+    }
+
+    public record StatsSnapshotRow(long snapshotId, java.time.OffsetDateTime snapshotAt, int totalLevel, long totalXp,
+                                    int combatLevel, int questsComplete, int questsStarted, int questsNotStarted) {
+    }
+
+    // --- Activity history ---
+
+    /** Inserts every activity not already recorded for this player (naturally deduped — see the unique index). */
+    public void saveActivities(long guildId, String rsn, List<PlayerActivity> activities) {
+        if (activities.isEmpty()) return;
+
+        String sql = """
+                INSERT INTO younglings.player_activity (guild_id, rsn, activity_date, activity_text, activity_details)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT (guild_id, LOWER(rsn), activity_date, activity_text) DO NOTHING
+                """;
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            for (PlayerActivity activity : activities) {
+                statement.setLong(1, guildId);
+                statement.setString(2, rsn);
+                statement.setString(3, activity.date());
+                statement.setString(4, activity.text());
+                statement.setString(5, activity.details());
+                statement.addBatch();
+            }
+            statement.executeBatch();
+
+        } catch (SQLException e) {
+            log.error("Failed to save activities for '{}'", rsn, e);
+            throw new RuntimeException("Failed to save activities", e);
+        }
+    }
+
+    /** Most recently *recorded* activities for {@code rsn} (i.e. by when we first saw them, not the in-game date string). */
+    public List<PlayerActivity> getRecentActivities(long guildId, String rsn, int limit) {
+        String sql = """
+                SELECT activity_date, activity_text, activity_details
+                FROM younglings.player_activity
+                WHERE guild_id = ? AND LOWER(rsn) = LOWER(?)
+                ORDER BY recorded_at DESC
+                LIMIT ?
+                """;
+
+        List<PlayerActivity> results = new ArrayList<>();
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setLong(1, guildId);
+            statement.setString(2, rsn);
+            statement.setInt(3, limit);
+
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) {
+                    results.add(new PlayerActivity(rs.getString("activity_date"),
+                            rs.getString("activity_text"), rs.getString("activity_details")));
+                }
+            }
+            return results;
+
+        } catch (SQLException e) {
+            log.error("Failed to get recent activities for '{}'", rsn, e);
+            throw new RuntimeException("Failed to get recent activities", e);
+        }
     }
 }
