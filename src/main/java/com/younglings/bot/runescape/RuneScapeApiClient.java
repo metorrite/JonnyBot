@@ -46,8 +46,13 @@ public class RuneScapeApiClient {
             .followRedirects(HttpClient.Redirect.NORMAL)
             .build();
 
-    /** Empty if the player doesn't exist, has their profile set to private, or the request failed. */
+    /** Empty if the player doesn't exist, has their profile set to private, or the request failed — see {@link #fetchProfileResult} to tell those apart. */
     public Optional<RuneScapeProfile> fetchProfile(String rsn) {
+        return fetchProfileResult(rsn) instanceof ProfileResult.Found(var profile) ? Optional.of(profile) : Optional.empty();
+    }
+
+    /** Same fetch as {@link #fetchProfile}, but keeps the reason a failure happened instead of collapsing it to empty. */
+    public ProfileResult fetchProfileResult(String rsn) {
         try {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(PROFILE_URL.formatted(encode(rsn))))
@@ -58,13 +63,18 @@ public class RuneScapeApiClient {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() / 100 != 2) {
                 log.warn("RuneMetrics profile request for '{}' returned HTTP {}", rsn, response.statusCode());
-                return Optional.empty();
+                return new ProfileResult.Unavailable();
             }
 
             DataObject json = DataObject.fromJson(response.body());
             if (json.hasKey("error")) {
-                log.info("RuneMetrics profile for '{}' unavailable: {}", rsn, json.getString("error", "unknown"));
-                return Optional.empty();
+                String error = json.getString("error", "unknown");
+                log.info("RuneMetrics profile for '{}' unavailable: {}", rsn, error);
+                return switch (error) {
+                    case "PROFILE_PRIVATE" -> new ProfileResult.Private();
+                    case "NO_PROFILE" -> new ProfileResult.NotFound();
+                    default -> new ProfileResult.Unavailable();
+                };
             }
 
             List<SkillValue> skills = new ArrayList<>();
@@ -91,7 +101,7 @@ public class RuneScapeApiClient {
                 }
             }
 
-            return Optional.of(new RuneScapeProfile(
+            return new ProfileResult.Found(new RuneScapeProfile(
                     json.getString("name"),
                     json.getInt("totalskill"),
                     json.getLong("totalxp"),
@@ -106,10 +116,10 @@ public class RuneScapeApiClient {
         } catch (IOException | InterruptedException e) {
             if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             log.warn("Failed to fetch RuneMetrics profile for '{}'", rsn, e);
-            return Optional.empty();
+            return new ProfileResult.Unavailable();
         } catch (Exception e) {
             log.warn("Failed to parse RuneMetrics profile for '{}'", rsn, e);
-            return Optional.empty();
+            return new ProfileResult.Unavailable();
         }
     }
 

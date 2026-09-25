@@ -21,16 +21,23 @@ public class RuneScapeStatsService {
      * Fetches the player's current profile and saves a snapshot of it — the per-skill breakdown
      * and any new activities go into their own tables (see {@link PlayerLinkRepository}), not just
      * the summary row. Empty if the profile couldn't be fetched (private, doesn't exist, or the
-     * request failed) — nothing is saved in that case.
+     * request failed) — nothing is saved in that case. See {@link #pollAndSnapshotResult} to tell
+     * those failure reasons apart.
      */
     public Optional<RuneScapeProfile> pollAndSnapshot(long guildId, String rsn) {
-        Optional<RuneScapeProfile> profile = apiClient.fetchProfile(rsn);
-        profile.ifPresent(p -> {
-            long snapshotId = repository.saveSnapshot(guildId, rsn, p, serializeSkills(p.skills()));
-            repository.saveSkillSnapshot(snapshotId, p.skills());
-            repository.saveActivities(guildId, rsn, p.activities());
-        });
-        return profile;
+        return pollAndSnapshotResult(guildId, rsn) instanceof ProfileResult.Found(var profile)
+                ? Optional.of(profile) : Optional.empty();
+    }
+
+    /** Same fetch-and-save as {@link #pollAndSnapshot}, but keeps the reason a failure happened instead of collapsing it to empty. */
+    public ProfileResult pollAndSnapshotResult(long guildId, String rsn) {
+        ProfileResult result = apiClient.fetchProfileResult(rsn);
+        if (result instanceof ProfileResult.Found(var profile)) {
+            long snapshotId = repository.saveSnapshot(guildId, rsn, profile, serializeSkills(profile.skills()));
+            repository.saveSkillSnapshot(snapshotId, profile.skills());
+            repository.saveActivities(guildId, rsn, profile.activities());
+        }
+        return result;
     }
 
     public PlayerLinkRepository.StatsSnapshotRow getLatestSnapshot(long guildId, String rsn) {

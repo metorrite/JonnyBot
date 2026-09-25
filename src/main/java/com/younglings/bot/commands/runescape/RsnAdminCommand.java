@@ -58,7 +58,7 @@ public class RsnAdminCommand {
             return;
         }
 
-        Container panel = RsnAdminInteractionListener.buildPanel(linkService, statsService, skillEmojiCatalog, guild, 0);
+        Container panel = RsnAdminInteractionListener.buildPanel(linkService, statsService, skillEmojiCatalog, guild, member.getIdLong());
         event.replyComponents(List.of(panel)).useComponentsV2(true).setEphemeral(true).queue();
     }
 }

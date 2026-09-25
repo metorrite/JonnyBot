@@ -46,7 +46,6 @@ public class RsnCommand {
                 ActionRow.of(
                         Button.primary("rsn_link:_", "Link My RSN"),
                         Button.secondary("rsn_stats:_", "My Stats"),
-                        Button.secondary("rsn_lookup:_", "Look Up Player"),
                         Button.secondary("rsn_leaderboard:_", "Leaderboard")
                 ),
                 ActionRow.of(

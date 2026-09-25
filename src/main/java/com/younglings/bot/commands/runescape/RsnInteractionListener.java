@@ -119,20 +119,6 @@ public class RsnInteractionListener extends ListenerAdapter {
                 showStatsForRsn(event, event.getGuild(), id.split(":", 2)[1]);
             }
 
-            case "rsn_lookup" -> {
-                TextInput rsnInput = TextInput.create("rsn_lookup_name", TextInputStyle.SHORT)
-                        .setPlaceholder("Exact in-game display name")
-                        .setRequired(true)
-                        .setRequiredRange(1, 12)
-                        .build();
-
-                Modal modal = Modal.create("rsn_lookup_modal:_", "Look Up a Player")
-                        .addComponents(Label.of("RuneScape Name", rsnInput))
-                        .build();
-
-                event.replyModal(modal).queue();
-            }
-
             case "rsn_poll" -> pollRsnAndShow(event, event.getGuild(), id.split(":", 2)[1]);
 
             case "rsn_skills" -> showSkills(event, event.getGuild(), id.split(":", 2)[1]);
@@ -299,13 +285,6 @@ public class RsnInteractionListener extends ListenerAdapter {
     }
 
     private void handleModal(ModalInteractionEvent event, String modalId) {
-        if (modalId.equals("rsn_lookup_modal:_")) {
-            String rsn = event.getValue("rsn_lookup_name").getAsString().trim();
-            event.deferReply(true).queue();
-            showStatsForRsn(event, event.getGuild(), rsn);
-            return;
-        }
-
         if (!modalId.equals("rsn_link_modal:_")) return;
 
         String rsn = event.getValue("rsn_link_name").getAsString().trim();
