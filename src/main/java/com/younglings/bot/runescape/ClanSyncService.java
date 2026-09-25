@@ -1,12 +1,17 @@
 package com.younglings.bot.runescape;
 
 import com.younglings.bot.config.BotConfig;
+import com.younglings.bot.configure.GuildSettingsService;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
+import net.dv8tion.jda.api.entities.Guild;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -20,70 +25,100 @@ import java.util.Set;
 public class ClanSyncService {
     private static final Logger log = LoggerFactory.getLogger(ClanSyncService.class);
 
-    // This bot serves one specific clan ("Younglings") on one specific server — no multi-clan
-    // support exists anywhere else in this codebase, so this isn't made configurable for a
-    // hypothetical future guild.
-    public static final String CLAN_NAME = "Younglings";
-
     private final RuneScapeApiClient apiClient;
     private final ClanMemberRepository clanMemberRepository;
     private final RuneScapeStatsService statsService;
+    private final RsnRenameService renameService;
+    private final GuildSettingsService guildSettingsService;
     private final BotConfig botConfig;
 
     public ClanSyncService(RuneScapeApiClient apiClient, ClanMemberRepository clanMemberRepository,
-                            RuneScapeStatsService statsService, BotConfig botConfig) {
+                            RuneScapeStatsService statsService, RsnRenameService renameService,
+                            GuildSettingsService guildSettingsService, BotConfig botConfig) {
         this.apiClient = apiClient;
         this.clanMemberRepository = clanMemberRepository;
         this.statsService = statsService;
+        this.renameService = renameService;
+        this.guildSettingsService = guildSettingsService;
         this.botConfig = botConfig;
     }
 
     public record SyncResult(int rosterSize, int newMembers, int departedMembers, int polled, int pollFailed) {}
+
+    /** This guild's configured clan name (own override, or the {@code BotConfig} default) — {@code null} if never configured either way. */
+    public String getClanName(long guildId) {
+        return guildSettingsService.getEffective(guildId).clanName();
+    }
 
     /** The tracked roster from the last sync — {@code activeOnly} excludes members no longer seen in the clan. */
     public List<ClanMemberRepository.ClanMemberRow> getRoster(long guildId, boolean activeOnly) {
         return clanMemberRepository.getAll(guildId, activeOnly);
     }
 
+    /** Manual dev backfill for a clan member's join date — see {@link ClanMemberRepository#setClanJoinedAt}. */
+    public boolean setClanJoinedAt(long guildId, String rsn, LocalDate joinedAt) {
+        return clanMemberRepository.setClanJoinedAt(guildId, rsn, joinedAt);
+    }
+
     /**
-     * Refreshes the roster (adds new members, updates ranks, marks anyone no longer listed as
-     * inactive) and then polls every currently-listed member's full RuneMetrics profile, same as
+     * Refreshes the roster (adds new members, updates ranks/XP/kills, marks anyone no longer listed
+     * as inactive) and then polls every currently-listed member's full RuneMetrics profile, same as
      * a manual "Poll Now" would for a linked player. Spaced out by
      * {@link BotConfig#getRunescapePollDelaySeconds()} between members, same tuning knob the
      * (currently-disabled) auto-poll scheduler uses — for a clan this size that means this call
      * blocks for a couple of minutes, which is expected, not a hang.
+     * <p>
+     * Also runs rename detection ({@link RsnRenameService}) against this cycle's departed/new sets
+     * — takes a {@link Guild}, not just a guild ID, since a detected rename may need to DM the
+     * linked player or post to the admin alert channel. Returns an all-zero {@link SyncResult} if
+     * this guild has no clan name configured yet (via {@code /configure}) — callers should check
+     * {@link #getClanName} first to tell that apart from "fetch failed" with a clearer message.
      */
-    public SyncResult syncAndPoll(long guildId) {
-        List<RuneScapeApiClient.ClanMember> roster = apiClient.fetchClanRoster(CLAN_NAME);
+    public SyncResult syncAndPoll(Guild guild) {
+        long guildId = guild.getIdLong();
+        String clanName = getClanName(guildId);
+        if (clanName == null) return new SyncResult(0, 0, 0, 0, 0);
+
+        List<RuneScapeApiClient.ClanMember> roster = apiClient.fetchClanRoster(clanName);
         if (roster.isEmpty()) return new SyncResult(0, 0, 0, 0, 0);
 
+        List<ClanMemberRepository.ClanMemberRow> before = clanMemberRepository.getAll(guildId, true);
         Set<String> beforeLower = new HashSet<>();
-        for (var row : clanMemberRepository.getAll(guildId, true)) beforeLower.add(row.rsn().toLowerCase());
+        for (var row : before) beforeLower.add(row.rsn().toLowerCase());
 
         Set<String> currentLower = new HashSet<>();
-        int newMembers = 0;
+        Set<String> newLower = new HashSet<>();
         for (var member : roster) {
-            clanMemberRepository.upsert(guildId, member.rsn(), member.clanRank());
+            clanMemberRepository.upsert(guildId, member.rsn(), member.clanRank(), member.totalXp(), member.kills());
             String lower = member.rsn().toLowerCase();
             currentLower.add(lower);
-            if (!beforeLower.contains(lower)) newMembers++;
+            if (!beforeLower.contains(lower)) newLower.add(lower);
         }
 
-        int departed = 0;
+        Set<String> departedLower = new HashSet<>();
         for (String rsnLower : beforeLower) {
             if (!currentLower.contains(rsnLower)) {
                 clanMemberRepository.markInactive(guildId, rsnLower);
-                departed++;
+                departedLower.add(rsnLower);
             }
         }
 
         long delayMs = botConfig.getRunescapePollDelaySeconds() * 1000;
         int polled = 0;
         int pollFailed = 0;
+        // Only kept for names that just appeared this cycle — the rename check is the only thing
+        // that needs the full profile result, not just pass/fail, and there's no reason to hold onto
+        // every other roster member's full skills/activities in memory once its snapshot is saved.
+        Map<String, ProfileResult> newMemberResults = new HashMap<>();
         for (var member : roster) {
             try {
-                if (statsService.pollAndSnapshot(guildId, member.rsn()).isPresent()) polled++;
+                ProfileResult result = statsService.pollAndSnapshotResult(guildId, member.rsn());
+                if (result instanceof ProfileResult.Found) polled++;
                 else pollFailed++;
+
+                String lower = member.rsn().toLowerCase();
+                if (newLower.contains(lower)) newMemberResults.put(lower, result);
+
                 Thread.sleep(delayMs);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -94,8 +129,14 @@ public class ClanSyncService {
             }
         }
 
-        log.info("Clan sync for '{}' finished: {} in roster, {} new, {} departed, {}/{} polled successfully.",
-                CLAN_NAME, roster.size(), newMembers, departed, polled, roster.size());
-        return new SyncResult(roster.size(), newMembers, departed, polled, pollFailed);
+        try {
+            renameService.detectAndNotify(guild, before, roster, departedLower, newLower, newMemberResults);
+        } catch (Exception e) {
+            log.error("Rename detection failed during clan sync for guild {}", guildId, e);
+        }
+
+        log.info("Clan sync for '{}' (guild {}) finished: {} in roster, {} new, {} departed, {}/{} polled successfully.",
+                clanName, guildId, roster.size(), newLower.size(), departedLower.size(), polled, roster.size());
+        return new SyncResult(roster.size(), newLower.size(), departedLower.size(), polled, pollFailed);
     }
 }

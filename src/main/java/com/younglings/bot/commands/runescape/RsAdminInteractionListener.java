@@ -14,13 +14,13 @@ import com.younglings.bot.runescape.PlayerLink;
 import com.younglings.bot.runescape.PlayerLinkRepository;
 import com.younglings.bot.runescape.PlayerLinkService;
 import com.younglings.bot.runescape.ProfileResult;
+import com.younglings.bot.runescape.RsnRenameService;
 import com.younglings.bot.runescape.RuneScapeSkillCatalog;
 import com.younglings.bot.runescape.RuneScapeStatsService;
 import com.younglings.bot.runescape.RuneScapeTestDataSeeder;
 import com.younglings.bot.runescape.RuneScapeXpTable;
-import com.younglings.bot.runescape.SkillEmojiCatalog;
 import com.younglings.bot.runescape.SkillValue;
-import com.younglings.bot.runescape.SkillXpPoint;
+import com.younglings.bot.runescape.VerificationAttempt;
 import com.younglings.bot.runescape.VerificationRoleSyncService;
 import com.younglings.bot.runescape.XpChartRenderer;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -31,7 +31,6 @@ import net.dv8tion.jda.api.components.container.ContainerChildComponent;
 import net.dv8tion.jda.api.components.label.Label;
 import net.dv8tion.jda.api.components.mediagallery.MediaGallery;
 import net.dv8tion.jda.api.components.mediagallery.MediaGalleryItem;
-import net.dv8tion.jda.api.components.selections.StringSelectMenu;
 import net.dv8tion.jda.api.components.separator.Separator;
 import net.dv8tion.jda.api.components.textdisplay.TextDisplay;
 import net.dv8tion.jda.api.components.textinput.TextInput;
@@ -39,10 +38,8 @@ import net.dv8tion.jda.api.components.textinput.TextInputStyle;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Message;
-import net.dv8tion.jda.api.entities.emoji.Emoji;
 import net.dv8tion.jda.api.events.interaction.ModalInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
-import net.dv8tion.jda.api.events.interaction.component.StringSelectInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.components.ComponentInteraction;
 import net.dv8tion.jda.api.modals.Modal;
@@ -55,53 +52,64 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
- * Buttons for {@link RsnAdminCommand}'s panel: pagination, manual poll (single player or
- * everyone), and links into {@code RsnInteractionListener}'s existing per-RSN views (Skills,
- * History, Recent Activity are shared as-is — same {@code rsn_skills:}/{@code rsn_history:}/
- * {@code rsn_activity:} button IDs work from either place, no duplicated rendering logic).
+ * Buttons/modal for {@link RsAdminCommand}'s panel: bulk actions (poll everyone, sync the clan
+ * roster), admin-only per-player tools (Player Lookup, Manually Verify, Update RSN), and the full
+ * pending-verification queue (moved here from the member-facing {@code /rs} — see
+ * {@link RsInteractionListener}, which only ever shows a caller their own pending status now).
  * <p>
- * "Poll Now" is deliberately the same action whether you think of it as "get fresh data" or
- * "re-sync a stale/old-format row" — both just mean fetch-and-save under whatever the current
- * schema is, so there's no separate re-sync mechanism to keep in step with this one.
+ * Deliberately does <em>not</em> show the calling admin's own linked account(s) the way it once
+ * did — that's what {@code /rs} is for, same as any other member, so there's exactly one place that
+ * renders a self-service profile instead of two copies of the same view.
+ * <p>
+ * "Poll Now"/"Poll Again" here is unrestricted (no self-poll cooldown) — that limit only applies to
+ * a member's own {@code rs_poll} click under {@code /rs}; see {@code PlayerLinkService#canSelfPoll}.
  */
 @BService
-public class RsnAdminInteractionListener extends ListenerAdapter {
-    private static final Logger log = LoggerFactory.getLogger(RsnAdminInteractionListener.class);
+public class RsAdminInteractionListener extends ListenerAdapter {
+    private static final Logger log = LoggerFactory.getLogger(RsAdminInteractionListener.class);
 
     private final PlayerLinkService linkService;
     private final RuneScapeStatsService statsService;
     private final AdminRoleFilter adminRoleFilter;
-    private final SkillEmojiCatalog skillEmojiCatalog;
     private final RuneScapeTestDataSeeder testDataSeeder;
     private final MonthlyRecapService monthlyRecapService;
     private final ClanSyncService clanSyncService;
     private final ClanOverviewService clanOverviewService;
     private final VerificationRoleSyncService roleSyncService;
+    private final RsnRenameService renameService;
+    private final RsChartInteractionListener chartListener;
+    private final RsInteractionListener rsInteractionListener;
     private final HttpClient httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
 
-    public RsnAdminInteractionListener(PlayerLinkService linkService, RuneScapeStatsService statsService,
-                                        AdminRoleFilter adminRoleFilter, SkillEmojiCatalog skillEmojiCatalog,
-                                        RuneScapeTestDataSeeder testDataSeeder, MonthlyRecapService monthlyRecapService,
-                                        ClanSyncService clanSyncService, ClanOverviewService clanOverviewService,
-                                        VerificationRoleSyncService roleSyncService) {
+    public RsAdminInteractionListener(PlayerLinkService linkService, RuneScapeStatsService statsService,
+                                       AdminRoleFilter adminRoleFilter, RuneScapeTestDataSeeder testDataSeeder,
+                                       MonthlyRecapService monthlyRecapService, ClanSyncService clanSyncService,
+                                       ClanOverviewService clanOverviewService, VerificationRoleSyncService roleSyncService,
+                                       RsnRenameService renameService, RsChartInteractionListener chartListener,
+                                       RsInteractionListener rsInteractionListener) {
         this.linkService = linkService;
         this.statsService = statsService;
         this.adminRoleFilter = adminRoleFilter;
-        this.skillEmojiCatalog = skillEmojiCatalog;
         this.testDataSeeder = testDataSeeder;
         this.monthlyRecapService = monthlyRecapService;
         this.clanSyncService = clanSyncService;
         this.clanOverviewService = clanOverviewService;
         this.roleSyncService = roleSyncService;
+        this.renameService = renameService;
+        this.chartListener = chartListener;
+        this.rsInteractionListener = rsInteractionListener;
     }
 
     @Override
@@ -124,27 +132,6 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
     }
 
     @Override
-    public void onStringSelectInteraction(StringSelectInteractionEvent event) {
-        Guild guild = event.getGuild();
-        Member member = event.getMember();
-        String id = event.getComponentId();
-        if (guild == null || member == null || !id.startsWith("rsnadmin_chart_select")) return;
-
-        try {
-            if (!adminRoleFilter.isAuthorized(guild, member)) {
-                Containers.replyEphemeral(event, Containers.WARNING, "You need the Admin role (or higher) to use this.");
-                return;
-            }
-            String rsn = id.split(":", 2)[1];
-            int skillId = Integer.parseInt(event.getValues().getFirst());
-            event.editComponents(List.of(buildChartContainer(guild, rsn, skillId))).useComponentsV2(true).queue();
-        } catch (Exception e) {
-            log.error("Unhandled exception in rsnadmin select interaction '{}'", id, e);
-            Containers.replyError(event);
-        }
-    }
-
-    @Override
     public void onModalInteraction(ModalInteractionEvent event) {
         Guild guild = event.getGuild();
         Member member = event.getMember();
@@ -162,6 +149,14 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
             }
             if (id.equals("rsnadmin_lookup_modal:_")) {
                 handleLookupModal(event, guild);
+                return;
+            }
+            if (id.startsWith("rsnadmin_renamemodal:")) {
+                handleRenameModal(event, guild, id.split(":", 2)[1]);
+                return;
+            }
+            if (id.startsWith("rsnadmin_joindatemodal:")) {
+                handleJoinDateModal(event, guild, id.split(":", 2)[1]);
             }
         } catch (Exception e) {
             log.error("Unhandled exception in rsnadmin modal interaction '{}'", id, e);
@@ -184,6 +179,55 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
                 .setAllowedMentions(EnumSet.noneOf(Message.MentionType.class)).queue();
     }
 
+    /**
+     * Repoints an existing link at a new RSN in place — the manual fallback for a name change,
+     * always available regardless of whether {@link RsnRenameService}'s automated detection ever
+     * catches it (it only runs during **Sync Clan**, and only for clan-roster members in the first
+     * place). Historical snapshots/activity stay under the old name; only the link moves.
+     */
+    private void handleRenameModal(ModalInteractionEvent event, Guild guild, String oldRsn) {
+        String newRsn = event.getValue("new_rsn").getAsString().trim();
+        PlayerLink link = linkService.getLinkForRsn(guild.getIdLong(), oldRsn);
+        if (link == null) {
+            Containers.replyEphemeral(event, Containers.WARNING,
+                    "**" + oldRsn + "** isn't linked to anyone — nothing to rename. Use **Manually Verify** to link **" + newRsn + "** directly instead.");
+            return;
+        }
+
+        try {
+            linkService.renameLink(guild.getIdLong(), link.linkId(), newRsn);
+            renameService.recordManualRename(guild.getIdLong(), oldRsn, newRsn);
+            Containers.replyEphemeral(event, Containers.SUCCESS,
+                    "Updated the link: **" + oldRsn + "** → **" + newRsn + "**. Historical data stays under the old name.");
+        } catch (RuntimeException e) {
+            Containers.replyEphemeral(event, Containers.WARNING,
+                    "Couldn't update — **" + newRsn + "** may already be linked to someone else.");
+        }
+    }
+
+    /**
+     * Manual dev backfill for {@code clan_member.clan_joined_at} — see the column comment in
+     * {@link com.younglings.bot.runescape.RuneScapeDatabaseInitializer} for why this isn't populated
+     * automatically yet. Independent of verification: a member can be in the clan roster (and have a
+     * join date worth recording) whether or not their Discord account is linked at all.
+     */
+    private void handleJoinDateModal(ModalInteractionEvent event, Guild guild, String rsn) {
+        String raw = event.getValue("clan_joined_at").getAsString().trim();
+        LocalDate date;
+        try {
+            date = LocalDate.parse(raw);
+        } catch (DateTimeParseException e) {
+            Containers.replyEphemeral(event, Containers.WARNING,
+                    "'" + raw + "' isn't a valid date — use YYYY-MM-DD (e.g. 2026-03-14).");
+            return;
+        }
+
+        boolean updated = clanSyncService.setClanJoinedAt(guild.getIdLong(), rsn, date);
+        Containers.replyEphemeral(event, updated ? Containers.SUCCESS : Containers.WARNING,
+                updated ? "Set **" + rsn + "**'s clan join date to " + date + "."
+                        : "**" + rsn + "** isn't in the tracked clan roster — run **Sync Clan** first, or check the spelling.");
+    }
+
     /** Links an RSN straight to a Discord user and applies the same role sync a real verification approval would — no makeover-mage dance needed. */
     private void handleManualVerifyModal(ModalInteractionEvent event, Guild guild, Member admin) {
         String rawUserId = event.getValue("manual_verify_discord_id").getAsString().trim().replaceAll("[<@!>]", "");
@@ -199,7 +243,7 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
         }
 
         linkService.manualLink(guild.getIdLong(), discordUserId, rsn, admin.getIdLong());
-        roleSyncService.syncRoles(guild, discordUserId);
+        roleSyncService.syncRoles(guild, discordUserId, rsn);
         Containers.replyEphemeral(event, Containers.SUCCESS, "Linked **" + rsn + "** to <@" + discordUserId + ">.");
     }
 
@@ -207,13 +251,22 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
         String action = id.split(":")[0];
 
         switch (action) {
-            case "rsnadmin_poll_all" -> doPollAll(event, guild);
-            case "rsnadmin_guildchart" -> doGuildChart(event, guild);
-            case "rsnadmin_syncclan" -> doSyncClan(event, guild);
+            case "rsnadmin_poll_all" -> doPollAllPrompt(event, guild);
+            case "rsnadmin_guildchart" -> doGuildChartPrompt(event, guild);
+            case "rsnadmin_syncclan" -> doSyncClanPrompt(event);
             case "rsnadmin_lookup" -> doPlayerLookupPrompt(event);
             case "rsnadmin_manualverify" -> doManualVerifyPrompt(event);
             case "rsnadmin_clanlist" -> doClanList(event, guild);
-            case "rsnadmin_clanoverview" -> doClanOverview(event, guild);
+            case "rsnadmin_clanoverview" -> doClanOverviewPrompt(event, guild);
+            case "rsnadmin_review_pending" -> showPendingVerifications(event, guild, 0, false);
+            case "rsnadmin_citadel" -> Containers.replyEphemeral(event, Containers.INFO,
+                    "🚧 Coming soon — a Citadel overview will go here.");
+
+            case "rsnadmin_poll_all_confirm" -> doPollAll(event, guild);
+            case "rsnadmin_guildchart_confirm" -> doGuildChart(event, guild);
+            case "rsnadmin_syncclan_confirm" -> doSyncClan(event, guild);
+            case "rsnadmin_clanoverview_confirm" -> doClanOverview(event, guild);
+            case "rsnadmin_bulk_cancel" -> Containers.edit(event, Containers.INFO, "Cancelled — nothing was run.");
 
             case "rsnadmin_poll" -> doPollOne(event, guild, id.split(":", 2)[1]);
             case "rsnadmin_seed" -> doSeedTestData(event, guild, id.split(":", 2)[1]);
@@ -221,6 +274,14 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
             case "rsnadmin_recap" -> doMonthlyRecap(event, guild, id.split(":", 2)[1]);
             case "rsnadmin_nearly" -> doNearlyThere(event, guild, id.split(":", 2)[1]);
             case "rsnadmin_unlink" -> doUnlinkPrompt(event, id.split(":", 2)[1]);
+            case "rsnadmin_renamerequest" -> doRenamePrompt(event, id.split(":", 2)[1]);
+            case "rsnadmin_joindate" -> doSetJoinDatePrompt(event, id.split(":", 2)[1]);
+
+            case "rsnadmin_pending_page" -> showPendingVerifications(event, guild, Integer.parseInt(id.split(":")[1]), true);
+            case "rsnadmin_review_approve" -> doReviewRowAction(event, guild, id.split(":", 2)[1], true);
+            case "rsnadmin_review_reject" -> doReviewRowAction(event, guild, id.split(":", 2)[1], false);
+            case "rsnadmin_review_approve_all" -> doApproveAllPrompt(event, guild);
+            case "rsnadmin_review_approve_all_confirm" -> doApproveAllConfirmed(event, guild);
 
             case "rsnadmin_clanlist_page" -> {
                 int page = Integer.parseInt(id.split(":")[1]);
@@ -242,6 +303,54 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
 
     // --- Bulk actions ---
 
+    /**
+     * Every bulk/heavy action (anything that loops over more than one player) confirms first —
+     * colored red since these are the actions actually worth being careful about on a limited
+     * database plan, distinct from a single-target action's own confirm (e.g. Unlink, which is red
+     * for irreversibility, not database load). {@code confirmId} is whatever this specific action's
+     * own "go" button should be; Cancel is always the same shared button.
+     */
+    private void doBulkConfirmPrompt(ComponentInteraction event, String title, String message, String confirmId) {
+        Container confirm = Containers.card(Containers.DANGER,
+                TextDisplay.of("### " + title),
+                TextDisplay.of(message + "\n\n-# This can take a while and will access the database multiple times — make sure you mean to run this now."),
+                ActionRow.of(
+                        Button.danger(confirmId, "Yes, Continue"),
+                        Button.secondary("rsnadmin_bulk_cancel:_", "Cancel")));
+        event.replyComponents(List.of(confirm)).useComponentsV2(true).setEphemeral(true).queue();
+    }
+
+    private void doPollAllPrompt(ComponentInteraction event, Guild guild) {
+        int count = linkService.getAllLinks(guild.getIdLong()).size();
+        doBulkConfirmPrompt(event, "Poll All Linked Players?",
+                "This polls **every linked player's** RuneScape profile individually (" + count + " total) and writes " +
+                "a database update for each one that's changed — up to " + count + " external requests and database writes.",
+                "rsnadmin_poll_all_confirm:_");
+    }
+
+    private void doSyncClanPrompt(ComponentInteraction event) {
+        doBulkConfirmPrompt(event, "Sync Clan Roster?",
+                "This fetches the entire clan roster, then polls **every listed member** individually (with a short delay " +
+                "between each) and writes updates to the database for each one. For a clan this size, this can take a " +
+                "couple of minutes and will touch the database dozens of times.",
+                "rsnadmin_syncclan_confirm:_");
+    }
+
+    private void doGuildChartPrompt(ComponentInteraction event, Guild guild) {
+        int count = linkService.getAllLinks(guild.getIdLong()).size();
+        doBulkConfirmPrompt(event, "Build the Clan XP Graph?",
+                "This reads recent poll history from the database for **every linked player** (" + count + " total) to build the chart.",
+                "rsnadmin_guildchart_confirm:_");
+    }
+
+    private void doClanOverviewPrompt(ComponentInteraction event, Guild guild) {
+        int count = clanSyncService.getRoster(guild.getIdLong(), true).size();
+        doBulkConfirmPrompt(event, "Build the Clan Overview?",
+                "This reads snapshots, skills, and activity history from the database for **every active clan member** " +
+                "(" + count + " total) to build the overview — potentially hundreds of database reads.",
+                "rsnadmin_clanoverview_confirm:_");
+    }
+
     private void doPollAll(ComponentInteraction event, Guild guild) {
         // Deferred edit, not a plain edit — polling every linked player is a series of HTTP calls
         // that will very likely take longer than Discord's 3-second ack window once there's more
@@ -251,8 +360,7 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
         for (PlayerLink link : links) {
             statsService.pollAndSnapshot(guild.getIdLong(), link.rsn());
         }
-        event.getHook().editOriginalComponents(List.of(buildPanel(linkService, statsService, skillEmojiCatalog, guild, event.getUser().getIdLong())))
-                .useComponentsV2(true).queue();
+        event.getHook().editOriginalComponents(List.of(buildPanel(guild))).useComponentsV2(true).queue();
     }
 
     private void doGuildChart(ComponentInteraction event, Guild guild) {
@@ -275,26 +383,33 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
         }
 
         Container container = Containers.card(Containers.PRIMARY,
-                TextDisplay.of("### Guild XP Trend"),
+                TextDisplay.of("### Clan XP Graph"),
                 MediaGallery.of(MediaGalleryItem.fromFile(chart)));
         event.getHook().editOriginalComponents(List.of(container)).useComponentsV2(true).queue();
     }
 
     private void doSyncClan(ComponentInteraction event, Guild guild) {
+        String clanName = clanSyncService.getClanName(guild.getIdLong());
+        if (clanName == null) {
+            Containers.replyEphemeral(event, Containers.WARNING,
+                    "No clan name configured for this server yet — set one via **/configure** first.");
+            return;
+        }
+
         // Deferred — fetches the whole clan roster, then polls every member with a delay between
         // each (RUNESCAPE_POLL_DELAY_SECONDS), so this can genuinely take a couple of minutes for a
         // clan this size. That's expected, not a hang.
         event.deferReply(true).queue();
-        var result = clanSyncService.syncAndPoll(guild.getIdLong());
+        var result = clanSyncService.syncAndPoll(guild);
 
         if (result.rosterSize() == 0) {
             event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.WARNING,
-                    "Couldn't fetch the clan roster for **" + ClanSyncService.CLAN_NAME + "** — check the clan name and try again."))).useComponentsV2(true).queue();
+                    "Couldn't fetch the clan roster for **" + clanName + "** — check the clan name and try again."))).useComponentsV2(true).queue();
             return;
         }
 
         event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.SUCCESS,
-                "Synced **" + ClanSyncService.CLAN_NAME + "**: " + result.rosterSize() + " member(s) in the roster " +
+                "Synced **" + clanName + "**: " + result.rosterSize() + " member(s) in the roster " +
                 "(" + result.newMembers() + " new, " + result.departedMembers() + " no longer listed), " +
                 result.polled() + "/" + result.rosterSize() + " polled successfully."))).useComponentsV2(true).queue();
     }
@@ -347,7 +462,8 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
             return;
         }
 
-        FileUpload image = ClanOverviewRenderer.render(ClanSyncService.CLAN_NAME, stats, fetchGuildIcon(guild));
+        String clanName = clanSyncService.getClanName(guild.getIdLong());
+        FileUpload image = ClanOverviewRenderer.render(clanName != null ? clanName : "Clan", stats, fetchGuildIcon(guild));
         if (image == null) {
             event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.WARNING,
                     "Couldn't render the clan overview image right now."))).useComponentsV2(true).queue();
@@ -360,13 +476,110 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
         event.getHook().editOriginalComponents(List.of(container)).useComponentsV2(true).queue();
     }
 
-    // --- Per-player actions (picked from buildPanel's per-row select menu) ---
+    // --- Pending verifications (moved here from /rs — this is the full, server-wide queue) ---
 
+    private static final int PENDING_REVIEW_PAGE_SIZE = 5;
+
+    /**
+     * The full queue, with Approve/Reject right on each row — no need to go find that player's
+     * original post in the review channel just to act on it. Re-rendered in place (same message)
+     * after any row action or page nav, so working through a backlog doesn't lose your spot; a fresh
+     * "Review Pending" click posts a new one instead (see {@code isPageNav}).
+     */
+    private void showPendingVerifications(ComponentInteraction event, Guild guild, int pageIndex, boolean isPageNav) {
+        List<VerificationAttempt> pending = linkService.getPendingAttempts(guild.getIdLong());
+        if (pending.isEmpty()) {
+            if (isPageNav) {
+                Containers.edit(event, Containers.INFO, "No pending verification requests remaining.");
+            } else {
+                Containers.replyEphemeral(event, Containers.INFO, "No pending verification requests.");
+            }
+            return;
+        }
+
+        var page = Pagination.paginate(pending, pageIndex, PENDING_REVIEW_PAGE_SIZE);
+
+        List<ContainerChildComponent> children = new ArrayList<>();
+        children.add(TextDisplay.of("# Pending Verifications (" + pending.size() + ")"));
+        children.add(ActionRow.of(Button.success("rsnadmin_review_approve_all:_", "Approve All")));
+        children.add(Separator.createDivider(Separator.Spacing.SMALL));
+
+        for (VerificationAttempt attempt : page.items()) {
+            children.add(TextDisplay.of("`#" + attempt.attemptId() + "` — **" + attempt.rsn() + "** — <@" + attempt.discordUserId() + ">"));
+            children.add(ActionRow.of(
+                    Button.success("rsnadmin_review_approve:" + attempt.attemptId(), "Approve"),
+                    Button.danger("rsnadmin_review_reject:" + attempt.attemptId(), "Reject")));
+        }
+
+        if (!page.isSinglePage()) {
+            children.add(Separator.createDivider(Separator.Spacing.SMALL));
+            children.add(Pagination.navRow(page, "rsnadmin_pending_page:"));
+        }
+
+        Container container = Containers.card(Containers.INFO, children);
+
+        if (isPageNav) {
+            event.editComponents(List.of(container)).useComponentsV2(true)
+                    .setAllowedMentions(EnumSet.noneOf(Message.MentionType.class)).queue();
+        } else {
+            event.replyComponents(List.of(container)).useComponentsV2(true).setEphemeral(true)
+                    .setAllowedMentions(EnumSet.noneOf(Message.MentionType.class)).queue();
+        }
+    }
+
+    /** One row's Approve/Reject from the Review Pending list — shares the exact side effects (link, role sync, DM) that a standalone review-message click gets, then refreshes the list in place. */
+    private void doReviewRowAction(ComponentInteraction event, Guild guild, String attemptIdRaw, boolean approve) {
+        long attemptId = Long.parseLong(attemptIdRaw);
+        VerificationAttempt result = approve
+                ? rsInteractionListener.completeApproval(guild, attemptId, event.getUser().getIdLong())
+                : rsInteractionListener.completeRejection(guild, attemptId, event.getUser().getIdLong());
+
+        if (result == null) {
+            Containers.replyEphemeral(event, Containers.WARNING, "That request was already resolved.");
+            return;
+        }
+        showPendingVerifications(event, guild, 0, true);
+    }
+
+    private void doApproveAllPrompt(ComponentInteraction event, Guild guild) {
+        int count = linkService.getPendingAttempts(guild.getIdLong()).size();
+        if (count == 0) {
+            Containers.replyEphemeral(event, Containers.INFO, "No pending verification requests.");
+            return;
+        }
+
+        doBulkConfirmPrompt(event, "Approve All " + count + " Pending Request(s)?",
+                "This links every pending RSN to its requester and DMs each of them. " +
+                "It can't be undone in bulk — you'd need to unlink each one individually afterward.",
+                "rsnadmin_review_approve_all_confirm:_");
+    }
+
+    private void doApproveAllConfirmed(ComponentInteraction event, Guild guild) {
+        List<VerificationAttempt> pending = linkService.getPendingAttempts(guild.getIdLong());
+        if (pending.isEmpty()) {
+            Containers.edit(event, Containers.INFO, "No pending verification requests remaining.");
+            return;
+        }
+
+        // Deferred — approving N people means N role syncs and N DM sends, comfortably longer than
+        // Discord's 3-second ack window once the queue has more than a couple of entries.
+        event.deferEdit().queue();
+        int approved = 0;
+        for (VerificationAttempt attempt : pending) {
+            if (rsInteractionListener.completeApproval(guild, attempt.attemptId(), event.getUser().getIdLong()) != null) approved++;
+        }
+        event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.SUCCESS,
+                "Approved " + approved + " of " + pending.size() + " pending request(s)."))).useComponentsV2(true).queue();
+    }
+
+    // --- Per-player actions ---
+
+    /** Reached from a Player Lookup card's "Poll Again" — re-renders that same card, not the admin panel (which no longer shows any one player inline anyway). */
     private void doPollOne(ComponentInteraction event, Guild guild, String rsn) {
         event.deferEdit().queue();
-        statsService.pollAndSnapshot(guild.getIdLong(), rsn);
-        event.getHook().editOriginalComponents(List.of(buildPanel(linkService, statsService, skillEmojiCatalog, guild, event.getUser().getIdLong())))
-                .useComponentsV2(true).queue();
+        ProfileResult result = statsService.pollAndSnapshotResult(guild.getIdLong(), rsn);
+        event.getHook().editOriginalComponents(List.of(buildLookupCard(guild, rsn, result)))
+                .useComponentsV2(true).setAllowedMentions(EnumSet.noneOf(Message.MentionType.class)).queue();
     }
 
     private void doSeedTestData(ComponentInteraction event, Guild guild, String rsn) {
@@ -391,7 +604,8 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
                     "No synced data for **" + rsn + "** yet — use **Poll Now** first.");
             return;
         }
-        event.replyComponents(List.of(buildChartContainer(guild, rsn, 0))).useComponentsV2(true).setEphemeral(true).queue();
+        event.replyComponents(List.of(chartListener.buildChartContainer(guild, rsn, Set.of(), RsChartInteractionListener.ChartStyle.LINE)))
+                .useComponentsV2(true).setEphemeral(true).queue();
     }
 
     private void doMonthlyRecap(ComponentInteraction event, Guild guild, String rsn) {
@@ -430,6 +644,32 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
         event.replyComponents(List.of(buildNearlyThereContainer(rsn, skills, latest))).useComponentsV2(true).setEphemeral(true).queue();
     }
 
+    private void doRenamePrompt(ComponentInteraction event, String rsn) {
+        TextInput newRsnInput = TextInput.create("new_rsn", TextInputStyle.SHORT)
+                .setPlaceholder("Their new in-game display name")
+                .setRequired(true)
+                .setRequiredRange(1, 12)
+                .build();
+
+        Modal modal = Modal.create("rsnadmin_renamemodal:" + rsn, "Update RSN for " + rsn)
+                .addComponents(Label.of("New RuneScape Name", newRsnInput))
+                .build();
+        event.replyModal(modal).queue();
+    }
+
+    private void doSetJoinDatePrompt(ComponentInteraction event, String rsn) {
+        TextInput dateInput = TextInput.create("clan_joined_at", TextInputStyle.SHORT)
+                .setPlaceholder("YYYY-MM-DD")
+                .setRequired(true)
+                .setRequiredRange(10, 10)
+                .build();
+
+        Modal modal = Modal.create("rsnadmin_joindatemodal:" + rsn, "Set Clan Join Date for " + rsn)
+                .addComponents(Label.of("Join Date", dateInput))
+                .build();
+        event.replyModal(modal).queue();
+    }
+
     private void doUnlinkPrompt(ComponentInteraction event, String rsn) {
         Container confirm = Containers.card(Containers.WARNING,
                 TextDisplay.of("### Unlink " + rsn + "?"),
@@ -442,10 +682,15 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
     }
 
     private static final int NEARLY_THERE_COUNT = 10;
-    // Wide enough for "Dungeoneering" (13 chars), same reasoning as RsnInteractionListener's Skills view.
+    // Wide enough for "Dungeoneering" (13 chars), same reasoning as RsInteractionListener's Skills view.
     private static final int NEARLY_THERE_NAME_WIDTH = 13;
 
-    /** The 10 skills closest to their next level, by XP still needed — {@link RuneScapeXpTable} is the game's own level curve, not an approximation. */
+    /**
+     * The 10 skills closest to their next level, by XP still needed — {@link RuneScapeXpTable} is
+     * the game's own level curve, not an approximation. Kept as admin-only tooling; no longer wired
+     * to a member-facing button (see {@code RsInteractionListener}'s profile panel), per request —
+     * the logic stays intact here in case it comes back.
+     */
     private Container buildNearlyThereContainer(String rsn, List<SkillValue> skills, PlayerLinkRepository.StatsSnapshotRow latest) {
         record Gap(SkillValue skill, long xpNeeded) {}
 
@@ -464,11 +709,9 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
 
         StringBuilder body = new StringBuilder();
         for (Gap gap : gaps) {
-            String mention = skillEmojiCatalog.mentionFor(gap.skill().skillId());
             String row = String.format("%-" + NEARLY_THERE_NAME_WIDTH + "s  Lv %-3d -> %-3d  %11s xp",
                     RuneScapeSkillCatalog.nameFor(gap.skill().skillId()), gap.skill().level(), gap.skill().level() + 1,
                     String.format("%,d", gap.xpNeeded()));
-            if (mention != null) body.append(mention).append(" ");
             body.append("`").append(row).append("`\n");
         }
 
@@ -483,8 +726,7 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
     /**
      * Every currently-active clan_member row (i.e. still seen in the last Sync Clan), cross-
      * referenced against player_link so it's obvious at a glance who still needs verifying.
-     * Mentions use {@code setAllowedMentions} to suppress the ping — see {@link #buildVerifiedListContainer}
-     * for why a real mention (not a plain username string) is used at all.
+     * Mentions use {@code setAllowedMentions} to suppress the ping.
      */
     private Container buildClanListContainer(Guild guild, int pageIndex) {
         List<ClanMemberRepository.ClanMemberRow> members = clanSyncService.getRoster(guild.getIdLong(), true);
@@ -522,30 +764,41 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
         List<ContainerChildComponent> children = new ArrayList<>();
         children.add(TextDisplay.of("### " + rsn + " — Player Lookup"));
 
-        boolean inClan = clanSyncService.getRoster(guild.getIdLong(), true).stream()
-                .anyMatch(member -> member.rsn().equalsIgnoreCase(rsn));
+        ClanMemberRepository.ClanMemberRow clanRow = clanSyncService.getRoster(guild.getIdLong(), true).stream()
+                .filter(member -> member.rsn().equalsIgnoreCase(rsn))
+                .findFirst().orElse(null);
+        boolean inClan = clanRow != null;
         PlayerLink link = linkService.getLinkForRsn(guild.getIdLong(), rsn);
 
         StringBuilder meta = new StringBuilder()
                 .append(inClan ? "✅ In the clan roster" : "— Not currently in the clan roster")
                 .append(link != null ? "\n✅ Verified to <@" + link.discordUserId() + ">" : "\n— Not verified to any Discord account");
+        if (inClan) {
+            meta.append("\n📅 Clan joined: ").append(clanRow.clanJoinedAt() != null ? clanRow.clanJoinedAt().toString() : "*not recorded yet*");
+        }
         children.add(TextDisplay.of(meta.toString()));
 
         switch (result) {
             case ProfileResult.Found(var profile) -> {
-                String overallMention = skillEmojiCatalog.overallMention();
-                String lead = overallMention != null ? overallMention + " " : "";
-                children.add(TextDisplay.of(lead + "**Total Level:** " + profile.totalLevel() + "\n" +
+                children.add(TextDisplay.of("**Total Level:** " + profile.totalLevel() + "\n" +
                         "**Combat Level:** " + profile.combatLevel() + "\n" +
                         "**Quests Complete:** " + profile.questsComplete() + "\n" +
                         "**Total XP:** `" + String.format("%,d", profile.totalXp()) + " xp`"));
-                children.add(ActionRow.of(
-                        Button.primary("rsnadmin_poll:" + rsn, "Poll Again"),
-                        Button.secondary("rsn_skills:" + rsn, "Full Skills"),
-                        Button.secondary("rsnadmin_chart:" + rsn, "XP Chart"),
-                        link != null ? Button.danger("rsnadmin_unlink:" + rsn, "Unlink")
-                                : Button.secondary("rsnadmin_manualverify:_", "Verify This Player")
-                ));
+                children.add(link != null
+                        ? ActionRow.of(
+                                Button.primary("rsnadmin_poll:" + rsn, "Poll Again"),
+                                Button.secondary("rs_skills:" + rsn, "Full Skills"),
+                                Button.secondary("rsnadmin_chart:" + rsn, "XP Chart"),
+                                Button.secondary("rsnadmin_renamerequest:" + rsn, "Update RSN"),
+                                Button.danger("rsnadmin_unlink:" + rsn, "Unlink"))
+                        : ActionRow.of(
+                                Button.primary("rsnadmin_poll:" + rsn, "Poll Again"),
+                                Button.secondary("rs_skills:" + rsn, "Full Skills"),
+                                Button.secondary("rsnadmin_chart:" + rsn, "XP Chart"),
+                                Button.secondary("rsnadmin_manualverify:_", "Verify This Player")));
+                // XP Chart and Monthly Recap are still dev-in-progress (see RsInteractionListener) —
+                // Player Lookup is where they stay testable while they're not on the live /rs profile.
+                children.add(ActionRow.of(Button.secondary("rsnadmin_recap:" + rsn, "Monthly Recap")));
             }
             case ProfileResult.Private ignored -> children.add(TextDisplay.of(
                     "🔒 This player's **Adventurer's Log is set to private** — RuneScape won't return stats until they make it public in-game (Settings → Privacy)."));
@@ -554,6 +807,12 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
             case ProfileResult.Unavailable ignored -> children.add(TextDisplay.of(
                     "⚠️ Couldn't fetch stats right now — the RuneScape API may be temporarily unavailable. Try again shortly."));
         }
+
+        // Always shown, independent of inClan/the live-poll outcome above — the modal handler
+        // itself already rejects cleanly if rsn turns out not to be a tracked clan member (see
+        // handleJoinDateModal), which is friendlier than hiding the button on a possibly-stale
+        // roster read and leaving an admin wondering where it went.
+        children.add(ActionRow.of(Button.secondary("rsnadmin_joindate:" + rsn, "Set Join Date")));
 
         return Containers.card(Containers.PRIMARY, children);
     }
@@ -573,161 +832,43 @@ public class RsnAdminInteractionListener extends ListenerAdapter {
         }
     }
 
-    private static final int CHART_HISTORY_DAYS = 30;
     private static final int GUILD_CHART_HISTORY_DAYS = 30;
-    // Discord caps a single select menu at 25 options — 29 skills needs two menus, each with its
-    // own custom_id (Discord rejects duplicate custom_ids within the same message).
-    private static final int SKILL_SELECT_LIMIT = 25;
-    private static final String[] SKILL_SELECT_PREFIXES = {"rsnadmin_chart_select_a:", "rsnadmin_chart_select_b:"};
-
-    /** Shared by the chart's initial open and every skill-dropdown re-selection (an edit, not a new message). */
-    private Container buildChartContainer(Guild guild, String rsn, int selectedSkillId) {
-        List<SkillXpPoint> points = statsService.getSkillXpHistory(guild.getIdLong(), rsn, selectedSkillId, CHART_HISTORY_DAYS);
-        String skillName = RuneScapeSkillCatalog.nameFor(selectedSkillId);
-
-        List<ContainerChildComponent> children = new ArrayList<>();
-        children.add(TextDisplay.of("### " + rsn + " — XP Chart"));
-
-        FileUpload chart = XpChartRenderer.render(rsn, skillName, points);
-        if (chart != null) {
-            children.add(MediaGallery.of(MediaGalleryItem.fromFile(chart)));
-        } else {
-            children.add(TextDisplay.of("Not enough poll history for **" + skillName + "** in the last " + CHART_HISTORY_DAYS +
-                    " days yet — need at least 2 polls to draw a trend. Pick a different skill, or seed test data first."));
-        }
-
-        children.addAll(buildSkillSelectRows(rsn, selectedSkillId));
-        return Containers.card(Containers.PRIMARY, children);
-    }
-
-    private List<ActionRow> buildSkillSelectRows(String rsn, int selectedSkillId) {
-        List<ActionRow> rows = new ArrayList<>();
-        int skillCount = RuneScapeSkillCatalog.skillCount();
-        int chunk = 0;
-
-        for (int start = 0; start < skillCount; start += SKILL_SELECT_LIMIT, chunk++) {
-            int end = Math.min(start + SKILL_SELECT_LIMIT, skillCount);
-            StringSelectMenu.Builder menu = StringSelectMenu.create(SKILL_SELECT_PREFIXES[chunk] + rsn)
-                    .setPlaceholder(chunk == 0 ? "Choose a skill" : "More skills");
-
-            for (int skillId = start; skillId < end; skillId++) {
-                String name = RuneScapeSkillCatalog.nameFor(skillId);
-                String mention = skillEmojiCatalog.mentionFor(skillId);
-                if (mention != null) {
-                    menu.addOption(name, String.valueOf(skillId), Emoji.fromFormatted(mention));
-                } else {
-                    menu.addOption(name, String.valueOf(skillId));
-                }
-            }
-            if (selectedSkillId >= start && selectedSkillId < end) {
-                menu.setDefaultValues(String.valueOf(selectedSkillId));
-            }
-            rows.add(ActionRow.of(menu.build()));
-        }
-        return rows;
-    }
 
     /**
-     * Shared by {@link RsnAdminCommand}'s initial reply and this listener's own re-renders (Poll
-     * All / Poll Now). Two parts: bulk actions that operate on the whole clan/guild, and the
-     * <em>calling admin's own</em> linked account(s) — not every linked player. Showing everyone
-     * inline is what originally blew this panel past Discord's 40-component-tree budget the moment
-     * more than a couple of players were linked ("Cannot build message with over 40 total
-     * components"); scoping the detailed, button-heavy section to just the caller's own account(s)
-     * keeps it bounded regardless of how large the clan gets, while every other player is still
-     * fully manageable via **Manually Verify** (create/replace a link) and **Player Lookup**
-     * (inspect, poll, chart, or unlink any one name on demand).
+     * {@link RsAdminCommand}'s initial reply and this listener's own re-renders (Poll All) — bulk
+     * actions only now, no self section (see {@code /rs}). Grouped into labeled sections rather than
+     * one undifferentiated button wall, since this panel is meant to grow well beyond RS3 tracking
+     * over time (Coffer, Events, whatever comes next each get their own section here rather than
+     * their own top-level admin command).
      */
-    static Container buildPanel(PlayerLinkService linkService, RuneScapeStatsService statsService,
-                                 SkillEmojiCatalog skillEmojiCatalog, Guild guild, long callerId) {
+    Container buildPanel(Guild guild) {
+        String clanName = clanSyncService.getClanName(guild.getIdLong());
+
         List<ContainerChildComponent> children = new ArrayList<>();
-        children.add(TextDisplay.of("# RS3 Admin Panel"));
-        children.add(TextDisplay.of("-# Bulk Actions — automatic polling is disabled, everything here is manual"));
+        children.add(TextDisplay.of("# RS3 Admin Panel" + (clanName != null ? " - " + clanName : "")));
+        children.add(TextDisplay.of("-# Administrator only — automatic polling is disabled, everything here is manual"));
+        children.add(Separator.createDivider(Separator.Spacing.SMALL));
+
+        children.add(TextDisplay.of("### Clan Management"));
         children.add(ActionRow.of(
-                Button.primary("rsnadmin_poll_all:_", "Poll All"),
-                Button.secondary("rsnadmin_guildchart:_", "Guild XP Trend"),
                 Button.secondary("rsnadmin_syncclan:_", "Sync Clan"),
-                Button.secondary("rsnadmin_lookup:_", "Player Lookup"),
-                Button.secondary("rsnadmin_manualverify:_", "Manually Verify")
-        ));
-        children.add(ActionRow.of(
+                Button.secondary("rsnadmin_guildchart:_", "Clan XP Graph"),
                 Button.secondary("rsnadmin_clanlist:_", "Clan Member List"),
-                Button.secondary("rsnadmin_clanoverview:_", "Clan Overview")
+                Button.secondary("rsnadmin_clanoverview:_", "Clan Overview"),
+                Button.secondary("rsnadmin_citadel:_", "Citadel Viewer")
         ));
         children.add(Separator.createDivider(Separator.Spacing.SMALL));
 
-        List<PlayerLink> myLinks = linkService.getLinksForUser(guild.getIdLong(), callerId);
-        children.add(TextDisplay.of("-# Your Linked Account" + (myLinks.size() == 1 ? "" : "s")));
-
-        if (myLinks.isEmpty()) {
-            children.add(TextDisplay.of("*You have no linked RSN yet — use **Manually Verify** above, or link one yourself via `/rsn`.*"));
-            return Containers.card(Containers.PRIMARY, children);
-        }
-
-        PlayerLink primary = myLinks.getFirst();
-        children.add(TextDisplay.of("**" + primary.rsn() + "** — <@" + primary.discordUserId() + ">\n" +
-                "-# Verified <t:" + primary.verifiedAt().toEpochSecond() + ":R> via " + primary.verificationMethod()));
-        children.add(TextDisplay.of(buildOverviewLine(statsService, skillEmojiCatalog, guild, primary.rsn())));
+        children.add(TextDisplay.of("### Player Management"));
         children.add(ActionRow.of(
-                Button.primary("rsnadmin_poll:" + primary.rsn(), "Poll Now"),
-                Button.secondary("rsn_skills:" + primary.rsn(), "Full Skills"),
-                Button.secondary("rsn_history:" + primary.rsn(), "Full History"),
-                Button.secondary("rsn_activity:" + primary.rsn(), "Full Activity"),
-                Button.secondary("rsnadmin_seed:" + primary.rsn(), "Seed Test Data")
+                Button.primary("rsnadmin_poll_all:_", "Poll All"),
+                Button.secondary("rsnadmin_lookup:_", "Player Lookup"),
+                Button.secondary("rsnadmin_manualverify:_", "Manually Verify"),
+                Button.secondary("rsnadmin_review_pending:_", "Review Pending")
         ));
-        children.add(ActionRow.of(
-                Button.secondary("rsnadmin_chart:" + primary.rsn(), "XP Chart"),
-                Button.secondary("rsnadmin_recap:" + primary.rsn(), "Monthly Recap"),
-                Button.secondary("rsnadmin_nearly:" + primary.rsn(), "Nearly There"),
-                Button.danger("rsnadmin_unlink:" + primary.rsn(), "Unlink")
-        ));
-
-        if (myLinks.size() > 1) {
-            String extras = myLinks.stream().skip(1).map(PlayerLink::rsn).reduce((a, b) -> a + ", " + b).orElse("");
-            children.add(TextDisplay.of("-# Also linked: " + extras + " — use **Player Lookup** to inspect these."));
-        }
+        children.add(Separator.createDivider(Separator.Spacing.SMALL));
+        children.add(TextDisplay.of("-# Manage your own linked account(s) via `/rs`."));
 
         return Containers.card(Containers.PRIMARY, children);
-    }
-
-    /** The inline "everything at a glance" line — overview, trend since the last poll, and the latest activity headline. */
-    private static String buildOverviewLine(RuneScapeStatsService statsService, SkillEmojiCatalog skillEmojiCatalog, Guild guild, String rsn) {
-        var history = statsService.getSnapshotHistory(guild.getIdLong(), rsn, 2);
-        if (history.isEmpty()) {
-            return "*Never polled.*";
-        }
-
-        var latest = history.getFirst();
-        String overallMention = skillEmojiCatalog.overallMention();
-        StringBuilder sb = new StringBuilder()
-                .append(overallMention != null ? overallMention + " " : "")
-                .append("**Level:** ").append(latest.totalLevel())
-                .append(" • **Combat:** ").append(latest.combatLevel())
-                .append(" • **XP:** `").append(String.format("%,d", latest.totalXp())).append("`")
-                .append(" • **Quests:** ").append(latest.questsComplete())
-                .append("\n-# Polled <t:").append(latest.snapshotAt().toEpochSecond()).append(":R>");
-
-        if (history.size() > 1) {
-            long xpGained = latest.totalXp() - history.get(1).totalXp();
-            if (xpGained != 0) {
-                sb.append(" • ").append(xpGained > 0 ? "+" : "").append(String.format("%,d", xpGained)).append(" xp since previous poll");
-
-                // Rate is only meaningful once there's a real gap between polls — two polls a few
-                // seconds apart (e.g. testing) would otherwise divide by a near-zero duration and
-                // print a meaningless, huge xp/hr figure.
-                Duration elapsed = Duration.between(history.get(1).snapshotAt(), latest.snapshotAt());
-                if (xpGained > 0 && elapsed.toMinutes() >= 15) {
-                    long ratePerHour = (long) (xpGained / (elapsed.toMinutes() / 60.0));
-                    sb.append(" (~").append(String.format("%,d", ratePerHour)).append(" xp/hr)");
-                }
-            }
-        }
-
-        var activity = statsService.getRecentActivities(guild.getIdLong(), rsn, 1);
-        if (!activity.isEmpty()) {
-            sb.append("\n-# Latest activity: ").append(activity.getFirst().text());
-        }
-
-        return sb.toString();
     }
 }

@@ -19,7 +19,7 @@ import java.util.concurrent.TimeUnit;
  * <b>Currently disabled by default</b> — see {@link BotConfig#getRunescapeAutoPollEnabled()}
  * ({@code RUNESCAPE_AUTO_POLL_ENABLED}, defaults to {@code false}). While the storage format is
  * still changing, every poll happens on purpose via the admin panel's "Poll Now" button
- * ({@code RsnAdminCommand}) instead of on a timer neither of us is watching. Set that env var to
+ * ({@code RsAdminCommand}) instead of on a timer neither of us is watching. Set that env var to
  * {@code true} to bring the timer back once the format's settled.
  * <p>
  * <b>Tuning (when enabled):</b> poll interval and per-player spacing are runtime settings, not

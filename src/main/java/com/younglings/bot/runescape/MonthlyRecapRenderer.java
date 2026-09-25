@@ -4,6 +4,7 @@ import net.dv8tion.jda.api.utils.FileUpload;
 import org.knowm.xchart.BitmapEncoder;
 import org.knowm.xchart.PieChart;
 import org.knowm.xchart.PieChartBuilder;
+import org.knowm.xchart.PieSeries;
 import org.knowm.xchart.style.PieStyler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -182,6 +183,9 @@ public final class MonthlyRecapRenderer {
         styler.setChartFontColor(TEXT);
         styler.setLegendFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
         styler.setChartTitleFont(new Font(Font.SANS_SERIF, Font.BOLD, 16));
+        // setDonutThickness alone doesn't draw a ring — verified live against XChart 3.8.8, this
+        // was silently rendering as a plain pie the whole time without setDefaultSeriesRenderStyle.
+        styler.setDefaultSeriesRenderStyle(PieSeries.PieSeriesRenderStyle.Donut);
         styler.setDonutThickness(0.35);
         styler.setLabelType(PieStyler.LabelType.Percentage);
         styler.setLabelsFontColor(Color.WHITE);

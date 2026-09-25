@@ -105,30 +105,112 @@ public class BotConfig {
     }
 
     /**
-     * Name of the role granted to a member the moment their RSN gets linked (either the makeover-
-     * mage flow or an admin's manual verify) — looked up by name, not ID, since it's set directly
-     * in chat rather than by copying a Discord snowflake. {@code null} if unset, in which case
-     * {@code VerificationRoleSyncService} skips granting anything rather than guessing a role.
+     * Fallback clan name used when a guild hasn't set its own via {@code /configure} — see
+     * {@code GuildSettingsService#getEffective}. {@code null} if unset, in which case a guild with
+     * no per-guild override either has no clan name at all until configured.
      */
-    public String getVerifiedRoleName() {
-        String raw = System.getenv("VERIFIED_ROLE_NAME");
+    public String getClanName() {
+        String raw = System.getenv("RUNESCAPE_CLAN_NAME");
 
         if (raw == null || raw.isBlank()) {
-            raw = dotenv.get("VERIFIED_ROLE_NAME");
+            raw = dotenv.get("RUNESCAPE_CLAN_NAME");
         }
 
         return (raw == null || raw.isBlank()) ? null : raw.trim();
     }
 
-    /** Name of the role removed on the same verification event {@link #getVerifiedRoleName()} is granted on. {@code null} if unset. */
-    public String getUnverifiedRoleName() {
-        String raw = System.getenv("UNVERIFIED_ROLE_NAME");
+    /**
+     * ID of the channel {@code RsnRenameService} posts possible-rename alerts to, with Confirm/
+     * Reject buttons for an admin to resolve — see {@code rsn_rename_candidate}. {@code null} if
+     * unset, in which case a detected rename is logged but nobody is notified.
+     */
+    public Long getRenameAlertChannelId() {
+        String raw = System.getenv("RSN_RENAME_ALERT_CHANNEL_ID");
 
         if (raw == null || raw.isBlank()) {
-            raw = dotenv.get("UNVERIFIED_ROLE_NAME");
+            raw = dotenv.get("RSN_RENAME_ALERT_CHANNEL_ID");
         }
 
-        return (raw == null || raw.isBlank()) ? null : raw.trim();
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+
+        return Long.parseLong(raw.trim());
+    }
+
+    /**
+     * ID of the channel a new {@code /rs} link request is posted to for an admin to Approve/Reject —
+     * see {@code RsInteractionListener#postForAdminReview}. {@code null} if unset, in which case a
+     * submitted request has nobody to notify (logged, but otherwise stuck pending until an admin
+     * finds it another way, e.g. Player Lookup).
+     */
+    public Long getVerificationReviewChannelId() {
+        String raw = System.getenv("RSN_VERIFICATION_CHANNEL_ID");
+
+        if (raw == null || raw.isBlank()) {
+            raw = dotenv.get("RSN_VERIFICATION_CHANNEL_ID");
+        }
+
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+
+        return Long.parseLong(raw.trim());
+    }
+
+    /**
+     * ID of the role granted to a verified member who <em>is</em> a current clan member — picked
+     * from a dropdown of the guild's roles under {@code /configure}'s Verification section (see
+     * {@code VerificationRoleSyncService}), not typed by name. {@code null} if unset, in which case
+     * nothing is granted for this slot rather than guessing a role.
+     */
+    public Long getVerifiedClanRoleId() {
+        String raw = System.getenv("VERIFIED_CLAN_ROLE_ID");
+
+        if (raw == null || raw.isBlank()) {
+            raw = dotenv.get("VERIFIED_CLAN_ROLE_ID");
+        }
+
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+
+        return Long.parseLong(raw.trim());
+    }
+
+    /**
+     * ID of the role granted to a verified member who is <em>not</em> a current clan member.
+     * Typically a role something else (e.g. a join flow) already grants — this is only a
+     * supplemental assign for the case where the bot verifies someone who doesn't have it yet.
+     * {@code null} if unset.
+     */
+    public Long getVerifiedNonClanRoleId() {
+        String raw = System.getenv("VERIFIED_NON_CLAN_ROLE_ID");
+
+        if (raw == null || raw.isBlank()) {
+            raw = dotenv.get("VERIFIED_NON_CLAN_ROLE_ID");
+        }
+
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+
+        return Long.parseLong(raw.trim());
+    }
+
+    /** ID of the role removed on verification (either clan-member or not). {@code null} if unset. */
+    public Long getUnverifiedRoleId() {
+        String raw = System.getenv("UNVERIFIED_ROLE_ID");
+
+        if (raw == null || raw.isBlank()) {
+            raw = dotenv.get("UNVERIFIED_ROLE_ID");
+        }
+
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+
+        return Long.parseLong(raw.trim());
     }
 
     /**
@@ -186,7 +268,7 @@ public class BotConfig {
     /**
      * Whether {@code RuneScapeStatsScheduler} polls automatically at all. Defaults to
      * {@code false} while the RS3 tracking system is still being built out — polling is manual
-     * only for now, via the admin panel's "Poll Now" button (see {@code RsnAdminCommand}), so every
+     * only for now, via the admin panel's "Poll Now" button (see {@code RsAdminCommand}), so every
      * poll happens on purpose instead of on a timer while the storage format is still changing.
      * Set {@code RUNESCAPE_AUTO_POLL_ENABLED=true} to turn the timer back on.
      */

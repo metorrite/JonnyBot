@@ -45,6 +45,15 @@ public class RuneScapeDatabaseInitializer {
                 ON younglings.player_link (guild_id, discord_user_id);
                 """,
 
+                // Tracks a member's own self-service "Poll Now" clicks under /rs specifically — kept
+                // separate from snapshot_at (which every poll source touches: admin, auto-poll, this
+                // one) so the 30-minute self-poll cooldown only ever reacts to the member's own
+                // clicks, never reset or consumed by someone else polling them in the meantime.
+                """
+                ALTER TABLE younglings.player_link
+                    ADD COLUMN IF NOT EXISTS last_self_poll_at TIMESTAMPTZ NULL;
+                """,
+
                 // In-progress makeover-mage verification: a random appearance is assigned, the
                 // player applies it in-game, then an admin confirms it against the fetched avatar
                 // image (see RsnVerificationService) before a player_link row is created.
@@ -174,6 +183,58 @@ public class RuneScapeDatabaseInitializer {
                 """
                 CREATE UNIQUE INDEX IF NOT EXISTS clan_member_unique_rsn_lower
                 ON younglings.clan_member (guild_id, LOWER(rsn));
+                """,
+
+                // Total XP and kill count as of the last sync, straight from the Clan Hiscores CSV
+                // line — kept so a rename-detection pass has a "last known" total XP for a name that
+                // just disappeared from the roster, without needing a separate lookup or its own
+                // history table. See RsnRenameService.
+                """
+                ALTER TABLE younglings.clan_member
+                    ADD COLUMN IF NOT EXISTS total_xp BIGINT NOT NULL DEFAULT 0;
+                """,
+
+                """
+                ALTER TABLE younglings.clan_member
+                    ADD COLUMN IF NOT EXISTS kills BIGINT NOT NULL DEFAULT 0;
+                """,
+
+                // The date this member actually joined the *clan* in-game — distinct from
+                // first_seen (when *we* first noticed them) and from player_link.verified_at (when
+                // their Discord account got linked, which can happen long after or never). Not
+                // populated automatically yet: the plan is for a future sync pass to read it off a
+                // newly-appeared member's adventure log the day they're first detected (log entries
+                // don't stick around forever, so this has to happen close to join time — with a
+                // ~24h sync cadence, "yesterday" is the correct inferred date even when the log
+                // itself is private by the time we look). Until that's built, this is set manually
+                // per player via /rsadmin's Player Lookup, to backfill everyone already tracked.
+                """
+                ALTER TABLE younglings.clan_member
+                    ADD COLUMN IF NOT EXISTS clan_joined_at DATE NULL;
+                """,
+
+                // A name that vanished from the clan roster the same sync cycle a new name appeared,
+                // where XP/skill/activity evidence suggests they're the same account renamed rather
+                // than one member leaving and another joining — see RsnRenameService for the
+                // detection logic and RsnRenameInteractionListener for the confirm/reject buttons.
+                // Kept even after resolution as an audit trail, not deleted.
+                """
+                CREATE TABLE IF NOT EXISTS younglings.rsn_rename_candidate (
+                    id BIGSERIAL PRIMARY KEY,
+                    guild_id BIGINT NOT NULL,
+                    old_rsn TEXT NOT NULL,
+                    new_rsn TEXT NOT NULL,
+                    confidence TEXT NOT NULL,
+                    basis TEXT NOT NULL,
+                    detected_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    resolved_at TIMESTAMPTZ NULL,
+                    status TEXT NOT NULL DEFAULT 'PENDING'
+                );
+                """,
+
+                """
+                CREATE INDEX IF NOT EXISTS rsn_rename_candidate_pending_idx
+                ON younglings.rsn_rename_candidate (guild_id, status);
                 """
         ));
     }

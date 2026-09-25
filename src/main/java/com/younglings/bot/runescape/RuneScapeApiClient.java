@@ -51,76 +51,105 @@ public class RuneScapeApiClient {
         return fetchProfileResult(rsn) instanceof ProfileResult.Found(var profile) ? Optional.of(profile) : Optional.empty();
     }
 
+    // A clan-wide sync means dozens of these requests back to back; verified live during a real
+    // 61-member sync that a couple of them hit purely transient network faults — an
+    // HttpTimeoutException and an SSLException ("bad_record_mac" tag mismatch, consistent with a
+    // stale pooled connection the server had already dropped) — neither of which recurred on a
+    // fresh attempt. Both are already caught below (both extend IOException) and were never
+    // crashing anything, just silently counting as a failed poll; retrying once, after a brief
+    // pause, is what actually recovers them instead of just failing gracefully.
+    private static final int MAX_ATTEMPTS = 2;
+    private static final Duration RETRY_DELAY = Duration.ofMillis(500);
+
     /** Same fetch as {@link #fetchProfile}, but keeps the reason a failure happened instead of collapsing it to empty. */
     public ProfileResult fetchProfileResult(String rsn) {
-        try {
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(PROFILE_URL.formatted(encode(rsn))))
-                    .timeout(Duration.ofSeconds(10))
-                    .GET()
-                    .build();
-
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() / 100 != 2) {
-                log.warn("RuneMetrics profile request for '{}' returned HTTP {}", rsn, response.statusCode());
+        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            try {
+                return attemptFetchProfile(rsn);
+            } catch (IOException e) {
+                if (attempt == MAX_ATTEMPTS) {
+                    log.warn("Failed to fetch RuneMetrics profile for '{}' (retry also failed)", rsn, e);
+                    return new ProfileResult.Unavailable();
+                }
+                log.info("Transient error fetching RuneMetrics profile for '{}' ({}) — retrying once", rsn, e.getClass().getSimpleName());
+                try {
+                    Thread.sleep(RETRY_DELAY.toMillis());
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    return new ProfileResult.Unavailable();
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.warn("Failed to fetch RuneMetrics profile for '{}'", rsn, e);
+                return new ProfileResult.Unavailable();
+            } catch (Exception e) {
+                // Not retried — a malformed response won't be fixed by asking again.
+                log.warn("Failed to parse RuneMetrics profile for '{}'", rsn, e);
                 return new ProfileResult.Unavailable();
             }
+        }
+        return new ProfileResult.Unavailable(); // unreachable (the loop always returns), kept for the compiler
+    }
 
-            DataObject json = DataObject.fromJson(response.body());
-            if (json.hasKey("error")) {
-                String error = json.getString("error", "unknown");
-                log.info("RuneMetrics profile for '{}' unavailable: {}", rsn, error);
-                return switch (error) {
-                    case "PROFILE_PRIVATE" -> new ProfileResult.Private();
-                    case "NO_PROFILE" -> new ProfileResult.NotFound();
-                    default -> new ProfileResult.Unavailable();
-                };
-            }
+    private ProfileResult attemptFetchProfile(String rsn) throws IOException, InterruptedException {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(PROFILE_URL.formatted(encode(rsn))))
+                .timeout(Duration.ofSeconds(10))
+                .GET()
+                .build();
 
-            List<SkillValue> skills = new ArrayList<>();
-            DataArray skillArray = json.getArray("skillvalues");
-            for (int i = 0; i < skillArray.length(); i++) {
-                DataObject skill = skillArray.getObject(i);
-                // RuneMetrics reports each skill's xp at 10x true XP (verified live: a level-99-capped
-                // skill's true XP is exactly 200,000,000, but this field reads 2,000,000,000 for the
-                // same skill at the same moment — confirmed exact-10x on two independently-capped
-                // skills, cross-referenced against the classic hiscores' true value for the same
-                // account). totalxp at the top level is NOT affected, only these per-skill values.
-                skills.add(new SkillValue(skill.getInt("id"), skill.getInt("level"), skill.getLong("xp") / 10, skill.getInt("rank")));
-            }
-
-            List<PlayerActivity> activities = new ArrayList<>();
-            if (json.hasKey("activities")) {
-                DataArray activityArray = json.getArray("activities");
-                for (int i = 0; i < activityArray.length(); i++) {
-                    DataObject activity = activityArray.getObject(i);
-                    activities.add(new PlayerActivity(
-                            activity.getString("date", ""),
-                            activity.getString("text", ""),
-                            activity.getString("details", "")));
-                }
-            }
-
-            return new ProfileResult.Found(new RuneScapeProfile(
-                    json.getString("name"),
-                    json.getInt("totalskill"),
-                    json.getLong("totalxp"),
-                    json.getInt("combatlevel"),
-                    json.getInt("questscomplete"),
-                    json.getInt("questsstarted"),
-                    json.getInt("questsnotstarted"),
-                    skills,
-                    activities
-            ));
-
-        } catch (IOException | InterruptedException e) {
-            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
-            log.warn("Failed to fetch RuneMetrics profile for '{}'", rsn, e);
-            return new ProfileResult.Unavailable();
-        } catch (Exception e) {
-            log.warn("Failed to parse RuneMetrics profile for '{}'", rsn, e);
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() / 100 != 2) {
+            log.warn("RuneMetrics profile request for '{}' returned HTTP {}", rsn, response.statusCode());
             return new ProfileResult.Unavailable();
         }
+
+        DataObject json = DataObject.fromJson(response.body());
+        if (json.hasKey("error")) {
+            String error = json.getString("error", "unknown");
+            log.info("RuneMetrics profile for '{}' unavailable: {}", rsn, error);
+            return switch (error) {
+                case "PROFILE_PRIVATE" -> new ProfileResult.Private();
+                case "NO_PROFILE" -> new ProfileResult.NotFound();
+                default -> new ProfileResult.Unavailable();
+            };
+        }
+
+        List<SkillValue> skills = new ArrayList<>();
+        DataArray skillArray = json.getArray("skillvalues");
+        for (int i = 0; i < skillArray.length(); i++) {
+            DataObject skill = skillArray.getObject(i);
+            // RuneMetrics reports each skill's xp at 10x true XP (verified live: a level-99-capped
+            // skill's true XP is exactly 200,000,000, but this field reads 2,000,000,000 for the
+            // same skill at the same moment — confirmed exact-10x on two independently-capped
+            // skills, cross-referenced against the classic hiscores' true value for the same
+            // account). totalxp at the top level is NOT affected, only these per-skill values.
+            skills.add(new SkillValue(skill.getInt("id"), skill.getInt("level"), skill.getLong("xp") / 10, skill.getInt("rank")));
+        }
+
+        List<PlayerActivity> activities = new ArrayList<>();
+        if (json.hasKey("activities")) {
+            DataArray activityArray = json.getArray("activities");
+            for (int i = 0; i < activityArray.length(); i++) {
+                DataObject activity = activityArray.getObject(i);
+                activities.add(new PlayerActivity(
+                        activity.getString("date", ""),
+                        activity.getString("text", ""),
+                        activity.getString("details", "")));
+            }
+        }
+
+        return new ProfileResult.Found(new RuneScapeProfile(
+                json.getString("name"),
+                json.getInt("totalskill"),
+                json.getLong("totalxp"),
+                json.getInt("combatlevel"),
+                json.getInt("questscomplete"),
+                json.getInt("questsstarted"),
+                json.getInt("questsnotstarted"),
+                skills,
+                activities
+        ));
     }
 
     /**

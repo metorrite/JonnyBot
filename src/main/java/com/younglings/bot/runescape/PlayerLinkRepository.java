@@ -43,7 +43,8 @@ public class PlayerLinkRepository {
                 rs.getLong("discord_user_id"),
                 rs.getString("rsn"),
                 rs.getString("verification_method"),
-                rs.getObject("verified_at", java.time.OffsetDateTime.class)
+                rs.getObject("verified_at", java.time.OffsetDateTime.class),
+                rs.getObject("last_self_poll_at", java.time.OffsetDateTime.class)
         );
     }
 
@@ -212,7 +213,7 @@ public class PlayerLinkRepository {
 
     public List<PlayerLink> getLinksForUser(long guildId, long discordUserId) {
         String sql = """
-                SELECT link_id, guild_id, discord_user_id, rsn, verification_method, verified_at
+                SELECT link_id, guild_id, discord_user_id, rsn, verification_method, verified_at, last_self_poll_at
                 FROM younglings.player_link
                 WHERE guild_id = ? AND discord_user_id = ?
                 ORDER BY verified_at ASC
@@ -240,7 +241,7 @@ public class PlayerLinkRepository {
 
     public PlayerLink getLinkForRsn(long guildId, String rsn) {
         String sql = """
-                SELECT link_id, guild_id, discord_user_id, rsn, verification_method, verified_at
+                SELECT link_id, guild_id, discord_user_id, rsn, verification_method, verified_at, last_self_poll_at
                 FROM younglings.player_link
                 WHERE guild_id = ? AND LOWER(rsn) = LOWER(?)
                 """;
@@ -258,6 +259,31 @@ public class PlayerLinkRepository {
         } catch (SQLException e) {
             log.error("Failed to get link for RSN '{}'", rsn, e);
             throw new RuntimeException("Failed to get player link", e);
+        }
+    }
+
+    /**
+     * Repoints an existing link at a new RSN in place (same {@code link_id}), instead of deleting
+     * and recreating it — for a name change, not a re-verification, so no history should look like
+     * it belonged to two different accounts. Throws if {@code newRsn} collides with a different
+     * link's RSN (the same unique index {@link #createLink} relies on).
+     */
+    public void updateRsn(long guildId, long linkId, String newRsn) {
+        String sql = "UPDATE younglings.player_link SET rsn = ? WHERE guild_id = ? AND link_id = ?";
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setString(1, newRsn);
+            statement.setLong(2, guildId);
+            statement.setLong(3, linkId);
+            statement.executeUpdate();
+
+            log.info("Renamed player_link {} to RSN '{}' in guild {}", linkId, newRsn, guildId);
+
+        } catch (SQLException e) {
+            log.error("Failed to rename link {} to '{}'", linkId, newRsn, e);
+            throw new RuntimeException("Failed to rename link", e);
         }
     }
 
@@ -279,10 +305,26 @@ public class PlayerLinkRepository {
         }
     }
 
+    /** Stamps {@code last_self_poll_at} to now — called only from the member's own "Poll Now" click under {@code /rs}, never from an admin or auto poll. */
+    public void recordSelfPoll(long linkId) {
+        String sql = "UPDATE younglings.player_link SET last_self_poll_at = NOW() WHERE link_id = ?";
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setLong(1, linkId);
+            statement.executeUpdate();
+
+        } catch (SQLException e) {
+            log.error("Failed to record self-poll for link {}", linkId, e);
+            throw new RuntimeException("Failed to record self-poll", e);
+        }
+    }
+
     /** All currently-linked RSNs across the guild, for the stats scheduler to poll. */
     public List<PlayerLink> getAllLinks(long guildId) {
         String sql = """
-                SELECT link_id, guild_id, discord_user_id, rsn, verification_method, verified_at
+                SELECT link_id, guild_id, discord_user_id, rsn, verification_method, verified_at, last_self_poll_at
                 FROM younglings.player_link
                 WHERE guild_id = ?
                 """;
@@ -309,7 +351,7 @@ public class PlayerLinkRepository {
     /** Every confirmed link across every guild — used by the stats scheduler, which isn't scoped to one guild. */
     public List<PlayerLink> getAllLinksAcrossGuilds() {
         String sql = """
-                SELECT link_id, guild_id, discord_user_id, rsn, verification_method, verified_at
+                SELECT link_id, guild_id, discord_user_id, rsn, verification_method, verified_at, last_self_poll_at
                 FROM younglings.player_link
                 """;
 
@@ -400,6 +442,28 @@ public class PlayerLinkRepository {
         } catch (SQLException e) {
             log.error("Failed to save backdated stats snapshot for '{}'", rsn, e);
             throw new RuntimeException("Failed to save backdated stats snapshot", e);
+        }
+    }
+
+    /**
+     * Bumps an existing snapshot's {@code snapshot_at} to now, without touching anything else —
+     * used instead of a full new snapshot when a poll comes back with nothing actually different
+     * from last time (see {@link RuneScapeStatsService}), so "polled X ago" still reflects the truth
+     * without paying for a full insert cascade (snapshot + up to 29 skill rows + activity upserts)
+     * every single poll.
+     */
+    public void touchSnapshot(long snapshotId) {
+        String sql = "UPDATE younglings.player_stats_snapshot SET snapshot_at = NOW() WHERE snapshot_id = ?";
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setLong(1, snapshotId);
+            statement.executeUpdate();
+
+        } catch (SQLException e) {
+            log.error("Failed to touch snapshot {}", snapshotId, e);
+            throw new RuntimeException("Failed to touch snapshot", e);
         }
     }
 

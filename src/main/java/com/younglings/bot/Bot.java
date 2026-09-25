@@ -1,10 +1,13 @@
 package com.younglings.bot;
 
 import com.younglings.bot.commands.coffer.CofferInteractionListener;
+import com.younglings.bot.commands.configure.ConfigureInteractionListener;
 import com.younglings.bot.commands.embed.EmbedInteractionListener;
 import com.younglings.bot.commands.poll.PollInteractionListener;
-import com.younglings.bot.commands.runescape.RsnAdminInteractionListener;
-import com.younglings.bot.commands.runescape.RsnInteractionListener;
+import com.younglings.bot.commands.runescape.RsAdminInteractionListener;
+import com.younglings.bot.commands.runescape.RsChartInteractionListener;
+import com.younglings.bot.commands.runescape.RsInteractionListener;
+import com.younglings.bot.commands.runescape.RsnRenameInteractionListener;
 import com.younglings.bot.commands.signup.SignupInteractionListener;
 import com.younglings.bot.commands.teamforming.TeamformingInteractionListener;
 import com.younglings.bot.config.BotConfig;
@@ -29,8 +32,11 @@ public class Bot extends JDAService {
     private final CofferInteractionListener cofferInteractionListener;
     private final TeamformingInteractionListener teamformingInteractionListener;
     private final EmbedInteractionListener embedInteractionListener;
-    private final RsnInteractionListener rsnInteractionListener;
-    private final RsnAdminInteractionListener rsnAdminInteractionListener;
+    private final RsInteractionListener rsInteractionListener;
+    private final RsAdminInteractionListener rsAdminInteractionListener;
+    private final RsChartInteractionListener rsChartInteractionListener;
+    private final RsnRenameInteractionListener rsnRenameInteractionListener;
+    private final ConfigureInteractionListener configureInteractionListener;
     private final SkillEmojiCatalog skillEmojiCatalog;
 
     public Bot(BotConfig botConfig, SignupInteractionListener signupInteractionListener,
@@ -38,8 +44,11 @@ public class Bot extends JDAService {
                CofferInteractionListener cofferInteractionListener,
                TeamformingInteractionListener teamformingInteractionListener,
                EmbedInteractionListener embedInteractionListener,
-               RsnInteractionListener rsnInteractionListener,
-               RsnAdminInteractionListener rsnAdminInteractionListener,
+               RsInteractionListener rsInteractionListener,
+               RsAdminInteractionListener rsAdminInteractionListener,
+               RsChartInteractionListener rsChartInteractionListener,
+               RsnRenameInteractionListener rsnRenameInteractionListener,
+               ConfigureInteractionListener configureInteractionListener,
                SkillEmojiCatalog skillEmojiCatalog) {
         this.botConfig = botConfig;
         this.signupInteractionListener = signupInteractionListener;
@@ -47,8 +56,11 @@ public class Bot extends JDAService {
         this.cofferInteractionListener = cofferInteractionListener;
         this.teamformingInteractionListener = teamformingInteractionListener;
         this.embedInteractionListener = embedInteractionListener;
-        this.rsnInteractionListener = rsnInteractionListener;
-        this.rsnAdminInteractionListener = rsnAdminInteractionListener;
+        this.rsInteractionListener = rsInteractionListener;
+        this.rsAdminInteractionListener = rsAdminInteractionListener;
+        this.rsChartInteractionListener = rsChartInteractionListener;
+        this.rsnRenameInteractionListener = rsnRenameInteractionListener;
+        this.configureInteractionListener = configureInteractionListener;
         this.skillEmojiCatalog = skillEmojiCatalog;
     }
 
@@ -75,8 +87,9 @@ public class Bot extends JDAService {
                 // member list chunked and cached, so it's explicitly overridden to ALL here.
                 .setMemberCachePolicy(MemberCachePolicy.ALL)
                 .addEventListeners(signupInteractionListener, pollInteractionListener, cofferInteractionListener,
-                        teamformingInteractionListener, embedInteractionListener, rsnInteractionListener,
-                        rsnAdminInteractionListener, skillEmojiCatalog)
+                        teamformingInteractionListener, embedInteractionListener, rsInteractionListener,
+                        rsAdminInteractionListener, rsChartInteractionListener, rsnRenameInteractionListener,
+                        configureInteractionListener, skillEmojiCatalog)
                 .build();
     }
 }

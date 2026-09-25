@@ -15,7 +15,7 @@ import java.util.Random;
  * {@link com.younglings.bot.config.BotConfig#getRunescapeAutoPollEnabled}). Backdated snapshots are
  * anchored to end just before the player's actual latest real snapshot (which is left untouched) and
  * work backward with a fixed-per-skill daily XP gain, so the trend looks like steady grinding rather
- * than noise with no shape. Dev-only — reached from {@code RsnAdminInteractionListener}'s "Seed Test
+ * than noise with no shape. Dev-only — reached from {@code RsAdminInteractionListener}'s "Seed Test
  * Data" button.
  */
 @BService
