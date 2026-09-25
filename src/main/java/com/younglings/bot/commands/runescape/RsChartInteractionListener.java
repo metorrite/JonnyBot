@@ -134,8 +134,8 @@ public class RsChartInteractionListener extends ListenerAdapter {
             children.add(net.dv8tion.jda.api.components.mediagallery.MediaGallery.of(
                     net.dv8tion.jda.api.components.mediagallery.MediaGalleryItem.fromFile(chart)));
         } else {
-            children.add(TextDisplay.of("Not enough poll history in the last " + CHART_HISTORY_DAYS +
-                    " days yet to draw this — need at least 2 polls. Try a different selection, or seed test data first."));
+            children.add(TextDisplay.of("Not enough update history in the last " + CHART_HISTORY_DAYS +
+                    " days yet to draw this — need at least 2 updates. Try a different selection, or seed test data first."));
         }
 
         children.addAll(buildSkillSelectRows(rsn, selectedSkillIds, style));

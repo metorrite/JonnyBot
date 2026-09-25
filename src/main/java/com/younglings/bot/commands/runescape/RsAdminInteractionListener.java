@@ -73,8 +73,8 @@ import java.util.Set;
  * did — that's what {@code /rs} is for, same as any other member, so there's exactly one place that
  * renders a self-service profile instead of two copies of the same view.
  * <p>
- * "Poll Now"/"Poll Again" here is unrestricted (no self-poll cooldown) — that limit only applies to
- * a member's own {@code rs_poll} click under {@code /rs}; see {@code PlayerLinkService#canSelfPoll}.
+ * "Update" here is unrestricted (no self-poll cooldown) — that limit only applies to a member's own
+ * {@code rs_poll} click under {@code /rs}; see {@code PlayerLinkService#canSelfPoll}.
  */
 @BService
 public class RsAdminInteractionListener extends ListenerAdapter {
@@ -322,15 +322,15 @@ public class RsAdminInteractionListener extends ListenerAdapter {
 
     private void doPollAllPrompt(ComponentInteraction event, Guild guild) {
         int count = linkService.getAllLinks(guild.getIdLong()).size();
-        doBulkConfirmPrompt(event, "Poll All Linked Players?",
-                "This polls **every linked player's** RuneScape profile individually (" + count + " total) and writes " +
+        doBulkConfirmPrompt(event, "Update All Linked Players?",
+                "This updates **every linked player's** RuneScape profile individually (" + count + " total) and writes " +
                 "a database update for each one that's changed — up to " + count + " external requests and database writes.",
                 "rsnadmin_poll_all_confirm:_");
     }
 
     private void doSyncClanPrompt(ComponentInteraction event) {
         doBulkConfirmPrompt(event, "Sync Clan Roster?",
-                "This fetches the entire clan roster, then polls **every listed member** individually (with a short delay " +
+                "This fetches the entire clan roster, then updates **every listed member** individually (with a short delay " +
                 "between each) and writes updates to the database for each one. For a clan this size, this can take a " +
                 "couple of minutes and will touch the database dozens of times.",
                 "rsnadmin_syncclan_confirm:_");
@@ -339,7 +339,7 @@ public class RsAdminInteractionListener extends ListenerAdapter {
     private void doGuildChartPrompt(ComponentInteraction event, Guild guild) {
         int count = linkService.getAllLinks(guild.getIdLong()).size();
         doBulkConfirmPrompt(event, "Build the Clan XP Graph?",
-                "This reads recent poll history from the database for **every linked player** (" + count + " total) to build the chart.",
+                "This reads recent update history from the database for **every linked player** (" + count + " total) to build the chart.",
                 "rsnadmin_guildchart_confirm:_");
     }
 
@@ -377,7 +377,7 @@ public class RsAdminInteractionListener extends ListenerAdapter {
         FileUpload chart = XpChartRenderer.renderMultiPlayer(historyByRsn);
         if (chart == null) {
             event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.WARNING,
-                    "Not enough poll history yet — need at least 2 polls for at least one linked player " +
+                    "Not enough update history yet — need at least 2 updates for at least one linked player " +
                     "in the last " + GUILD_CHART_HISTORY_DAYS + " days."))).useComponentsV2(true).queue();
             return;
         }
@@ -411,7 +411,7 @@ public class RsAdminInteractionListener extends ListenerAdapter {
         event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.SUCCESS,
                 "Synced **" + clanName + "**: " + result.rosterSize() + " member(s) in the roster " +
                 "(" + result.newMembers() + " new, " + result.departedMembers() + " no longer listed), " +
-                result.polled() + "/" + result.rosterSize() + " polled successfully."))).useComponentsV2(true).queue();
+                result.polled() + "/" + result.rosterSize() + " updated successfully."))).useComponentsV2(true).queue();
     }
 
     private void doManualVerifyPrompt(ComponentInteraction event) {
@@ -574,7 +574,7 @@ public class RsAdminInteractionListener extends ListenerAdapter {
 
     // --- Per-player actions ---
 
-    /** Reached from a Player Lookup card's "Poll Again" — re-renders that same card, not the admin panel (which no longer shows any one player inline anyway). */
+    /** Reached from a Player Lookup card's "Update" button — re-renders that same card, not the admin panel (which no longer shows any one player inline anyway). */
     private void doPollOne(ComponentInteraction event, Guild guild, String rsn) {
         event.deferEdit().queue();
         ProfileResult result = statsService.pollAndSnapshotResult(guild.getIdLong(), rsn);
@@ -590,7 +590,7 @@ public class RsAdminInteractionListener extends ListenerAdapter {
 
         if (created == 0) {
             event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.WARNING,
-                    "Can't seed test data for **" + rsn + "** — it needs at least one real poll first (Poll Now)."))).useComponentsV2(true).queue();
+                    "Can't seed test data for **" + rsn + "** — it needs at least one real update first (Update)."))).useComponentsV2(true).queue();
             return;
         }
         event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.SUCCESS,
@@ -601,7 +601,7 @@ public class RsAdminInteractionListener extends ListenerAdapter {
     private void doXpChart(ComponentInteraction event, Guild guild, String rsn) {
         if (statsService.getLatestSnapshot(guild.getIdLong(), rsn) == null) {
             Containers.replyEphemeral(event, Containers.WARNING,
-                    "No synced data for **" + rsn + "** yet — use **Poll Now** first.");
+                    "No synced data for **" + rsn + "** yet — use **Update** first.");
             return;
         }
         event.replyComponents(List.of(chartListener.buildChartContainer(guild, rsn, Set.of(), RsChartInteractionListener.ChartStyle.LINE)))
@@ -616,7 +616,7 @@ public class RsAdminInteractionListener extends ListenerAdapter {
         MonthlyRecapStats stats = monthlyRecapService.getStats(guild.getIdLong(), rsn);
         if (stats == null) {
             event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.WARNING,
-                    "No snapshots for **" + rsn + "** yet this month — poll (or seed test data) first."))).useComponentsV2(true).queue();
+                    "No snapshots for **" + rsn + "** yet this month — update (or seed test data) first."))).useComponentsV2(true).queue();
             return;
         }
 
@@ -637,7 +637,7 @@ public class RsAdminInteractionListener extends ListenerAdapter {
         PlayerLinkRepository.StatsSnapshotRow latest = statsService.getLatestSnapshot(guild.getIdLong(), rsn);
         if (latest == null) {
             Containers.replyEphemeral(event, Containers.WARNING,
-                    "No synced data for **" + rsn + "** yet — use **Poll Now** first.");
+                    "No synced data for **" + rsn + "** yet — use **Update** first.");
             return;
         }
         List<SkillValue> skills = statsService.getSkillsForSnapshot(latest.snapshotId());
@@ -673,7 +673,7 @@ public class RsAdminInteractionListener extends ListenerAdapter {
     private void doUnlinkPrompt(ComponentInteraction event, String rsn) {
         Container confirm = Containers.card(Containers.WARNING,
                 TextDisplay.of("### Unlink " + rsn + "?"),
-                TextDisplay.of("This removes the link between the linked Discord account and **" + rsn + "**. Historical poll data is kept."),
+                TextDisplay.of("This removes the link between the linked Discord account and **" + rsn + "**. Historical stats are kept."),
                 ActionRow.of(
                         Button.danger("rsnadmin_unlink_confirm:" + rsn, "Yes, Unlink"),
                         Button.secondary("rsnadmin_unlink_cancel:_", "Cancel")
@@ -786,13 +786,13 @@ public class RsAdminInteractionListener extends ListenerAdapter {
                         "**Total XP:** `" + String.format("%,d", profile.totalXp()) + " xp`"));
                 children.add(link != null
                         ? ActionRow.of(
-                                Button.primary("rsnadmin_poll:" + rsn, "Poll Again"),
+                                Button.primary("rsnadmin_poll:" + rsn, "Update"),
                                 Button.secondary("rs_skills:" + rsn, "Full Skills"),
                                 Button.secondary("rsnadmin_chart:" + rsn, "XP Chart"),
                                 Button.secondary("rsnadmin_renamerequest:" + rsn, "Update RSN"),
                                 Button.danger("rsnadmin_unlink:" + rsn, "Unlink"))
                         : ActionRow.of(
-                                Button.primary("rsnadmin_poll:" + rsn, "Poll Again"),
+                                Button.primary("rsnadmin_poll:" + rsn, "Update"),
                                 Button.secondary("rs_skills:" + rsn, "Full Skills"),
                                 Button.secondary("rsnadmin_chart:" + rsn, "XP Chart"),
                                 Button.secondary("rsnadmin_manualverify:_", "Verify This Player")));
@@ -835,7 +835,7 @@ public class RsAdminInteractionListener extends ListenerAdapter {
     private static final int GUILD_CHART_HISTORY_DAYS = 30;
 
     /**
-     * {@link RsAdminCommand}'s initial reply and this listener's own re-renders (Poll All) — bulk
+     * {@link RsAdminCommand}'s initial reply and this listener's own re-renders (Update All) — bulk
      * actions only now, no self section (see {@code /rs}). Grouped into labeled sections rather than
      * one undifferentiated button wall, since this panel is meant to grow well beyond RS3 tracking
      * over time (Coffer, Events, whatever comes next each get their own section here rather than
@@ -846,7 +846,7 @@ public class RsAdminInteractionListener extends ListenerAdapter {
 
         List<ContainerChildComponent> children = new ArrayList<>();
         children.add(TextDisplay.of("# RS3 Admin Panel" + (clanName != null ? " - " + clanName : "")));
-        children.add(TextDisplay.of("-# Administrator only — automatic polling is disabled, everything here is manual"));
+        children.add(TextDisplay.of("-# Administrator only — clan data updates automatically in the background; use these to trigger one right now"));
         children.add(Separator.createDivider(Separator.Spacing.SMALL));
 
         children.add(TextDisplay.of("### Clan Management"));
@@ -861,7 +861,7 @@ public class RsAdminInteractionListener extends ListenerAdapter {
 
         children.add(TextDisplay.of("### Player Management"));
         children.add(ActionRow.of(
-                Button.primary("rsnadmin_poll_all:_", "Poll All"),
+                Button.primary("rsnadmin_poll_all:_", "Update All"),
                 Button.secondary("rsnadmin_lookup:_", "Player Lookup"),
                 Button.secondary("rsnadmin_manualverify:_", "Manually Verify"),
                 Button.secondary("rsnadmin_review_pending:_", "Review Pending")
