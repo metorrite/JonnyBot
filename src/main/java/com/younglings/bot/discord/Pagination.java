@@ -59,4 +59,25 @@ public final class Pagination {
                 page.hasNext() ? next : next.asDisabled()
         );
     }
+
+    /**
+     * {@link #navRow} plus a 4th "Go to Page" button (caller-supplied ID, since jumping needs a
+     * modal for the page-number input, which this generic helper has no business building itself).
+     * Worth reaching for once a list can run to several pages — stepping one Next at a time to reach
+     * page 5 is a worse experience than typing "5". {@code paginate} already clamps an out-of-range
+     * index, so the modal handler on the other end doesn't need its own bounds-checking either.
+     */
+    public static ActionRow navRowWithJump(Page<?> page, String idPrefix, String jumpButtonId) {
+        Button prev = Button.secondary(idPrefix + (page.pageIndex() - 1), "◀ Prev");
+        Button label = Button.secondary(idPrefix + "label", "Page " + (page.pageIndex() + 1) + "/" + page.pageCount());
+        Button next = Button.secondary(idPrefix + (page.pageIndex() + 1), "Next ▶");
+        Button jump = Button.secondary(jumpButtonId, "Go to Page");
+
+        return ActionRow.of(
+                page.hasPrevious() ? prev : prev.asDisabled(),
+                label.asDisabled(),
+                page.hasNext() ? next : next.asDisabled(),
+                jump
+        );
+    }
 }

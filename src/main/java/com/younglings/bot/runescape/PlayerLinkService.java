@@ -4,6 +4,8 @@ import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Duration;
+import java.time.OffsetDateTime;
 import java.util.List;
 
 @BService
@@ -11,6 +13,10 @@ public class PlayerLinkService {
     private static final Logger log = LoggerFactory.getLogger(PlayerLinkService.class);
 
     public static final String METHOD_MAKEOVER_MAGE = "MAKEOVER_MAGE";
+    public static final String METHOD_ADMIN_MANUAL = "ADMIN_MANUAL";
+
+    /** How often a member can click "Poll Now" themselves under {@code /rs} — irrespective of admin or auto polls, which don't touch this clock at all. */
+    public static final Duration SELF_POLL_COOLDOWN = Duration.ofMinutes(30);
 
     private final PlayerLinkRepository repository;
 
@@ -70,6 +76,27 @@ public class PlayerLinkService {
         return true;
     }
 
+    /**
+     * Links an RSN straight to a Discord user, bypassing the makeover-mage flow entirely — for an
+     * admin who already knows a name is theirs and doesn't need the appearance-comparison dance.
+     * Same underlying {@code createLink} as approving a real verification attempt, so it overwrites
+     * any existing link for that RSN exactly the same way (see {@code PlayerLinkRepository#createLink}'s
+     * {@code ON CONFLICT}).
+     */
+    public void manualLink(long guildId, long discordUserId, String rsn, long adminUserId) {
+        repository.createLink(guildId, discordUserId, rsn, METHOD_ADMIN_MANUAL);
+        log.info("RSN '{}' manually linked to {} by admin {}", rsn, discordUserId, adminUserId);
+    }
+
+    /**
+     * Repoints a link at a new RSN in place — for a real in-game name change, confirmed either by
+     * {@link RsnRenameService} or an admin's manual "Update RSN" action. Unlike unlink+re-verify,
+     * this keeps the same {@code link_id} and doesn't touch verification method/timestamp.
+     */
+    public void renameLink(long guildId, long linkId, String newRsn) {
+        repository.updateRsn(guildId, linkId, newRsn);
+    }
+
     public List<PlayerLink> getLinksForUser(long guildId, long discordUserId) {
         return repository.getLinksForUser(guildId, discordUserId);
     }
@@ -84,6 +111,23 @@ public class PlayerLinkService {
 
     public List<PlayerLink> getAllLinksAcrossGuilds() {
         return repository.getAllLinksAcrossGuilds();
+    }
+
+    /** True if this link's own last self-poll was far enough back (or has never happened) to allow another. */
+    public boolean canSelfPoll(PlayerLink link) {
+        return selfPollCooldownRemaining(link).isZero() || selfPollCooldownRemaining(link).isNegative();
+    }
+
+    /** How much longer until this link's self-poll cooldown clears — zero or negative means it's available now. */
+    public Duration selfPollCooldownRemaining(PlayerLink link) {
+        if (link.lastSelfPollAt() == null) return Duration.ZERO;
+        Duration elapsed = Duration.between(link.lastSelfPollAt(), OffsetDateTime.now());
+        return SELF_POLL_COOLDOWN.minus(elapsed);
+    }
+
+    /** Stamps this link's self-poll clock — call only after an actual self-service poll succeeds. */
+    public void recordSelfPoll(long linkId) {
+        repository.recordSelfPoll(linkId);
     }
 
     /** Returns false if no such link exists for that user (nothing to unlink). */

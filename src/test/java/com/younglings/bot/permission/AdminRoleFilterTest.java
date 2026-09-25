@@ -1,6 +1,7 @@
 package com.younglings.bot.permission;
 
-import com.younglings.bot.config.BotConfig;
+import com.younglings.bot.configure.GuildSettings;
+import com.younglings.bot.configure.GuildSettingsService;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Role;
@@ -15,6 +16,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
@@ -23,7 +25,7 @@ class AdminRoleFilterTest {
     private static final long ADMIN_ROLE_ID = 100L;
 
     @Mock
-    private BotConfig botConfig;
+    private GuildSettingsService guildSettingsService;
     @Mock
     private Guild guild;
     @Mock
@@ -35,21 +37,26 @@ class AdminRoleFilterTest {
 
     @BeforeEach
     void setUp() {
-        filter = new AdminRoleFilter(botConfig);
+        filter = new AdminRoleFilter(guildSettingsService);
         lenient().when(adminRole.getPosition()).thenReturn(10);
         lenient().when(guild.getRoleById(ADMIN_ROLE_ID)).thenReturn(adminRole);
     }
 
+    private void withAdminRoleId(Long adminRoleId) {
+        when(guildSettingsService.getEffective(anyLong())).thenReturn(
+                new GuildSettings(0L, null, adminRoleId, null, null, null, null, null));
+    }
+
     @Test
     void deniesWhenNoAdminRoleConfigured() {
-        when(botConfig.getAdminRoleId()).thenReturn(null);
+        withAdminRoleId(null);
 
         assertFalse(filter.isAuthorized(guild, member));
     }
 
     @Test
     void deniesWhenConfiguredAdminRoleNoLongerExistsInGuild() {
-        when(botConfig.getAdminRoleId()).thenReturn(ADMIN_ROLE_ID);
+        withAdminRoleId(ADMIN_ROLE_ID);
         when(guild.getRoleById(ADMIN_ROLE_ID)).thenReturn(null);
 
         assertFalse(filter.isAuthorized(guild, member));
@@ -57,7 +64,7 @@ class AdminRoleFilterTest {
 
     @Test
     void deniesMemberWithNoRoles() {
-        when(botConfig.getAdminRoleId()).thenReturn(ADMIN_ROLE_ID);
+        withAdminRoleId(ADMIN_ROLE_ID);
         when(member.getRoles()).thenReturn(List.of());
 
         assertFalse(filter.isAuthorized(guild, member));
@@ -66,7 +73,7 @@ class AdminRoleFilterTest {
     @Test
     void deniesMemberRankedBelowAdminRole() {
         Role memberRole = mockRoleAtPosition(5);
-        when(botConfig.getAdminRoleId()).thenReturn(ADMIN_ROLE_ID);
+        withAdminRoleId(ADMIN_ROLE_ID);
         when(member.getRoles()).thenReturn(List.of(memberRole));
 
         assertFalse(filter.isAuthorized(guild, member));
@@ -74,7 +81,7 @@ class AdminRoleFilterTest {
 
     @Test
     void authorizesMemberWithExactlyTheAdminRole() {
-        when(botConfig.getAdminRoleId()).thenReturn(ADMIN_ROLE_ID);
+        withAdminRoleId(ADMIN_ROLE_ID);
         when(member.getRoles()).thenReturn(List.of(adminRole));
 
         assertTrue(filter.isAuthorized(guild, member));
@@ -83,7 +90,7 @@ class AdminRoleFilterTest {
     @Test
     void authorizesMemberRankedAboveAdminRole() {
         Role ownerRole = mockRoleAtPosition(20);
-        when(botConfig.getAdminRoleId()).thenReturn(ADMIN_ROLE_ID);
+        withAdminRoleId(ADMIN_ROLE_ID);
         // getRoles() is highest-first; the member's top role is what matters.
         when(member.getRoles()).thenReturn(List.of(ownerRole, adminRole));
 
