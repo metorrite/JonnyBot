@@ -252,7 +252,7 @@ public class RsInteractionListener extends ListenerAdapter {
                 }
                 Container confirm = Containers.card(Containers.WARNING,
                         TextDisplay.of("### Unlink " + rsn + "?"),
-                        TextDisplay.of("This removes the link between your Discord account and **" + rsn + "**. Historical poll data is kept."),
+                        TextDisplay.of("This removes the link between your Discord account and **" + rsn + "**. Historical stats are kept."),
                         ActionRow.of(
                                 Button.danger("rs_unlink_confirm:" + rsn, "Yes, Unlink"),
                                 Button.secondary("rs_unlink_cancel:_", "Cancel")));
@@ -591,7 +591,7 @@ public class RsInteractionListener extends ListenerAdapter {
 
         boolean canPoll = linkService.canSelfPoll(link);
         children.add(ActionRow.of(
-                canPoll ? Button.primary("rs_poll:" + rsn, "Poll Now") : Button.primary("rs_poll:" + rsn, "Poll Now").asDisabled(),
+                canPoll ? Button.primary("rs_poll:" + rsn, "Update") : Button.primary("rs_poll:" + rsn, "Update").asDisabled(),
                 Button.secondary("rs_skills:" + rsn, "Full Skills"),
                 Button.secondary("rs_activity:" + rsn, "Full Activity"),
                 Button.danger("rs_unlink:" + rsn, "Unlink")
@@ -604,7 +604,7 @@ public class RsInteractionListener extends ListenerAdapter {
     private String buildOverviewLine(Guild guild, PlayerLink link) {
         var history = statsService.getSnapshotHistory(guild.getIdLong(), link.rsn(), 2);
         if (history.isEmpty()) {
-            return "*Never polled yet — click **Poll Now** below.*";
+            return "*Never updated yet — click **Update** below.*";
         }
 
         var latest = history.getFirst();
@@ -619,11 +619,11 @@ public class RsInteractionListener extends ListenerAdapter {
         if (history.size() > 1) {
             long xpGained = latest.totalXp() - history.get(1).totalXp();
             if (xpGained > 0) {
-                sb.append("\n-# +").append(String.format("%,d", xpGained)).append(" xp since previous poll");
+                sb.append("\n-# +").append(String.format("%,d", xpGained)).append(" xp since last update");
             }
         }
 
-        sb.append("\n-# Polled <t:").append(latest.snapshotAt().toEpochSecond()).append(":R> • Manual poll: ");
+        sb.append("\n-# Updated <t:").append(latest.snapshotAt().toEpochSecond()).append(":R> • Manual update: ");
         if (linkService.canSelfPoll(link)) {
             sb.append("🟢 Available now");
         } else {
@@ -648,7 +648,7 @@ public class RsInteractionListener extends ListenerAdapter {
         }
         if (!linkService.canSelfPoll(link)) {
             long minutesLeft = Math.max(1, linkService.selfPollCooldownRemaining(link).toMinutes());
-            Containers.replyEphemeral(event, Containers.WARNING, "You can poll again in about " + minutesLeft + " minute(s).");
+            Containers.replyEphemeral(event, Containers.WARNING, "You can update again in about " + minutesLeft + " minute(s).");
             return;
         }
 
@@ -683,7 +683,7 @@ public class RsInteractionListener extends ListenerAdapter {
         MonthlyRecapStats stats = monthlyRecapService.getStats(guild.getIdLong(), rsn);
         if (stats == null) {
             event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.WARNING,
-                    "No snapshots for **" + rsn + "** yet this month — poll first."))).useComponentsV2(true).queue();
+                    "No snapshots for **" + rsn + "** yet this month — update first."))).useComponentsV2(true).queue();
             return;
         }
 
@@ -733,7 +733,7 @@ public class RsInteractionListener extends ListenerAdapter {
         PlayerLinkRepository.StatsSnapshotRow latest = statsService.getLatestSnapshot(guild.getIdLong(), rsn);
         if (latest == null) {
             Containers.replyEphemeral(event, Containers.WARNING,
-                    "No synced data for **" + rsn + "** yet — use **Poll Now** first.");
+                    "No synced data for **" + rsn + "** yet — use **Update** first.");
             return;
         }
 
@@ -792,7 +792,7 @@ public class RsInteractionListener extends ListenerAdapter {
         Container container = buildActivityContainer(guild, rsn, 0);
         if (container == null) {
             Containers.replyEphemeral(event, Containers.WARNING,
-                    "No recorded activity for **" + rsn + "** yet — activity is captured the next time their stats are polled.");
+                    "No recorded activity for **" + rsn + "** yet — activity is captured the next time their stats are updated.");
             return;
         }
         event.replyComponents(List.of(container)).useComponentsV2(true).setEphemeral(ephemeralFor(event.getUser().getIdLong())).queue();
@@ -924,8 +924,8 @@ public class RsInteractionListener extends ListenerAdapter {
 
         if (entries.isEmpty()) {
             Containers.replyEphemeral(event, Containers.INFO,
-                    "No stats have been synced yet — polling is manual right now, so someone needs to click " +
-                    "**Poll Now** (or an admin needs to poll from the admin panel) first.");
+                    "No stats have been synced yet — click **Update** on your profile, or an admin can trigger " +
+                    "one from the admin panel, to get started.");
             return;
         }
 
@@ -940,7 +940,7 @@ public class RsInteractionListener extends ListenerAdapter {
         Container container = Containers.card(RS3_ORANGE,
                 TextDisplay.of("### " + clanNameOrFallback(guild) + " Leaderboard — Total XP"),
                 TextDisplay.of(sb.toString()),
-                TextDisplay.of("-# Based on each player's last synced snapshot, not a live poll."));
+                TextDisplay.of("-# Based on each player's last synced snapshot, not a live update."));
 
         event.replyComponents(List.of(container)).useComponentsV2(true).setEphemeral(true).queue();
     }
