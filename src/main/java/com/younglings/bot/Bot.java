@@ -65,9 +65,16 @@ public class Bot extends JDAService {
     }
 
     // If you use Spring, you can return values provided by JDAConfiguration in the getters below
+    //
+    // Only ONLINE_STATUS and SCHEDULED_EVENTS are ever actually read anywhere in this codebase —
+    // see InternalApiServer's /online-members (member.getOnlineStatus()) and /events
+    // (guild.getScheduledEvents()) endpoints. The other 9 CacheFlag.values() (ACTIVITY, VOICE_STATE,
+    // EMOJI, STICKER, SOUNDBOARD_SOUNDS, CLIENT_STATUS, MEMBER_OVERRIDES, ROLE_TAGS, FORUM_TAGS) were
+    // being cached, guild-wide, for zero actual use — each one adds its own per-member or per-guild
+    // structure that JDA otherwise never has to populate or hold onto.
     @Override
     public Set<CacheFlag> getCacheFlags() {
-        return Set.of(CacheFlag.values());
+        return Set.of(CacheFlag.ONLINE_STATUS, CacheFlag.SCHEDULED_EVENTS);
     }
 
     @Override
@@ -81,11 +88,18 @@ public class Bot extends JDAService {
         // It also sets the EventManager and a special rate limiter
         createLight(botConfig.getToken())
                 .setActivity(botConfig.getActivity())
-                // createLight's low-memory profile defaults to a restrictive member cache policy —
-                // fine for a bot that only ever looks up members it already has an ID for (signup,
-                // coffer, etc.), but the internal API's online-members endpoint needs the full
-                // member list chunked and cached, so it's explicitly overridden to ALL here.
-                .setMemberCachePolicy(MemberCachePolicy.ALL)
+                // createLight's low-memory profile defaults to a restrictive member cache policy.
+                // The internal API's online-members endpoint (InternalApiServer#buildOnlineMembers)
+                // only ever needs members who currently AREN'T offline, so ONLINE is the exact right
+                // policy for it — MemberCachePolicy.ALL was retaining every member of the guild
+                // (online or not, active or long gone) for the life of the process, which is the
+                // single largest driver of this bot's memory footprint. The internal API's other
+                // endpoints (member lookup, nickname, color-role) look up an arbitrary member by ID
+                // and used to rely on that same full cache; they now fall back to a one-off REST
+                // fetch on a cache miss instead — see InternalApiServer#resolveMember. Those are
+                // low-frequency, admin-triggered calls, so trading an occasional ~100-300ms REST
+                // round trip for a much smaller resident cache is a clear win, not a regression.
+                .setMemberCachePolicy(MemberCachePolicy.ONLINE)
                 .addEventListeners(signupInteractionListener, pollInteractionListener, cofferInteractionListener,
                         teamformingInteractionListener, embedInteractionListener, rsInteractionListener,
                         rsAdminInteractionListener, rsChartInteractionListener, rsnRenameInteractionListener,
