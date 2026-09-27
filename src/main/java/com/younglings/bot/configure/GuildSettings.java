@@ -8,5 +8,6 @@ package com.younglings.bot.configure;
  */
 public record GuildSettings(long guildId, String clanName, Long adminRoleId, Long renameAlertChannelId,
                              Long verificationReviewChannelId, Long verifiedClanRoleId,
-                             Long verifiedNonClanRoleId, Long unverifiedRoleId) {
+                             Long verifiedNonClanRoleId, Long unverifiedRoleId, Long onboardingRoleId,
+                             Long rulesChannelId, Long rulesMessageId, String rulesText) {
 }
