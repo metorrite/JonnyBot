@@ -89,7 +89,8 @@ public class GuildIconEmojiCatalog {
 
     private byte[] fetchIconBytes(Guild guild) {
         try {
-            HttpRequest request = HttpRequest.newBuilder().uri(URI.create(guild.getIconUrl() + "?size=128")).GET().build();
+            HttpRequest request = HttpRequest.newBuilder().uri(URI.create(guild.getIconUrl() + "?size=128"))
+                    .timeout(Duration.ofSeconds(10)).GET().build();
             HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
             return response.statusCode() / 100 == 2 ? response.body() : null;
         } catch (IOException | InterruptedException e) {
