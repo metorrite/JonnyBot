@@ -445,28 +445,6 @@ public class PlayerLinkRepository {
         }
     }
 
-    /**
-     * Bumps an existing snapshot's {@code snapshot_at} to now, without touching anything else —
-     * used instead of a full new snapshot when a poll comes back with nothing actually different
-     * from last time (see {@link RuneScapeStatsService}), so "polled X ago" still reflects the truth
-     * without paying for a full insert cascade (snapshot + up to 29 skill rows + activity upserts)
-     * every single poll.
-     */
-    public void touchSnapshot(long snapshotId) {
-        String sql = "UPDATE younglings.player_stats_snapshot SET snapshot_at = NOW() WHERE snapshot_id = ?";
-
-        try (Connection connection = connectionSupplier.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
-
-            statement.setLong(1, snapshotId);
-            statement.executeUpdate();
-
-        } catch (SQLException e) {
-            log.error("Failed to touch snapshot {}", snapshotId, e);
-            throw new RuntimeException("Failed to touch snapshot", e);
-        }
-    }
-
     public void saveSkillSnapshot(long snapshotId, List<SkillValue> skills) {
         if (skills.isEmpty()) return;
 

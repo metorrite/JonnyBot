@@ -132,6 +132,25 @@ public class InternalApiServer {
         return guild;
     }
 
+    /**
+     * Cache-first, then a one-off REST fetch on a miss. Needed because {@link com.younglings.bot.Bot}
+     * now runs {@code MemberCachePolicy.ONLINE} (see its javadoc) instead of {@code ALL} — an offline
+     * member (or one who's simply never come online since the bot's last reconnect) won't be in the
+     * local cache, but this endpoint still needs to answer for them. These are all low-frequency,
+     * admin/website-triggered calls, not a hot path, so the occasional extra REST round trip is a
+     * non-issue. {@code null} if the member genuinely isn't in the guild at all.
+     */
+    private Member resolveMember(Guild guild, long userId) {
+        Member cached = guild.getMemberById(userId);
+        if (cached != null) return cached;
+
+        try {
+            return guild.retrieveMemberById(userId).complete();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     // --- Read endpoints ---
 
     private void handleOnlineMembers(HttpExchange exchange, String secret, long guildId) throws IOException {
@@ -169,7 +188,7 @@ public class InternalApiServer {
                 return;
             }
 
-            Member member = guild.getMemberById(Long.parseLong(userIdRaw));
+            Member member = resolveMember(guild, Long.parseLong(userIdRaw));
             if (member == null) {
                 sendJson(exchange, 404, DataObject.empty().put("error", "Member not found in guild"));
                 return;
@@ -192,7 +211,7 @@ public class InternalApiServer {
             if (guild == null) return;
 
             DataObject body = readJsonBody(exchange);
-            Member member = guild.getMemberById(body.getLong("userId"));
+            Member member = resolveMember(guild, body.getLong("userId"));
             if (member == null) {
                 sendJson(exchange, 404, DataObject.empty().put("error", "Member not found in guild"));
                 return;
@@ -222,7 +241,7 @@ public class InternalApiServer {
             if (guild == null) return;
 
             DataObject body = readJsonBody(exchange);
-            Member member = guild.getMemberById(body.getLong("userId"));
+            Member member = resolveMember(guild, body.getLong("userId"));
             if (member == null) {
                 sendJson(exchange, 404, DataObject.empty().put("error", "Member not found in guild"));
                 return;
