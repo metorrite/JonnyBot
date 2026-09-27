@@ -100,10 +100,25 @@ public final class Containers {
 
     // --- Error fallback, shared by every listener's catch block ---
 
+    private static final String ERROR_MESSAGE = "An unexpected error occurred. Please try again or contact an admin.";
+
+    /**
+     * {@code event} is usually still fresh (nothing sent yet), so a plain ephemeral reply works. But
+     * every admin action that defers first (Sync Clan, Poll All, Clan Overview, Monthly Recap, ...)
+     * calls {@code deferReply}/{@code deferEdit} <em>before</em> doing the actual work — if that work
+     * throws, {@code event} is already acknowledged, and a plain {@code reply} silently does nothing
+     * (Discord's own client is left showing "thinking..." forever, with no error ever visible to
+     * whoever clicked it). Editing through the hook instead, exactly like every successful path in
+     * these handlers already does after a defer, means an error is always visible one way or another.
+     */
     public static void replyError(IReplyCallback event) {
         try {
             if (!event.isAcknowledged()) {
-                reply(event, DANGER, true, "An unexpected error occurred. Please try again or contact an admin.");
+                reply(event, DANGER, true, ERROR_MESSAGE);
+            } else {
+                event.getHook().editOriginalComponents(List.of(toast(DANGER, ERROR_MESSAGE)))
+                        .useComponentsV2(true)
+                        .queue(success -> {}, failure -> {});
             }
         } catch (Exception ignored) {}
     }

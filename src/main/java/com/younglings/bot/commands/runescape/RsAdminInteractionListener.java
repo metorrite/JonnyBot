@@ -823,7 +823,8 @@ public class RsAdminInteractionListener extends ListenerAdapter {
         if (iconUrl == null) return null;
 
         try {
-            HttpRequest request = HttpRequest.newBuilder().uri(URI.create(iconUrl + "?size=256")).GET().build();
+            HttpRequest request = HttpRequest.newBuilder().uri(URI.create(iconUrl + "?size=256"))
+                    .timeout(Duration.ofSeconds(10)).GET().build();
             HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
             return response.statusCode() / 100 == 2 ? response.body() : null;
         } catch (Exception e) {
