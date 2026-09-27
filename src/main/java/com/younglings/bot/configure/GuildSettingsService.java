@@ -35,9 +35,14 @@ public class GuildSettingsService {
                 ? stored.verifiedNonClanRoleId() : botConfig.getVerifiedNonClanRoleId();
         Long unverifiedRoleId = stored != null && stored.unverifiedRoleId() != null
                 ? stored.unverifiedRoleId() : botConfig.getUnverifiedRoleId();
+        Long onboardingRoleId = stored != null ? stored.onboardingRoleId() : null;
+        Long rulesChannelId = stored != null ? stored.rulesChannelId() : null;
+        Long rulesMessageId = stored != null ? stored.rulesMessageId() : null;
+        String rulesText = stored != null ? stored.rulesText() : null;
 
         return new GuildSettings(guildId, clanName, adminRoleId, renameAlertChannelId, verificationReviewChannelId,
-                verifiedClanRoleId, verifiedNonClanRoleId, unverifiedRoleId);
+                verifiedClanRoleId, verifiedNonClanRoleId, unverifiedRoleId, onboardingRoleId,
+                rulesChannelId, rulesMessageId, rulesText);
     }
 
     /** {@code null} for any field clears that guild's override, falling back to {@code BotConfig} again. */
@@ -58,5 +63,20 @@ public class GuildSettingsService {
     /** {@code null} for any field clears that role's override, falling back to {@code BotConfig} (or "no role") again. */
     public void updateVerificationRoleSettings(long guildId, Long verifiedClanRoleId, Long verifiedNonClanRoleId, Long unverifiedRoleId) {
         repository.upsertVerificationRoleSettings(guildId, verifiedClanRoleId, verifiedNonClanRoleId, unverifiedRoleId);
+    }
+
+    /** {@code null} clears the override — no role granted on submission. */
+    public void updateOnboardingRole(long guildId, Long onboardingRoleId) {
+        repository.upsertOnboardingRole(guildId, onboardingRoleId);
+    }
+
+    /** Either may be {@code null} to clear it. */
+    public void updateRulesSettings(long guildId, Long rulesChannelId, String rulesText) {
+        repository.upsertRulesSettings(guildId, rulesChannelId, rulesText);
+    }
+
+    /** Called once the Rules panel actually posts (or re-finds) the message, so a later edit updates it in place. */
+    public void updateRulesMessageId(long guildId, Long rulesMessageId) {
+        repository.updateRulesMessageId(guildId, rulesMessageId);
     }
 }

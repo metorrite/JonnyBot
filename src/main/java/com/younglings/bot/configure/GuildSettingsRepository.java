@@ -25,7 +25,8 @@ public class GuildSettingsRepository {
     public GuildSettings get(long guildId) {
         String sql = """
                 SELECT guild_id, clan_name, admin_role_id, rename_alert_channel_id, verification_review_channel_id,
-                       verified_clan_role_id, verified_non_clan_role_id, unverified_role_id
+                       verified_clan_role_id, verified_non_clan_role_id, unverified_role_id, onboarding_role_id,
+                       rules_channel_id, rules_message_id, rules_text
                 FROM younglings.guild_settings WHERE guild_id = ?
                 """;
 
@@ -44,7 +45,11 @@ public class GuildSettingsRepository {
                         (Long) rs.getObject("verification_review_channel_id"),
                         (Long) rs.getObject("verified_clan_role_id"),
                         (Long) rs.getObject("verified_non_clan_role_id"),
-                        (Long) rs.getObject("unverified_role_id"));
+                        (Long) rs.getObject("unverified_role_id"),
+                        (Long) rs.getObject("onboarding_role_id"),
+                        (Long) rs.getObject("rules_channel_id"),
+                        (Long) rs.getObject("rules_message_id"),
+                        rs.getString("rules_text"));
             }
 
         } catch (SQLException e) {
@@ -161,6 +166,82 @@ public class GuildSettingsRepository {
         } catch (SQLException e) {
             log.error("Failed to upsert verification settings for {}", guildId, e);
             throw new RuntimeException("Failed to upsert verification settings", e);
+        }
+    }
+
+    /**
+     * A narrower upsert than {@link #upsertClanSettings} — only ever touches this one column. Separate
+     * from {@link #upsertVerificationRoleSettings} since this role applies at a different moment
+     * (submission, not approval) and is edited from its own dropdown.
+     */
+    public void upsertOnboardingRole(long guildId, Long onboardingRoleId) {
+        String sql = """
+                INSERT INTO younglings.guild_settings (guild_id, onboarding_role_id)
+                VALUES (?, ?)
+                ON CONFLICT (guild_id) DO UPDATE SET
+                    onboarding_role_id = EXCLUDED.onboarding_role_id
+                """;
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setLong(1, guildId);
+            setNullableLong(statement, 2, onboardingRoleId);
+            statement.executeUpdate();
+
+            log.info("Updated onboarding role for guild {}", guildId);
+
+        } catch (SQLException e) {
+            log.error("Failed to upsert onboarding role for {}", guildId, e);
+            throw new RuntimeException("Failed to upsert onboarding role", e);
+        }
+    }
+
+    /** The Rules panel's channel + text, saved together since they're edited from the same modal/select. */
+    public void upsertRulesSettings(long guildId, Long rulesChannelId, String rulesText) {
+        String sql = """
+                INSERT INTO younglings.guild_settings (guild_id, rules_channel_id, rules_text)
+                VALUES (?, ?, ?)
+                ON CONFLICT (guild_id) DO UPDATE SET
+                    rules_channel_id = EXCLUDED.rules_channel_id,
+                    rules_text = EXCLUDED.rules_text
+                """;
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setLong(1, guildId);
+            setNullableLong(statement, 2, rulesChannelId);
+            statement.setString(3, rulesText);
+            statement.executeUpdate();
+
+            log.info("Updated rules settings for guild {}", guildId);
+
+        } catch (SQLException e) {
+            log.error("Failed to upsert rules settings for {}", guildId, e);
+            throw new RuntimeException("Failed to upsert rules settings", e);
+        }
+    }
+
+    /** Set once the Rules panel actually posts (or re-finds) the message, so a later edit updates it in place. */
+    public void updateRulesMessageId(long guildId, Long rulesMessageId) {
+        String sql = """
+                INSERT INTO younglings.guild_settings (guild_id, rules_message_id)
+                VALUES (?, ?)
+                ON CONFLICT (guild_id) DO UPDATE SET
+                    rules_message_id = EXCLUDED.rules_message_id
+                """;
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setLong(1, guildId);
+            setNullableLong(statement, 2, rulesMessageId);
+            statement.executeUpdate();
+
+        } catch (SQLException e) {
+            log.error("Failed to update rules message id for {}", guildId, e);
+            throw new RuntimeException("Failed to update rules message id", e);
         }
     }
 

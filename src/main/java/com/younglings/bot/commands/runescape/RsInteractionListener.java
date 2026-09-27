@@ -35,6 +35,7 @@ import net.dv8tion.jda.api.components.textinput.TextInputStyle;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Message;
+import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.events.interaction.ModalInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
@@ -421,9 +422,28 @@ public class RsInteractionListener extends ListenerAdapter {
 
         VerificationAttempt attempt = linkService.startVerification(guildId, userId, rsn);
         postForAdminReview(event.getGuild(), attempt);
+        grantOnboardingRole(event.getGuild(), event.getMember(), guildId);
         dmVerificationUpdate(event.getGuild(), userId, Containers.INFO,
                 "Your request to link **" + rsn + "** has been submitted — an admin is reviewing it. You'll get a DM once it's approved or denied.");
         event.replyComponents(List.of(buildPendingStatusPanel(attempt))).useComponentsV2(true).setEphemeral(true).queue();
+    }
+
+    /**
+     * Grants the configured onboarding role the moment a link request is submitted — separate from
+     * {@link #completeApproval}'s verified/unverified roles, which only apply once an admin actually
+     * resolves the request. No-ops if no onboarding role is configured, or the member already has it.
+     */
+    private void grantOnboardingRole(Guild guild, Member member, long guildId) {
+        if (member == null) return;
+
+        Long onboardingRoleId = guildSettingsService.getEffective(guildId).onboardingRoleId();
+        if (onboardingRoleId == null) return;
+
+        Role role = guild.getRoleById(onboardingRoleId);
+        if (role == null || member.getRoles().contains(role)) return;
+
+        guild.addRoleToMember(member, role).queue(success -> {},
+                error -> log.warn("Failed to grant onboarding role to user {} in guild {}", member.getIdLong(), guildId, error));
     }
 
     static Modal buildLinkModal() {
