@@ -68,16 +68,15 @@ public class GuildSettingsDatabaseInitializer {
                 // onboarding_role_id: granted the moment someone submits /rs, before an admin has
                 // approved anything — a separate, earlier role than verified_clan_role_id /
                 // verified_non_clan_role_id / unverified_role_id above, which only apply once a
-                // request is actually resolved. rules_* backs the "post the rules as the bot"
-                // Configure panel: the channel to post in, the text to post (edited via modal), and
-                // the id of the message once posted, so a later edit updates it in place instead of
-                // reposting a duplicate.
+                // request is actually resolved.
+                //
+                // rules_channel_id/rules_message_id/rules_text used to live here too (the old
+                // single-channel "post the rules as the bot" Configure panel) — they were migrated
+                // into the generalized younglings.announcement_* tables and dropped from this table;
+                // see AnnouncementDatabaseInitializer's one-time migration statement.
                 """
                 ALTER TABLE younglings.guild_settings
-                    ADD COLUMN IF NOT EXISTS onboarding_role_id BIGINT NULL,
-                    ADD COLUMN IF NOT EXISTS rules_channel_id BIGINT NULL,
-                    ADD COLUMN IF NOT EXISTS rules_message_id BIGINT NULL,
-                    ADD COLUMN IF NOT EXISTS rules_text TEXT NULL;
+                    ADD COLUMN IF NOT EXISTS onboarding_role_id BIGINT NULL;
                 """
         ));
     }

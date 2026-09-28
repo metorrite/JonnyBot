@@ -20,7 +20,6 @@ import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.entities.channel.ChannelType;
-import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.events.interaction.ModalInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.EntitySelectInteractionEvent;
@@ -69,9 +68,6 @@ public class ConfigureInteractionListener extends ListenerAdapter {
                 case "configure_clan" -> event.editComponents(List.of(buildClanPanel(guild))).useComponentsV2(true).queue();
                 case "configure_clan_edit" -> doClanEditPrompt(event);
                 case "configure_verification" -> event.editComponents(List.of(buildVerificationPanel(guild))).useComponentsV2(true).queue();
-                case "configure_rules" -> event.editComponents(List.of(buildRulesPanel(guild))).useComponentsV2(true).queue();
-                case "configure_rules_edit" -> doRulesEditPrompt(event);
-                case "configure_post_rules" -> doPostRules(event, guild);
                 case "configure_back" -> event.editComponents(List.of(buildPanel())).useComponentsV2(true).queue();
 
                 case "configure_rename_channel_link" -> doChannelLinkPrompt(event, "rename_channel");
@@ -101,8 +97,6 @@ public class ConfigureInteractionListener extends ListenerAdapter {
             }
             if (id.equals("configure_clan_modal:_")) {
                 handleClanModal(event, guild);
-            } else if (id.equals("configure_rules_modal:_")) {
-                handleRulesModal(event, guild);
             } else if (id.startsWith("configure_channel_link_modal:")) {
                 handleChannelLinkModal(event, guild, id.split(":", 2)[1]);
             } else if (id.startsWith("configure_role_link_modal:")) {
@@ -184,11 +178,6 @@ public class ConfigureInteractionListener extends ListenerAdapter {
                 case "configure_verification_channel" -> {
                     settingsService.updateVerificationSettings(guild.getIdLong(), selectedChannelId);
                     event.editComponents(List.of(buildVerificationPanel(guild))).useComponentsV2(true).queue();
-                }
-                case "configure_rules_channel" -> {
-                    GuildSettings current = settingsService.getEffective(guild.getIdLong());
-                    settingsService.updateRulesSettings(guild.getIdLong(), selectedChannelId, current.rulesText());
-                    event.editComponents(List.of(buildRulesPanel(guild))).useComponentsV2(true).queue();
                 }
             }
         } catch (Exception e) {
@@ -278,21 +267,6 @@ public class ConfigureInteractionListener extends ListenerAdapter {
         event.replyModal(modal).queue();
     }
 
-    private void doRulesEditPrompt(ButtonInteractionEvent event) {
-        GuildSettings current = settingsService.getEffective(event.getGuild().getIdLong());
-
-        TextInput.Builder rulesInput = TextInput.create("rules_text", TextInputStyle.PARAGRAPH)
-                .setPlaceholder("The rules text, exactly as you want it posted")
-                .setRequired(false)
-                .setMaxLength(4000);
-        if (current.rulesText() != null) rulesInput.setValue(current.rulesText());
-
-        Modal modal = Modal.create("configure_rules_modal:_", "Rules Text")
-                .addComponents(Label.of("Rules Text", rulesInput.build()))
-                .build();
-        event.replyModal(modal).queue();
-    }
-
     private static TextInput prefilled(String id, String placeholder, String currentValue) {
         TextInput.Builder builder = TextInput.create(id, TextInputStyle.SHORT).setPlaceholder(placeholder).setRequired(false);
         if (currentValue != null) builder.setValue(currentValue);
@@ -306,61 +280,6 @@ public class ConfigureInteractionListener extends ListenerAdapter {
 
         settingsService.updateClanSettings(guild.getIdLong(), clanName, adminRoleId);
         Containers.replyEphemeral(event, Containers.SUCCESS, "Clan settings updated.");
-    }
-
-    private void handleRulesModal(ModalInteractionEvent event, Guild guild) {
-        String rulesText = blankToNull(event.getValue("rules_text").getAsString());
-        GuildSettings current = settingsService.getEffective(guild.getIdLong());
-
-        settingsService.updateRulesSettings(guild.getIdLong(), current.rulesChannelId(), rulesText);
-        Containers.replyEphemeral(event, Containers.SUCCESS, "Rules text saved — click **Post / Update** on the Rules panel to publish it.");
-    }
-
-    /**
-     * Posts the configured rules text as the bot, or edits the previously-posted message in place if
-     * one's already been sent — so hitting this again after editing the text updates the same message
-     * instead of leaving duplicates behind. Falls through to posting fresh if the stored message id no
-     * longer resolves (deleted, or never successfully posted).
-     */
-    private void doPostRules(ButtonInteractionEvent event, Guild guild) {
-        GuildSettings settings = settingsService.getEffective(guild.getIdLong());
-        if (settings.rulesChannelId() == null || settings.rulesText() == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "Set both a rules channel and rules text first.");
-            return;
-        }
-
-        TextChannel channel = guild.getTextChannelById(settings.rulesChannelId());
-        if (channel == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "The configured rules channel no longer exists.");
-            return;
-        }
-
-        event.deferReply(true).queue();
-        Container rulesContainer = Containers.card(Containers.PRIMARY, TextDisplay.of(settings.rulesText()));
-
-        if (settings.rulesMessageId() != null) {
-            channel.retrieveMessageById(settings.rulesMessageId()).queue(
-                    message -> message.editMessageComponents(List.of(rulesContainer)).useComponentsV2(true).queue(
-                            success -> confirmRulesPosted(event, channel, "updated"),
-                            failure -> Containers.replyError(event)),
-                    notFound -> postNewRulesMessage(event, guild.getIdLong(), channel, rulesContainer));
-        } else {
-            postNewRulesMessage(event, guild.getIdLong(), channel, rulesContainer);
-        }
-    }
-
-    private void postNewRulesMessage(ButtonInteractionEvent event, long guildId, TextChannel channel, Container rulesContainer) {
-        channel.sendMessageComponents(List.of(rulesContainer)).useComponentsV2(true).queue(
-                sent -> {
-                    settingsService.updateRulesMessageId(guildId, sent.getIdLong());
-                    confirmRulesPosted(event, channel, "posted");
-                },
-                failure -> Containers.replyError(event));
-    }
-
-    private void confirmRulesPosted(ButtonInteractionEvent event, TextChannel channel, String verb) {
-        event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.SUCCESS, "Rules " + verb + " in " + channel.getAsMention() + ".")))
-                .useComponentsV2(true).queue();
     }
 
     private static String blankToNull(String value) {
@@ -384,7 +303,7 @@ public class ConfigureInteractionListener extends ListenerAdapter {
                 ActionRow.of(
                         Button.secondary("configure_clan:_", "Clan"),
                         Button.secondary("configure_verification:_", "Verification"),
-                        Button.secondary("configure_rules:_", "Rules"),
+                        Button.secondary("configure_announce_main:_", "Announcements"),
                         Button.secondary("configure_tracking_main:_", "Tracking")));
     }
 
@@ -439,27 +358,6 @@ public class ConfigureInteractionListener extends ListenerAdapter {
         children.add(TextDisplay.of("**Onboarding Role**\n-# Granted the moment someone *submits* `/rs` — before any admin has reviewed it. Separate from the three roles above, which only apply once a request is resolved."));
         children.add(buildRoleSelectRow(guild, "configure_onboarding_role:_", "Select a role (optional)", settings.onboardingRoleId()));
         children.add(Containers.linkButtonRow("configure_onboarding_role_link:_"));
-
-        return Containers.card(Containers.PRIMARY, children);
-    }
-
-    private Container buildRulesPanel(Guild guild) {
-        GuildSettings settings = settingsService.getEffective(guild.getIdLong());
-
-        List<ContainerChildComponent> children = new ArrayList<>();
-        children.add(TextDisplay.of("### Rules"));
-        children.add(TextDisplay.of("-# Posts your rules text as the bot itself, in a channel you pick — editing the text and clicking Post again updates the same message instead of posting a duplicate."));
-        children.add(ActionRow.of(Button.secondary("configure_back:_", "Back")));
-
-        children.add(TextDisplay.of("**Rules Channel**"));
-        children.add(buildChannelSelectRow("configure_rules_channel:_", "Select a channel (optional)", settings.rulesChannelId()));
-
-        String preview = settings.rulesText() == null ? "*not set*"
-                : settings.rulesText().length() > 300 ? settings.rulesText().substring(0, 300) + "…" : settings.rulesText();
-        children.add(TextDisplay.of("**Rules Text**\n" + preview));
-        children.add(ActionRow.of(
-                Button.primary("configure_rules_edit:_", "Edit Text"),
-                Button.success("configure_post_rules:_", "Post / Update")));
 
         return Containers.card(Containers.PRIMARY, children);
     }
