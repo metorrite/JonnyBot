@@ -1,6 +1,7 @@
 package com.younglings.bot.tracking;
 
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
+import net.dv8tion.jda.api.components.container.Container;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel;
 import org.slf4j.Logger;
@@ -54,6 +55,27 @@ public class TrackingEventRouter {
                 channel.sendMessage(entry.line()).setSuppressedNotifications(true).queue(success -> {},
                         error -> log.warn("Failed to post tracking entry to channel {} in guild {}", destination.channelId(), guildId, error));
             }
+        }
+    }
+
+    /**
+     * Same destination lookup/enabled check as {@link #dispatchAll}, but for a group whose message is a
+     * full Components V2 {@link Container} (a rich, possibly-interactive layout) rather than a single
+     * plain-text line — the weekly digest groups in particular, which need multiple sections and a
+     * button, not something {@link ClassifiedEntry#line()} can express.
+     */
+    public void dispatchContainer(Guild guild, TrackingGroup group, Container container) {
+        long guildId = guild.getIdLong();
+        String groupKey = group.name();
+        if (!repository.isEnabled(guildId, groupKey)) return;
+
+        List<TrackingRepository.Destination> destinations = repository.getDestinations(guildId, groupKey);
+        for (TrackingRepository.Destination destination : destinations) {
+            GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, destination.channelId());
+            if (channel == null) continue;
+
+            channel.sendMessageComponents(List.of(container)).useComponentsV2(true).setSuppressedNotifications(true)
+                    .queue(success -> {}, error -> log.warn("Failed to post weekly digest to channel {} in guild {}", destination.channelId(), guildId, error));
         }
     }
 }

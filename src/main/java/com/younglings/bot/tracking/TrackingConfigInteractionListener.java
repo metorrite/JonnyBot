@@ -30,6 +30,10 @@ import net.dv8tion.jda.api.modals.Modal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.DayOfWeek;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
@@ -60,12 +64,26 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
     private final TrackingService trackingService;
     private final SkillEmojiCatalog skillEmojiCatalog;
     private final TrackingIconCatalog trackingIconCatalog;
+    private final WeeklyDigestService weeklyDigestService;
 
     public TrackingConfigInteractionListener(TrackingService trackingService, SkillEmojiCatalog skillEmojiCatalog,
-                                              TrackingIconCatalog trackingIconCatalog) {
+                                              TrackingIconCatalog trackingIconCatalog, WeeklyDigestService weeklyDigestService) {
         this.trackingService = trackingService;
         this.skillEmojiCatalog = skillEmojiCatalog;
         this.trackingIconCatalog = trackingIconCatalog;
+        this.weeklyDigestService = weeklyDigestService;
+    }
+
+    private static boolean isWeeklyGroup(TrackingGroup group) {
+        return group == TrackingGroup.WEEKLY_JOINS_LEAVES || group == TrackingGroup.WEEKLY_CITADEL_REPORT;
+    }
+
+    /** The same Wed-00:01-to-Wed-00:00 UTC window {@code WeeklyDigestScheduler} computes for its real weekly run — "this week's report" always means the week that most recently completed. */
+    private static OffsetDateTime[] currentDigestWindow() {
+        OffsetDateTime windowEnd = OffsetDateTime.now(ZoneOffset.UTC)
+                .with(TemporalAdjusters.previousOrSame(DayOfWeek.WEDNESDAY))
+                .toLocalDate().atStartOfDay(ZoneOffset.UTC).toOffsetDateTime();
+        return new OffsetDateTime[]{windowEnd.minusDays(7).plusMinutes(1), windowEnd};
     }
 
     @Override
@@ -115,6 +133,7 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
                 case "configure_tracking_source_add_thread" -> doAddSourceThreadPrompt(event, parts[1]);
                 case "configure_tracking_test_send" -> doSendTestPosts(event, guild);
                 case "configure_tracking_test_clear" -> doClearTestPosts(event, guild);
+                case "configure_tracking_weekly_send" -> doSendWeeklyDigestNow(event, guild, TrackingGroup.valueOf(parts[1]));
             }
         } catch (Exception e) {
             log.error("Unhandled exception in tracking config button interaction '{}'", id, e);
@@ -266,11 +285,38 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
     }
 
     /**
+     * Runs the real weekly digest for one group right now, using the most recently completed
+     * Wed-to-Wed window, instead of waiting for {@code WeeklyDigestScheduler}'s own run — unlike
+     * {@link #doSendTestPosts}, this sends the actual computed report (real data), not sample text, so
+     * there's nothing to record for later clearing; it's exactly what the scheduler itself would have
+     * sent, just on demand.
+     */
+    private void doSendWeeklyDigestNow(ButtonInteractionEvent event, Guild guild, TrackingGroup group) {
+        event.deferReply(true).queue();
+        OffsetDateTime[] window = currentDigestWindow();
+
+        try {
+            if (group == TrackingGroup.WEEKLY_JOINS_LEAVES) {
+                weeklyDigestService.sendJoinsLeaves(guild, window[0], window[1]);
+            } else {
+                weeklyDigestService.sendCitadelReport(guild, window[0], window[1]);
+            }
+            event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.SUCCESS,
+                    "Sent — if this week had nothing to report, nothing was posted."))).useComponentsV2(true).queue();
+        } catch (Exception e) {
+            log.error("Failed to send weekly digest now for group {} guild {}", group, guild.getIdLong(), e);
+            event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.DANGER,
+                    "Failed to send — check the bot's logs."))).useComponentsV2(true).queue();
+        }
+    }
+
+    /**
      * Sends one sample line per group so an admin can see real formatting/icons without waiting for
      * an actual drop/kick/whatever — any group with no destination configured yet gets the invoking
      * channel added as one first (see the panel's own note about this). Every send is recorded in
      * {@code tracking_test_message} so {@link #doClearTestPosts} can find and delete exactly these
-     * later, never a real event's post.
+     * later, never a real event's post. Skips the two weekly-digest groups entirely — those are a real
+     * computed report, not sample text, and have their own "Send This Week's Report Now" button.
      */
     private void doSendTestPosts(ButtonInteractionEvent event, Guild guild) {
         event.deferReply(true).queue();
@@ -282,6 +328,8 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
         int destinationCount = 0;
 
         for (TrackingGroup group : TrackingGroup.values()) {
+            if (isWeeklyGroup(group)) continue;
+
             List<TrackingRepository.Destination> destinations = trackingService.getDestinations(guildId, group);
             if (destinations.isEmpty()) {
                 trackingService.addDestination(guildId, group, invokingChannelId);
@@ -301,7 +349,8 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
 
         int totalSent = destinationCount;
         CompletableFuture.allOf(pending.toArray(new CompletableFuture[0])).handle((v, err) -> {
-            String message = "Sent " + totalSent + " test post(s) across " + TrackingGroup.values().length + " group(s).";
+            long testableGroups = java.util.Arrays.stream(TrackingGroup.values()).filter(g -> !isWeeklyGroup(g)).count();
+            String message = "Sent " + totalSent + " test post(s) across " + testableGroups + " group(s).";
             if (err != null) message += " Some may have failed to send — check the bot's logs.";
             event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.SUCCESS, message))).useComponentsV2(true).queue();
             return null;
@@ -353,6 +402,9 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
             case MEMBERS_MODERATION -> "**Kick**\nPerformed By: " + actorMention + "\nTarget: <@0>\nReason: Testing the Tracking panel";
             case MESSAGES -> "**Message Bulk Delete**\nPerformed By: " + actorMention;
             case SERVER_EXTRAS -> "**Webhook Create**\nPerformed By: " + actorMention;
+            // Never actually reached — doSendTestPosts skips both weekly-digest groups entirely (see
+            // its own doc comment), but a switch expression over an enum still has to be exhaustive.
+            case WEEKLY_JOINS_LEAVES, WEEKLY_CITADEL_REPORT -> "";
         };
         return prefix + body;
     }
@@ -442,6 +494,11 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
                         : Button.success("configure_tracking_toggle:" + group.name(), "Enable")));
 
         children.add(TextDisplay.of("**Status:** " + (enabled ? "Enabled" : "Disabled")));
+
+        if (isWeeklyGroup(group)) {
+            children.add(TextDisplay.of("-# This posts on its own every Wednesday at 01:00 UTC — send this week's report right now instead of waiting."));
+            children.add(ActionRow.of(Button.secondary("configure_tracking_weekly_send:" + group.name(), "Send This Week's Report Now")));
+        }
 
         if (destinations.isEmpty()) {
             children.add(TextDisplay.of("**Destinations:** *none yet*"));
