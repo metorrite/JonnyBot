@@ -40,8 +40,10 @@ import java.util.concurrent.CompletableFuture;
  * class was already sizeable before this — {@code buildPanel()}'s entry button is the only thing that
  * lives over there.
  * <p>
- * Two screens: a list of all 17 groups with a dropdown to pick one, then that group's own screen —
- * enable toggle, current destinations (removable via a second dropdown), a native channel picker to
+ * Two screens: a list of all 17 groups, each its own button (green = enabled, gray = disabled) that
+ * opens straight to that group's screen — clicking beats a dropdown when you already know which one
+ * you want (switched from a dropdown to this after exactly that feedback). That group's own screen has
+ * an enable toggle, current destinations (removable via a dropdown), a native channel picker to
  * add a regular channel or thread, and an "Add by link" modal fallback for a forum thread Discord's
  * channel picker doesn't surface (older/archived threads in particular — untested at the time this
  * was built, hence the fallback existing at all rather than being added later).
@@ -77,6 +79,10 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
             String[] parts = id.split(":", 3);
             switch (parts[0]) {
                 case "configure_tracking_main" -> event.editComponents(List.of(buildMainPanel(guild.getIdLong()))).useComponentsV2(true).queue();
+                case "configure_tracking_view_group" -> {
+                    TrackingGroup group = TrackingGroup.valueOf(parts[1]);
+                    event.editComponents(List.of(buildGroupPanel(guild.getIdLong(), group))).useComponentsV2(true).queue();
+                }
                 case "configure_tracking_toggle" -> {
                     TrackingGroup group = TrackingGroup.valueOf(parts[1]);
                     boolean currentlyEnabled = trackingService.isEnabled(guild.getIdLong(), group);
@@ -84,10 +90,6 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
                     event.editComponents(List.of(buildGroupPanel(guild.getIdLong(), group))).useComponentsV2(true).queue();
                 }
                 case "configure_tracking_add_thread" -> doAddThreadPrompt(event, parts[1]);
-                case "configure_tracking_group_back" -> {
-                    TrackingGroup group = TrackingGroup.valueOf(parts[1]);
-                    event.editComponents(List.of(buildGroupPanel(guild.getIdLong(), group))).useComponentsV2(true).queue();
-                }
                 case "configure_tracking_test_send" -> doSendTestPosts(event, guild);
                 case "configure_tracking_test_clear" -> doClearTestPosts(event, guild);
             }
@@ -112,10 +114,6 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
 
             String[] parts = id.split(":", 2);
             switch (parts[0]) {
-                case "configure_tracking_pick_group" -> {
-                    TrackingGroup group = TrackingGroup.valueOf(event.getValues().getFirst());
-                    event.editComponents(List.of(buildGroupPanel(guild.getIdLong(), group))).useComponentsV2(true).queue();
-                }
                 case "configure_tracking_remove_dest" -> {
                     TrackingGroup group = TrackingGroup.valueOf(parts[1]);
                     long destinationId = Long.parseLong(event.getValues().getFirst());
@@ -326,27 +324,30 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
     Container buildMainPanel(long guildId) {
         List<ContainerChildComponent> children = new ArrayList<>();
         children.add(TextDisplay.of("### Tracking"));
-        children.add(TextDisplay.of("-# Clan drops, levels, Citadel activity, joins/leaves, and Discord's own admin log — pick a group below to configure where it posts."));
+        children.add(TextDisplay.of("-# Clan drops, levels, Citadel activity, joins/leaves, and Discord's own admin log — click a group below to open it. Green = enabled, gray = disabled."));
         children.add(ActionRow.of(Button.secondary("configure_back:_", "Back")));
 
-        StringBuilder summary = new StringBuilder();
         String currentSource = null;
-        StringSelectMenu.Builder picker = StringSelectMenu.create("configure_tracking_pick_group:_").setPlaceholder("Pick a group to configure");
+        List<Button> rowButtons = new ArrayList<>();
 
         for (TrackingGroup group : TrackingGroup.values()) {
             if (!group.source().equals(currentSource)) {
+                flushGroupButtonRow(children, rowButtons);
                 currentSource = group.source();
-                summary.append("\n**").append(currentSource).append("**\n");
+                children.add(TextDisplay.of("**" + currentSource + "**"));
             }
+
             boolean enabled = trackingService.isEnabled(guildId, group);
             int destinationCount = trackingService.getDestinations(guildId, group).size();
-            summary.append(enabled ? "✅" : "⚪").append(' ').append(group.displayName())
-                    .append(" — ").append(destinationCount).append(destinationCount == 1 ? " destination\n" : " destinations\n");
-            picker.addOption(group.displayName(), group.name());
-        }
+            String label = group.displayName() + " (" + destinationCount + ")";
+            String buttonId = "configure_tracking_view_group:" + group.name();
+            rowButtons.add(enabled ? Button.success(buttonId, label) : Button.secondary(buttonId, label));
 
-        children.add(TextDisplay.of(summary.toString().trim()));
-        children.add(ActionRow.of(picker.build()));
+            // Discord caps an ActionRow at 5 components — start a new row once this one's full,
+            // same as a new source section starting also flushes the row above.
+            if (rowButtons.size() == 5) flushGroupButtonRow(children, rowButtons);
+        }
+        flushGroupButtonRow(children, rowButtons);
 
         children.add(TextDisplay.of("-# **Send Test Posts** sends one sample line per group so you can see the real formatting/icons — any group with no destination yet gets this channel added as one. **Clear Test Posts** deletes everything a test send has ever posted in this server."));
         children.add(ActionRow.of(
@@ -354,6 +355,12 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
                 Button.danger("configure_tracking_test_clear:_", "Clear Test Posts")));
 
         return Containers.card(Containers.PRIMARY, children);
+    }
+
+    private static void flushGroupButtonRow(List<ContainerChildComponent> children, List<Button> rowButtons) {
+        if (rowButtons.isEmpty()) return;
+        children.add(ActionRow.of(new ArrayList<>(rowButtons)));
+        rowButtons.clear();
     }
 
     private Container buildGroupPanel(long guildId, TrackingGroup group) {
