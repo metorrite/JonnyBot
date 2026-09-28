@@ -710,9 +710,14 @@ public class PlayerLinkRepository {
 
     // --- Activity history ---
 
-    /** Inserts every activity not already recorded for this player (naturally deduped — see the unique index). */
-    public void saveActivities(long guildId, String rsn, List<PlayerActivity> activities) {
-        if (activities.isEmpty()) return;
+    /**
+     * Inserts every activity not already recorded for this player (naturally deduped — see the
+     * unique index) and returns just the ones that were genuinely new, oldest-checked-first order —
+     * the tracking system's signal for "what should actually get announced" from this poll, as
+     * opposed to activities RuneMetrics' rolling window is just showing us again.
+     */
+    public List<PlayerActivity> saveActivities(long guildId, String rsn, List<PlayerActivity> activities) {
+        if (activities.isEmpty()) return List.of();
 
         String sql = """
                 INSERT INTO younglings.player_activity (guild_id, rsn, activity_date, activity_text, activity_details)
@@ -731,7 +736,15 @@ public class PlayerLinkRepository {
                 statement.setString(5, activity.details());
                 statement.addBatch();
             }
-            statement.executeBatch();
+            int[] results = statement.executeBatch();
+
+            // A batched INSERT ... ON CONFLICT DO NOTHING reports 1 for a row actually inserted, 0
+            // for one skipped by the conflict — zip that against the input list to know which are new.
+            List<PlayerActivity> newlyInserted = new ArrayList<>();
+            for (int i = 0; i < results.length && i < activities.size(); i++) {
+                if (results[i] > 0) newlyInserted.add(activities.get(i));
+            }
+            return newlyInserted;
 
         } catch (SQLException e) {
             log.error("Failed to save activities for '{}'", rsn, e);
