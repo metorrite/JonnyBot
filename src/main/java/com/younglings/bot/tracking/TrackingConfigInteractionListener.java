@@ -83,6 +83,23 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
                     TrackingGroup group = TrackingGroup.valueOf(parts[1]);
                     event.editComponents(List.of(buildGroupPanel(guild.getIdLong(), group))).useComponentsV2(true).queue();
                 }
+                case "configure_tracking_source" -> event.editComponents(List.of(buildSourceEditorPanel(guild.getIdLong(), decodeSource(parts[1])))).useComponentsV2(true).queue();
+                case "configure_tracking_source_enable_all" -> {
+                    String source = decodeSource(parts[1]);
+                    trackingService.setEnabledForSource(guild.getIdLong(), source, true);
+                    event.editComponents(List.of(buildSourceEditorPanel(guild.getIdLong(), source))).useComponentsV2(true).queue();
+                }
+                case "configure_tracking_source_disable_all" -> {
+                    String source = decodeSource(parts[1]);
+                    trackingService.setEnabledForSource(guild.getIdLong(), source, false);
+                    event.editComponents(List.of(buildSourceEditorPanel(guild.getIdLong(), source))).useComponentsV2(true).queue();
+                }
+                case "configure_tracking_source_clear_confirm" -> event.editComponents(List.of(buildSourceClearConfirmPanel(guild.getIdLong(), decodeSource(parts[1])))).useComponentsV2(true).queue();
+                case "configure_tracking_source_clear_go" -> {
+                    String source = decodeSource(parts[1]);
+                    trackingService.clearAllDestinationsInSource(guild.getIdLong(), source);
+                    event.editComponents(List.of(buildSourceEditorPanel(guild.getIdLong(), source))).useComponentsV2(true).queue();
+                }
                 case "configure_tracking_toggle" -> {
                     TrackingGroup group = TrackingGroup.valueOf(parts[1]);
                     boolean currentlyEnabled = trackingService.isEnabled(guild.getIdLong(), group);
@@ -142,10 +159,17 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
             if (event.getValues().isEmpty()) return;
 
             String[] parts = id.split(":", 2);
-            if (parts[0].equals("configure_tracking_add_channel")) {
-                TrackingGroup group = TrackingGroup.valueOf(parts[1]);
-                trackingService.addDestination(guild.getIdLong(), group, event.getValues().getFirst().getIdLong());
-                event.editComponents(List.of(buildGroupPanel(guild.getIdLong(), group))).useComponentsV2(true).queue();
+            switch (parts[0]) {
+                case "configure_tracking_add_channel" -> {
+                    TrackingGroup group = TrackingGroup.valueOf(parts[1]);
+                    trackingService.addDestination(guild.getIdLong(), group, event.getValues().getFirst().getIdLong());
+                    event.editComponents(List.of(buildGroupPanel(guild.getIdLong(), group))).useComponentsV2(true).queue();
+                }
+                case "configure_tracking_source_add_channel" -> {
+                    String source = decodeSource(parts[1]);
+                    trackingService.addDestinationToSource(guild.getIdLong(), source, event.getValues().getFirst().getIdLong());
+                    event.editComponents(List.of(buildSourceEditorPanel(guild.getIdLong(), source))).useComponentsV2(true).queue();
+                }
             }
         } catch (Exception e) {
             log.error("Unhandled exception in tracking config entity select interaction '{}'", id, e);
@@ -301,6 +325,18 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
         return iconMention != null ? iconMention + " " + text : text;
     }
 
+    // TrackingGroup.source() values are plain English ("Discord Admin Log") — fine as data, but kept
+    // out of raw custom ids on principle (Discord doesn't document a restriction on spaces there, and
+    // this codebase would rather not be the one to find out). None of the four sources contain an
+    // underscore, so this round-trips exactly.
+    private static String encodeSource(String source) {
+        return source.replace(' ', '_');
+    }
+
+    private static String decodeSource(String encoded) {
+        return encoded.replace('_', ' ');
+    }
+
     /** A pasted message/channel link ({@code .../channels/<guild>/<channel>[/<message>]}) or a bare numeric ID; {@code null} if neither parses. */
     private static Long parseChannelIdFromLinkOrId(String input) {
         String trimmed = input.trim();
@@ -334,7 +370,9 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
             if (!group.source().equals(currentSource)) {
                 flushGroupButtonRow(children, rowButtons);
                 currentSource = group.source();
-                children.add(TextDisplay.of("**" + currentSource + "**"));
+                // A distinct color (blurple, vs. the group buttons' green/gray) and a gear icon keep
+                // this reading as "manage the whole section" rather than just another group button.
+                children.add(ActionRow.of(Button.primary("configure_tracking_source:" + encodeSource(currentSource), "⚙️ " + currentSource)));
             }
 
             boolean enabled = trackingService.isEnabled(guildId, group);
@@ -406,5 +444,51 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
         children.add(ActionRow.of(Button.secondary("configure_tracking_add_thread:" + group.name(), "Add by Link")));
 
         return Containers.card(Containers.PRIMARY, children);
+    }
+
+    /** Bulk actions for every group under one source at once — reached via that source's header button on the main panel. */
+    private Container buildSourceEditorPanel(long guildId, String source) {
+        List<TrackingGroup> groups = trackingService.groupsInSource(source);
+
+        List<ContainerChildComponent> children = new ArrayList<>();
+        children.add(TextDisplay.of("### " + source));
+        children.add(TextDisplay.of("-# Applies to all " + groups.size() + " group(s) under " + source + ": " +
+                groups.stream().map(TrackingGroup::displayName).reduce((a, b) -> a + ", " + b).orElse("")));
+        children.add(ActionRow.of(Button.secondary("configure_tracking_main:_", "All Groups")));
+
+        String encodedSource = encodeSource(source);
+        children.add(TextDisplay.of("**Enable or disable every group here at once:**"));
+        children.add(ActionRow.of(
+                Button.success("configure_tracking_source_enable_all:" + encodedSource, "Enable All"),
+                Button.secondary("configure_tracking_source_disable_all:" + encodedSource, "Disable All")));
+
+        children.add(TextDisplay.of("**Add a destination to every group here at once** (regular channel or an active thread):"));
+        children.add(ActionRow.of(
+                EntitySelectMenu.create("configure_tracking_source_add_channel:" + encodedSource, EntitySelectMenu.SelectTarget.CHANNEL)
+                        .setChannelTypes(ChannelType.TEXT, ChannelType.GUILD_PUBLIC_THREAD, ChannelType.GUILD_PRIVATE_THREAD, ChannelType.FORUM)
+                        .setPlaceholder("Select a channel or thread")
+                        .setRequiredRange(0, 1)
+                        .build()));
+
+        children.add(TextDisplay.of("-# **Clear All Destinations** removes every destination from every group in this section — there's no undo, so it asks you to confirm first."));
+        children.add(ActionRow.of(Button.danger("configure_tracking_source_clear_confirm:" + encodedSource, "Clear All Destinations")));
+
+        return Containers.card(Containers.PRIMARY, children);
+    }
+
+    private Container buildSourceClearConfirmPanel(long guildId, String source) {
+        List<TrackingGroup> groups = trackingService.groupsInSource(source);
+        int totalDestinations = groups.stream().mapToInt(group -> trackingService.getDestinations(guildId, group).size()).sum();
+
+        List<ContainerChildComponent> children = new ArrayList<>();
+        children.add(TextDisplay.of("### Clear All Destinations — " + source));
+        children.add(TextDisplay.of("This removes " + totalDestinations + " destination(s) across all " + groups.size() +
+                " group(s) under " + source + ". Groups stay enabled — they'll just have nowhere to post until you add destinations again. This can't be undone."));
+        String encodedSource = encodeSource(source);
+        children.add(ActionRow.of(
+                Button.danger("configure_tracking_source_clear_go:" + encodedSource, "Yes, Clear All"),
+                Button.secondary("configure_tracking_source:" + encodedSource, "Cancel")));
+
+        return Containers.card(Containers.DANGER, children);
     }
 }
