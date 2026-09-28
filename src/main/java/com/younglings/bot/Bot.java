@@ -1,5 +1,6 @@
 package com.younglings.bot;
 
+import com.younglings.bot.announcement.AnnouncementInteractionListener;
 import com.younglings.bot.commands.coffer.CofferInteractionListener;
 import com.younglings.bot.commands.configure.ConfigureInteractionListener;
 import com.younglings.bot.commands.embed.EmbedInteractionListener;
@@ -44,6 +45,7 @@ public class Bot extends JDAService {
     private final TrackingIconCatalog trackingIconCatalog;
     private final TrackingAuditLogListener trackingAuditLogListener;
     private final TrackingConfigInteractionListener trackingConfigInteractionListener;
+    private final AnnouncementInteractionListener announcementInteractionListener;
 
     public Bot(BotConfig botConfig, SignupInteractionListener signupInteractionListener,
                PollInteractionListener pollInteractionListener,
@@ -58,7 +60,8 @@ public class Bot extends JDAService {
                SkillEmojiCatalog skillEmojiCatalog,
                TrackingIconCatalog trackingIconCatalog,
                TrackingAuditLogListener trackingAuditLogListener,
-               TrackingConfigInteractionListener trackingConfigInteractionListener) {
+               TrackingConfigInteractionListener trackingConfigInteractionListener,
+               AnnouncementInteractionListener announcementInteractionListener) {
         this.botConfig = botConfig;
         this.signupInteractionListener = signupInteractionListener;
         this.pollInteractionListener = pollInteractionListener;
@@ -74,6 +77,7 @@ public class Bot extends JDAService {
         this.trackingIconCatalog = trackingIconCatalog;
         this.trackingAuditLogListener = trackingAuditLogListener;
         this.trackingConfigInteractionListener = trackingConfigInteractionListener;
+        this.announcementInteractionListener = announcementInteractionListener;
     }
 
     // If you use Spring, you can return values provided by JDAConfiguration in the getters below
@@ -116,7 +120,8 @@ public class Bot extends JDAService {
                         teamformingInteractionListener, embedInteractionListener, rsInteractionListener,
                         rsAdminInteractionListener, rsChartInteractionListener, rsnRenameInteractionListener,
                         configureInteractionListener, skillEmojiCatalog, trackingIconCatalog,
-                        trackingAuditLogListener, trackingConfigInteractionListener)
+                        trackingAuditLogListener, trackingConfigInteractionListener,
+                        announcementInteractionListener)
                 .build();
     }
 }
