@@ -31,6 +31,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Buttons/modal for {@link ConfigureCommand}'s panel. Only "Clan" and "Verification" sections exist
@@ -102,6 +103,9 @@ public class ConfigureInteractionListener extends ListenerAdapter {
     }
 
     private static final String NO_ROLE_VALUE = "none";
+    private static final Set<String> ROLE_SELECT_IDS = Set.of(
+            "configure_verified_clan_role", "configure_verified_nonclan_role",
+            "configure_unverified_role", "configure_onboarding_role");
 
     /** The three Verification-panel role dropdowns — each applies immediately on selection (no separate Save), then re-renders the panel showing the new state. */
     @Override
@@ -117,10 +121,17 @@ public class ConfigureInteractionListener extends ListenerAdapter {
                 return;
             }
 
+            // Checked before touching event.getValues() at all — this listener isn't the only one
+            // that reacts to a "configure_"-prefixed select (TrackingConfigInteractionListener's own
+            // dropdowns share the prefix), and their values aren't role IDs, so parsing unconditionally
+            // here used to blow up with a NumberFormatException before ever reaching this switch.
+            String action = id.split(":")[0];
+            if (!ROLE_SELECT_IDS.contains(action)) return;
+
             Long selected = roleIdOrNull(event.getValues().getFirst());
             GuildSettings current = settingsService.getEffective(guild.getIdLong());
 
-            switch (id.split(":")[0]) {
+            switch (action) {
                 case "configure_verified_clan_role" -> settingsService.updateVerificationRoleSettings(
                         guild.getIdLong(), selected, current.verifiedNonClanRoleId(), current.unverifiedRoleId());
                 case "configure_verified_nonclan_role" -> settingsService.updateVerificationRoleSettings(
@@ -128,9 +139,6 @@ public class ConfigureInteractionListener extends ListenerAdapter {
                 case "configure_unverified_role" -> settingsService.updateVerificationRoleSettings(
                         guild.getIdLong(), current.verifiedClanRoleId(), current.verifiedNonClanRoleId(), selected);
                 case "configure_onboarding_role" -> settingsService.updateOnboardingRole(guild.getIdLong(), selected);
-                default -> {
-                    return;
-                }
             }
 
             event.editComponents(List.of(buildVerificationPanel(guild))).useComponentsV2(true).queue();
