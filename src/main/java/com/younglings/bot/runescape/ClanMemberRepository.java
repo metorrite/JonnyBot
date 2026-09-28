@@ -76,6 +76,26 @@ public class ClanMemberRepository {
         }
     }
 
+    /** A targeted existence check rather than fetching the whole roster — the tracking pipeline calls this once per polled player, so it stays a single indexed lookup even at a large roster size. */
+    public boolean isActiveMember(long guildId, String rsn) {
+        String sql = "SELECT 1 FROM younglings.clan_member WHERE guild_id = ? AND LOWER(rsn) = LOWER(?) AND active = TRUE";
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setLong(1, guildId);
+            statement.setString(2, rsn);
+
+            try (ResultSet rs = statement.executeQuery()) {
+                return rs.next();
+            }
+
+        } catch (SQLException e) {
+            log.error("Failed to check clan membership for '{}' in guild {}", rsn, guildId, e);
+            throw new RuntimeException("Failed to check clan membership", e);
+        }
+    }
+
     public List<ClanMemberRow> getAll(long guildId, boolean activeOnly) {
         String sql = "SELECT id, guild_id, rsn, clan_rank, first_seen, last_seen, active, total_xp, kills, clan_joined_at FROM younglings.clan_member WHERE guild_id = ?"
                 + (activeOnly ? " AND active = TRUE" : "") + " ORDER BY LOWER(rsn)";

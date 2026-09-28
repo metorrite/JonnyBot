@@ -48,67 +48,77 @@ public class TrackingEventClassifier {
             "Royale Cannon", "Master Student", "Fight Kiln", "chimp ices", "Dagannoth Kings' Rex",
             "Duel Arena");
 
+    // Notified on the 1st kill (first blood is notable) and then every 10th after that — suppresses
+    // the per-kill spam RuneMetrics itself doesn't filter out (see #recordAndCheckBossKillMilestone).
+    private static final int BOSS_KILL_MILESTONE_INTERVAL = 10;
+
     private final SkillEmojiCatalog skillEmojiCatalog;
     private final TrackingIconCatalog trackingIconCatalog;
+    private final BossKillTallyRepository bossKillTallyRepository;
 
-    public TrackingEventClassifier(SkillEmojiCatalog skillEmojiCatalog, TrackingIconCatalog trackingIconCatalog) {
+    public TrackingEventClassifier(SkillEmojiCatalog skillEmojiCatalog, TrackingIconCatalog trackingIconCatalog,
+                                    BossKillTallyRepository bossKillTallyRepository) {
         this.skillEmojiCatalog = skillEmojiCatalog;
         this.trackingIconCatalog = trackingIconCatalog;
+        this.bossKillTallyRepository = bossKillTallyRepository;
     }
 
-    public Optional<ClassifiedEntry> classify(String rsn, PlayerActivity activity) {
+    public Optional<ClassifiedEntry> classify(long guildId, String rsn, PlayerActivity activity) {
         String text = activity.text();
+        String bold = "**" + rsn + "**";
 
         if (text.startsWith("Capped at my Clan Citadel")) {
-            return entry(TrackingGroup.CITADEL_ACTIVITY, null, rsn + " capped at the Clan Citadel.");
+            return entry(TrackingGroup.CITADEL_ACTIVITY, null, bold + " capped at the Clan Citadel.");
         }
         if (text.startsWith("Visited my Clan Citadel")) {
-            return entry(TrackingGroup.CITADEL_ACTIVITY, null, rsn + " visited the Clan Citadel.");
+            return entry(TrackingGroup.CITADEL_ACTIVITY, null, bold + " visited the Clan Citadel.");
         }
         if (text.startsWith("Maintained Clan Fealty")) {
-            return entry(TrackingGroup.CITADEL_ACTIVITY, null, rsn + " " + lowerFirst(text));
+            return entry(TrackingGroup.CITADEL_ACTIVITY, null, bold + " " + lowerFirst(text));
         }
 
         Matcher quest = QUEST_COMPLETE.matcher(text);
         if (quest.matches()) {
             return entry(TrackingGroup.QUESTS, trackingIconCatalog.mentionForCategory("quest"),
-                    rsn + " completed the quest **" + quest.group(1).trim() + "**.");
+                    bold + " completed the quest **" + quest.group(1).trim() + "**.");
         }
         if (text.contains("Quest points obtained") || text.contains("Quest Points obtained")) {
-            return entry(TrackingGroup.QUESTS, trackingIconCatalog.mentionForCategory("quest"), rsn + " " + lowerFirst(text));
+            return entry(TrackingGroup.QUESTS, trackingIconCatalog.mentionForCategory("quest"), bold + " " + lowerFirst(text));
         }
 
         Optional<DropItemCatalog.DropItem> drop = DropItemCatalog.findIn(text);
         if (drop.isPresent()) {
             DropItemCatalog.DropItem item = drop.get();
             return entry(TrackingGroup.NOTABLE_DROPS, trackingIconCatalog.mentionForDrop(item.key()),
-                    rsn + " found **" + item.name() + "**.");
+                    bold + " found **" + item.name() + "**.");
         }
 
         Matcher levelUp = SKILL_LEVEL_UP.matcher(text);
         if (levelUp.matches()) {
             String skillName = levelUp.group(1).trim();
             return entry(TrackingGroup.SKILL_MILESTONES, skillEmojiMention(skillName),
-                    rsn + " levelled up **" + skillName + "**.");
+                    bold + " levelled up **" + skillName + "**.");
         }
         Matcher xpMilestone = XP_MILESTONE.matcher(text);
         if (xpMilestone.matches()) {
             String skillName = xpMilestone.group(1).trim();
-            return entry(TrackingGroup.SKILL_MILESTONES, skillEmojiMention(skillName), rsn + " reached " + text + ".");
+            return entry(TrackingGroup.SKILL_MILESTONES, skillEmojiMention(skillName), bold + " reached " + text + ".");
         }
         if (text.contains("total levels gained") || text.startsWith("Levelled all skills over")) {
-            return entry(TrackingGroup.SKILL_MILESTONES, null, rsn + " " + lowerFirst(text));
+            return entry(TrackingGroup.SKILL_MILESTONES, null, bold + " " + lowerFirst(text));
         }
 
         Matcher championWin = CHAMPION_WIN.matcher(text);
         if (championWin.find()) {
             return entry(TrackingGroup.BOSS_KILLS, null,
-                    rsn + " won a challenge against the **" + championWin.group(1).trim() + " Champion**.");
+                    bold + " won a challenge against the **" + championWin.group(1).trim() + " Champion**.");
         }
         if (text.startsWith("I killed") || text.startsWith("I defeated")) {
             for (String boss : NAMED_BOSSES) {
                 if (text.contains(boss)) {
-                    return entry(TrackingGroup.BOSS_KILLS, null, rsn + " defeated **" + boss + "**.");
+                    return recordAndCheckBossKillMilestone(guildId, rsn, boss)
+                            .flatMap(count -> entry(TrackingGroup.BOSS_KILLS, null,
+                                    bold + " has defeated **" + boss + "** " + count + (count == 1 ? " time." : " times.")));
                 }
             }
         }
@@ -116,28 +126,39 @@ public class TrackingEventClassifier {
         Matcher pet = SKILLING_PET.matcher(text);
         if (pet.matches()) {
             return entry(TrackingGroup.PETS, trackingIconCatalog.mentionForCategory("pet"),
-                    rsn + " found **" + pet.group(1).trim() + "**, the " + pet.group(2).trim() + " pet.");
+                    bold + " found **" + pet.group(1).trim() + "**, the " + pet.group(2).trim() + " pet.");
         }
         if (text.contains("I adopted TzRek-Jad") || text.toLowerCase(Locale.ROOT).contains("effigy pet")) {
-            return entry(TrackingGroup.PETS, trackingIconCatalog.mentionForCategory("pet"), rsn + " " + lowerFirst(text));
+            return entry(TrackingGroup.PETS, trackingIconCatalog.mentionForCategory("pet"), bold + " " + lowerFirst(text));
         }
 
         if (text.toLowerCase(Locale.ROOT).contains("treasure trail completed")) {
-            return entry(TrackingGroup.CLUE_SCROLLS, trackingIconCatalog.mentionForCategory("clue"), rsn + " " + lowerFirst(text));
+            return entry(TrackingGroup.CLUE_SCROLLS, trackingIconCatalog.mentionForCategory("clue"), bold + " " + lowerFirst(text));
         }
 
         if (text.contains("archaeological mystery") || text.contains("tetracompass")
                 || (text.startsWith("Earnt my") && text.contains("qualification"))) {
-            return entry(TrackingGroup.ARCHAEOLOGY, trackingIconCatalog.mentionForCategory("archaeology"), rsn + " " + lowerFirst(text));
+            return entry(TrackingGroup.ARCHAEOLOGY, trackingIconCatalog.mentionForCategory("archaeology"), bold + " " + lowerFirst(text));
         }
 
         for (String keyword : MINIGAME_KEYWORDS) {
             if (text.contains(keyword)) {
-                return entry(TrackingGroup.MINIGAME_MISC, null, rsn + " " + lowerFirst(text));
+                return entry(TrackingGroup.MINIGAME_MISC, null, bold + " " + lowerFirst(text));
             }
         }
 
         return Optional.empty();
+    }
+
+    /**
+     * RuneMetrics reports every single named-boss kill, not just round-number milestones — without
+     * this, a player grinding one boss would flood the Boss Kills group with one line per kill.
+     * Always counts the kill; only returns the new total (to post) on the 1st kill and every
+     * {@link #BOSS_KILL_MILESTONE_INTERVAL}th one after.
+     */
+    private Optional<Integer> recordAndCheckBossKillMilestone(long guildId, String rsn, String boss) {
+        int count = bossKillTallyRepository.incrementAndGet(guildId, rsn, boss);
+        return (count == 1 || count % BOSS_KILL_MILESTONE_INTERVAL == 0) ? Optional.of(count) : Optional.empty();
     }
 
     /** {@code actorMention} is a raw {@code <@id>} mention, already resolved by the caller. */
