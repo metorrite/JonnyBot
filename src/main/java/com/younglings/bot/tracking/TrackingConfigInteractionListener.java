@@ -11,6 +11,7 @@ import net.dv8tion.jda.api.components.container.ContainerChildComponent;
 import net.dv8tion.jda.api.components.label.Label;
 import net.dv8tion.jda.api.components.selections.EntitySelectMenu;
 import net.dv8tion.jda.api.components.selections.StringSelectMenu;
+import net.dv8tion.jda.api.components.separator.Separator;
 import net.dv8tion.jda.api.components.textdisplay.TextDisplay;
 import net.dv8tion.jda.api.components.textinput.TextInput;
 import net.dv8tion.jda.api.components.textinput.TextInputStyle;
@@ -29,7 +30,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -107,6 +111,7 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
                     event.editComponents(List.of(buildGroupPanel(guild.getIdLong(), group))).useComponentsV2(true).queue();
                 }
                 case "configure_tracking_add_thread" -> doAddThreadPrompt(event, parts[1]);
+                case "configure_tracking_source_add_thread" -> doAddSourceThreadPrompt(event, parts[1]);
                 case "configure_tracking_test_send" -> doSendTestPosts(event, guild);
                 case "configure_tracking_test_clear" -> doClearTestPosts(event, guild);
             }
@@ -191,8 +196,9 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
             }
 
             String[] parts = id.split(":", 2);
-            if (parts[0].equals("configure_tracking_thread_modal")) {
-                handleAddThreadModal(event, guild, TrackingGroup.valueOf(parts[1]));
+            switch (parts[0]) {
+                case "configure_tracking_thread_modal" -> handleAddThreadModal(event, guild, TrackingGroup.valueOf(parts[1]));
+                case "configure_tracking_source_thread_modal" -> handleAddSourceThreadModal(event, guild, decodeSource(parts[1]));
             }
         } catch (Exception e) {
             log.error("Unhandled exception in tracking config modal interaction '{}'", id, e);
@@ -227,6 +233,35 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
 
         trackingService.addDestination(guild.getIdLong(), group, channelId);
         Containers.replyEphemeral(event, Containers.SUCCESS, "Added <#" + channelId + "> as a destination for **" + group.displayName() + "**.");
+    }
+
+    private void doAddSourceThreadPrompt(ButtonInteractionEvent event, String encodedSource) {
+        TextInput linkInput = TextInput.create("thread_link", TextInputStyle.SHORT)
+                .setPlaceholder("Paste a thread/channel link, or just its ID")
+                .setRequired(true)
+                .build();
+
+        Modal modal = Modal.create("configure_tracking_source_thread_modal:" + encodedSource, "Add Forum Thread")
+                .addComponents(Label.of("Thread Link or ID", linkInput))
+                .build();
+        event.replyModal(modal).queue();
+    }
+
+    private void handleAddSourceThreadModal(ModalInteractionEvent event, Guild guild, String source) {
+        String raw = event.getValue("thread_link").getAsString();
+        Long channelId = parseChannelIdFromLinkOrId(raw);
+
+        if (channelId == null) {
+            Containers.replyEphemeral(event, Containers.WARNING, "Couldn't find a channel/thread ID in that — paste the full link, or just the ID by itself.");
+            return;
+        }
+        if (guild.getChannelById(GuildMessageChannel.class, channelId) == null) {
+            Containers.replyEphemeral(event, Containers.WARNING, "That doesn't look like a channel or thread in this server. Double-check the link and try again.");
+            return;
+        }
+
+        trackingService.addDestinationToSource(guild.getIdLong(), source, channelId);
+        Containers.replyEphemeral(event, Containers.SUCCESS, "Added <#" + channelId + "> as a destination for every group under **" + source + "**.");
     }
 
     /**
@@ -359,33 +394,44 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
     /** 17 lightweight service calls per render (enabled + destination count, each group) — an admin panel, not a hot path. */
     Container buildMainPanel(long guildId) {
         List<ContainerChildComponent> children = new ArrayList<>();
-        children.add(TextDisplay.of("### Tracking"));
-        children.add(TextDisplay.of("-# Clan drops, levels, Citadel activity, joins/leaves, and Discord's own admin log — click a group below to open it. Green = enabled, gray = disabled."));
-        children.add(ActionRow.of(Button.secondary("configure_back:_", "Back")));
+        children.add(TextDisplay.of("### Tracking\n" +
+                "-# Clan drops, levels, Citadel activity, joins/leaves, and Discord's own admin log — click a group below to open it. Green = enabled, gray = disabled."));
 
-        String currentSource = null;
-        List<Button> rowButtons = new ArrayList<>();
+        Set<String> sources = new LinkedHashSet<>();
+        for (TrackingGroup group : TrackingGroup.values()) sources.add(group.source());
 
-        for (TrackingGroup group : TrackingGroup.values()) {
-            if (!group.source().equals(currentSource)) {
-                flushGroupButtonRow(children, rowButtons);
-                currentSource = group.source();
-                // A distinct color (blurple, vs. the group buttons' green/gray) and a gear icon keep
-                // this reading as "manage the whole section" rather than just another group button.
-                children.add(ActionRow.of(Button.primary("configure_tracking_source:" + encodeSource(currentSource), "⚙️ " + currentSource)));
+        boolean firstSource = true;
+        for (String source : sources) {
+            // Blurple + a gear icon, vs. the group buttons' green/gray, is what marks this as "manage
+            // the whole section" rather than just another group button.
+            Button sourceButton = Button.primary("configure_tracking_source:" + encodeSource(source), "⚙️ " + source);
+            if (firstSource) {
+                // Sharing a row with Back keeps the top of the panel to one row instead of two —
+                // every node here is one this component-heavy screen can't spare.
+                children.add(ActionRow.of(Button.secondary("configure_back:_", "Back"), sourceButton));
+            } else {
+                // The divider is what keeps a section from blending into the previous one's buttons.
+                children.add(Separator.createDivider(Separator.Spacing.SMALL));
+                children.add(ActionRow.of(sourceButton));
             }
+            firstSource = false;
 
-            boolean enabled = trackingService.isEnabled(guildId, group);
-            int destinationCount = trackingService.getDestinations(guildId, group).size();
-            String label = group.displayName() + " (" + destinationCount + ")";
-            String buttonId = "configure_tracking_view_group:" + group.name();
-            rowButtons.add(enabled ? Button.success(buttonId, label) : Button.secondary(buttonId, label));
+            List<TrackingGroup> groups = trackingService.groupsInSource(source).stream()
+                    .sorted(Comparator.comparing(TrackingGroup::displayName))
+                    .toList();
+            List<Button> rowButtons = new ArrayList<>();
+            for (TrackingGroup group : groups) {
+                boolean enabled = trackingService.isEnabled(guildId, group);
+                int destinationCount = trackingService.getDestinations(guildId, group).size();
+                String label = group.displayName() + " (" + destinationCount + ")";
+                String buttonId = "configure_tracking_view_group:" + group.name();
+                rowButtons.add(enabled ? Button.success(buttonId, label) : Button.secondary(buttonId, label));
 
-            // Discord caps an ActionRow at 5 components — start a new row once this one's full,
-            // same as a new source section starting also flushes the row above.
-            if (rowButtons.size() == 5) flushGroupButtonRow(children, rowButtons);
+                // Discord caps an ActionRow at 5 components — start a new row once this one's full.
+                if (rowButtons.size() == 5) flushGroupButtonRow(children, rowButtons);
+            }
+            flushGroupButtonRow(children, rowButtons);
         }
-        flushGroupButtonRow(children, rowButtons);
 
         children.add(TextDisplay.of("-# **Send Test Posts** sends one sample line per group so you can see the real formatting/icons — any group with no destination yet gets this channel added as one. **Clear Test Posts** deletes everything a test send has ever posted in this server."));
         children.add(ActionRow.of(
@@ -462,13 +508,15 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
                 Button.success("configure_tracking_source_enable_all:" + encodedSource, "Enable All"),
                 Button.secondary("configure_tracking_source_disable_all:" + encodedSource, "Disable All")));
 
-        children.add(TextDisplay.of("**Add a destination to every group here at once** (regular channel or an active thread):"));
+        children.add(TextDisplay.of("**Add a destination to every group here at once** (regular channel or an active thread):\n" +
+                "-# Forum thread not showing up below? Use Add by Link instead."));
         children.add(ActionRow.of(
                 EntitySelectMenu.create("configure_tracking_source_add_channel:" + encodedSource, EntitySelectMenu.SelectTarget.CHANNEL)
                         .setChannelTypes(ChannelType.TEXT, ChannelType.GUILD_PUBLIC_THREAD, ChannelType.GUILD_PRIVATE_THREAD, ChannelType.FORUM)
                         .setPlaceholder("Select a channel or thread")
                         .setRequiredRange(0, 1)
                         .build()));
+        children.add(ActionRow.of(Button.secondary("configure_tracking_source_add_thread:" + encodedSource, "Add by Link")));
 
         children.add(TextDisplay.of("-# **Clear All Destinations** removes every destination from every group in this section — there's no undo, so it asks you to confirm first."));
         children.add(ActionRow.of(Button.danger("configure_tracking_source_clear_confirm:" + encodedSource, "Clear All Destinations")));
