@@ -48,6 +48,23 @@ public class TrackingDatabaseInitializer {
                 """
                 CREATE INDEX IF NOT EXISTS tracking_destination_lookup_idx
                 ON younglings.tracking_destination (guild_id, group_key);
+                """,
+
+                // Every message the "Send Test Posts" panel button sends, so "Clear Test Posts" knows
+                // exactly which messages are safe to delete — never anything a real event posted.
+                """
+                CREATE TABLE IF NOT EXISTS younglings.tracking_test_message (
+                    id BIGSERIAL PRIMARY KEY,
+                    guild_id BIGINT NOT NULL,
+                    channel_id BIGINT NOT NULL,
+                    message_id BIGINT NOT NULL,
+                    posted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+                """,
+
+                """
+                CREATE INDEX IF NOT EXISTS tracking_test_message_guild_idx
+                ON younglings.tracking_test_message (guild_id);
                 """
         ));
     }

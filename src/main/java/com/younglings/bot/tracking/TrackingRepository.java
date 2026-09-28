@@ -147,4 +147,60 @@ public class TrackingRepository {
             throw new RuntimeException("Failed to remove tracking destination", e);
         }
     }
+
+    // --- Test posts (the Tracking panel's "Send Test Posts" / "Clear Test Posts" buttons) ---
+
+    public record TestMessage(long id, long channelId, long messageId) {}
+
+    public void recordTestMessage(long guildId, long channelId, long messageId) {
+        String sql = "INSERT INTO younglings.tracking_test_message (guild_id, channel_id, message_id) VALUES (?, ?, ?)";
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setLong(1, guildId);
+            statement.setLong(2, channelId);
+            statement.setLong(3, messageId);
+            statement.executeUpdate();
+
+        } catch (SQLException e) {
+            log.error("Failed to record test message for guild {}", guildId, e);
+            throw new RuntimeException("Failed to record test message", e);
+        }
+    }
+
+    public List<TestMessage> getTestMessages(long guildId) {
+        String sql = "SELECT id, channel_id, message_id FROM younglings.tracking_test_message WHERE guild_id = ?";
+
+        List<TestMessage> results = new ArrayList<>();
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setLong(1, guildId);
+
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) results.add(new TestMessage(rs.getLong("id"), rs.getLong("channel_id"), rs.getLong("message_id")));
+            }
+            return results;
+
+        } catch (SQLException e) {
+            log.error("Failed to get test messages for guild {}", guildId, e);
+            throw new RuntimeException("Failed to get test messages", e);
+        }
+    }
+
+    public void clearTestMessages(long guildId) {
+        String sql = "DELETE FROM younglings.tracking_test_message WHERE guild_id = ?";
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setLong(1, guildId);
+            statement.executeUpdate();
+
+        } catch (SQLException e) {
+            log.error("Failed to clear test messages for guild {}", guildId, e);
+            throw new RuntimeException("Failed to clear test messages", e);
+        }
+    }
 }

@@ -1,6 +1,7 @@
 package com.younglings.bot.tracking;
 
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.runescape.SkillEmojiCatalog;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
@@ -15,6 +16,7 @@ import net.dv8tion.jda.api.components.textinput.TextInput;
 import net.dv8tion.jda.api.components.textinput.TextInputStyle;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.channel.ChannelType;
 import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel;
 import net.dv8tion.jda.api.events.interaction.ModalInteractionEvent;
@@ -28,6 +30,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * The Tracking panel — {@code /configure}'s UI for the announcement system approved in the event
@@ -48,9 +51,14 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
     private static final Logger log = LoggerFactory.getLogger(TrackingConfigInteractionListener.class);
 
     private final TrackingService trackingService;
+    private final SkillEmojiCatalog skillEmojiCatalog;
+    private final TrackingIconCatalog trackingIconCatalog;
 
-    public TrackingConfigInteractionListener(TrackingService trackingService) {
+    public TrackingConfigInteractionListener(TrackingService trackingService, SkillEmojiCatalog skillEmojiCatalog,
+                                              TrackingIconCatalog trackingIconCatalog) {
         this.trackingService = trackingService;
+        this.skillEmojiCatalog = skillEmojiCatalog;
+        this.trackingIconCatalog = trackingIconCatalog;
     }
 
     @Override
@@ -80,6 +88,8 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
                     TrackingGroup group = TrackingGroup.valueOf(parts[1]);
                     event.editComponents(List.of(buildGroupPanel(guild.getIdLong(), group))).useComponentsV2(true).queue();
                 }
+                case "configure_tracking_test_send" -> doSendTestPosts(event, guild);
+                case "configure_tracking_test_clear" -> doClearTestPosts(event, guild);
             }
         } catch (Exception e) {
             log.error("Unhandled exception in tracking config button interaction '{}'", id, e);
@@ -197,6 +207,102 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
         Containers.replyEphemeral(event, Containers.SUCCESS, "Added <#" + channelId + "> as a destination for **" + group.displayName() + "**.");
     }
 
+    /**
+     * Sends one sample line per group so an admin can see real formatting/icons without waiting for
+     * an actual drop/kick/whatever — any group with no destination configured yet gets the invoking
+     * channel added as one first (see the panel's own note about this). Every send is recorded in
+     * {@code tracking_test_message} so {@link #doClearTestPosts} can find and delete exactly these
+     * later, never a real event's post.
+     */
+    private void doSendTestPosts(ButtonInteractionEvent event, Guild guild) {
+        event.deferReply(true).queue();
+        long guildId = guild.getIdLong();
+        long invokingChannelId = event.getChannel().getIdLong();
+        String actorMention = event.getUser().getAsMention();
+
+        List<CompletableFuture<Void>> pending = new ArrayList<>();
+        int destinationCount = 0;
+
+        for (TrackingGroup group : TrackingGroup.values()) {
+            List<TrackingRepository.Destination> destinations = trackingService.getDestinations(guildId, group);
+            if (destinations.isEmpty()) {
+                trackingService.addDestination(guildId, group, invokingChannelId);
+                destinations = trackingService.getDestinations(guildId, group);
+            }
+
+            String line = sampleLineFor(group, actorMention);
+            for (TrackingRepository.Destination destination : destinations) {
+                GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, destination.channelId());
+                if (channel == null) continue;
+
+                destinationCount++;
+                CompletableFuture<Message> sendFuture = channel.sendMessage(line).submit();
+                pending.add(sendFuture.thenAccept(sent -> trackingService.recordTestMessage(guildId, channel.getIdLong(), sent.getIdLong())));
+            }
+        }
+
+        int totalSent = destinationCount;
+        CompletableFuture.allOf(pending.toArray(new CompletableFuture[0])).handle((v, err) -> {
+            String message = "Sent " + totalSent + " test post(s) across " + TrackingGroup.values().length + " group(s).";
+            if (err != null) message += " Some may have failed to send — check the bot's logs.";
+            event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.SUCCESS, message))).useComponentsV2(true).queue();
+            return null;
+        });
+    }
+
+    /** Deletes every message {@link #doSendTestPosts} has ever sent in this guild, then clears the record of them. Silently skips a message that's already gone (manually deleted) rather than failing the whole cleanup. */
+    private void doClearTestPosts(ButtonInteractionEvent event, Guild guild) {
+        event.deferReply(true).queue();
+        long guildId = guild.getIdLong();
+        List<TrackingRepository.TestMessage> messages = trackingService.getTestMessages(guildId);
+
+        if (messages.isEmpty()) {
+            event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.INFO, "No test posts to clear."))).useComponentsV2(true).queue();
+            return;
+        }
+
+        List<CompletableFuture<Void>> deletes = new ArrayList<>();
+        for (TrackingRepository.TestMessage message : messages) {
+            GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, message.channelId());
+            if (channel == null) continue;
+            deletes.add(channel.deleteMessageById(message.messageId()).submit().handle((v, err) -> null));
+        }
+
+        int count = messages.size();
+        CompletableFuture.allOf(deletes.toArray(new CompletableFuture[0])).thenRun(() -> {
+            trackingService.clearTestMessages(guildId);
+            event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.SUCCESS, "Cleared " + count + " test post(s)."))).useComponentsV2(true).queue();
+        });
+    }
+
+    /** One representative sample line per group, using the real icon catalogs so a test post looks exactly like the real thing would. */
+    private String sampleLineFor(TrackingGroup group, String actorMention) {
+        String prefix = "🧪 **[TEST]** ";
+        String body = switch (group) {
+            case SKILL_MILESTONES -> withIcon(skillEmojiCatalog.mentionFor(0), "TestPlayer levelled up **Attack**.");
+            case QUESTS -> withIcon(trackingIconCatalog.mentionForCategory("quest"), "TestPlayer completed the quest **Missing, Presumed Death**.");
+            case NOTABLE_DROPS -> withIcon(trackingIconCatalog.mentionForDrop("dragon_helm"), "TestPlayer found **Dragon helm**.");
+            case CLUE_SCROLLS -> withIcon(trackingIconCatalog.mentionForCategory("clue"), "TestPlayer completed a hard treasure trail.");
+            case PETS -> withIcon(trackingIconCatalog.mentionForCategory("pet"), "TestPlayer found **Ranis**, the Woodcutting pet.");
+            case BOSS_KILLS -> "TestPlayer defeated **Telos**.";
+            case MINIGAME_MISC -> "TestPlayer reached floor 60 in Daemonheim.";
+            case ARCHAEOLOGY -> withIcon(trackingIconCatalog.mentionForCategory("archaeology"), "TestPlayer solved an archaeological mystery.");
+            case CITADEL_ACTIVITY -> "TestPlayer visited the Clan Citadel.";
+            case CLAN_JOINS_LEAVES -> "**TestPlayer** joined the clan.";
+            case SERVER_SETTINGS -> actorMention + " — Guild Update";
+            case CHANNELS_THREADS -> actorMention + " — Channel Create";
+            case ROLES_PERMISSIONS -> actorMention + " — Role Create";
+            case MEMBERS_MODERATION -> actorMention + " — Kick";
+            case MESSAGES -> actorMention + " — Message Bulk Delete";
+            case SERVER_EXTRAS -> actorMention + " — Webhook Create";
+        };
+        return prefix + body;
+    }
+
+    private static String withIcon(String iconMention, String text) {
+        return iconMention != null ? iconMention + " " + text : text;
+    }
+
     /** A pasted message/channel link ({@code .../channels/<guild>/<channel>[/<message>]}) or a bare numeric ID; {@code null} if neither parses. */
     private static Long parseChannelIdFromLinkOrId(String input) {
         String trimmed = input.trim();
@@ -241,6 +347,11 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
 
         children.add(TextDisplay.of(summary.toString().trim()));
         children.add(ActionRow.of(picker.build()));
+
+        children.add(TextDisplay.of("-# **Send Test Posts** sends one sample line per group so you can see the real formatting/icons — any group with no destination yet gets this channel added as one. **Clear Test Posts** deletes everything a test send has ever posted in this server."));
+        children.add(ActionRow.of(
+                Button.secondary("configure_tracking_test_send:_", "Send Test Posts"),
+                Button.danger("configure_tracking_test_clear:_", "Clear Test Posts")));
 
         return Containers.card(Containers.PRIMARY, children);
     }
