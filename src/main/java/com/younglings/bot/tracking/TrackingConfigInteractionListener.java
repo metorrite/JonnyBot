@@ -1,6 +1,7 @@
 package com.younglings.bot.tracking;
 
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.discord.DiscordLinks;
 import com.younglings.bot.runescape.SkillEmojiCatalog;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.Permission;
@@ -220,7 +221,7 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
 
     private void handleAddThreadModal(ModalInteractionEvent event, Guild guild, TrackingGroup group) {
         String raw = event.getValue("thread_link").getAsString();
-        Long channelId = parseChannelIdFromLinkOrId(raw);
+        Long channelId = DiscordLinks.parseChannelId(raw);
 
         if (channelId == null) {
             Containers.replyEphemeral(event, Containers.WARNING, "Couldn't find a channel/thread ID in that — paste the full link, or just the ID by itself.");
@@ -249,7 +250,7 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
 
     private void handleAddSourceThreadModal(ModalInteractionEvent event, Guild guild, String source) {
         String raw = event.getValue("thread_link").getAsString();
-        Long channelId = parseChannelIdFromLinkOrId(raw);
+        Long channelId = DiscordLinks.parseChannelId(raw);
 
         if (channelId == null) {
             Containers.replyEphemeral(event, Containers.WARNING, "Couldn't find a channel/thread ID in that — paste the full link, or just the ID by itself.");
@@ -372,25 +373,6 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
         return encoded.replace('_', ' ');
     }
 
-    /** A pasted message/channel link ({@code .../channels/<guild>/<channel>[/<message>]}) or a bare numeric ID; {@code null} if neither parses. */
-    private static Long parseChannelIdFromLinkOrId(String input) {
-        String trimmed = input.trim();
-        if (trimmed.contains("/channels/")) {
-            String[] afterMarker = trimmed.split("/channels/", 2)[1].split("/");
-            if (afterMarker.length < 2) return null;
-            try {
-                return Long.parseLong(afterMarker[1]);
-            } catch (NumberFormatException e) {
-                return null;
-            }
-        }
-        try {
-            return Long.parseLong(trimmed.replaceAll("[^0-9]", ""));
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
-
     /** 17 lightweight service calls per render (enabled + destination count, each group) — an admin panel, not a hot path. */
     Container buildMainPanel(long guildId) {
         List<ContainerChildComponent> children = new ArrayList<>();
@@ -486,8 +468,7 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
                         .setRequiredRange(0, 1)
                         .build()));
 
-        children.add(TextDisplay.of("-# Forum thread not showing up above? Paste its link instead."));
-        children.add(ActionRow.of(Button.secondary("configure_tracking_add_thread:" + group.name(), "Add by Link")));
+        children.add(Containers.linkButtonRow("configure_tracking_add_thread:" + group.name()));
 
         return Containers.card(Containers.PRIMARY, children);
     }
@@ -508,15 +489,14 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
                 Button.success("configure_tracking_source_enable_all:" + encodedSource, "Enable All"),
                 Button.secondary("configure_tracking_source_disable_all:" + encodedSource, "Disable All")));
 
-        children.add(TextDisplay.of("**Add a destination to every group here at once** (regular channel or an active thread):\n" +
-                "-# Forum thread not showing up below? Use Add by Link instead."));
+        children.add(TextDisplay.of("**Add a destination to every group here at once** (regular channel or an active thread):"));
         children.add(ActionRow.of(
                 EntitySelectMenu.create("configure_tracking_source_add_channel:" + encodedSource, EntitySelectMenu.SelectTarget.CHANNEL)
                         .setChannelTypes(ChannelType.TEXT, ChannelType.GUILD_PUBLIC_THREAD, ChannelType.GUILD_PRIVATE_THREAD, ChannelType.FORUM)
                         .setPlaceholder("Select a channel or thread")
                         .setRequiredRange(0, 1)
                         .build()));
-        children.add(ActionRow.of(Button.secondary("configure_tracking_source_add_thread:" + encodedSource, "Add by Link")));
+        children.add(Containers.linkButtonRow("configure_tracking_source_add_thread:" + encodedSource));
 
         children.add(TextDisplay.of("-# **Clear All Destinations** removes every destination from every group in this section — there's no undo, so it asks you to confirm first."));
         children.add(ActionRow.of(Button.danger("configure_tracking_source_clear_confirm:" + encodedSource, "Clear All Destinations")));
