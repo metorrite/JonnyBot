@@ -5,6 +5,7 @@ import com.younglings.bot.runescape.RuneScapeSkillCatalog;
 import com.younglings.bot.runescape.SkillEmojiCatalog;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.audit.ActionType;
+import net.dv8tion.jda.api.audit.AuditLogChange;
 import net.dv8tion.jda.api.audit.AuditLogEntry;
 
 import java.util.List;
@@ -48,22 +49,25 @@ public class TrackingEventClassifier {
             "Royale Cannon", "Master Student", "Fight Kiln", "chimp ices", "Dagannoth Kings' Rex",
             "Duel Arena");
 
-    // Notified on the 1st kill (first blood is notable) and then every 10th after that — suppresses
-    // the per-kill spam RuneMetrics itself doesn't filter out (see #recordAndCheckBossKillMilestone).
-    private static final int BOSS_KILL_MILESTONE_INTERVAL = 10;
-
     private final SkillEmojiCatalog skillEmojiCatalog;
     private final TrackingIconCatalog trackingIconCatalog;
-    private final BossKillTallyRepository bossKillTallyRepository;
 
-    public TrackingEventClassifier(SkillEmojiCatalog skillEmojiCatalog, TrackingIconCatalog trackingIconCatalog,
-                                    BossKillTallyRepository bossKillTallyRepository) {
+    public TrackingEventClassifier(SkillEmojiCatalog skillEmojiCatalog, TrackingIconCatalog trackingIconCatalog) {
         this.skillEmojiCatalog = skillEmojiCatalog;
         this.trackingIconCatalog = trackingIconCatalog;
-        this.bossKillTallyRepository = bossKillTallyRepository;
     }
 
-    public Optional<ClassifiedEntry> classify(long guildId, String rsn, PlayerActivity activity) {
+    /**
+     * {@code count} is how many times this exact activity (same {@link PlayerActivity#text()}) showed
+     * up back-to-back in this poll's batch — see {@link com.younglings.bot.runescape.RuneScapeStatsService}'s
+     * run-length collapsing, which is what actually groups them before calling this once per run rather
+     * than once per repeat. RuneMetrics reports every individual boss kill (and can report the same
+     * drop landing more than once at once), so without that collapsing a grind session would flood the
+     * feed with one identical line per kill/drop; {@code count} lets the two branches that actually see
+     * repeats in practice (drops, boss kills) fold a whole run into one line instead of just picking a
+     * lower posting rate.
+     */
+    public Optional<ClassifiedEntry> classify(String rsn, PlayerActivity activity, int count) {
         String text = activity.text();
         String bold = "**" + rsn + "**";
 
@@ -89,8 +93,10 @@ public class TrackingEventClassifier {
         Optional<DropItemCatalog.DropItem> drop = DropItemCatalog.findIn(text);
         if (drop.isPresent()) {
             DropItemCatalog.DropItem item = drop.get();
-            return entry(TrackingGroup.NOTABLE_DROPS, trackingIconCatalog.mentionForDrop(item.key()),
-                    bold + " found **" + item.name() + "**.");
+            String message = count == 1
+                    ? bold + " found **" + item.name() + "**."
+                    : bold + " found **" + count + " " + pluralize(item.name()) + "**.";
+            return entry(TrackingGroup.NOTABLE_DROPS, trackingIconCatalog.mentionForDrop(item.key()), message);
         }
 
         Matcher levelUp = SKILL_LEVEL_UP.matcher(text);
@@ -116,9 +122,10 @@ public class TrackingEventClassifier {
         if (text.startsWith("I killed") || text.startsWith("I defeated")) {
             for (String boss : NAMED_BOSSES) {
                 if (text.contains(boss)) {
-                    return recordAndCheckBossKillMilestone(guildId, rsn, boss)
-                            .flatMap(count -> entry(TrackingGroup.BOSS_KILLS, null,
-                                    bold + " has defeated **" + boss + "** " + count + (count == 1 ? " time." : " times.")));
+                    String message = count == 1
+                            ? bold + " defeated **" + boss + "**."
+                            : bold + " has defeated **" + boss + "** " + count + " times!";
+                    return entry(TrackingGroup.BOSS_KILLS, null, message);
                 }
             }
         }
@@ -150,23 +157,65 @@ public class TrackingEventClassifier {
         return Optional.empty();
     }
 
-    /**
-     * RuneMetrics reports every single named-boss kill, not just round-number milestones — without
-     * this, a player grinding one boss would flood the Boss Kills group with one line per kill.
-     * Always counts the kill; only returns the new total (to post) on the 1st kill and every
-     * {@link #BOSS_KILL_MILESTONE_INTERVAL}th one after.
-     */
-    private Optional<Integer> recordAndCheckBossKillMilestone(long guildId, String rsn, String boss) {
-        int count = bossKillTallyRepository.incrementAndGet(guildId, rsn, boss);
-        return (count == 1 || count % BOSS_KILL_MILESTONE_INTERVAL == 0) ? Optional.of(count) : Optional.empty();
+    /** Naive "+s" pluralization — good enough for the vast majority of (mostly regular) RS item names; an irregular one just reads slightly odd, never wrong data. */
+    private static String pluralize(String name) {
+        return name.endsWith("s") ? name : name + "s";
     }
 
-    /** {@code actorMention} is a raw {@code <@id>} mention, already resolved by the caller. */
+    /**
+     * {@code actorMention} is a raw {@code <@id>} mention, already resolved by the caller —
+     * {@link TrackingEventRouter} sends every tracking message with push/desktop notifications
+     * suppressed, so this (and the target mention below) never actually pings anyone.
+     */
     public Optional<ClassifiedEntry> classify(AuditLogEntry logEntry, String actorMention) {
         TrackingGroup group = groupFor(logEntry.getType());
         if (group == null) return Optional.empty();
 
-        return entry(group, null, actorMention + " — " + prettyLabel(logEntry.getType()));
+        StringBuilder text = new StringBuilder("**").append(prettyLabel(logEntry.getType())).append("**\n");
+        text.append("Performed By: ").append(actorMention);
+
+        String target = describeTarget(logEntry);
+        if (target != null) text.append("\nTarget: ").append(target);
+
+        String reason = logEntry.getReason();
+        if (reason != null && !reason.isBlank()) text.append("\nReason: ").append(reason);
+
+        return entry(group, null, text.toString());
+    }
+
+    /**
+     * Best-effort description of what the action targeted. A role or member mention already renders
+     * its own live name in Discord, so those are left as a bare mention; a role additionally gets its
+     * name appended from the audit log's own "name" change (not a live lookup), since that's the one
+     * target type most likely to already be gone by the time this posts (a temp role created then
+     * deleted, for instance) — the audit log's copy of the name survives that. Channels/threads render
+     * their name via the mention itself either way.
+     */
+    private static String describeTarget(AuditLogEntry logEntry) {
+        long targetId = logEntry.getTargetIdLong();
+        if (targetId == 0) return null;
+
+        return switch (logEntry.getTargetType()) {
+            case ROLE -> "<@&" + targetId + ">" + nameSuffix(logEntry);
+            case CHANNEL, THREAD -> "<#" + targetId + ">";
+            case MEMBER -> "<@" + targetId + ">";
+            default -> {
+                String name = nameFromChanges(logEntry);
+                yield name != null ? "**" + name + "** (`" + targetId + "`)" : "`" + targetId + "`";
+            }
+        };
+    }
+
+    private static String nameSuffix(AuditLogEntry logEntry) {
+        String name = nameFromChanges(logEntry);
+        return name != null ? " (**" + name + "**)" : "";
+    }
+
+    private static String nameFromChanges(AuditLogEntry logEntry) {
+        AuditLogChange change = logEntry.getChangeByKey("name");
+        if (change == null) return null;
+        Object value = change.getNewValue() != null ? change.getNewValue() : change.getOldValue();
+        return value != null ? value.toString() : null;
     }
 
     private static TrackingGroup groupFor(ActionType type) {

@@ -294,7 +294,7 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
                 if (channel == null) continue;
 
                 destinationCount++;
-                CompletableFuture<Message> sendFuture = channel.sendMessage(line).submit();
+                CompletableFuture<Message> sendFuture = channel.sendMessage(line).setSuppressedNotifications(true).submit();
                 pending.add(sendFuture.thenAccept(sent -> trackingService.recordTestMessage(guildId, channel.getIdLong(), sent.getIdLong())));
             }
         }
@@ -347,12 +347,12 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
             case ARCHAEOLOGY -> withIcon(trackingIconCatalog.mentionForCategory("archaeology"), "TestPlayer solved an archaeological mystery.");
             case CITADEL_ACTIVITY -> "TestPlayer visited the Clan Citadel.";
             case CLAN_JOINS_LEAVES -> "**TestPlayer** joined the clan.";
-            case SERVER_SETTINGS -> actorMention + " — Guild Update";
-            case CHANNELS_THREADS -> actorMention + " — Channel Create";
-            case ROLES_PERMISSIONS -> actorMention + " — Role Create";
-            case MEMBERS_MODERATION -> actorMention + " — Kick";
-            case MESSAGES -> actorMention + " — Message Bulk Delete";
-            case SERVER_EXTRAS -> actorMention + " — Webhook Create";
+            case SERVER_SETTINGS -> "**Guild Update**\nPerformed By: " + actorMention;
+            case CHANNELS_THREADS -> "**Channel Create**\nPerformed By: " + actorMention + "\nTarget: **test-channel** (`0`)";
+            case ROLES_PERMISSIONS -> "**Role Create**\nPerformed By: " + actorMention + "\nTarget: **Test Role** (`0`)";
+            case MEMBERS_MODERATION -> "**Kick**\nPerformed By: " + actorMention + "\nTarget: <@0>\nReason: Testing the Tracking panel";
+            case MESSAGES -> "**Message Bulk Delete**\nPerformed By: " + actorMention;
+            case SERVER_EXTRAS -> "**Webhook Create**\nPerformed By: " + actorMention;
         };
         return prefix + body;
     }

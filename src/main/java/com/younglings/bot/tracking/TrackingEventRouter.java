@@ -15,7 +15,9 @@ import java.util.Map;
  * this guild's configured destinations for its group and post the line, plain text, to each — a
  * destination is just a channel id, and {@link GuildMessageChannel} covers a regular text channel and
  * a forum thread identically (JDA sends to a thread exactly like any other channel), so no branching
- * is needed for "is this a thread".
+ * is needed for "is this a thread". Every post has push/desktop notifications suppressed — this is a
+ * passive activity feed, not something anyone it mentions (an admin-log actor, say) needs to be pinged
+ * over, so every mention in it renders silently.
  */
 @BService
 public class TrackingEventRouter {
@@ -49,7 +51,7 @@ public class TrackingEventRouter {
                 GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, destination.channelId());
                 if (channel == null) continue;
 
-                channel.sendMessage(entry.line()).queue(success -> {},
+                channel.sendMessage(entry.line()).setSuppressedNotifications(true).queue(success -> {},
                         error -> log.warn("Failed to post tracking entry to channel {} in guild {}", destination.channelId(), guildId, error));
             }
         }
