@@ -2,6 +2,7 @@ package com.younglings.bot.tracking;
 
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 
+import java.util.Arrays;
 import java.util.List;
 
 /** Thin pass-through to {@link TrackingRepository}, typed against {@link TrackingGroup} instead of raw strings — the read path {@code /configure}'s Tracking panel uses. */
@@ -43,5 +44,29 @@ public class TrackingService {
 
     public void clearTestMessages(long guildId) {
         repository.clearTestMessages(guildId);
+    }
+
+    // --- Source-level bulk actions (the Tracking panel's per-section header button) ---
+
+    public List<TrackingGroup> groupsInSource(String source) {
+        return Arrays.stream(TrackingGroup.values()).filter(group -> group.source().equals(source)).toList();
+    }
+
+    public void setEnabledForSource(long guildId, String source, boolean enabled) {
+        for (TrackingGroup group : groupsInSource(source)) setEnabled(guildId, group, enabled);
+    }
+
+    /** Removes every destination from every group in this source — irreversible, callers should confirm first. */
+    public void clearAllDestinationsInSource(long guildId, String source) {
+        for (TrackingGroup group : groupsInSource(source)) {
+            for (TrackingRepository.Destination destination : getDestinations(guildId, group)) {
+                removeDestination(guildId, destination.id());
+            }
+        }
+    }
+
+    /** Adds {@code channelId} as a destination to every group in this source (a group that already has it is untouched — see the underlying unique constraint). */
+    public void addDestinationToSource(long guildId, String source, long channelId) {
+        for (TrackingGroup group : groupsInSource(source)) addDestination(guildId, group, channelId);
     }
 }
