@@ -2,12 +2,16 @@ package com.younglings.bot.runescape;
 
 import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.configure.GuildSettingsService;
+import com.younglings.bot.tracking.ClassifiedEntry;
+import com.younglings.bot.tracking.TrackingEventRouter;
+import com.younglings.bot.tracking.TrackingGroup;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -31,16 +35,19 @@ public class ClanSyncService {
     private final RsnRenameService renameService;
     private final GuildSettingsService guildSettingsService;
     private final BotConfig botConfig;
+    private final TrackingEventRouter trackingEventRouter;
 
     public ClanSyncService(RuneScapeApiClient apiClient, ClanMemberRepository clanMemberRepository,
                             RuneScapeStatsService statsService, RsnRenameService renameService,
-                            GuildSettingsService guildSettingsService, BotConfig botConfig) {
+                            GuildSettingsService guildSettingsService, BotConfig botConfig,
+                            TrackingEventRouter trackingEventRouter) {
         this.apiClient = apiClient;
         this.clanMemberRepository = clanMemberRepository;
         this.statsService = statsService;
         this.renameService = renameService;
         this.guildSettingsService = guildSettingsService;
         this.botConfig = botConfig;
+        this.trackingEventRouter = trackingEventRouter;
     }
 
     public record SyncResult(int rosterSize, int newMembers, int departedMembers, int polled, int pollFailed) {}
@@ -85,22 +92,43 @@ public class ClanSyncService {
         List<ClanMemberRepository.ClanMemberRow> before = clanMemberRepository.getAll(guildId, true);
         Set<String> beforeLower = new HashSet<>();
         for (var row : before) beforeLower.add(row.rsn().toLowerCase());
+        // The very first sync for a guild has an empty `before` — every roster member would
+        // otherwise look "new" and flood the joins/leaves channel with the whole clan at once.
+        boolean firstSyncEver = before.isEmpty();
 
         Set<String> currentLower = new HashSet<>();
         Set<String> newLower = new HashSet<>();
+        List<String> newNames = new ArrayList<>();
         for (var member : roster) {
             clanMemberRepository.upsert(guildId, member.rsn(), member.clanRank(), member.totalXp(), member.kills());
             String lower = member.rsn().toLowerCase();
             currentLower.add(lower);
-            if (!beforeLower.contains(lower)) newLower.add(lower);
+            if (!beforeLower.contains(lower)) {
+                newLower.add(lower);
+                newNames.add(member.rsn());
+            }
         }
 
         Set<String> departedLower = new HashSet<>();
-        for (String rsnLower : beforeLower) {
+        List<String> departedNames = new ArrayList<>();
+        for (var row : before) {
+            String rsnLower = row.rsn().toLowerCase();
             if (!currentLower.contains(rsnLower)) {
                 clanMemberRepository.markInactive(guildId, rsnLower);
                 departedLower.add(rsnLower);
+                departedNames.add(row.rsn());
             }
+        }
+
+        if (!firstSyncEver) {
+            List<ClassifiedEntry> joinLeaveEntries = new ArrayList<>();
+            for (String name : newNames) {
+                joinLeaveEntries.add(new ClassifiedEntry(TrackingGroup.CLAN_JOINS_LEAVES, "**" + name + "** joined the clan."));
+            }
+            for (String name : departedNames) {
+                joinLeaveEntries.add(new ClassifiedEntry(TrackingGroup.CLAN_JOINS_LEAVES, "**" + name + "** left the clan."));
+            }
+            trackingEventRouter.dispatchAll(guild, joinLeaveEntries);
         }
 
         long delayMs = botConfig.getRunescapePollDelaySeconds() * 1000;

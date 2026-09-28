@@ -1,0 +1,292 @@
+package com.younglings.bot.tracking;
+
+import com.younglings.bot.discord.Containers;
+import io.github.freya022.botcommands.api.core.service.annotations.BService;
+import net.dv8tion.jda.api.Permission;
+import net.dv8tion.jda.api.components.actionrow.ActionRow;
+import net.dv8tion.jda.api.components.buttons.Button;
+import net.dv8tion.jda.api.components.container.Container;
+import net.dv8tion.jda.api.components.container.ContainerChildComponent;
+import net.dv8tion.jda.api.components.label.Label;
+import net.dv8tion.jda.api.components.selections.EntitySelectMenu;
+import net.dv8tion.jda.api.components.selections.StringSelectMenu;
+import net.dv8tion.jda.api.components.textdisplay.TextDisplay;
+import net.dv8tion.jda.api.components.textinput.TextInput;
+import net.dv8tion.jda.api.components.textinput.TextInputStyle;
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.channel.ChannelType;
+import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel;
+import net.dv8tion.jda.api.events.interaction.ModalInteractionEvent;
+import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
+import net.dv8tion.jda.api.events.interaction.component.EntitySelectInteractionEvent;
+import net.dv8tion.jda.api.events.interaction.component.StringSelectInteractionEvent;
+import net.dv8tion.jda.api.hooks.ListenerAdapter;
+import net.dv8tion.jda.api.modals.Modal;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * The Tracking panel — {@code /configure}'s UI for the announcement system approved in the event
+ * taxonomy: enable/disable each of {@link TrackingGroup}'s 17 groups and pick where each one posts.
+ * A completely separate listener from {@link com.younglings.bot.commands.configure.ConfigureInteractionListener}
+ * (still all {@code configure_tracking_}-prefixed, still gated the same way) purely because that
+ * class was already sizeable before this — {@code buildPanel()}'s entry button is the only thing that
+ * lives over there.
+ * <p>
+ * Two screens: a list of all 17 groups with a dropdown to pick one, then that group's own screen —
+ * enable toggle, current destinations (removable via a second dropdown), a native channel picker to
+ * add a regular channel or thread, and an "Add by link" modal fallback for a forum thread Discord's
+ * channel picker doesn't surface (older/archived threads in particular — untested at the time this
+ * was built, hence the fallback existing at all rather than being added later).
+ */
+@BService
+public class TrackingConfigInteractionListener extends ListenerAdapter {
+    private static final Logger log = LoggerFactory.getLogger(TrackingConfigInteractionListener.class);
+
+    private final TrackingService trackingService;
+
+    public TrackingConfigInteractionListener(TrackingService trackingService) {
+        this.trackingService = trackingService;
+    }
+
+    @Override
+    public void onButtonInteraction(ButtonInteractionEvent event) {
+        Guild guild = event.getGuild();
+        Member member = event.getMember();
+        String id = event.getComponentId();
+        if (guild == null || member == null || !id.startsWith("configure_tracking")) return;
+
+        try {
+            if (!member.hasPermission(Permission.ADMINISTRATOR)) {
+                Containers.replyEphemeral(event, Containers.WARNING, "You need the Administrator permission to configure this bot.");
+                return;
+            }
+
+            String[] parts = id.split(":", 3);
+            switch (parts[0]) {
+                case "configure_tracking_main" -> event.editComponents(List.of(buildMainPanel(guild.getIdLong()))).useComponentsV2(true).queue();
+                case "configure_tracking_toggle" -> {
+                    TrackingGroup group = TrackingGroup.valueOf(parts[1]);
+                    boolean currentlyEnabled = trackingService.isEnabled(guild.getIdLong(), group);
+                    trackingService.setEnabled(guild.getIdLong(), group, !currentlyEnabled);
+                    event.editComponents(List.of(buildGroupPanel(guild.getIdLong(), group))).useComponentsV2(true).queue();
+                }
+                case "configure_tracking_add_thread" -> doAddThreadPrompt(event, parts[1]);
+                case "configure_tracking_group_back" -> {
+                    TrackingGroup group = TrackingGroup.valueOf(parts[1]);
+                    event.editComponents(List.of(buildGroupPanel(guild.getIdLong(), group))).useComponentsV2(true).queue();
+                }
+            }
+        } catch (Exception e) {
+            log.error("Unhandled exception in tracking config button interaction '{}'", id, e);
+            Containers.replyError(event);
+        }
+    }
+
+    @Override
+    public void onStringSelectInteraction(StringSelectInteractionEvent event) {
+        Guild guild = event.getGuild();
+        Member member = event.getMember();
+        String id = event.getComponentId();
+        if (guild == null || member == null || !id.startsWith("configure_tracking")) return;
+
+        try {
+            if (!member.hasPermission(Permission.ADMINISTRATOR)) {
+                Containers.replyEphemeral(event, Containers.WARNING, "You need the Administrator permission to configure this bot.");
+                return;
+            }
+
+            String[] parts = id.split(":", 2);
+            switch (parts[0]) {
+                case "configure_tracking_pick_group" -> {
+                    TrackingGroup group = TrackingGroup.valueOf(event.getValues().getFirst());
+                    event.editComponents(List.of(buildGroupPanel(guild.getIdLong(), group))).useComponentsV2(true).queue();
+                }
+                case "configure_tracking_remove_dest" -> {
+                    TrackingGroup group = TrackingGroup.valueOf(parts[1]);
+                    long destinationId = Long.parseLong(event.getValues().getFirst());
+                    trackingService.removeDestination(guild.getIdLong(), destinationId);
+                    event.editComponents(List.of(buildGroupPanel(guild.getIdLong(), group))).useComponentsV2(true).queue();
+                }
+            }
+        } catch (Exception e) {
+            log.error("Unhandled exception in tracking config select interaction '{}'", id, e);
+            Containers.replyError(event);
+        }
+    }
+
+    @Override
+    public void onEntitySelectInteraction(EntitySelectInteractionEvent event) {
+        Guild guild = event.getGuild();
+        Member member = event.getMember();
+        String id = event.getComponentId();
+        if (guild == null || member == null || !id.startsWith("configure_tracking")) return;
+
+        try {
+            if (!member.hasPermission(Permission.ADMINISTRATOR)) {
+                Containers.replyEphemeral(event, Containers.WARNING, "You need the Administrator permission to configure this bot.");
+                return;
+            }
+            if (event.getValues().isEmpty()) return;
+
+            String[] parts = id.split(":", 2);
+            if (parts[0].equals("configure_tracking_add_channel")) {
+                TrackingGroup group = TrackingGroup.valueOf(parts[1]);
+                trackingService.addDestination(guild.getIdLong(), group, event.getValues().getFirst().getIdLong());
+                event.editComponents(List.of(buildGroupPanel(guild.getIdLong(), group))).useComponentsV2(true).queue();
+            }
+        } catch (Exception e) {
+            log.error("Unhandled exception in tracking config entity select interaction '{}'", id, e);
+            Containers.replyError(event);
+        }
+    }
+
+    @Override
+    public void onModalInteraction(ModalInteractionEvent event) {
+        Guild guild = event.getGuild();
+        Member member = event.getMember();
+        String id = event.getModalId();
+        if (guild == null || member == null || !id.startsWith("configure_tracking")) return;
+
+        try {
+            if (!member.hasPermission(Permission.ADMINISTRATOR)) {
+                Containers.replyEphemeral(event, Containers.WARNING, "You need the Administrator permission to configure this bot.");
+                return;
+            }
+
+            String[] parts = id.split(":", 2);
+            if (parts[0].equals("configure_tracking_thread_modal")) {
+                handleAddThreadModal(event, guild, TrackingGroup.valueOf(parts[1]));
+            }
+        } catch (Exception e) {
+            log.error("Unhandled exception in tracking config modal interaction '{}'", id, e);
+            Containers.replyError(event);
+        }
+    }
+
+    private void doAddThreadPrompt(ButtonInteractionEvent event, String groupName) {
+        TextInput linkInput = TextInput.create("thread_link", TextInputStyle.SHORT)
+                .setPlaceholder("Paste a thread/channel link, or just its ID")
+                .setRequired(true)
+                .build();
+
+        Modal modal = Modal.create("configure_tracking_thread_modal:" + groupName, "Add Forum Thread")
+                .addComponents(Label.of("Thread Link or ID", linkInput))
+                .build();
+        event.replyModal(modal).queue();
+    }
+
+    private void handleAddThreadModal(ModalInteractionEvent event, Guild guild, TrackingGroup group) {
+        String raw = event.getValue("thread_link").getAsString();
+        Long channelId = parseChannelIdFromLinkOrId(raw);
+
+        if (channelId == null) {
+            Containers.replyEphemeral(event, Containers.WARNING, "Couldn't find a channel/thread ID in that — paste the full link, or just the ID by itself.");
+            return;
+        }
+        if (guild.getChannelById(GuildMessageChannel.class, channelId) == null) {
+            Containers.replyEphemeral(event, Containers.WARNING, "That doesn't look like a channel or thread in this server. Double-check the link and try again.");
+            return;
+        }
+
+        trackingService.addDestination(guild.getIdLong(), group, channelId);
+        Containers.replyEphemeral(event, Containers.SUCCESS, "Added <#" + channelId + "> as a destination for **" + group.displayName() + "**.");
+    }
+
+    /** A pasted message/channel link ({@code .../channels/<guild>/<channel>[/<message>]}) or a bare numeric ID; {@code null} if neither parses. */
+    private static Long parseChannelIdFromLinkOrId(String input) {
+        String trimmed = input.trim();
+        if (trimmed.contains("/channels/")) {
+            String[] afterMarker = trimmed.split("/channels/", 2)[1].split("/");
+            if (afterMarker.length < 2) return null;
+            try {
+                return Long.parseLong(afterMarker[1]);
+            } catch (NumberFormatException e) {
+                return null;
+            }
+        }
+        try {
+            return Long.parseLong(trimmed.replaceAll("[^0-9]", ""));
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /** 17 lightweight service calls per render (enabled + destination count, each group) — an admin panel, not a hot path. */
+    Container buildMainPanel(long guildId) {
+        List<ContainerChildComponent> children = new ArrayList<>();
+        children.add(TextDisplay.of("### Tracking"));
+        children.add(TextDisplay.of("-# Clan drops, levels, Citadel activity, joins/leaves, and Discord's own admin log — pick a group below to configure where it posts."));
+        children.add(ActionRow.of(Button.secondary("configure_back:_", "Back")));
+
+        StringBuilder summary = new StringBuilder();
+        String currentSource = null;
+        StringSelectMenu.Builder picker = StringSelectMenu.create("configure_tracking_pick_group:_").setPlaceholder("Pick a group to configure");
+
+        for (TrackingGroup group : TrackingGroup.values()) {
+            if (!group.source().equals(currentSource)) {
+                currentSource = group.source();
+                summary.append("\n**").append(currentSource).append("**\n");
+            }
+            boolean enabled = trackingService.isEnabled(guildId, group);
+            int destinationCount = trackingService.getDestinations(guildId, group).size();
+            summary.append(enabled ? "✅" : "⚪").append(' ').append(group.displayName())
+                    .append(" — ").append(destinationCount).append(destinationCount == 1 ? " destination\n" : " destinations\n");
+            picker.addOption(group.displayName(), group.name());
+        }
+
+        children.add(TextDisplay.of(summary.toString().trim()));
+        children.add(ActionRow.of(picker.build()));
+
+        return Containers.card(Containers.PRIMARY, children);
+    }
+
+    private Container buildGroupPanel(long guildId, TrackingGroup group) {
+        boolean enabled = trackingService.isEnabled(guildId, group);
+        List<TrackingRepository.Destination> destinations = trackingService.getDestinations(guildId, group);
+
+        List<ContainerChildComponent> children = new ArrayList<>();
+        children.add(TextDisplay.of("### " + group.displayName()));
+        children.add(TextDisplay.of("-# " + group.source()));
+        children.add(ActionRow.of(
+                Button.secondary("configure_tracking_main:_", "All Groups"),
+                enabled ? Button.danger("configure_tracking_toggle:" + group.name(), "Disable")
+                        : Button.success("configure_tracking_toggle:" + group.name(), "Enable")));
+
+        children.add(TextDisplay.of("**Status:** " + (enabled ? "Enabled" : "Disabled")));
+
+        if (destinations.isEmpty()) {
+            children.add(TextDisplay.of("**Destinations:** *none yet*"));
+        } else {
+            StringBuilder list = new StringBuilder("**Destinations:**\n");
+            for (TrackingRepository.Destination destination : destinations) {
+                list.append("• <#").append(destination.channelId()).append(">\n");
+            }
+            children.add(TextDisplay.of(list.toString().trim()));
+
+            StringSelectMenu.Builder removeMenu = StringSelectMenu.create("configure_tracking_remove_dest:" + group.name())
+                    .setPlaceholder("Remove a destination");
+            for (TrackingRepository.Destination destination : destinations) {
+                removeMenu.addOption("Remove #" + destination.channelId(), String.valueOf(destination.id()));
+            }
+            children.add(ActionRow.of(removeMenu.build()));
+        }
+
+        children.add(TextDisplay.of("**Add a channel** (regular channel or an active thread):"));
+        children.add(ActionRow.of(
+                EntitySelectMenu.create("configure_tracking_add_channel:" + group.name(), EntitySelectMenu.SelectTarget.CHANNEL)
+                        .setChannelTypes(ChannelType.TEXT, ChannelType.GUILD_PUBLIC_THREAD, ChannelType.GUILD_PRIVATE_THREAD, ChannelType.FORUM)
+                        .setPlaceholder("Select a channel or thread")
+                        .setRequiredRange(0, 1)
+                        .build()));
+
+        children.add(TextDisplay.of("-# Forum thread not showing up above? Paste its link instead."));
+        children.add(ActionRow.of(Button.secondary("configure_tracking_add_thread:" + group.name(), "Add by Link")));
+
+        return Containers.card(Containers.PRIMARY, children);
+    }
+}

@@ -12,6 +12,9 @@ import com.younglings.bot.commands.signup.SignupInteractionListener;
 import com.younglings.bot.commands.teamforming.TeamformingInteractionListener;
 import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.runescape.SkillEmojiCatalog;
+import com.younglings.bot.tracking.TrackingAuditLogListener;
+import com.younglings.bot.tracking.TrackingConfigInteractionListener;
+import com.younglings.bot.tracking.TrackingIconCatalog;
 import io.github.freya022.botcommands.api.core.JDAService;
 import io.github.freya022.botcommands.api.core.events.BReadyEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -38,6 +41,9 @@ public class Bot extends JDAService {
     private final RsnRenameInteractionListener rsnRenameInteractionListener;
     private final ConfigureInteractionListener configureInteractionListener;
     private final SkillEmojiCatalog skillEmojiCatalog;
+    private final TrackingIconCatalog trackingIconCatalog;
+    private final TrackingAuditLogListener trackingAuditLogListener;
+    private final TrackingConfigInteractionListener trackingConfigInteractionListener;
 
     public Bot(BotConfig botConfig, SignupInteractionListener signupInteractionListener,
                PollInteractionListener pollInteractionListener,
@@ -49,7 +55,10 @@ public class Bot extends JDAService {
                RsChartInteractionListener rsChartInteractionListener,
                RsnRenameInteractionListener rsnRenameInteractionListener,
                ConfigureInteractionListener configureInteractionListener,
-               SkillEmojiCatalog skillEmojiCatalog) {
+               SkillEmojiCatalog skillEmojiCatalog,
+               TrackingIconCatalog trackingIconCatalog,
+               TrackingAuditLogListener trackingAuditLogListener,
+               TrackingConfigInteractionListener trackingConfigInteractionListener) {
         this.botConfig = botConfig;
         this.signupInteractionListener = signupInteractionListener;
         this.pollInteractionListener = pollInteractionListener;
@@ -62,6 +71,9 @@ public class Bot extends JDAService {
         this.rsnRenameInteractionListener = rsnRenameInteractionListener;
         this.configureInteractionListener = configureInteractionListener;
         this.skillEmojiCatalog = skillEmojiCatalog;
+        this.trackingIconCatalog = trackingIconCatalog;
+        this.trackingAuditLogListener = trackingAuditLogListener;
+        this.trackingConfigInteractionListener = trackingConfigInteractionListener;
     }
 
     // If you use Spring, you can return values provided by JDAConfiguration in the getters below
@@ -103,7 +115,8 @@ public class Bot extends JDAService {
                 .addEventListeners(signupInteractionListener, pollInteractionListener, cofferInteractionListener,
                         teamformingInteractionListener, embedInteractionListener, rsInteractionListener,
                         rsAdminInteractionListener, rsChartInteractionListener, rsnRenameInteractionListener,
-                        configureInteractionListener, skillEmojiCatalog)
+                        configureInteractionListener, skillEmojiCatalog, trackingIconCatalog,
+                        trackingAuditLogListener, trackingConfigInteractionListener)
                 .build();
     }
 }

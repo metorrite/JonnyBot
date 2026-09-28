@@ -1,9 +1,17 @@
 package com.younglings.bot.runescape;
 
+import com.younglings.bot.tracking.ClassifiedEntry;
+import com.younglings.bot.tracking.TrackingEventClassifier;
+import com.younglings.bot.tracking.TrackingEventRouter;
+import io.github.freya022.botcommands.api.core.annotations.BEventListener;
+import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
+import net.dv8tion.jda.api.JDA;
+import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.utils.data.DataArray;
 import net.dv8tion.jda.api.utils.data.DataObject;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -11,10 +19,25 @@ import java.util.Optional;
 public class RuneScapeStatsService {
     private final RuneScapeApiClient apiClient;
     private final PlayerLinkRepository repository;
+    private final TrackingEventClassifier classifier;
+    private final TrackingEventRouter router;
 
-    public RuneScapeStatsService(RuneScapeApiClient apiClient, PlayerLinkRepository repository) {
+    // Set once JDA is ready (see #onJdaReady) — same reasoning/pattern as InternalApiServer's own
+    // `jda` field. Only needed to resolve a Guild to post tracking announcements to; every other
+    // method here works fine without it, so it's fine to be null briefly right after boot.
+    private volatile JDA jda;
+
+    public RuneScapeStatsService(RuneScapeApiClient apiClient, PlayerLinkRepository repository,
+                                  TrackingEventClassifier classifier, TrackingEventRouter router) {
         this.apiClient = apiClient;
         this.repository = repository;
+        this.classifier = classifier;
+        this.router = router;
+    }
+
+    @BEventListener
+    public void onJdaReady(InjectedJDAEvent event) {
+        this.jda = event.getJda();
     }
 
     /**
@@ -44,9 +67,26 @@ public class RuneScapeStatsService {
         if (result instanceof ProfileResult.Found(var profile)) {
             long snapshotId = repository.saveSnapshot(guildId, rsn, profile, serializeSkills(profile.skills()));
             repository.saveSkillSnapshot(snapshotId, profile.skills());
-            repository.saveActivities(guildId, rsn, profile.activities());
+            List<PlayerActivity> newActivities = repository.saveActivities(guildId, rsn, profile.activities());
+            dispatchNewActivities(guildId, rsn, newActivities);
         }
         return result;
+    }
+
+    /** No-ops if JDA isn't ready yet, the guild can't be resolved, or nothing new classified — the tracking feed is a bonus on top of polling, never a reason to fail it. */
+    private void dispatchNewActivities(long guildId, String rsn, List<PlayerActivity> newActivities) {
+        if (newActivities.isEmpty()) return;
+
+        JDA currentJda = jda;
+        if (currentJda == null) return;
+        Guild guild = currentJda.getGuildById(guildId);
+        if (guild == null) return;
+
+        List<ClassifiedEntry> entries = new ArrayList<>();
+        for (PlayerActivity activity : newActivities) {
+            classifier.classify(rsn, activity).ifPresent(entries::add);
+        }
+        router.dispatchAll(guild, entries);
     }
 
     public PlayerLinkRepository.StatsSnapshotRow getLatestSnapshot(long guildId, String rsn) {
