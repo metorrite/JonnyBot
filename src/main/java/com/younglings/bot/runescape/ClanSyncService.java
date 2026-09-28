@@ -37,11 +37,12 @@ public class ClanSyncService {
     private final GuildSettingsService guildSettingsService;
     private final BotConfig botConfig;
     private final TrackingEventRouter trackingEventRouter;
+    private final WeeklyDigestRepository weeklyDigestRepository;
 
     public ClanSyncService(RuneScapeApiClient apiClient, ClanMemberRepository clanMemberRepository,
                             RuneScapeStatsService statsService, RsnRenameService renameService,
                             GuildSettingsService guildSettingsService, BotConfig botConfig,
-                            TrackingEventRouter trackingEventRouter) {
+                            TrackingEventRouter trackingEventRouter, WeeklyDigestRepository weeklyDigestRepository) {
         this.apiClient = apiClient;
         this.clanMemberRepository = clanMemberRepository;
         this.statsService = statsService;
@@ -49,6 +50,7 @@ public class ClanSyncService {
         this.guildSettingsService = guildSettingsService;
         this.botConfig = botConfig;
         this.trackingEventRouter = trackingEventRouter;
+        this.weeklyDigestRepository = weeklyDigestRepository;
     }
 
     public record SyncResult(int rosterSize, int newMembers, int departedMembers, int polled, int pollFailed) {}
@@ -125,9 +127,11 @@ public class ClanSyncService {
             List<ClassifiedEntry> joinLeaveEntries = new ArrayList<>();
             for (String name : newNames) {
                 joinLeaveEntries.add(new ClassifiedEntry(TrackingGroup.CLAN_JOINS_LEAVES, "**" + name + "** joined the clan."));
+                weeklyDigestRepository.recordRosterEvent(guildId, name, "JOIN");
             }
             for (String name : departedNames) {
                 joinLeaveEntries.add(new ClassifiedEntry(TrackingGroup.CLAN_JOINS_LEAVES, "**" + name + "** left the clan."));
+                weeklyDigestRepository.recordRosterEvent(guildId, name, "LEAVE");
             }
             trackingEventRouter.dispatchAll(guild, joinLeaveEntries);
         }

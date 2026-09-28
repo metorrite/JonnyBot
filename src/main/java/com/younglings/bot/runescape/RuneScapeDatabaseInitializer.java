@@ -235,6 +235,26 @@ public class RuneScapeDatabaseInitializer {
                 """
                 CREATE INDEX IF NOT EXISTS rsn_rename_candidate_pending_idx
                 ON younglings.rsn_rename_candidate (guild_id, status);
+                """,
+
+                // Every join/leave ClanSyncService's daily roster diff detects, recorded permanently
+                // rather than only ever announced once in real time — this is what the weekly digest
+                // (WeeklyDigestScheduler/WeeklyDigestRepository) queries by date range. event_type is
+                // 'JOIN' or 'LEAVE', not a foreign key to anything, same "fixed small set in code"
+                // reasoning used throughout this schema.
+                """
+                CREATE TABLE IF NOT EXISTS younglings.clan_roster_event (
+                    id BIGSERIAL PRIMARY KEY,
+                    guild_id BIGINT NOT NULL,
+                    rsn TEXT NOT NULL,
+                    event_type TEXT NOT NULL,
+                    event_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+                """,
+
+                """
+                CREATE INDEX IF NOT EXISTS clan_roster_event_window_idx
+                ON younglings.clan_roster_event (guild_id, event_at);
                 """
         ));
     }
