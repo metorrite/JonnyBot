@@ -21,6 +21,7 @@ public class RuneScapeStatsService {
     private final PlayerLinkRepository repository;
     private final TrackingEventClassifier classifier;
     private final TrackingEventRouter router;
+    private final ClanMemberRepository clanMemberRepository;
 
     // Set once JDA is ready (see #onJdaReady) — same reasoning/pattern as InternalApiServer's own
     // `jda` field. Only needed to resolve a Guild to post tracking announcements to; every other
@@ -28,11 +29,13 @@ public class RuneScapeStatsService {
     private volatile JDA jda;
 
     public RuneScapeStatsService(RuneScapeApiClient apiClient, PlayerLinkRepository repository,
-                                  TrackingEventClassifier classifier, TrackingEventRouter router) {
+                                  TrackingEventClassifier classifier, TrackingEventRouter router,
+                                  ClanMemberRepository clanMemberRepository) {
         this.apiClient = apiClient;
         this.repository = repository;
         this.classifier = classifier;
         this.router = router;
+        this.clanMemberRepository = clanMemberRepository;
     }
 
     @BEventListener
@@ -73,9 +76,16 @@ public class RuneScapeStatsService {
         return result;
     }
 
-    /** No-ops if JDA isn't ready yet, the guild can't be resolved, or nothing new classified — the tracking feed is a bonus on top of polling, never a reason to fail it. */
+    /**
+     * No-ops if JDA isn't ready yet, the guild can't be resolved, or nothing new classified — the
+     * tracking feed is a bonus on top of polling, never a reason to fail it. Also no-ops if {@code rsn}
+     * isn't currently an active member of this guild's tracked clan roster — polling and the personal
+     * {@code /rs} profile work for anyone linked regardless, but the tracking feed is specifically a
+     * clan-wide announcement channel, not a "every RSN anyone's ever linked" one.
+     */
     private void dispatchNewActivities(long guildId, String rsn, List<PlayerActivity> newActivities) {
         if (newActivities.isEmpty()) return;
+        if (!clanMemberRepository.isActiveMember(guildId, rsn)) return;
 
         JDA currentJda = jda;
         if (currentJda == null) return;
@@ -84,7 +94,7 @@ public class RuneScapeStatsService {
 
         List<ClassifiedEntry> entries = new ArrayList<>();
         for (PlayerActivity activity : newActivities) {
-            classifier.classify(rsn, activity).ifPresent(entries::add);
+            classifier.classify(guildId, rsn, activity).ifPresent(entries::add);
         }
         router.dispatchAll(guild, entries);
     }

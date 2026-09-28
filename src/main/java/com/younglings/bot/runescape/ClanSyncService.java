@@ -131,31 +131,13 @@ public class ClanSyncService {
             trackingEventRouter.dispatchAll(guild, joinLeaveEntries);
         }
 
-        long delayMs = botConfig.getRunescapePollDelaySeconds() * 1000;
-        int polled = 0;
-        int pollFailed = 0;
         // Only kept for names that just appeared this cycle — the rename check is the only thing
         // that needs the full profile result, not just pass/fail, and there's no reason to hold onto
         // every other roster member's full skills/activities in memory once its snapshot is saved.
         Map<String, ProfileResult> newMemberResults = new HashMap<>();
-        for (var member : roster) {
-            try {
-                ProfileResult result = statsService.pollAndSnapshotResult(guildId, member.rsn());
-                if (result instanceof ProfileResult.Found) polled++;
-                else pollFailed++;
-
-                String lower = member.rsn().toLowerCase();
-                if (newLower.contains(lower)) newMemberResults.put(lower, result);
-
-                Thread.sleep(delayMs);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                break;
-            } catch (Exception e) {
-                log.warn("Failed to poll clan member '{}' during sync", member.rsn(), e);
-                pollFailed++;
-            }
-        }
+        PollTally tally = pollRsns(guildId, roster.stream().map(RuneScapeApiClient.ClanMember::rsn).toList(), newLower, newMemberResults);
+        int polled = tally.polled();
+        int pollFailed = tally.pollFailed();
 
         try {
             renameService.detectAndNotify(guild, before, roster, departedLower, newLower, newMemberResults);
@@ -166,5 +148,57 @@ public class ClanSyncService {
         log.info("Clan sync for '{}' (guild {}) finished: {} in roster, {} new, {} departed, {}/{} polled successfully.",
                 clanName, guildId, roster.size(), newLower.size(), departedLower.size(), polled, roster.size());
         return new SyncResult(roster.size(), newLower.size(), departedLower.size(), polled, pollFailed);
+    }
+
+    public record RosterPollResult(int polled, int pollFailed) {}
+
+    /**
+     * Polls every currently-active clan-roster member's RuneMetrics profile — tracking dispatch
+     * (drops/levels/quests/Citadel/etc., see {@link RuneScapeStatsService#pollAndSnapshotResult})
+     * happens as a side effect of that poll, same as it does during {@link #syncAndPoll}. This is the
+     * hourly counterpart to that once-a-day roster diff: it doesn't touch the roster itself or run
+     * rename detection, it just keeps every clan member's data (and tracking feed) fresh at the same
+     * cadence a linked member's own {@code /rs} profile already gets — a member who's never linked
+     * their Discord to their RSN was previously only ever polled once a day, during the daily sync,
+     * which made drops/levels/etc. look like they only ever happened for linked players.
+     */
+    public RosterPollResult pollActiveRosterOnly(long guildId) {
+        List<String> rsns = clanMemberRepository.getAll(guildId, true).stream()
+                .map(ClanMemberRepository.ClanMemberRow::rsn)
+                .toList();
+        if (rsns.isEmpty()) return new RosterPollResult(0, 0);
+
+        PollTally tally = pollRsns(guildId, rsns, Set.of(), new HashMap<>());
+        return new RosterPollResult(tally.polled(), tally.pollFailed());
+    }
+
+    private record PollTally(int polled, int pollFailed) {}
+
+    /** Shared by {@link #syncAndPoll} and {@link #pollActiveRosterOnly} — {@code newLower}/{@code newMemberResultsOut} are only meaningful for the former (rename detection needs the full profile of a name that just appeared); pass {@code Set.of()}/a throwaway map otherwise. */
+    private PollTally pollRsns(long guildId, List<String> rsns, Set<String> newLower, Map<String, ProfileResult> newMemberResultsOut) {
+        long delayMs = botConfig.getRunescapePollDelaySeconds() * 1000;
+        int polled = 0;
+        int pollFailed = 0;
+
+        for (String rsn : rsns) {
+            try {
+                ProfileResult result = statsService.pollAndSnapshotResult(guildId, rsn);
+                if (result instanceof ProfileResult.Found) polled++;
+                else pollFailed++;
+
+                String lower = rsn.toLowerCase();
+                if (newLower.contains(lower)) newMemberResultsOut.put(lower, result);
+
+                Thread.sleep(delayMs);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            } catch (Exception e) {
+                log.warn("Failed to poll clan member '{}'", rsn, e);
+                pollFailed++;
+            }
+        }
+
+        return new PollTally(polled, pollFailed);
     }
 }

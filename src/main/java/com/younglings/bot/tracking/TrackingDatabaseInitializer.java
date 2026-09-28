@@ -65,6 +65,23 @@ public class TrackingDatabaseInitializer {
                 """
                 CREATE INDEX IF NOT EXISTS tracking_test_message_guild_idx
                 ON younglings.tracking_test_message (guild_id);
+                """,
+
+                // Backs the Boss Kills group's own-kill milestone logic (see
+                // TrackingEventClassifier/BossKillTallyRepository) — RuneMetrics reports every single
+                // kill of a named boss, not just round-number milestones, so this table is what lets
+                // the bot post only "defeated X 10 times" instead of a line per kill. Keyed on the
+                // lowercased RSN so a rename doesn't reset the count (RSN is never renamed here to
+                // its display form, so the display form is looked up fresh from the classify call
+                // each time rather than stored).
+                """
+                CREATE TABLE IF NOT EXISTS younglings.boss_kill_tally (
+                    guild_id BIGINT NOT NULL,
+                    rsn_lower TEXT NOT NULL,
+                    boss TEXT NOT NULL,
+                    kill_count INTEGER NOT NULL DEFAULT 0,
+                    PRIMARY KEY (guild_id, rsn_lower, boss)
+                );
                 """
         ));
     }
