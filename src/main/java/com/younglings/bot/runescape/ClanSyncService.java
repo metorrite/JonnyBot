@@ -10,6 +10,7 @@ import net.dv8tion.jda.api.entities.Guild;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -134,8 +135,12 @@ public class ClanSyncService {
         // Only kept for names that just appeared this cycle — the rename check is the only thing
         // that needs the full profile result, not just pass/fail, and there's no reason to hold onto
         // every other roster member's full skills/activities in memory once its snapshot is saved.
+        // This poll isn't spread across a window like RosterPollScheduler's — it needs everyone's
+        // current data now, as fast as the API's safe floor allows, so the daily diff/rename check has
+        // it to work with immediately.
         Map<String, ProfileResult> newMemberResults = new HashMap<>();
-        PollTally tally = pollRsns(guildId, roster.stream().map(RuneScapeApiClient.ClanMember::rsn).toList(), newLower, newMemberResults);
+        long floorDelayMs = botConfig.getRunescapePollDelaySeconds() * 1000L;
+        PollTally tally = pollRsns(guildId, roster.stream().map(RuneScapeApiClient.ClanMember::rsn).toList(), floorDelayMs, newLower, newMemberResults);
         int polled = tally.polled();
         int pollFailed = tally.pollFailed();
 
@@ -153,30 +158,29 @@ public class ClanSyncService {
     public record RosterPollResult(int polled, int pollFailed) {}
 
     /**
-     * Polls every currently-active clan-roster member's RuneMetrics profile — tracking dispatch
+     * Polls every currently-active clan-roster member's RuneMetrics profile, spread evenly across
+     * {@code window} — see {@link PollPacing} — instead of bursting everyone at once. Tracking dispatch
      * (drops/levels/quests/Citadel/etc., see {@link RuneScapeStatsService#pollAndSnapshotResult})
-     * happens as a side effect of that poll, same as it does during {@link #syncAndPoll}. This is the
-     * hourly counterpart to that once-a-day roster diff: it doesn't touch the roster itself or run
-     * rename detection, it just keeps every clan member's data (and tracking feed) fresh at the same
-     * cadence a linked member's own {@code /rs} profile already gets — a member who's never linked
-     * their Discord to their RSN was previously only ever polled once a day, during the daily sync,
-     * which made drops/levels/etc. look like they only ever happened for linked players.
+     * happens as a side effect of that poll, same as it does during {@link #syncAndPoll}. Doesn't touch
+     * the roster itself or run rename detection — that's still {@link #syncAndPoll}'s job, once a day;
+     * this is what keeps every member's data (and the tracking feed) fresh the rest of the time,
+     * regardless of whether they've ever linked their Discord to their RSN.
      */
-    public RosterPollResult pollActiveRosterOnly(long guildId) {
+    public RosterPollResult pollActiveRosterOnly(long guildId, Duration window) {
         List<String> rsns = clanMemberRepository.getAll(guildId, true).stream()
                 .map(ClanMemberRepository.ClanMemberRow::rsn)
                 .toList();
         if (rsns.isEmpty()) return new RosterPollResult(0, 0);
 
-        PollTally tally = pollRsns(guildId, rsns, Set.of(), new HashMap<>());
+        long delayMs = PollPacing.evenSpreadDelayMs(rsns.size(), window, botConfig.getRunescapePollDelaySeconds() * 1000L);
+        PollTally tally = pollRsns(guildId, rsns, delayMs, Set.of(), new HashMap<>());
         return new RosterPollResult(tally.polled(), tally.pollFailed());
     }
 
     private record PollTally(int polled, int pollFailed) {}
 
     /** Shared by {@link #syncAndPoll} and {@link #pollActiveRosterOnly} — {@code newLower}/{@code newMemberResultsOut} are only meaningful for the former (rename detection needs the full profile of a name that just appeared); pass {@code Set.of()}/a throwaway map otherwise. */
-    private PollTally pollRsns(long guildId, List<String> rsns, Set<String> newLower, Map<String, ProfileResult> newMemberResultsOut) {
-        long delayMs = botConfig.getRunescapePollDelaySeconds() * 1000;
+    private PollTally pollRsns(long guildId, List<String> rsns, long delayMs, Set<String> newLower, Map<String, ProfileResult> newMemberResultsOut) {
         int polled = 0;
         int pollFailed = 0;
 

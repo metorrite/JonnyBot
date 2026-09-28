@@ -93,10 +93,42 @@ public class RuneScapeStatsService {
         if (guild == null) return;
 
         List<ClassifiedEntry> entries = new ArrayList<>();
-        for (PlayerActivity activity : newActivities) {
-            classifier.classify(guildId, rsn, activity).ifPresent(entries::add);
+        for (ActivityRun run : collapseConsecutive(newActivities)) {
+            classifier.classify(rsn, run.activity(), run.count()).ifPresent(entries::add);
         }
         router.dispatchAll(guild, entries);
+    }
+
+    private record ActivityRun(PlayerActivity activity, int count) {}
+
+    /**
+     * RuneMetrics reports every individual repeat of the same activity (a grind session killing the
+     * same boss, or landing the same drop twice at once) as its own separate line rather than
+     * aggregating them itself — left as-is, this would flood the tracking feed with one identical line
+     * per repeat. Folds a run of back-to-back identical activities (same {@link PlayerActivity#text()}
+     * and {@link PlayerActivity#details()}) into one, so {@link TrackingEventClassifier} sees the whole
+     * run's count and can render it as one line ("defeated X 10 times") instead of ten.
+     */
+    private static List<ActivityRun> collapseConsecutive(List<PlayerActivity> activities) {
+        List<ActivityRun> runs = new ArrayList<>();
+        PlayerActivity current = null;
+        int count = 0;
+
+        for (PlayerActivity activity : activities) {
+            if (current != null && isSameActivity(current, activity)) {
+                count++;
+            } else {
+                if (current != null) runs.add(new ActivityRun(current, count));
+                current = activity;
+                count = 1;
+            }
+        }
+        if (current != null) runs.add(new ActivityRun(current, count));
+        return runs;
+    }
+
+    private static boolean isSameActivity(PlayerActivity a, PlayerActivity b) {
+        return a.text().equals(b.text()) && java.util.Objects.equals(a.details(), b.details());
     }
 
     public PlayerLinkRepository.StatsSnapshotRow getLatestSnapshot(long guildId, String rsn) {

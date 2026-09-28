@@ -19,42 +19,33 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Two jobs, both scoped to every guild with a clan configured via {@code /configure}:
- * <p>
  * Once a day, at 00:00 UTC (the same moment RuneScape's own in-game day rolls over — the natural
- * point for "today's" clan activity to have settled), refreshes the roster itself (new/departed
- * members, rename detection — see {@link ClanSyncService#syncAndPoll}) and polls everyone on it.
+ * point for "today's" clan activity to have settled), refreshes every configured guild's clan
+ * roster (new/departed members, rename detection — see {@link ClanSyncService#syncAndPoll}) and
+ * polls everyone currently on it.
  * <p>
- * Every {@link #ROSTER_POLL_INTERVAL} on top of that, {@link ClanSyncService#pollActiveRosterOnly}
- * re-polls the roster (without touching membership or running rename detection) — this is what keeps
- * an unlinked clan member's tracking feed (drops, levels, Citadel, etc.) as fresh as a linked
- * member's, instead of only ever updating once a day. Matches {@link RuneScapeStatsScheduler}'s own
- * cadence for a linked clan member's {@code /rs} profile, so "am I in the clan" doesn't change how
- * current your data looks.
+ * This is purely about the roster itself — who's a member at all. Keeping every member's own data
+ * (and the tracking feed it drives) fresh the rest of the day is {@link RosterPollScheduler}'s job,
+ * spread evenly across a shorter window instead of bursting once daily.
  * <p>
- * Mirrors {@code SignupMaintenanceScheduler}'s JDA-ready pattern rather than
- * {@link RuneScapeStatsScheduler}'s plain timer, since resolving each tracked guild's {@link Guild}
- * (and knowing which guilds exist at all) needs JDA to be up first. The daily job uses
- * {@code scheduleAtFixedRate} specifically so it stays anchored to true midnight UTC over time,
- * instead of drifting later by however long each run took the day before; the roster-only job uses
- * {@code scheduleWithFixedDelay} since there's no particular moment it needs to land on. A 2-thread
- * pool (rather than the 1 this class used when it had only one job) keeps a slow daily sync from
- * delaying the hourly roster poll behind it.
+ * Mirrors {@code SignupMaintenanceScheduler}'s JDA-ready pattern rather than a plain timer, since
+ * resolving each tracked guild's {@link Guild} object (to pass to {@code syncAndPoll}) needs JDA to be
+ * up first. Uses {@code scheduleAtFixedRate} rather than {@code scheduleWithFixedDelay} specifically so
+ * the daily run stays anchored to true midnight UTC over time, instead of drifting later by however
+ * long each run took the day before.
  * <p>
- * Gated by the same {@link BotConfig#getRunescapeAutoPollEnabled()} flag as
- * {@link RuneScapeStatsScheduler}, so turning auto-polling off pauses both jobs here too.
+ * Gated by the same {@link BotConfig#getRunescapeAutoPollEnabled()} flag as {@link RosterPollScheduler},
+ * so turning auto-polling off pauses this too.
  */
 @BService
 public class ClanSyncScheduler {
     private static final Logger log = LoggerFactory.getLogger(ClanSyncScheduler.class);
 
-    private static final Duration DAILY_INTERVAL = Duration.ofDays(1);
-    private static final Duration ROSTER_POLL_INTERVAL = Duration.ofHours(1);
-    private static final Duration ROSTER_POLL_INITIAL_DELAY = Duration.ofMinutes(5);
+    private static final Duration INTERVAL = Duration.ofDays(1);
 
     private final ClanSyncService clanSyncService;
     private final BotConfig botConfig;
-    private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(2,
+    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(
             (ThreadFactory) runnable -> {
                 Thread thread = new Thread(runnable, "clan-sync-scheduler");
                 thread.setDaemon(true);
@@ -69,19 +60,15 @@ public class ClanSyncScheduler {
     @BEventListener
     public void onJdaReady(InjectedJDAEvent event) {
         if (!botConfig.getRunescapeAutoPollEnabled()) {
-            log.info("RuneScape auto-poll is disabled (RUNESCAPE_AUTO_POLL_ENABLED not set) — clan sync/roster polling will not run automatically.");
+            log.info("RuneScape auto-poll is disabled (RUNESCAPE_AUTO_POLL_ENABLED not set) — daily clan sync will not run automatically.");
             return;
         }
 
         JDA jda = event.getJda();
-
         Duration initialDelay = durationUntilNextMidnightUtc();
-        log.info("Clan sync scheduler starting: first daily sync in {}, then every {}; first roster-only poll in {}, then every {}.",
-                initialDelay, DAILY_INTERVAL, ROSTER_POLL_INITIAL_DELAY, ROSTER_POLL_INTERVAL);
+        log.info("Clan sync scheduler starting: first run in {}, then every {}.", initialDelay, INTERVAL);
         executor.scheduleAtFixedRate(() -> runForAllGuilds(jda),
-                initialDelay.toSeconds(), DAILY_INTERVAL.toSeconds(), TimeUnit.SECONDS);
-        executor.scheduleWithFixedDelay(() -> pollAllRostersOnly(jda),
-                ROSTER_POLL_INITIAL_DELAY.toSeconds(), ROSTER_POLL_INTERVAL.toSeconds(), TimeUnit.SECONDS);
+                initialDelay.toSeconds(), INTERVAL.toSeconds(), TimeUnit.SECONDS);
     }
 
     private static Duration durationUntilNextMidnightUtc() {
@@ -101,21 +88,6 @@ public class ClanSyncScheduler {
                         result.polled(), result.rosterSize());
             } catch (Exception e) {
                 log.error("Scheduled clan sync failed for guild {}", guild.getIdLong(), e);
-            }
-        }
-    }
-
-    private void pollAllRostersOnly(JDA jda) {
-        for (Guild guild : jda.getGuilds()) {
-            long guildId = guild.getIdLong();
-            if (clanSyncService.getClanName(guildId) == null) continue; // nothing configured to poll
-
-            try {
-                var result = clanSyncService.pollActiveRosterOnly(guildId);
-                log.info("Hourly roster-only poll for guild {}: {}/{} clan member(s) updated successfully.",
-                        guildId, result.polled(), result.polled() + result.pollFailed());
-            } catch (Exception e) {
-                log.error("Hourly roster-only poll failed for guild {}", guildId, e);
             }
         }
     }

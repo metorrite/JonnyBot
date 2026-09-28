@@ -266,13 +266,15 @@ public class BotConfig {
     }
 
     /**
-     * Whether {@code RuneScapeStatsScheduler} and {@code ClanSyncScheduler} poll automatically at
-     * all. Defaults to {@code true} now that the storage format has settled — clan members poll
-     * hourly, non-clan (but still linked) members every 6 hours, and the full clan roster syncs
-     * once a day at 00:00 UTC. Every poll only actually writes to the database when something
-     * changed (see {@code RuneScapeStatsService}). Set {@code RUNESCAPE_AUTO_POLL_ENABLED=false} to
-     * go back to manual-only (the admin panel's "Update"/"Update All" buttons, or {@code /rsadmin}'s
-     * Sync Clan) while iterating on something that touches the storage format again.
+     * Whether {@code RosterPollScheduler} and {@code ClanSyncScheduler} poll automatically at all.
+     * Defaults to {@code true} now that the storage format has settled — every guild's clan roster is
+     * spread evenly across a 3-hour window, linked-but-not-a-member accounts across an 8-hour window
+     * anchored to end just ahead of RuneScape's own daily reset, and the full clan roster (plus
+     * join/leave detection) syncs once a day at 00:00 UTC. Every poll only actually writes to the
+     * database when something changed (see {@code RuneScapeStatsService}). Set
+     * {@code RUNESCAPE_AUTO_POLL_ENABLED=false} to go back to manual-only (the admin panel's
+     * "Update"/"Update All" buttons, or {@code /rsadmin}'s Sync Clan) while iterating on something that
+     * touches the storage format again.
      */
     public boolean getRunescapeAutoPollEnabled() {
         String raw = System.getenv("RUNESCAPE_AUTO_POLL_ENABLED");

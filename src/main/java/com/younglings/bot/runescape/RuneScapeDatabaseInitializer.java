@@ -79,7 +79,7 @@ public class RuneScapeDatabaseInitializer {
                 """,
 
                 // Periodic snapshot of a linked player's RuneMetrics profile — one row per poll
-                // (manual only, see RuneScapeStatsScheduler/BotConfig#getRunescapeAutoPollEnabled),
+                // (manual only, see RosterPollScheduler/BotConfig#getRunescapeAutoPollEnabled),
                 // so XP-gain-over-time can be derived by comparing rows rather than only ever
                 // seeing the current total. skills_json is kept as a redundant denormalized copy —
                 // player_skill_snapshot below is the real read path for per-skill history/queries.
