@@ -32,4 +32,16 @@ public class TrackingService {
     public void removeDestination(long guildId, long destinationId) {
         repository.removeDestination(guildId, destinationId);
     }
+
+    public void recordTestMessage(long guildId, long channelId, long messageId) {
+        repository.recordTestMessage(guildId, channelId, messageId);
+    }
+
+    public List<TrackingRepository.TestMessage> getTestMessages(long guildId) {
+        return repository.getTestMessages(guildId);
+    }
+
+    public void clearTestMessages(long guildId) {
+        repository.clearTestMessages(guildId);
+    }
 }
