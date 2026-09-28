@@ -3,6 +3,7 @@ package com.younglings.bot.commands.configure;
 import com.younglings.bot.configure.GuildSettings;
 import com.younglings.bot.configure.GuildSettingsService;
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.discord.DiscordLinks;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
@@ -72,6 +73,13 @@ public class ConfigureInteractionListener extends ListenerAdapter {
                 case "configure_rules_edit" -> doRulesEditPrompt(event);
                 case "configure_post_rules" -> doPostRules(event, guild);
                 case "configure_back" -> event.editComponents(List.of(buildPanel())).useComponentsV2(true).queue();
+
+                case "configure_rename_channel_link" -> doChannelLinkPrompt(event, "rename_channel");
+                case "configure_verification_channel_link" -> doChannelLinkPrompt(event, "verification_channel");
+                case "configure_verified_clan_role_link" -> doRoleLinkPrompt(event, "verified_clan_role");
+                case "configure_verified_nonclan_role_link" -> doRoleLinkPrompt(event, "verified_nonclan_role");
+                case "configure_unverified_role_link" -> doRoleLinkPrompt(event, "unverified_role");
+                case "configure_onboarding_role_link" -> doRoleLinkPrompt(event, "onboarding_role");
             }
         } catch (Exception e) {
             log.error("Unhandled exception in configure button interaction '{}'", id, e);
@@ -95,6 +103,10 @@ public class ConfigureInteractionListener extends ListenerAdapter {
                 handleClanModal(event, guild);
             } else if (id.equals("configure_rules_modal:_")) {
                 handleRulesModal(event, guild);
+            } else if (id.startsWith("configure_channel_link_modal:")) {
+                handleChannelLinkModal(event, guild, id.split(":", 2)[1]);
+            } else if (id.startsWith("configure_role_link_modal:")) {
+                handleRoleLinkModal(event, guild, id.split(":", 2)[1]);
             }
         } catch (Exception e) {
             log.error("Unhandled exception in configure modal interaction '{}'", id, e);
@@ -187,6 +199,68 @@ public class ConfigureInteractionListener extends ListenerAdapter {
 
     private static Long roleIdOrNull(String value) {
         return NO_ROLE_VALUE.equals(value) ? null : Long.parseLong(value);
+    }
+
+    /** Fallback for a channel that a native select can't surface (forum posts especially) or that the picker's own permission check hides. */
+    private void doChannelLinkPrompt(ButtonInteractionEvent event, String targetField) {
+        TextInput linkInput = TextInput.create("link_value", TextInputStyle.SHORT)
+                .setPlaceholder("Paste a channel link, or just its ID — leave blank to clear")
+                .setRequired(false)
+                .build();
+
+        Modal modal = Modal.create("configure_channel_link_modal:" + targetField, "Link a Channel")
+                .addComponents(Label.of("Channel Link or ID", linkInput))
+                .build();
+        event.replyModal(modal).queue();
+    }
+
+    /** Fallback for a role beyond the dropdown's first 24, or one the picker otherwise doesn't show. */
+    private void doRoleLinkPrompt(ButtonInteractionEvent event, String targetField) {
+        TextInput idInput = TextInput.create("link_value", TextInputStyle.SHORT)
+                .setPlaceholder("Paste the role's ID — leave blank to clear")
+                .setRequired(false)
+                .build();
+
+        Modal modal = Modal.create("configure_role_link_modal:" + targetField, "Link a Role")
+                .addComponents(Label.of("Role ID", idInput))
+                .build();
+        event.replyModal(modal).queue();
+    }
+
+    private void handleChannelLinkModal(ModalInteractionEvent event, Guild guild, String targetField) {
+        String raw = event.getValue("link_value").getAsString();
+        Long channelId = raw.isBlank() ? null : DiscordLinks.parseChannelId(raw);
+        if (!raw.isBlank() && channelId == null) {
+            Containers.replyEphemeral(event, Containers.WARNING, "Couldn't find a channel ID in that — paste the full link, or just the ID by itself.");
+            return;
+        }
+
+        switch (targetField) {
+            case "rename_channel" -> settingsService.updateRenameAlertChannel(guild.getIdLong(), channelId);
+            case "verification_channel" -> settingsService.updateVerificationSettings(guild.getIdLong(), channelId);
+        }
+        Containers.replyEphemeral(event, Containers.SUCCESS, channelId != null ? "Linked <#" + channelId + ">." : "Cleared.");
+    }
+
+    private void handleRoleLinkModal(ModalInteractionEvent event, Guild guild, String targetField) {
+        String raw = event.getValue("link_value").getAsString();
+        Long roleId = raw.isBlank() ? null : DiscordLinks.parseId(raw);
+        if (!raw.isBlank() && roleId == null) {
+            Containers.replyEphemeral(event, Containers.WARNING, "Couldn't find a role ID in that — paste just the ID by itself.");
+            return;
+        }
+
+        GuildSettings current = settingsService.getEffective(guild.getIdLong());
+        switch (targetField) {
+            case "verified_clan_role" -> settingsService.updateVerificationRoleSettings(
+                    guild.getIdLong(), roleId, current.verifiedNonClanRoleId(), current.unverifiedRoleId());
+            case "verified_nonclan_role" -> settingsService.updateVerificationRoleSettings(
+                    guild.getIdLong(), current.verifiedClanRoleId(), roleId, current.unverifiedRoleId());
+            case "unverified_role" -> settingsService.updateVerificationRoleSettings(
+                    guild.getIdLong(), current.verifiedClanRoleId(), current.verifiedNonClanRoleId(), roleId);
+            case "onboarding_role" -> settingsService.updateOnboardingRole(guild.getIdLong(), roleId);
+        }
+        Containers.replyEphemeral(event, Containers.SUCCESS, roleId != null ? "Linked <@&" + roleId + ">." : "Cleared.");
     }
 
     private void doClanEditPrompt(ButtonInteractionEvent event) {
@@ -330,6 +404,7 @@ public class ConfigureInteractionListener extends ListenerAdapter {
         children.add(TextDisplay.of("**Rename Alert Channel** — where a possible in-game RSN change gets posted " +
                 "for an admin to Confirm/Reject, detected automatically during **Sync Clan**."));
         children.add(buildChannelSelectRow("configure_rename_channel:_", "Select a channel (optional)", settings.renameAlertChannelId()));
+        children.add(Containers.linkButtonRow("configure_rename_channel_link:_"));
 
         return Containers.card(Containers.PRIMARY, children);
     }
@@ -349,16 +424,21 @@ public class ConfigureInteractionListener extends ListenerAdapter {
 
         children.add(TextDisplay.of("**Review Channel** — where a new `/rs` link request is posted for an admin to Approve/Reject."));
         children.add(buildChannelSelectRow("configure_verification_channel:_", "Select a channel (optional)", settings.verificationReviewChannelId()));
+        children.add(Containers.linkButtonRow("configure_verification_channel_link:_"));
 
-        children.add(TextDisplay.of("-# The three roles below are all optional — pick \"No Role Assignment\" to leave one empty."));
+        children.add(TextDisplay.of("-# The three roles below are all optional — pick \"No Role Assignment\" to leave one empty. Only the first 24 roles show below; use **Link by ID** for anything past that."));
         children.add(TextDisplay.of("**Verified Role — Clan Member**\n-# Granted when an approved request's RSN is currently in the tracked clan roster."));
         children.add(buildRoleSelectRow(guild, "configure_verified_clan_role:_", "Select a role (optional)", settings.verifiedClanRoleId()));
+        children.add(Containers.linkButtonRow("configure_verified_clan_role_link:_"));
         children.add(TextDisplay.of("**Verified Role — Not a Clan Member**\n-# Granted when an approved request's RSN *isn't* in the clan — usually a role something else (e.g. a join flow) already grants; this only fills it in if missing."));
         children.add(buildRoleSelectRow(guild, "configure_verified_nonclan_role:_", "Select a role (optional)", settings.verifiedNonClanRoleId()));
+        children.add(Containers.linkButtonRow("configure_verified_nonclan_role_link:_"));
         children.add(TextDisplay.of("**Unverified Role**\n-# Removed from the member the moment their request is approved (either verified role above)."));
         children.add(buildRoleSelectRow(guild, "configure_unverified_role:_", "Select a role (optional)", settings.unverifiedRoleId()));
+        children.add(Containers.linkButtonRow("configure_unverified_role_link:_"));
         children.add(TextDisplay.of("**Onboarding Role**\n-# Granted the moment someone *submits* `/rs` — before any admin has reviewed it. Separate from the three roles above, which only apply once a request is resolved."));
         children.add(buildRoleSelectRow(guild, "configure_onboarding_role:_", "Select a role (optional)", settings.onboardingRoleId()));
+        children.add(Containers.linkButtonRow("configure_onboarding_role_link:_"));
 
         return Containers.card(Containers.PRIMARY, children);
     }

@@ -1,8 +1,11 @@
 package com.younglings.bot.discord;
 
+import net.dv8tion.jda.api.components.actionrow.ActionRow;
+import net.dv8tion.jda.api.components.buttons.Button;
 import net.dv8tion.jda.api.components.container.Container;
 import net.dv8tion.jda.api.components.container.ContainerChildComponent;
 import net.dv8tion.jda.api.components.textdisplay.TextDisplay;
+import net.dv8tion.jda.api.entities.emoji.Emoji;
 import net.dv8tion.jda.api.interactions.InteractionHook;
 import net.dv8tion.jda.api.interactions.callbacks.IMessageEditCallback;
 import net.dv8tion.jda.api.interactions.callbacks.IReplyCallback;
@@ -48,6 +51,36 @@ public final class Containers {
 
     public static Container card(Color accent, ContainerChildComponent... children) {
         return Container.of(List.of(children)).withAccentColor(accent);
+    }
+
+    // --- The "Link by ID" fallback button, standard everywhere a channel/thread/role select menu is ---
+
+    private static final String LINK_EMOJI = "🔗"; // 🔗
+
+    /**
+     * The blue chain-link button that belongs next to every channel/thread/role select menu in the
+     * bot — a native select can't list an individual forum thread at all, and its options are
+     * otherwise limited to whatever Discord's own client decides to surface, so this is the one path
+     * that always works: paste a link (channel) or a raw ID (channel or role) instead of picking from
+     * the list. Discord doesn't allow a button in the same row as a select menu, so this goes
+     * immediately after the select's own row, never beside it.
+     */
+    public static Button linkButton(String customId, String label) {
+        return Button.primary(customId, label).withEmoji(Emoji.fromUnicode(LINK_EMOJI));
+    }
+
+    /** {@link #linkButton(String, String)} with the standard "Link by ID" label. */
+    public static Button linkButton(String customId) {
+        return linkButton(customId, "Link by ID");
+    }
+
+    /** {@link #linkButton(String, String)} already wrapped in its own row, ready to append right after a select's row. */
+    public static ActionRow linkButtonRow(String customId, String label) {
+        return ActionRow.of(linkButton(customId, label));
+    }
+
+    public static ActionRow linkButtonRow(String customId) {
+        return linkButtonRow(customId, "Link by ID");
     }
 
     // --- Reply (works from a slash command, button, or modal) ---
