@@ -302,7 +302,8 @@ public class ConfigureInteractionListener extends ListenerAdapter {
                 ActionRow.of(
                         Button.secondary("configure_clan:_", "Clan"),
                         Button.secondary("configure_verification:_", "Verification"),
-                        Button.secondary("configure_rules:_", "Rules")));
+                        Button.secondary("configure_rules:_", "Rules"),
+                        Button.secondary("configure_tracking_main:_", "Tracking")));
     }
 
     private Container buildClanPanel(Guild guild) {
