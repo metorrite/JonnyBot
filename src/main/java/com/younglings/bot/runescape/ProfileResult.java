@@ -1,5 +1,7 @@
 package com.younglings.bot.runescape;
 
+import java.time.Duration;
+
 /**
  * Outcome of {@link RuneScapeApiClient#fetchProfileResult}. RuneMetrics reports failure as
  * {@code {"error": "..."}} rather than an HTTP status — {@code NO_PROFILE} is confirmed live
@@ -17,6 +19,16 @@ public sealed interface ProfileResult {
 
     /** {@code error: "NO_PROFILE"} (verified live) — no RuneMetrics profile for this name, real or not. */
     record NotFound() implements ProfileResult {}
+
+    /**
+     * {@code HTTP 429} — the API asked us to back off. Kept distinct from {@link Unavailable} because
+     * the right response is different: {@link RuneScapeStatsService} queues this RSN in
+     * {@link SlowPollQueue} for a slow, backing-off retry instead of just counting it as a failed poll
+     * and moving on at the normal cadence, which would only make the rate limit worse.
+     * {@code retryAfter} is the server's own {@code Retry-After} hint, if it sent one parseable as a
+     * plain number of seconds; {@code null} otherwise.
+     */
+    record RateLimited(Duration retryAfter) implements ProfileResult {}
 
     /** The request failed outright (network error, non-2xx status, unrecognized error code, etc). */
     record Unavailable() implements ProfileResult {}

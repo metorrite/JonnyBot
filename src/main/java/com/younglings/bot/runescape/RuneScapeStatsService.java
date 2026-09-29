@@ -22,6 +22,7 @@ public class RuneScapeStatsService {
     private final TrackingEventClassifier classifier;
     private final TrackingEventRouter router;
     private final ClanMemberRepository clanMemberRepository;
+    private final SlowPollQueue slowPollQueue;
 
     // Set once JDA is ready (see #onJdaReady) — same reasoning/pattern as InternalApiServer's own
     // `jda` field. Only needed to resolve a Guild to post tracking announcements to; every other
@@ -30,12 +31,13 @@ public class RuneScapeStatsService {
 
     public RuneScapeStatsService(RuneScapeApiClient apiClient, PlayerLinkRepository repository,
                                   TrackingEventClassifier classifier, TrackingEventRouter router,
-                                  ClanMemberRepository clanMemberRepository) {
+                                  ClanMemberRepository clanMemberRepository, SlowPollQueue slowPollQueue) {
         this.apiClient = apiClient;
         this.repository = repository;
         this.classifier = classifier;
         this.router = router;
         this.clanMemberRepository = clanMemberRepository;
+        this.slowPollQueue = slowPollQueue;
     }
 
     @BEventListener
@@ -64,10 +66,17 @@ public class RuneScapeStatsService {
      * stats specifically to skip that write; that traded a negligible amount of database traffic for
      * held-in-memory state, the wrong side of that tradeoff for this app — see the memory/cost report
      * from 2026-09-26.)
+     * <p>
+     * A rate-limited ({@code HTTP 429}) fetch is queued in {@link SlowPollQueue} for a slower retry
+     * rather than saved or dispatched — {@link SlowPollScheduler} calls right back into this same
+     * method later, so a repeat rate-limit backs off further automatically instead of needing its own
+     * handling here.
      */
     public ProfileResult pollAndSnapshotResult(long guildId, String rsn) {
         ProfileResult result = apiClient.fetchProfileResult(rsn);
-        if (result instanceof ProfileResult.Found(var profile)) {
+        if (result instanceof ProfileResult.RateLimited(var retryAfter)) {
+            slowPollQueue.enqueue(guildId, rsn, retryAfter);
+        } else if (result instanceof ProfileResult.Found(var profile)) {
             long snapshotId = repository.saveSnapshot(guildId, rsn, profile, serializeSkills(profile.skills()));
             repository.saveSkillSnapshot(snapshotId, profile.skills());
             List<PlayerActivity> newActivities = repository.saveActivities(guildId, rsn, profile.activities());

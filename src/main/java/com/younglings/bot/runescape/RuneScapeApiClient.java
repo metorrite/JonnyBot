@@ -99,6 +99,12 @@ public class RuneScapeApiClient {
                 .build();
 
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() == 429) {
+            Duration retryAfter = parseRetryAfter(response);
+            log.info("RuneMetrics profile request for '{}' was rate-limited (HTTP 429){}", rsn,
+                    retryAfter != null ? ", server asked for " + retryAfter : "");
+            return new ProfileResult.RateLimited(retryAfter);
+        }
         if (response.statusCode() / 100 != 2) {
             log.warn("RuneMetrics profile request for '{}' returned HTTP {}", rsn, response.statusCode());
             return new ProfileResult.Unavailable();
@@ -305,6 +311,19 @@ public class RuneScapeApiClient {
             log.warn("Failed to parse clan roster for '{}'", clanName, e);
             return List.of();
         }
+    }
+
+    /** Only the plain-seconds form of {@code Retry-After} is parsed — the alternative HTTP-date form is rare enough on this kind of endpoint that it's not worth the extra parsing surface; a miss just falls back to {@link SlowPollQueue}'s own default backoff. */
+    private static Duration parseRetryAfter(HttpResponse<?> response) {
+        return response.headers().firstValue("Retry-After")
+                .map(value -> {
+                    try {
+                        return Duration.ofSeconds(Long.parseLong(value.trim()));
+                    } catch (NumberFormatException e) {
+                        return null;
+                    }
+                })
+                .orElse(null);
     }
 
     private static String encode(String rsn) {
