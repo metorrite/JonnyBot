@@ -12,6 +12,8 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -123,14 +125,23 @@ public class ClanSyncService {
             }
         }
 
+        // The day of detection, not an exact time — a roster diff only runs once a day, so that's all
+        // this moment actually knows. Also becomes clan_joined_at for a brand-new member automatically
+        // (see the loop below); an existing member's clan_joined_at is never touched here, since for
+        // them "today" would be wrong — it stays whatever's been manually backfilled for the roster as
+        // it stood when this system was built.
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        String todayDisplay = today.format(DateTimeFormatter.ofPattern("MMM d"));
+
         if (!firstSyncEver) {
             List<ClassifiedEntry> joinLeaveEntries = new ArrayList<>();
             for (String name : newNames) {
-                joinLeaveEntries.add(new ClassifiedEntry(TrackingGroup.CLAN_JOINS_LEAVES, "**" + name + "** joined the clan."));
+                joinLeaveEntries.add(new ClassifiedEntry(TrackingGroup.CLAN_JOINS_LEAVES, "**" + name + "** joined the clan. (" + todayDisplay + ")"));
                 weeklyDigestRepository.recordRosterEvent(guildId, name, "JOIN");
+                clanMemberRepository.setClanJoinedAt(guildId, name, today);
             }
             for (String name : departedNames) {
-                joinLeaveEntries.add(new ClassifiedEntry(TrackingGroup.CLAN_JOINS_LEAVES, "**" + name + "** left the clan."));
+                joinLeaveEntries.add(new ClassifiedEntry(TrackingGroup.CLAN_JOINS_LEAVES, "**" + name + "** left the clan. (" + todayDisplay + ")"));
                 weeklyDigestRepository.recordRosterEvent(guildId, name, "LEAVE");
             }
             trackingEventRouter.dispatchAll(guild, joinLeaveEntries);

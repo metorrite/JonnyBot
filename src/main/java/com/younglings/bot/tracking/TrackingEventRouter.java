@@ -25,9 +25,11 @@ public class TrackingEventRouter {
     private static final Logger log = LoggerFactory.getLogger(TrackingEventRouter.class);
 
     private final TrackingRepository repository;
+    private final TrackingPostingToggle postingToggle;
 
-    public TrackingEventRouter(TrackingRepository repository) {
+    public TrackingEventRouter(TrackingRepository repository, TrackingPostingToggle postingToggle) {
         this.repository = repository;
+        this.postingToggle = postingToggle;
     }
 
     public void dispatch(Guild guild, ClassifiedEntry entry) {
@@ -36,7 +38,7 @@ public class TrackingEventRouter {
 
     /** Batches the destination lookups into one query per guild rather than one per entry. */
     public void dispatchAll(Guild guild, List<ClassifiedEntry> entries) {
-        if (entries.isEmpty()) return;
+        if (entries.isEmpty() || !postingToggle.isEnabled()) return;
 
         long guildId = guild.getIdLong();
         Map<String, List<TrackingRepository.Destination>> destinationsByGroup = repository.getAllDestinations(guildId);
@@ -65,6 +67,8 @@ public class TrackingEventRouter {
      * button, not something {@link ClassifiedEntry#line()} can express.
      */
     public void dispatchContainer(Guild guild, TrackingGroup group, Container container) {
+        if (!postingToggle.isEnabled()) return;
+
         long guildId = guild.getIdLong();
         String groupKey = group.name();
         if (!repository.isEnabled(guildId, groupKey)) return;

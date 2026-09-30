@@ -2,6 +2,7 @@ package com.younglings.bot.tracking;
 
 import com.younglings.bot.discord.Containers;
 import com.younglings.bot.runescape.ClanMemberRepository;
+import com.younglings.bot.runescape.RuneMetricsDates;
 import com.younglings.bot.runescape.WeeklyDigestRepository;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
@@ -13,7 +14,6 @@ import net.dv8tion.jda.api.entities.Guild;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 import java.time.format.FormatStyle;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -31,13 +31,6 @@ import java.util.Map;
  */
 @BService
 public class WeeklyDigestService {
-    // RuneMetrics' own raw activity_date format ("23-Sep-2026 23:30") — parsed here purely to order
-    // players *relative to each other* within one report; never stored or compared across guilds/weeks
-    // as an absolute instant, since the timezone it's actually in isn't documented (see
-    // RuneScapeDatabaseInitializer's player_activity comment). Every row comes from the same API in
-    // the same unknown-but-consistent zone, so a same-week relative ordering is safe even without
-    // knowing what that zone is.
-    private static final DateTimeFormatter ACTIVITY_DATE_FORMAT = DateTimeFormatter.ofPattern("dd-MMM-yyyy HH:mm", Locale.ENGLISH);
     private static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("MMM d");
 
     private final WeeklyDigestRepository repository;
@@ -128,7 +121,7 @@ public class WeeklyDigestService {
         Map<String, LocalDateTime> visitedAt = new HashMap<>();
         Map<String, LocalDateTime> cappedAt = new HashMap<>();
         for (var row : rows) {
-            LocalDateTime parsed = parseActivityDate(row.activityDate());
+            LocalDateTime parsed = RuneMetricsDates.parse(row.activityDate());
             String lower = row.rsn().toLowerCase(Locale.ROOT);
             if (row.activityText().startsWith("Visited")) {
                 visitedAt.merge(lower, parsed, (a, b) -> a.isAfter(b) ? a : b);
@@ -157,14 +150,6 @@ public class WeeklyDigestService {
         if (e.visited && e.capped) return 0;
         if (e.visited) return 1;
         return 2;
-    }
-
-    private static LocalDateTime parseActivityDate(String raw) {
-        try {
-            return LocalDateTime.parse(raw, ACTIVITY_DATE_FORMAT);
-        } catch (DateTimeParseException e) {
-            return LocalDateTime.MIN;
-        }
     }
 
     private static String formatRange(OffsetDateTime start, OffsetDateTime end) {
