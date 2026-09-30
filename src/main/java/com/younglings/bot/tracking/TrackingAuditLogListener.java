@@ -27,6 +27,6 @@ public class TrackingAuditLogListener extends ListenerAdapter {
         String actorMention = "<@" + logEntry.getUserIdLong() + ">";
 
         classifier.classify(logEntry, actorMention)
-                .ifPresent(classifiedEntry -> router.dispatch(event.getGuild(), classifiedEntry));
+                .ifPresent(classified -> router.dispatchContainer(event.getGuild(), classified.group(), classified.container()));
     }
 }

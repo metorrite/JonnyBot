@@ -46,12 +46,19 @@ import java.util.Map;
  * Always overwrites what it finds — re-running is always safe, and is how you pick up a wiki image
  * that's changed since the last run. Something the wiki doesn't have (a 404, or the request fails
  * outright) leaves an existing file alone if there is one, or is just listed as missing at the end if
- * there isn't — {@code TrackingIconCatalog} falls back to the generated default icon (also refreshed by
- * this tool every run) for anything with no file at all, so a missing icon never means no icon.
+ * there isn't — {@code TrackingIconCatalog} falls back to {@code default_drop.png}/{@code default_boss.png}
+ * (real wiki icons, refreshed by this tool every run same as everything else) for a drop/boss with no
+ * icon of its own, so a missing icon never means no icon.
  * <p>
- * The four category icons (quest/clue/pet/archaeology) don't have a clean automatic
- * name-to-wiki-filename mapping the way a specific item or boss does — {@link #CATEGORY_SOURCES} is a
- * best guess for each; spot-check those four after a run rather than trusting them blindly.
+ * No generic "pet" icon — a skilling pet's name is chosen by the player, not a fixed species, so
+ * there's nothing stable to catalog or download an icon for; {@code TrackingEventClassifier} shows the
+ * relevant skill's own icon for those instead. A non-skilling pet with a fixed identity (Jad's, say)
+ * uses that boss's own icon; anything else in that bucket uses {@code default_boss.png}.
+ * <p>
+ * The category/default icons don't have a clean automatic name-to-wiki-filename mapping the way a
+ * specific item or boss does — {@link #CATEGORY_SOURCES} and {@link #DEFAULT_SOURCES} are the specific
+ * wiki pages picked by hand (quest icon and both defaults confirmed against a real wiki link; clue and
+ * archaeology are still best guesses — spot-check those two after a run).
  */
 public final class IconDownloader {
     private static final Path IMAGES_ROOT = Path.of("src/main/resources/images");
@@ -66,17 +73,26 @@ public final class IconDownloader {
     // regardless of which kind of page it came from.
     private static final int MAX_ICON_DIMENSION = 128;
 
-    // Best-guess RS3 wiki file names for the 4 category icons — unlike an item/boss name (which IS
-    // the wiki filename, underscored), these are abstract concepts with no single obvious source
-    // image, so these were picked by hand and haven't all been re-verified since. Adjust freely if
-    // one turns out wrong; a bad guess just 404s and falls back to the default icon, it won't silently
-    // save the wrong image under the right name unless the wiki genuinely has a page by that title.
+    // RS3 wiki file names for the category icons — unlike an item/boss name (which IS the wiki
+    // filename, underscored), these are abstract concepts with no single obvious source image. "quest"
+    // is confirmed (the user tracked down the real page: runescape.wiki/w/Quests, image
+    // File:Lore_achievements_icon.png) and deliberately used for every quest, not a per-quest icon —
+    // clue/archaeology are still best guesses, so spot-check those two after a run. No "pet" entry —
+    // see the class doc for why a generic pet icon doesn't make sense here.
     private static final Map<String, String> CATEGORY_SOURCES = new LinkedHashMap<>();
     static {
-        CATEGORY_SOURCES.put("quest", "Quest point icon");
+        CATEGORY_SOURCES.put("quest", "Lore achievements icon");
         CATEGORY_SOURCES.put("clue", "Clue scroll (master)");
-        CATEGORY_SOURCES.put("pet", "Pet interface icon");
         CATEGORY_SOURCES.put("archaeology", "Archaeology icon");
+    }
+
+    // Both confirmed by the user against real wiki links (Golden_loot_beam_1 for drops,
+    // Demon_flash_mobs_map_icon for bosses — a generic "something dropped"/"something defeated" visual
+    // rather than any specific item or monster).
+    private static final Map<String, String> DEFAULT_SOURCES = new LinkedHashMap<>();
+    static {
+        DEFAULT_SOURCES.put("default_drop", "Golden loot beam 1");
+        DEFAULT_SOURCES.put("default_boss", "Demon flash mobs map icon");
     }
 
     public static void main(String[] args) throws Exception {
@@ -100,16 +116,26 @@ public final class IconDownloader {
             if (ok) downloaded++; else missing.add("boss: " + boss.name());
         }
 
-        System.out.println("== Category icons (best-guess sources — verify these) ==");
+        System.out.println("== Category icons ==");
         for (var e : CATEGORY_SOURCES.entrySet()) {
             boolean ok = fetchAndSave(client, e.getValue(), IMAGES_ROOT.resolve("tracking").resolve(e.getKey() + ".png"));
             if (ok) downloaded++; else missing.add("category '" + e.getKey() + "': " + e.getValue());
         }
 
-        System.out.println("== Default fallback icon ==");
-        Path defaultPath = IMAGES_ROOT.resolve("tracking").resolve("default.png");
-        generateDefaultIcon(defaultPath);
-        System.out.println("  generated " + defaultPath);
+        System.out.println("== Default drop/boss icons ==");
+        for (var e : DEFAULT_SOURCES.entrySet()) {
+            Path target = IMAGES_ROOT.resolve("tracking").resolve(e.getKey() + ".png");
+            boolean ok = fetchAndSave(client, e.getValue(), target);
+            if (ok) {
+                downloaded++;
+            } else if (!Files.exists(target)) {
+                // The wiki fetch failed and there's no earlier successful download to fall back on —
+                // generate a plain placeholder so the runtime catalog always has *something* rather
+                // than nothing at all, even though a wiki-sourced icon is clearly preferred.
+                generatePlaceholderIcon(target);
+                System.out.println("  generated placeholder for " + e.getKey() + " (wiki fetch failed)");
+            }
+        }
 
         System.out.println();
         System.out.println("Downloaded/refreshed " + downloaded + " icon(s). " + missing.size() + " not found on the wiki:");
@@ -119,7 +145,7 @@ public final class IconDownloader {
         if (!missing.isEmpty()) {
             System.out.println();
             System.out.println("Any of the above that already had a file from a previous run were left alone. Anything");
-            System.out.println("that's never had one falls back to the generated default icon at runtime.");
+            System.out.println("that's never had one falls back to default_drop.png/default_boss.png at runtime.");
         }
     }
 
@@ -189,8 +215,8 @@ public final class IconDownloader {
         return out.toByteArray();
     }
 
-    /** A small generated placeholder — deliberately not wiki-sourced, so this step never depends on guessing a real page's exact filename. */
-    private static void generateDefaultIcon(Path target) throws IOException {
+    /** Last-resort fallback if a default icon's own wiki fetch fails and there's no earlier successful download to keep — a small generated placeholder so the runtime catalog is never left with nothing at all. */
+    private static void generatePlaceholderIcon(Path target) throws IOException {
         int size = 32;
         BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = image.createGraphics();
