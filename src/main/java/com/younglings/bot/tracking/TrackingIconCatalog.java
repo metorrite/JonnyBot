@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
  * plus a handful of category icons for quests/clues/archaeology) bundled locally under
  * {@code src/main/resources/images/drops}, {@code images/bosses}, and {@code images/tracking},
  * uploaded once as Discord application emojis — same pattern, same reasoning as
- * {@link SkillEmojiCatalog} (an inline emoji mention is the only way to put an icon at the start of a
+ * {@link com.younglings.bot.runescape.SkillEmojiCatalog} (an inline emoji mention is the only way to put an icon at the start of a
  * plain text line in Components V2 or a plain message). Kept in sync with the RS3 wiki by
  * {@code IconDownloader} — a standalone tool run manually, never by the bot itself.
  * <p>
