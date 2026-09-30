@@ -324,8 +324,18 @@ public class TrackingEventClassifier {
         return text.isEmpty() ? text : Character.toLowerCase(text.charAt(0)) + text.substring(1);
     }
 
-    private static Optional<ClassifiedEntry> entry(TrackingGroup group, String iconMention, String message) {
-        String line = iconMention != null ? iconMention + " " + message : message;
+    /**
+     * Every RuneMetrics-sourced line gets an icon, one way or another — {@code iconMention} if the
+     * caller found a specific one, otherwise a default appropriate to the group ({@link BossCatalog}'s
+     * generic icon for {@link TrackingGroup#BOSS_KILLS}, the generic drop icon for everything else that
+     * has no dedicated icon system of its own, e.g. {@link TrackingGroup#CITADEL_ACTIVITY}/
+     * {@link TrackingGroup#MINIGAME_MISC}). Never blank.
+     */
+    private Optional<ClassifiedEntry> entry(TrackingGroup group, String iconMention, String message) {
+        String icon = iconMention != null ? iconMention
+                : group == TrackingGroup.BOSS_KILLS ? trackingIconCatalog.mentionForDefaultBoss()
+                : trackingIconCatalog.mentionForDefaultDrop();
+        String line = icon != null ? icon + " " + message : message;
         return Optional.of(new ClassifiedEntry(group, line));
     }
 }

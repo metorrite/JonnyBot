@@ -38,6 +38,11 @@ import java.util.stream.Collectors;
  * image), not a generated placeholder. Either default mention is itself {@code null} for the brief
  * window right after boot before it's synced, same "not ready yet" contract {@code SkillEmojiCatalog}
  * already has — and {@code null} for good if {@code IconDownloader} has never been run at all.
+ * <p>
+ * Clan rank badges ({@link #mentionForRank}) are the one icon set here with no confirmed wiki source
+ * yet — a guessed {@code "{RankName}_icon.png"} naming pattern came back 404 for every rank tried, so
+ * {@code images/ranks/} stays empty and every rank falls back to {@link #mentionForDefaultBoss()} until
+ * real links are found (same as quests/defaults before they were confirmed).
  */
 @BService
 public class TrackingIconCatalog extends ListenerAdapter {
@@ -45,9 +50,15 @@ public class TrackingIconCatalog extends ListenerAdapter {
 
     private static final List<String> CATEGORY_KEYS = List.of("quest", "clue", "archaeology");
 
+    // Standard Jagex clan rank ladder has a fixed 11 tiers (0 = Recruit .. 10 = Owner) — matches
+    // ClanPointsRepository's own seed order exactly, keyed by that stable rank_order rather than a
+    // rank's (admin-editable) name, so renaming a rank never breaks its icon lookup.
+    private static final int RANK_COUNT = 11;
+
     private static final Map<String, byte[]> DROP_BYTES = new HashMap<>();
     private static final Map<String, byte[]> CATEGORY_BYTES = new HashMap<>();
     private static final Map<String, byte[]> BOSS_BYTES = new HashMap<>();
+    private static final Map<Integer, byte[]> RANK_BYTES = new HashMap<>();
     private static final byte[] DEFAULT_DROP_BYTES;
     private static final byte[] DEFAULT_BOSS_BYTES;
 
@@ -72,11 +83,19 @@ public class TrackingIconCatalog extends ListenerAdapter {
                 bossesFound++;
             }
         }
+        int ranksFound = 0;
+        for (int order = 0; order < RANK_COUNT; order++) {
+            byte[] bytes = readResource("images/ranks/" + order + ".png");
+            if (bytes != null) {
+                RANK_BYTES.put(order, bytes);
+                ranksFound++;
+            }
+        }
         DEFAULT_DROP_BYTES = readResource("images/tracking/default_drop.png");
         DEFAULT_BOSS_BYTES = readResource("images/tracking/default_boss.png");
-        log.info("Loaded {}/{} drop icon images, {}/{} category icon images, {}/{} boss icon images, default drop icon: {}, default boss icon: {}.",
+        log.info("Loaded {}/{} drop icon images, {}/{} category icon images, {}/{} boss icon images, {}/{} rank icon images, default drop icon: {}, default boss icon: {}.",
                 found, DropItemCatalog.all().size(), CATEGORY_BYTES.size(), CATEGORY_KEYS.size(),
-                bossesFound, BossCatalog.all().size(),
+                bossesFound, BossCatalog.all().size(), ranksFound, RANK_COUNT,
                 DEFAULT_DROP_BYTES != null ? "found" : "missing — run IconDownloader",
                 DEFAULT_BOSS_BYTES != null ? "found" : "missing — run IconDownloader");
     }
@@ -94,6 +113,7 @@ public class TrackingIconCatalog extends ListenerAdapter {
     private final Map<String, String> dropMentions = new ConcurrentHashMap<>();
     private final Map<String, String> categoryMentions = new ConcurrentHashMap<>();
     private final Map<String, String> bossMentions = new ConcurrentHashMap<>();
+    private final Map<Integer, String> rankMentions = new ConcurrentHashMap<>();
     private volatile String defaultDropMention;
     private volatile String defaultBossMention;
 
@@ -110,6 +130,8 @@ public class TrackingIconCatalog extends ListenerAdapter {
                     syncEmoji(jda, byName, "cat_" + key, bytes, mention -> categoryMentions.put(key, mention)));
             BOSS_BYTES.forEach((key, bytes) ->
                     syncEmoji(jda, byName, "b_" + key, bytes, mention -> bossMentions.put(key, mention)));
+            RANK_BYTES.forEach((order, bytes) ->
+                    syncEmoji(jda, byName, "rank_" + order, bytes, mention -> rankMentions.put(order, mention)));
             syncEmoji(jda, byName, "cat_default_drop", DEFAULT_DROP_BYTES, mention -> defaultDropMention = mention);
             syncEmoji(jda, byName, "cat_default_boss", DEFAULT_BOSS_BYTES, mention -> defaultBossMention = mention);
         }, error -> log.warn("Failed to retrieve application emojis for tracking icons", error));
@@ -153,5 +175,17 @@ public class TrackingIconCatalog extends ListenerAdapter {
     /** The generic "something defeated" icon used wherever a specific boss icon isn't available. */
     public String mentionForDefaultBoss() {
         return defaultBossMention;
+    }
+
+    /**
+     * A clan rank's own badge icon, by its stable {@code rank_order} (0 = Recruit .. 10 = Owner —
+     * see {@code ClanPointsRepository}). Falls back to {@link #mentionForDefaultBoss()} (both are a
+     * generic "military" badge, close enough visually) if that rank has no dedicated icon file yet —
+     * {@code null} if even that hasn't synced. No wiki source has been confirmed for these yet; see
+     * {@code IconDownloader}'s class doc.
+     */
+    public String mentionForRank(int rankOrder) {
+        String mention = rankMentions.get(rankOrder);
+        return mention != null ? mention : defaultBossMention;
     }
 }

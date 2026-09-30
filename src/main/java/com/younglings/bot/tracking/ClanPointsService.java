@@ -44,13 +44,16 @@ public class ClanPointsService {
     private final ClanMemberRepository clanMemberRepository;
     private final WeeklyDigestRepository weeklyDigestRepository;
     private final TrackingEventRouter router;
+    private final TrackingIconCatalog trackingIconCatalog;
 
     public ClanPointsService(ClanPointsRepository repository, ClanMemberRepository clanMemberRepository,
-                              WeeklyDigestRepository weeklyDigestRepository, TrackingEventRouter router) {
+                              WeeklyDigestRepository weeklyDigestRepository, TrackingEventRouter router,
+                              TrackingIconCatalog trackingIconCatalog) {
         this.repository = repository;
         this.clanMemberRepository = clanMemberRepository;
         this.weeklyDigestRepository = weeklyDigestRepository;
         this.router = router;
+        this.trackingIconCatalog = trackingIconCatalog;
     }
 
     /**
@@ -177,8 +180,11 @@ public class ClanPointsService {
             String earnedRankName = rankNameByOrder.getOrDefault(earnedOrder, "?");
             String since = row.promotionNeededSince() != null ? row.promotionNeededSince().format(DISPLAY_DATE) : "?";
 
-            sb.append("**").append(member.rsn()).append("** — currently **").append(currentRankName)
-                    .append("**, eligible for **").append(earnedRankName).append("** (")
+            String currentBadge = currentOrder != null ? withIcon(trackingIconCatalog.mentionForRank(currentOrder), "**" + currentRankName + "**") : "**" + currentRankName + "**";
+            String earnedBadge = withIcon(trackingIconCatalog.mentionForRank(earnedOrder), "**" + earnedRankName + "**");
+
+            sb.append("**").append(member.rsn()).append("** — currently ").append(currentBadge)
+                    .append(", eligible for ").append(earnedBadge).append(" (")
                     .append(row.totalPoints()).append(" pts, waiting since ").append(since).append(")\n");
         }
 
@@ -186,6 +192,10 @@ public class ClanPointsService {
         children.add(TextDisplay.of(sb.toString().trim()));
 
         router.dispatchContainer(guild, TrackingGroup.CLAN_REPORT, Containers.card(Containers.WARNING, children));
+    }
+
+    private static String withIcon(String iconMention, String text) {
+        return iconMention != null ? iconMention + " " + text : text;
     }
 
     /**
