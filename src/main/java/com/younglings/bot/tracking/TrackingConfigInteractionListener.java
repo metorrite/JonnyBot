@@ -424,12 +424,13 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
             case CLUE_SCROLLS -> withIcon(trackingIconCatalog.mentionForCategory("clue"), "TestPlayer completed a hard treasure trail.");
             case PETS -> withIcon(skillEmojiMentionFor("Woodcutting"), "TestPlayer found **Ranis**, the Woodcutting pet.");
             case BOSS_KILLS -> withIcon(trackingIconCatalog.mentionForBoss("telos"), "TestPlayer defeated **Telos**.");
-            // No dedicated icon system for these three — same generic "something happened" default
-            // the real dispatch path falls back to (see TrackingEventClassifier#entry/ClanSyncService).
-            case MINIGAME_MISC -> withIcon(trackingIconCatalog.mentionForDefaultDrop(), "TestPlayer reached floor 60 in Daemonheim.");
-            case ARCHAEOLOGY -> withIcon(trackingIconCatalog.mentionForCategory("archaeology"), "TestPlayer solved an archaeological mystery.");
-            case CITADEL_ACTIVITY -> withIcon(trackingIconCatalog.mentionForDefaultDrop(), "TestPlayer visited the Clan Citadel.");
-            case CLAN_JOINS_LEAVES -> withIcon(trackingIconCatalog.mentionForDefaultDrop(), "**TestPlayer** joined the clan.");
+            // Archaeology reuses the skill's own icon; Minigame/Misc and Clan Joins/Leaves have no icon
+            // system of their own so fall back to the generic RuneScore icon; Citadel Activity gets its
+            // own default — matches TrackingEventClassifier#entry/ClanSyncService exactly.
+            case MINIGAME_MISC -> withIcon(trackingIconCatalog.mentionForCategory("runescore"), "TestPlayer reached floor 60 in Daemonheim.");
+            case ARCHAEOLOGY -> withIcon(skillEmojiMentionFor("Archaeology"), "TestPlayer solved an archaeological mystery.");
+            case CITADEL_ACTIVITY -> withIcon(trackingIconCatalog.mentionForCategory("citadel"), "TestPlayer visited the Clan Citadel.");
+            case CLAN_JOINS_LEAVES -> withIcon(trackingIconCatalog.mentionForCategory("runescore"), "**TestPlayer** joined the clan.");
             // Never actually reached — doSendTestPosts skips both weekly-digest groups (their own
             // "Send This Week's Report Now" button) and sends every admin-log group and CLAN_REPORT as
             // a sample Container instead (see buildSampleAuditContainer/buildSampleClanReportContainer)
@@ -486,12 +487,12 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
 
     /** Mirrors {@link ClanPointsService}'s real Clan Report layout with fake data (a made-up "TestPlayer" one tier below "eligible") — rank badges come from the real {@link TrackingIconCatalog#mentionForRank}, so this also doubles as a preview of those once real rank icon sources are found. */
     private Container buildSampleClanReportContainer() {
-        String currentRank = withIcon(trackingIconCatalog.mentionForRank(0), "**Recruit**");
+        String currentLine = withIcon(trackingIconCatalog.mentionForRank(0), "**TestPlayer**");
         String earnedRank = withIcon(trackingIconCatalog.mentionForRank(1), "**Corporal**");
 
         List<ContainerChildComponent> children = new ArrayList<>();
         children.add(TextDisplay.of("### 🔺 [TEST] Clan Report — Promotions Needed"));
-        children.add(TextDisplay.of("**TestPlayer** — currently " + currentRank + ", eligible for " + earnedRank + " (150 pts, waiting since Sep 28)"));
+        children.add(TextDisplay.of(currentLine + "\nEligible for " + earnedRank + " • 150 pts • waiting since Sep 28"));
         return Containers.card(Containers.WARNING, children);
     }
 

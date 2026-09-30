@@ -20,7 +20,7 @@ import java.util.stream.Collectors;
 
 /**
  * The tracking system's icons (every {@link DropItemCatalog} item, every {@link BossCatalog} boss,
- * plus a handful of category icons for quests/clues/archaeology) bundled locally under
+ * plus a handful of category icons for quests/clues/RuneScore/the Clan Citadel) bundled locally under
  * {@code src/main/resources/images/drops}, {@code images/bosses}, and {@code images/tracking},
  * uploaded once as Discord application emojis — same pattern, same reasoning as
  * {@link com.younglings.bot.runescape.SkillEmojiCatalog} (an inline emoji mention is the only way to put an icon at the start of a
@@ -48,7 +48,13 @@ import java.util.stream.Collectors;
 public class TrackingIconCatalog extends ListenerAdapter {
     private static final Logger log = LoggerFactory.getLogger(TrackingIconCatalog.class);
 
-    private static final List<String> CATEGORY_KEYS = List.of("quest", "clue", "archaeology");
+    // "archaeology" isn't here — an archaeological mystery reuses the Archaeology *skill* icon
+    // (already covered by SkillEmojiCatalog) instead of its own downloaded one; the "arch cape" guess
+    // that used to live here didn't read as archaeology-related at all. "runescore" is the generic
+    // "something happened" fallback for any group with no icon system of its own (Minigame/Misc, Clan
+    // Joins/Leaves, ...) — a loot beam doesn't fit an event that isn't a drop. "citadel" is
+    // Citadel Activity's own default, distinct from both.
+    private static final List<String> CATEGORY_KEYS = List.of("quest", "clue", "runescore", "citadel");
 
     // Standard Jagex clan rank ladder has a fixed 11 tiers (0 = Recruit .. 10 = Owner) — matches
     // ClanPointsRepository's own seed order exactly, keyed by that stable rank_order rather than a
@@ -162,7 +168,7 @@ public class TrackingIconCatalog extends ListenerAdapter {
         return mention != null ? mention : defaultBossMention;
     }
 
-    /** {@code null} if this category has no icon file yet — no default fallback here, unlike drops/bosses; a fixed single-icon category either has its one icon or it doesn't. Valid keys: {@code quest}, {@code clue}, {@code archaeology}. */
+    /** {@code null} if this category has no icon file yet — no default fallback here, unlike drops/bosses; a fixed single-icon category either has its one icon or it doesn't. Valid keys: {@code quest}, {@code clue}, {@code runescore}, {@code citadel}. */
     public String mentionForCategory(String key) {
         return categoryMentions.get(key);
     }
