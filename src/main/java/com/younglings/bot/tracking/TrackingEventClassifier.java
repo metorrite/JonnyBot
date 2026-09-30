@@ -27,21 +27,21 @@ import java.util.regex.Pattern;
  * templates</a> and haven't all been individually confirmed against real text yet. Expect to add a
  * pattern here occasionally when something shows up that doesn't match any rule — same "we'll add it
  * when we see it" approach already agreed for the drop list.
+ * <p>
+ * {@link PlayerActivity#date()} is shown as-is on every RuneMetrics-sourced line (see {@link #classify})
+ * — this is a display-only use, distinct from {@code WeeklyDigestService}'s more careful treatment of
+ * the same field for filtering/ordering. RuneScape's own player-facing "Recent Activity" list shows
+ * this exact string as the activity's timestamp with no further conversion, so showing it here the same
+ * way is exactly as trustworthy as the game's own UI, even without knowing its precise timezone.
  */
 @BService
 public class TrackingEventClassifier {
     private static final Pattern CHAMPION_WIN = Pattern.compile(
             "Won a challenge against the (.+?) Champion", Pattern.CASE_INSENSITIVE);
-    private static final Pattern XP_MILESTONE = Pattern.compile("^[\\d,]+XP in (.+)$");
+    private static final Pattern XP_MILESTONE = Pattern.compile("^([\\d,]+)XP in (.+)$");
     private static final Pattern SKILL_LEVEL_UP = Pattern.compile("^Levelled up (.+?)\\.?$");
     private static final Pattern QUEST_COMPLETE = Pattern.compile("^Quest complete: ?(.+)$");
     private static final Pattern SKILLING_PET = Pattern.compile("^I found (.+?), the (.+?) pet\\.?$", Pattern.CASE_INSENSITIVE);
-
-    private static final List<String> NAMED_BOSSES = List.of(
-            "TzTok-Jad", "TzKal-Zuk", "Telos", "Vorago", "Nex", "Kalphite King", "Kalphite Queen",
-            "Queen Black Dragon", "Corporeal Beast", "General Graardor", "Kree'arra", "K'ril Tsutsaroth",
-            "Commander Zilyana", "Vindicta", "Helwyr", "Gregorovic", "Har-Aken", "The Magister",
-            "Araxxi", "Nymora", "Avaryss", "Arch-Glacor", "Telos, the Warden");
 
     private static final List<String> MINIGAME_KEYWORDS = List.of(
             "Castle Wars", "Dominion Tower", "duellist's cap", "wildstalker helmet", "Daemonheim",
@@ -66,8 +66,18 @@ public class TrackingEventClassifier {
      * feed with one identical line per kill/drop; {@code count} lets the two branches that actually see
      * repeats in practice (drops, boss kills) fold a whole run into one line instead of just picking a
      * lower posting rate.
+     * <p>
+     * Every resulting line ends with RuneMetrics' own timestamp for {@code activity} (its
+     * {@link PlayerActivity#date()}, exactly as the game reports it — see the class doc for why that's
+     * trusted for display here even though it's deliberately never parsed into an absolute instant
+     * elsewhere in this codebase). For a collapsed run of repeats, that's the most recent one's time.
      */
     public Optional<ClassifiedEntry> classify(String rsn, PlayerActivity activity, int count) {
+        return classifyActivity(rsn, activity, count)
+                .map(e -> new ClassifiedEntry(e.group(), e.line() + " (" + activity.date() + ")"));
+    }
+
+    private Optional<ClassifiedEntry> classifyActivity(String rsn, PlayerActivity activity, int count) {
         String text = activity.text();
         String bold = "**" + rsn + "**";
 
@@ -107,8 +117,10 @@ public class TrackingEventClassifier {
         }
         Matcher xpMilestone = XP_MILESTONE.matcher(text);
         if (xpMilestone.matches()) {
-            String skillName = xpMilestone.group(1).trim();
-            return entry(TrackingGroup.SKILL_MILESTONES, skillEmojiMention(skillName), bold + " reached " + text + ".");
+            long xp = Long.parseLong(xpMilestone.group(1).replace(",", ""));
+            String skillName = xpMilestone.group(2).trim();
+            return entry(TrackingGroup.SKILL_MILESTONES, skillEmojiMention(skillName),
+                    bold + " reached " + String.format("%,d", xp) + "XP in " + skillName + ".");
         }
         if (text.contains("total levels gained") || text.startsWith("Levelled all skills over")) {
             return entry(TrackingGroup.SKILL_MILESTONES, null, bold + " " + lowerFirst(text));
@@ -120,12 +132,12 @@ public class TrackingEventClassifier {
                     bold + " won a challenge against the **" + championWin.group(1).trim() + " Champion**.");
         }
         if (text.startsWith("I killed") || text.startsWith("I defeated")) {
-            for (String boss : NAMED_BOSSES) {
-                if (text.contains(boss)) {
+            for (BossCatalog.Boss boss : BossCatalog.all()) {
+                if (text.contains(boss.name())) {
                     String message = count == 1
-                            ? bold + " defeated **" + boss + "**."
-                            : bold + " has defeated **" + boss + "** " + count + " times!";
-                    return entry(TrackingGroup.BOSS_KILLS, null, message);
+                            ? bold + " defeated **" + boss.name() + "**."
+                            : bold + " has defeated **" + boss.name() + "** " + count + " times!";
+                    return entry(TrackingGroup.BOSS_KILLS, trackingIconCatalog.mentionForBoss(boss.key()), message);
                 }
             }
         }

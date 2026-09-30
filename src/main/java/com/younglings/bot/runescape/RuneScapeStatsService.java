@@ -120,19 +120,25 @@ public class RuneScapeStatsService {
      */
     private static List<ActivityRun> collapseConsecutive(List<PlayerActivity> activities) {
         List<ActivityRun> runs = new ArrayList<>();
-        PlayerActivity current = null;
+        PlayerActivity latestInRun = null;
         int count = 0;
 
         for (PlayerActivity activity : activities) {
-            if (current != null && isSameActivity(current, activity)) {
+            if (latestInRun != null && isSameActivity(latestInRun, activity)) {
                 count++;
+                // Keeps whichever of the run's activities is chronologically latest (by RuneMetrics'
+                // own timestamp) rather than assuming the batch arrives in any particular order — that
+                // one's date is what TrackingEventClassifier shows for the whole collapsed run.
+                if (RuneMetricsDates.parse(activity.date()).isAfter(RuneMetricsDates.parse(latestInRun.date()))) {
+                    latestInRun = activity;
+                }
             } else {
-                if (current != null) runs.add(new ActivityRun(current, count));
-                current = activity;
+                if (latestInRun != null) runs.add(new ActivityRun(latestInRun, count));
+                latestInRun = activity;
                 count = 1;
             }
         }
-        if (current != null) runs.add(new ActivityRun(current, count));
+        if (latestInRun != null) runs.add(new ActivityRun(latestInRun, count));
         return runs;
     }
 
