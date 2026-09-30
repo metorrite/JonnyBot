@@ -39,10 +39,12 @@ import java.util.stream.Collectors;
  * window right after boot before it's synced, same "not ready yet" contract {@code SkillEmojiCatalog}
  * already has — and {@code null} for good if {@code IconDownloader} has never been run at all.
  * <p>
- * Clan rank badges ({@link #mentionForRank}) are the one icon set here with no confirmed wiki source
- * yet — a guessed {@code "{RankName}_icon.png"} naming pattern came back 404 for every rank tried, so
- * {@code images/ranks/} stays empty and every rank falls back to {@link #mentionForDefaultBoss()} until
- * real links are found (same as quests/defaults before they were confirmed).
+ * Clan rank badges ({@link #mentionForRank}) come from the wiki's own Clan Chat rank table
+ * ({@code runescape.wiki/w/RuneScape:Clan_Chat#Ranks}, {@code "{RankName}_clan_rank.png"}) — a
+ * different filename pattern than the first guess ({@code "{RankName}_icon.png"}), which 404'd for
+ * every tier. 12 standard tiers, not the 11 first assumed (an "Overseer" rank between Coordinator and
+ * Deputy Owner was missed originally) — see {@code IconDownloader#RANK_SOURCES} and
+ * {@code ClanPointsRepository#STANDARD_RANK_NAMES}, which must stay in the same order (index = rank_order).
  */
 @BService
 public class TrackingIconCatalog extends ListenerAdapter {
@@ -56,10 +58,10 @@ public class TrackingIconCatalog extends ListenerAdapter {
     // Citadel Activity's own default, distinct from both.
     private static final List<String> CATEGORY_KEYS = List.of("quest", "clue", "runescore", "citadel");
 
-    // Standard Jagex clan rank ladder has a fixed 11 tiers (0 = Recruit .. 10 = Owner) — matches
+    // Standard Jagex clan rank ladder has a fixed 12 tiers (0 = Recruit .. 11 = Owner) — matches
     // ClanPointsRepository's own seed order exactly, keyed by that stable rank_order rather than a
     // rank's (admin-editable) name, so renaming a rank never breaks its icon lookup.
-    private static final int RANK_COUNT = 11;
+    private static final int RANK_COUNT = 12;
 
     private static final Map<String, byte[]> DROP_BYTES = new HashMap<>();
     private static final Map<String, byte[]> CATEGORY_BYTES = new HashMap<>();
@@ -184,11 +186,10 @@ public class TrackingIconCatalog extends ListenerAdapter {
     }
 
     /**
-     * A clan rank's own badge icon, by its stable {@code rank_order} (0 = Recruit .. 10 = Owner —
-     * see {@code ClanPointsRepository}). Falls back to {@link #mentionForDefaultBoss()} (both are a
-     * generic "military" badge, close enough visually) if that rank has no dedicated icon file yet —
-     * {@code null} if even that hasn't synced. No wiki source has been confirmed for these yet; see
-     * {@code IconDownloader}'s class doc.
+     * A clan rank's own badge icon, by its stable {@code rank_order} (0 = Recruit .. 11 = Owner —
+     * see {@code ClanPointsRepository}). Falls back to {@link #mentionForDefaultBoss()} if that rank
+     * has no dedicated icon file yet (e.g. {@code IconDownloader} hasn't been re-run since this was
+     * added) — {@code null} if even that hasn't synced.
      */
     public String mentionForRank(int rankOrder) {
         String mention = rankMentions.get(rankOrder);

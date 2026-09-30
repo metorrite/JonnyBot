@@ -126,7 +126,7 @@ public class TrackingEventClassifier {
             long xp = Long.parseLong(xpMilestone.group(1).replace(",", ""));
             String skillName = xpMilestone.group(2).trim();
             return entry(TrackingGroup.SKILL_MILESTONES, skillEmojiMention(skillName),
-                    bold + " reached " + String.format("%,d", xp) + "XP in " + skillName + ".");
+                    bold + " reached " + String.format("%,d", xp) + " XP in " + skillName + ".");
         }
         if (text.contains("total levels gained") || text.startsWith("Levelled all skills over")) {
             return entry(TrackingGroup.SKILL_MILESTONES, null, bold + " " + lowerFirst(text));

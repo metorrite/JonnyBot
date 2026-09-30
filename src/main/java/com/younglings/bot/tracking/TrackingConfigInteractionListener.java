@@ -424,13 +424,14 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
             case CLUE_SCROLLS -> withIcon(trackingIconCatalog.mentionForCategory("clue"), "TestPlayer completed a hard treasure trail.");
             case PETS -> withIcon(skillEmojiMentionFor("Woodcutting"), "TestPlayer found **Ranis**, the Woodcutting pet.");
             case BOSS_KILLS -> withIcon(trackingIconCatalog.mentionForBoss("telos"), "TestPlayer defeated **Telos**.");
-            // Archaeology reuses the skill's own icon; Minigame/Misc and Clan Joins/Leaves have no icon
-            // system of their own so fall back to the generic RuneScore icon; Citadel Activity gets its
-            // own default — matches TrackingEventClassifier#entry/ClanSyncService exactly.
+            // Archaeology reuses the skill's own icon; Minigame/Misc has no icon system of its own so
+            // falls back to the generic RuneScore (personal achievement) icon; Citadel Activity and
+            // Clan Joins/Leaves both use the Citadel icon as the general "clan" icon — matches
+            // TrackingEventClassifier#entry/ClanSyncService exactly.
             case MINIGAME_MISC -> withIcon(trackingIconCatalog.mentionForCategory("runescore"), "TestPlayer reached floor 60 in Daemonheim.");
             case ARCHAEOLOGY -> withIcon(skillEmojiMentionFor("Archaeology"), "TestPlayer solved an archaeological mystery.");
             case CITADEL_ACTIVITY -> withIcon(trackingIconCatalog.mentionForCategory("citadel"), "TestPlayer visited the Clan Citadel.");
-            case CLAN_JOINS_LEAVES -> withIcon(trackingIconCatalog.mentionForCategory("runescore"), "**TestPlayer** joined the clan.");
+            case CLAN_JOINS_LEAVES -> withIcon(trackingIconCatalog.mentionForCategory("citadel"), "**TestPlayer** joined the clan.");
             // Never actually reached — doSendTestPosts skips both weekly-digest groups (their own
             // "Send This Week's Report Now" button) and sends every admin-log group and CLAN_REPORT as
             // a sample Container instead (see buildSampleAuditContainer/buildSampleClanReportContainer)
@@ -485,7 +486,7 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
         return Containers.card(Containers.PRIMARY, children);
     }
 
-    /** Mirrors {@link ClanPointsService}'s real Clan Report layout with fake data (a made-up "TestPlayer" one tier below "eligible") — rank badges come from the real {@link TrackingIconCatalog#mentionForRank}, so this also doubles as a preview of those once real rank icon sources are found. */
+    /** Mirrors {@link ClanPointsService}'s real Clan Report layout with fake data (a made-up "TestPlayer" one tier below "eligible") — rank badges come from the real {@link TrackingIconCatalog#mentionForRank}. */
     private Container buildSampleClanReportContainer() {
         String currentLine = withIcon(trackingIconCatalog.mentionForRank(0), "**TestPlayer**");
         String earnedRank = withIcon(trackingIconCatalog.mentionForRank(1), "**Corporal**");
