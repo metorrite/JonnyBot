@@ -870,6 +870,10 @@ public class RsAdminInteractionListener extends ListenerAdapter {
                 Button.secondary("rsnadmin_review_pending:_", "Review Pending")
         ));
         children.add(Separator.createDivider(Separator.Spacing.SMALL));
+
+        children.add(TextDisplay.of("### Server Moderation"));
+        children.add(ActionRow.of(Button.danger("rsadmin_prune_open:_", "Prune Messages")));
+        children.add(Separator.createDivider(Separator.Spacing.SMALL));
         children.add(TextDisplay.of("-# Manage your own linked account(s) via `/rs`."));
 
         return Containers.card(Containers.PRIMARY, children);

@@ -10,6 +10,8 @@ import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -55,6 +57,14 @@ public final class IconDownloader {
     private static final Path IMAGES_ROOT = Path.of("src/main/resources/images");
     private static final Duration REQUEST_DELAY = Duration.ofMillis(400);
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(15);
+
+    // The wiki serves a ready-to-use small icon at this URL for most item pages, but for others
+    // (bosses especially) the exact same URL pattern returns that page's full splash-art/infobox
+    // image instead — confirmed live: item icons come back ~1-2KB, boss "icons" came back
+    // 400KB-1.5MB. Discord's application-emoji upload has a hard size cap well under that, so
+    // fetchAndSave downscales anything bigger than this on its longest side before ever saving it,
+    // regardless of which kind of page it came from.
+    private static final int MAX_ICON_DIMENSION = 128;
 
     // Best-guess RS3 wiki file names for the 4 category icons — unlike an item/boss name (which IS
     // the wiki filename, underscored), these are abstract concepts with no single obvious source
@@ -131,9 +141,15 @@ public final class IconDownloader {
                 return false;
             }
 
+            byte[] bytes = fitToIconSize(response.body());
+            if (bytes == null) {
+                System.out.println("  ! " + wikiPageName + " -> response wasn't a decodable image");
+                return false;
+            }
+
             Files.createDirectories(target.getParent());
-            Files.write(target, response.body());
-            System.out.println("  ok " + wikiPageName + " -> " + target);
+            Files.write(target, bytes);
+            System.out.println("  ok " + wikiPageName + " -> " + target + " (" + bytes.length + " bytes)");
             return true;
 
         } catch (Exception e) {
@@ -146,6 +162,31 @@ public final class IconDownloader {
                 Thread.currentThread().interrupt();
             }
         }
+    }
+
+    /** {@code null} if {@code original} isn't a decodable image at all (rare — a 200 status with a non-image body); returned as-is if already small, downscaled to fit {@link #MAX_ICON_DIMENSION} otherwise. */
+    private static byte[] fitToIconSize(byte[] original) throws IOException {
+        BufferedImage image = ImageIO.read(new ByteArrayInputStream(original));
+        if (image == null) return null;
+        if (image.getWidth() <= MAX_ICON_DIMENSION && image.getHeight() <= MAX_ICON_DIMENSION) return original;
+
+        double scale = (double) MAX_ICON_DIMENSION / Math.max(image.getWidth(), image.getHeight());
+        int newWidth = Math.max(1, (int) Math.round(image.getWidth() * scale));
+        int newHeight = Math.max(1, (int) Math.round(image.getHeight() * scale));
+
+        BufferedImage scaled = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = scaled.createGraphics();
+        try {
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.drawImage(image, 0, 0, newWidth, newHeight, null);
+        } finally {
+            g.dispose();
+        }
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ImageIO.write(scaled, "png", out);
+        return out.toByteArray();
     }
 
     /** A small generated placeholder — deliberately not wiki-sourced, so this step never depends on guessing a real page's exact filename. */
