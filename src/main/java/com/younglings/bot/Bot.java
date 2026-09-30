@@ -5,6 +5,7 @@ import com.younglings.bot.commands.coffer.CofferInteractionListener;
 import com.younglings.bot.commands.configure.ConfigureInteractionListener;
 import com.younglings.bot.commands.embed.EmbedInteractionListener;
 import com.younglings.bot.commands.poll.PollInteractionListener;
+import com.younglings.bot.commands.runescape.PruneInteractionListener;
 import com.younglings.bot.commands.runescape.RsAdminInteractionListener;
 import com.younglings.bot.commands.runescape.RsChartInteractionListener;
 import com.younglings.bot.commands.runescape.RsInteractionListener;
@@ -39,6 +40,7 @@ public class Bot extends JDAService {
     private final EmbedInteractionListener embedInteractionListener;
     private final RsInteractionListener rsInteractionListener;
     private final RsAdminInteractionListener rsAdminInteractionListener;
+    private final PruneInteractionListener pruneInteractionListener;
     private final RsChartInteractionListener rsChartInteractionListener;
     private final RsnRenameInteractionListener rsnRenameInteractionListener;
     private final ConfigureInteractionListener configureInteractionListener;
@@ -56,6 +58,7 @@ public class Bot extends JDAService {
                EmbedInteractionListener embedInteractionListener,
                RsInteractionListener rsInteractionListener,
                RsAdminInteractionListener rsAdminInteractionListener,
+               PruneInteractionListener pruneInteractionListener,
                RsChartInteractionListener rsChartInteractionListener,
                RsnRenameInteractionListener rsnRenameInteractionListener,
                ConfigureInteractionListener configureInteractionListener,
@@ -73,6 +76,7 @@ public class Bot extends JDAService {
         this.embedInteractionListener = embedInteractionListener;
         this.rsInteractionListener = rsInteractionListener;
         this.rsAdminInteractionListener = rsAdminInteractionListener;
+        this.pruneInteractionListener = pruneInteractionListener;
         this.rsChartInteractionListener = rsChartInteractionListener;
         this.rsnRenameInteractionListener = rsnRenameInteractionListener;
         this.configureInteractionListener = configureInteractionListener;
@@ -122,7 +126,7 @@ public class Bot extends JDAService {
                 .setMemberCachePolicy(MemberCachePolicy.ONLINE)
                 .addEventListeners(signupInteractionListener, pollInteractionListener, cofferInteractionListener,
                         teamformingInteractionListener, embedInteractionListener, rsInteractionListener,
-                        rsAdminInteractionListener, rsChartInteractionListener, rsnRenameInteractionListener,
+                        rsAdminInteractionListener, pruneInteractionListener, rsChartInteractionListener, rsnRenameInteractionListener,
                         configureInteractionListener, skillEmojiCatalog, trackingIconCatalog,
                         trackingAuditLogListener, trackingConfigInteractionListener,
                         announcementInteractionListener, weeklyDigestInteractionListener)
