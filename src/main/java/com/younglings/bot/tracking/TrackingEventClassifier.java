@@ -1,5 +1,6 @@
 package com.younglings.bot.tracking;
 
+import com.younglings.bot.discord.Containers;
 import com.younglings.bot.runescape.PlayerActivity;
 import com.younglings.bot.runescape.RuneScapeSkillCatalog;
 import com.younglings.bot.runescape.SkillEmojiCatalog;
@@ -7,7 +8,12 @@ import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.audit.ActionType;
 import net.dv8tion.jda.api.audit.AuditLogChange;
 import net.dv8tion.jda.api.audit.AuditLogEntry;
+import net.dv8tion.jda.api.audit.AuditLogOption;
+import net.dv8tion.jda.api.components.container.Container;
+import net.dv8tion.jda.api.components.container.ContainerChildComponent;
+import net.dv8tion.jda.api.components.textdisplay.TextDisplay;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -142,13 +148,23 @@ public class TrackingEventClassifier {
             }
         }
 
+        // No generic "pet" icon — a skilling pet's own name is chosen by the player, not a fixed
+        // species, so there's nothing stable to catalog an icon against. The skill it came from IS
+        // stable, and we already have that icon (reusing SkillEmojiCatalog), so that's shown instead.
         Matcher pet = SKILLING_PET.matcher(text);
         if (pet.matches()) {
-            return entry(TrackingGroup.PETS, trackingIconCatalog.mentionForCategory("pet"),
-                    bold + " found **" + pet.group(1).trim() + "**, the " + pet.group(2).trim() + " pet.");
+            String skillName = pet.group(2).trim();
+            return entry(TrackingGroup.PETS, skillEmojiMention(skillName),
+                    bold + " found **" + pet.group(1).trim() + "**, the " + skillName + " pet.");
         }
-        if (text.contains("I adopted TzRek-Jad") || text.toLowerCase(Locale.ROOT).contains("effigy pet")) {
-            return entry(TrackingGroup.PETS, trackingIconCatalog.mentionForCategory("pet"), bold + " " + lowerFirst(text));
+        // TzRek-Jad is a fixed identity (the boss it's themed after), so it gets that specific boss's
+        // own icon rather than the generic boss default; an effigy pet isn't tied to one specific boss,
+        // so it gets the default.
+        if (text.contains("I adopted TzRek-Jad")) {
+            return entry(TrackingGroup.PETS, trackingIconCatalog.mentionForBoss("tztok_jad"), bold + " " + lowerFirst(text));
+        }
+        if (text.toLowerCase(Locale.ROOT).contains("effigy pet")) {
+            return entry(TrackingGroup.PETS, trackingIconCatalog.mentionForDefaultBoss(), bold + " " + lowerFirst(text));
         }
 
         if (text.toLowerCase(Locale.ROOT).contains("treasure trail completed")) {
@@ -177,22 +193,50 @@ public class TrackingEventClassifier {
     /**
      * {@code actorMention} is a raw {@code <@id>} mention, already resolved by the caller —
      * {@link TrackingEventRouter} sends every tracking message with push/desktop notifications
-     * suppressed, so this (and the target mention below) never actually pings anyone.
+     * suppressed, so this (and the target mention below) never actually pings anyone. Rendered as its
+     * own bordered {@link Container} (see {@link ClassifiedContainer}) rather than a plain-text line —
+     * Discord's own client visually runs consecutive same-bot messages together with no gap, and a
+     * structured action like this reads far worse that way than a card with a clear border does.
      */
-    public Optional<ClassifiedEntry> classify(AuditLogEntry logEntry, String actorMention) {
+    public Optional<ClassifiedContainer> classify(AuditLogEntry logEntry, String actorMention) {
         TrackingGroup group = groupFor(logEntry.getType());
         if (group == null) return Optional.empty();
 
-        StringBuilder text = new StringBuilder("**").append(prettyLabel(logEntry.getType())).append("**\n");
-        text.append("Performed By: ").append(actorMention);
+        List<ContainerChildComponent> children = new ArrayList<>();
+        children.add(TextDisplay.of("### " + prettyLabel(logEntry.getType())));
+
+        StringBuilder details = new StringBuilder("**Performed By:** ").append(actorMention);
 
         String target = describeTarget(logEntry);
-        if (target != null) text.append("\nTarget: ").append(target);
+        if (target != null) details.append("\n**Target:** ").append(target);
+
+        String channel = describeChannel(logEntry);
+        if (channel != null) details.append("\n**Channel:** ").append(channel);
 
         String reason = logEntry.getReason();
-        if (reason != null && !reason.isBlank()) text.append("\nReason: ").append(reason);
+        if (reason != null && !reason.isBlank()) details.append("\n**Reason:** ").append(reason);
 
-        return entry(group, null, text.toString());
+        long epochSeconds = logEntry.getTimeCreated().toEpochSecond();
+        details.append("\n**Time:** <t:").append(epochSeconds).append(":f> (<t:").append(epochSeconds).append(":R>)");
+
+        children.add(TextDisplay.of(details.toString()));
+
+        return Optional.of(new ClassifiedContainer(group, Containers.card(Containers.PRIMARY, children)));
+    }
+
+    /**
+     * A handful of action types (message deletes especially — the target is the affected *user*, not
+     * a channel) carry the channel separately in the audit log's own "options" rather than as the
+     * entry's target — {@code null} if this action type doesn't have one.
+     */
+    private static String describeChannel(AuditLogEntry logEntry) {
+        Object channelId = logEntry.getOption(AuditLogOption.CHANNEL);
+        if (channelId == null) return null;
+        try {
+            return "<#" + Long.parseLong(channelId.toString()) + ">";
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     /**

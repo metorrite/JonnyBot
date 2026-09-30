@@ -336,13 +336,18 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
                 destinations = trackingService.getDestinations(guildId, group);
             }
 
-            String line = sampleLineFor(group, actorMention);
+            boolean adminLog = isAdminLogGroup(group);
+            String line = adminLog ? null : sampleLineFor(group, actorMention);
+            Container sampleContainer = adminLog ? buildSampleAuditContainer(group, actorMention) : null;
+
             for (TrackingRepository.Destination destination : destinations) {
                 GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, destination.channelId());
                 if (channel == null) continue;
 
                 destinationCount++;
-                CompletableFuture<Message> sendFuture = channel.sendMessage(line).setSuppressedNotifications(true).submit();
+                CompletableFuture<Message> sendFuture = adminLog
+                        ? channel.sendMessageComponents(List.of(sampleContainer)).useComponentsV2(true).setSuppressedNotifications(true).submit()
+                        : channel.sendMessage(line).setSuppressedNotifications(true).submit();
                 pending.add(sendFuture.thenAccept(sent -> trackingService.recordTestMessage(guildId, channel.getIdLong(), sent.getIdLong())));
             }
         }
@@ -390,27 +395,64 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
             case QUESTS -> withIcon(trackingIconCatalog.mentionForCategory("quest"), "TestPlayer completed the quest **Missing, Presumed Death**.");
             case NOTABLE_DROPS -> withIcon(trackingIconCatalog.mentionForDrop("dragon_helm"), "TestPlayer found **Dragon helm**.");
             case CLUE_SCROLLS -> withIcon(trackingIconCatalog.mentionForCategory("clue"), "TestPlayer completed a hard treasure trail.");
-            case PETS -> withIcon(trackingIconCatalog.mentionForCategory("pet"), "TestPlayer found **Ranis**, the Woodcutting pet.");
-            case BOSS_KILLS -> "TestPlayer defeated **Telos**.";
+            case PETS -> withIcon(skillEmojiMentionFor("Woodcutting"), "TestPlayer found **Ranis**, the Woodcutting pet.");
+            case BOSS_KILLS -> withIcon(trackingIconCatalog.mentionForBoss("telos"), "TestPlayer defeated **Telos**.");
             case MINIGAME_MISC -> "TestPlayer reached floor 60 in Daemonheim.";
             case ARCHAEOLOGY -> withIcon(trackingIconCatalog.mentionForCategory("archaeology"), "TestPlayer solved an archaeological mystery.");
             case CITADEL_ACTIVITY -> "TestPlayer visited the Clan Citadel.";
             case CLAN_JOINS_LEAVES -> "**TestPlayer** joined the clan.";
-            case SERVER_SETTINGS -> "**Guild Update**\nPerformed By: " + actorMention;
-            case CHANNELS_THREADS -> "**Channel Create**\nPerformed By: " + actorMention + "\nTarget: **test-channel** (`0`)";
-            case ROLES_PERMISSIONS -> "**Role Create**\nPerformed By: " + actorMention + "\nTarget: **Test Role** (`0`)";
-            case MEMBERS_MODERATION -> "**Kick**\nPerformed By: " + actorMention + "\nTarget: <@0>\nReason: Testing the Tracking panel";
-            case MESSAGES -> "**Message Bulk Delete**\nPerformed By: " + actorMention;
-            case SERVER_EXTRAS -> "**Webhook Create**\nPerformed By: " + actorMention;
-            // Never actually reached — doSendTestPosts skips both weekly-digest groups entirely (see
-            // its own doc comment), but a switch expression over an enum still has to be exhaustive.
-            case WEEKLY_JOINS_LEAVES, WEEKLY_CITADEL_REPORT -> "";
+            // Never actually reached — doSendTestPosts skips both weekly-digest groups (their own
+            // "Send This Week's Report Now" button) and every admin-log group (sent as a sample
+            // Container instead, see buildSampleAuditContainer) — but a switch expression over an enum
+            // still has to be exhaustive.
+            case WEEKLY_JOINS_LEAVES, WEEKLY_CITADEL_REPORT, SERVER_SETTINGS, CHANNELS_THREADS,
+                 ROLES_PERMISSIONS, MEMBERS_MODERATION, MESSAGES, SERVER_EXTRAS -> "";
         };
         return prefix + body;
     }
 
     private static String withIcon(String iconMention, String text) {
         return iconMention != null ? iconMention + " " + text : text;
+    }
+
+    private String skillEmojiMentionFor(String skillName) {
+        for (int skillId = 0; skillId < com.younglings.bot.runescape.RuneScapeSkillCatalog.skillCount(); skillId++) {
+            if (com.younglings.bot.runescape.RuneScapeSkillCatalog.nameFor(skillId).equalsIgnoreCase(skillName)) {
+                return skillEmojiCatalog.mentionFor(skillId);
+            }
+        }
+        return null;
+    }
+
+    private static boolean isAdminLogGroup(TrackingGroup group) {
+        return group.source().equals("Discord Admin Log");
+    }
+
+    /** Mirrors {@link TrackingEventClassifier}'s real admin-log Container layout, so the preview looks exactly like a real entry would. */
+    private Container buildSampleAuditContainer(TrackingGroup group, String actorMention) {
+        String action = switch (group) {
+            case SERVER_SETTINGS -> "Guild Update";
+            case CHANNELS_THREADS -> "Channel Create";
+            case ROLES_PERMISSIONS -> "Role Create";
+            case MEMBERS_MODERATION -> "Kick";
+            case MESSAGES -> "Message Bulk Delete";
+            case SERVER_EXTRAS -> "Webhook Create";
+            default -> "Unknown Action"; // unreachable — only called for the 6 admin-log groups above
+        };
+
+        List<ContainerChildComponent> children = new ArrayList<>();
+        children.add(TextDisplay.of("### 🧪 [TEST] " + action));
+
+        StringBuilder details = new StringBuilder("**Performed By:** ").append(actorMention);
+        if (group == TrackingGroup.CHANNELS_THREADS) details.append("\n**Target:** **test-channel** (`0`)");
+        if (group == TrackingGroup.ROLES_PERMISSIONS) details.append("\n**Target:** **Test Role** (`0`)");
+        if (group == TrackingGroup.MEMBERS_MODERATION) details.append("\n**Target:** <@0>\n**Reason:** Testing the Tracking panel");
+
+        long epochSeconds = java.time.Instant.now().getEpochSecond();
+        details.append("\n**Time:** <t:").append(epochSeconds).append(":f> (<t:").append(epochSeconds).append(":R>)");
+
+        children.add(TextDisplay.of(details.toString()));
+        return Containers.card(Containers.PRIMARY, children);
     }
 
     // TrackingGroup.source() values are plain English ("Discord Admin Log") — fine as data, but kept
