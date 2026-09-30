@@ -175,21 +175,24 @@ public class ClanPointsService {
             if (member == null) continue; // left the clan since being flagged — nothing to report
 
             Integer currentOrder = rankOrderFor(ranks, member.clanRank());
-            String currentRankName = currentOrder != null ? rankNameByOrder.getOrDefault(currentOrder, member.clanRank()) : member.clanRank();
             int earnedOrder = earnedRankOrder(ranks, row.totalPoints());
             String earnedRankName = rankNameByOrder.getOrDefault(earnedOrder, "?");
             String since = row.promotionNeededSince() != null ? row.promotionNeededSince().format(DISPLAY_DATE) : "?";
 
-            String currentBadge = currentOrder != null ? withIcon(trackingIconCatalog.mentionForRank(currentOrder), "**" + currentRankName + "**") : "**" + currentRankName + "**";
-            String earnedBadge = withIcon(trackingIconCatalog.mentionForRank(earnedOrder), "**" + earnedRankName + "**");
+            // The current-rank icon sits directly against the player's name — that pairing *is* how
+            // their current rank is shown, rather than also spelling the name out again in text right
+            // next to it (two ranks' worth of icon+bold-name in one line read as clutter, not clarity).
+            String currentBadge = currentOrder != null ? trackingIconCatalog.mentionForRank(currentOrder) : trackingIconCatalog.mentionForDefaultBoss();
+            String earnedBadge = trackingIconCatalog.mentionForRank(earnedOrder);
 
-            sb.append("**").append(member.rsn()).append("** — currently ").append(currentBadge)
-                    .append(", eligible for ").append(earnedBadge).append(" (")
-                    .append(row.totalPoints()).append(" pts, waiting since ").append(since).append(")\n");
+            if (!sb.isEmpty()) sb.append("\n\n");
+            sb.append(withIcon(currentBadge, "**" + member.rsn() + "**")).append('\n')
+                    .append("Eligible for ").append(withIcon(earnedBadge, "**" + earnedRankName + "**"))
+                    .append(" • ").append(row.totalPoints()).append(" pts • waiting since ").append(since);
         }
 
         if (sb.isEmpty()) return; // everyone flagged has since left the clan
-        children.add(TextDisplay.of(sb.toString().trim()));
+        children.add(TextDisplay.of(sb.toString()));
 
         router.dispatchContainer(guild, TrackingGroup.CLAN_REPORT, Containers.card(Containers.WARNING, children));
     }

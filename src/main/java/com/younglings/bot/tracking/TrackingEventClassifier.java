@@ -171,9 +171,13 @@ public class TrackingEventClassifier {
             return entry(TrackingGroup.CLUE_SCROLLS, trackingIconCatalog.mentionForCategory("clue"), bold + " " + lowerFirst(text));
         }
 
+        // Reuses the Archaeology skill's own icon (SkillEmojiCatalog) rather than a separately
+        // downloaded one — a dig site is specific to which mystery was solved (too granular to
+        // catalog one icon per site), but the skill itself is exactly what every one of these lines is
+        // actually about, and already has a real icon with no new wiki source needed.
         if (text.contains("archaeological mystery") || text.contains("tetracompass")
                 || (text.startsWith("Earnt my") && text.contains("qualification"))) {
-            return entry(TrackingGroup.ARCHAEOLOGY, trackingIconCatalog.mentionForCategory("archaeology"), bold + " " + lowerFirst(text));
+            return entry(TrackingGroup.ARCHAEOLOGY, skillEmojiMention("Archaeology"), bold + " " + lowerFirst(text));
         }
 
         for (String keyword : MINIGAME_KEYWORDS) {
@@ -326,16 +330,23 @@ public class TrackingEventClassifier {
 
     /**
      * Every RuneMetrics-sourced line gets an icon, one way or another — {@code iconMention} if the
-     * caller found a specific one, otherwise a default appropriate to the group ({@link BossCatalog}'s
-     * generic icon for {@link TrackingGroup#BOSS_KILLS}, the generic drop icon for everything else that
-     * has no dedicated icon system of its own, e.g. {@link TrackingGroup#CITADEL_ACTIVITY}/
-     * {@link TrackingGroup#MINIGAME_MISC}). Never blank.
+     * caller found a specific one, otherwise a default appropriate to the group: {@link BossCatalog}'s
+     * generic icon for {@link TrackingGroup#BOSS_KILLS}, the Clan Citadel's own icon for
+     * {@link TrackingGroup#CITADEL_ACTIVITY}, or the generic RuneScore icon for anything else with no
+     * icon system of its own (e.g. {@link TrackingGroup#MINIGAME_MISC}) — a loot beam only makes sense
+     * for an actual drop, not a general achievement. Never blank.
      */
     private Optional<ClassifiedEntry> entry(TrackingGroup group, String iconMention, String message) {
-        String icon = iconMention != null ? iconMention
-                : group == TrackingGroup.BOSS_KILLS ? trackingIconCatalog.mentionForDefaultBoss()
-                : trackingIconCatalog.mentionForDefaultDrop();
+        String icon = iconMention != null ? iconMention : defaultIconFor(group);
         String line = icon != null ? icon + " " + message : message;
         return Optional.of(new ClassifiedEntry(group, line));
+    }
+
+    private String defaultIconFor(TrackingGroup group) {
+        return switch (group) {
+            case BOSS_KILLS -> trackingIconCatalog.mentionForDefaultBoss();
+            case CITADEL_ACTIVITY -> trackingIconCatalog.mentionForCategory("citadel");
+            default -> trackingIconCatalog.mentionForCategory("runescore");
+        };
     }
 }
