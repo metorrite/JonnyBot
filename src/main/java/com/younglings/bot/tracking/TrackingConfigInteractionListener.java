@@ -43,19 +43,23 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * The Tracking panel — {@code /configure}'s UI for the announcement system approved in the event
- * taxonomy: enable/disable each of {@link TrackingGroup}'s 17 groups and pick where each one posts.
+ * taxonomy: enable/disable each of {@link TrackingGroup}'s 18 groups and pick where each one posts.
  * A completely separate listener from {@link com.younglings.bot.commands.configure.ConfigureInteractionListener}
  * (still all {@code configure_tracking_}-prefixed, still gated the same way) purely because that
  * class was already sizeable before this — {@code buildPanel()}'s entry button is the only thing that
  * lives over there.
  * <p>
- * Two screens: a list of all 17 groups, each its own button (green = enabled, gray = disabled) that
- * opens straight to that group's screen — clicking beats a dropdown when you already know which one
- * you want (switched from a dropdown to this after exactly that feedback). That group's own screen has
- * an enable toggle, current destinations (removable via a dropdown), a native channel picker to
- * add a regular channel or thread, and an "Add by link" modal fallback for a forum thread Discord's
- * channel picker doesn't surface (older/archived threads in particular — untested at the time this
- * was built, hence the fallback existing at all rather than being added later).
+ * Three screens: the main panel lists only the 4 {@link TrackingGroup#source()} sections (each its own
+ * button, with an "enabled/total" count) — it used to also inline every individual group's button here,
+ * but at 18 groups that blew past Discord's 40-component-per-message cap outright (crashed in
+ * production at 42). Clicking a section opens that source's screen, which has the bulk actions (enable
+ * all / disable all / add a destination to everything here / clear everything here) that already lived
+ * there, plus — moved down from the main panel — one button per group in that section (green = enabled,
+ * gray = disabled) that opens straight to that group's own screen: an enable toggle, current
+ * destinations (removable via a dropdown), a native channel picker to add a regular channel or thread,
+ * and an "Add by link" modal fallback for a forum thread Discord's channel picker doesn't surface
+ * (older/archived threads in particular — untested at the time this was built, hence the fallback
+ * existing at all rather than being added later).
  */
 @BService
 public class TrackingConfigInteractionListener extends ListenerAdapter {
@@ -65,17 +69,21 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
     private final SkillEmojiCatalog skillEmojiCatalog;
     private final TrackingIconCatalog trackingIconCatalog;
     private final WeeklyDigestService weeklyDigestService;
+    private final ClanPointsService clanPointsService;
 
     public TrackingConfigInteractionListener(TrackingService trackingService, SkillEmojiCatalog skillEmojiCatalog,
-                                              TrackingIconCatalog trackingIconCatalog, WeeklyDigestService weeklyDigestService) {
+                                              TrackingIconCatalog trackingIconCatalog, WeeklyDigestService weeklyDigestService,
+                                              ClanPointsService clanPointsService) {
         this.trackingService = trackingService;
         this.skillEmojiCatalog = skillEmojiCatalog;
         this.trackingIconCatalog = trackingIconCatalog;
         this.weeklyDigestService = weeklyDigestService;
+        this.clanPointsService = clanPointsService;
     }
 
-    private static boolean isWeeklyGroup(TrackingGroup group) {
-        return group == TrackingGroup.WEEKLY_JOINS_LEAVES || group == TrackingGroup.WEEKLY_CITADEL_REPORT;
+    /** These 3 groups post a real computed report on their own schedule rather than a per-event line — {@link #doSendTestPosts} skips them (nothing to sample) and their own screen gets a "send it now" button instead. */
+    private static boolean isComputedReportGroup(TrackingGroup group) {
+        return group == TrackingGroup.WEEKLY_JOINS_LEAVES || group == TrackingGroup.WEEKLY_CITADEL_REPORT || group == TrackingGroup.CLAN_REPORT;
     }
 
     /** The same Wed-00:01-to-Wed-00:00 UTC window {@code WeeklyDigestScheduler} computes for its real weekly run — "this week's report" always means the week that most recently completed. */
@@ -133,7 +141,7 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
                 case "configure_tracking_source_add_thread" -> doAddSourceThreadPrompt(event, parts[1]);
                 case "configure_tracking_test_send" -> doSendTestPosts(event, guild);
                 case "configure_tracking_test_clear" -> doClearTestPosts(event, guild);
-                case "configure_tracking_weekly_send" -> doSendWeeklyDigestNow(event, guild, TrackingGroup.valueOf(parts[1]));
+                case "configure_tracking_report_send" -> doSendReportNow(event, guild, TrackingGroup.valueOf(parts[1]));
             }
         } catch (Exception e) {
             log.error("Unhandled exception in tracking config button interaction '{}'", id, e);
@@ -285,26 +293,34 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
     }
 
     /**
-     * Runs the real weekly digest for one group right now, using the most recently completed
-     * Wed-to-Wed window, instead of waiting for {@code WeeklyDigestScheduler}'s own run — unlike
-     * {@link #doSendTestPosts}, this sends the actual computed report (real data), not sample text, so
-     * there's nothing to record for later clearing; it's exactly what the scheduler itself would have
-     * sent, just on demand.
+     * Runs the real computed report for one of the 3 {@link #isComputedReportGroup} groups right now,
+     * instead of waiting for its own scheduler — unlike {@link #doSendTestPosts}, this sends the
+     * actual computed report (real data), not sample text, so there's nothing to record for later
+     * clearing. For the two weekly groups this uses the most recently completed Wed-to-Wed window,
+     * exactly what {@code WeeklyDigestScheduler} would have sent; for {@code CLAN_REPORT} it just
+     * re-sends the currently-flagged members — see {@link ClanPointsService#sendClanReportNow}, which
+     * deliberately doesn't re-run the award/promotion check itself (that's the daily scheduler's job).
      */
-    private void doSendWeeklyDigestNow(ButtonInteractionEvent event, Guild guild, TrackingGroup group) {
+    private void doSendReportNow(ButtonInteractionEvent event, Guild guild, TrackingGroup group) {
         event.deferReply(true).queue();
-        OffsetDateTime[] window = currentDigestWindow();
 
         try {
-            if (group == TrackingGroup.WEEKLY_JOINS_LEAVES) {
-                weeklyDigestService.sendJoinsLeaves(guild, window[0], window[1]);
-            } else {
-                weeklyDigestService.sendCitadelReport(guild, window[0], window[1]);
+            switch (group) {
+                case WEEKLY_JOINS_LEAVES -> {
+                    OffsetDateTime[] window = currentDigestWindow();
+                    weeklyDigestService.sendJoinsLeaves(guild, window[0], window[1]);
+                }
+                case WEEKLY_CITADEL_REPORT -> {
+                    OffsetDateTime[] window = currentDigestWindow();
+                    weeklyDigestService.sendCitadelReport(guild, window[0], window[1]);
+                }
+                case CLAN_REPORT -> clanPointsService.sendClanReportNow(guild);
+                default -> {}
             }
             event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.SUCCESS,
-                    "Sent — if this week had nothing to report, nothing was posted."))).useComponentsV2(true).queue();
+                    "Sent — if there was nothing to report, nothing was posted."))).useComponentsV2(true).queue();
         } catch (Exception e) {
-            log.error("Failed to send weekly digest now for group {} guild {}", group, guild.getIdLong(), e);
+            log.error("Failed to send report now for group {} guild {}", group, guild.getIdLong(), e);
             event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.DANGER,
                     "Failed to send — check the bot's logs."))).useComponentsV2(true).queue();
         }
@@ -328,7 +344,7 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
         int destinationCount = 0;
 
         for (TrackingGroup group : TrackingGroup.values()) {
-            if (isWeeklyGroup(group)) continue;
+            if (isComputedReportGroup(group)) continue;
 
             List<TrackingRepository.Destination> destinations = trackingService.getDestinations(guildId, group);
             if (destinations.isEmpty()) {
@@ -354,7 +370,7 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
 
         int totalSent = destinationCount;
         CompletableFuture.allOf(pending.toArray(new CompletableFuture[0])).handle((v, err) -> {
-            long testableGroups = java.util.Arrays.stream(TrackingGroup.values()).filter(g -> !isWeeklyGroup(g)).count();
+            long testableGroups = java.util.Arrays.stream(TrackingGroup.values()).filter(g -> !isComputedReportGroup(g)).count();
             String message = "Sent " + totalSent + " test post(s) across " + testableGroups + " group(s).";
             if (err != null) message += " Some may have failed to send — check the bot's logs.";
             event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.SUCCESS, message))).useComponentsV2(true).queue();
@@ -405,7 +421,7 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
             // "Send This Week's Report Now" button) and every admin-log group (sent as a sample
             // Container instead, see buildSampleAuditContainer) — but a switch expression over an enum
             // still has to be exhaustive.
-            case WEEKLY_JOINS_LEAVES, WEEKLY_CITADEL_REPORT, SERVER_SETTINGS, CHANNELS_THREADS,
+            case WEEKLY_JOINS_LEAVES, WEEKLY_CITADEL_REPORT, CLAN_REPORT, SERVER_SETTINGS, CHANNELS_THREADS,
                  ROLES_PERMISSIONS, MEMBERS_MODERATION, MESSAGES, SERVER_EXTRAS -> "";
         };
         return prefix + body;
@@ -467,46 +483,30 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
         return encoded.replace('_', ' ');
     }
 
-    /** 17 lightweight service calls per render (enabled + destination count, each group) — an admin panel, not a hot path. */
+    /** One button per source, not per group — see the class javadoc for why the old per-group layout doesn't fit anymore. Still 18+4 lightweight service calls per render (enabled + destination count, each group, plus a count per source) — an admin panel, not a hot path. */
     Container buildMainPanel(long guildId) {
         List<ContainerChildComponent> children = new ArrayList<>();
         children.add(TextDisplay.of("### Tracking\n" +
-                "-# Clan drops, levels, Citadel activity, joins/leaves, and Discord's own admin log — click a group below to open it. Green = enabled, gray = disabled."));
+                "-# Clan drops, levels, Citadel activity, joins/leaves, and Discord's own admin log — click a section below, then a group inside it."));
 
         Set<String> sources = new LinkedHashSet<>();
         for (TrackingGroup group : TrackingGroup.values()) sources.add(group.source());
 
         boolean firstSource = true;
         for (String source : sources) {
-            // Blurple + a gear icon, vs. the group buttons' green/gray, is what marks this as "manage
-            // the whole section" rather than just another group button.
-            Button sourceButton = Button.primary("configure_tracking_source:" + encodeSource(source), "⚙️ " + source);
+            List<TrackingGroup> groups = trackingService.groupsInSource(source);
+            long enabledCount = groups.stream().filter(group -> trackingService.isEnabled(guildId, group)).count();
+            // Blurple + a gear icon, vs. the group buttons' green/gray on the section's own screen, is
+            // what marks this as "open a section" rather than a single group's toggle.
+            Button sourceButton = Button.primary("configure_tracking_source:" + encodeSource(source),
+                    "⚙️ " + source + " (" + enabledCount + "/" + groups.size() + ")");
             if (firstSource) {
-                // Sharing a row with Back keeps the top of the panel to one row instead of two —
-                // every node here is one this component-heavy screen can't spare.
+                // Sharing a row with Back keeps the top of the panel to one row instead of two.
                 children.add(ActionRow.of(Button.secondary("configure_back:_", "Back"), sourceButton));
             } else {
-                // The divider is what keeps a section from blending into the previous one's buttons.
-                children.add(Separator.createDivider(Separator.Spacing.SMALL));
                 children.add(ActionRow.of(sourceButton));
             }
             firstSource = false;
-
-            List<TrackingGroup> groups = trackingService.groupsInSource(source).stream()
-                    .sorted(Comparator.comparing(TrackingGroup::displayName))
-                    .toList();
-            List<Button> rowButtons = new ArrayList<>();
-            for (TrackingGroup group : groups) {
-                boolean enabled = trackingService.isEnabled(guildId, group);
-                int destinationCount = trackingService.getDestinations(guildId, group).size();
-                String label = group.displayName() + " (" + destinationCount + ")";
-                String buttonId = "configure_tracking_view_group:" + group.name();
-                rowButtons.add(enabled ? Button.success(buttonId, label) : Button.secondary(buttonId, label));
-
-                // Discord caps an ActionRow at 5 components — start a new row once this one's full.
-                if (rowButtons.size() == 5) flushGroupButtonRow(children, rowButtons);
-            }
-            flushGroupButtonRow(children, rowButtons);
         }
 
         children.add(TextDisplay.of("-# **Send Test Posts** sends one sample line per group so you can see the real formatting/icons — any group with no destination yet gets this channel added as one. **Clear Test Posts** deletes everything a test send has ever posted in this server."));
@@ -531,15 +531,19 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
         children.add(TextDisplay.of("### " + group.displayName()));
         children.add(TextDisplay.of("-# " + group.source()));
         children.add(ActionRow.of(
-                Button.secondary("configure_tracking_main:_", "All Groups"),
+                Button.secondary("configure_tracking_source:" + encodeSource(group.source()), "Back to " + group.source()),
                 enabled ? Button.danger("configure_tracking_toggle:" + group.name(), "Disable")
                         : Button.success("configure_tracking_toggle:" + group.name(), "Enable")));
 
         children.add(TextDisplay.of("**Status:** " + (enabled ? "Enabled" : "Disabled")));
 
-        if (isWeeklyGroup(group)) {
-            children.add(TextDisplay.of("-# This posts on its own every Wednesday at 01:00 UTC — send this week's report right now instead of waiting."));
-            children.add(ActionRow.of(Button.secondary("configure_tracking_weekly_send:" + group.name(), "Send This Week's Report Now")));
+        if (isComputedReportGroup(group)) {
+            boolean daily = group == TrackingGroup.CLAN_REPORT;
+            children.add(TextDisplay.of(daily
+                    ? "-# This posts on its own every day shortly after the daily clan sync (00:00 UTC) — send today's report right now instead of waiting."
+                    : "-# This posts on its own every Wednesday at 01:00 UTC — send this week's report right now instead of waiting."));
+            children.add(ActionRow.of(Button.secondary("configure_tracking_report_send:" + group.name(),
+                    daily ? "Send Today's Report Now" : "Send This Week's Report Now")));
         }
 
         if (destinations.isEmpty()) {
@@ -572,17 +576,32 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
         return Containers.card(Containers.PRIMARY, children);
     }
 
-    /** Bulk actions for every group under one source at once — reached via that source's header button on the main panel. */
+    /** This section's groups (drill into any one) plus bulk actions for all of them at once — reached via that source's header button on the main panel. */
     private Container buildSourceEditorPanel(long guildId, String source) {
-        List<TrackingGroup> groups = trackingService.groupsInSource(source);
+        List<TrackingGroup> groups = trackingService.groupsInSource(source).stream()
+                .sorted(Comparator.comparing(TrackingGroup::displayName))
+                .toList();
 
         List<ContainerChildComponent> children = new ArrayList<>();
         children.add(TextDisplay.of("### " + source));
-        children.add(TextDisplay.of("-# Applies to all " + groups.size() + " group(s) under " + source + ": " +
-                groups.stream().map(TrackingGroup::displayName).reduce((a, b) -> a + ", " + b).orElse("")));
-        children.add(ActionRow.of(Button.secondary("configure_tracking_main:_", "All Groups")));
+        children.add(ActionRow.of(Button.secondary("configure_tracking_main:_", "All Sections")));
+
+        children.add(TextDisplay.of("**Groups** — click one to open it. Green = enabled, gray = disabled:"));
+        List<Button> rowButtons = new ArrayList<>();
+        for (TrackingGroup group : groups) {
+            boolean enabled = trackingService.isEnabled(guildId, group);
+            int destinationCount = trackingService.getDestinations(guildId, group).size();
+            String label = group.displayName() + " (" + destinationCount + ")";
+            String buttonId = "configure_tracking_view_group:" + group.name();
+            rowButtons.add(enabled ? Button.success(buttonId, label) : Button.secondary(buttonId, label));
+
+            // Discord caps an ActionRow at 5 components — start a new row once this one's full.
+            if (rowButtons.size() == 5) flushGroupButtonRow(children, rowButtons);
+        }
+        flushGroupButtonRow(children, rowButtons);
 
         String encodedSource = encodeSource(source);
+        children.add(Separator.createDivider(Separator.Spacing.SMALL));
         children.add(TextDisplay.of("**Enable or disable every group here at once:**"));
         children.add(ActionRow.of(
                 Button.success("configure_tracking_source_enable_all:" + encodedSource, "Enable All"),

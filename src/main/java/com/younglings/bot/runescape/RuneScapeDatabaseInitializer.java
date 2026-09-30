@@ -255,6 +255,88 @@ public class RuneScapeDatabaseInitializer {
                 """
                 CREATE INDEX IF NOT EXISTS clan_roster_event_window_idx
                 ON younglings.clan_roster_event (guild_id, event_at);
+                """,
+
+                // The ordered rank ladder a guild's points system is evaluated against — a fixed
+                // number of tiers per guild (seeded once, lazily, with the standard Jagex rank names
+                // at rank_order 0..10; see ClanPointsRepository) but each tier's own name and
+                // point_threshold are admin-editable, since Jagex clans can rename any tier and this
+                // codebase never assumes clan_member.clan_rank matches one of a hardcoded list.
+                """
+                CREATE TABLE IF NOT EXISTS younglings.clan_rank_config (
+                    id BIGSERIAL PRIMARY KEY,
+                    guild_id BIGINT NOT NULL,
+                    rank_name TEXT NOT NULL,
+                    rank_order INT NOT NULL,
+                    point_threshold BIGINT NOT NULL DEFAULT 0
+                );
+                """,
+
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS clan_rank_config_unique_order
+                ON younglings.clan_rank_config (guild_id, rank_order);
+                """,
+
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS clan_rank_config_unique_name_lower
+                ON younglings.clan_rank_config (guild_id, LOWER(rank_name));
+                """,
+
+                // One row per guild — how many points a day of clan membership, a Citadel visit, and
+                // a Citadel cap are each worth. All default to 0 (no points awarded) until an admin
+                // sets them via /rsadmin's Points & Promotions panel.
+                """
+                CREATE TABLE IF NOT EXISTS younglings.clan_points_settings (
+                    guild_id BIGINT PRIMARY KEY,
+                    daily_membership_points BIGINT NOT NULL DEFAULT 0,
+                    citadel_visit_points BIGINT NOT NULL DEFAULT 0,
+                    citadel_cap_points BIGINT NOT NULL DEFAULT 0
+                );
+                """,
+
+                // A permanent, idempotent ledger of every point award ever made — award_type is
+                // 'DAILY_MEMBERSHIP', 'CITADEL_VISIT', or 'CITADEL_CAP' (a fixed small set in code,
+                // same reasoning as clan_roster_event.event_type). awarded_for_date is the calendar
+                // day (membership) or that Citadel week's end date (visit/cap) being credited — the
+                // unique index is what makes re-running the daily job safe: awarding the same
+                // guild/rsn/type/date twice is a silent no-op, not a double credit.
+                """
+                CREATE TABLE IF NOT EXISTS younglings.clan_points_award (
+                    id BIGSERIAL PRIMARY KEY,
+                    guild_id BIGINT NOT NULL,
+                    rsn TEXT NOT NULL,
+                    award_type TEXT NOT NULL,
+                    points BIGINT NOT NULL,
+                    awarded_for_date DATE NOT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+                """,
+
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS clan_points_award_unique_idx
+                ON younglings.clan_points_award (guild_id, LOWER(rsn), award_type, awarded_for_date);
+                """,
+
+                // The running total derived from clan_points_award, kept denormalized here so reading
+                // a member's current total (checked every day, for every member) doesn't mean
+                // re-summing the whole ledger each time. promotion_needed/promotion_needed_since track
+                // whether this member's current in-game clan_rank is below what their total_points
+                // have earned against clan_rank_config — see ClanPointsService, and the "Clan Report"
+                // tracking group (TrackingGroup#CLAN_REPORT) that posts from this daily.
+                """
+                CREATE TABLE IF NOT EXISTS younglings.clan_member_points (
+                    id BIGSERIAL PRIMARY KEY,
+                    guild_id BIGINT NOT NULL,
+                    rsn TEXT NOT NULL,
+                    total_points BIGINT NOT NULL DEFAULT 0,
+                    promotion_needed BOOLEAN NOT NULL DEFAULT FALSE,
+                    promotion_needed_since DATE NULL
+                );
+                """,
+
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS clan_member_points_unique_rsn_lower
+                ON younglings.clan_member_points (guild_id, LOWER(rsn));
                 """
         ));
     }

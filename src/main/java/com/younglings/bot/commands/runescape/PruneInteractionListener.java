@@ -127,6 +127,7 @@ public class PruneInteractionListener extends ListenerAdapter {
 
         EntitySelectMenu users = EntitySelectMenu.create("prune_users", EntitySelectMenu.SelectTarget.USER)
                 .setRequiredRange(0, 25)
+                .setRequired(false)
                 .setPlaceholder("Only used if \"Specific user(s)\" is picked above")
                 .build();
 
@@ -151,6 +152,7 @@ public class PruneInteractionListener extends ListenerAdapter {
         EntitySelectMenu channelPicks = EntitySelectMenu.create("prune_channel_picks", EntitySelectMenu.SelectTarget.CHANNEL)
                 .setChannelTypes(ChannelType.TEXT, ChannelType.GUILD_PUBLIC_THREAD, ChannelType.GUILD_PRIVATE_THREAD)
                 .setRequiredRange(0, 25)
+                .setRequired(false)
                 .setPlaceholder("Only used if \"Specific channel(s)\" is picked above")
                 .build();
 
