@@ -492,27 +492,23 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
         Set<String> sources = new LinkedHashSet<>();
         for (TrackingGroup group : TrackingGroup.values()) sources.add(group.source());
 
-        boolean firstSource = true;
         for (String source : sources) {
             List<TrackingGroup> groups = trackingService.groupsInSource(source);
             long enabledCount = groups.stream().filter(group -> trackingService.isEnabled(guildId, group)).count();
-            // Blurple + a gear icon, vs. the group buttons' green/gray on the section's own screen, is
-            // what marks this as "open a section" rather than a single group's toggle.
-            Button sourceButton = Button.primary("configure_tracking_source:" + encodeSource(source),
-                    "⚙️ " + source + " (" + enabledCount + "/" + groups.size() + ")");
-            if (firstSource) {
-                // Sharing a row with Back keeps the top of the panel to one row instead of two.
-                children.add(ActionRow.of(Button.secondary("configure_back:_", "Back"), sourceButton));
-            } else {
-                children.add(ActionRow.of(sourceButton));
-            }
-            firstSource = false;
+            // Secondary/gray here, same as any other plain list item — blurple is reserved for Back,
+            // the one button on this screen that's actually a navigation action.
+            children.add(ActionRow.of(Button.secondary("configure_tracking_source:" + encodeSource(source),
+                    "⚙️ " + source + " (" + enabledCount + "/" + groups.size() + ")")));
         }
 
         children.add(TextDisplay.of("-# **Send Test Posts** sends one sample line per group so you can see the real formatting/icons — any group with no destination yet gets this channel added as one. **Clear Test Posts** deletes everything a test send has ever posted in this server."));
         children.add(ActionRow.of(
                 Button.secondary("configure_tracking_test_send:_", "Send Test Posts"),
                 Button.danger("configure_tracking_test_clear:_", "Clear Test Posts")));
+
+        // Back always lives alone at the very bottom, left-aligned, in blurple — the one consistent
+        // spot every panel in this bot puts its "go to the previous screen" button.
+        children.add(ActionRow.of(Button.primary("configure_back:_", "Back")));
 
         return Containers.card(Containers.PRIMARY, children);
     }
@@ -530,12 +526,9 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
         List<ContainerChildComponent> children = new ArrayList<>();
         children.add(TextDisplay.of("### " + group.displayName()));
         children.add(TextDisplay.of("-# " + group.source()));
-        children.add(ActionRow.of(
-                Button.secondary("configure_tracking_source:" + encodeSource(group.source()), "Back to " + group.source()),
-                enabled ? Button.danger("configure_tracking_toggle:" + group.name(), "Disable")
-                        : Button.success("configure_tracking_toggle:" + group.name(), "Enable")));
-
         children.add(TextDisplay.of("**Status:** " + (enabled ? "Enabled" : "Disabled")));
+        children.add(ActionRow.of(enabled ? Button.danger("configure_tracking_toggle:" + group.name(), "Disable")
+                : Button.success("configure_tracking_toggle:" + group.name(), "Enable")));
 
         if (isComputedReportGroup(group)) {
             boolean daily = group == TrackingGroup.CLAN_REPORT;
@@ -573,6 +566,8 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
 
         children.add(Containers.linkButtonRow("configure_tracking_add_thread:" + group.name()));
 
+        children.add(ActionRow.of(Button.primary("configure_tracking_source:" + encodeSource(group.source()), "Back")));
+
         return Containers.card(Containers.PRIMARY, children);
     }
 
@@ -582,10 +577,28 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
                 .sorted(Comparator.comparing(TrackingGroup::displayName))
                 .toList();
 
+        String encodedSource = encodeSource(source);
         List<ContainerChildComponent> children = new ArrayList<>();
         children.add(TextDisplay.of("### " + source));
-        children.add(ActionRow.of(Button.secondary("configure_tracking_main:_", "All Sections")));
 
+        children.add(TextDisplay.of("**Enable or disable every group here at once:**"));
+        children.add(ActionRow.of(
+                Button.success("configure_tracking_source_enable_all:" + encodedSource, "Enable All"),
+                Button.secondary("configure_tracking_source_disable_all:" + encodedSource, "Disable All")));
+
+        children.add(TextDisplay.of("**Add a destination to every group here at once** (regular channel or an active thread):"));
+        children.add(ActionRow.of(
+                EntitySelectMenu.create("configure_tracking_source_add_channel:" + encodedSource, EntitySelectMenu.SelectTarget.CHANNEL)
+                        .setChannelTypes(ChannelType.TEXT, ChannelType.GUILD_PUBLIC_THREAD, ChannelType.GUILD_PRIVATE_THREAD, ChannelType.FORUM)
+                        .setPlaceholder("Select a channel or thread")
+                        .setRequiredRange(0, 1)
+                        .build()));
+        children.add(ActionRow.of(
+                Containers.linkButton("configure_tracking_source_add_thread:" + encodedSource),
+                Button.danger("configure_tracking_source_clear_confirm:" + encodedSource, "Clear All Destinations")));
+        children.add(TextDisplay.of("-# **Link by ID** adds a destination via a pasted link or ID, for a forum thread Discord's own picker can't show. **Clear All Destinations** removes every destination from every group in this section — there's no undo, so it asks you to confirm first."));
+
+        children.add(Separator.createDivider(Separator.Spacing.SMALL));
         children.add(TextDisplay.of("**Groups** — click one to open it. Green = enabled, gray = disabled:"));
         List<Button> rowButtons = new ArrayList<>();
         for (TrackingGroup group : groups) {
@@ -600,24 +613,7 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
         }
         flushGroupButtonRow(children, rowButtons);
 
-        String encodedSource = encodeSource(source);
-        children.add(Separator.createDivider(Separator.Spacing.SMALL));
-        children.add(TextDisplay.of("**Enable or disable every group here at once:**"));
-        children.add(ActionRow.of(
-                Button.success("configure_tracking_source_enable_all:" + encodedSource, "Enable All"),
-                Button.secondary("configure_tracking_source_disable_all:" + encodedSource, "Disable All")));
-
-        children.add(TextDisplay.of("**Add a destination to every group here at once** (regular channel or an active thread):"));
-        children.add(ActionRow.of(
-                EntitySelectMenu.create("configure_tracking_source_add_channel:" + encodedSource, EntitySelectMenu.SelectTarget.CHANNEL)
-                        .setChannelTypes(ChannelType.TEXT, ChannelType.GUILD_PUBLIC_THREAD, ChannelType.GUILD_PRIVATE_THREAD, ChannelType.FORUM)
-                        .setPlaceholder("Select a channel or thread")
-                        .setRequiredRange(0, 1)
-                        .build()));
-        children.add(Containers.linkButtonRow("configure_tracking_source_add_thread:" + encodedSource));
-
-        children.add(TextDisplay.of("-# **Clear All Destinations** removes every destination from every group in this section — there's no undo, so it asks you to confirm first."));
-        children.add(ActionRow.of(Button.danger("configure_tracking_source_clear_confirm:" + encodedSource, "Clear All Destinations")));
+        children.add(ActionRow.of(Button.primary("configure_tracking_main:_", "Back")));
 
         return Containers.card(Containers.PRIMARY, children);
     }
