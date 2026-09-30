@@ -59,6 +59,12 @@ import java.util.Map;
  * specific item or boss does — {@link #CATEGORY_SOURCES} and {@link #DEFAULT_SOURCES} are the specific
  * wiki pages picked by hand (quest icon and both defaults confirmed against a real wiki link; clue and
  * archaeology are still best guesses — spot-check those two after a run).
+ * <p>
+ * Clan rank badges (11 standard Jagex tiers, Recruit through Owner — see {@code ClanPointsRepository})
+ * have no entry here yet: a guessed {@code "{RankName}_icon.png"} wiki filename pattern came back a
+ * plain 404 for every single tier when tried directly, so there's no known-good source to add without
+ * someone finding the real links by hand, same as the quest icon originally needed. Once found, they'd
+ * go under {@code images/ranks/<rank_order 0-10>.png} — see {@code TrackingIconCatalog#mentionForRank}.
  */
 public final class IconDownloader {
     private static final Path IMAGES_ROOT = Path.of("src/main/resources/images");

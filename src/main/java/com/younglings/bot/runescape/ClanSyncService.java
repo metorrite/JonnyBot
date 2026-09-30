@@ -5,6 +5,7 @@ import com.younglings.bot.configure.GuildSettingsService;
 import com.younglings.bot.tracking.ClassifiedEntry;
 import com.younglings.bot.tracking.TrackingEventRouter;
 import com.younglings.bot.tracking.TrackingGroup;
+import com.younglings.bot.tracking.TrackingIconCatalog;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
 import org.slf4j.Logger;
@@ -40,11 +41,13 @@ public class ClanSyncService {
     private final BotConfig botConfig;
     private final TrackingEventRouter trackingEventRouter;
     private final WeeklyDigestRepository weeklyDigestRepository;
+    private final TrackingIconCatalog trackingIconCatalog;
 
     public ClanSyncService(RuneScapeApiClient apiClient, ClanMemberRepository clanMemberRepository,
                             RuneScapeStatsService statsService, RsnRenameService renameService,
                             GuildSettingsService guildSettingsService, BotConfig botConfig,
-                            TrackingEventRouter trackingEventRouter, WeeklyDigestRepository weeklyDigestRepository) {
+                            TrackingEventRouter trackingEventRouter, WeeklyDigestRepository weeklyDigestRepository,
+                            TrackingIconCatalog trackingIconCatalog) {
         this.apiClient = apiClient;
         this.clanMemberRepository = clanMemberRepository;
         this.statsService = statsService;
@@ -53,6 +56,7 @@ public class ClanSyncService {
         this.botConfig = botConfig;
         this.trackingEventRouter = trackingEventRouter;
         this.weeklyDigestRepository = weeklyDigestRepository;
+        this.trackingIconCatalog = trackingIconCatalog;
     }
 
     public record SyncResult(int rosterSize, int newMembers, int departedMembers, int polled, int pollFailed) {}
@@ -134,14 +138,19 @@ public class ClanSyncService {
         String todayDisplay = today.format(DateTimeFormatter.ofPattern("MMM d"));
 
         if (!firstSyncEver) {
+            // No dedicated icon for a join/leave — the generic "something happened" drop default
+            // fills in, same as every other group with no icon system of its own.
+            String icon = trackingIconCatalog.mentionForDefaultDrop();
+            String iconPrefix = icon != null ? icon + " " : "";
+
             List<ClassifiedEntry> joinLeaveEntries = new ArrayList<>();
             for (String name : newNames) {
-                joinLeaveEntries.add(new ClassifiedEntry(TrackingGroup.CLAN_JOINS_LEAVES, "**" + name + "** joined the clan. (" + todayDisplay + ")"));
+                joinLeaveEntries.add(new ClassifiedEntry(TrackingGroup.CLAN_JOINS_LEAVES, iconPrefix + "**" + name + "** joined the clan. (" + todayDisplay + ")"));
                 weeklyDigestRepository.recordRosterEvent(guildId, name, "JOIN");
                 clanMemberRepository.setClanJoinedAt(guildId, name, today);
             }
             for (String name : departedNames) {
-                joinLeaveEntries.add(new ClassifiedEntry(TrackingGroup.CLAN_JOINS_LEAVES, "**" + name + "** left the clan. (" + todayDisplay + ")"));
+                joinLeaveEntries.add(new ClassifiedEntry(TrackingGroup.CLAN_JOINS_LEAVES, iconPrefix + "**" + name + "** left the clan. (" + todayDisplay + ")"));
                 weeklyDigestRepository.recordRosterEvent(guildId, name, "LEAVE");
             }
             trackingEventRouter.dispatchAll(guild, joinLeaveEntries);

@@ -81,9 +81,14 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
         this.clanPointsService = clanPointsService;
     }
 
-    /** These 3 groups post a real computed report on their own schedule rather than a per-event line — {@link #doSendTestPosts} skips them (nothing to sample) and their own screen gets a "send it now" button instead. */
+    /** These 3 groups post a real computed report on their own schedule rather than a per-event line — their own screen gets a "send it now" button instead of a plain enable toggle description. */
     private static boolean isComputedReportGroup(TrackingGroup group) {
         return group == TrackingGroup.WEEKLY_JOINS_LEAVES || group == TrackingGroup.WEEKLY_CITADEL_REPORT || group == TrackingGroup.CLAN_REPORT;
+    }
+
+    /** Just the two weekly digests — real windowed data with no meaningful fake sample, so {@link #doSendTestPosts} skips them entirely. {@link TrackingGroup#CLAN_REPORT} is a computed report too, but easy enough to fake convincingly, so it gets a sample like everything else. */
+    private static boolean isWeeklyDigestGroup(TrackingGroup group) {
+        return group == TrackingGroup.WEEKLY_JOINS_LEAVES || group == TrackingGroup.WEEKLY_CITADEL_REPORT;
     }
 
     /** The same Wed-00:01-to-Wed-00:00 UTC window {@code WeeklyDigestScheduler} computes for its real weekly run — "this week's report" always means the week that most recently completed. */
@@ -331,8 +336,11 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
      * an actual drop/kick/whatever — any group with no destination configured yet gets the invoking
      * channel added as one first (see the panel's own note about this). Every send is recorded in
      * {@code tracking_test_message} so {@link #doClearTestPosts} can find and delete exactly these
-     * later, never a real event's post. Skips the two weekly-digest groups entirely — those are a real
-     * computed report, not sample text, and have their own "Send This Week's Report Now" button.
+     * later, never a real event's post. Skips the two weekly-digest groups entirely ({@link #isWeeklyDigestGroup})
+     * — those are a real windowed report with no meaningful fake sample, and have their own "Send This
+     * Week's Report Now" button. Discord Admin Log groups and {@link TrackingGroup#CLAN_REPORT} send a
+     * sample {@link Container} instead of a plain line (see {@link #buildSampleAuditContainer}/
+     * {@link #buildSampleClanReportContainer}).
      */
     private void doSendTestPosts(ButtonInteractionEvent event, Guild guild) {
         event.deferReply(true).queue();
@@ -344,7 +352,7 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
         int destinationCount = 0;
 
         for (TrackingGroup group : TrackingGroup.values()) {
-            if (isComputedReportGroup(group)) continue;
+            if (isWeeklyDigestGroup(group)) continue;
 
             List<TrackingRepository.Destination> destinations = trackingService.getDestinations(guildId, group);
             if (destinations.isEmpty()) {
@@ -353,15 +361,18 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
             }
 
             boolean adminLog = isAdminLogGroup(group);
-            String line = adminLog ? null : sampleLineFor(group, actorMention);
-            Container sampleContainer = adminLog ? buildSampleAuditContainer(group, actorMention) : null;
+            boolean clanReport = group == TrackingGroup.CLAN_REPORT;
+            boolean container = adminLog || clanReport;
+            String line = container ? null : sampleLineFor(group, actorMention);
+            Container sampleContainer = adminLog ? buildSampleAuditContainer(group, actorMention)
+                    : clanReport ? buildSampleClanReportContainer() : null;
 
             for (TrackingRepository.Destination destination : destinations) {
                 GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, destination.channelId());
                 if (channel == null) continue;
 
                 destinationCount++;
-                CompletableFuture<Message> sendFuture = adminLog
+                CompletableFuture<Message> sendFuture = container
                         ? channel.sendMessageComponents(List.of(sampleContainer)).useComponentsV2(true).setSuppressedNotifications(true).submit()
                         : channel.sendMessage(line).setSuppressedNotifications(true).submit();
                 pending.add(sendFuture.thenAccept(sent -> trackingService.recordTestMessage(guildId, channel.getIdLong(), sent.getIdLong())));
@@ -370,7 +381,7 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
 
         int totalSent = destinationCount;
         CompletableFuture.allOf(pending.toArray(new CompletableFuture[0])).handle((v, err) -> {
-            long testableGroups = java.util.Arrays.stream(TrackingGroup.values()).filter(g -> !isComputedReportGroup(g)).count();
+            long testableGroups = java.util.Arrays.stream(TrackingGroup.values()).filter(g -> !isWeeklyDigestGroup(g)).count();
             String message = "Sent " + totalSent + " test post(s) across " + testableGroups + " group(s).";
             if (err != null) message += " Some may have failed to send — check the bot's logs.";
             event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.SUCCESS, message))).useComponentsV2(true).queue();
@@ -413,14 +424,16 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
             case CLUE_SCROLLS -> withIcon(trackingIconCatalog.mentionForCategory("clue"), "TestPlayer completed a hard treasure trail.");
             case PETS -> withIcon(skillEmojiMentionFor("Woodcutting"), "TestPlayer found **Ranis**, the Woodcutting pet.");
             case BOSS_KILLS -> withIcon(trackingIconCatalog.mentionForBoss("telos"), "TestPlayer defeated **Telos**.");
-            case MINIGAME_MISC -> "TestPlayer reached floor 60 in Daemonheim.";
+            // No dedicated icon system for these three — same generic "something happened" default
+            // the real dispatch path falls back to (see TrackingEventClassifier#entry/ClanSyncService).
+            case MINIGAME_MISC -> withIcon(trackingIconCatalog.mentionForDefaultDrop(), "TestPlayer reached floor 60 in Daemonheim.");
             case ARCHAEOLOGY -> withIcon(trackingIconCatalog.mentionForCategory("archaeology"), "TestPlayer solved an archaeological mystery.");
-            case CITADEL_ACTIVITY -> "TestPlayer visited the Clan Citadel.";
-            case CLAN_JOINS_LEAVES -> "**TestPlayer** joined the clan.";
+            case CITADEL_ACTIVITY -> withIcon(trackingIconCatalog.mentionForDefaultDrop(), "TestPlayer visited the Clan Citadel.");
+            case CLAN_JOINS_LEAVES -> withIcon(trackingIconCatalog.mentionForDefaultDrop(), "**TestPlayer** joined the clan.");
             // Never actually reached — doSendTestPosts skips both weekly-digest groups (their own
-            // "Send This Week's Report Now" button) and every admin-log group (sent as a sample
-            // Container instead, see buildSampleAuditContainer) — but a switch expression over an enum
-            // still has to be exhaustive.
+            // "Send This Week's Report Now" button) and sends every admin-log group and CLAN_REPORT as
+            // a sample Container instead (see buildSampleAuditContainer/buildSampleClanReportContainer)
+            // — but a switch expression over an enum still has to be exhaustive.
             case WEEKLY_JOINS_LEAVES, WEEKLY_CITADEL_REPORT, CLAN_REPORT, SERVER_SETTINGS, CHANNELS_THREADS,
                  ROLES_PERMISSIONS, MEMBERS_MODERATION, MESSAGES, SERVER_EXTRAS -> "";
         };
@@ -469,6 +482,17 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
 
         children.add(TextDisplay.of(details.toString()));
         return Containers.card(Containers.PRIMARY, children);
+    }
+
+    /** Mirrors {@link ClanPointsService}'s real Clan Report layout with fake data (a made-up "TestPlayer" one tier below "eligible") — rank badges come from the real {@link TrackingIconCatalog#mentionForRank}, so this also doubles as a preview of those once real rank icon sources are found. */
+    private Container buildSampleClanReportContainer() {
+        String currentRank = withIcon(trackingIconCatalog.mentionForRank(0), "**Recruit**");
+        String earnedRank = withIcon(trackingIconCatalog.mentionForRank(1), "**Corporal**");
+
+        List<ContainerChildComponent> children = new ArrayList<>();
+        children.add(TextDisplay.of("### 🔺 [TEST] Clan Report — Promotions Needed"));
+        children.add(TextDisplay.of("**TestPlayer** — currently " + currentRank + ", eligible for " + earnedRank + " (150 pts, waiting since Sep 28)"));
+        return Containers.card(Containers.WARNING, children);
     }
 
     // TrackingGroup.source() values are plain English ("Discord Admin Log") — fine as data, but kept
