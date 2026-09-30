@@ -871,6 +871,10 @@ public class RsAdminInteractionListener extends ListenerAdapter {
         ));
         children.add(Separator.createDivider(Separator.Spacing.SMALL));
 
+        children.add(TextDisplay.of("### Points & Promotions"));
+        children.add(ActionRow.of(Button.secondary("clanpoints_open:_", "Configure Points & Ranks")));
+        children.add(Separator.createDivider(Separator.Spacing.SMALL));
+
         children.add(TextDisplay.of("### Server Moderation"));
         children.add(ActionRow.of(Button.danger("rsadmin_prune_open:_", "Prune Messages")));
         children.add(Separator.createDivider(Separator.Spacing.SMALL));

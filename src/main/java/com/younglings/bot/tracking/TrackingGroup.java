@@ -3,8 +3,8 @@ package com.younglings.bot.tracking;
 /**
  * The fixed set of announcement groups an admin enables and picks destinations for from
  * {@code /configure}'s Tracking panel — approved as a taxonomy before this was built (RuneMetrics'
- * own Adventurer's Log categories, Clan Citadel, the clan roster diff, and Discord's own admin log,
- * grouped from JDA's {@code ActionType} list).
+ * own Adventurer's Log categories, Clan Citadel, the clan roster diff, Discord's own admin log
+ * (grouped from JDA's {@code ActionType} list), and the clan points/promotion system's daily report).
  * <p>
  * Deliberately code, not a database table an admin defines from scratch: which entry types belong to
  * which group is a judgment call made once, not something worth 150+ individual toggles for. What IS
@@ -24,6 +24,7 @@ public enum TrackingGroup {
     WEEKLY_CITADEL_REPORT("Clan Citadel", "Weekly Citadel Report"),
     CLAN_JOINS_LEAVES("Clan Roster", "Clan Joins & Leaves"),
     WEEKLY_JOINS_LEAVES("Clan Roster", "Weekly Joins & Leaves"),
+    CLAN_REPORT("Points & Promotions", "Clan Report"),
     SERVER_SETTINGS("Discord Admin Log", "Server Settings"),
     CHANNELS_THREADS("Discord Admin Log", "Channels & Threads"),
     ROLES_PERMISSIONS("Discord Admin Log", "Roles & Command Permissions"),
