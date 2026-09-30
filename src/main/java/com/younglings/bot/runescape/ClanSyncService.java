@@ -138,10 +138,10 @@ public class ClanSyncService {
         String todayDisplay = today.format(DateTimeFormatter.ofPattern("MMM d"));
 
         if (!firstSyncEver) {
-            // No dedicated icon for a join/leave — the generic RuneScore "something happened" default
-            // fills in, same as every other group with no icon system of its own (a loot beam only
-            // makes sense for an actual drop).
-            String icon = trackingIconCatalog.mentionForCategory("runescore");
+            // No dedicated icon for a join/leave — the Clan Citadel icon fills in as the general
+            // "clan" icon here, not RuneScore (a personal-achievement icon that doesn't fit a
+            // clan-membership event).
+            String icon = trackingIconCatalog.mentionForCategory("citadel");
             String iconPrefix = icon != null ? icon + " " : "";
 
             List<ClassifiedEntry> joinLeaveEntries = new ArrayList<>();

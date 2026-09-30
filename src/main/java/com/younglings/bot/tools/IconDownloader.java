@@ -57,14 +57,17 @@ import java.util.Map;
  * <p>
  * The category/default icons don't have a clean automatic name-to-wiki-filename mapping the way a
  * specific item or boss does — {@link #CATEGORY_SOURCES} and {@link #DEFAULT_SOURCES} are the specific
- * wiki pages picked by hand (quest icon and both defaults confirmed against a real wiki link; clue and
- * archaeology are still best guesses — spot-check those two after a run).
+ * wiki pages picked by hand. Quest, both defaults, RuneScore, and Clan Citadel are all confirmed against
+ * a real wiki link; "clue" is still a best guess, so spot-check it after a run. No "archaeology" entry —
+ * an archaeological mystery reuses the Archaeology *skill's* own icon instead (see
+ * {@code TrackingEventClassifier}), needing no separately downloaded one.
  * <p>
- * Clan rank badges (11 standard Jagex tiers, Recruit through Owner — see {@code ClanPointsRepository})
- * have no entry here yet: a guessed {@code "{RankName}_icon.png"} wiki filename pattern came back a
- * plain 404 for every single tier when tried directly, so there's no known-good source to add without
- * someone finding the real links by hand, same as the quest icon originally needed. Once found, they'd
- * go under {@code images/ranks/<rank_order 0-10>.png} — see {@code TrackingIconCatalog#mentionForRank}.
+ * Clan rank badges ({@link #RANK_SOURCES}, 12 standard Jagex tiers, Recruit through Owner — see
+ * {@code ClanPointsRepository}) are confirmed against the wiki's own Clan Chat rank table
+ * ({@code runescape.wiki/w/RuneScape:Clan_Chat#Ranks}), which uses a completely different filename
+ * pattern ({@code "{RankName}_clan_rank.png"}) than the guessed-and-wrong {@code "{RankName}_icon.png"}
+ * this originally shipped with (a plain 404 for every tier). Saved to
+ * {@code images/ranks/<rank_order 0-11>.png} — see {@code TrackingIconCatalog#mentionForRank}.
  */
 public final class IconDownloader {
     private static final Path IMAGES_ROOT = Path.of("src/main/resources/images");
@@ -82,14 +85,19 @@ public final class IconDownloader {
     // RS3 wiki file names for the category icons — unlike an item/boss name (which IS the wiki
     // filename, underscored), these are abstract concepts with no single obvious source image. "quest"
     // is confirmed (the user tracked down the real page: runescape.wiki/w/Quests, image
-    // File:Lore_achievements_icon.png) and deliberately used for every quest, not a per-quest icon —
-    // clue/archaeology are still best guesses, so spot-check those two after a run. No "pet" entry —
-    // see the class doc for why a generic pet icon doesn't make sense here.
+    // File:Lore_achievements_icon.png) and deliberately used for every quest, not a per-quest icon.
+    // "runescore" (the generic "something happened" fallback for anything with no icon system of its
+    // own) and "citadel" (Citadel Activity's own default, and the general "clan" icon for Clan
+    // Joins/Leaves — see ClanSyncService) are both confirmed by browsing the actual wiki pages directly
+    // rather than guessing a filename. "clue" is still a best guess, so spot-check it after a run. No
+    // "pet" entry — see the class doc for why a generic pet icon doesn't make sense here. No
+    // "archaeology" entry — see the class doc for why that reuses the skill icon instead.
     private static final Map<String, String> CATEGORY_SOURCES = new LinkedHashMap<>();
     static {
         CATEGORY_SOURCES.put("quest", "Lore achievements icon");
         CATEGORY_SOURCES.put("clue", "Clue scroll (master)");
-        CATEGORY_SOURCES.put("archaeology", "Archaeology icon");
+        CATEGORY_SOURCES.put("runescore", "RuneScore");
+        CATEGORY_SOURCES.put("citadel", "Clan citadel map icon");
     }
 
     // Both confirmed by the user against real wiki links (Golden_loot_beam_1 for drops,
@@ -100,6 +108,15 @@ public final class IconDownloader {
         DEFAULT_SOURCES.put("default_drop", "Golden loot beam 1");
         DEFAULT_SOURCES.put("default_boss", "Demon flash mobs map icon");
     }
+
+    // The wiki's own Clan Chat rank table (runescape.wiki/w/RuneScape:Clan_Chat#Ranks) uses
+    // "{RankName}_clan_rank.png" — note "Deputy_owner" is lowercase "owner" there, unlike every other
+    // entry's title case. Order here must match ClanPointsRepository.STANDARD_RANK_NAMES exactly (index
+    // = rank_order), since that's the key TrackingIconCatalog#mentionForRank looks these up by.
+    private static final List<String> RANK_SOURCES = List.of(
+            "Recruit clan rank", "Corporal clan rank", "Sergeant clan rank", "Lieutenant clan rank",
+            "Captain clan rank", "General clan rank", "Admin clan rank", "Organiser clan rank",
+            "Coordinator clan rank", "Overseer clan rank", "Deputy owner clan rank", "Owner clan rank");
 
     public static void main(String[] args) throws Exception {
         HttpClient client = HttpClient.newBuilder()
@@ -126,6 +143,12 @@ public final class IconDownloader {
         for (var e : CATEGORY_SOURCES.entrySet()) {
             boolean ok = fetchAndSave(client, e.getValue(), IMAGES_ROOT.resolve("tracking").resolve(e.getKey() + ".png"));
             if (ok) downloaded++; else missing.add("category '" + e.getKey() + "': " + e.getValue());
+        }
+
+        System.out.println("== Clan rank icons (" + RANK_SOURCES.size() + ") ==");
+        for (int order = 0; order < RANK_SOURCES.size(); order++) {
+            boolean ok = fetchAndSave(client, RANK_SOURCES.get(order), IMAGES_ROOT.resolve("ranks").resolve(order + ".png"));
+            if (ok) downloaded++; else missing.add("rank " + order + ": " + RANK_SOURCES.get(order));
         }
 
         System.out.println("== Default drop/boss icons ==");

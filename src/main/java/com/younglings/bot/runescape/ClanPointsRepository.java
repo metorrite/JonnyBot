@@ -22,13 +22,17 @@ import java.util.List;
 public class ClanPointsRepository {
     private static final Logger log = LoggerFactory.getLogger(ClanPointsRepository.class);
 
-    // The standard Jagex clan rank titles, lowest to highest — used only to seed a guild's
-    // clan_rank_config the first time it's read empty. Every tier's name and point_threshold are
-    // admin-editable afterward (a clan can rename any tier), so this list is never consulted again
-    // once a guild has rows.
+    // The standard Jagex clan rank titles, lowest to highest — confirmed against the wiki's own Clan
+    // Chat rank table (runescape.wiki/w/RuneScape:Clan_Chat#Ranks), which is also where TrackingIconCatalog's
+    // rank icons (images/ranks/<order>.png) come from ("{RankName}_clan_rank.png", "Deputy Owner"
+    // itself is "Deputy_owner_clan_rank.png" — lowercase "owner"). 12 tiers, not the 11 first guessed
+    // here — "Overseer" sits between Coordinator and Deputy Owner and was missed originally. Used only
+    // to seed a guild's clan_rank_config the first time it's read empty; every tier's name and
+    // point_threshold are admin-editable afterward (a clan can rename any tier), so this list is never
+    // consulted again once a guild has rows.
     private static final List<String> STANDARD_RANK_NAMES = List.of(
             "Recruit", "Corporal", "Sergeant", "Lieutenant", "Captain", "General",
-            "Admin", "Coordinator", "Organiser", "Deputy Owner", "Owner");
+            "Admin", "Organiser", "Coordinator", "Overseer", "Deputy Owner", "Owner");
 
     private final ConnectionSupplier connectionSupplier;
 
@@ -38,13 +42,40 @@ public class ClanPointsRepository {
 
     public record RankConfigRow(long id, long guildId, String rankName, int rankOrder, long pointThreshold) {}
 
-    /** Ordered lowest to highest. Seeds {@link #STANDARD_RANK_NAMES} on first call for a guild that has none yet, all thresholds starting at 0. */
+    /**
+     * Ordered lowest to highest. Seeds {@link #STANDARD_RANK_NAMES} on first call for a guild that has
+     * none yet, all thresholds starting at 0. If a guild's row count doesn't match
+     * {@link #STANDARD_RANK_NAMES}'s current size, it was seeded under an earlier (wrong-tier-count)
+     * version of that list — safe to wipe and reseed fresh rather than trying to patch individual rows
+     * in place, since a threshold only ever defaults to 0 until an admin sets real values, and that's
+     * all any earlier seed could have had this soon after the feature shipped.
+     */
     public List<RankConfigRow> getRanksOrdered(long guildId) {
         List<RankConfigRow> existing = queryRanks(guildId);
-        if (!existing.isEmpty()) return existing;
+        if (existing.size() == STANDARD_RANK_NAMES.size()) return existing;
 
+        if (!existing.isEmpty()) {
+            log.info("Guild {}'s clan_rank_config has {} row(s), expected {} — reseeding from the current standard rank list.",
+                    guildId, existing.size(), STANDARD_RANK_NAMES.size());
+            deleteAllRanks(guildId);
+        }
         seedStandardRanks(guildId);
         return queryRanks(guildId);
+    }
+
+    private void deleteAllRanks(long guildId) {
+        String sql = "DELETE FROM younglings.clan_rank_config WHERE guild_id = ?";
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setLong(1, guildId);
+            statement.executeUpdate();
+
+        } catch (SQLException e) {
+            log.error("Failed to clear clan rank config for guild {}", guildId, e);
+            throw new RuntimeException("Failed to clear clan rank config", e);
+        }
     }
 
     private List<RankConfigRow> queryRanks(long guildId) {
