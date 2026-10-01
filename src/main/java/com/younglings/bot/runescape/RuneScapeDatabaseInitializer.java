@@ -337,6 +337,22 @@ public class RuneScapeDatabaseInitializer {
                 """
                 CREATE UNIQUE INDEX IF NOT EXISTS clan_member_points_unique_rsn_lower
                 ON younglings.clan_member_points (guild_id, LOWER(rsn));
+                """,
+
+                // What TrackingIconCatalog last uploaded each managed Discord application emoji with —
+                // emojis are matched by name and reused across restarts (so a restart doesn't spam
+                // duplicate emoji creations), but that alone means correcting a wrong icon's source
+                // image and re-running IconDownloader silently does nothing: the stale emoji under that
+                // same name just keeps getting reused forever. Comparing the local file's hash against
+                // what's recorded here is what lets a changed file trigger a real delete-and-recreate
+                // instead. Not guild-scoped — Application Emojis belong to the bot's Discord application
+                // as a whole, not any one guild.
+                """
+                CREATE TABLE IF NOT EXISTS younglings.icon_emoji_hash (
+                    emoji_name TEXT PRIMARY KEY,
+                    content_hash TEXT NOT NULL,
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
                 """
         ));
     }

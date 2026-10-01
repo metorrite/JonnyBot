@@ -1,5 +1,6 @@
 package com.younglings.bot.tracking;
 
+import com.younglings.bot.runescape.IconEmojiHashRepository;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.Icon;
@@ -11,7 +12,10 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -45,6 +49,15 @@ import java.util.stream.Collectors;
  * every tier. 12 standard tiers, not the 11 first assumed (an "Overseer" rank between Coordinator and
  * Deputy Owner was missed originally) — see {@code IconDownloader#RANK_SOURCES} and
  * {@code ClanPointsRepository#STANDARD_RANK_NAMES}, which must stay in the same order (index = rank_order).
+ * <p>
+ * An emoji already matched by name is reused as-is on every restart, normally — but that alone means a
+ * corrected icon (re-running {@code IconDownloader} after fixing a wrong source) does nothing: the
+ * stale emoji under that same name just keeps getting reused forever, exactly what happened twice this
+ * way (a wrong quest icon survived a source-URL fix on one bot, then the same thing again on a second,
+ * completely separate bot application with its own isolated emoji store). {@link #syncEmoji} now hashes
+ * each local file and compares it against what {@link IconEmojiHashRepository} recorded for that name
+ * last time — a mismatch deletes the stale emoji and recreates it from the current file, instead of
+ * silently trusting whatever's already there.
  */
 @BService
 public class TrackingIconCatalog extends ListenerAdapter {
@@ -118,6 +131,8 @@ public class TrackingIconCatalog extends ListenerAdapter {
         }
     }
 
+    private final IconEmojiHashRepository hashRepository;
+
     private final Map<String, String> dropMentions = new ConcurrentHashMap<>();
     private final Map<String, String> categoryMentions = new ConcurrentHashMap<>();
     private final Map<String, String> bossMentions = new ConcurrentHashMap<>();
@@ -125,37 +140,94 @@ public class TrackingIconCatalog extends ListenerAdapter {
     private volatile String defaultDropMention;
     private volatile String defaultBossMention;
 
+    public TrackingIconCatalog(IconEmojiHashRepository hashRepository) {
+        this.hashRepository = hashRepository;
+    }
+
     @Override
     public void onReady(ReadyEvent event) {
         JDA jda = event.getJDA();
+        Map<String, String> storedHashes = hashRepository.getAllHashes();
+
         jda.retrieveApplicationEmojis().queue(existing -> {
             Map<String, ApplicationEmoji> byName = existing.stream()
                     .collect(Collectors.toMap(ApplicationEmoji::getName, e -> e, (a, b) -> a));
 
             DROP_BYTES.forEach((key, bytes) ->
-                    syncEmoji(jda, byName, "d_" + key, bytes, mention -> dropMentions.put(key, mention)));
+                    syncEmoji(jda, byName, storedHashes, "d_" + key, bytes, mention -> dropMentions.put(key, mention)));
             CATEGORY_BYTES.forEach((key, bytes) ->
-                    syncEmoji(jda, byName, "cat_" + key, bytes, mention -> categoryMentions.put(key, mention)));
+                    syncEmoji(jda, byName, storedHashes, "cat_" + key, bytes, mention -> categoryMentions.put(key, mention)));
             BOSS_BYTES.forEach((key, bytes) ->
-                    syncEmoji(jda, byName, "b_" + key, bytes, mention -> bossMentions.put(key, mention)));
+                    syncEmoji(jda, byName, storedHashes, "b_" + key, bytes, mention -> bossMentions.put(key, mention)));
             RANK_BYTES.forEach((order, bytes) ->
-                    syncEmoji(jda, byName, "rank_" + order, bytes, mention -> rankMentions.put(order, mention)));
-            syncEmoji(jda, byName, "cat_default_drop", DEFAULT_DROP_BYTES, mention -> defaultDropMention = mention);
-            syncEmoji(jda, byName, "cat_default_boss", DEFAULT_BOSS_BYTES, mention -> defaultBossMention = mention);
+                    syncEmoji(jda, byName, storedHashes, "rank_" + order, bytes, mention -> rankMentions.put(order, mention)));
+            syncEmoji(jda, byName, storedHashes, "cat_default_drop", DEFAULT_DROP_BYTES, mention -> defaultDropMention = mention);
+            syncEmoji(jda, byName, storedHashes, "cat_default_boss", DEFAULT_BOSS_BYTES, mention -> defaultBossMention = mention);
         }, error -> log.warn("Failed to retrieve application emojis for tracking icons", error));
     }
 
-    private void syncEmoji(JDA jda, Map<String, ApplicationEmoji> existing, String name, byte[] bytes, Consumer<String> onMention) {
+    // One-time exception to the "no recorded hash yet = trust it" rule below, for the specific name
+    // already confirmed wrong on more than one bot application (a stale "book" guess surviving a
+    // source-URL fix, since nothing before this ever noticed an existing emoji's file had changed) —
+    // forces that one name through the recreate path on its very first post-deploy boot even with no
+    // hash history, instead of needing someone to hand-delete it from each bot's own emoji store the
+    // way this had to be fixed manually before this check existed. Safe to remove once every bot
+    // application has gone through one boot with this change.
+    private static final java.util.Set<String> FORCE_REFRESH_ONCE = java.util.Set.of("cat_quest");
+
+    /**
+     * An existing emoji under this name is reused as-is if its recorded hash matches the current file
+     * (the common case — nothing changed), recreated from scratch if it doesn't (the file was corrected
+     * since this emoji was last uploaded), or just trusted and backfilled with today's hash if there's
+     * no recorded hash at all yet (a legacy emoji from before this check existed — assumed correct
+     * rather than mass-recreating every already-fine emoji the first time this ships) — unless it's in
+     * {@link #FORCE_REFRESH_ONCE}.
+     */
+    private void syncEmoji(JDA jda, Map<String, ApplicationEmoji> existing, Map<String, String> storedHashes,
+                            String name, byte[] bytes, Consumer<String> onMention) {
+        if (bytes == null) return;
         ApplicationEmoji found = existing.get(name);
-        if (found != null) {
+        String currentHash = sha256Hex(bytes);
+
+        if (found == null) {
+            createEmoji(jda, name, bytes, currentHash, onMention);
+            return;
+        }
+
+        String storedHash = storedHashes.get(name);
+        if (storedHash == null && !FORCE_REFRESH_ONCE.contains(name)) {
+            onMention.accept(found.getAsMention());
+            hashRepository.setHash(name, currentHash);
+            return;
+        }
+        if (storedHash == null) storedHash = ""; // forced refresh — never matches currentHash, falls through to recreate below
+        if (storedHash.equals(currentHash)) {
             onMention.accept(found.getAsMention());
             return;
         }
-        if (bytes == null) return;
 
+        log.info("Icon file for emoji '{}' changed since it was last uploaded — recreating it.", name);
+        found.delete().queue(
+                success -> createEmoji(jda, name, bytes, currentHash, onMention),
+                error -> log.warn("Failed to delete stale application emoji '{}' for replacement", name, error));
+    }
+
+    private void createEmoji(JDA jda, String name, byte[] bytes, String contentHash, Consumer<String> onMention) {
         jda.createApplicationEmoji(name, Icon.from(bytes)).queue(
-                created -> onMention.accept(created.getAsMention()),
+                created -> {
+                    onMention.accept(created.getAsMention());
+                    hashRepository.setHash(name, contentHash);
+                },
                 error -> log.warn("Failed to create application emoji '{}'", name, error));
+    }
+
+    private static String sha256Hex(byte[] bytes) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(bytes));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 should always be available", e);
+        }
     }
 
     /** Falls back to {@link #mentionForDefaultDrop()} if this item has no icon file yet — {@code null} only if even the default hasn't synced, briefly, right after boot. */
