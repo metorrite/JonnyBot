@@ -11,8 +11,12 @@ import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.utils.data.DataArray;
 import net.dv8tion.jda.api.utils.data.DataObject;
 
+import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @BService
@@ -110,40 +114,60 @@ public class RuneScapeStatsService {
 
     private record ActivityRun(PlayerActivity activity, int count) {}
 
+    private record TimedActivity(PlayerActivity activity, java.time.LocalDateTime time) {}
+
+    // A farming session's kills (or a grab of the same drop landing more than once) don't actually
+    // need to be back-to-back in RuneMetrics' own feed to belong together — a level-up, a different
+    // drop, or any other activity logged mid-session shouldn't split "defeated Arch-Glacor x30" into
+    // several shorter runs just because it happened to interrupt the raw list. A gap this size or
+    // bigger between two same-activity entries is treated as two separate sessions instead (so an
+    // actual return trip hours later still reports as its own line, not folded into a stale run).
+    private static final Duration SAME_RUN_GAP = Duration.ofHours(1);
+
     /**
      * RuneMetrics reports every individual repeat of the same activity (a grind session killing the
      * same boss, or landing the same drop twice at once) as its own separate line rather than
      * aggregating them itself — left as-is, this would flood the tracking feed with one identical line
-     * per repeat. Folds a run of back-to-back identical activities (same {@link PlayerActivity#text()}
-     * and {@link PlayerActivity#details()}) into one, so {@link TrackingEventClassifier} sees the whole
-     * run's count and can render it as one line ("defeated X 10 times") instead of ten.
+     * per repeat. Groups every activity in the batch by identical ({@link PlayerActivity#text()},
+     * {@link PlayerActivity#details()}) — not just adjacent occurrences, so something else logged
+     * mid-session doesn't fracture the run — then splits each group back into separate runs wherever
+     * two consecutive repeats (by RuneMetrics' own relative timestamp) are more than {@link #SAME_RUN_GAP}
+     * apart. {@link TrackingEventClassifier} sees each run's whole count and renders it as one line
+     * ("defeated X 10 times") instead of ten; the final list is re-sorted chronologically so dispatch
+     * order still reads top-to-bottom like the raw feed did.
      */
     private static List<ActivityRun> collapseConsecutive(List<PlayerActivity> activities) {
-        List<ActivityRun> runs = new ArrayList<>();
-        PlayerActivity latestInRun = null;
-        int count = 0;
-
+        Map<String, List<TimedActivity>> byActivity = new LinkedHashMap<>();
         for (PlayerActivity activity : activities) {
-            if (latestInRun != null && isSameActivity(latestInRun, activity)) {
-                count++;
-                // Keeps whichever of the run's activities is chronologically latest (by RuneMetrics'
-                // own timestamp) rather than assuming the batch arrives in any particular order — that
-                // one's date is what TrackingEventClassifier shows for the whole collapsed run.
-                if (RuneMetricsDates.parse(activity.date()).isAfter(RuneMetricsDates.parse(latestInRun.date()))) {
-                    latestInRun = activity;
-                }
-            } else {
-                if (latestInRun != null) runs.add(new ActivityRun(latestInRun, count));
-                latestInRun = activity;
-                count = 1;
-            }
+            byActivity.computeIfAbsent(activityKey(activity), k -> new ArrayList<>())
+                    .add(new TimedActivity(activity, RuneMetricsDates.parse(activity.date())));
         }
-        if (latestInRun != null) runs.add(new ActivityRun(latestInRun, count));
+
+        List<ActivityRun> runs = new ArrayList<>();
+        for (List<TimedActivity> group : byActivity.values()) {
+            group.sort(Comparator.comparing(TimedActivity::time));
+
+            TimedActivity latestInRun = null;
+            int count = 0;
+            for (TimedActivity timed : group) {
+                if (latestInRun != null && Duration.between(latestInRun.time(), timed.time()).compareTo(SAME_RUN_GAP) <= 0) {
+                    count++;
+                    latestInRun = timed; // group is sorted ascending, so this is always the latest so far
+                } else {
+                    if (latestInRun != null) runs.add(new ActivityRun(latestInRun.activity(), count));
+                    latestInRun = timed;
+                    count = 1;
+                }
+            }
+            if (latestInRun != null) runs.add(new ActivityRun(latestInRun.activity(), count));
+        }
+
+        runs.sort(Comparator.comparing(run -> RuneMetricsDates.parse(run.activity().date())));
         return runs;
     }
 
-    private static boolean isSameActivity(PlayerActivity a, PlayerActivity b) {
-        return a.text().equals(b.text()) && java.util.Objects.equals(a.details(), b.details());
+    private static String activityKey(PlayerActivity activity) {
+        return activity.text() + "\u0000" + activity.details();
     }
 
     public PlayerLinkRepository.StatsSnapshotRow getLatestSnapshot(long guildId, String rsn) {
