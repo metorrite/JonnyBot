@@ -12,6 +12,7 @@ import io.github.freya022.botcommands.api.commands.application.slash.annotations
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.TopLevelSlashCommandData;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.Role;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,7 +29,8 @@ import java.util.Map;
 /**
  * Dev-only: writes every human member of this server to {@value #OUTPUT_FILE} (relative to the
  * bot's working directory, i.e. the project root for the IDE run configuration) as Discord username,
- * server display name, and any linked RSN(s) — for filling in RSNs by hand in a spreadsheet. Reads
+ * server display name, any linked RSN(s), and whether they hold the "Youngling Member" role (the
+ * filter column) — for filling in RSNs by hand in a spreadsheet. Reads
  * links from whichever database this instance is connected to, so a dev bot only sees the links in
  * the dev database. {@code @Test} (with {@link CommandScope#GUILD}) keeps this out of production's
  * command list entirely, and {@link BotConfig#getLiveEnvironment()} is checked again at runtime as a
@@ -39,6 +41,7 @@ public class DevExportMembersCommand {
     private static final Logger log = LoggerFactory.getLogger(DevExportMembersCommand.class);
 
     static final String OUTPUT_FILE = "discord_members_export.csv";
+    private static final String MEMBER_ROLE_NAME = "Youngling Member";
 
     private final BotConfig botConfig;
     private final PlayerLinkService linkService;
@@ -57,15 +60,24 @@ public class DevExportMembersCommand {
             return;
         }
 
-        event.deferReply(true).queue();
         Guild guild = event.getGuild();
+        List<Role> memberRoles = guild.getRolesByName(MEMBER_ROLE_NAME, true);
+        if (memberRoles.size() != 1) {
+            // Better to stop than write a column that's FALSE for everyone because of a rename.
+            Containers.replyEphemeral(event, Containers.WARNING,
+                    "Expected exactly one role named **" + MEMBER_ROLE_NAME + "** but found " + memberRoles.size() + " — nothing was written.");
+            return;
+        }
+        Role memberRole = memberRoles.getFirst();
+
+        event.deferReply(true).queue();
 
         // loadMembers, not guild.getMembers() — the member cache policy is ONLINE-only, so the cache
         // alone would silently leave out everyone who's offline right now.
         guild.loadMembers()
                 .onSuccess(members -> {
                     try {
-                        Path file = writeCsv(guild.getIdLong(), members);
+                        Path file = writeCsv(guild.getIdLong(), memberRole, members);
                         event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.SUCCESS,
                                 "Wrote **" + countHumans(members) + "** members to `" + file.toAbsolutePath() + "`."))).useComponentsV2(true).queue();
                     } catch (IOException | RuntimeException e) {
@@ -85,7 +97,7 @@ public class DevExportMembersCommand {
         return members.stream().filter(m -> !m.getUser().isBot()).count();
     }
 
-    private Path writeCsv(long guildId, List<Member> members) throws IOException {
+    private Path writeCsv(long guildId, Role memberRole, List<Member> members) throws IOException {
         Map<Long, List<String>> rsnsByUser = new LinkedHashMap<>();
         for (PlayerLink link : linkService.getAllLinks(guildId)) {
             rsnsByUser.computeIfAbsent(link.discordUserId(), id -> new ArrayList<>()).add(link.rsn());
@@ -97,12 +109,14 @@ public class DevExportMembersCommand {
                 .toList();
 
         StringBuilder csv = new StringBuilder("﻿"); // BOM so Excel reads it as UTF-8 without an import wizard
-        csv.append("Discord Username,Server Display Name,RSN\r\n");
+        csv.append("Discord Username,Server Display Name,RSN,Youngling Member\r\n");
         for (Member member : humans) {
             String rsns = String.join(", ", rsnsByUser.getOrDefault(member.getIdLong(), List.of()));
+            boolean hasMemberRole = member.getRoles().contains(memberRole);
             csv.append(escape(member.getUser().getName())).append(',')
                     .append(escape(member.getEffectiveName())).append(',')
-                    .append(escape(rsns)).append("\r\n");
+                    .append(escape(rsns)).append(',')
+                    .append(hasMemberRole ? "TRUE" : "FALSE").append("\r\n");
         }
 
         Path file = Path.of(OUTPUT_FILE);
