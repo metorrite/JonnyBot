@@ -46,3 +46,6 @@ build/
 application.properties
 *.log
 /.claude/
+
+# Written by /devexportmembers — real Discord usernames/display names, local only.
+/discord_members_export.csv
