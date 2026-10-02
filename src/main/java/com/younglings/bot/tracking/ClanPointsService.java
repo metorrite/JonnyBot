@@ -147,11 +147,6 @@ public class ClanPointsService {
         return earned;
     }
 
-    /** Re-sends the current Clan Report on demand (the Tracking panel's "Send Today's Report Now" button) — reads already-computed state, doesn't re-award points or re-run the promotion check. Returns how many members it listed. */
-    public int sendClanReportNow(Guild guild) {
-        return sendClanReport(guild);
-    }
-
     /** Returns how many members the report listed — 0 means nothing was sent. */
     private int sendClanReport(Guild guild) {
         long guildId = guild.getIdLong();
