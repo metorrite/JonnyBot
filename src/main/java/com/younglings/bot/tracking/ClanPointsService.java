@@ -61,18 +61,19 @@ public class ClanPointsService {
      * refreshed everyone's {@code clan_rank}: awards yesterday's membership points, this Citadel
      * week's visit/cap points (idempotent either way — see {@link ClanPointsRepository#awardPoints}),
      * recomputes every active member's promotion-needed flag, then sends the Clan Report if anyone
-     * needs one.
+     * needs one. Returns how many members the report listed (0 if nobody needed one, so nothing was
+     * sent) — the scheduler ignores it; {@code /devclanreport} reports it back.
      */
-    public void runDailyPointsAndPromotionCheck(Guild guild) {
+    public int runDailyPointsAndPromotionCheck(Guild guild) {
         long guildId = guild.getIdLong();
         List<ClanMemberRepository.ClanMemberRow> roster = clanMemberRepository.getAll(guildId, true);
-        if (roster.isEmpty()) return;
+        if (roster.isEmpty()) return 0;
 
         ClanPointsRepository.PointsSettings settings = repository.getSettings(guildId);
         awardDailyMembershipPoints(guildId, roster, settings);
         awardCitadelPoints(guildId, roster, settings);
         recomputePromotionNeeded(guildId, roster);
-        sendClanReport(guild);
+        return sendClanReport(guild);
     }
 
     private void awardDailyMembershipPoints(long guildId, List<ClanMemberRepository.ClanMemberRow> roster, ClanPointsRepository.PointsSettings settings) {
@@ -146,15 +147,16 @@ public class ClanPointsService {
         return earned;
     }
 
-    /** Re-sends the current Clan Report on demand (the Tracking panel's "Send Today's Report Now" button) — reads already-computed state, doesn't re-award points or re-run the promotion check. */
-    public void sendClanReportNow(Guild guild) {
-        sendClanReport(guild);
+    /** Re-sends the current Clan Report on demand (the Tracking panel's "Send Today's Report Now" button) — reads already-computed state, doesn't re-award points or re-run the promotion check. Returns how many members it listed. */
+    public int sendClanReportNow(Guild guild) {
+        return sendClanReport(guild);
     }
 
-    private void sendClanReport(Guild guild) {
+    /** Returns how many members the report listed — 0 means nothing was sent. */
+    private int sendClanReport(Guild guild) {
         long guildId = guild.getIdLong();
         List<ClanPointsRepository.MemberPointsRow> flagged = repository.getAllNeedingPromotion(guildId);
-        if (flagged.isEmpty()) return;
+        if (flagged.isEmpty()) return 0;
 
         List<ClanPointsRepository.RankConfigRow> ranks = repository.getRanksOrdered(guildId);
         Map<Integer, String> rankNameByOrder = new HashMap<>();
@@ -170,9 +172,11 @@ public class ClanPointsService {
         children.add(TextDisplay.of("### 🔺 Clan Report — Promotions Needed"));
 
         StringBuilder sb = new StringBuilder();
+        int listed = 0;
         for (var row : flagged) {
             var member = rosterByRsnLower.get(row.rsn().toLowerCase(Locale.ROOT));
             if (member == null) continue; // left the clan since being flagged — nothing to report
+            listed++;
 
             Integer currentOrder = rankOrderFor(ranks, member.clanRank());
             int earnedOrder = earnedRankOrder(ranks, row.totalPoints());
@@ -191,10 +195,11 @@ public class ClanPointsService {
                     .append(" • ").append(row.totalPoints()).append(" pts • waiting since ").append(since);
         }
 
-        if (sb.isEmpty()) return; // everyone flagged has since left the clan
+        if (sb.isEmpty()) return 0; // everyone flagged has since left the clan
         children.add(TextDisplay.of(sb.toString()));
 
         router.dispatchContainer(guild, TrackingGroup.CLAN_REPORT, Containers.card(Containers.WARNING, children));
+        return listed;
     }
 
     private static String withIcon(String iconMention, String text) {
