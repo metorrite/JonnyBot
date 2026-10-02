@@ -36,7 +36,7 @@ import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.Role;
-import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
+import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel;
 import net.dv8tion.jda.api.events.interaction.ModalInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
@@ -58,6 +58,7 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.concurrent.CompletableFuture;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -299,30 +300,66 @@ public class RsInteractionListener extends ListenerAdapter {
      * suppressed since this is a for-admins channel, not a ping to the requester.
      */
     private void postForAdminReview(Guild guild, VerificationAttempt attempt) {
-        TextChannel channel = resolveVerificationChannel(guild);
+        GuildMessageChannel channel = resolveVerificationChannel(guild);
         if (channel == null) {
-            log.warn("No verification review channel configured for guild {} — request {} for '{}' has nobody to notify.",
+            log.warn("No usable verification review channel for guild {} (unset, deleted, or not visible to the bot, e.g. an archived thread) — request {} for '{}' has nobody to notify.",
                     guild.getIdLong(), attempt.attemptId(), attempt.rsn());
             return;
         }
 
-        Container review = Containers.card(Containers.PRIMARY,
+        postReviewCard(channel, attempt)
+                .whenComplete((message, error) -> {
+                    if (error != null) log.warn("Failed to post verification request {} for review", attempt.attemptId(), error);
+                });
+    }
+
+    private static Container reviewCard(VerificationAttempt attempt) {
+        return Containers.card(Containers.PRIMARY,
                 TextDisplay.of("### RSN Verification Request"),
                 TextDisplay.of("<@" + attempt.discordUserId() + "> would like to link **" + attempt.rsn() + "**."),
                 ActionRow.of(
                         Button.success("rs_verify_approve:" + attempt.attemptId(), "Approve"),
                         Button.danger("rs_verify_reject:" + attempt.attemptId(), "Reject")
                 ));
-
-        channel.sendMessageComponents(List.of(review)).useComponentsV2(true)
-                .setAllowedMentions(EnumSet.noneOf(Message.MentionType.class))
-                .queue(success -> {}, error -> log.warn("Failed to post verification request {} for review", attempt.attemptId(), error));
     }
 
-    private TextChannel resolveVerificationChannel(Guild guild) {
+    private static CompletableFuture<Message> postReviewCard(GuildMessageChannel channel, VerificationAttempt attempt) {
+        return channel.sendMessageComponents(List.of(reviewCard(attempt))).useComponentsV2(true)
+                .setAllowedMentions(EnumSet.noneOf(Message.MentionType.class))
+                .submit();
+    }
+
+    /**
+     * Posts every given pending request to the review channel again — what {@code /rsadmin}'s "Post Pending
+     * to Review Channel" runs, for requests that were submitted before a channel was set (or while it
+     * couldn't be reached). {@code onDone} gets (posted, failed) once every post has settled; a request
+     * that was already approved/rejected in the meantime just shows "already resolved" if its card is clicked.
+     * Returns {@code false} without posting anything if there's no usable review channel.
+     */
+    boolean repostPending(Guild guild, List<VerificationAttempt> pending, java.util.function.BiConsumer<Integer, Integer> onDone) {
+        GuildMessageChannel channel = resolveVerificationChannel(guild);
+        if (channel == null) return false;
+
+        List<CompletableFuture<Message>> posts = new ArrayList<>();
+        for (VerificationAttempt attempt : pending) posts.add(postReviewCard(channel, attempt));
+
+        CompletableFuture.allOf(posts.toArray(CompletableFuture[]::new)).handle((ignored, error) -> {
+            int posted = 0;
+            for (CompletableFuture<Message> post : posts) {
+                if (!post.isCompletedExceptionally()) posted++;
+                else post.exceptionally(e -> { log.warn("Failed to re-post a pending verification request for review", e); return null; });
+            }
+            onDone.accept(posted, posts.size() - posted);
+            return null;
+        });
+        return true;
+    }
+
+    /** The configured Review Channel as something messages can be sent to — a text/announcement channel or a thread or forum post alike. {@code null} if unset, deleted, or not visible to the bot (e.g. an archived thread it hasn't seen). */
+    GuildMessageChannel resolveVerificationChannel(Guild guild) {
         Long channelId = guildSettingsService.getEffective(guild.getIdLong()).verificationReviewChannelId();
         if (channelId == null) return null;
-        return guild.getTextChannelById(channelId);
+        return guild.getChannelById(GuildMessageChannel.class, channelId);
     }
 
     /** Fire-and-forget DM about a verification request's submission/outcome — mirrors {@code RsnRenameService#dmPlayer}; a closed-DM failure is only ever logged, never surfaced to whoever triggered the action. */

@@ -280,6 +280,7 @@ public class RsAdminInteractionListener extends ListenerAdapter {
             case "rsnadmin_pending_page" -> showPendingVerifications(event, guild, Integer.parseInt(id.split(":")[1]), true);
             case "rsnadmin_review_approve" -> doReviewRowAction(event, guild, id.split(":", 2)[1], true);
             case "rsnadmin_review_reject" -> doReviewRowAction(event, guild, id.split(":", 2)[1], false);
+            case "rsnadmin_post_pending" -> doPostPendingToReviewChannel(event, guild);
             case "rsnadmin_review_approve_all" -> doApproveAllPrompt(event, guild);
             case "rsnadmin_review_approve_all_confirm" -> doApproveAllConfirmed(event, guild);
 
@@ -501,7 +502,9 @@ public class RsAdminInteractionListener extends ListenerAdapter {
 
         List<ContainerChildComponent> children = new ArrayList<>();
         children.add(TextDisplay.of("# Pending Verifications (" + pending.size() + ")"));
-        children.add(ActionRow.of(Button.success("rsnadmin_review_approve_all:_", "Approve All")));
+        children.add(ActionRow.of(
+                Button.success("rsnadmin_review_approve_all:_", "Approve All"),
+                Button.secondary("rsnadmin_post_pending:_", "Post to Review Channel")));
         children.add(Separator.createDivider(Separator.Spacing.SMALL));
 
         for (VerificationAttempt attempt : page.items()) {
@@ -539,6 +542,33 @@ public class RsAdminInteractionListener extends ListenerAdapter {
             return;
         }
         showPendingVerifications(event, guild, 0, true);
+    }
+
+    /**
+     * Re-posts every still-pending request to the configured Review Channel, each with its own
+     * Approve/Reject buttons — for requests submitted before a channel was set, or while it couldn't be
+     * reached. Says so plainly if the channel is unset or the bot can't see it, rather than posting nothing.
+     */
+    private void doPostPendingToReviewChannel(ComponentInteraction event, Guild guild) {
+        List<VerificationAttempt> pending = linkService.getPendingAttempts(guild.getIdLong());
+        if (pending.isEmpty()) {
+            Containers.replyEphemeral(event, Containers.INFO, "No pending verification requests to post.");
+            return;
+        }
+
+        event.deferReply(true).queue();
+        boolean started = rsInteractionListener.repostPending(guild, pending, (posted, failed) -> {
+            String text = failed == 0
+                    ? "Posted " + posted + " pending request(s) to the review channel."
+                    : "Posted " + posted + " of " + pending.size() + " pending request(s) — " + failed
+                      + " failed. Check that the bot can send messages in the review channel.";
+            event.getHook().editOriginalComponents(List.of(Containers.toast(failed == 0 ? Containers.SUCCESS : Containers.WARNING, text)))
+                    .useComponentsV2(true).queue();
+        });
+        if (!started) {
+            event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.WARNING,
+                    "There's no usable review channel. Set one under `/configure` → Verification — and if it's a thread, make sure it isn't archived and the bot can see it."))).useComponentsV2(true).queue();
+        }
     }
 
     private void doApproveAllPrompt(ComponentInteraction event, Guild guild) {
@@ -867,7 +897,8 @@ public class RsAdminInteractionListener extends ListenerAdapter {
                 Button.primary("rsnadmin_poll_all:_", "Update All"),
                 Button.secondary("rsnadmin_lookup:_", "Player Lookup"),
                 Button.secondary("rsnadmin_manualverify:_", "Manually Verify"),
-                Button.secondary("rsnadmin_review_pending:_", "Review Pending")
+                Button.secondary("rsnadmin_review_pending:_", "Review Pending"),
+                Button.secondary("rsnadmin_post_pending:_", "Post Pending to Review Channel")
         ));
         children.add(Separator.createDivider(Separator.Spacing.SMALL));
 

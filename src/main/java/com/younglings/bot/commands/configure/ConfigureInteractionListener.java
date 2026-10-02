@@ -20,6 +20,7 @@ import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.entities.channel.ChannelType;
+import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel;
 import net.dv8tion.jda.api.events.interaction.ModalInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.EntitySelectInteractionEvent;
@@ -228,7 +229,17 @@ public class ConfigureInteractionListener extends ListenerAdapter {
             case "rename_channel" -> settingsService.updateRenameAlertChannel(guild.getIdLong(), channelId);
             case "verification_channel" -> settingsService.updateVerificationSettings(guild.getIdLong(), channelId);
         }
-        Containers.replyEphemeral(event, Containers.SUCCESS, channelId != null ? "Linked <#" + channelId + ">." : "Cleared.");
+        refreshPanelAfterModal(event, targetField.equals("rename_channel") ? buildClanPanel(guild) : buildVerificationPanel(guild),
+                channelId != null ? "Linked <#" + channelId + ">." : "Cleared.");
+    }
+
+    /** The modal was opened from a panel button, so the panel itself can be re-rendered in place — the saved link shows up immediately instead of only in a throwaway confirmation. */
+    private static void refreshPanelAfterModal(ModalInteractionEvent event, Container panel, String fallbackConfirmation) {
+        if (event.getMessage() != null) {
+            event.editComponents(List.of(panel)).useComponentsV2(true).queue();
+        } else {
+            Containers.replyEphemeral(event, Containers.SUCCESS, fallbackConfirmation);
+        }
     }
 
     private void handleRoleLinkModal(ModalInteractionEvent event, Guild guild, String targetField) {
@@ -249,7 +260,7 @@ public class ConfigureInteractionListener extends ListenerAdapter {
                     guild.getIdLong(), current.verifiedClanRoleId(), current.verifiedNonClanRoleId(), roleId);
             case "onboarding_role" -> settingsService.updateOnboardingRole(guild.getIdLong(), roleId);
         }
-        Containers.replyEphemeral(event, Containers.SUCCESS, roleId != null ? "Linked <@&" + roleId + ">." : "Cleared.");
+        refreshPanelAfterModal(event, buildVerificationPanel(guild), roleId != null ? "Linked <@&" + roleId + ">." : "Cleared.");
     }
 
     private void doClanEditPrompt(ButtonInteractionEvent event) {
@@ -323,7 +334,8 @@ public class ConfigureInteractionListener extends ListenerAdapter {
 
         children.add(TextDisplay.of("**Rename Alert Channel** — where a possible in-game RSN change gets posted " +
                 "for an admin to Confirm/Reject, detected automatically during **Sync Clan**."));
-        children.add(buildChannelSelectRow("configure_rename_channel:_", "Select a channel (optional)", settings.renameAlertChannelId()));
+        children.add(currentChannelLine(guild, settings.renameAlertChannelId()));
+        children.add(buildChannelSelectRow(guild, "configure_rename_channel:_", "Select a channel (optional)", settings.renameAlertChannelId()));
         children.add(Containers.linkButtonRow("configure_rename_channel_link:_"));
 
         return Containers.card(Containers.PRIMARY, children);
@@ -343,7 +355,8 @@ public class ConfigureInteractionListener extends ListenerAdapter {
         children.add(ActionRow.of(Button.secondary("configure_back:_", "Back")));
 
         children.add(TextDisplay.of("**Review Channel** — where a new `/rs` link request is posted for an admin to Approve/Reject."));
-        children.add(buildChannelSelectRow("configure_verification_channel:_", "Select a channel (optional)", settings.verificationReviewChannelId()));
+        children.add(currentChannelLine(guild, settings.verificationReviewChannelId()));
+        children.add(buildChannelSelectRow(guild, "configure_verification_channel:_", "Select a channel (optional)", settings.verificationReviewChannelId()));
         children.add(Containers.linkButtonRow("configure_verification_channel_link:_"));
 
         children.add(TextDisplay.of("-# The three roles below are all optional — pick \"No Role Assignment\" to leave one empty. Only the first 24 roles show below; use **Link by ID** for anything past that."));
@@ -384,12 +397,24 @@ public class ConfigureInteractionListener extends ListenerAdapter {
     }
 
     /** A native Discord channel picker (text channels only) instead of typing/pasting an ID — {@code setRequiredRange(0, 1)} lets the admin clear a previously-picked channel back to "not set" by deselecting it. */
-    private ActionRow buildChannelSelectRow(String customId, String placeholder, Long currentChannelId) {
+    /**
+     * What's actually linked, in words — the dropdown below can only pre-select a plain text channel, so a
+     * thread or forum post (linked via Link by ID) would otherwise look like nothing was saved.
+     */
+    private static TextDisplay currentChannelLine(Guild guild, Long channelId) {
+        if (channelId == null) return TextDisplay.of("-# Currently: *not set*");
+        if (guild.getChannelById(GuildMessageChannel.class, channelId) == null) {
+            return TextDisplay.of("-# Currently: <#" + channelId + "> — ⚠️ I can't see that channel (deleted, an archived thread, or I'm missing access), so nothing can be posted there.");
+        }
+        return TextDisplay.of("-# Currently: <#" + channelId + ">");
+    }
+
+    private ActionRow buildChannelSelectRow(Guild guild, String customId, String placeholder, Long currentChannelId) {
         EntitySelectMenu.Builder menu = EntitySelectMenu.create(customId, EntitySelectMenu.SelectTarget.CHANNEL)
                 .setChannelTypes(ChannelType.TEXT)
                 .setPlaceholder(placeholder)
                 .setRequiredRange(0, 1);
-        if (currentChannelId != null) {
+        if (currentChannelId != null && guild.getTextChannelById(currentChannelId) != null) {
             menu.setDefaultValues(EntitySelectMenu.DefaultValue.channel(currentChannelId));
         }
         return ActionRow.of(menu.build());
