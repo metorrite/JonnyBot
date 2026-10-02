@@ -5,7 +5,6 @@ import com.younglings.bot.runescape.ClanMemberRepository;
 import com.younglings.bot.runescape.ClanPointsRepository;
 import com.younglings.bot.runescape.WeeklyDigestRepository;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
-import net.dv8tion.jda.api.components.container.ContainerChildComponent;
 import net.dv8tion.jda.api.components.textdisplay.TextDisplay;
 import net.dv8tion.jda.api.entities.Guild;
 
@@ -138,11 +137,17 @@ public class ClanPointsService {
         return null;
     }
 
-    /** {@code ranks} must be ordered lowest to highest — the highest rank whose threshold {@code totalPoints} meets or exceeds. */
-    private static int earnedRankOrder(List<ClanPointsRepository.RankConfigRow> ranks, long totalPoints) {
+    /**
+     * {@code ranks} must be ordered lowest to highest — the highest rank whose threshold
+     * {@code totalPoints} meets or exceeds. The lowest rank is always earned (everyone starts there).
+     * Every other tier needs a threshold above 0: 0 is what a tier defaults to until an admin sets it,
+     * so counting it as "met" would hand every member the highest unconfigured rank — with only
+     * Recruit through Captain configured, that listed the whole clan as eligible for Owner.
+     */
+    static int earnedRankOrder(List<ClanPointsRepository.RankConfigRow> ranks, long totalPoints) {
         int earned = ranks.getFirst().rankOrder();
-        for (var rank : ranks) {
-            if (totalPoints >= rank.pointThreshold()) earned = rank.rankOrder();
+        for (var rank : ranks.subList(1, ranks.size())) {
+            if (rank.pointThreshold() > 0 && totalPoints >= rank.pointThreshold()) earned = rank.rankOrder();
         }
         return earned;
     }
@@ -163,15 +168,10 @@ public class ClanPointsService {
         flagged.sort(Comparator.comparing(ClanPointsRepository.MemberPointsRow::promotionNeededSince,
                 Comparator.nullsLast(Comparator.naturalOrder())));
 
-        List<ContainerChildComponent> children = new ArrayList<>();
-        children.add(TextDisplay.of("### 🔺 Clan Report — Promotions Needed"));
-
-        StringBuilder sb = new StringBuilder();
-        int listed = 0;
+        List<String> entries = new ArrayList<>();
         for (var row : flagged) {
             var member = rosterByRsnLower.get(row.rsn().toLowerCase(Locale.ROOT));
             if (member == null) continue; // left the clan since being flagged — nothing to report
-            listed++;
 
             Integer currentOrder = rankOrderFor(ranks, member.clanRank());
             int earnedOrder = earnedRankOrder(ranks, row.totalPoints());
@@ -184,17 +184,42 @@ public class ClanPointsService {
             String currentBadge = currentOrder != null ? trackingIconCatalog.mentionForRank(currentOrder) : trackingIconCatalog.mentionForDefaultBoss();
             String earnedBadge = trackingIconCatalog.mentionForRank(earnedOrder);
 
-            if (!sb.isEmpty()) sb.append("\n\n");
-            sb.append(withIcon(currentBadge, "**" + member.rsn() + "**")).append('\n')
-                    .append("Eligible for ").append(withIcon(earnedBadge, "**" + earnedRankName + "**"))
-                    .append(" • ").append(row.totalPoints()).append(" pts • waiting since ").append(since);
+            entries.add(withIcon(currentBadge, "**" + member.rsn() + "**") + "\n"
+                    + "Eligible for " + withIcon(earnedBadge, "**" + earnedRankName + "**")
+                    + " • " + row.totalPoints() + " pts • waiting since " + since);
         }
 
-        if (sb.isEmpty()) return 0; // everyone flagged has since left the clan
-        children.add(TextDisplay.of(sb.toString()));
+        if (entries.isEmpty()) return 0; // everyone flagged has since left the clan
 
-        router.dispatchContainer(guild, TrackingGroup.CLAN_REPORT, Containers.card(Containers.WARNING, children));
-        return listed;
+        // Discord caps a message's total text at 4000 characters, and JDA refuses to even build a longer
+        // one — a long enough list would otherwise crash the whole report instead of just being long. So
+        // the list is split across as many messages as it takes, each safely under that.
+        List<String> pages = paginate(entries);
+        for (int i = 0; i < pages.size(); i++) {
+            String title = "### 🔺 Clan Report — Promotions Needed" + (pages.size() > 1 ? " (" + (i + 1) + "/" + pages.size() + ")" : "");
+            router.dispatchContainer(guild, TrackingGroup.CLAN_REPORT,
+                    Containers.card(Containers.WARNING, TextDisplay.of(title), TextDisplay.of(pages.get(i))));
+        }
+        return entries.size();
+    }
+
+    // Comfortably under Discord's 4000-character total, which counts the title and everything else too.
+    static final int MAX_PAGE_CHARS = 3500;
+
+    /** Packs {@code entries} (blank-line separated) into pages of at most {@link #MAX_PAGE_CHARS} characters; an entry is never split across pages. */
+    static List<String> paginate(List<String> entries) {
+        List<String> pages = new ArrayList<>();
+        StringBuilder page = new StringBuilder();
+        for (String entry : entries) {
+            if (!page.isEmpty() && page.length() + 2 + entry.length() > MAX_PAGE_CHARS) {
+                pages.add(page.toString());
+                page.setLength(0);
+            }
+            if (!page.isEmpty()) page.append("\n\n");
+            page.append(entry);
+        }
+        if (!page.isEmpty()) pages.add(page.toString());
+        return pages;
     }
 
     private static String withIcon(String iconMention, String text) {
