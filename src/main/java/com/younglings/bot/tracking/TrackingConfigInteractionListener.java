@@ -30,16 +30,16 @@ import net.dv8tion.jda.api.modals.Modal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.time.DayOfWeek;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
-import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.function.Supplier;
 
 /**
  * The Tracking panel — {@code /configure}'s UI for the announcement system approved in the event
@@ -68,35 +68,29 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
     private final TrackingService trackingService;
     private final SkillEmojiCatalog skillEmojiCatalog;
     private final TrackingIconCatalog trackingIconCatalog;
-    private final WeeklyDigestService weeklyDigestService;
-    private final ClanPointsService clanPointsService;
+    private final TrackingSendNowService sendNowService;
+
+    // Send Now can take minutes (a section's version polls the whole roster), so it runs off the event
+    // thread and edits the deferred reply when done. The in-flight set is what stops a second click
+    // from starting a duplicate run — two overlapping roster polls would just double the request rate.
+    private final ExecutorService sendNowExecutor = Executors.newCachedThreadPool(runnable -> {
+        Thread thread = new Thread(runnable, "tracking-send-now");
+        thread.setDaemon(true);
+        return thread;
+    });
+    private final Set<String> sendNowInFlight = ConcurrentHashMap.newKeySet();
 
     public TrackingConfigInteractionListener(TrackingService trackingService, SkillEmojiCatalog skillEmojiCatalog,
-                                              TrackingIconCatalog trackingIconCatalog, WeeklyDigestService weeklyDigestService,
-                                              ClanPointsService clanPointsService) {
+                                              TrackingIconCatalog trackingIconCatalog, TrackingSendNowService sendNowService) {
         this.trackingService = trackingService;
         this.skillEmojiCatalog = skillEmojiCatalog;
         this.trackingIconCatalog = trackingIconCatalog;
-        this.weeklyDigestService = weeklyDigestService;
-        this.clanPointsService = clanPointsService;
-    }
-
-    /** These 3 groups post a real computed report on their own schedule rather than a per-event line — their own screen gets a "send it now" button instead of a plain enable toggle description. */
-    private static boolean isComputedReportGroup(TrackingGroup group) {
-        return group == TrackingGroup.WEEKLY_JOINS_LEAVES || group == TrackingGroup.WEEKLY_CITADEL_REPORT || group == TrackingGroup.CLAN_REPORT;
+        this.sendNowService = sendNowService;
     }
 
     /** Just the two weekly digests — real windowed data with no meaningful fake sample, so {@link #doSendTestPosts} skips them entirely. {@link TrackingGroup#CLAN_REPORT} is a computed report too, but easy enough to fake convincingly, so it gets a sample like everything else. */
     private static boolean isWeeklyDigestGroup(TrackingGroup group) {
         return group == TrackingGroup.WEEKLY_JOINS_LEAVES || group == TrackingGroup.WEEKLY_CITADEL_REPORT;
-    }
-
-    /** The same Wed-00:01-to-Wed-00:00 UTC window {@code WeeklyDigestScheduler} computes for its real weekly run — "this week's report" always means the week that most recently completed. */
-    private static OffsetDateTime[] currentDigestWindow() {
-        OffsetDateTime windowEnd = OffsetDateTime.now(ZoneOffset.UTC)
-                .with(TemporalAdjusters.previousOrSame(DayOfWeek.WEDNESDAY))
-                .toLocalDate().atStartOfDay(ZoneOffset.UTC).toOffsetDateTime();
-        return new OffsetDateTime[]{windowEnd.minusDays(7).plusMinutes(1), windowEnd};
     }
 
     @Override
@@ -146,7 +140,8 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
                 case "configure_tracking_source_add_thread" -> doAddSourceThreadPrompt(event, parts[1]);
                 case "configure_tracking_test_send" -> doSendTestPosts(event, guild);
                 case "configure_tracking_test_clear" -> doClearTestPosts(event, guild);
-                case "configure_tracking_report_send" -> doSendReportNow(event, guild, TrackingGroup.valueOf(parts[1]));
+                case "configure_tracking_report_send" -> doSendGroupNow(event, guild, TrackingGroup.valueOf(parts[1]));
+                case "configure_tracking_source_send" -> doSendSectionNow(event, guild, decodeSource(parts[1]));
             }
         } catch (Exception e) {
             log.error("Unhandled exception in tracking config button interaction '{}'", id, e);
@@ -298,37 +293,59 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
     }
 
     /**
-     * Runs the real computed report for one of the 3 {@link #isComputedReportGroup} groups right now,
-     * instead of waiting for its own scheduler — unlike {@link #doSendTestPosts}, this sends the
-     * actual computed report (real data), not sample text, so there's nothing to record for later
-     * clearing. For the two weekly groups this uses the most recently completed Wed-to-Wed window,
-     * exactly what {@code WeeklyDigestScheduler} would have sent; for {@code CLAN_REPORT} it just
-     * re-sends the currently-flagged members — see {@link ClanPointsService#sendClanReportNow}, which
-     * deliberately doesn't re-run the award/promotion check itself (that's the daily scheduler's job).
+     * One group's "Send Now" — only the three computed reports have one. The cheap version: no
+     * polling, just recompute from what's already stored (Clan Report) or rebuild the most recently
+     * completed week's digest, and send it now instead of waiting for the schedule. Unlike
+     * {@link #doSendTestPosts}, this is real data, not sample text — see {@link TrackingSendNowService}.
      */
-    private void doSendReportNow(ButtonInteractionEvent event, Guild guild, TrackingGroup group) {
-        event.deferReply(true).queue();
-
-        try {
-            switch (group) {
-                case WEEKLY_JOINS_LEAVES -> {
-                    OffsetDateTime[] window = currentDigestWindow();
-                    weeklyDigestService.sendJoinsLeaves(guild, window[0], window[1]);
-                }
-                case WEEKLY_CITADEL_REPORT -> {
-                    OffsetDateTime[] window = currentDigestWindow();
-                    weeklyDigestService.sendCitadelReport(guild, window[0], window[1]);
-                }
-                case CLAN_REPORT -> clanPointsService.sendClanReportNow(guild);
-                default -> {}
-            }
-            event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.SUCCESS,
-                    "Sent — if there was nothing to report, nothing was posted."))).useComponentsV2(true).queue();
-        } catch (Exception e) {
-            log.error("Failed to send report now for group {} guild {}", group, guild.getIdLong(), e);
-            event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.DANGER,
-                    "Failed to send — check the bot's logs."))).useComponentsV2(true).queue();
+    private void doSendGroupNow(ButtonInteractionEvent event, Guild guild, TrackingGroup group) {
+        if (!sendNowService.supportsGroup(group)) {
+            Containers.replyEphemeral(event, Containers.WARNING, "There's nothing to send for **" + group.displayName() + "**.");
+            return;
         }
+        // The Clan Report group and the Points & Promotions section run the same recompute.
+        String lockKey = guild.getIdLong() + ":" + (group == TrackingGroup.CLAN_REPORT ? "points" : group.name());
+        runSendNow(event, lockKey, () -> sendNowService.sendGroupNow(guild, group));
+    }
+
+    /**
+     * A whole section's "Send Now" — the full refresh: polls the roster (posting each new activity as
+     * its own entry), refreshes the roster, or recomputes points, depending on the section, then sends
+     * that section's report where it has one. Not available for the Discord Admin Log, whose entries are
+     * real-time events with nothing to refresh.
+     */
+    private void doSendSectionNow(ButtonInteractionEvent event, Guild guild, String source) {
+        if (!sendNowService.supportsSection(source)) {
+            Containers.replyEphemeral(event, Containers.WARNING, "There's nothing to send for **" + source + "**.");
+            return;
+        }
+        // Every roster-polling section shares one lock, so two clicks can't overlap their polls.
+        String lockKey = guild.getIdLong() + ":" + (sendNowService.pollsRoster(source) ? "poll" : "points");
+        runSendNow(event, lockKey, () -> sendNowService.sendSectionNow(guild, source));
+    }
+
+    private void runSendNow(ButtonInteractionEvent event, String lockKey, Supplier<TrackingSendNowService.Result> work) {
+        if (!sendNowInFlight.add(lockKey)) {
+            Containers.replyEphemeral(event, Containers.INFO,
+                    "That refresh is already running — its result will show up on the earlier reply when it finishes.");
+            return;
+        }
+
+        event.deferReply(true).queue();
+        sendNowExecutor.submit(() -> {
+            try {
+                TrackingSendNowService.Result result = work.get();
+                event.getHook().editOriginalComponents(List.of(Containers.toast(
+                        result.problem() ? Containers.WARNING : Containers.SUCCESS, result.lines().toArray(new String[0]))))
+                        .useComponentsV2(true).queue();
+            } catch (Exception e) {
+                log.error("Send Now failed ({})", lockKey, e);
+                event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.DANGER,
+                        "Send Now failed — check the bot's logs."))).useComponentsV2(true).queue();
+            } finally {
+                sendNowInFlight.remove(lockKey);
+            }
+        });
     }
 
     /**
@@ -337,8 +354,8 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
      * channel added as one first (see the panel's own note about this). Every send is recorded in
      * {@code tracking_test_message} so {@link #doClearTestPosts} can find and delete exactly these
      * later, never a real event's post. Skips the two weekly-digest groups entirely ({@link #isWeeklyDigestGroup})
-     * — those are a real windowed report with no meaningful fake sample, and have their own "Send This
-     * Week's Report Now" button. Discord Admin Log groups and {@link TrackingGroup#CLAN_REPORT} send a
+     * — those are a real windowed report with no meaningful fake sample, and have their own "Send Now"
+     * button. Discord Admin Log groups and {@link TrackingGroup#CLAN_REPORT} send a
      * sample {@link Container} instead of a plain line (see {@link #buildSampleAuditContainer}/
      * {@link #buildSampleClanReportContainer}).
      */
@@ -433,7 +450,7 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
             case CITADEL_ACTIVITY -> withIcon(trackingIconCatalog.mentionForCategory("citadel"), "TestPlayer visited the Clan Citadel.");
             case CLAN_JOINS_LEAVES -> withIcon(trackingIconCatalog.mentionForCategory("citadel"), "**TestPlayer** joined the clan.");
             // Never actually reached — doSendTestPosts skips both weekly-digest groups (their own
-            // "Send This Week's Report Now" button) and sends every admin-log group and CLAN_REPORT as
+            // "Send Now" button) and sends every admin-log group and CLAN_REPORT as
             // a sample Container instead (see buildSampleAuditContainer/buildSampleClanReportContainer)
             // — but a switch expression over an enum still has to be exhaustive.
             case WEEKLY_JOINS_LEAVES, WEEKLY_CITADEL_REPORT, CLAN_REPORT, SERVER_SETTINGS, CHANNELS_THREADS,
@@ -556,13 +573,10 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
         children.add(ActionRow.of(enabled ? Button.danger("configure_tracking_toggle:" + group.name(), "Disable")
                 : Button.success("configure_tracking_toggle:" + group.name(), "Enable")));
 
-        if (isComputedReportGroup(group)) {
-            boolean daily = group == TrackingGroup.CLAN_REPORT;
-            children.add(TextDisplay.of(daily
-                    ? "-# This posts on its own every day shortly after the daily clan sync (00:00 UTC) — send today's report right now instead of waiting."
-                    : "-# This posts on its own every Wednesday at 01:00 UTC — send this week's report right now instead of waiting."));
-            children.add(ActionRow.of(Button.secondary("configure_tracking_report_send:" + group.name(),
-                    daily ? "Send Today's Report Now" : "Send This Week's Report Now")));
+        if (sendNowService.supportsGroup(group)) {
+            children.add(TextDisplay.of(group == TrackingGroup.CLAN_REPORT
+                    ? "-# This posts on its own every day shortly after the daily clan sync (00:00 UTC). **Send Now** (bottom) recomputes points and promotion eligibility, then sends the report right away."
+                    : "-# This posts on its own every Wednesday at 01:00 UTC. **Send Now** (bottom) sends the most recently completed week's report right away."));
         }
 
         if (destinations.isEmpty()) {
@@ -592,7 +606,12 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
 
         children.add(Containers.linkButtonRow("configure_tracking_add_thread:" + group.name()));
 
-        children.add(ActionRow.of(Button.primary("configure_tracking_source:" + encodeSource(group.source()), "Back")));
+        // Back stays leftmost (the rule every panel here follows); Send Now sits right beside it on
+        // the groups that have one.
+        Button back = Button.primary("configure_tracking_source:" + encodeSource(group.source()), "Back");
+        children.add(sendNowService.supportsGroup(group)
+                ? ActionRow.of(back, Button.success("configure_tracking_report_send:" + group.name(), "Send Now"))
+                : ActionRow.of(back));
 
         return Containers.card(Containers.PRIMARY, children);
     }
@@ -639,7 +658,15 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
         }
         flushGroupButtonRow(children, rowButtons);
 
-        children.add(ActionRow.of(Button.primary("configure_tracking_main:_", "Back")));
+        // Back stays leftmost (the rule every panel here follows); Send Now sits right beside it on
+        // every section that has something to refresh — everything except the Discord Admin Log.
+        Button back = Button.primary("configure_tracking_main:_", "Back");
+        if (sendNowService.supportsSection(source)) {
+            children.add(TextDisplay.of(sendNowService.describeSection(source)));
+            children.add(ActionRow.of(back, Button.success("configure_tracking_source_send:" + encodedSource, "Send Now")));
+        } else {
+            children.add(ActionRow.of(back));
+        }
 
         return Containers.card(Containers.PRIMARY, children);
     }

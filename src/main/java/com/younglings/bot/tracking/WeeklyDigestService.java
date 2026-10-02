@@ -11,10 +11,13 @@ import net.dv8tion.jda.api.components.container.ContainerChildComponent;
 import net.dv8tion.jda.api.components.textdisplay.TextDisplay;
 import net.dv8tion.jda.api.entities.Guild;
 
+import java.time.DayOfWeek;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.format.FormatStyle;
+import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -49,11 +52,23 @@ public class WeeklyDigestService {
         sendCitadelReport(guild, windowStart, windowEnd);
     }
 
-    /** Just the joins/leaves half — the Tracking panel's per-group "Send This Week's Report Now" button calls this or {@link #sendCitadelReport} individually rather than always sending both. */
-    public void sendJoinsLeaves(Guild guild, OffsetDateTime windowStart, OffsetDateTime windowEnd) {
+    /**
+     * The same Wed-00:01-to-Wed-00:00 UTC window {@code WeeklyDigestScheduler} computes for its real
+     * weekly run — "this week's report" for an on-demand send always means the week that most recently
+     * completed.
+     */
+    public static OffsetDateTime[] lastCompletedWindow() {
+        OffsetDateTime windowEnd = OffsetDateTime.now(ZoneOffset.UTC)
+                .with(TemporalAdjusters.previousOrSame(DayOfWeek.WEDNESDAY))
+                .toLocalDate().atStartOfDay(ZoneOffset.UTC).toOffsetDateTime();
+        return new OffsetDateTime[]{windowEnd.minusDays(7).plusMinutes(1), windowEnd};
+    }
+
+    /** Just the joins/leaves half — the Tracking panel's "Send Now" calls this or {@link #sendCitadelReport} individually rather than always sending both. Returns {@code false} if the window had nothing to report (so nothing was built). */
+    public boolean sendJoinsLeaves(Guild guild, OffsetDateTime windowStart, OffsetDateTime windowEnd) {
         long guildId = guild.getIdLong();
         List<WeeklyDigestRepository.RosterEvent> events = repository.getRosterEventsInWindow(guildId, windowStart, windowEnd);
-        if (events.isEmpty()) return;
+        if (events.isEmpty()) return false;
 
         List<WeeklyDigestRepository.RosterEvent> joins = events.stream()
                 .filter(e -> e.eventType().equals("JOIN")).sorted(Comparator.comparing(WeeklyDigestRepository.RosterEvent::eventAt)).toList();
@@ -75,11 +90,13 @@ public class WeeklyDigestService {
         }
 
         router.dispatchContainer(guild, TrackingGroup.WEEKLY_JOINS_LEAVES, Containers.card(Containers.PRIMARY, children));
+        return true;
     }
 
-    public void sendCitadelReport(Guild guild, OffsetDateTime windowStart, OffsetDateTime windowEnd) {
+    /** Returns {@code false} if nobody visited or capped in the window (so nothing was built). */
+    public boolean sendCitadelReport(Guild guild, OffsetDateTime windowStart, OffsetDateTime windowEnd) {
         List<CitadelEntry> entries = computeCitadelEntries(guild.getIdLong(), windowStart, windowEnd);
-        if (entries.stream().noneMatch(e -> e.visited || e.capped)) return;
+        if (entries.stream().noneMatch(e -> e.visited || e.capped)) return false;
 
         List<ContainerChildComponent> children = new ArrayList<>();
         children.add(TextDisplay.of("### Weekly Citadel Report — " + formatRange(windowStart, windowEnd)));
@@ -96,6 +113,7 @@ public class WeeklyDigestService {
         children.add(ActionRow.of(Button.primary("weekly_spin_wheel:" + weekKey, "🎡 Spin Wheel")));
 
         router.dispatchContainer(guild, TrackingGroup.WEEKLY_CITADEL_REPORT, Containers.card(Containers.PRIMARY, children));
+        return true;
     }
 
     /** Every player who both visited and capped in the window — what the "Spin Wheel" button picks from. */

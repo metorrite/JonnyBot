@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * The shared last mile every source (RuneMetrics polling, the clan roster diff, Discord's own admin
@@ -34,6 +35,28 @@ public class TrackingEventRouter {
 
     public void dispatch(Guild guild, ClassifiedEntry entry) {
         dispatchAll(guild, List.of(entry));
+    }
+
+    /**
+     * Why a post to {@code group} would currently reach nobody — or empty if it would actually be
+     * delivered. Mirrors the checks {@link #dispatchAll}/{@link #dispatchContainer} make, so the
+     * admin-facing "Send Now" buttons and {@code /devclanreport} can say *why* nothing went out
+     * instead of leaving that to guesswork.
+     */
+    public Optional<String> undeliverableReason(long guildId, TrackingGroup group) {
+        if (!postingToggle.isEnabled()) return Optional.of("posting is toggled off on this instance (`/devtoggleposting`)");
+        if (!repository.isEnabled(guildId, group.name())) return Optional.of("**" + group.displayName() + "** is disabled");
+        if (repository.getDestinations(guildId, group.name()).isEmpty()) return Optional.of("**" + group.displayName() + "** has no destination channels yet");
+        return Optional.empty();
+    }
+
+    /** False when {@code /devtoggleposting} has turned posting off for this instance — nothing is sent anywhere. */
+    public boolean isPostingEnabled() {
+        return postingToggle.isEnabled();
+    }
+
+    public int destinationCount(long guildId, TrackingGroup group) {
+        return repository.getDestinations(guildId, group.name()).size();
     }
 
     /** Batches the destination lookups into one query per guild rather than one per entry. */
