@@ -1,6 +1,8 @@
 package com.younglings.bot;
 
 import com.younglings.bot.announcement.AnnouncementInteractionListener;
+import com.younglings.bot.commandchannel.CommandChannelConfigInteractionListener;
+import com.younglings.bot.commandchannel.CommandChannelListener;
 import com.younglings.bot.commands.coffer.CofferInteractionListener;
 import com.younglings.bot.commands.configure.ConfigureInteractionListener;
 import com.younglings.bot.commands.embed.EmbedInteractionListener;
@@ -52,6 +54,8 @@ public class Bot extends JDAService {
     private final TrackingConfigInteractionListener trackingConfigInteractionListener;
     private final AnnouncementInteractionListener announcementInteractionListener;
     private final WeeklyDigestInteractionListener weeklyDigestInteractionListener;
+    private final CommandChannelListener commandChannelListener;
+    private final CommandChannelConfigInteractionListener commandChannelConfigInteractionListener;
 
     public Bot(BotConfig botConfig, SignupInteractionListener signupInteractionListener,
                PollInteractionListener pollInteractionListener,
@@ -70,7 +74,9 @@ public class Bot extends JDAService {
                TrackingAuditLogListener trackingAuditLogListener,
                TrackingConfigInteractionListener trackingConfigInteractionListener,
                AnnouncementInteractionListener announcementInteractionListener,
-               WeeklyDigestInteractionListener weeklyDigestInteractionListener) {
+               WeeklyDigestInteractionListener weeklyDigestInteractionListener,
+               CommandChannelListener commandChannelListener,
+               CommandChannelConfigInteractionListener commandChannelConfigInteractionListener) {
         this.botConfig = botConfig;
         this.signupInteractionListener = signupInteractionListener;
         this.pollInteractionListener = pollInteractionListener;
@@ -90,6 +96,8 @@ public class Bot extends JDAService {
         this.trackingConfigInteractionListener = trackingConfigInteractionListener;
         this.announcementInteractionListener = announcementInteractionListener;
         this.weeklyDigestInteractionListener = weeklyDigestInteractionListener;
+        this.commandChannelListener = commandChannelListener;
+        this.commandChannelConfigInteractionListener = commandChannelConfigInteractionListener;
     }
 
     // If you use Spring, you can return values provided by JDAConfiguration in the getters below
@@ -133,7 +141,8 @@ public class Bot extends JDAService {
                         rsAdminInteractionListener, pruneInteractionListener, clanPointsInteractionListener, rsChartInteractionListener, rsnRenameInteractionListener,
                         configureInteractionListener, skillEmojiCatalog, trackingIconCatalog,
                         trackingAuditLogListener, trackingConfigInteractionListener,
-                        announcementInteractionListener, weeklyDigestInteractionListener)
+                        announcementInteractionListener, weeklyDigestInteractionListener,
+                        commandChannelListener, commandChannelConfigInteractionListener)
                 .build();
     }
 }
