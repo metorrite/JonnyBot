@@ -37,8 +37,25 @@ public class GuildSettingsService {
                 ? stored.unverifiedRoleId() : botConfig.getUnverifiedRoleId();
         Long onboardingRoleId = stored != null ? stored.onboardingRoleId() : null;
 
-        return new GuildSettings(guildId, clanName, adminRoleId, renameAlertChannelId, verificationReviewChannelId,
-                verifiedClanRoleId, verifiedNonClanRoleId, unverifiedRoleId, onboardingRoleId);
+        boolean clanEnabled = stored == null || stored.clanEnabled();
+
+        return new GuildSettings(guildId, clanEnabled ? clanName : null, adminRoleId, renameAlertChannelId, verificationReviewChannelId,
+                verifiedClanRoleId, verifiedNonClanRoleId, unverifiedRoleId, onboardingRoleId, clanEnabled, clanName);
+    }
+
+    /** Only the clan name — {@code null} clears the override, falling back to {@code BotConfig} again. The caller is responsible for having verified the clan first. */
+    public void updateClanName(long guildId, String clanName) {
+        repository.upsertClanName(guildId, clanName);
+    }
+
+    /** Only the bot's Admin role — {@code null} clears the override, falling back to {@code BotConfig} again. */
+    public void updateAdminRole(long guildId, Long adminRoleId) {
+        repository.upsertAdminRole(guildId, adminRoleId);
+    }
+
+    /** Switches every clan-specific feature on or off for this guild without losing the saved clan name. */
+    public void setClanEnabled(long guildId, boolean enabled) {
+        repository.upsertClanEnabled(guildId, enabled);
     }
 
     /** {@code null} for any field clears that guild's override, falling back to {@code BotConfig} again. */

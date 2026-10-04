@@ -12,6 +12,7 @@ import net.dv8tion.jda.api.interactions.callbacks.IReplyCallback;
 
 import java.awt.Color;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -51,6 +52,16 @@ public final class Containers {
 
     public static Container card(Color accent, ContainerChildComponent... children) {
         return Container.of(List.of(children)).withAccentColor(accent);
+    }
+
+    /**
+     * The tiny footer on a panel saying when it removes itself — see {@link EphemeralLifecycle}. Discord's
+     * relative timestamp counts down on its own, so it stays accurate without the message being edited;
+     * every click rebuilds the panel (and restarts the real timer), which rebuilds this too.
+     */
+    public static TextDisplay autoCloseNote() {
+        long closesAt = Instant.now().getEpochSecond() + EphemeralLifecycle.PANEL_IDLE_SECONDS;
+        return TextDisplay.of("-# This panel closes <t:" + closesAt + ":R> if you stop using it.");
     }
 
     // --- The "Link by ID" fallback button, standard everywhere a channel/thread/role select menu is ---

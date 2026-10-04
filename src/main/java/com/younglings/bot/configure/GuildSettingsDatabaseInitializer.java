@@ -77,6 +77,14 @@ public class GuildSettingsDatabaseInitializer {
                 """
                 ALTER TABLE younglings.guild_settings
                     ADD COLUMN IF NOT EXISTS onboarding_role_id BIGINT NULL;
+                """,
+
+                // The master on/off switch for clan features (Clan Setup panel). Defaults TRUE so every
+                // guild that already has a clan keeps working untouched; the saved clan name is kept
+                // while it's off so switching back on needs no re-entry.
+                """
+                ALTER TABLE younglings.guild_settings
+                    ADD COLUMN IF NOT EXISTS clan_enabled BOOLEAN NOT NULL DEFAULT TRUE;
                 """
         ));
     }

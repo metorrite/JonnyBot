@@ -89,6 +89,24 @@ public class AnnouncementRepository {
         }
     }
 
+    /** How many embeds the bot currently has posted for this guild — destinations whose message has actually been sent (a destination with no message id is configured but not posted). */
+    public int countPostedEmbeds(long guildId) {
+        String sql = "SELECT COUNT(*) FROM younglings.announcement_destination WHERE guild_id = ? AND message_id IS NOT NULL";
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setLong(1, guildId);
+            try (ResultSet rs = statement.executeQuery()) {
+                return rs.next() ? rs.getInt(1) : 0;
+            }
+
+        } catch (SQLException e) {
+            log.error("Failed to count posted embeds for guild {}", guildId, e);
+            throw new RuntimeException("Failed to count posted embeds", e);
+        }
+    }
+
     /** No-ops (via the unique constraint) if this exact destination is already configured for this preset. */
     public void addDestination(long guildId, String presetKey, long channelId) {
         String sql = """

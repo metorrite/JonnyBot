@@ -16,6 +16,7 @@ import com.younglings.bot.commands.runescape.RsnRenameInteractionListener;
 import com.younglings.bot.commands.signup.SignupInteractionListener;
 import com.younglings.bot.commands.teamforming.TeamformingInteractionListener;
 import com.younglings.bot.config.BotConfig;
+import com.younglings.bot.discord.EphemeralLifecycle;
 import com.younglings.bot.runescape.SkillEmojiCatalog;
 import com.younglings.bot.tracking.TrackingAuditLogListener;
 import com.younglings.bot.tracking.TrackingConfigInteractionListener;
@@ -56,6 +57,7 @@ public class Bot extends JDAService {
     private final WeeklyDigestInteractionListener weeklyDigestInteractionListener;
     private final CommandChannelListener commandChannelListener;
     private final CommandChannelConfigInteractionListener commandChannelConfigInteractionListener;
+    private final EphemeralLifecycle ephemeralLifecycle;
 
     public Bot(BotConfig botConfig, SignupInteractionListener signupInteractionListener,
                PollInteractionListener pollInteractionListener,
@@ -76,7 +78,8 @@ public class Bot extends JDAService {
                AnnouncementInteractionListener announcementInteractionListener,
                WeeklyDigestInteractionListener weeklyDigestInteractionListener,
                CommandChannelListener commandChannelListener,
-               CommandChannelConfigInteractionListener commandChannelConfigInteractionListener) {
+               CommandChannelConfigInteractionListener commandChannelConfigInteractionListener,
+               EphemeralLifecycle ephemeralLifecycle) {
         this.botConfig = botConfig;
         this.signupInteractionListener = signupInteractionListener;
         this.pollInteractionListener = pollInteractionListener;
@@ -98,6 +101,7 @@ public class Bot extends JDAService {
         this.weeklyDigestInteractionListener = weeklyDigestInteractionListener;
         this.commandChannelListener = commandChannelListener;
         this.commandChannelConfigInteractionListener = commandChannelConfigInteractionListener;
+        this.ephemeralLifecycle = ephemeralLifecycle;
     }
 
     // If you use Spring, you can return values provided by JDAConfiguration in the getters below
@@ -142,7 +146,7 @@ public class Bot extends JDAService {
                         configureInteractionListener, skillEmojiCatalog, trackingIconCatalog,
                         trackingAuditLogListener, trackingConfigInteractionListener,
                         announcementInteractionListener, weeklyDigestInteractionListener,
-                        commandChannelListener, commandChannelConfigInteractionListener)
+                        commandChannelListener, commandChannelConfigInteractionListener, ephemeralLifecycle)
                 .build();
     }
 }

@@ -30,7 +30,7 @@ public class ClanPointsRepository {
     // to seed a guild's clan_rank_config the first time it's read empty; every tier's name and
     // point_threshold are admin-editable afterward (a clan can rename any tier), so this list is never
     // consulted again once a guild has rows.
-    private static final List<String> STANDARD_RANK_NAMES = List.of(
+    public static final List<String> STANDARD_RANK_NAMES = List.of(
             "Recruit", "Corporal", "Sergeant", "Lieutenant", "Captain", "General",
             "Admin", "Organiser", "Coordinator", "Overseer", "Deputy Owner", "Owner");
 

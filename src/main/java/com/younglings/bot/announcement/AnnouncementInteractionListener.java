@@ -270,11 +270,11 @@ public class AnnouncementInteractionListener extends ListenerAdapter {
 
     Container buildMainPanel(long guildId) {
         List<ContainerChildComponent> children = new ArrayList<>();
-        children.add(TextDisplay.of("### Announcements\n" +
+        children.add(TextDisplay.of("### Embedded Posts\n" +
                 "-# Paste a block of text once, post it as the bot in as many channels as you like, and hit **Post / Update** again any time the text changes to update every copy in place."));
 
         List<Button> buttons = new ArrayList<>();
-        buttons.add(Button.secondary("configure_back:_", "Back"));
+        buttons.add(Button.primary("configure_back:_", "Back"));
         for (AnnouncementPreset preset : AnnouncementPreset.values()) {
             int count = announcementService.getDestinations(guildId, preset).size();
             boolean configured = announcementService.getText(guildId, preset) != null;
@@ -283,6 +283,7 @@ public class AnnouncementInteractionListener extends ListenerAdapter {
                                     : Button.secondary("configure_announce_preset:" + preset.name(), label));
         }
         children.add(ActionRow.of(buttons));
+        children.add(Containers.autoCloseNote());
 
         return Containers.card(Containers.PRIMARY, children);
     }
