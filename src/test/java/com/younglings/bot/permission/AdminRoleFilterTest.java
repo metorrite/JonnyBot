@@ -44,7 +44,7 @@ class AdminRoleFilterTest {
 
     private void withAdminRoleId(Long adminRoleId) {
         when(guildSettingsService.getEffective(anyLong())).thenReturn(
-                new GuildSettings(0L, null, adminRoleId, null, null, null, null, null, null));
+                new GuildSettings(0L, null, adminRoleId, null, null, null, null, null, null, true, null));
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.younglings.bot.commands.runescape;
 
+import com.younglings.bot.commands.configure.ConfigureInteractionListener;
 import com.younglings.bot.discord.Containers;
 import com.younglings.bot.discord.Pagination;
 import com.younglings.bot.permission.AdminRoleFilter;
@@ -91,6 +92,7 @@ public class RsAdminInteractionListener extends ListenerAdapter {
     private final RsnRenameService renameService;
     private final RsChartInteractionListener chartListener;
     private final RsInteractionListener rsInteractionListener;
+    private final ConfigureInteractionListener configureListener;
     private final HttpClient httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
 
     public RsAdminInteractionListener(PlayerLinkService linkService, RuneScapeStatsService statsService,
@@ -98,7 +100,8 @@ public class RsAdminInteractionListener extends ListenerAdapter {
                                        MonthlyRecapService monthlyRecapService, ClanSyncService clanSyncService,
                                        ClanOverviewService clanOverviewService, VerificationRoleSyncService roleSyncService,
                                        RsnRenameService renameService, RsChartInteractionListener chartListener,
-                                       RsInteractionListener rsInteractionListener) {
+                                       RsInteractionListener rsInteractionListener,
+                                       ConfigureInteractionListener configureListener) {
         this.linkService = linkService;
         this.statsService = statsService;
         this.adminRoleFilter = adminRoleFilter;
@@ -110,6 +113,7 @@ public class RsAdminInteractionListener extends ListenerAdapter {
         this.renameService = renameService;
         this.chartListener = chartListener;
         this.rsInteractionListener = rsInteractionListener;
+        this.configureListener = configureListener;
     }
 
     @Override
@@ -281,6 +285,7 @@ public class RsAdminInteractionListener extends ListenerAdapter {
             case "rsnadmin_review_approve" -> doReviewRowAction(event, guild, id.split(":", 2)[1], true);
             case "rsnadmin_review_reject" -> doReviewRowAction(event, guild, id.split(":", 2)[1], false);
             case "rsnadmin_post_pending" -> doPostPendingToReviewChannel(event, guild);
+            case "rsnadmin_open_configure" -> doOpenConfigure(event, guild);
             case "rsnadmin_review_approve_all" -> doApproveAllPrompt(event, guild);
             case "rsnadmin_review_approve_all_confirm" -> doApproveAllConfirmed(event, guild);
 
@@ -542,6 +547,15 @@ public class RsAdminInteractionListener extends ListenerAdapter {
             return;
         }
         showPendingVerifications(event, guild, 0, true);
+    }
+
+    /** Opens {@code /configure}'s panel as its own message — same panel, same Administrator-permission gate as the command itself. */
+    private void doOpenConfigure(ButtonInteractionEvent event, Guild guild) {
+        if (!event.getMember().hasPermission(net.dv8tion.jda.api.Permission.ADMINISTRATOR)) {
+            Containers.replyEphemeral(event, Containers.WARNING, "You need the Administrator permission to configure this bot.");
+            return;
+        }
+        event.replyComponents(List.of(configureListener.buildMainPanel(guild))).useComponentsV2(true).setEphemeral(true).queue();
     }
 
     /**
@@ -876,21 +890,26 @@ public class RsAdminInteractionListener extends ListenerAdapter {
      */
     Container buildPanel(Guild guild) {
         String clanName = clanSyncService.getClanName(guild.getIdLong());
+        boolean hasClan = clanName != null;
 
         List<ContainerChildComponent> children = new ArrayList<>();
-        children.add(TextDisplay.of("# RS3 Admin Panel" + (clanName != null ? " - " + clanName : "")));
-        children.add(TextDisplay.of("-# Administrator only — clan data updates automatically in the background; use these to trigger one right now"));
+        children.add(TextDisplay.of("# RS3 Admin Panel" + (hasClan ? " - " + clanName : "")));
+        children.add(TextDisplay.of(hasClan
+                ? "-# Administrator only — clan data updates automatically in the background; use these to trigger one right now"
+                : "-# No clan is set up for this server, so the clan tools are hidden. Set one under **Bot Management → Configure → Clan Setup**."));
         children.add(Separator.createDivider(Separator.Spacing.SMALL));
 
-        children.add(TextDisplay.of("### Clan Management"));
-        children.add(ActionRow.of(
-                Button.secondary("rsnadmin_syncclan:_", "Sync Clan"),
-                Button.secondary("rsnadmin_guildchart:_", "Clan XP Graph"),
-                Button.secondary("rsnadmin_clanlist:_", "Clan Member List"),
-                Button.secondary("rsnadmin_clanoverview:_", "Clan Overview"),
-                Button.secondary("rsnadmin_citadel:_", "Citadel Viewer")
-        ));
-        children.add(Separator.createDivider(Separator.Spacing.SMALL));
+        if (hasClan) {
+            children.add(TextDisplay.of("### Clan Management"));
+            children.add(ActionRow.of(
+                    Button.secondary("rsnadmin_syncclan:_", "Sync Clan"),
+                    Button.secondary("rsnadmin_guildchart:_", "Clan XP Graph"),
+                    Button.secondary("rsnadmin_clanlist:_", "Clan Member List"),
+                    Button.secondary("rsnadmin_clanoverview:_", "Clan Overview"),
+                    Button.secondary("rsnadmin_citadel:_", "Citadel Viewer")
+            ));
+            children.add(Separator.createDivider(Separator.Spacing.SMALL));
+        }
 
         children.add(TextDisplay.of("### Player Management"));
         children.add(ActionRow.of(
@@ -902,14 +921,21 @@ public class RsAdminInteractionListener extends ListenerAdapter {
         ));
         children.add(Separator.createDivider(Separator.Spacing.SMALL));
 
-        children.add(TextDisplay.of("### Points & Promotions"));
-        children.add(ActionRow.of(Button.secondary("clanpoints_open:_", "Configure Points & Ranks")));
+        if (hasClan) {
+            children.add(TextDisplay.of("### Points & Promotions"));
+            children.add(ActionRow.of(Button.secondary("clanpoints_open:_", "Configure Points & Ranks")));
+            children.add(Separator.createDivider(Separator.Spacing.SMALL));
+        }
+
+        children.add(TextDisplay.of("### Bot Management"));
+        children.add(ActionRow.of(Button.secondary("rsnadmin_open_configure:_", "Configure")));
         children.add(Separator.createDivider(Separator.Spacing.SMALL));
 
         children.add(TextDisplay.of("### Server Moderation"));
         children.add(ActionRow.of(Button.danger("rsadmin_prune_open:_", "Prune Messages")));
         children.add(Separator.createDivider(Separator.Spacing.SMALL));
         children.add(TextDisplay.of("-# Manage your own linked account(s) via `/rs`."));
+        children.add(Containers.autoCloseNote());
 
         return Containers.card(Containers.PRIMARY, children);
     }

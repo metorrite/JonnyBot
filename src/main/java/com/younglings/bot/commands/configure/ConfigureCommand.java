@@ -20,6 +20,11 @@ import java.util.List;
  */
 @Command
 public class ConfigureCommand {
+    private final ConfigureInteractionListener interactionListener;
+
+    public ConfigureCommand(ConfigureInteractionListener interactionListener) {
+        this.interactionListener = interactionListener;
+    }
 
     @JDASlashCommand(name = "configure", description = "Configure this server's bot settings (Administrator only)")
     public void onConfigure(GuildSlashEvent event) {
@@ -36,7 +41,7 @@ public class ConfigureCommand {
             return;
         }
 
-        Container panel = ConfigureInteractionListener.buildPanel();
+        Container panel = interactionListener.buildMainPanel(guild);
         event.replyComponents(List.of(panel)).useComponentsV2(true).setEphemeral(true).queue();
     }
 }

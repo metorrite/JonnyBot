@@ -301,7 +301,7 @@ public class CommandChannelConfigInteractionListener extends ListenerAdapter {
         List<CommandChannelGroup> groups = service.getGroups(guild.getIdLong());
 
         List<ContainerChildComponent> children = new ArrayList<>();
-        children.add(TextDisplay.of("### Command-Only Channels\n" +
+        children.add(TextDisplay.of("### Command Only Channels\n" +
                 "-# In a group's channels, regular messages are deleted and the sender gets a short notice — slash commands still work. " +
                 "Each group has its own channels, notice, and rules about who it applies to. A channel can be in only one group."));
         children.add(TextDisplay.of("-# Discord only allows a private (ephemeral) reply to a slash command or button, never to a typed message — " +
@@ -323,6 +323,7 @@ public class CommandChannelConfigInteractionListener extends ListenerAdapter {
         children.add(groups.size() < CommandChannelService.MAX_GROUPS
                 ? ActionRow.of(back, Button.success("configure_cmdchan_new:_", "New Group"))
                 : ActionRow.of(back));
+        children.add(Containers.autoCloseNote());
 
         return Containers.card(Containers.PRIMARY, children);
     }

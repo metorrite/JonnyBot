@@ -529,7 +529,7 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
     /** One button per source, not per group — see the class javadoc for why the old per-group layout doesn't fit anymore. Still 18+4 lightweight service calls per render (enabled + destination count, each group, plus a count per source) — an admin panel, not a hot path. */
     Container buildMainPanel(long guildId) {
         List<ContainerChildComponent> children = new ArrayList<>();
-        children.add(TextDisplay.of("### Tracking\n" +
+        children.add(TextDisplay.of("### Tracker Channels\n" +
                 "-# Clan drops, levels, Citadel activity, joins/leaves, and Discord's own admin log — click a section below, then a group inside it."));
 
         Set<String> sources = new LinkedHashSet<>();
@@ -552,6 +552,7 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
         // Back always lives alone at the very bottom, left-aligned, in blurple — the one consistent
         // spot every panel in this bot puts its "go to the previous screen" button.
         children.add(ActionRow.of(Button.primary("configure_back:_", "Back")));
+        children.add(Containers.autoCloseNote());
 
         return Containers.card(Containers.PRIMARY, children);
     }

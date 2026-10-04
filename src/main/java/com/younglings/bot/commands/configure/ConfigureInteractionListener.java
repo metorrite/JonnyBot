@@ -1,9 +1,11 @@
 package com.younglings.bot.commands.configure;
 
+import com.younglings.bot.announcement.AnnouncementRepository;
 import com.younglings.bot.configure.GuildSettings;
 import com.younglings.bot.configure.GuildSettingsService;
 import com.younglings.bot.discord.Containers;
 import com.younglings.bot.discord.DiscordLinks;
+import com.younglings.bot.runescape.ClanVerificationService;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
@@ -47,9 +49,14 @@ public class ConfigureInteractionListener extends ListenerAdapter {
     private static final Logger log = LoggerFactory.getLogger(ConfigureInteractionListener.class);
 
     private final GuildSettingsService settingsService;
+    private final ClanVerificationService clanVerificationService;
+    private final AnnouncementRepository announcementRepository;
 
-    public ConfigureInteractionListener(GuildSettingsService settingsService) {
+    public ConfigureInteractionListener(GuildSettingsService settingsService, ClanVerificationService clanVerificationService,
+                                        AnnouncementRepository announcementRepository) {
         this.settingsService = settingsService;
+        this.clanVerificationService = clanVerificationService;
+        this.announcementRepository = announcementRepository;
     }
 
     @Override
@@ -67,9 +74,10 @@ public class ConfigureInteractionListener extends ListenerAdapter {
 
             switch (id.split(":")[0]) {
                 case "configure_clan" -> event.editComponents(List.of(buildClanPanel(guild))).useComponentsV2(true).queue();
-                case "configure_clan_edit" -> doClanEditPrompt(event);
+                case "configure_clan_name" -> doClanNamePrompt(event);
+                case "configure_clan_toggle" -> doClanToggle(event, guild);
                 case "configure_verification" -> event.editComponents(List.of(buildVerificationPanel(guild))).useComponentsV2(true).queue();
-                case "configure_back" -> event.editComponents(List.of(buildPanel())).useComponentsV2(true).queue();
+                case "configure_back" -> event.editComponents(List.of(buildMainPanel(guild))).useComponentsV2(true).queue();
 
                 case "configure_rename_channel_link" -> doChannelLinkPrompt(event, "rename_channel");
                 case "configure_verification_channel_link" -> doChannelLinkPrompt(event, "verification_channel");
@@ -96,8 +104,8 @@ public class ConfigureInteractionListener extends ListenerAdapter {
                 Containers.replyEphemeral(event, Containers.WARNING, "You need the Administrator permission to configure this bot.");
                 return;
             }
-            if (id.equals("configure_clan_modal:_")) {
-                handleClanModal(event, guild);
+            if (id.equals("configure_clan_name_modal:_")) {
+                handleClanNameModal(event, guild);
             } else if (id.startsWith("configure_channel_link_modal:")) {
                 handleChannelLinkModal(event, guild, id.split(":", 2)[1]);
             } else if (id.startsWith("configure_role_link_modal:")) {
@@ -174,6 +182,10 @@ public class ConfigureInteractionListener extends ListenerAdapter {
             switch (id.split(":")[0]) {
                 case "configure_rename_channel" -> {
                     settingsService.updateRenameAlertChannel(guild.getIdLong(), selectedChannelId);
+                    event.editComponents(List.of(buildVerificationPanel(guild))).useComponentsV2(true).queue();
+                }
+                case "configure_admin_role" -> {
+                    settingsService.updateAdminRole(guild.getIdLong(), selectedChannelId);
                     event.editComponents(List.of(buildClanPanel(guild))).useComponentsV2(true).queue();
                 }
                 case "configure_verification_channel" -> {
@@ -229,8 +241,7 @@ public class ConfigureInteractionListener extends ListenerAdapter {
             case "rename_channel" -> settingsService.updateRenameAlertChannel(guild.getIdLong(), channelId);
             case "verification_channel" -> settingsService.updateVerificationSettings(guild.getIdLong(), channelId);
         }
-        refreshPanelAfterModal(event, targetField.equals("rename_channel") ? buildClanPanel(guild) : buildVerificationPanel(guild),
-                channelId != null ? "Linked <#" + channelId + ">." : "Cleared.");
+        refreshPanelAfterModal(event, buildVerificationPanel(guild), channelId != null ? "Linked <#" + channelId + ">." : "Cleared.");
     }
 
     /** The modal was opened from a panel button, so the panel itself can be re-rendered in place — the saved link shows up immediately instead of only in a throwaway confirmation. */
@@ -263,34 +274,68 @@ public class ConfigureInteractionListener extends ListenerAdapter {
         refreshPanelAfterModal(event, buildVerificationPanel(guild), roleId != null ? "Linked <@&" + roleId + ">." : "Cleared.");
     }
 
-    private void doClanEditPrompt(ButtonInteractionEvent event) {
+    private void doClanNamePrompt(ButtonInteractionEvent event) {
         GuildSettings current = settingsService.getEffective(event.getGuild().getIdLong());
 
-        TextInput clanNameInput = prefilled("clan_name", "Exact in-game clan name", current.clanName());
-        TextInput adminRoleInput = prefilled("admin_role_id", "Role ID (right-click role > Copy Role ID)",
-                current.adminRoleId() != null ? String.valueOf(current.adminRoleId()) : null);
+        TextInput.Builder builder = TextInput.create("clan_name", TextInputStyle.SHORT)
+                .setPlaceholder("Exact in-game clan name — leave blank to remove the clan")
+                .setRequired(false)
+                .setMaxLength(30);
+        if (current.savedClanName() != null) builder.setValue(current.savedClanName());
+        TextInput clanNameInput = builder.build();
 
-        Modal modal = Modal.create("configure_clan_modal:_", "Clan Settings")
-                .addComponents(
-                        Label.of("Clan Name", clanNameInput),
-                        Label.of("Admin Role ID", adminRoleInput))
+        Modal modal = Modal.create("configure_clan_name_modal:_", "Set Your Clan")
+                .addComponents(Label.of("Clan Name", clanNameInput))
                 .build();
         event.replyModal(modal).queue();
     }
 
-    private static TextInput prefilled(String id, String placeholder, String currentValue) {
-        TextInput.Builder builder = TextInput.create(id, TextInputStyle.SHORT).setPlaceholder(placeholder).setRequired(false);
-        if (currentValue != null) builder.setValue(currentValue);
-        return builder.build();
+    /**
+     * Setting a clan is checked, not trusted: the clan must exist, and whoever's setting it must be a
+     * verified member of it holding Admin or higher (see {@link ClanVerificationService}) — otherwise any
+     * server admin could claim somebody else's clan. A blank name just removes the clan. A refusal leaves
+     * the panel as it was and says exactly which requirements weren't met.
+     */
+    private void handleClanNameModal(ModalInteractionEvent event, Guild guild) {
+        String clanName = blankToNull(event.getValue("clan_name").getAsString());
+
+        if (clanName == null) {
+            settingsService.updateClanName(guild.getIdLong(), null);
+            event.editComponents(List.of(buildClanPanel(guild))).useComponentsV2(true).queue();
+            return;
+        }
+
+        // The clan lookup is a network call, comfortably past Discord's 3-second acknowledgement window.
+        event.deferEdit().queue();
+        ClanVerificationService.Result result = clanVerificationService.verify(guild.getIdLong(), event.getUser().getIdLong(), clanName);
+
+        if (!result.allMet()) {
+            StringBuilder text = new StringBuilder("### Couldn't set **" + clanName + "** as this server's clan\n")
+                    .append("To set a clan you need to meet every requirement below:\n");
+            for (var check : result.checks()) {
+                text.append(check.met() ? "✅ " : "❌ ").append(check.requirement()).append("\n-# ").append(check.detail()).append("\n");
+            }
+            event.getHook().sendMessageComponents(Containers.toast(Containers.DANGER, text.toString().trim()))
+                    .useComponentsV2(true).setEphemeral(true).queue();
+            return;
+        }
+
+        settingsService.updateClanName(guild.getIdLong(), clanName);
+        settingsService.setClanEnabled(guild.getIdLong(), true);
+        event.getHook().editOriginalComponents(List.of(buildClanPanel(guild))).useComponentsV2(true).queue();
+        event.getHook().sendMessageComponents(Containers.toast(Containers.SUCCESS,
+                        "✅ **" + clanName + "** is now this server's clan — you're verified as an admin of it."))
+                .useComponentsV2(true).setEphemeral(true).queue();
     }
 
-    /** Blank clears that field's override (falls back to {@code BotConfig} again); a role mention is accepted alongside a raw ID. */
-    private void handleClanModal(ModalInteractionEvent event, Guild guild) {
-        String clanName = blankToNull(event.getValue("clan_name").getAsString());
-        Long adminRoleId = parseLongOrNull(blankToNull(event.getValue("admin_role_id").getAsString().replaceAll("[<@&>]", "")));
-
-        settingsService.updateClanSettings(guild.getIdLong(), clanName, adminRoleId);
-        Containers.replyEphemeral(event, Containers.SUCCESS, "Clan settings updated.");
+    private void doClanToggle(ButtonInteractionEvent event, Guild guild) {
+        GuildSettings settings = settingsService.getEffective(guild.getIdLong());
+        if (settings.savedClanName() == null) {
+            Containers.replyEphemeral(event, Containers.WARNING, "Set a clan first — there's nothing to turn on or off yet.");
+            return;
+        }
+        settingsService.setClanEnabled(guild.getIdLong(), !settings.clanEnabled());
+        event.editComponents(List.of(buildClanPanel(guild))).useComponentsV2(true).queue();
     }
 
     private static String blankToNull(String value) {
@@ -298,68 +343,97 @@ public class ConfigureInteractionListener extends ListenerAdapter {
         return trimmed.isEmpty() ? null : trimmed;
     }
 
-    private static Long parseLongOrNull(String value) {
-        if (value == null) return null;
-        try {
-            return Long.parseLong(value.trim());
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
-
-    static Container buildPanel() {
-        return Containers.card(Containers.PRIMARY,
-                TextDisplay.of("# Server Configuration"),
-                TextDisplay.of("-# Administrator only"),
-                ActionRow.of(
-                        Button.secondary("configure_clan:_", "Clan"),
-                        Button.secondary("configure_verification:_", "Verification"),
-                        Button.secondary("configure_announce_main:_", "Announcements"),
-                        Button.secondary("configure_tracking_main:_", "Tracking"),
-                        Button.secondary("configure_cmdchan_main:_", "Command Channels")));
-    }
-
-    private Container buildClanPanel(Guild guild) {
+    /** The top-level panel: one section per area, each a button with a line under it saying what it's for. */
+    public Container buildMainPanel(Guild guild) {
         GuildSettings settings = settingsService.getEffective(guild.getIdLong());
 
+        Button clanButton;
+        String clanStatus;
+        if (settings.clanActive()) {
+            clanButton = Button.success("configure_clan:_", "Clan Setup");
+            clanStatus = "Set to **" + settings.clanName() + "**.";
+        } else if (settings.savedClanName() != null) {
+            clanButton = Button.secondary("configure_clan:_", "Clan Setup");
+            clanStatus = "**" + settings.savedClanName() + "** is saved but clan features are switched off.";
+        } else {
+            clanButton = Button.danger("configure_clan:_", "Clan Setup");
+            clanStatus = "**No clan set yet** — start here.";
+        }
+
+        int embeddedPosts = announcementRepository.countPostedEmbeds(guild.getIdLong());
+
         List<ContainerChildComponent> children = new ArrayList<>();
-        children.add(TextDisplay.of("### Clan Settings"));
-        children.add(TextDisplay.of(
-                "**Clan Name:** " + display(settings.clanName()) + "\n" +
-                "**Admin Role:** " + (settings.adminRoleId() != null ? "<@&" + settings.adminRoleId() + ">" : "*not set*") + "\n" +
-                "**Rename Alert Channel:** " + (settings.renameAlertChannelId() != null ? "<#" + settings.renameAlertChannelId() + ">" : "*not set*")));
+        children.add(TextDisplay.of("# Server Configuration\n-# Administrator only"));
+        children.add(ActionRow.of(clanButton));
+        children.add(TextDisplay.of("-# " + clanStatus + " The clan itself, whether clan features are on, and the bot's Admin role."));
+        children.add(ActionRow.of(Button.secondary("configure_verification:_", "RSN Link")));
+        children.add(TextDisplay.of("-# How members link their RuneScape name with `/rs`: the review channel, rename alerts, and the roles handed out."));
+        children.add(ActionRow.of(Button.secondary("configure_announce_main:_", "Embedded Posts (" + embeddedPosts + ")")));
+        children.add(TextDisplay.of("-# Messages the bot posts and keeps up to date as embeds in your channels, like rules or a welcome."));
+        children.add(ActionRow.of(Button.secondary("configure_tracking_main:_", "Tracker Channels")));
+        children.add(TextDisplay.of("-# Where clan activity is posted — drops, levels, quests, Citadel, joins and leaves, and the weekly reports."));
+        children.add(ActionRow.of(Button.secondary("configure_cmdchan_main:_", "Command Only Channels")));
+        children.add(TextDisplay.of("-# Channels where only bot commands are allowed — anything else typed there is deleted."));
+        children.add(Containers.autoCloseNote());
+        return Containers.card(Containers.PRIMARY, children);
+    }
+
+    Container buildClanPanel(Guild guild) {
+        GuildSettings settings = settingsService.getEffective(guild.getIdLong());
+
+        String status;
+        if (settings.clanActive()) status = "🟢 **On**";
+        else if (settings.savedClanName() != null) status = "⚫ **Off** — clan features are switched off";
+        else status = "🔴 **Not set up**";
+
+        List<ContainerChildComponent> children = new ArrayList<>();
+        children.add(TextDisplay.of("### Clan Setup\n" +
+                "**Clan:** " + display(settings.savedClanName()) + "\n" +
+                "**Status:** " + status));
+        children.add(TextDisplay.of("-# Setting a clan checks that it exists and that you're a verified Admin-rank (or higher) member of it. " +
+                "Turning clan features off hides the clan tools and pauses clan tracking, without forgetting the name."));
         children.add(ActionRow.of(
-                Button.primary("configure_clan_edit:_", "Edit"),
-                Button.secondary("configure_back:_", "Back")));
+                Button.primary("configure_clan_name:_", settings.savedClanName() != null ? "Change Clan" : "Set Clan"),
+                settings.clanEnabled()
+                        ? Button.danger("configure_clan_toggle:_", "Turn Clan Features Off")
+                        : Button.success("configure_clan_toggle:_", "Turn Clan Features On")));
 
-        children.add(TextDisplay.of("**Rename Alert Channel** — where a possible in-game RSN change gets posted " +
-                "for an admin to Confirm/Reject, detected automatically during **Sync Clan**."));
-        children.add(currentChannelLine(guild, settings.renameAlertChannelId()));
-        children.add(buildChannelSelectRow(guild, "configure_rename_channel:_", "Select a channel (optional)", settings.renameAlertChannelId()));
-        children.add(Containers.linkButtonRow("configure_rename_channel_link:_"));
+        children.add(TextDisplay.of("**Bot Admin Role** — who can use `/rsadmin` and the admin-only tools. Leave empty to fall back to the server default."));
+        EntitySelectMenu.Builder roleMenu = EntitySelectMenu.create("configure_admin_role:_", EntitySelectMenu.SelectTarget.ROLE)
+                .setPlaceholder("Select a role (optional)")
+                .setRequiredRange(0, 1);
+        if (settings.adminRoleId() != null && guild.getRoleById(settings.adminRoleId()) != null) {
+            roleMenu.setDefaultValues(EntitySelectMenu.DefaultValue.role(settings.adminRoleId()));
+        }
+        children.add(ActionRow.of(roleMenu.build()));
 
+        children.add(ActionRow.of(Button.primary("configure_back:_", "Back")));
+        children.add(Containers.autoCloseNote());
         return Containers.card(Containers.PRIMARY, children);
     }
 
     private static String display(String value) {
-        return value != null ? value : "*not set*";
+        return value != null ? "**" + value + "**" : "*not set*";
     }
 
-    private Container buildVerificationPanel(Guild guild) {
+    Container buildVerificationPanel(Guild guild) {
         GuildSettings settings = settingsService.getEffective(guild.getIdLong());
 
         List<ContainerChildComponent> children = new ArrayList<>();
-        children.add(TextDisplay.of("### Verification Settings"));
-        children.add(TextDisplay.of("-# The makeover-mage appearance check is temporarily disabled — every `/rs` " +
+        children.add(TextDisplay.of("### RSN Link\n-# The makeover-mage appearance check is temporarily disabled — every `/rs` " +
                 "link request is a plain admin call for now."));
-        children.add(ActionRow.of(Button.secondary("configure_back:_", "Back")));
 
-        children.add(TextDisplay.of("**Review Channel** — where a new `/rs` link request is posted for an admin to Approve/Reject."));
-        children.add(currentChannelLine(guild, settings.verificationReviewChannelId()));
+        children.add(channelBlock(guild, "Review Channel", "where a new `/rs` link request is posted for an admin to Approve/Reject.",
+                settings.verificationReviewChannelId()));
         children.add(buildChannelSelectRow(guild, "configure_verification_channel:_", "Select a channel (optional)", settings.verificationReviewChannelId()));
         children.add(Containers.linkButtonRow("configure_verification_channel_link:_"));
 
-        children.add(TextDisplay.of("-# The three roles below are all optional — pick \"No Role Assignment\" to leave one empty. Only the first 24 roles show below; use **Link by ID** for anything past that."));
+        children.add(channelBlock(guild, "Rename Alert Channel", "where a possible in-game RSN change is posted for an admin to Confirm/Reject, detected automatically during **Sync Clan**.",
+                settings.renameAlertChannelId()));
+        children.add(buildChannelSelectRow(guild, "configure_rename_channel:_", "Select a channel (optional)", settings.renameAlertChannelId()));
+        children.add(Containers.linkButtonRow("configure_rename_channel_link:_"));
+
+        children.add(TextDisplay.of("-# The roles below are all optional — pick \"No Role Assignment\" to leave one empty. Only the first 24 roles show; use **Link by ID** for anything past that."));
         children.add(TextDisplay.of("**Verified Role — Clan Member**\n-# Granted when an approved request's RSN is currently in the tracked clan roster."));
         children.add(buildRoleSelectRow(guild, "configure_verified_clan_role:_", "Select a role (optional)", settings.verifiedClanRoleId()));
         children.add(Containers.linkButtonRow("configure_verified_clan_role_link:_"));
@@ -373,6 +447,8 @@ public class ConfigureInteractionListener extends ListenerAdapter {
         children.add(buildRoleSelectRow(guild, "configure_onboarding_role:_", "Select a role (optional)", settings.onboardingRoleId()));
         children.add(Containers.linkButtonRow("configure_onboarding_role_link:_"));
 
+        children.add(ActionRow.of(Button.primary("configure_back:_", "Back")));
+        children.add(Containers.autoCloseNote());
         return Containers.card(Containers.PRIMARY, children);
     }
 
@@ -396,19 +472,25 @@ public class ConfigureInteractionListener extends ListenerAdapter {
         return ActionRow.of(menu.build());
     }
 
-    /** A native Discord channel picker (text channels only) instead of typing/pasting an ID — {@code setRequiredRange(0, 1)} lets the admin clear a previously-picked channel back to "not set" by deselecting it. */
     /**
-     * What's actually linked, in words — the dropdown below can only pre-select a plain text channel, so a
-     * thread or forum post (linked via Link by ID) would otherwise look like nothing was saved.
+     * A channel setting's heading, what it does, and what's actually linked now — all one text component
+     * (this panel is close to Discord's per-message component cap). The dropdown below can only
+     * pre-select a plain text channel, so a thread or forum post linked via Link by ID would otherwise
+     * look like nothing was saved.
      */
-    private static TextDisplay currentChannelLine(Guild guild, Long channelId) {
-        if (channelId == null) return TextDisplay.of("-# Currently: *not set*");
-        if (guild.getChannelById(GuildMessageChannel.class, channelId) == null) {
-            return TextDisplay.of("-# Currently: <#" + channelId + "> — ⚠️ I can't see that channel (deleted, an archived thread, or I'm missing access), so nothing can be posted there.");
+    private static TextDisplay channelBlock(Guild guild, String title, String description, Long channelId) {
+        String current;
+        if (channelId == null) {
+            current = "*not set*";
+        } else if (guild.getChannelById(GuildMessageChannel.class, channelId) == null) {
+            current = "<#" + channelId + "> — ⚠️ I can't see that channel (deleted, an archived thread, or I'm missing access), so nothing can be posted there.";
+        } else {
+            current = "<#" + channelId + ">";
         }
-        return TextDisplay.of("-# Currently: <#" + channelId + ">");
+        return TextDisplay.of("**" + title + "** — " + description + "\n-# Currently: " + current);
     }
 
+    /** A native Discord channel picker (text channels only) instead of typing/pasting an ID — {@code setRequiredRange(0, 1)} lets the admin clear a previously-picked channel back to "not set" by deselecting it. */
     private ActionRow buildChannelSelectRow(Guild guild, String customId, String placeholder, Long currentChannelId) {
         EntitySelectMenu.Builder menu = EntitySelectMenu.create(customId, EntitySelectMenu.SelectTarget.CHANNEL)
                 .setChannelTypes(ChannelType.TEXT)

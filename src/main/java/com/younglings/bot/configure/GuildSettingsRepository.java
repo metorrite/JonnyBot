@@ -25,7 +25,8 @@ public class GuildSettingsRepository {
     public GuildSettings get(long guildId) {
         String sql = """
                 SELECT guild_id, clan_name, admin_role_id, rename_alert_channel_id, verification_review_channel_id,
-                       verified_clan_role_id, verified_non_clan_role_id, unverified_role_id, onboarding_role_id
+                       verified_clan_role_id, verified_non_clan_role_id, unverified_role_id, onboarding_role_id,
+                       clan_enabled
                 FROM younglings.guild_settings WHERE guild_id = ?
                 """;
 
@@ -45,7 +46,9 @@ public class GuildSettingsRepository {
                         (Long) rs.getObject("verified_clan_role_id"),
                         (Long) rs.getObject("verified_non_clan_role_id"),
                         (Long) rs.getObject("unverified_role_id"),
-                        (Long) rs.getObject("onboarding_role_id"));
+                        (Long) rs.getObject("onboarding_role_id"),
+                        rs.getBoolean("clan_enabled"),
+                        rs.getString("clan_name"));
             }
 
         } catch (SQLException e) {
@@ -190,6 +193,78 @@ public class GuildSettingsRepository {
         } catch (SQLException e) {
             log.error("Failed to upsert onboarding role for {}", guildId, e);
             throw new RuntimeException("Failed to upsert onboarding role", e);
+        }
+    }
+
+    /** A narrower upsert than {@link #upsertClanSettings} — only the clan name. */
+    public void upsertClanName(long guildId, String clanName) {
+        String sql = """
+                INSERT INTO younglings.guild_settings (guild_id, clan_name)
+                VALUES (?, ?)
+                ON CONFLICT (guild_id) DO UPDATE SET
+                    clan_name = EXCLUDED.clan_name
+                """;
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setLong(1, guildId);
+            statement.setString(2, clanName);
+            statement.executeUpdate();
+
+            log.info("Updated clan name for guild {}", guildId);
+
+        } catch (SQLException e) {
+            log.error("Failed to upsert clan name for {}", guildId, e);
+            throw new RuntimeException("Failed to upsert clan name", e);
+        }
+    }
+
+    /** A narrower upsert than {@link #upsertClanSettings} — only the bot's Admin role. */
+    public void upsertAdminRole(long guildId, Long adminRoleId) {
+        String sql = """
+                INSERT INTO younglings.guild_settings (guild_id, admin_role_id)
+                VALUES (?, ?)
+                ON CONFLICT (guild_id) DO UPDATE SET
+                    admin_role_id = EXCLUDED.admin_role_id
+                """;
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setLong(1, guildId);
+            setNullableLong(statement, 2, adminRoleId);
+            statement.executeUpdate();
+
+            log.info("Updated admin role for guild {}", guildId);
+
+        } catch (SQLException e) {
+            log.error("Failed to upsert admin role for {}", guildId, e);
+            throw new RuntimeException("Failed to upsert admin role", e);
+        }
+    }
+
+    /** The master switch for every clan-specific feature — see {@link GuildSettings#clanEnabled()}. */
+    public void upsertClanEnabled(long guildId, boolean enabled) {
+        String sql = """
+                INSERT INTO younglings.guild_settings (guild_id, clan_enabled)
+                VALUES (?, ?)
+                ON CONFLICT (guild_id) DO UPDATE SET
+                    clan_enabled = EXCLUDED.clan_enabled
+                """;
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setLong(1, guildId);
+            statement.setBoolean(2, enabled);
+            statement.executeUpdate();
+
+            log.info("Set clan features {} for guild {}", enabled ? "enabled" : "disabled", guildId);
+
+        } catch (SQLException e) {
+            log.error("Failed to upsert clan enabled for {}", guildId, e);
+            throw new RuntimeException("Failed to upsert clan enabled", e);
         }
     }
 
