@@ -1,6 +1,7 @@
 package com.younglings.bot.tracking;
 
 import com.younglings.bot.discord.Containers;
+import net.dv8tion.jda.api.components.container.Container;
 import com.younglings.bot.runescape.ClanMemberRepository;
 import com.younglings.bot.runescape.RuneMetricsDates;
 import com.younglings.bot.runescape.WeeklyDigestRepository;
@@ -101,6 +102,8 @@ public class WeeklyDigestService {
         List<ContainerChildComponent> children = new ArrayList<>();
         children.add(TextDisplay.of("### Weekly Citadel Report — " + formatRange(windowStart, windowEnd)));
 
+        children.add(TextDisplay.of(totalsLine(entries)));
+
         StringBuilder sb = new StringBuilder();
         for (CitadelEntry e : entries) {
             sb.append("**").append(e.rsn).append("** — ")
@@ -114,6 +117,47 @@ public class WeeklyDigestService {
 
         router.dispatchContainer(guild, TrackingGroup.WEEKLY_CITADEL_REPORT, Containers.card(Containers.PRIMARY, children));
         return true;
+    }
+
+    /**
+     * The in-progress Citadel week: from the most recent Wednesday reset (00:01 UTC, matching
+     * {@link #lastCompletedWindow()}'s start) through right now. Unlike the completed-week window this
+     * has no fixed end, so it's only ever a "so far" view.
+     */
+    public static OffsetDateTime[] currentWindow() {
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        OffsetDateTime reset = now.with(TemporalAdjusters.previousOrSame(DayOfWeek.WEDNESDAY))
+                .toLocalDate().atStartOfDay(ZoneOffset.UTC).toOffsetDateTime();
+        return new OffsetDateTime[]{reset.plusMinutes(1), now};
+    }
+
+    /**
+     * Totals plus who's in each group, for an on-demand look at any window — what {@code /citadel}
+     * shows. Names only for the people who did something; the rest are just counted, so this stays
+     * short enough for one message however large the clan is.
+     */
+    public Container buildCitadelSummary(long guildId, OffsetDateTime windowStart, OffsetDateTime windowEnd, String title) {
+        List<CitadelEntry> entries = computeCitadelEntries(guildId, windowStart, windowEnd);
+
+        List<ContainerChildComponent> children = new ArrayList<>();
+        children.add(TextDisplay.of("### " + title));
+        children.add(TextDisplay.of(totalsLine(entries)));
+
+        List<String> both = entries.stream().filter(e -> e.visited && e.capped).map(e -> e.rsn).toList();
+        List<String> visitedOnly = entries.stream().filter(e -> e.visited && !e.capped).map(e -> e.rsn).toList();
+        List<String> cappedOnly = entries.stream().filter(e -> !e.visited && e.capped).map(e -> e.rsn).toList();
+        if (!both.isEmpty()) children.add(TextDisplay.of("**Visited & capped (" + both.size() + ")**\n" + String.join(", ", both)));
+        if (!visitedOnly.isEmpty()) children.add(TextDisplay.of("**Visited only (" + visitedOnly.size() + ")**\n" + String.join(", ", visitedOnly)));
+        if (!cappedOnly.isEmpty()) children.add(TextDisplay.of("**Capped only (" + cappedOnly.size() + ")**\n" + String.join(", ", cappedOnly)));
+        if (both.isEmpty() && visitedOnly.isEmpty() && cappedOnly.isEmpty()) children.add(TextDisplay.of("Nobody has visited or capped yet."));
+
+        return Containers.card(Containers.PRIMARY, children);
+    }
+
+    private static String totalsLine(List<CitadelEntry> entries) {
+        long capped = entries.stream().filter(e -> e.capped).count();
+        long visited = entries.stream().filter(e -> e.visited).count();
+        return "**🏰 " + capped + " capped** · **" + visited + " visited** · of " + entries.size() + " clan members";
     }
 
     /** Every player who both visited and capped in the window — what the "Spin Wheel" button picks from. */
