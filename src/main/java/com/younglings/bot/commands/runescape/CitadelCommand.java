@@ -8,9 +8,6 @@ import io.github.freya022.botcommands.api.commands.application.slash.annotations
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.SlashOption;
 import org.jspecify.annotations.Nullable;
 
-import java.time.format.DateTimeFormatter;
-import java.time.format.FormatStyle;
-import java.time.OffsetDateTime;
 import java.util.List;
 
 /**
@@ -21,8 +18,6 @@ import java.util.List;
  */
 @Command
 public class CitadelCommand {
-    private static final DateTimeFormatter DATE = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM);
-
     private final WeeklyDigestService weeklyDigestService;
 
     public CitadelCommand(WeeklyDigestService weeklyDigestService) {
@@ -37,13 +32,7 @@ public class CitadelCommand {
             return;
         }
 
-        boolean last = Boolean.TRUE.equals(lastWeek);
-        OffsetDateTime[] window = last ? WeeklyDigestService.lastCompletedWindow() : WeeklyDigestService.currentWindow();
-        String title = last
-                ? "Citadel — last week (" + window[0].toLocalDate().format(DATE) + " – " + window[1].toLocalDate().minusDays(1).format(DATE) + ")"
-                : "Citadel — this week so far (since " + window[0].toLocalDate().format(DATE) + ")";
-
-        event.replyComponents(List.of(weeklyDigestService.buildCitadelSummary(event.getGuild().getIdLong(), window[0], window[1], title)))
+        event.replyComponents(List.of(weeklyDigestService.buildWeekSummary(event.getGuild().getIdLong(), Boolean.TRUE.equals(lastWeek))))
                 .useComponentsV2(true).setEphemeral(true).queue();
     }
 }

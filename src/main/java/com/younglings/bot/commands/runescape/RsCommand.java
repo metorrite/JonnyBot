@@ -1,15 +1,9 @@
 package com.younglings.bot.commands.runescape;
 
 import com.younglings.bot.discord.Containers;
-import com.younglings.bot.runescape.PlayerLink;
-import com.younglings.bot.runescape.PlayerLinkService;
-import com.younglings.bot.runescape.VerificationAttempt;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
 import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.JDASlashCommand;
-import net.dv8tion.jda.api.components.container.Container;
-
-import java.util.List;
 
 /**
  * Single entry point for RS3 tracking as a member sees it, with linking as a hard gate rather than
@@ -21,11 +15,9 @@ import java.util.List;
  */
 @Command
 public class RsCommand {
-    private final PlayerLinkService linkService;
     private final RsInteractionListener interactionListener;
 
-    public RsCommand(PlayerLinkService linkService, RsInteractionListener interactionListener) {
-        this.linkService = linkService;
+    public RsCommand(RsInteractionListener interactionListener) {
         this.interactionListener = interactionListener;
     }
 
@@ -36,23 +28,6 @@ public class RsCommand {
             return;
         }
 
-        long guildId = event.getGuild().getIdLong();
-        long userId = event.getUser().getIdLong();
-
-        List<PlayerLink> links = linkService.getLinksForUser(guildId, userId);
-        if (!links.isEmpty()) {
-            Container panel = interactionListener.buildAccountPanel(event.getGuild(), userId);
-            event.replyComponents(List.of(panel)).useComponentsV2(true).setEphemeral(true).queue();
-            return;
-        }
-
-        VerificationAttempt pending = linkService.getPendingAttemptForUser(guildId, userId);
-        if (pending != null) {
-            Container panel = RsInteractionListener.buildPendingStatusPanel(pending);
-            event.replyComponents(List.of(panel)).useComponentsV2(true).setEphemeral(true).queue();
-            return;
-        }
-
-        event.replyModal(RsInteractionListener.buildLinkModal()).queue();
+        interactionListener.openRs(event, event.getGuild(), event.getUser().getIdLong());
     }
 }
