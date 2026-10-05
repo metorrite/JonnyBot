@@ -32,7 +32,8 @@ public class PollRepository {
                 rs.getString("title"),
                 rs.getBoolean("anonymous"),
                 rs.getBoolean("multiple_votes"),
-                rs.getString("status")
+                rs.getString("status"),
+                rs.getLong("created_by_user_id")
         );
     }
 
@@ -109,7 +110,7 @@ public class PollRepository {
 
     public List<PollSession> getAllActivePolls() {
         String sql = """
-                SELECT poll_id, guild_id, channel_id, message_id, title, anonymous, multiple_votes, status
+                SELECT poll_id, guild_id, channel_id, message_id, title, anonymous, multiple_votes, status, created_by_user_id
                 FROM younglings.poll
                 WHERE status = 'ACTIVE'
                 ORDER BY created_at ASC
@@ -129,7 +130,7 @@ public class PollRepository {
     public PollSession getPollById(long pollId) {
         try (Connection connection = connectionSupplier.getConnection();
              PreparedStatement statement = connection.prepareStatement(
-                     "SELECT poll_id, guild_id, channel_id, message_id, title, anonymous, multiple_votes, status FROM younglings.poll WHERE poll_id = ?")) {
+                     "SELECT poll_id, guild_id, channel_id, message_id, title, anonymous, multiple_votes, status, created_by_user_id FROM younglings.poll WHERE poll_id = ?")) {
             statement.setLong(1, pollId);
             try (ResultSet rs = statement.executeQuery()) {
                 return rs.next() ? mapPoll(rs) : null;
@@ -142,7 +143,7 @@ public class PollRepository {
 
     public PollSession findPollByTitle(long guildId, String query) {
         String sql = """
-                SELECT poll_id, guild_id, channel_id, message_id, title, anonymous, multiple_votes, status
+                SELECT poll_id, guild_id, channel_id, message_id, title, anonymous, multiple_votes, status, created_by_user_id
                 FROM younglings.poll
                 WHERE guild_id = ? AND status = 'ACTIVE' AND LOWER(title) LIKE LOWER(?)
                 ORDER BY created_at DESC

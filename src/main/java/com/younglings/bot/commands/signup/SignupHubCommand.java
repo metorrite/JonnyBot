@@ -1,7 +1,9 @@
 package com.younglings.bot.commands.signup;
 
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.permission.AdminRoleFilter;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
+import io.github.freya022.botcommands.api.commands.annotations.Filter;
 import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.JDASlashCommand;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
@@ -16,12 +18,14 @@ import java.util.List;
  * Single entry point for the signup system — replaces /signup queue|group|submission (builders)
  * and /signup list|post|refresh (utilities), all retired but kept (see {@link SignupCommand},
  * {@link SignupManagementCommand}, {@link SignupBuilderCommand}), with one command and one
- * button-driven menu. Builder buttons reuse the existing signup_builder_type:* handlers in
+ * button-driven menu. Admin-only for now (checked here, not left to the Integrations page); a member-level
+ * signup is a planned follow-up. Builder buttons reuse the existing signup_builder_type:* handlers in
  * {@link SignupInteractionListener} directly; utility buttons are handled there too.
  */
 @Command
 public class SignupHubCommand {
 
+    @Filter(AdminRoleFilter.class)
     @JDASlashCommand(name = "signup", description = "Create and manage signups")
     public void onSignup(GuildSlashEvent event) {
         if (event.getGuild() == null) {
