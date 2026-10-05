@@ -3,6 +3,9 @@ package com.younglings.bot.commands.runescape;
 import com.younglings.bot.commands.configure.ConfigureInteractionListener;
 import com.younglings.bot.permission.AdminRoleFilter;
 import com.younglings.bot.runescape.ClanSyncService;
+import com.younglings.bot.tracking.WeeklyDigestService;
+import net.dv8tion.jda.api.components.selections.StringSelectMenu;
+import net.dv8tion.jda.api.components.textdisplay.TextDisplay;
 import net.dv8tion.jda.api.components.buttons.Button;
 import net.dv8tion.jda.api.components.container.Container;
 import net.dv8tion.jda.api.components.tree.ComponentTree;
@@ -12,6 +15,7 @@ import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
 
@@ -25,6 +29,7 @@ import static org.mockito.Mockito.when;
 class RsAdminPanelTest {
     private ClanSyncService clanSyncService;
     private AdminRoleFilter adminRoleFilter;
+    private WeeklyDigestService weeklyDigestService;
     private RsAdminInteractionListener listener;
     private Guild guild;
     private Member viewer;
@@ -33,8 +38,9 @@ class RsAdminPanelTest {
     void setUp() {
         clanSyncService = mock(ClanSyncService.class);
         adminRoleFilter = mock(AdminRoleFilter.class);
+        weeklyDigestService = mock(WeeklyDigestService.class);
         listener = new RsAdminInteractionListener(null, null, adminRoleFilter, null, null, clanSyncService, null, null, null, null, null,
-                mock(ConfigureInteractionListener.class));
+                mock(ConfigureInteractionListener.class), weeklyDigestService);
         guild = mock(Guild.class);
         viewer = mock(Member.class);
         when(guild.getIdLong()).thenReturn(1L);
@@ -107,6 +113,29 @@ class RsAdminPanelTest {
         // but the per-request review steps and the manual verify form are open to it
         for (String action : List.of("rsnadmin_review_approve", "rsnadmin_review_reject", "rsnadmin_manualverify_modal")) {
             assertTrue(RsAdminInteractionListener.SUPPORT_ACTIONS.contains(action), action);
+        }
+    }
+
+    @Test
+    void theCitadelViewerOffersQuickPicksARangeAndTwelveWeeksAndFitsInAMessage() {
+        when(weeklyDigestService.citadelSection(1L, LocalDate.of(2026, 9, 30), LocalDate.of(2026, 10, 5)))
+                .thenReturn(List.of(TextDisplay.of("### Citadel"), TextDisplay.of("totals"), TextDisplay.of("**Visited & capped (1)**\nAxley")));
+
+        Container viewer = listener.buildCitadelViewer(guild, LocalDate.of(2026, 9, 30), LocalDate.of(2026, 10, 5));
+        new MessageCreateBuilder().useComponentsV2(true).setComponents(viewer).build();
+
+        assertEquals(List.of("rsnadmin_citadel_view:current", "rsnadmin_citadel_view:last", "rsnadmin_citadel_range:_", "rsnadmin_back:_"), ids(viewer));
+        var menus = ComponentTree.of(List.of(viewer)).findAll(StringSelectMenu.class);
+        assertEquals(1, menus.size());
+        assertEquals("rsnadmin_citadel_week:_", menus.getFirst().getCustomId());
+        assertEquals(12, menus.getFirst().getOptions().size());
+    }
+
+    @Test
+    void theCitadelViewerIsNotSomethingSupportCanReach() {
+        for (String action : List.of("rsnadmin_citadel", "rsnadmin_citadel_view", "rsnadmin_citadel_range", "rsnadmin_citadel_range_modal",
+                "rsnadmin_citadel_week", "rsnadmin_back")) {
+            assertFalse(RsAdminInteractionListener.SUPPORT_ACTIONS.contains(action), action);
         }
     }
 }

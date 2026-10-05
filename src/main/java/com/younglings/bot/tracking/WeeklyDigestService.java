@@ -13,6 +13,7 @@ import net.dv8tion.jda.api.components.textdisplay.TextDisplay;
 import net.dv8tion.jda.api.entities.Guild;
 
 import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -22,6 +23,7 @@ import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -119,30 +121,122 @@ public class WeeklyDigestService {
         return true;
     }
 
-    /**
-     * The in-progress Citadel week: from the most recent Wednesday reset (00:01 UTC, matching
-     * {@link #lastCompletedWindow()}'s start) through right now. Unlike the completed-week window this
-     * has no fixed end, so it's only ever a "so far" view.
-     */
-    public static OffsetDateTime[] currentWindow() {
-        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        OffsetDateTime reset = now.with(TemporalAdjusters.previousOrSame(DayOfWeek.WEDNESDAY))
-                .toLocalDate().atStartOfDay(ZoneOffset.UTC).toOffsetDateTime();
-        return new OffsetDateTime[]{reset.plusMinutes(1), now};
+    private static final DateTimeFormatter SHORT_DATE = DateTimeFormatter.ofPattern("MMM d", Locale.ENGLISH);
+
+    /** The Citadel viewer shows at most this many weeks at once — each one is a query and a line of text. */
+    public static final int MAX_VIEW_WEEKS = 26;
+
+    /** The Wednesday (Citadel reset day) that starts the Citadel week containing {@code date}. */
+    public static LocalDate citadelWeekStart(LocalDate date) {
+        return date.with(TemporalAdjusters.previousOrSame(DayOfWeek.WEDNESDAY));
     }
 
     /**
-     * Totals plus who's in each group, for an on-demand look at any window — what {@code /citadel}
-     * shows. Names only for the people who did something; the rest are just counted, so this stays
-     * short enough for one message however large the clan is.
+     * The Citadel weeks (each named by its Wednesday) that a date range covers. The range snaps outward to
+     * whole weeks (Wednesday to Tuesday, the way the Citadel resets) and never reaches past the current
+     * week; dates given the wrong way round are swapped rather than rejected.
      */
-    public Container buildCitadelSummary(long guildId, OffsetDateTime windowStart, OffsetDateTime windowEnd, String title) {
-        List<CitadelEntry> entries = computeCitadelEntries(guildId, windowStart, windowEnd);
+    public static List<LocalDate> weekStarts(LocalDate from, LocalDate to, LocalDate today) {
+        if (from.isAfter(to)) { LocalDate swap = from; from = to; to = swap; }
+        LocalDate thisWeek = citadelWeekStart(today);
+        LocalDate last = citadelWeekStart(to);
+        if (last.isAfter(thisWeek)) last = thisWeek;
+        LocalDate first = citadelWeekStart(from);
+        if (first.isAfter(last)) first = last;
+
+        List<LocalDate> weeks = new ArrayList<>();
+        for (LocalDate week = first; !week.isAfter(last); week = week.plusWeeks(1)) weeks.add(week);
+        return weeks;
+    }
+
+    /** One Citadel week's window — the same Wednesday 00:01 to next Wednesday 00:00 UTC the weekly report uses, cut off at {@code now} while it's still running. */
+    private static OffsetDateTime[] weekWindow(LocalDate weekStart, OffsetDateTime now) {
+        OffsetDateTime start = weekStart.atStartOfDay(ZoneOffset.UTC).toOffsetDateTime().plusMinutes(1);
+        OffsetDateTime end = weekStart.plusWeeks(1).atStartOfDay(ZoneOffset.UTC).toOffsetDateTime();
+        return new OffsetDateTime[]{start, end.isAfter(now) ? now : end};
+    }
+
+    private static String weekLabel(LocalDate weekStart) {
+        return weekStart.format(SHORT_DATE) + " – " + weekStart.plusDays(6).format(SHORT_DATE);
+    }
+
+    /**
+     * Who capped and who visited over a date range, as display components — one week shows the groups
+     * (visited and capped, visited only, capped only), several weeks show a line per week and each member's
+     * weeks capped / weeks visited. What the {@code /rsadmin} Citadel viewer renders, and the Embedded Post
+     * {@code citadel} button's week summary.
+     */
+    public List<ContainerChildComponent> citadelSection(long guildId, LocalDate from, LocalDate to) {
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        List<LocalDate> weeks = weekStarts(from, to, now.toLocalDate());
 
         List<ContainerChildComponent> children = new ArrayList<>();
-        children.add(TextDisplay.of("### " + title));
-        children.add(TextDisplay.of(totalsLine(entries)));
+        if (weeks.size() > MAX_VIEW_WEEKS) {
+            children.add(TextDisplay.of("### Citadel\nThat range covers " + weeks.size() + " weeks — the viewer shows at most "
+                    + MAX_VIEW_WEEKS + " at a time. Narrow the dates."));
+            return children;
+        }
 
+        LocalDate currentWeek = citadelWeekStart(now.toLocalDate());
+        if (weeks.size() == 1) {
+            LocalDate week = weeks.getFirst();
+            OffsetDateTime[] window = weekWindow(week, now);
+            List<CitadelEntry> entries = computeCitadelEntries(guildId, window[0], window[1]);
+            children.add(TextDisplay.of("### Citadel — " + weekLabel(week) + (week.equals(currentWeek) ? " (so far)" : "")));
+            children.add(TextDisplay.of(totalsLine(entries)));
+            addGroupLists(children, entries);
+            return children;
+        }
+
+        // Several weeks: tally per week and per member.
+        Map<String, int[]> perMember = new LinkedHashMap<>(); // rsn -> {weeks capped, weeks visited}
+        StringBuilder perWeek = new StringBuilder();
+        for (LocalDate week : weeks) {
+            OffsetDateTime[] window = weekWindow(week, now);
+            List<CitadelEntry> entries = computeCitadelEntries(guildId, window[0], window[1]);
+            long capped = entries.stream().filter(e -> e.capped).count();
+            long visited = entries.stream().filter(e -> e.visited).count();
+            perWeek.append("**").append(weekLabel(week)).append("**").append(week.equals(currentWeek) ? " (so far)" : "")
+                    .append(" — ").append(capped).append(" capped · ").append(visited).append(" visited\n");
+            for (CitadelEntry e : entries) {
+                int[] tally = perMember.computeIfAbsent(e.rsn, k -> new int[2]);
+                if (e.capped) tally[0]++;
+                if (e.visited) tally[1]++;
+            }
+        }
+
+        long uniqueCappers = perMember.values().stream().filter(t -> t[0] > 0).count();
+        long uniqueVisitors = perMember.values().stream().filter(t -> t[1] > 0).count();
+        children.add(TextDisplay.of("### Citadel — " + weekLabel(weeks.getFirst()).split(" – ")[0] + " – "
+                + weeks.getLast().plusDays(6).format(SHORT_DATE) + " · " + weeks.size() + " weeks"));
+        children.add(TextDisplay.of("**🏰 " + uniqueCappers + " different members capped** · **" + uniqueVisitors + " visited** · of "
+                + perMember.size() + " clan members"));
+        children.add(TextDisplay.of("**Per week**\n" + perWeek.toString().trim()));
+
+        List<Map.Entry<String, int[]>> active = perMember.entrySet().stream()
+                .filter(m -> m.getValue()[0] > 0 || m.getValue()[1] > 0)
+                .sorted((a, b) -> {
+                    int byCaps = Integer.compare(b.getValue()[0], a.getValue()[0]);
+                    if (byCaps != 0) return byCaps;
+                    int byVisits = Integer.compare(b.getValue()[1], a.getValue()[1]);
+                    return byVisits != 0 ? byVisits : a.getKey().compareToIgnoreCase(b.getKey());
+                }).toList();
+        if (!active.isEmpty()) {
+            StringBuilder members = new StringBuilder("**By member** (weeks capped / weeks visited, of " + weeks.size() + ")\n");
+            int shown = 0;
+            for (var m : active) {
+                String line = m.getKey() + " — " + m.getValue()[0] + " / " + m.getValue()[1] + "\n";
+                if (members.length() + line.length() > 1800) break; // keeps the whole message under Discord's text limit
+                members.append(line);
+                shown++;
+            }
+            if (shown < active.size()) members.append("…and ").append(active.size() - shown).append(" more");
+            children.add(TextDisplay.of(members.toString().trim()));
+        }
+        return children;
+    }
+
+    private static void addGroupLists(List<ContainerChildComponent> children, List<CitadelEntry> entries) {
         List<String> both = entries.stream().filter(e -> e.visited && e.capped).map(e -> e.rsn).toList();
         List<String> visitedOnly = entries.stream().filter(e -> e.visited && !e.capped).map(e -> e.rsn).toList();
         List<String> cappedOnly = entries.stream().filter(e -> !e.visited && e.capped).map(e -> e.rsn).toList();
@@ -150,19 +244,14 @@ public class WeeklyDigestService {
         if (!visitedOnly.isEmpty()) children.add(TextDisplay.of("**Visited only (" + visitedOnly.size() + ")**\n" + String.join(", ", visitedOnly)));
         if (!cappedOnly.isEmpty()) children.add(TextDisplay.of("**Capped only (" + cappedOnly.size() + ")**\n" + String.join(", ", cappedOnly)));
         if (both.isEmpty() && visitedOnly.isEmpty() && cappedOnly.isEmpty()) children.add(TextDisplay.of("Nobody has visited or capped yet."));
-
-        return Containers.card(Containers.PRIMARY, children);
     }
 
-    private static final DateTimeFormatter SUMMARY_DATE = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM);
-
-    /** The {@code /citadel} view: this week so far, or the last completed week — shared by the command and the Embedded Post {@code citadel} button. */
+    /** This week so far, or the last full week, as a card — the Embedded Post {@code citadel} button. */
     public Container buildWeekSummary(long guildId, boolean lastWeek) {
-        OffsetDateTime[] window = lastWeek ? lastCompletedWindow() : currentWindow();
-        String title = lastWeek
-                ? "Citadel — last week (" + window[0].toLocalDate().format(SUMMARY_DATE) + " – " + window[1].toLocalDate().minusDays(1).format(SUMMARY_DATE) + ")"
-                : "Citadel — this week so far (since " + window[0].toLocalDate().format(SUMMARY_DATE) + ")";
-        return buildCitadelSummary(guildId, window[0], window[1], title);
+        LocalDate thisWeek = citadelWeekStart(LocalDate.now(ZoneOffset.UTC));
+        LocalDate from = lastWeek ? thisWeek.minusWeeks(1) : thisWeek;
+        LocalDate to = lastWeek ? thisWeek.minusDays(1) : LocalDate.now(ZoneOffset.UTC);
+        return Containers.card(Containers.PRIMARY, citadelSection(guildId, from, to));
     }
 
     private static String totalsLine(List<CitadelEntry> entries) {
