@@ -61,6 +61,21 @@ public class AdminRoleFilter implements ApplicationCommandFilter {
     }
 
     /**
+     * The Support tier: holds the configured Support role, <em>or</em> is Admin tier (see
+     * {@link #isAuthorized}). It's for the narrow set of tools Support exists for — reviewing and verifying
+     * RSN requests — and every Support-allowed action checks this; everything else still checks
+     * {@link #isAuthorized}. Holding a higher staff role (Moderator, Developer) does not by itself grant it:
+     * give those people the Support role too if they should review requests.
+     */
+    public boolean isSupportTier(Guild guild, Member member) {
+        if (isAuthorized(guild, member)) return true;
+
+        Long supportRoleId = guildSettingsService.getEffective(guild.getIdLong()).supportRoleId();
+        if (supportRoleId == null) return false;
+        return member.getRoles().stream().anyMatch(role -> role.getIdLong() == supportRoleId);
+    }
+
+    /**
      * True if {@code member}'s highest role sits at or above the configured Admin role in the
      * guild's role hierarchy ({@link Role#getPosition()}: higher value = more senior) — so the
      * Admin role itself, and any role ranked above it (e.g. an Owner/Co-Owner role), both pass.

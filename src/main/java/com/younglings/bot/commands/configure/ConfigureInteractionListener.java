@@ -184,6 +184,10 @@ public class ConfigureInteractionListener extends ListenerAdapter {
                     settingsService.updateRenameAlertChannel(guild.getIdLong(), selectedChannelId);
                     event.editComponents(List.of(buildVerificationPanel(guild))).useComponentsV2(true).queue();
                 }
+                case "configure_support_role" -> {
+                    settingsService.updateSupportRole(guild.getIdLong(), selectedChannelId);
+                    event.editComponents(List.of(buildClanPanel(guild))).useComponentsV2(true).queue();
+                }
                 case "configure_admin_role" -> {
                     settingsService.updateAdminRole(guild.getIdLong(), selectedChannelId);
                     event.editComponents(List.of(buildClanPanel(guild))).useComponentsV2(true).queue();
@@ -406,6 +410,15 @@ public class ConfigureInteractionListener extends ListenerAdapter {
             roleMenu.setDefaultValues(EntitySelectMenu.DefaultValue.role(settings.adminRoleId()));
         }
         children.add(ActionRow.of(roleMenu.build()));
+
+        children.add(TextDisplay.of("**Bot Support Role** — can review and verify RSN requests in `/rsadmin`, and nothing else there. Leave empty for none."));
+        EntitySelectMenu.Builder supportMenu = EntitySelectMenu.create("configure_support_role:_", EntitySelectMenu.SelectTarget.ROLE)
+                .setPlaceholder("Select a role (optional)")
+                .setRequiredRange(0, 1);
+        if (settings.supportRoleId() != null && guild.getRoleById(settings.supportRoleId()) != null) {
+            supportMenu.setDefaultValues(EntitySelectMenu.DefaultValue.role(settings.supportRoleId()));
+        }
+        children.add(ActionRow.of(supportMenu.build()));
 
         children.add(ActionRow.of(Button.primary("configure_back:_", "Back")));
         children.add(Containers.autoCloseNote());

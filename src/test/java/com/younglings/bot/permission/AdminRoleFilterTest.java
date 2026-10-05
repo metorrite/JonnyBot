@@ -44,7 +44,51 @@ class AdminRoleFilterTest {
 
     private void withAdminRoleId(Long adminRoleId) {
         when(guildSettingsService.getEffective(anyLong())).thenReturn(
-                new GuildSettings(0L, null, adminRoleId, null, null, null, null, null, null, true, null));
+                new GuildSettings(0L, null, adminRoleId, null, null, null, null, null, null, true, null, null));
+    }
+
+    private void withRoles(Long adminRoleId, Long supportRoleId) {
+        when(guildSettingsService.getEffective(anyLong())).thenReturn(
+                new GuildSettings(0L, null, adminRoleId, null, null, null, null, null, null, true, null, supportRoleId));
+    }
+
+    @Test
+    void theSupportRoleHolderIsSupportTierButNotAdminTier() {
+        Role supportRole = Mockito.mock(Role.class);
+        when(supportRole.getIdLong()).thenReturn(200L);
+        when(supportRole.getPosition()).thenReturn(5);
+        withRoles(ADMIN_ROLE_ID, 200L);
+        when(member.getRoles()).thenReturn(List.of(supportRole));
+
+        assertTrue(filter.isSupportTier(guild, member));
+        assertFalse(filter.isAuthorized(guild, member));
+    }
+
+    @Test
+    void anAdminIsAlsoSupportTier() {
+        withRoles(ADMIN_ROLE_ID, 200L);
+        when(member.getRoles()).thenReturn(List.of(adminRole));
+
+        assertTrue(filter.isSupportTier(guild, member));
+    }
+
+    @Test
+    void aModeratorIsNotSupportTierUnlessTheyAlsoHoldTheSupportRole() {
+        Role moderator = mockRoleAtPosition(5);
+        when(moderator.getIdLong()).thenReturn(300L);
+        withRoles(ADMIN_ROLE_ID, 200L);
+        when(member.getRoles()).thenReturn(List.of(moderator));
+
+        assertFalse(filter.isSupportTier(guild, member));
+    }
+
+    @Test
+    void noSupportRoleConfiguredMeansNoSupportTierAtAll() {
+        Role someRole = mockRoleAtPosition(5);
+        withRoles(ADMIN_ROLE_ID, null);
+        when(member.getRoles()).thenReturn(List.of(someRole));
+
+        assertFalse(filter.isSupportTier(guild, member));
     }
 
     @Test

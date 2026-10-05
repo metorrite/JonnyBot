@@ -116,6 +116,26 @@ public class RsAdminInteractionListener extends ListenerAdapter {
         this.configureListener = configureListener;
     }
 
+    /**
+     * The only {@code /rsadmin} actions the Support tier may use: reviewing and verifying RSN requests, one
+     * at a time. Everything else (bulk Approve All, lookups, clan tools, configuration, pruning) needs the
+     * Admin tier. The Admin tier may use everything.
+     */
+    static final java.util.Set<String> SUPPORT_ACTIONS = java.util.Set.of(
+            "rsnadmin_manualverify", "rsnadmin_manualverify_modal", "rsnadmin_review_pending", "rsnadmin_pending_page",
+            "rsnadmin_review_approve", "rsnadmin_review_reject", "rsnadmin_post_pending");
+
+    private boolean mayUse(Guild guild, Member member, String componentOrModalId) {
+        if (adminRoleFilter.isAuthorized(guild, member)) return true;
+        return SUPPORT_ACTIONS.contains(componentOrModalId.split(":")[0]) && adminRoleFilter.isSupportTier(guild, member);
+    }
+
+    private String denialFor(Guild guild, Member member) {
+        return adminRoleFilter.isSupportTier(guild, member)
+                ? "That tool is for admins — your Support role covers reviewing and verifying RSN requests."
+                : "You need the Admin or Support role to use this.";
+    }
+
     @Override
     public void onButtonInteraction(ButtonInteractionEvent event) {
         Guild guild = event.getGuild();
@@ -124,8 +144,8 @@ public class RsAdminInteractionListener extends ListenerAdapter {
         if (guild == null || member == null || !id.startsWith("rsnadmin_")) return;
 
         try {
-            if (!adminRoleFilter.isAuthorized(guild, member)) {
-                Containers.replyEphemeral(event, Containers.WARNING, "You need the Admin role (or higher) to use this.");
+            if (!mayUse(guild, member, id)) {
+                Containers.replyEphemeral(event, Containers.WARNING, denialFor(guild, member));
                 return;
             }
             handleButton(event, guild, id);
@@ -143,8 +163,8 @@ public class RsAdminInteractionListener extends ListenerAdapter {
         if (guild == null || member == null || !id.startsWith("rsnadmin_")) return;
 
         try {
-            if (!adminRoleFilter.isAuthorized(guild, member)) {
-                Containers.replyEphemeral(event, Containers.WARNING, "You need the Admin role (or higher) to use this.");
+            if (!mayUse(guild, member, id)) {
+                Containers.replyEphemeral(event, Containers.WARNING, denialFor(guild, member));
                 return;
             }
             if (id.equals("rsnadmin_manualverify_modal:_")) {
@@ -366,7 +386,7 @@ public class RsAdminInteractionListener extends ListenerAdapter {
         for (PlayerLink link : links) {
             statsService.pollAndSnapshot(guild.getIdLong(), link.rsn());
         }
-        event.getHook().editOriginalComponents(List.of(buildPanel(guild))).useComponentsV2(true).queue();
+        event.getHook().editOriginalComponents(List.of(buildPanel(guild, event.getMember()))).useComponentsV2(true).queue();
     }
 
     private void doGuildChart(ComponentInteraction event, Guild guild) {
@@ -507,9 +527,12 @@ public class RsAdminInteractionListener extends ListenerAdapter {
 
         List<ContainerChildComponent> children = new ArrayList<>();
         children.add(TextDisplay.of("# Pending Verifications (" + pending.size() + ")"));
-        children.add(ActionRow.of(
-                Button.success("rsnadmin_review_approve_all:_", "Approve All"),
-                Button.secondary("rsnadmin_post_pending:_", "Post to Review Channel")));
+        boolean adminTier = adminRoleFilter.isAuthorized(guild, event.getMember());
+        children.add(adminTier
+                ? ActionRow.of(
+                        Button.success("rsnadmin_review_approve_all:_", "Approve All"),
+                        Button.secondary("rsnadmin_post_pending:_", "Post to Review Channel"))
+                : ActionRow.of(Button.secondary("rsnadmin_post_pending:_", "Post to Review Channel")));
         children.add(Separator.createDivider(Separator.Spacing.SMALL));
 
         for (VerificationAttempt attempt : page.items()) {
@@ -881,6 +904,20 @@ public class RsAdminInteractionListener extends ListenerAdapter {
 
     private static final int GUILD_CHART_HISTORY_DAYS = 30;
 
+    /** What the Support tier sees: just the request-review tools it's allowed to use. */
+    private Container buildSupportPanel() {
+        List<ContainerChildComponent> children = new ArrayList<>();
+        children.add(TextDisplay.of("# RSN Requests"));
+        children.add(TextDisplay.of("-# Support — review and verify RuneScape name requests"));
+        children.add(Separator.createDivider(Separator.Spacing.SMALL));
+        children.add(ActionRow.of(
+                Button.secondary("rsnadmin_review_pending:_", "Review Pending"),
+                Button.secondary("rsnadmin_manualverify:_", "Manually Verify"),
+                Button.secondary("rsnadmin_post_pending:_", "Post Pending to Review Channel")));
+        children.add(Containers.autoCloseNote());
+        return Containers.card(Containers.PRIMARY, children);
+    }
+
     /**
      * {@link RsAdminCommand}'s initial reply and this listener's own re-renders (Update All) — bulk
      * actions only now, no self section (see {@code /rs}). Grouped into labeled sections rather than
@@ -888,7 +925,9 @@ public class RsAdminInteractionListener extends ListenerAdapter {
      * over time (Coffer, Events, whatever comes next each get their own section here rather than
      * their own top-level admin command).
      */
-    Container buildPanel(Guild guild) {
+    Container buildPanel(Guild guild, Member viewer) {
+        if (!adminRoleFilter.isAuthorized(guild, viewer)) return buildSupportPanel();
+
         String clanName = clanSyncService.getClanName(guild.getIdLong());
         boolean hasClan = clanName != null;
 

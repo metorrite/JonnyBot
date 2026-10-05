@@ -284,6 +284,7 @@ public class RsInteractionListener extends ListenerAdapter {
                     Containers.replyEphemeral(event, Containers.WARNING, "That request is no longer active.");
                     return;
                 }
+                revokeOnboardingRole(event.getGuild(), event.getUser().getIdLong());
                 Containers.replyEphemeral(event, Containers.SUCCESS, "Cancelled — run `/rs` again to start over with a different name.");
             }
         }
@@ -415,10 +416,37 @@ public class RsInteractionListener extends ListenerAdapter {
         return attempt;
     }
 
+    /**
+     * A rejected (or withdrawn) request takes back the Onboarding role it earned on submission, so Guest
+     * means "has a request in or has been accepted". Never touches anyone who already has a verified link,
+     * holds Administrator, or doesn't hold the role — see {@link #shouldRevokeOnboardingRole}.
+     */
+    private void revokeOnboardingRole(Guild guild, long discordUserId) {
+        Long roleId = guildSettingsService.getEffective(guild.getIdLong()).onboardingRoleId();
+        if (roleId == null) return;
+
+        boolean hasLinks = !linkService.getLinksForUser(guild.getIdLong(), discordUserId).isEmpty();
+        guild.retrieveMemberById(discordUserId).queue(member -> {
+            Set<Long> held = member.getRoles().stream().map(Role::getIdLong).collect(java.util.stream.Collectors.toSet());
+            if (!shouldRevokeOnboardingRole(roleId, hasLinks, member.hasPermission(net.dv8tion.jda.api.Permission.ADMINISTRATOR), held)) return;
+
+            Role role = guild.getRoleById(roleId);
+            if (role == null) return;
+            guild.removeRoleFromMember(member, role).queue(success -> {},
+                    error -> log.warn("Failed to take back onboarding role {} from user {}", roleId, discordUserId, error));
+        }, error -> log.warn("Failed to retrieve member {} to take back the onboarding role", discordUserId, error));
+    }
+
+    static boolean shouldRevokeOnboardingRole(Long onboardingRoleId, boolean hasVerifiedLink, boolean isAdministrator, Set<Long> memberRoleIds) {
+        return onboardingRoleId != null && !hasVerifiedLink && !isAdministrator && memberRoleIds.contains(onboardingRoleId);
+    }
+
     /** Rejects one pending attempt and DMs the requester. Returns the resolved attempt, or {@code null} if it was already resolved or gone. */
     VerificationAttempt completeRejection(Guild guild, long attemptId, long resolvedByUserId) {
         VerificationAttempt attempt = linkService.getAttempt(attemptId);
         if (!linkService.reject(attemptId, resolvedByUserId)) return null;
+
+        revokeOnboardingRole(guild, attempt.discordUserId());
 
         dmVerificationUpdate(guild, attempt.discordUserId(), Containers.DANGER,
                 "❌ Your request to link **" + attempt.rsn() + "** was denied. Contact an admin if you think this is a mistake.");
@@ -1057,6 +1085,6 @@ public class RsInteractionListener extends ListenerAdapter {
     private boolean isAdmin(ButtonInteractionEvent event) {
         Guild guild = event.getGuild();
         Member member = event.getMember();
-        return guild != null && member != null && adminRoleFilter.isAuthorized(guild, member);
+        return guild != null && member != null && adminRoleFilter.isSupportTier(guild, member);
     }
 }
