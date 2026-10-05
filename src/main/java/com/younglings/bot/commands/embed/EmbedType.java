@@ -1,7 +1,7 @@
 package com.younglings.bot.commands.embed;
 
 /**
- * Registry of pre-designed embeds {@code /embed} can post — add a case here (and a branch in
+ * Registry of pre-designed embeds the Embedded Posts panel (under {@code /configure}) can post — add a case here (and a branch in
  * {@link EmbedService#postEmbed}) for each new one; the post modal's dropdown is built from
  * {@link #values()} automatically.
  */

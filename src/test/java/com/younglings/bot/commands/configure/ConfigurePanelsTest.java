@@ -1,6 +1,7 @@
 package com.younglings.bot.commands.configure;
 
 import com.younglings.bot.announcement.AnnouncementRepository;
+import com.younglings.bot.commands.embed.EmbedService;
 import com.younglings.bot.configure.GuildSettings;
 import com.younglings.bot.configure.GuildSettingsService;
 import com.younglings.bot.runescape.ClanVerificationService;
@@ -40,7 +41,7 @@ class ConfigurePanelsTest {
     void setUp() {
         settingsService = mock(GuildSettingsService.class);
         announcements = mock(AnnouncementRepository.class);
-        listener = new ConfigureInteractionListener(settingsService, mock(ClanVerificationService.class), announcements);
+        listener = new ConfigureInteractionListener(settingsService, mock(ClanVerificationService.class), announcements, mock(EmbedService.class));
 
         guild = mock(Guild.class);
         when(guild.getIdLong()).thenReturn(GUILD_ID);

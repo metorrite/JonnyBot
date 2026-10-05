@@ -1,6 +1,7 @@
 package com.younglings.bot.announcement;
 
 import com.younglings.bot.commands.configure.ConfigureInteractionListener;
+import com.younglings.bot.commands.embed.EmbedHubPanel;
 import com.younglings.bot.discord.Containers;
 import com.younglings.bot.discord.DiscordLinks;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -68,6 +69,7 @@ public class AnnouncementInteractionListener extends ListenerAdapter {
             String[] parts = id.split(":");
             switch (parts[0]) {
                 case "configure_announce_main" -> event.editComponents(List.of(buildMainPanel(guild.getIdLong()))).useComponentsV2(true).queue();
+                case "configure_announce_premade" -> event.editComponents(List.of(EmbedHubPanel.build("configure_announce_main:_"))).useComponentsV2(true).queue();
                 case "configure_announce_preset", "configure_announce_clear_cancel" ->
                         event.editComponents(List.of(buildPresetPanel(guild.getIdLong(), AnnouncementPreset.valueOf(parts[1])))).useComponentsV2(true).queue();
                 case "configure_announce_edit" -> doEditTextPrompt(event, AnnouncementPreset.valueOf(parts[1]));
@@ -307,7 +309,6 @@ public class AnnouncementInteractionListener extends ListenerAdapter {
                 "-# Paste a block of text once, post it as the bot in as many channels as you like, and hit **Post / Update** again any time the text changes to update every copy in place."));
 
         List<Button> buttons = new ArrayList<>();
-        buttons.add(Button.primary("configure_back:_", "Back"));
         for (AnnouncementPreset preset : AnnouncementPreset.values()) {
             int count = announcementService.getDestinations(guildId, preset).size();
             boolean configured = announcementService.getText(guildId, preset) != null;
@@ -316,6 +317,9 @@ public class AnnouncementInteractionListener extends ListenerAdapter {
                                     : Button.secondary("configure_announce_preset:" + preset.name(), label));
         }
         children.add(ActionRow.of(buttons));
+        children.add(TextDisplay.of("-# **Pre-made Embeds** are the ones designed in the bot's code, like the Teamforming panel — post or remove them here too."));
+        children.add(ActionRow.of(Button.secondary("configure_announce_premade:_", "Pre-made Embeds")));
+        children.add(ActionRow.of(Button.primary("configure_back:_", "Back")));
         children.add(Containers.autoCloseNote());
 
         return Containers.card(Containers.PRIMARY, children);

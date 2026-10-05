@@ -1,5 +1,6 @@
 package com.younglings.bot.commands.runescape;
 
+import com.younglings.bot.commands.coffer.CofferHubPanel;
 import com.younglings.bot.commands.configure.ConfigureInteractionListener;
 import com.younglings.bot.discord.Containers;
 import com.younglings.bot.discord.Pagination;
@@ -329,6 +330,7 @@ public class RsAdminInteractionListener extends ListenerAdapter {
                 else showCitadelViewer(event, guild, thisWeek, today);
             }
             case "rsnadmin_citadel_range" -> doCitadelRangePrompt(event);
+            case "rsnadmin_coffer" -> event.editComponents(List.of(CofferHubPanel.build("rsnadmin_back:_"))).useComponentsV2(true).queue();
             case "rsnadmin_back" -> event.editComponents(List.of(buildPanel(guild, event.getMember()))).useComponentsV2(true).queue();
 
             case "rsnadmin_poll_all_confirm" -> doPollAll(event, guild);
@@ -1049,6 +1051,7 @@ public class RsAdminInteractionListener extends ListenerAdapter {
                     Button.secondary("rsnadmin_clanoverview:_", "Clan Overview"),
                     Button.secondary("rsnadmin_citadel:_", "Citadel Viewer")
             ));
+            children.add(ActionRow.of(Button.secondary("rsnadmin_coffer:_", "Clan Coffer")));
             children.add(Separator.createDivider(Separator.Spacing.SMALL));
         }
 

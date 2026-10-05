@@ -1,6 +1,7 @@
 package com.younglings.bot.commands.configure;
 
 import com.younglings.bot.announcement.AnnouncementRepository;
+import com.younglings.bot.commands.embed.EmbedService;
 import com.younglings.bot.configure.GuildSettings;
 import com.younglings.bot.configure.GuildSettingsService;
 import com.younglings.bot.discord.Containers;
@@ -51,12 +52,14 @@ public class ConfigureInteractionListener extends ListenerAdapter {
     private final GuildSettingsService settingsService;
     private final ClanVerificationService clanVerificationService;
     private final AnnouncementRepository announcementRepository;
+    private final EmbedService embedService;
 
     public ConfigureInteractionListener(GuildSettingsService settingsService, ClanVerificationService clanVerificationService,
-                                        AnnouncementRepository announcementRepository) {
+                                        AnnouncementRepository announcementRepository, EmbedService embedService) {
         this.settingsService = settingsService;
         this.clanVerificationService = clanVerificationService;
         this.announcementRepository = announcementRepository;
+        this.embedService = embedService;
     }
 
     @Override
@@ -364,7 +367,8 @@ public class ConfigureInteractionListener extends ListenerAdapter {
             clanStatus = "**No clan set yet** — start here.";
         }
 
-        int embeddedPosts = announcementRepository.countPostedEmbeds(guild.getIdLong());
+        // Everything the bot currently has posted as an embed: written posts plus the pre-made ones.
+        int embeddedPosts = announcementRepository.countPostedEmbeds(guild.getIdLong()) + embedService.getPostedInGuild(guild.getIdLong()).size();
 
         List<ContainerChildComponent> children = new ArrayList<>();
         children.add(TextDisplay.of("# Server Configuration\n-# Administrator only"));

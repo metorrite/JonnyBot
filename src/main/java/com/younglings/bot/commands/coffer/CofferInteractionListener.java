@@ -21,7 +21,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Handles button interactions for the coffer transfer 2-part verification flow (only active when
  * CofferService.REQUIRE_TRANSFER_VERIFICATION is true), plus the {@code /coffer} hub's buttons and
- * modals (see {@link CofferHubCommand}).
+ * modals (see {@link CofferHubPanel}).
  */
 @BService
 public class CofferInteractionListener extends ListenerAdapter {
