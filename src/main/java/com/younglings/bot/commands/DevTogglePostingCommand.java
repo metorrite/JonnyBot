@@ -30,7 +30,7 @@ public class DevTogglePostingCommand {
 
     @TopLevelSlashCommandData(scope = CommandScope.GUILD)
     @Test({})
-    @JDASlashCommand(name = "devtoggleposting", description = "[Dev only] Toggles whether this bot actually posts tracking entries")
+    @JDASlashCommand(name = "devtoggleposting", description = "[Dev only] Toggles whether this bot actually posts tracking entries (starts off on dev)")
     public void onDevTogglePosting(GuildSlashEvent event) {
         if (botConfig.getLiveEnvironment()) {
             Containers.replyEphemeral(event, Containers.WARNING, "This command is dev-only.");
