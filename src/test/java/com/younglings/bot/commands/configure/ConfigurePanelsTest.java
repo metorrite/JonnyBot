@@ -60,7 +60,7 @@ class ConfigurePanelsTest {
     }
 
     private static GuildSettings settings(String clanName, boolean enabled) {
-        return new GuildSettings(GUILD_ID, enabled ? clanName : null, 5L, 10L, 11L, 12L, 13L, 14L, 15L, enabled, clanName, 16L);
+        return new GuildSettings(GUILD_ID, enabled ? clanName : null, 5L, 10L, 11L, 12L, 13L, 14L, 15L, enabled, clanName, 16L, 17L);
     }
 
     /** Throws if Discord's message limits would reject this. */

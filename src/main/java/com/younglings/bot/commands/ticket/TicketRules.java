@@ -144,10 +144,17 @@ public final class TicketRules {
         if (panel.perUserLimit() < 1 || panel.perUserLimit() > 20) problems.add("Tickets per person must be between 1 and 20.");
         if (panel.helperCap() != null && (panel.helperCap() < 1 || panel.helperCap() > 25)) problems.add("The helper limit must be between 1 and 25.");
         if (panel.escalationHours() != null && (panel.escalationHours() < 1 || panel.escalationHours() > 720)) problems.add("The escalation wait must be between 1 and 720 hours.");
+        if (panel.name() != null && panel.name().length() > 60) problems.add("The panel name must be 60 characters or fewer.");
+        if (panel.title() != null && panel.title().length() > 100) problems.add("The title must be 100 characters or fewer.");
+        if (panel.description() != null && panel.description().length() > 2500) problems.add("The description must be 2500 characters or fewer.");
+        if (panel.welcomeText() != null && panel.welcomeText().length() > 1000) problems.add("The welcome text must be 1000 characters or fewer.");
+        if (panel.channelNameTemplate() == null || panel.channelNameTemplate().isBlank() || panel.channelNameTemplate().length() > 60) problems.add("The channel name template must be 1 to 60 characters.");
         if (fields.size() > MAX_FIELDS) problems.add("A form holds at most " + MAX_FIELDS + " questions — this panel has " + fields.size() + ".");
 
         for (Field field : fields) {
             if (field.label() == null || field.label().isBlank() || field.label().length() > 45) problems.add("Each question's label must be 1 to 45 characters (\"" + field.label() + "\").");
+            if (field.placeholder() != null && field.placeholder().length() > 100) problems.add("The placeholder for \"" + field.label() + "\" must be 100 characters or fewer.");
+            if (field.maxLength() != null && (field.maxLength() < 1 || field.maxLength() > 4000)) problems.add("The answer length limit for \"" + field.label() + "\" must be between 1 and 4000.");
             if (field.kind() == FieldKind.SELECT) {
                 if (field.options().isEmpty()) problems.add("The dropdown \"" + field.label() + "\" needs at least one choice.");
                 if (field.options().size() > MAX_OPTIONS) problems.add("The dropdown \"" + field.label() + "\" has more than " + MAX_OPTIONS + " choices.");

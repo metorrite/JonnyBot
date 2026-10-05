@@ -191,6 +191,10 @@ public class ConfigureInteractionListener extends ListenerAdapter {
                     settingsService.updateSupportRole(guild.getIdLong(), selectedChannelId);
                     event.editComponents(List.of(buildClanPanel(guild))).useComponentsV2(true).queue();
                 }
+                case "configure_developer_role" -> {
+                    settingsService.updateDeveloperRole(guild.getIdLong(), selectedChannelId);
+                    event.editComponents(List.of(buildClanPanel(guild))).useComponentsV2(true).queue();
+                }
                 case "configure_admin_role" -> {
                     settingsService.updateAdminRole(guild.getIdLong(), selectedChannelId);
                     event.editComponents(List.of(buildClanPanel(guild))).useComponentsV2(true).queue();
@@ -423,6 +427,15 @@ public class ConfigureInteractionListener extends ListenerAdapter {
             supportMenu.setDefaultValues(EntitySelectMenu.DefaultValue.role(settings.supportRoleId()));
         }
         children.add(ActionRow.of(supportMenu.build()));
+
+        children.add(TextDisplay.of("**Bot Developer Role** — may open the website's admin dashboard (ticket panels and settings), alongside the Admin role and above. Leave empty for none."));
+        EntitySelectMenu.Builder developerMenu = EntitySelectMenu.create("configure_developer_role:_", EntitySelectMenu.SelectTarget.ROLE)
+                .setPlaceholder("Select a role (optional)")
+                .setRequiredRange(0, 1);
+        if (settings.developerRoleId() != null && guild.getRoleById(settings.developerRoleId()) != null) {
+            developerMenu.setDefaultValues(EntitySelectMenu.DefaultValue.role(settings.developerRoleId()));
+        }
+        children.add(ActionRow.of(developerMenu.build()));
 
         children.add(ActionRow.of(Button.primary("configure_back:_", "Back")));
         children.add(Containers.autoCloseNote());

@@ -65,10 +65,12 @@ public class InternalApiServer {
     private static final int MAX_NICKNAME_LENGTH = 32; // Discord's own limit
 
     private final BotConfig botConfig;
+    private final TicketAdminApi ticketAdminApi;
     private JDA jda;
 
-    public InternalApiServer(BotConfig botConfig) {
+    public InternalApiServer(BotConfig botConfig, TicketAdminApi ticketAdminApi) {
         this.botConfig = botConfig;
+        this.ticketAdminApi = ticketAdminApi;
     }
 
     @BEventListener
@@ -100,6 +102,8 @@ public class InternalApiServer {
             server.createContext("/internal/nickname", exchange -> handleSetNickname(exchange, secret, guildId));
             server.createContext("/internal/color-role", exchange -> handleSetColorRole(exchange, secret, guildId));
 
+            server.createContext("/internal/admin/", exchange -> handleAdmin(exchange, secret, guildId));
+
             server.setExecutor(Executors.newFixedThreadPool(4));
             server.start();
             log.info("Internal API listening on port {}", port);
@@ -130,6 +134,31 @@ public class InternalApiServer {
         }
 
         return guild;
+    }
+
+    /**
+     * The dashboard's routes: this checks the secret and finds the guild (any HTTP method), then
+     * {@link TicketAdminApi} checks who is asking and does the rest.
+     */
+    private void handleAdmin(HttpExchange exchange, String secret, long guildId) throws IOException {
+        try {
+            String provided = exchange.getRequestHeaders().getFirst(SECRET_HEADER);
+            if (provided == null || !constantTimeEquals(provided, secret)) {
+                sendJson(exchange, 401, DataObject.empty().put("error", "Unauthorized"));
+                return;
+            }
+
+            Guild guild = jda.getGuildById(guildId);
+            if (guild == null) {
+                sendJson(exchange, 503, DataObject.empty().put("error", "Guild not available yet"));
+                return;
+            }
+
+            ticketAdminApi.handle(exchange, guild);
+        } catch (Exception e) {
+            log.error("Internal API admin request failed", e);
+            sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));
+        }
     }
 
     /**
@@ -358,7 +387,7 @@ public class InternalApiServer {
 
     // --- Helpers ---
 
-    private void sendJson(HttpExchange exchange, int statusCode, DataObject payload) throws IOException {
+    static void sendJson(HttpExchange exchange, int statusCode, DataObject payload) throws IOException {
         byte[] body = payload.toJson();
         exchange.getResponseHeaders().set("Content-Type", "application/json; charset=utf-8");
         exchange.sendResponseHeaders(statusCode, body.length);
