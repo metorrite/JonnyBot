@@ -1,14 +1,15 @@
 package com.younglings.bot.commands.poll;
 
 import com.younglings.bot.discord.Containers;
+import net.dv8tion.jda.api.components.actionrow.ActionRow;
 import net.dv8tion.jda.api.components.buttons.Button;
 import net.dv8tion.jda.api.components.container.Container;
 import net.dv8tion.jda.api.components.container.ContainerChildComponent;
 import net.dv8tion.jda.api.components.mediagallery.MediaGallery;
 import net.dv8tion.jda.api.components.mediagallery.MediaGalleryItem;
-import net.dv8tion.jda.api.components.section.Section;
 import net.dv8tion.jda.api.components.separator.Separator;
 import net.dv8tion.jda.api.components.textdisplay.TextDisplay;
+import net.dv8tion.jda.api.entities.emoji.Emoji;
 import net.dv8tion.jda.api.utils.FileUpload;
 
 import java.awt.Color;
@@ -17,12 +18,18 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * How a poll looks in the channel. Each option is a row — its label and tally on the left, its Vote
- * button on the right ({@link Section}) — with a smooth drawn progress bar ({@link PollBarRenderer})
- * directly underneath. Closed polls show the same rows with the buttons disabled and the winner picked out.
+ * How a poll looks in the channel. Each option is two rows: its button — the option's own label, pressed
+ * to vote — left-aligned on the first, and a drawn progress bar ({@link PollBarRenderer}) under it with
+ * the vote count and percentage written to the right of the bar. Every option has exactly this shape, so
+ * the buttons sit at the same left edge and the same spacing whether an option has votes or not. Who voted
+ * (when the poll isn't anonymous) goes in a small line beneath the bar. Closed polls show the same rows with
+ * the buttons disabled and the winner picked out.
  * <p>
- * Component budget: a poll can have up to 6 options, and each costs 5 of Discord's 40 per message (the
- * row is 3, the bar is 2) — 30, plus the title, divider and footer, comes to 34.
+ * (Buttons are the same for everyone looking at a message, so they can't say "Vote" to one person and
+ * "Remove vote" to another; pressing an option you already picked removes your vote, and the reply says so.)
+ * <p>
+ * Component budget: a poll can have up to 6 options, and each costs at most 5 of Discord's 40 per message
+ * (button row 2, bar 2, voters line 1) — 30, plus the title, divider and footer, comes to 34.
  */
 final class PollView {
     private PollView() {}
@@ -30,9 +37,16 @@ final class PollView {
     static final String[] NUMBER_EMOJIS = {"1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣"};
     static final Color POLL_COLOR = new Color(0x5865F2);
     private static final int VOTERS_SHOWN = 5;
+    private static final int BUTTON_LABEL_MAX = 70;
 
     static Container build(PollSession session, List<PollOption> options, Map<Long, Integer> counts,
                            Map<Long, List<Long>> voters, boolean closed) {
+        return build(session, options, counts, voters, closed, PollBarRenderer.textAvailable());
+    }
+
+    /** @param numbersInImage whether the count and percentage are drawn into each bar image; when {@code false} (no fonts available) they go in a text line under the bar instead */
+    static Container build(PollSession session, List<PollOption> options, Map<Long, Integer> counts,
+                           Map<Long, List<Long>> voters, boolean closed, boolean numbersInImage) {
         int total = counts.values().stream().mapToInt(Integer::intValue).sum();
         int best = counts.values().stream().mapToInt(Integer::intValue).max().orElse(0);
 
@@ -42,14 +56,20 @@ final class PollView {
         for (PollOption option : options) {
             int votes = counts.getOrDefault(option.optionId(), 0);
             double share = total > 0 ? (double) votes / total : 0.0;
+            long percent = Math.round(share * 100);
             boolean winner = closed && best > 0 && votes == best;
+            String votesText = votes + (votes == 1 ? " vote" : " votes");
 
-            children.add(Section.of(voteButton(session, option, closed), TextDisplay.of(optionText(option, votes, share, total, winner, voters))));
+            children.add(ActionRow.of(voteButton(option, winner, closed)));
 
             PollBarRenderer.Style style = !closed ? PollBarRenderer.Style.ACTIVE : winner ? PollBarRenderer.Style.WINNER : PollBarRenderer.Style.MUTED;
-            String name = "poll-" + session.pollId() + "-" + option.optionNumber() + "-" + Math.round(share * 1000) + "-" + style.name().toLowerCase() + ".png";
-            children.add(MediaGallery.of(MediaGalleryItem.fromFile(FileUpload.fromData(PollBarRenderer.render(share, style), name))
-                    .withDescription(Math.round(share * 100) + "%")));
+            byte[] png = PollBarRenderer.render(share, style, numbersInImage ? votesText : null, numbersInImage ? percent + "%" : null);
+            String name = "poll-" + session.pollId() + "-" + option.optionNumber() + "-" + votes + "of" + total + "-" + style.name().toLowerCase()
+                    + (numbersInImage ? "" : "-plain") + ".png";
+            children.add(MediaGallery.of(MediaGalleryItem.fromFile(FileUpload.fromData(png, name)).withDescription(votesText + ", " + percent + "%")));
+
+            String below = belowBar(votesText, percent, total, numbersInImage, voters.getOrDefault(option.optionId(), List.of()));
+            if (!below.isEmpty()) children.add(TextDisplay.of(below));
         }
 
         children.add(Separator.createDivider(Separator.Spacing.SMALL));
@@ -58,21 +78,22 @@ final class PollView {
         return Containers.card(closed ? Color.DARK_GRAY : POLL_COLOR, children);
     }
 
-    private static Button voteButton(PollSession session, PollOption option, boolean closed) {
-        Button button = Button.secondary("poll_vote:" + option.pollId() + ":" + option.optionNumber(), "Vote");
+    private static Button voteButton(PollOption option, boolean winner, boolean closed) {
+        String label = truncate(option.label(), BUTTON_LABEL_MAX);
+        Button button = Button.secondary("poll_vote:" + option.pollId() + ":" + option.optionNumber(), (winner ? "🏆 " : "") + label)
+                .withEmoji(Emoji.fromUnicode(NUMBER_EMOJIS[option.optionNumber() - 1]));
         return closed ? button.asDisabled() : button;
     }
 
-    private static String optionText(PollOption option, int votes, double share, int total, boolean winner, Map<Long, List<Long>> voters) {
+    private static String belowBar(String votesText, long percent, int total, boolean numbersInImage, List<Long> voterIds) {
         StringBuilder text = new StringBuilder();
-        text.append(NUMBER_EMOJIS[option.optionNumber() - 1]).append(" **").append(option.label()).append("**");
-        if (winner) text.append("  🏆");
-        text.append("\n").append(votes).append(votes == 1 ? " vote" : " votes");
-        if (total > 0) text.append("  ·  **").append(Math.round(share * 100)).append("%**");
-
-        List<Long> voterIds = voters.getOrDefault(option.optionId(), List.of());
+        if (!numbersInImage) {
+            text.append(votesText);
+            if (total > 0) text.append("  ·  **").append(percent).append("%**");
+        }
         if (!voterIds.isEmpty()) {
-            text.append("\n↳ ");
+            if (!text.isEmpty()) text.append("\n");
+            text.append("↳ ");
             int shown = Math.min(voterIds.size(), VOTERS_SHOWN);
             for (int i = 0; i < shown; i++) {
                 if (i > 0) text.append(", ");
@@ -89,6 +110,10 @@ final class PollView {
         if (session.multipleVotes()) meta.add("multiple votes allowed");
         if (session.anonymous()) meta.add("anonymous");
         return "🗳️ *" + String.join("  ·  ", meta) + "*\n-# "
-                + (closed ? "This poll has been closed." : "Press a Vote button  ·  press it again to remove your vote");
+                + (closed ? "This poll has been closed." : "Press an option to vote  ·  press it again to remove your vote");
+    }
+
+    private static String truncate(String s, int max) {
+        return s.length() > max ? s.substring(0, max - 1) + "…" : s;
     }
 }
