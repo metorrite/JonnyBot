@@ -41,6 +41,8 @@ import net.dv8tion.jda.api.events.interaction.ModalInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.callbacks.IMessageEditCallback;
+import net.dv8tion.jda.api.interactions.callbacks.IModalCallback;
+import net.dv8tion.jda.api.interactions.callbacks.IReplyCallback;
 import net.dv8tion.jda.api.interactions.components.ComponentInteraction;
 import net.dv8tion.jda.api.modals.Modal;
 import net.dv8tion.jda.api.utils.FileUpload;
@@ -299,6 +301,30 @@ public class RsInteractionListener extends ListenerAdapter {
      * flow now; there's no more "I've applied my look" wait between submitting and this. Mentions are
      * suppressed since this is a for-admins channel, not a ping to the requester.
      */
+    /**
+     * What {@code /rs} does for one person, usable from anything that can reply and open a modal — the
+     * slash command itself and the {@code rs} button on an Embedded Post both end up here, so a button
+     * can never drift from the command: linked members get their account panel, someone mid-verification
+     * gets their status, and everyone else gets the link form.
+     */
+    public <E extends IReplyCallback & IModalCallback> void openRs(E event, Guild guild, long userId) {
+        long guildId = guild.getIdLong();
+
+        List<PlayerLink> links = linkService.getLinksForUser(guildId, userId);
+        if (!links.isEmpty()) {
+            event.replyComponents(List.of(buildAccountPanel(guild, userId))).useComponentsV2(true).setEphemeral(true).queue();
+            return;
+        }
+
+        VerificationAttempt pending = linkService.getPendingAttemptForUser(guildId, userId);
+        if (pending != null) {
+            event.replyComponents(List.of(buildPendingStatusPanel(pending))).useComponentsV2(true).setEphemeral(true).queue();
+            return;
+        }
+
+        event.replyModal(buildLinkModal()).queue();
+    }
+
     private void postForAdminReview(Guild guild, VerificationAttempt attempt) {
         GuildMessageChannel channel = resolveVerificationChannel(guild);
         if (channel == null) {

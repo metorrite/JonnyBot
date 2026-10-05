@@ -154,6 +154,17 @@ public class WeeklyDigestService {
         return Containers.card(Containers.PRIMARY, children);
     }
 
+    private static final DateTimeFormatter SUMMARY_DATE = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM);
+
+    /** The {@code /citadel} view: this week so far, or the last completed week — shared by the command and the Embedded Post {@code citadel} button. */
+    public Container buildWeekSummary(long guildId, boolean lastWeek) {
+        OffsetDateTime[] window = lastWeek ? lastCompletedWindow() : currentWindow();
+        String title = lastWeek
+                ? "Citadel — last week (" + window[0].toLocalDate().format(SUMMARY_DATE) + " – " + window[1].toLocalDate().minusDays(1).format(SUMMARY_DATE) + ")"
+                : "Citadel — this week so far (since " + window[0].toLocalDate().format(SUMMARY_DATE) + ")";
+        return buildCitadelSummary(guildId, window[0], window[1], title);
+    }
+
     private static String totalsLine(List<CitadelEntry> entries) {
         long capped = entries.stream().filter(e -> e.capped).count();
         long visited = entries.stream().filter(e -> e.visited).count();

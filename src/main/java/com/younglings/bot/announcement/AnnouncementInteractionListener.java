@@ -71,6 +71,9 @@ public class AnnouncementInteractionListener extends ListenerAdapter {
                 case "configure_announce_preset", "configure_announce_clear_cancel" ->
                         event.editComponents(List.of(buildPresetPanel(guild.getIdLong(), AnnouncementPreset.valueOf(parts[1])))).useComponentsV2(true).queue();
                 case "configure_announce_edit" -> doEditTextPrompt(event, AnnouncementPreset.valueOf(parts[1]));
+                case "configure_announce_preview" -> doPreview(event, guild, AnnouncementPreset.valueOf(parts[1]));
+                case "configure_announce_legend" -> event.replyComponents(List.of(Containers.toast(Containers.INFO, PostMarkup.LEGEND)))
+                        .useComponentsV2(true).setEphemeral(true).queue();
                 case "configure_announce_post" -> doPostAnnouncement(event, guild, AnnouncementPreset.valueOf(parts[1]));
                 case "configure_announce_add_link" -> doAddLinkPrompt(event, AnnouncementPreset.valueOf(parts[1]));
                 case "configure_announce_clear_confirm" -> event.editComponents(List.of(buildClearConfirmPanel(guild.getIdLong(), AnnouncementPreset.valueOf(parts[1])))).useComponentsV2(true).queue();
@@ -165,7 +168,7 @@ public class AnnouncementInteractionListener extends ListenerAdapter {
         String current = announcementService.getText(event.getGuild().getIdLong(), preset);
 
         TextInput.Builder textInput = TextInput.create("announce_text", TextInputStyle.PARAGRAPH)
-                .setPlaceholder("The text, exactly as you want it posted")
+                .setPlaceholder("Your text. Tags on their own line: ~<LS>~ divider, ~B-P_Label|rs~ button. See Legend.")
                 .setRequired(false)
                 .setMaxLength(4000);
         if (current != null) textInput.setValue(current);
@@ -179,7 +182,14 @@ public class AnnouncementInteractionListener extends ListenerAdapter {
     private void handleTextModal(ModalInteractionEvent event, Guild guild, AnnouncementPreset preset) {
         String text = blankToNull(event.getValue("announce_text").getAsString());
         announcementService.setText(guild.getIdLong(), preset, text);
-        Containers.replyEphemeral(event, Containers.SUCCESS, "Text saved — click **Post / Update** to publish it.");
+
+        PostMarkup.Parsed parsed = text == null ? null : PostMarkup.parse(text, false);
+        if (parsed == null || parsed.problems().isEmpty()) {
+            Containers.replyEphemeral(event, Containers.SUCCESS, "Text saved — **Preview** it, then click **Post / Update** to publish.");
+        } else {
+            Containers.replyEphemeral(event, parsed.hasErrors() ? Containers.WARNING : Containers.SUCCESS,
+                    "Text saved" + (parsed.hasErrors() ? ", but it can't be posted until this is fixed:" : ". Heads up:"), parsed.problemsText());
+        }
     }
 
     private void doAddLinkPrompt(ButtonInteractionEvent event, AnnouncementPreset preset) {
@@ -227,8 +237,14 @@ public class AnnouncementInteractionListener extends ListenerAdapter {
             return;
         }
 
+        PostMarkup.Parsed parsed = PostMarkup.parse(text, true);
+        if (parsed.hasErrors()) {
+            Containers.replyEphemeral(event, Containers.DANGER, "Nothing was posted — fix this first:", parsed.problemsText());
+            return;
+        }
+
         event.deferReply(true).queue();
-        Container container = Containers.card(Containers.PRIMARY, TextDisplay.of(text));
+        Container container = parsed.toContainer(Containers.PRIMARY);
 
         List<CompletableFuture<Void>> pending = new ArrayList<>();
         for (AnnouncementRepository.Destination destination : destinations) {
@@ -239,9 +255,26 @@ public class AnnouncementInteractionListener extends ListenerAdapter {
         CompletableFuture.allOf(pending.toArray(new CompletableFuture[0])).handle((v, err) -> {
             String message = "Posted/updated **" + preset.displayName() + "** in " + total + " destination(s).";
             if (err != null) message += " Some may have failed — check the bot's logs.";
+            if (!parsed.problems().isEmpty()) message += "\n" + parsed.problemsText();
             event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.SUCCESS, message))).useComponentsV2(true).queue();
             return null;
         });
+    }
+
+    /** Shows the post as it will look — buttons disabled so nothing in the preview does anything — followed by any problems. */
+    private void doPreview(ButtonInteractionEvent event, Guild guild, AnnouncementPreset preset) {
+        String text = announcementService.getText(guild.getIdLong(), preset);
+        if (text == null) {
+            Containers.replyEphemeral(event, Containers.WARNING, "There's no text yet — click **Edit Text** first.");
+            return;
+        }
+
+        PostMarkup.Parsed parsed = PostMarkup.parse(text, false);
+        List<net.dv8tion.jda.api.components.MessageTopLevelComponent> components = new ArrayList<>();
+        components.add(parsed.toContainer(Containers.PRIMARY));
+        components.add(Containers.toast(parsed.hasErrors() ? Containers.DANGER : parsed.problems().isEmpty() ? Containers.SUCCESS : Containers.WARNING,
+                parsed.problems().isEmpty() ? "✅ Looks good — Post / Update will publish exactly this." : parsed.problemsText()));
+        event.replyComponents(components).useComponentsV2(true).setEphemeral(true).queue();
     }
 
     private CompletableFuture<Void> postOrUpdateOne(Guild guild, long guildId, AnnouncementRepository.Destination destination, Container container) {
@@ -294,10 +327,12 @@ public class AnnouncementInteractionListener extends ListenerAdapter {
 
         List<ContainerChildComponent> children = new ArrayList<>();
         children.add(TextDisplay.of("### " + preset.displayName()));
-        children.add(TextDisplay.of("-# Post / Update posts this text fresh, or edits the previous copy in place, in every destination below."));
+        children.add(TextDisplay.of("-# Post / Update posts this text fresh, or edits the previous copy in place, in every destination below. " +
+                "The text can include dividers, images and buttons — open **Legend** for the tags."));
         children.add(ActionRow.of(
-                Button.secondary("configure_announce_main:_", "All Announcements"),
                 Button.primary("configure_announce_edit:" + preset.name(), "Edit Text"),
+                Button.secondary("configure_announce_preview:" + preset.name(), "Preview"),
+                Button.secondary("configure_announce_legend:_", "Legend"),
                 Button.success("configure_announce_post:" + preset.name(), "Post / Update")));
 
         String preview = text == null ? "*not set*" : text.length() > 300 ? text.substring(0, 300) + "…" : text;
@@ -334,6 +369,8 @@ public class AnnouncementInteractionListener extends ListenerAdapter {
             children.add(ActionRow.of(Button.danger("configure_announce_clear_confirm:" + preset.name(), "Clear All Destinations")));
         }
 
+        children.add(ActionRow.of(Button.primary("configure_announce_main:_", "Back")));
+        children.add(Containers.autoCloseNote());
         return Containers.card(Containers.PRIMARY, children);
     }
 

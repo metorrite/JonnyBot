@@ -1,6 +1,7 @@
 package com.younglings.bot;
 
 import com.younglings.bot.announcement.AnnouncementInteractionListener;
+import com.younglings.bot.announcement.PostActionListener;
 import com.younglings.bot.commandchannel.CommandChannelConfigInteractionListener;
 import com.younglings.bot.commandchannel.CommandChannelListener;
 import com.younglings.bot.commands.coffer.CofferInteractionListener;
@@ -58,6 +59,7 @@ public class Bot extends JDAService {
     private final CommandChannelListener commandChannelListener;
     private final CommandChannelConfigInteractionListener commandChannelConfigInteractionListener;
     private final EphemeralLifecycle ephemeralLifecycle;
+    private final PostActionListener postActionListener;
 
     public Bot(BotConfig botConfig, SignupInteractionListener signupInteractionListener,
                PollInteractionListener pollInteractionListener,
@@ -79,7 +81,8 @@ public class Bot extends JDAService {
                WeeklyDigestInteractionListener weeklyDigestInteractionListener,
                CommandChannelListener commandChannelListener,
                CommandChannelConfigInteractionListener commandChannelConfigInteractionListener,
-               EphemeralLifecycle ephemeralLifecycle) {
+               EphemeralLifecycle ephemeralLifecycle,
+               PostActionListener postActionListener) {
         this.botConfig = botConfig;
         this.signupInteractionListener = signupInteractionListener;
         this.pollInteractionListener = pollInteractionListener;
@@ -102,6 +105,7 @@ public class Bot extends JDAService {
         this.commandChannelListener = commandChannelListener;
         this.commandChannelConfigInteractionListener = commandChannelConfigInteractionListener;
         this.ephemeralLifecycle = ephemeralLifecycle;
+        this.postActionListener = postActionListener;
     }
 
     // If you use Spring, you can return values provided by JDAConfiguration in the getters below
@@ -146,7 +150,8 @@ public class Bot extends JDAService {
                         configureInteractionListener, skillEmojiCatalog, trackingIconCatalog,
                         trackingAuditLogListener, trackingConfigInteractionListener,
                         announcementInteractionListener, weeklyDigestInteractionListener,
-                        commandChannelListener, commandChannelConfigInteractionListener, ephemeralLifecycle)
+                        commandChannelListener, commandChannelConfigInteractionListener, ephemeralLifecycle,
+                        postActionListener)
                 .build();
     }
 }
