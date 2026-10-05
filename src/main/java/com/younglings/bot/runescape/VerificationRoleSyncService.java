@@ -8,6 +8,10 @@ import net.dv8tion.jda.api.entities.Role;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
 /**
  * Adds a configured "verified" role and removes a configured "unverified" role when a player link
  * is created — called from both the admin-review approval flow and the admin's manual-verify path,
@@ -23,6 +27,11 @@ import org.slf4j.LoggerFactory;
  * to mistype and nothing to look up by string match. A slot left unset (or pointing at a role no
  * longer in the guild) is simply skipped and logged, never guessed — same "fails closed" philosophy
  * as {@code AdminRoleFilter}.
+ * <p>
+ * The two roles can legitimately be the <em>same</em> role: with Guest as both the "unverified" and the
+ * "not a clan member" role, a verified non-clan player keeps Guest while a clan member trades Guest for
+ * Member. So the unverified role is never removed if it is the very role being granted, and both
+ * changes are sent to Discord as one update — nobody is ever left holding neither role, even briefly.
  */
 @BService
 public class VerificationRoleSyncService {
@@ -45,25 +54,41 @@ public class VerificationRoleSyncService {
         if (verifiedRoleId == null && unverifiedRoleId == null) return;
 
         guild.retrieveMemberById(discordUserId).queue(member -> {
-            if (verifiedRoleId != null) {
-                Role role = guild.getRoleById(verifiedRoleId);
-                if (role == null) {
-                    log.warn("Configured verified role {} not found in guild {}", verifiedRoleId, guild.getIdLong());
-                } else if (!member.getRoles().contains(role)) {
-                    guild.addRoleToMember(member, role).queue(success -> {},
-                            error -> log.warn("Failed to add verified role {} to user {}", verifiedRoleId, discordUserId, error));
-                }
-            }
+            Set<Long> held = new HashSet<>();
+            for (Role role : member.getRoles()) held.add(role.getIdLong());
 
-            if (unverifiedRoleId != null) {
-                Role role = guild.getRoleById(unverifiedRoleId);
-                if (role == null) {
-                    log.warn("Configured unverified role {} not found in guild {}", unverifiedRoleId, guild.getIdLong());
-                } else if (member.getRoles().contains(role)) {
-                    guild.removeRoleFromMember(member, role).queue(success -> {},
-                            error -> log.warn("Failed to remove unverified role {} from user {}", unverifiedRoleId, discordUserId, error));
-                }
-            }
+            RolePlan plan = plan(verifiedRoleId, unverifiedRoleId, held, id -> guild.getRoleById(id) != null);
+            plan.missing().forEach(id -> log.warn("Configured verification role {} not found in guild {}", id, guild.getIdLong()));
+            if (plan.add().isEmpty() && plan.remove().isEmpty()) return;
+
+            List<Role> add = plan.add().stream().map(guild::getRoleById).toList();
+            List<Role> remove = plan.remove().stream().map(guild::getRoleById).toList();
+            guild.modifyMemberRoles(member, add, remove).queue(success -> {},
+                    error -> log.warn("Failed to update verification roles (add {}, remove {}) for user {}", plan.add(), plan.remove(), discordUserId, error));
         }, error -> log.warn("Failed to retrieve member {} for verification role sync", discordUserId, error));
+    }
+
+    /** What to change for one member: role ids to add, role ids to remove, and configured ids that no longer exist in the guild. */
+    record RolePlan(Set<Long> add, Set<Long> remove, Set<Long> missing) {}
+
+    /**
+     * Pure decision, no Discord calls. The verified role is added if the member lacks it; the unverified
+     * role is removed if the member holds it — unless it is the same role as the verified one, which is
+     * simply kept. A configured role that no longer exists is skipped and reported, never guessed at.
+     */
+    static RolePlan plan(Long verifiedRoleId, Long unverifiedRoleId, Set<Long> memberRoleIds, java.util.function.Predicate<Long> roleExists) {
+        Set<Long> add = new HashSet<>();
+        Set<Long> remove = new HashSet<>();
+        Set<Long> missing = new HashSet<>();
+
+        if (verifiedRoleId != null) {
+            if (!roleExists.test(verifiedRoleId)) missing.add(verifiedRoleId);
+            else if (!memberRoleIds.contains(verifiedRoleId)) add.add(verifiedRoleId);
+        }
+        if (unverifiedRoleId != null) {
+            if (!roleExists.test(unverifiedRoleId)) missing.add(unverifiedRoleId);
+            else if (memberRoleIds.contains(unverifiedRoleId) && !unverifiedRoleId.equals(verifiedRoleId)) remove.add(unverifiedRoleId);
+        }
+        return new RolePlan(add, remove, missing);
     }
 }
