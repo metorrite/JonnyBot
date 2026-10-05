@@ -111,6 +111,20 @@ public class PollService {
         return isAdmin || poll.createdByUserId() == userId;
     }
 
+    /**
+     * What {@code userId} has voted for in an active poll, as lines like "1️⃣ Option label" in option order
+     * — empty if they haven't voted. The public message is the same for everyone, so this is how a person
+     * sees *their own* picks (in their private reply, and behind the My Votes button).
+     */
+    public List<String> myVoteLines(long pollId, long userId) {
+        java.util.Set<Long> mine = pollRepository.getUserVotes(pollId, userId);
+        List<String> lines = new ArrayList<>();
+        for (PollOption option : getOptions(pollId)) {
+            if (mine.contains(option.optionId())) lines.add(PollView.NUMBER_EMOJIS[option.optionNumber() - 1] + " " + option.label());
+        }
+        return lines;
+    }
+
     // --- Voting ---
 
     public enum VoteResult { ADDED, REMOVED, SWITCHED, POLL_CLOSED }
