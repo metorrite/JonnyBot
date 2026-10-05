@@ -50,7 +50,7 @@ class PollTest {
     private static int filledPixels(double share) throws Exception {
         BufferedImage image = ImageIO.read(new ByteArrayInputStream(PollBarRenderer.render(share, PollBarRenderer.Style.ACTIVE, null, null)));
         int row = image.getHeight() / 2, filled = 0;
-        for (int x = 0; x < PollBarRenderer.BAR_WIDTH; x++) {
+        for (int x = 0; x < PollBarRenderer.barWidth(false); x++) {
             int argb = image.getRGB(x, row);
             int blue = argb & 0xFF, red = (argb >> 16) & 0xFF;
             if (blue - red > 40) filled++; // the fill is blurple; the empty track is near-white
@@ -82,13 +82,13 @@ class PollTest {
         var tree = ComponentTree.of(List.of(poll));
         assertEquals(3, tree.findAll(MediaGallery.class).size(), "a bar per option");
         assertEquals(0, tree.findAll(Section.class).size(), "no side-by-side rows: the buttons sit left-aligned above their bars");
-        assertEquals(List.of("poll_vote:5:1", "poll_vote:5:2", "poll_vote:5:3"),
+        assertEquals(List.of("poll_vote:5:1", "poll_vote:5:2", "poll_vote:5:3", "poll_mine:5"),
                 tree.findAll(Button.class).stream().map(Button::getCustomId).toList());
-        assertTrue(tree.findAll(Button.class).stream().allMatch(b -> b.getLabel().startsWith("Option number")), "the option's own label is the button");
+        assertTrue(tree.findAll(Button.class).stream().filter(x -> x.getCustomId().startsWith("poll_vote")).allMatch(x -> x.getLabel().startsWith("Option number")), "the option's own label is the button");
 
         // Every option has the identical shape — button row immediately followed by its bar — so the buttons never drift.
         List<String> shape = poll.getComponents().stream().map(c -> c.getClass().getInterfaces()[0].getSimpleName()).toList();
-        assertEquals(List.of("TextDisplay", "ActionRow", "MediaGallery", "ActionRow", "MediaGallery", "ActionRow", "MediaGallery", "Separator", "TextDisplay"), shape);
+        assertEquals(List.of("TextDisplay", "ActionRow", "MediaGallery", "ActionRow", "MediaGallery", "ActionRow", "MediaGallery", "Separator", "TextDisplay", "ActionRow"), shape);
     }
 
     @Test
@@ -282,5 +282,43 @@ class PollTest {
         byte[] with = PollBarRenderer.render(0.5, PollBarRenderer.Style.ACTIVE, "3 votes", "50%");
         byte[] without = PollBarRenderer.render(0.5, PollBarRenderer.Style.ACTIVE, null, null);
         assertFalse(java.util.Arrays.equals(with, without));
-    }
-}
+    }
+
+    @Test
+    void anOpenPollHasAMyVotesButtonAndAClosedOneDoesNot() {
+        Container open = PollView.build(session(false, true), options(2), Map.of(), Map.of(), false, true);
+        Container closed = PollView.build(session(false, true), options(2), Map.of(), Map.of(), true, true);
+        assertTrue(ComponentTree.of(List.of(open)).findAll(Button.class).stream().anyMatch(b -> "poll_mine:5".equals(b.getCustomId())));
+        assertTrue(ComponentTree.of(List.of(closed)).findAll(Button.class).stream().noneMatch(b -> b.getCustomId().startsWith("poll_mine")));
+    }
+
+    @Test
+    void theBarFillsTheSpaceTheNumbersDoNotNeed() {
+        org.junit.jupiter.api.Assumptions.assumeTrue(PollBarRenderer.textAvailable(), "no fonts on this machine");
+        int withNumbers = PollBarRenderer.barWidth(true);
+        assertTrue(withNumbers > 650, "wider than the old fixed 610: " + withNumbers);
+        assertTrue(withNumbers < PollBarRenderer.WIDTH - 150, "still leaves room for '999 votes' and '100%': " + withNumbers);
+        assertEquals(PollBarRenderer.WIDTH, PollBarRenderer.barWidth(false), "with no numbers drawn the bar runs the full width");
+        assertEquals(withNumbers, PollBarRenderer.barWidth(true), "every option's bar ends in the same place");
+    }
+
+    @Test
+    void myVoteLinesListWhatThePersonPickedInOptionOrder() {
+        com.younglings.bot.poll.PollRepository repository = mock(com.younglings.bot.poll.PollRepository.class);
+        when(repository.getOptions(5)).thenReturn(options(4));
+        when(repository.getUserVotes(5, OWNER)).thenReturn(java.util.Set.of(104L, 102L));
+        PollService service = new PollService(repository);
+
+        List<String> lines = service.myVoteLines(5, OWNER);
+        assertEquals(2, lines.size());
+        assertTrue(lines.get(0).startsWith("2️⃣ Option number 2"));
+        assertTrue(lines.get(1).startsWith("4️⃣ Option number 4"));
+        assertEquals(List.of(), service.myVoteLines(5, OTHER), "someone who hasn't voted has no lines");
+    }
+
+    @Test
+    void theVoteReplyListsYourPicksOrSaysThereAreNone() {
+        assertEquals("**Your votes:** none yet", PollInteractionListener.describeMine(List.of()));
+        assertEquals("**Your votes:**\n1️⃣ A\n3️⃣ C", PollInteractionListener.describeMine(List.of("1️⃣ A", "3️⃣ C")));
+    }
+}

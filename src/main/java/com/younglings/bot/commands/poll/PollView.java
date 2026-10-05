@@ -29,7 +29,7 @@ import java.util.Map;
  * "Remove vote" to another; pressing an option you already picked removes your vote, and the reply says so.)
  * <p>
  * Component budget: a poll can have up to 6 options, and each costs at most 5 of Discord's 40 per message
- * (button row 2, bar 2, voters line 1) — 30, plus the title, divider and footer, comes to 34.
+ * (button row 2, bar 2, voters line 1) — 30, plus the title, divider, footer and the My Votes row, comes to 36.
  */
 final class PollView {
     private PollView() {}
@@ -74,6 +74,7 @@ final class PollView {
 
         children.add(Separator.createDivider(Separator.Spacing.SMALL));
         children.add(TextDisplay.of(footer(session, total, closed)));
+        if (!closed) children.add(ActionRow.of(Button.secondary("poll_mine:" + session.pollId(), "My Votes")));
 
         return Containers.card(closed ? Color.DARK_GRAY : POLL_COLOR, children);
     }

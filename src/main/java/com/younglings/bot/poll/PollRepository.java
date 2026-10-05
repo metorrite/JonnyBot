@@ -251,6 +251,24 @@ public class PollRepository {
         }
     }
 
+    /** The option ids {@code userId} currently has a vote on in this poll. */
+    public java.util.Set<Long> getUserVotes(long pollId, long userId) {
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(
+                     "SELECT option_id FROM younglings.poll_vote WHERE poll_id = ? AND user_id = ?")) {
+            statement.setLong(1, pollId);
+            statement.setLong(2, userId);
+            java.util.Set<Long> optionIds = new java.util.HashSet<>();
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) optionIds.add(rs.getLong("option_id"));
+            }
+            return optionIds;
+        } catch (SQLException e) {
+            log.error("Failed to get votes of user {} in poll {}", userId, pollId, e);
+            throw new RuntimeException("Failed to get a user's votes", e);
+        }
+    }
+
     public Map<Long, Integer> getVoteCounts(long pollId) {
         Map<Long, Integer> counts = new HashMap<>();
         try (Connection connection = connectionSupplier.getConnection();

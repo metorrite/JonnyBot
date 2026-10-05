@@ -37,8 +37,40 @@ final class PollBarRenderer {
     static final int WIDTH = 900;
     static final int HEIGHT = 36;
     static final int BAR_HEIGHT = 28;
-    /** The bar's own length; the rest of the width is the count/percentage area. */
-    static final int BAR_WIDTH = 610;
+
+    private static final int GAP = 14;
+    private static final int EDGE = 6;
+    private static final int NUMBER_SPACING = 16;
+    private static final Font PERCENT_FONT = new Font(Font.SANS_SERIF, Font.BOLD, 26);
+    private static final Font VOTES_FONT = new Font(Font.SANS_SERIF, Font.PLAIN, 22);
+    private static volatile Integer numbersAreaWidth;
+
+    /**
+     * How long the bar itself is. With the numbers drawn beside it, the bar takes everything except the
+     * room the widest realistic numbers ("999 votes" and "100%") need — measured with the real font, so
+     * it's tight on any machine, and the same for every option so all the bars end at the same place. With
+     * no numbers drawn it runs the full width.
+     */
+    static int barWidth(boolean withNumbers) {
+        return withNumbers ? WIDTH - numbersAreaWidth() - GAP : WIDTH;
+    }
+
+    private static int numbersAreaWidth() {
+        Integer known = numbersAreaWidth;
+        if (known != null) return known;
+
+        BufferedImage scratch = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = scratch.createGraphics();
+        try {
+            int votes = g.getFontMetrics(VOTES_FONT).stringWidth("999 votes");
+            int percent = g.getFontMetrics(PERCENT_FONT).stringWidth("100%");
+            known = votes + NUMBER_SPACING + percent + EDGE;
+        } finally {
+            g.dispose();
+        }
+        numbersAreaWidth = known;
+        return known;
+    }
 
     /** How a bar is coloured: the live poll's blurple, the winning option of a closed poll, or everything else once closed. */
     enum Style {
@@ -87,6 +119,8 @@ final class PollBarRenderer {
     static byte[] render(double share, Style style, String votesText, String percentText) {
         double fraction = Math.max(0.0, Math.min(1.0, share));
         double top = (HEIGHT - BAR_HEIGHT) / 2.0;
+        boolean withNumbers = votesText != null && percentText != null;
+        int barWidth = barWidth(withNumbers);
 
         BufferedImage image = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = image.createGraphics();
@@ -98,11 +132,11 @@ final class PollBarRenderer {
             g.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
 
             g.setColor(new Color(255, 255, 255, 34));
-            g.fill(new RoundRectangle2D.Double(0, top, BAR_WIDTH, BAR_HEIGHT, BAR_HEIGHT, BAR_HEIGHT));
+            g.fill(new RoundRectangle2D.Double(0, top, barWidth, BAR_HEIGHT, BAR_HEIGHT, BAR_HEIGHT));
 
             if (fraction > 0) {
                 // Never narrower than the bar is tall, so a 1% share is still a clean rounded nub.
-                double fillWidth = Math.max(BAR_HEIGHT, fraction * BAR_WIDTH);
+                double fillWidth = Math.max(BAR_HEIGHT, fraction * barWidth);
                 g.setPaint(new GradientPaint(0, (float) top, style.from, (float) fillWidth, (float) top, style.to));
                 g.fill(new RoundRectangle2D.Double(0, top, fillWidth, BAR_HEIGHT, BAR_HEIGHT, BAR_HEIGHT));
 
@@ -113,9 +147,9 @@ final class PollBarRenderer {
 
             g.setColor(new Color(255, 255, 255, 40));
             g.setStroke(new BasicStroke(1.2f));
-            g.draw(new RoundRectangle2D.Double(0.6, top + 0.6, BAR_WIDTH - 1.2, BAR_HEIGHT - 1.2, BAR_HEIGHT - 1.2, BAR_HEIGHT - 1.2));
+            g.draw(new RoundRectangle2D.Double(0.6, top + 0.6, barWidth - 1.2, BAR_HEIGHT - 1.2, BAR_HEIGHT - 1.2, BAR_HEIGHT - 1.2));
 
-            if (votesText != null && percentText != null) drawNumbers(g, votesText, percentText);
+            if (withNumbers) drawNumbers(g, votesText, percentText, barWidth);
         } finally {
             g.dispose();
         }
@@ -129,21 +163,19 @@ final class PollBarRenderer {
     }
 
     /** The percentage is the thing to read at a glance, so it's bold and bright at the far right; the count sits just left of it, quieter. */
-    private static void drawNumbers(Graphics2D g, String votesText, String percentText) {
-        Font bold = new Font(Font.SANS_SERIF, Font.BOLD, 26);
-        Font plain = new Font(Font.SANS_SERIF, Font.PLAIN, 22);
-
-        g.setFont(bold);
+    private static void drawNumbers(Graphics2D g, String votesText, String percentText, int barWidth) {
+        g.setFont(PERCENT_FONT);
         FontMetrics boldMetrics = g.getFontMetrics();
         int baseline = (HEIGHT + boldMetrics.getAscent() - boldMetrics.getDescent()) / 2;
-        int percentX = WIDTH - 6 - boldMetrics.stringWidth(percentText);
+        int percentX = WIDTH - EDGE - boldMetrics.stringWidth(percentText);
         g.setColor(new Color(255, 255, 255, 245));
         g.drawString(percentText, percentX, baseline);
 
-        g.setFont(plain);
+        // The count ends where the percentage begins, so the two always read as one pair.
+        g.setFont(VOTES_FONT);
         FontMetrics plainMetrics = g.getFontMetrics();
-        int votesX = percentX - 16 - plainMetrics.stringWidth(votesText);
+        int votesX = percentX - NUMBER_SPACING - plainMetrics.stringWidth(votesText);
         g.setColor(new Color(255, 255, 255, 165));
-        g.drawString(votesText, Math.max(BAR_WIDTH + 14, votesX), baseline);
+        g.drawString(votesText, Math.max(barWidth + 8, votesX), baseline);
     }
 }

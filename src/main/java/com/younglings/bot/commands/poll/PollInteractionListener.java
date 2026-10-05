@@ -61,6 +61,8 @@ public class PollInteractionListener extends ListenerAdapter {
         try {
             if (id.startsWith("poll_vote:")) {
                 handleVote(event, id);
+            } else if (id.startsWith("poll_mine:")) {
+                handleMyVotes(event, id);
             } else {
                 handlePanelButton(event, id);
             }
@@ -277,7 +279,24 @@ public class PollInteractionListener extends ListenerAdapter {
 
         pollService.updateMessage(event.getGuild(), pollId);
 
-        Containers.replyThenDelete(event, Containers.SUCCESS, Duration.ofSeconds(4), feedback);
+        // The poll itself looks the same to everyone, so the reply is where you see your own picks.
+        Containers.replyThenDelete(event, Containers.SUCCESS, Duration.ofSeconds(8),
+                feedback + "\n" + describeMine(pollService.myVoteLines(pollId, event.getUser().getIdLong())));
+    }
+
+    /** The My Votes button: a private, short-lived list of what you've picked in this poll. */
+    private void handleMyVotes(ButtonInteractionEvent event, String id) {
+        long pollId = parseLongOr(id.substring("poll_mine:".length()), -1);
+        PollSession session = pollService.getSessionById(pollId);
+        if (session == null || !"ACTIVE".equalsIgnoreCase(session.status())) {
+            Containers.replyEphemeral(event, Containers.WARNING, "This poll is no longer active.");
+            return;
+        }
+        Containers.replyThenDelete(event, Containers.INFO, Duration.ofSeconds(10), describeMine(pollService.myVoteLines(pollId, event.getUser().getIdLong())));
+    }
+
+    static String describeMine(List<String> lines) {
+        return lines.isEmpty() ? "**Your votes:** none yet" : "**Your votes:**\n" + String.join("\n", lines);
     }
 
     private static int parseIntOr(String value, int fallback) {
