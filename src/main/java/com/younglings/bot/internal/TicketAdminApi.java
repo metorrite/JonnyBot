@@ -1,0 +1,480 @@
+package com.younglings.bot.internal;
+
+import com.sun.net.httpserver.HttpExchange;
+import com.younglings.bot.commands.ticket.TicketRules;
+import com.younglings.bot.commands.ticket.TicketService;
+import com.younglings.bot.internal.TicketAdminJson.BadRequest;
+import com.younglings.bot.permission.DashboardAccess;
+import com.younglings.bot.permission.DashboardAccess.Tier;
+import com.younglings.bot.ticket.TicketModels.Field;
+import com.younglings.bot.ticket.TicketModels.Option;
+import com.younglings.bot.ticket.TicketModels.Panel;
+import com.younglings.bot.ticket.TicketModels.PanelDefinition;
+import com.younglings.bot.ticket.TicketModels.Settings;
+import com.younglings.bot.ticket.TicketModels.Status;
+import com.younglings.bot.ticket.TicketModels.Ticket;
+import com.younglings.bot.ticket.TicketRepository;
+import com.younglings.bot.ticket.TicketRepository.Transcript;
+import io.github.freya022.botcommands.api.core.service.annotations.BService;
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.Role;
+import net.dv8tion.jda.api.entities.channel.concrete.Category;
+import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel;
+import net.dv8tion.jda.api.utils.data.DataArray;
+import net.dv8tion.jda.api.utils.data.DataObject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+
+/**
+ * The ticket dashboard's side of the internal API, under {@code /internal/admin/}. {@link InternalApiServer}
+ * has already checked the shared secret and found the guild; this class additionally checks <em>who</em> is
+ * asking. The website sends the logged-in user's Discord id in {@code X-Actor-Id}, and every request here —
+ * not just a login check at the start — looks that person up in the guild and refuses unless they are Admin
+ * tier or hold the Developer role (see {@link DashboardAccess}). A leaked secret alone therefore can't act as
+ * a user the website never authenticated, and a demoted admin loses access on their next click.
+ * <p>
+ * Everything is read from and written to the database through {@link TicketRepository}, so nothing here holds
+ * state of its own.
+ */
+@BService
+public class TicketAdminApi {
+    private static final Logger log = LoggerFactory.getLogger(TicketAdminApi.class);
+    private static final String ACTOR_HEADER = "X-Actor-Id";
+    private static final String PREFIX = "/internal/admin/";
+    private static final int MAX_PAGE = 100;
+
+    private final DashboardAccess access;
+    private final TicketRepository repository;
+    private final TicketService service;
+
+    public TicketAdminApi(DashboardAccess access, TicketRepository repository, TicketService service) {
+        this.access = access;
+        this.repository = repository;
+        this.service = service;
+    }
+
+    /** A failure with the status and message the website should see. */
+    private static final class ApiError extends RuntimeException {
+        final int status;
+        final List<String> problems;
+
+        ApiError(int status, String message) {
+            this(status, message, List.of());
+        }
+
+        ApiError(int status, String message, List<String> problems) {
+            super(message);
+            this.status = status;
+            this.problems = problems;
+        }
+    }
+
+    public void handle(HttpExchange exchange, Guild guild) throws IOException {
+        try {
+            String path = exchange.getRequestURI().getPath();
+            String route = path.startsWith(PREFIX) ? path.substring(PREFIX.length()) : "";
+            if (route.endsWith("/")) route = route.substring(0, route.length() - 1);
+            String[] parts = route.isEmpty() ? new String[0] : route.split("/");
+            String method = exchange.getRequestMethod().toUpperCase();
+
+            Member actor = actorOf(exchange, guild);
+            Tier tier = actor == null ? Tier.NONE : access.tierOf(guild, actor);
+
+            // whoami is the one route that answers "no" with a 200: the website uses it to decide what to show.
+            if (parts.length == 1 && parts[0].equals("whoami")) {
+                requireMethod(method, "GET");
+                InternalApiServer.sendJson(exchange, 200, whoami(actor, tier));
+                return;
+            }
+            if (tier == Tier.NONE) {
+                InternalApiServer.sendJson(exchange, 403, DataObject.empty().put("error", "You don't have access to the dashboard."));
+                return;
+            }
+
+            DataObject result = route(exchange, guild, actor, method, parts);
+            if (result == null) {
+                InternalApiServer.sendJson(exchange, 404, DataObject.empty().put("error", "Not found"));
+                return;
+            }
+            InternalApiServer.sendJson(exchange, 200, result);
+        } catch (ApiError e) {
+            DataObject body = DataObject.empty().put("error", e.getMessage());
+            if (!e.problems.isEmpty()) {
+                DataArray problems = DataArray.empty();
+                e.problems.forEach(problems::add);
+                body.put("problems", problems);
+            }
+            InternalApiServer.sendJson(exchange, e.status, body);
+        } catch (BadRequest e) {
+            InternalApiServer.sendJson(exchange, 400, DataObject.empty().put("error", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Admin API request {} {} failed", exchange.getRequestMethod(), exchange.getRequestURI().getPath(), e);
+            InternalApiServer.sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));
+        }
+    }
+
+    // ---------- who is asking ----------
+
+    private Member actorOf(HttpExchange exchange, Guild guild) {
+        String raw = exchange.getRequestHeaders().getFirst(ACTOR_HEADER);
+        if (raw == null || raw.isBlank()) return null;
+        long id;
+        try {
+            id = Long.parseLong(raw.trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+        Member cached = guild.getMemberById(id);
+        if (cached != null) return cached;
+        try {
+            return guild.retrieveMemberById(id).complete();
+        } catch (Exception e) {
+            return null; // not in the server (or Discord couldn't say) — no access
+        }
+    }
+
+    private static DataObject whoami(Member actor, Tier tier) {
+        DataObject json = DataObject.empty().put("allowed", tier != Tier.NONE).put("tier", tier.name());
+        if (actor != null) {
+            json.put("id", actor.getId()).put("displayName", actor.getEffectiveName()).put("avatarUrl", actor.getEffectiveAvatarUrl());
+        }
+        return json;
+    }
+
+    private static void requireMethod(String actual, String expected) {
+        if (!actual.equals(expected)) throw new ApiError(405, "Method not allowed");
+    }
+
+    // ---------- routing ----------
+
+    /** {@code null} for a path that doesn't exist. */
+    private DataObject route(HttpExchange exchange, Guild guild, Member actor, String method, String[] parts) throws IOException {
+        if (parts.length == 1 && parts[0].equals("structure")) {
+            requireMethod(method, "GET");
+            return structure(guild);
+        }
+        if (parts.length < 2 || !parts[0].equals("ticket")) return null;
+
+        switch (parts[1]) {
+            case "settings" -> {
+                if (parts.length != 2) return null;
+                if (method.equals("GET")) return TicketAdminJson.settingsJson(repository.getSettings(guild.getIdLong()));
+                requireMethod(method, "PUT");
+                return saveSettings(exchange, guild, actor);
+            }
+            case "panels" -> {
+                return routePanels(exchange, guild, actor, method, parts);
+            }
+            case "tickets" -> {
+                requireMethod(method, "GET");
+                if (parts.length == 2) return listTickets(exchange, guild);
+                if (parts.length == 3) return ticketDetail(guild, parts[2]);
+                return null;
+            }
+            default -> {
+                return null;
+            }
+        }
+    }
+
+    private DataObject routePanels(HttpExchange exchange, Guild guild, Member actor, String method, String[] parts) throws IOException {
+        if (parts.length == 2) {
+            if (method.equals("GET")) return listPanels(guild);
+            requireMethod(method, "POST");
+            return savePanel(exchange, guild, actor, 0);
+        }
+
+        long panelId = idOf(parts[2]);
+        if (parts.length == 3) {
+            return switch (method) {
+                case "GET" -> panelDetail(guild, panelId);
+                case "PUT" -> savePanel(exchange, guild, actor, panelId);
+                case "DELETE" -> deletePanel(guild, actor, panelId);
+                default -> throw new ApiError(405, "Method not allowed");
+            };
+        }
+        if (parts.length == 4 && parts[3].equals("post")) {
+            requireMethod(method, "POST");
+            return postPanel(exchange, guild, actor, panelId);
+        }
+        return null;
+    }
+
+    private static long idOf(String raw) {
+        try {
+            return Long.parseLong(raw);
+        } catch (NumberFormatException e) {
+            throw new ApiError(400, "That isn't a valid id.");
+        }
+    }
+
+    private static DataObject body(HttpExchange exchange) {
+        try (var in = exchange.getRequestBody()) {
+            return DataObject.fromJson(in);
+        } catch (Exception e) {
+            throw new ApiError(400, "The request body isn't valid JSON.");
+        }
+    }
+
+    // ---------- the server's roles and channels, for the editor's pickers ----------
+
+    private DataObject structure(Guild guild) {
+        DataArray roles = DataArray.empty();
+        for (Role role : guild.getRoles()) {
+            if (role.isPublicRole()) continue;
+            roles.add(DataObject.empty()
+                    .put("id", role.getId())
+                    .put("name", role.getName())
+                    .put("color", role.getColorRaw() & 0xFFFFFF)
+                    .put("managed", role.isManaged())
+                    .put("position", role.getPosition()));
+        }
+
+        DataArray categories = DataArray.empty();
+        for (Category category : guild.getCategories()) {
+            categories.add(DataObject.empty().put("id", category.getId()).put("name", category.getName()));
+        }
+
+        DataArray channels = DataArray.empty();
+        guild.getTextChannels().forEach(channel -> channels.add(DataObject.empty()
+                .put("id", channel.getId())
+                .put("name", channel.getName())
+                .put("category", channel.getParentCategory() == null ? null : channel.getParentCategory().getName())
+                .put("canPost", channel.canTalk())));
+
+        return DataObject.empty().put("roles", roles).put("categories", categories).put("channels", channels);
+    }
+
+    // ---------- settings ----------
+
+    private DataObject saveSettings(HttpExchange exchange, Guild guild, Member actor) {
+        Settings current = repository.getSettings(guild.getIdLong());
+        Settings updated = TicketAdminJson.readSettings(current, body(exchange));
+
+        List<String> problems = new ArrayList<>();
+        if (updated.logChannelId() != null && guild.getTextChannelById(updated.logChannelId()) == null) problems.add("The log channel isn't a text channel in this server.");
+        if (updated.closeDelaySeconds() < 0 || updated.closeDelaySeconds() > 300) problems.add("The close delay must be between 0 and 300 seconds.");
+        if (updated.transcriptRetentionDays() != null && (updated.transcriptRetentionDays() < 1 || updated.transcriptRetentionDays() > 3650)) problems.add("Transcript retention must be between 1 and 3650 days.");
+        if (!problems.isEmpty()) throw new ApiError(400, "Those settings can't be saved.", problems);
+
+        repository.saveSettings(updated);
+        log.info("Dashboard: {} updated ticket settings", actor.getId());
+        return TicketAdminJson.settingsJson(repository.getSettings(guild.getIdLong()));
+    }
+
+    // ---------- panels ----------
+
+    private DataObject listPanels(Guild guild) {
+        DataArray panels = DataArray.empty();
+        for (Panel panel : repository.getPanels(guild.getIdLong())) {
+            panels.add(TicketAdminJson.panelJson(panel)
+                    .put("fieldCount", repository.getFields(panel.id()).size())
+                    .put("openTickets", repository.listTickets(guild.getIdLong(), Status.OPEN, panel.id(), MAX_PAGE, 0).size()));
+        }
+        return DataObject.empty().put("panels", panels);
+    }
+
+    private PanelDefinition ownedDefinition(Guild guild, long panelId) {
+        Panel panel = repository.getPanel(panelId);
+        if (panel == null || panel.guildId() != guild.getIdLong()) throw new ApiError(404, "That panel doesn't exist.");
+        return repository.getDefinition(panelId);
+    }
+
+    private DataObject panelDetail(Guild guild, long panelId) {
+        return TicketAdminJson.definitionJson(ownedDefinition(guild, panelId));
+    }
+
+    private DataObject savePanel(HttpExchange exchange, Guild guild, Member actor, long panelId) {
+        if (panelId != 0) ownedDefinition(guild, panelId); // 404 for another server's or a missing panel
+        PanelDefinition definition = TicketAdminJson.readPanel(guild.getIdLong(), panelId, body(exchange));
+
+        List<String> problems = new ArrayList<>(TicketRules.validatePanel(definition.panel(), definition.fields()));
+        problems.addAll(guildProblems(guild, definition));
+        if (!problems.isEmpty()) throw new ApiError(400, "That panel can't be saved yet.", problems);
+
+        long savedId;
+        try {
+            savedId = repository.saveDefinition(definition);
+        } catch (IllegalArgumentException e) {
+            throw new ApiError(400, "That panel can't be saved yet.", List.of(e.getMessage()));
+        }
+        log.info("Dashboard: {} {} ticket panel {} (\"{}\")", actor.getId(), panelId == 0 ? "created" : "updated", savedId, definition.panel().name());
+
+        refreshPostedMessage(guild, savedId);
+        return TicketAdminJson.definitionJson(repository.getDefinition(savedId));
+    }
+
+    /** Roles and the category must exist in this server — the dashboard's pickers come from it, but a stale page may not match. */
+    private static List<String> guildProblems(Guild guild, PanelDefinition definition) {
+        List<String> problems = new ArrayList<>();
+        Panel panel = definition.panel();
+
+        if (panel.categoryId() != null && guild.getCategoryById(panel.categoryId()) == null) problems.add("The chosen category no longer exists.");
+
+        Set<Long> roleIds = new HashSet<>();
+        roleIds.addAll(definition.roles().helperRoleIds());
+        roleIds.addAll(definition.roles().staffRoleIds());
+        if (panel.defaultPingRoleId() != null) roleIds.add(panel.defaultPingRoleId());
+        if (panel.defaultEscalateRoleId() != null) roleIds.add(panel.defaultEscalateRoleId());
+        for (Field field : definition.fields()) {
+            for (Option option : field.options()) {
+                if (option.pingRoleId() != null) roleIds.add(option.pingRoleId());
+                if (option.escalateRoleId() != null) roleIds.add(option.escalateRoleId());
+            }
+        }
+        for (long roleId : roleIds) {
+            if (guild.getRoleById(roleId) == null) {
+                problems.add("A chosen role (" + roleId + ") no longer exists in this server.");
+                break;
+            }
+        }
+        return problems;
+    }
+
+    /** If the panel is already posted, bring that message up to date with the saved wording. Best effort — the save itself has succeeded. */
+    private void refreshPostedMessage(Guild guild, long panelId) {
+        Panel panel = repository.getPanel(panelId);
+        if (panel == null || panel.postedChannelId() == null) return;
+        GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, panel.postedChannelId());
+        if (channel == null) return;
+        service.postPanel(panel, channel).exceptionally(error -> {
+            log.warn("Could not refresh the posted message for ticket panel {}", panelId, error);
+            return null;
+        });
+    }
+
+    private DataObject deletePanel(Guild guild, Member actor, long panelId) {
+        Panel panel = ownedDefinition(guild, panelId).panel();
+        if (!repository.listTickets(guild.getIdLong(), Status.OPEN, panelId, 1, 0).isEmpty()) {
+            throw new ApiError(409, "This panel still has open tickets — close them first.");
+        }
+        repository.deletePanel(guild.getIdLong(), panelId);
+        log.info("Dashboard: {} deleted ticket panel {} (\"{}\")", actor.getId(), panelId, panel.name());
+
+        // Take the now-dead button down too (best effort).
+        if (panel.postedChannelId() != null && panel.postedMessageId() != null) {
+            GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, panel.postedChannelId());
+            if (channel != null) channel.deleteMessageById(panel.postedMessageId()).queue(null, error -> {});
+        }
+        return DataObject.empty().put("deleted", true);
+    }
+
+    private DataObject postPanel(HttpExchange exchange, Guild guild, Member actor, long panelId) {
+        Panel panel = ownedDefinition(guild, panelId).panel();
+        Long channelId = TicketAdminJson.idOrNull(body(exchange), "channelId");
+        if (channelId == null) throw new ApiError(400, "Choose a channel to post in.");
+
+        GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, channelId);
+        if (channel == null) throw new ApiError(400, "That isn't a text channel in this server.");
+        if (!channel.canTalk()) throw new ApiError(400, "JonnyBot can't post in #" + channel.getName() + " — it needs permission to view and send messages there.");
+
+        try {
+            service.postPanel(panel, channel).get(15, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            log.warn("Posting ticket panel {} to {} failed", panelId, channelId, e);
+            throw new ApiError(502, "Discord wouldn't let the panel be posted there.");
+        }
+        log.info("Dashboard: {} posted ticket panel {} in {}", actor.getId(), panelId, channelId);
+        return TicketAdminJson.panelJson(repository.getPanel(panelId));
+    }
+
+    // ---------- tickets ----------
+
+    private DataObject listTickets(HttpExchange exchange, Guild guild) {
+        String statusRaw = query(exchange, "status");
+        Status status = null;
+        if (statusRaw != null && !statusRaw.isBlank() && !statusRaw.equalsIgnoreCase("ALL")) {
+            try {
+                status = Status.valueOf(statusRaw.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                throw new ApiError(400, "Status must be OPEN, CLOSED or ALL.");
+            }
+        }
+        String panelRaw = query(exchange, "panel");
+        Long panelId = panelRaw == null || panelRaw.isBlank() ? null : idOf(panelRaw);
+        int limit = Math.max(1, Math.min(MAX_PAGE, numberOr(query(exchange, "limit"), 25)));
+        int offset = Math.max(0, numberOr(query(exchange, "offset"), 0));
+
+        // One extra row tells us whether there's another page without a separate count query.
+        List<Ticket> rows = repository.listTickets(guild.getIdLong(), status, panelId, limit + 1, offset);
+        boolean hasMore = rows.size() > limit;
+
+        DataArray tickets = DataArray.empty();
+        for (Ticket ticket : rows.subList(0, Math.min(limit, rows.size()))) {
+            tickets.add(TicketAdminJson.ticketJson(ticket, panelNameOf(ticket), cachedNameOf(guild, ticket.requesterId())));
+        }
+        return DataObject.empty().put("tickets", tickets).put("hasMore", hasMore);
+    }
+
+    private DataObject ticketDetail(Guild guild, String rawId) {
+        Ticket ticket = repository.getTicket(idOf(rawId));
+        if (ticket == null || ticket.guildId() != guild.getIdLong()) throw new ApiError(404, "That ticket doesn't exist.");
+
+        DataArray helpers = DataArray.empty();
+        for (long helperId : repository.getHelpers(ticket.id())) {
+            helpers.add(DataObject.empty().put("id", Long.toString(helperId)).put("name", nameOf(guild, helperId)));
+        }
+
+        Transcript transcript = repository.getTranscript(ticket.id());
+        DataObject json = TicketAdminJson.ticketJson(ticket, panelNameOf(ticket), nameOf(guild, ticket.requesterId()))
+                .put("helpers", helpers)
+                .put("closedByName", ticket.closedBy() == null ? null : nameOf(guild, ticket.closedBy()))
+                .put("transcript", transcript == null ? null : transcript.content())
+                .put("transcriptMessageCount", transcript == null ? null : transcript.messageCount());
+        return json;
+    }
+
+    private String panelNameOf(Ticket ticket) {
+        if (ticket.panelId() == null) return null;
+        Panel panel = repository.getPanel(ticket.panelId());
+        return panel == null ? null : panel.name();
+    }
+
+    /** Display name from the member cache only — fine for a list, no network call per row. */
+    private static String cachedNameOf(Guild guild, long userId) {
+        Member member = guild.getMemberById(userId);
+        if (member != null) return member.getEffectiveName();
+        var user = guild.getJDA().getUserById(userId);
+        return user == null ? null : user.getName();
+    }
+
+    /** Display name, asking Discord if the cache doesn't know — for a single ticket's page. */
+    private static String nameOf(Guild guild, long userId) {
+        String cached = cachedNameOf(guild, userId);
+        if (cached != null) return cached;
+        try {
+            return guild.getJDA().retrieveUserById(userId).complete().getName();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static String query(HttpExchange exchange, String name) {
+        String query = exchange.getRequestURI().getRawQuery();
+        if (query == null) return null;
+        for (String pair : query.split("&")) {
+            int eq = pair.indexOf('=');
+            if (eq > 0 && java.net.URLDecoder.decode(pair.substring(0, eq), java.nio.charset.StandardCharsets.UTF_8).equals(name)) {
+                return java.net.URLDecoder.decode(pair.substring(eq + 1), java.nio.charset.StandardCharsets.UTF_8);
+            }
+        }
+        return null;
+    }
+
+    private static int numberOr(String raw, int fallback) {
+        if (raw == null || raw.isBlank()) return fallback;
+        try {
+            return Integer.parseInt(raw.trim());
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
+    }
+}

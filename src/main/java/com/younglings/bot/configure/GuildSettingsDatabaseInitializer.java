@@ -92,6 +92,13 @@ public class GuildSettingsDatabaseInitializer {
                 """
                 ALTER TABLE younglings.guild_settings
                     ADD COLUMN IF NOT EXISTS support_role_id BIGINT NULL;
+                """,
+
+                // The Developer role: alongside the Admin tier, may open the website's admin dashboard.
+                // No BotConfig fallback — unset simply means only the Admin tier gets in.
+                """
+                ALTER TABLE younglings.guild_settings
+                    ADD COLUMN IF NOT EXISTS developer_role_id BIGINT NULL;
                 """
         ));
     }

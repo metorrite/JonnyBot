@@ -82,7 +82,7 @@ public class DevTicketPostCommand {
     }
 
     /** A starting point shaped like the Combat Achievement help tickets from ticket-0003, with no roles attached yet. */
-    static PanelDefinition sample(long guildId) {
+    public static PanelDefinition sample(long guildId) {
         Panel panel = new Panel(0, guildId, "Combat Achievement Help", "Combat Achievement Help",
                 "Need a hand with a Combat Achievement? Tell us which one and a helper will join you.\n~<LS>~\nTeamforming first if you can — open a ticket when that hasn't worked.",
                 "Request CA help", null, "ca-{number}", "A helper will join you here. Let them know when you're free.", true, 1, null, 2, 24, null, null, null);

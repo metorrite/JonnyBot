@@ -36,7 +36,7 @@ class MemberAccessTest {
     }
 
     private void verifiedClanRole(Long id) {
-        when(settings.getEffective(GUILD)).thenReturn(new GuildSettings(GUILD, null, null, null, null, id, null, null, null, true, null, null));
+        when(settings.getEffective(GUILD)).thenReturn(new GuildSettings(GUILD, null, null, null, null, id, null, null, null, true, null, null, null));
     }
 
     private static Role role(long id) {
