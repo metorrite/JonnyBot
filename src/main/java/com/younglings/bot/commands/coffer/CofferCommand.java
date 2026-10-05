@@ -5,7 +5,7 @@ import net.dv8tion.jda.api.entities.User;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Retired in favor of {@link CofferHubCommand}'s single {@code /coffer} entry point with buttons
+ * Retired in favor of the coffer menu ({@link CofferHubPanel}, reached from {@code /rsadmin}) with buttons
  * and modals — kept (not deleted) as reference/fallback, but no longer registered. BotCommands
  * validates that every {@code @JDASlashCommand} method's declaring class is {@code @Command}
  * (and throws at startup otherwise), so all the framework annotations are stripped here, not just

@@ -138,4 +138,16 @@ class RsAdminPanelTest {
             assertFalse(RsAdminInteractionListener.SUPPORT_ACTIONS.contains(action), action);
         }
     }
+
+    @Test
+    void theCoffersMenuIsReachedFromTheAdminPanelButNotFromTheSupportPanel() {
+        when(clanSyncService.getClanName(1L)).thenReturn("Younglings");
+
+        asAdmin();
+        assertTrue(ids(listener.buildPanel(guild, viewer)).contains("rsnadmin_coffer:_"));
+        assertFalse(RsAdminInteractionListener.SUPPORT_ACTIONS.contains("rsnadmin_coffer"));
+
+        asSupportOnly();
+        assertFalse(ids(listener.buildPanel(guild, viewer)).contains("rsnadmin_coffer:_"));
+    }
 }
