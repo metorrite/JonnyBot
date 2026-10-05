@@ -3,6 +3,7 @@ package com.younglings.bot;
 import com.younglings.bot.announcement.AnnouncementInteractionListener;
 import com.younglings.bot.announcement.PostActionListener;
 import com.younglings.bot.commands.DevEmbedListener;
+import com.younglings.bot.commands.ticket.TicketListener;
 import com.younglings.bot.commandchannel.CommandChannelConfigInteractionListener;
 import com.younglings.bot.commandchannel.CommandChannelListener;
 import com.younglings.bot.commands.coffer.CofferInteractionListener;
@@ -62,6 +63,7 @@ public class Bot extends JDAService {
     private final EphemeralLifecycle ephemeralLifecycle;
     private final PostActionListener postActionListener;
     private final DevEmbedListener devEmbedListener;
+    private final TicketListener ticketListener;
 
     public Bot(BotConfig botConfig, SignupInteractionListener signupInteractionListener,
                PollInteractionListener pollInteractionListener,
@@ -85,7 +87,8 @@ public class Bot extends JDAService {
                CommandChannelConfigInteractionListener commandChannelConfigInteractionListener,
                EphemeralLifecycle ephemeralLifecycle,
                PostActionListener postActionListener,
-               DevEmbedListener devEmbedListener) {
+               DevEmbedListener devEmbedListener,
+               TicketListener ticketListener) {
         this.botConfig = botConfig;
         this.signupInteractionListener = signupInteractionListener;
         this.pollInteractionListener = pollInteractionListener;
@@ -110,6 +113,7 @@ public class Bot extends JDAService {
         this.ephemeralLifecycle = ephemeralLifecycle;
         this.postActionListener = postActionListener;
         this.devEmbedListener = devEmbedListener;
+        this.ticketListener = ticketListener;
     }
 
     // If you use Spring, you can return values provided by JDAConfiguration in the getters below
@@ -155,7 +159,7 @@ public class Bot extends JDAService {
                         trackingAuditLogListener, trackingConfigInteractionListener,
                         announcementInteractionListener, weeklyDigestInteractionListener,
                         commandChannelListener, commandChannelConfigInteractionListener, ephemeralLifecycle,
-                        postActionListener, devEmbedListener)
+                        postActionListener, devEmbedListener, ticketListener)
                 .build();
     }
 }
