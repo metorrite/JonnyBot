@@ -85,6 +85,13 @@ public class GuildSettingsDatabaseInitializer {
                 """
                 ALTER TABLE younglings.guild_settings
                     ADD COLUMN IF NOT EXISTS clan_enabled BOOLEAN NOT NULL DEFAULT TRUE;
+                """,
+
+                // The Support role: may review and verify RSN requests in /rsadmin and nothing else there.
+                // No BotConfig fallback — unset simply means nobody has the Support tier.
+                """
+                ALTER TABLE younglings.guild_settings
+                    ADD COLUMN IF NOT EXISTS support_role_id BIGINT NULL;
                 """
         ));
     }

@@ -26,7 +26,7 @@ public class GuildSettingsRepository {
         String sql = """
                 SELECT guild_id, clan_name, admin_role_id, rename_alert_channel_id, verification_review_channel_id,
                        verified_clan_role_id, verified_non_clan_role_id, unverified_role_id, onboarding_role_id,
-                       clan_enabled
+                       clan_enabled, support_role_id
                 FROM younglings.guild_settings WHERE guild_id = ?
                 """;
 
@@ -48,7 +48,8 @@ public class GuildSettingsRepository {
                         (Long) rs.getObject("unverified_role_id"),
                         (Long) rs.getObject("onboarding_role_id"),
                         rs.getBoolean("clan_enabled"),
-                        rs.getString("clan_name"));
+                        rs.getString("clan_name"),
+                        (Long) rs.getObject("support_role_id"));
             }
 
         } catch (SQLException e) {
@@ -241,6 +242,30 @@ public class GuildSettingsRepository {
         } catch (SQLException e) {
             log.error("Failed to upsert admin role for {}", guildId, e);
             throw new RuntimeException("Failed to upsert admin role", e);
+        }
+    }
+
+    /** A narrower upsert than {@link #upsertClanSettings} — only the Support role. */
+    public void upsertSupportRole(long guildId, Long supportRoleId) {
+        String sql = """
+                INSERT INTO younglings.guild_settings (guild_id, support_role_id)
+                VALUES (?, ?)
+                ON CONFLICT (guild_id) DO UPDATE SET
+                    support_role_id = EXCLUDED.support_role_id
+                """;
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setLong(1, guildId);
+            setNullableLong(statement, 2, supportRoleId);
+            statement.executeUpdate();
+
+            log.info("Updated support role for guild {}", guildId);
+
+        } catch (SQLException e) {
+            log.error("Failed to upsert support role for {}", guildId, e);
+            throw new RuntimeException("Failed to upsert support role", e);
         }
     }
 

@@ -42,12 +42,12 @@ public class RsAdminCommand {
             return;
         }
 
-        if (!adminRoleFilter.isAuthorized(guild, member)) {
-            Containers.replyEphemeral(event, Containers.WARNING, "You need the Admin role (or higher) to use this.");
+        if (!adminRoleFilter.isSupportTier(guild, member)) {
+            Containers.replyEphemeral(event, Containers.WARNING, "You need the Admin or Support role to use this.");
             return;
         }
 
-        Container panel = interactionListener.buildPanel(guild);
+        Container panel = interactionListener.buildPanel(guild, member);
         event.replyComponents(List.of(panel)).useComponentsV2(true).setEphemeral(true).queue();
     }
 }

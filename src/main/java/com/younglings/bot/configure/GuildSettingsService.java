@@ -40,7 +40,13 @@ public class GuildSettingsService {
         boolean clanEnabled = stored == null || stored.clanEnabled();
 
         return new GuildSettings(guildId, clanEnabled ? clanName : null, adminRoleId, renameAlertChannelId, verificationReviewChannelId,
-                verifiedClanRoleId, verifiedNonClanRoleId, unverifiedRoleId, onboardingRoleId, clanEnabled, clanName);
+                verifiedClanRoleId, verifiedNonClanRoleId, unverifiedRoleId, onboardingRoleId, clanEnabled, clanName,
+                stored != null ? stored.supportRoleId() : null);
+    }
+
+    /** {@code null} clears it — nobody has the Support tier. */
+    public void updateSupportRole(long guildId, Long supportRoleId) {
+        repository.upsertSupportRole(guildId, supportRoleId);
     }
 
     /** Only the clan name — {@code null} clears the override, falling back to {@code BotConfig} again. The caller is responsible for having verified the clan first. */
