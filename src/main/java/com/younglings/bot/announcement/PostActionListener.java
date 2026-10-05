@@ -15,8 +15,8 @@ import java.util.List;
 /**
  * Handles the buttons an Embedded Post can carry (see {@link PostMarkup}). Every button id looks like
  * {@code postbtn:<n>:<action>}; the action decides what a click does, and each action reuses the real
- * thing rather than copying it — {@code rs} is exactly what {@code /rs} does, {@code citadel} is exactly
- * what {@code /citadel} shows — so they can't drift. Open to everyone: a button on a public post is
+ * thing rather than copying it — {@code rs} is exactly what {@code /rs} does, {@code citadel} is the same
+ * Citadel summary the {@code /rsadmin} Citadel viewer shows for this week — so they can't drift. Open to everyone: a button on a public post is
  * meant to be pressed by whoever reads it, and each action replies privately.
  * <p>
  * Adding an action: add its name to {@link PostMarkup#ACTIONS}, then a case below.

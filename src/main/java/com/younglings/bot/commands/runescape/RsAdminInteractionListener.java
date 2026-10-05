@@ -23,6 +23,7 @@ import com.younglings.bot.runescape.RuneScapeXpTable;
 import com.younglings.bot.runescape.SkillValue;
 import com.younglings.bot.runescape.VerificationAttempt;
 import com.younglings.bot.runescape.VerificationRoleSyncService;
+import com.younglings.bot.tracking.WeeklyDigestService;
 import com.younglings.bot.runescape.XpChartRenderer;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
@@ -33,14 +34,17 @@ import net.dv8tion.jda.api.components.label.Label;
 import net.dv8tion.jda.api.components.mediagallery.MediaGallery;
 import net.dv8tion.jda.api.components.mediagallery.MediaGalleryItem;
 import net.dv8tion.jda.api.components.separator.Separator;
+import net.dv8tion.jda.api.components.selections.StringSelectMenu;
 import net.dv8tion.jda.api.components.textdisplay.TextDisplay;
 import net.dv8tion.jda.api.components.textinput.TextInput;
 import net.dv8tion.jda.api.components.textinput.TextInputStyle;
 import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.interactions.callbacks.IMessageEditCallback;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.events.interaction.ModalInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
+import net.dv8tion.jda.api.events.interaction.component.StringSelectInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.components.ComponentInteraction;
 import net.dv8tion.jda.api.modals.Modal;
@@ -53,12 +57,15 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.time.format.DateTimeFormatter;
+import java.time.ZoneOffset;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.Locale;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -93,6 +100,7 @@ public class RsAdminInteractionListener extends ListenerAdapter {
     private final RsChartInteractionListener chartListener;
     private final RsInteractionListener rsInteractionListener;
     private final ConfigureInteractionListener configureListener;
+    private final WeeklyDigestService weeklyDigestService;
     private final HttpClient httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
 
     public RsAdminInteractionListener(PlayerLinkService linkService, RuneScapeStatsService statsService,
@@ -101,7 +109,8 @@ public class RsAdminInteractionListener extends ListenerAdapter {
                                        ClanOverviewService clanOverviewService, VerificationRoleSyncService roleSyncService,
                                        RsnRenameService renameService, RsChartInteractionListener chartListener,
                                        RsInteractionListener rsInteractionListener,
-                                       ConfigureInteractionListener configureListener) {
+                                       ConfigureInteractionListener configureListener,
+                                       WeeklyDigestService weeklyDigestService) {
         this.linkService = linkService;
         this.statsService = statsService;
         this.adminRoleFilter = adminRoleFilter;
@@ -114,6 +123,7 @@ public class RsAdminInteractionListener extends ListenerAdapter {
         this.chartListener = chartListener;
         this.rsInteractionListener = rsInteractionListener;
         this.configureListener = configureListener;
+        this.weeklyDigestService = weeklyDigestService;
     }
 
     /**
@@ -175,6 +185,10 @@ public class RsAdminInteractionListener extends ListenerAdapter {
                 handleLookupModal(event, guild);
                 return;
             }
+            if (id.equals("rsnadmin_citadel_range_modal:_")) {
+                handleCitadelRangeModal(event, guild);
+                return;
+            }
             if (id.startsWith("rsnadmin_renamemodal:")) {
                 handleRenameModal(event, guild, id.split(":", 2)[1]);
                 return;
@@ -184,6 +198,27 @@ public class RsAdminInteractionListener extends ListenerAdapter {
             }
         } catch (Exception e) {
             log.error("Unhandled exception in rsnadmin modal interaction '{}'", id, e);
+            Containers.replyError(event);
+        }
+    }
+
+    /** The Citadel viewer's "pick a specific week" menu — admin tier only, like the rest of the viewer. */
+    @Override
+    public void onStringSelectInteraction(StringSelectInteractionEvent event) {
+        Guild guild = event.getGuild();
+        Member member = event.getMember();
+        String id = event.getComponentId();
+        if (guild == null || member == null || !id.startsWith("rsnadmin_citadel_week")) return;
+
+        try {
+            if (!mayUse(guild, member, id)) {
+                Containers.replyEphemeral(event, Containers.WARNING, denialFor(guild, member));
+                return;
+            }
+            LocalDate week = LocalDate.parse(event.getValues().getFirst());
+            showCitadelViewer(event, guild, week, week);
+        } catch (Exception e) {
+            log.error("Unhandled exception in rsnadmin select interaction '{}'", id, e);
             Containers.replyError(event);
         }
     }
@@ -283,8 +318,18 @@ public class RsAdminInteractionListener extends ListenerAdapter {
             case "rsnadmin_clanlist" -> doClanList(event, guild);
             case "rsnadmin_clanoverview" -> doClanOverviewPrompt(event, guild);
             case "rsnadmin_review_pending" -> showPendingVerifications(event, guild, 0, false);
-            case "rsnadmin_citadel" -> Containers.replyEphemeral(event, Containers.INFO,
-                    "🚧 Coming soon — a Citadel overview will go here.");
+            case "rsnadmin_citadel" -> {
+                LocalDate today = LocalDate.now(ZoneOffset.UTC);
+                showCitadelViewer(event, guild, WeeklyDigestService.citadelWeekStart(today), today);
+            }
+            case "rsnadmin_citadel_view" -> {
+                LocalDate today = LocalDate.now(ZoneOffset.UTC);
+                LocalDate thisWeek = WeeklyDigestService.citadelWeekStart(today);
+                if (id.endsWith(":last")) showCitadelViewer(event, guild, thisWeek.minusWeeks(1), thisWeek.minusDays(1));
+                else showCitadelViewer(event, guild, thisWeek, today);
+            }
+            case "rsnadmin_citadel_range" -> doCitadelRangePrompt(event);
+            case "rsnadmin_back" -> event.editComponents(List.of(buildPanel(guild, event.getMember()))).useComponentsV2(true).queue();
 
             case "rsnadmin_poll_all_confirm" -> doPollAll(event, guild);
             case "rsnadmin_guildchart_confirm" -> doGuildChart(event, guild);
@@ -903,6 +948,63 @@ public class RsAdminInteractionListener extends ListenerAdapter {
     }
 
     private static final int GUILD_CHART_HISTORY_DAYS = 30;
+
+    private static final DateTimeFormatter CITADEL_WEEK_OPTION = DateTimeFormatter.ofPattern("MMM d", Locale.ENGLISH);
+
+    /** Re-renders the message the click came from as the Citadel viewer for {@code from..to} (snapped to whole weeks). Deferred first — a long range is a query per week. */
+    private void showCitadelViewer(IMessageEditCallback event, Guild guild, LocalDate from, LocalDate to) {
+        event.deferEdit().queue();
+        event.getHook().editOriginalComponents(List.of(buildCitadelViewer(guild, from, to))).useComponentsV2(true).queue();
+    }
+
+    /** Who capped and visited, with quick picks (this week, last week, any of the last 12 weeks) and a free date range. */
+    Container buildCitadelViewer(Guild guild, LocalDate from, LocalDate to) {
+        LocalDate thisWeek = WeeklyDigestService.citadelWeekStart(LocalDate.now(ZoneOffset.UTC));
+
+        List<ContainerChildComponent> children = new ArrayList<>(weeklyDigestService.citadelSection(guild.getIdLong(), from, to));
+        children.add(Separator.createDivider(Separator.Spacing.SMALL));
+        children.add(ActionRow.of(
+                Button.primary("rsnadmin_citadel_view:current", "This Week"),
+                Button.secondary("rsnadmin_citadel_view:last", "Last Week"),
+                Button.secondary("rsnadmin_citadel_range:_", "Date Range…")));
+
+        StringSelectMenu.Builder weeks = StringSelectMenu.create("rsnadmin_citadel_week:_").setPlaceholder("Pick a specific week");
+        for (int i = 0; i < 12; i++) {
+            LocalDate week = thisWeek.minusWeeks(i);
+            weeks.addOption(week.format(CITADEL_WEEK_OPTION) + " – " + week.plusDays(6).format(CITADEL_WEEK_OPTION) + (i == 0 ? " (current)" : ""), week.toString());
+        }
+        children.add(ActionRow.of(weeks.build()));
+        children.add(TextDisplay.of("-# Dates snap to whole Citadel weeks (Wednesday to Tuesday, resetting at 00:00 UTC). Up to " + WeeklyDigestService.MAX_VIEW_WEEKS + " weeks at a time."));
+        children.add(ActionRow.of(Button.primary("rsnadmin_back:_", "Back")));
+        children.add(Containers.autoCloseNote());
+        return Containers.card(Containers.PRIMARY, children);
+    }
+
+    private void doCitadelRangePrompt(ButtonInteractionEvent event) {
+        TextInput from = TextInput.create("citadel_from", TextInputStyle.SHORT)
+                .setPlaceholder("2026-09-23").setRequired(true).setRequiredRange(10, 10).build();
+        TextInput to = TextInput.create("citadel_to", TextInputStyle.SHORT)
+                .setPlaceholder("2026-10-14 — leave blank for today").setRequired(false).setMaxLength(10).build();
+
+        Modal modal = Modal.create("rsnadmin_citadel_range_modal:_", "Citadel Date Range")
+                .addComponents(Label.of("From (YYYY-MM-DD)", from), Label.of("To (YYYY-MM-DD, optional)", to))
+                .build();
+        event.replyModal(modal).queue();
+    }
+
+    private void handleCitadelRangeModal(ModalInteractionEvent event, Guild guild) {
+        String rawFrom = event.getValue("citadel_from").getAsString().trim();
+        String rawTo = event.getValue("citadel_to").getAsString().trim();
+        LocalDate from, to;
+        try {
+            from = LocalDate.parse(rawFrom);
+            to = rawTo.isEmpty() ? LocalDate.now(ZoneOffset.UTC) : LocalDate.parse(rawTo);
+        } catch (DateTimeParseException e) {
+            Containers.replyEphemeral(event, Containers.WARNING, "Couldn't read those dates — use the form **2026-09-23** (year-month-day).");
+            return;
+        }
+        showCitadelViewer(event, guild, from, to);
+    }
 
     /** What the Support tier sees: just the request-review tools it's allowed to use. */
     private Container buildSupportPanel() {
