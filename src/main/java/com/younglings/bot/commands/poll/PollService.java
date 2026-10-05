@@ -1,29 +1,30 @@
 package com.younglings.bot.commands.poll;
 
-import com.younglings.bot.discord.Containers;
 import com.younglings.bot.poll.PollRepository;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
-import net.dv8tion.jda.api.entities.Guild;
-import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
-import net.dv8tion.jda.api.components.actionrow.ActionRow;
-import net.dv8tion.jda.api.components.buttons.Button;
 import net.dv8tion.jda.api.components.container.Container;
-import net.dv8tion.jda.api.components.container.ContainerChildComponent;
-import net.dv8tion.jda.api.components.textdisplay.TextDisplay;
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Message;
+import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.awt.*;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Creating, voting in, updating and closing polls, plus the lookups the {@code /poll} panel needs (a
+ * member's own active polls, or every active poll for an admin). How a poll looks is {@link PollView}'s job.
+ */
 @BService
 public class PollService {
     private static final Logger log = LoggerFactory.getLogger(PollService.class);
-    private static final int BAR_WIDTH = 18;
-    private static final String[] PARTIAL_BLOCKS = {"", "▏", "▎", "▍", "▌", "▋", "▊", "▉"};
-    private static final String[] NUMBER_EMOJIS = {"1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣"};
+
+    /** How many polls a regular member can have running at once — admins are unlimited. */
+    public static final int MAX_ACTIVE_PER_MEMBER = 5;
 
     // ConcurrentHashMap: JDA/BotCommands can dispatch interaction callbacks (button clicks) from
     // a pooled executor rather than a single thread, so these maps can be read/written
@@ -52,8 +53,8 @@ public class PollService {
 
     // --- Creation ---
 
-    public void createPoll(Guild guild, TextChannel channel, String title, boolean anonymous,
-                            boolean multipleVotes, List<String> optionLabels, long createdByUserId) {
+    public void createPoll(Guild guild, GuildMessageChannel channel, String title, boolean anonymous,
+                           boolean multipleVotes, List<String> optionLabels, long createdByUserId) {
         long pollId = pollRepository.createPoll(
                 guild.getIdLong(), channel.getIdLong(), title, anonymous, multipleVotes, createdByUserId);
 
@@ -64,18 +65,18 @@ public class PollService {
         }
 
         PollSession session = new PollSession(pollId, guild.getIdLong(), channel.getIdLong(),
-                null, title, anonymous, multipleVotes, "ACTIVE");
+                null, title, anonymous, multipleVotes, "ACTIVE", createdByUserId);
         activePollsById.put(pollId, session);
         optionsByPollId.put(pollId, options);
 
-        channel.sendMessageComponents(List.of(buildContainer(session, options, Map.of(), Map.of())))
+        channel.sendMessageComponents(List.of(PollView.build(session, options, Map.of(), Map.of(), false)))
                 .useComponentsV2(true)
                 .queue(message -> {
                     pollRepository.saveMessageId(pollId, message.getIdLong());
                     activePollsById.put(pollId, new PollSession(pollId, guild.getIdLong(), channel.getIdLong(),
-                            message.getIdLong(), title, anonymous, multipleVotes, "ACTIVE"));
+                            message.getIdLong(), title, anonymous, multipleVotes, "ACTIVE", createdByUserId));
                     log.info("Created poll {} '{}' in guild {}", pollId, title, guild.getIdLong());
-                });
+                }, error -> log.warn("Failed to post poll {} '{}' in channel {}", pollId, title, channel.getIdLong(), error));
     }
 
     // --- Lookup ---
@@ -88,14 +89,26 @@ public class PollService {
         return optionsByPollId.getOrDefault(pollId, pollRepository.getOptions(pollId));
     }
 
-    public PollSession findByTitle(long guildId, String query) {
-        for (PollSession session : activePollsById.values()) {
-            if (session.guildId() == guildId
-                    && session.title().toLowerCase().contains(query.toLowerCase())) {
-                return session;
-            }
-        }
-        return pollRepository.findPollByTitle(guildId, query);
+    /** Every active poll in the guild, newest first — what an admin sees in the {@code /poll} panel. */
+    public List<PollSession> activePolls(long guildId) {
+        return activePollsById.values().stream()
+                .filter(poll -> poll.guildId() == guildId)
+                .sorted(Comparator.comparingLong(PollSession::pollId).reversed())
+                .toList();
+    }
+
+    /** The active polls {@code userId} started — what a member sees in the {@code /poll} panel. */
+    public List<PollSession> activePollsOwnedBy(long guildId, long userId) {
+        return activePolls(guildId).stream().filter(poll -> poll.createdByUserId() == userId).toList();
+    }
+
+    public int totalVotes(long pollId) {
+        return pollRepository.getVoteCounts(pollId).values().stream().mapToInt(Integer::intValue).sum();
+    }
+
+    /** Whoever started a poll may end it, and so may an admin; nobody else. */
+    public static boolean canManage(PollSession poll, long userId, boolean isAdmin) {
+        return isAdmin || poll.createdByUserId() == userId;
     }
 
     // --- Voting ---
@@ -130,7 +143,7 @@ public class PollService {
         PollSession session = activePollsById.get(pollId);
         if (session == null || session.messageId() == null) return;
 
-        TextChannel channel = guild.getTextChannelById(session.channelId());
+        GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, session.channelId());
         if (channel == null) return;
 
         List<PollOption> options = getOptions(pollId);
@@ -138,10 +151,14 @@ public class PollService {
         Map<Long, List<Long>> voters = session.anonymous() ? Map.of() : pollRepository.getVotersByOption(pollId);
 
         channel.retrieveMessageById(session.messageId()).queue(
-                msg -> msg.editMessageComponents(List.of(buildContainer(session, options, counts, voters)))
-                          .useComponentsV2(true)
-                          .queue(),
+                msg -> replaceContent(msg, PollView.build(session, options, counts, voters, false)),
                 err -> log.warn("Failed to retrieve message for poll {}", pollId));
+    }
+
+    /** Swaps a poll message's whole contents — components and the bar images they carry. */
+    private void replaceContent(Message message, Container container) {
+        message.editMessageComponents(List.of(container)).useComponentsV2(true).queue(
+                success -> {}, error -> log.warn("Failed to update poll message {}", message.getIdLong(), error));
     }
 
     // --- Closing ---
@@ -153,19 +170,17 @@ public class PollService {
         pollRepository.closePoll(pollId);
 
         if (session.messageId() != null) {
-            TextChannel channel = guild.getTextChannelById(session.channelId());
+            GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, session.channelId());
             if (channel != null) {
                 List<PollOption> options = getOptions(pollId);
                 Map<Long, Integer> counts = pollRepository.getVoteCounts(pollId);
                 Map<Long, List<Long>> voters = session.anonymous() ? Map.of() : pollRepository.getVotersByOption(pollId);
 
                 PollSession closed = new PollSession(pollId, session.guildId(), session.channelId(),
-                        session.messageId(), session.title(), session.anonymous(), session.multipleVotes(), "CLOSED");
+                        session.messageId(), session.title(), session.anonymous(), session.multipleVotes(), "CLOSED", session.createdByUserId());
 
                 channel.retrieveMessageById(session.messageId()).queue(
-                        msg -> msg.editMessageComponents(List.of(buildClosedContainer(closed, options, counts, voters)))
-                                  .useComponentsV2(true)
-                                  .queue(),
+                        msg -> replaceContent(msg, PollView.build(closed, options, counts, voters, true)),
                         err -> log.warn("Failed to retrieve message to close poll {}", pollId));
             }
         }
@@ -194,7 +209,7 @@ public class PollService {
         for (PollOption option : options) {
             int votes = counts.getOrDefault(option.optionId(), 0);
             double pct = total > 0 ? votes * 100.0 / total : 0.0;
-            sb.append(NUMBER_EMOJIS[option.optionNumber() - 1]).append(" **").append(option.label()).append("**")
+            sb.append(PollView.NUMBER_EMOJIS[option.optionNumber() - 1]).append(" **").append(option.label()).append("**")
               .append(" — ").append(votes).append(votes == 1 ? " vote" : " votes")
               .append(String.format(" (%.1f%%)", pct)).append("\n");
 
@@ -208,111 +223,5 @@ public class PollService {
         }
 
         return sb.toString().trim();
-    }
-
-    // --- Container builders ---
-
-    private static final Color POLL_COLOR = new Color(0x5865F2);
-
-    Container buildContainer(PollSession session, List<PollOption> options,
-                              Map<Long, Integer> counts, Map<Long, List<Long>> voters) {
-        List<ContainerChildComponent> children = new ArrayList<>();
-        children.add(TextDisplay.of("### 📊  " + session.title()));
-        children.add(TextDisplay.of(buildResultsText(session, options, counts, voters)));
-        children.add(TextDisplay.of("-# Vote using the numbered buttons below  ·  Tap again to remove your vote"));
-        children.addAll(buildVoteRows(options, false));
-
-        return Containers.card(POLL_COLOR, children);
-    }
-
-    private Container buildClosedContainer(PollSession session, List<PollOption> options,
-                                            Map<Long, Integer> counts, Map<Long, List<Long>> voters) {
-        List<ContainerChildComponent> children = new ArrayList<>();
-        children.add(TextDisplay.of("### 📊  " + session.title() + " — Closed"));
-        children.add(TextDisplay.of(buildResultsText(session, options, counts, voters)));
-        children.add(TextDisplay.of("-# This poll has been closed."));
-        children.addAll(buildVoteRows(options, true));
-
-        return Containers.card(Color.DARK_GRAY, children);
-    }
-
-    private String buildResultsText(PollSession session, List<PollOption> options,
-                                     Map<Long, Integer> counts, Map<Long, List<Long>> voters) {
-        int total = counts.values().stream().mapToInt(Integer::intValue).sum();
-        StringBuilder desc = new StringBuilder();
-
-        for (PollOption option : options) {
-            int votes = counts.getOrDefault(option.optionId(), 0);
-            double pct = total > 0 ? (double) votes / total : 0.0;
-
-            desc.append(NUMBER_EMOJIS[option.optionNumber() - 1])
-                    .append(" **").append(option.label()).append("**\n");
-
-            desc.append(buildBar(pct)).append("  ").append(votes)
-                    .append(votes == 1 ? " vote" : " votes");
-            if (total > 0) desc.append("  **").append(String.format("%.0f%%", pct * 100)).append("**");
-            desc.append("\n");
-
-            if (!voters.isEmpty()) {
-                List<Long> voterIds = voters.getOrDefault(option.optionId(), List.of());
-                if (!voterIds.isEmpty()) {
-                    desc.append("↳ ");
-                    int shown = Math.min(voterIds.size(), 5);
-                    for (int i = 0; i < shown; i++) {
-                        if (i > 0) desc.append(", ");
-                        desc.append("<@").append(voterIds.get(i)).append(">");
-                    }
-                    if (voterIds.size() > 5) desc.append(" *+").append(voterIds.size() - 5).append(" more*");
-                    desc.append("\n");
-                }
-            }
-
-            desc.append("\n");
-        }
-
-        desc.append("───────────────────────\n");
-
-        List<String> meta = new ArrayList<>();
-        meta.add("**" + total + "** " + (total == 1 ? "vote" : "votes"));
-        if (session.multipleVotes()) meta.add("multiple votes allowed");
-        if (session.anonymous()) meta.add("anonymous");
-        desc.append("🗳️ *").append(String.join("  ·  ", meta)).append("*");
-
-        return desc.toString();
-    }
-
-    private String buildBar(double pct) {
-        int totalUnits = BAR_WIDTH * 8;
-        int filledUnits = (int) Math.round(pct * totalUnits);
-        int fullChars  = filledUnits / 8;
-        int partial    = filledUnits % 8;
-        int emptyChars = BAR_WIDTH - fullChars - (partial > 0 ? 1 : 0);
-
-        return "█".repeat(fullChars)
-                + (partial > 0 ? PARTIAL_BLOCKS[partial] : "")
-                + "░".repeat(Math.max(0, emptyChars));
-    }
-
-    // --- Action row builders ---
-
-    private List<ActionRow> buildVoteRows(List<PollOption> options, boolean disabled) {
-        List<Button> buttons = new ArrayList<>();
-        for (PollOption option : options) {
-            Button button = Button.secondary(
-                    "poll_vote:" + option.pollId() + ":" + option.optionNumber(),
-                    NUMBER_EMOJIS[option.optionNumber() - 1] + " " + truncate(option.label(), 16)
-            );
-            buttons.add(disabled ? button.asDisabled() : button);
-        }
-
-        List<ActionRow> rows = new ArrayList<>();
-        for (int i = 0; i < buttons.size(); i += 5) {
-            rows.add(ActionRow.of(buttons.subList(i, Math.min(i + 5, buttons.size()))));
-        }
-        return rows;
-    }
-
-    private String truncate(String s, int max) {
-        return s.length() > max ? s.substring(0, max - 1) + "…" : s;
     }
 }

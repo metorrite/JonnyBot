@@ -8,5 +8,6 @@ public record PollSession(
         String title,
         boolean anonymous,
         boolean multipleVotes,
-        String status
+        String status,
+        long createdByUserId
 ) {}
