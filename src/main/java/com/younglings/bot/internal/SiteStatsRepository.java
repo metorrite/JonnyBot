@@ -65,6 +65,23 @@ public class SiteStatsRepository {
 
     public record Giveaway(long amount, String description, OffsetDateTime at) {}
 
+    public record ActivityRow(String rsn, String text, String details, String date, OffsetDateTime recordedAt) {}
+
+    public record BigDay(String rsn, LocalDate date, long xp) {}
+
+    public record ClubMember(String rsn, int skills) {}
+
+    public record CapWeek(String rsn, LocalDate weekStart, boolean capped) {}
+
+    public record RosterEventRow(String rsn, String type, OffsetDateTime at) {}
+
+    public record RenameRow(String oldRsn, String newRsn, OffsetDateTime at) {}
+
+    public record PollOption(int number, String label, int votes) {}
+
+    public record PollRow(long id, long channelId, Long messageId, String title, boolean anonymous, boolean multiple, String status,
+                          OffsetDateTime createdAt, OffsetDateTime closedAt, List<PollOption> options) {}
+
     // ---------- queries ----------
 
     private interface RowMapper<T> {
@@ -166,6 +183,113 @@ public class SiteStatsRepository {
                 SELECT award_type, points, awarded_for_date FROM younglings.clan_points_award
                 WHERE guild_id = ? AND LOWER(rsn) = LOWER(?) ORDER BY awarded_for_date DESC, id DESC LIMIT ?
                 """, rs -> new Award(rs.getString("award_type"), rs.getLong("points"), rs.getObject("awarded_for_date", LocalDate.class)), guildId, rsn, limit);
+    }
+
+    // ---------- activity, records, history ----------
+
+    /** The newest adventure-log entries across active members, as the bot first saw them. */
+    public List<ActivityRow> recentActivities(long guildId, int limit) {
+        return query("recent activities", """
+                SELECT m.rsn, a.activity_text, a.activity_details, a.activity_date, a.recorded_at
+                FROM younglings.player_activity a
+                JOIN younglings.clan_member m ON m.guild_id = a.guild_id AND LOWER(m.rsn) = LOWER(a.rsn) AND m.active
+                WHERE a.guild_id = ? ORDER BY a.recorded_at DESC, a.id DESC LIMIT ?
+                """, rs -> new ActivityRow(rs.getString("rsn"), rs.getString("activity_text"), rs.getString("activity_details"),
+                rs.getString("activity_date"), rs.getObject("recorded_at", OffsetDateTime.class)), guildId, limit);
+    }
+
+    /** Every active member's activities whose text starts with {@code prefix} — for the PvM and drop tallies. */
+    public List<ActivityRow> activitiesStartingWith(long guildId, String prefix) {
+        return query("activities by prefix", """
+                SELECT m.rsn, a.activity_text, a.activity_details, a.activity_date, a.recorded_at
+                FROM younglings.player_activity a
+                JOIN younglings.clan_member m ON m.guild_id = a.guild_id AND LOWER(m.rsn) = LOWER(a.rsn) AND m.active
+                WHERE a.guild_id = ? AND a.activity_text LIKE ? ORDER BY a.recorded_at DESC, a.id DESC
+                """, rs -> new ActivityRow(rs.getString("rsn"), rs.getString("activity_text"), rs.getString("activity_details"),
+                rs.getString("activity_date"), rs.getObject("recorded_at", OffsetDateTime.class)), guildId, prefix + "%");
+    }
+
+    /** The biggest single-day XP gains anyone has had, from the daily snapshot history. */
+    public List<BigDay> biggestDays(long guildId, int limit) {
+        return query("biggest days", """
+                WITH daily AS (
+                    SELECT LOWER(s.rsn) AS k, MIN(m.rsn) AS rsn, (s.snapshot_at AT TIME ZONE 'UTC')::date AS d, MAX(s.total_xp) AS xp
+                    FROM younglings.player_stats_snapshot s
+                    JOIN younglings.clan_member m ON m.guild_id = s.guild_id AND LOWER(m.rsn) = LOWER(s.rsn) AND m.active
+                    WHERE s.guild_id = ? GROUP BY LOWER(s.rsn), (s.snapshot_at AT TIME ZONE 'UTC')::date),
+                gains AS (SELECT rsn, d, xp - LAG(xp) OVER (PARTITION BY k ORDER BY d) AS gain FROM daily)
+                SELECT rsn, d, gain FROM gains WHERE gain IS NOT NULL AND gain > 0 ORDER BY gain DESC LIMIT ?
+                """, rs -> new BigDay(rs.getString("rsn"), rs.getObject("d", LocalDate.class), rs.getLong("gain")), guildId, limit);
+    }
+
+    /** Members with at least one 200M skill, by how many they have, from each member's newest snapshot. */
+    public List<ClubMember> twoHundredMillionClub(long guildId, int limit) {
+        return query("200m club", """
+                WITH latest AS (
+                    SELECT DISTINCT ON (LOWER(s.rsn)) s.snapshot_id, m.rsn FROM younglings.player_stats_snapshot s
+                    JOIN younglings.clan_member m ON m.guild_id = s.guild_id AND LOWER(m.rsn) = LOWER(s.rsn) AND m.active
+                    WHERE s.guild_id = ? ORDER BY LOWER(s.rsn), s.snapshot_at DESC)
+                SELECT l.rsn, COUNT(*) AS skills FROM latest l JOIN younglings.player_skill_snapshot k ON k.snapshot_id = l.snapshot_id
+                WHERE k.xp >= 200000000 GROUP BY l.rsn ORDER BY skills DESC, l.rsn LIMIT ?
+                """, rs -> new ClubMember(rs.getString("rsn"), rs.getInt("skills")), guildId, limit);
+    }
+
+    /** Which Citadel weeks (Wednesday starts) each active member visited or capped in the last {@code weeks} weeks. */
+    public List<CapWeek> citadelGrid(long guildId, int weeks) {
+        return query("citadel grid", """
+                SELECT m.rsn, (date_trunc('week', (a.recorded_at AT TIME ZONE 'UTC') - INTERVAL '2 days') + INTERVAL '2 days')::date AS week_start,
+                       BOOL_OR(a.activity_text LIKE 'Capped at my Clan Citadel%') AS capped
+                FROM younglings.player_activity a
+                JOIN younglings.clan_member m ON m.guild_id = a.guild_id AND LOWER(m.rsn) = LOWER(a.rsn) AND m.active
+                WHERE a.guild_id = ? AND (a.activity_text LIKE 'Visited my Clan Citadel%' OR a.activity_text LIKE 'Capped at my Clan Citadel%')
+                  AND a.recorded_at >= NOW() - (? * INTERVAL '7 days')
+                GROUP BY m.rsn, week_start
+                """, rs -> new CapWeek(rs.getString("rsn"), rs.getObject("week_start", LocalDate.class), rs.getBoolean("capped")), guildId, weeks + 1);
+    }
+
+    /** Every Citadel week (as a week start) in which a member capped — the streak calculator's input. */
+    public List<CapWeek> allCapWeeks(long guildId) {
+        return query("all cap weeks", """
+                SELECT DISTINCT m.rsn, (date_trunc('week', (a.recorded_at AT TIME ZONE 'UTC') - INTERVAL '2 days') + INTERVAL '2 days')::date AS week_start
+                FROM younglings.player_activity a
+                JOIN younglings.clan_member m ON m.guild_id = a.guild_id AND LOWER(m.rsn) = LOWER(a.rsn) AND m.active
+                WHERE a.guild_id = ? AND a.activity_text LIKE 'Capped at my Clan Citadel%'
+                """, rs -> new CapWeek(rs.getString("rsn"), rs.getObject("week_start", LocalDate.class), true), guildId);
+    }
+
+    public List<RosterEventRow> rosterEvents(long guildId, int limit) {
+        return query("roster timeline", "SELECT rsn, event_type, event_at FROM younglings.clan_roster_event WHERE guild_id = ? ORDER BY event_at DESC LIMIT ?",
+                rs -> new RosterEventRow(rs.getString("rsn"), rs.getString("event_type"), rs.getObject("event_at", OffsetDateTime.class)), guildId, limit);
+    }
+
+    public List<RenameRow> confirmedRenames(long guildId, int limit) {
+        return query("renames", """
+                SELECT old_rsn, new_rsn, COALESCE(resolved_at, detected_at) AS at FROM younglings.rsn_rename_candidate
+                WHERE guild_id = ? AND status = 'CONFIRMED' ORDER BY COALESCE(resolved_at, detected_at) DESC LIMIT ?
+                """, rs -> new RenameRow(rs.getString("old_rsn"), rs.getString("new_rsn"), rs.getObject("at", OffsetDateTime.class)), guildId, limit);
+    }
+
+    /** The server's polls, newest first, each with its options and vote counts. */
+    public List<PollRow> polls(long guildId, int limit) {
+        record Head(long id, long channelId, Long messageId, String title, boolean anonymous, boolean multiple, String status, OffsetDateTime createdAt, OffsetDateTime closedAt) {}
+        List<Head> heads = query("polls", """
+                SELECT poll_id, channel_id, message_id, title, anonymous, multiple_votes, status, created_at, closed_at
+                FROM younglings.poll WHERE guild_id = ? ORDER BY created_at DESC LIMIT ?
+                """, rs -> new Head(rs.getLong("poll_id"), rs.getLong("channel_id"), (Long) rs.getObject("message_id"), rs.getString("title"),
+                rs.getBoolean("anonymous"), rs.getBoolean("multiple_votes"), rs.getString("status"),
+                rs.getObject("created_at", OffsetDateTime.class), rs.getObject("closed_at", OffsetDateTime.class)), guildId, limit);
+
+        List<PollRow> polls = new ArrayList<>();
+        for (Head head : heads) {
+            List<PollOption> options = query("poll options", """
+                    SELECT o.option_number, o.label, COUNT(v.vote_id) AS votes FROM younglings.poll_option o
+                    LEFT JOIN younglings.poll_vote v ON v.option_id = o.option_id
+                    WHERE o.poll_id = ? GROUP BY o.option_number, o.label ORDER BY o.option_number
+                    """, rs -> new PollOption(rs.getInt("option_number"), rs.getString("label"), rs.getInt("votes")), head.id());
+            polls.add(new PollRow(head.id(), head.channelId(), head.messageId(), head.title(), head.anonymous(), head.multiple(), head.status(),
+                    head.createdAt(), head.closedAt(), options));
+        }
+        return polls;
     }
 
     // ---------- the clan coffer (aggregates only — who holds what stays private) ----------
