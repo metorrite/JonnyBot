@@ -77,6 +77,12 @@ public class SiteStatsRepository {
 
     public record RenameRow(String oldRsn, String newRsn, OffsetDateTime at) {}
 
+    public record SkillGain(int skillId, long xp) {}
+
+    public record DayXp(LocalDate date, long xp) {}
+
+    public record PointsEarned(String rsn, long points) {}
+
     public record SignupRow(long id, String title, String notification, Integer max, String status, OffsetDateTime createdAt, List<SignupEntry> entries) {}
 
     public record SignupEntry(long userId, String rsn, int position) {}
@@ -187,6 +193,92 @@ public class SiteStatsRepository {
                 SELECT award_type, points, awarded_for_date FROM younglings.clan_points_award
                 WHERE guild_id = ? AND LOWER(rsn) = LOWER(?) ORDER BY awarded_for_date DESC, id DESC LIMIT ?
                 """, rs -> new Award(rs.getString("award_type"), rs.getLong("points"), rs.getObject("awarded_for_date", LocalDate.class)), guildId, rsn, limit);
+    }
+
+    // ---------- recap windows ----------
+
+    /** Skill XP gained inside {@code [from, to]} by one member ({@code rsn}) or, with {@code rsn == null}, by every active member together. */
+    public List<SkillGain> skillGainsBetween(long guildId, String rsn, OffsetDateTime from, OffsetDateTime to) {
+        return query("skill gains", """
+                WITH members AS (
+                    SELECT LOWER(rsn) AS k FROM younglings.clan_member WHERE guild_id = ? AND active AND (?::text IS NULL OR LOWER(rsn) = LOWER(?))),
+                latest AS (
+                    SELECT DISTINCT ON (LOWER(s.rsn)) s.snapshot_id, LOWER(s.rsn) AS k FROM younglings.player_stats_snapshot s
+                    JOIN members m ON m.k = LOWER(s.rsn) WHERE s.guild_id = ? AND s.snapshot_at <= ? ORDER BY LOWER(s.rsn), s.snapshot_at DESC),
+                before AS (
+                    SELECT DISTINCT ON (LOWER(s.rsn)) s.snapshot_id, LOWER(s.rsn) AS k FROM younglings.player_stats_snapshot s
+                    JOIN members m ON m.k = LOWER(s.rsn) WHERE s.guild_id = ? AND s.snapshot_at <= ? ORDER BY LOWER(s.rsn), s.snapshot_at DESC),
+                after AS (
+                    SELECT DISTINCT ON (LOWER(s.rsn)) s.snapshot_id, LOWER(s.rsn) AS k FROM younglings.player_stats_snapshot s
+                    JOIN members m ON m.k = LOWER(s.rsn) WHERE s.guild_id = ? AND s.snapshot_at > ? ORDER BY LOWER(s.rsn), s.snapshot_at ASC),
+                base AS (SELECT l.k, COALESCE(b.snapshot_id, a.snapshot_id) AS snapshot_id FROM latest l LEFT JOIN before b ON b.k = l.k LEFT JOIN after a ON a.k = l.k)
+                SELECT ls.skill_id, SUM(ls.xp - bs.xp) AS gain
+                FROM latest l
+                JOIN base ba ON ba.k = l.k AND ba.snapshot_id IS NOT NULL
+                JOIN younglings.player_skill_snapshot ls ON ls.snapshot_id = l.snapshot_id
+                JOIN younglings.player_skill_snapshot bs ON bs.snapshot_id = ba.snapshot_id AND bs.skill_id = ls.skill_id
+                GROUP BY ls.skill_id HAVING SUM(ls.xp - bs.xp) > 0 ORDER BY gain DESC
+                """, rs -> new SkillGain(rs.getInt("skill_id"), rs.getLong("gain")), guildId, rsn, rsn, guildId, to, guildId, from, guildId, from);
+    }
+
+    /** XP gained on each UTC day inside the window (one member, or the whole clan summed), oldest first. */
+    public List<DayXp> dailyXpBetween(long guildId, String rsn, OffsetDateTime from, OffsetDateTime to) {
+        return query("daily xp", """
+                WITH daily AS (
+                    SELECT LOWER(s.rsn) AS k, (s.snapshot_at AT TIME ZONE 'UTC')::date AS d, MAX(s.total_xp) AS xp
+                    FROM younglings.player_stats_snapshot s
+                    JOIN younglings.clan_member m ON m.guild_id = s.guild_id AND LOWER(m.rsn) = LOWER(s.rsn) AND m.active
+                    WHERE s.guild_id = ? AND (?::text IS NULL OR LOWER(s.rsn) = LOWER(?))
+                      AND s.snapshot_at >= ?::timestamptz - INTERVAL '1 day' AND s.snapshot_at < ?
+                    GROUP BY LOWER(s.rsn), (s.snapshot_at AT TIME ZONE 'UTC')::date),
+                gains AS (SELECT d, xp - LAG(xp) OVER (PARTITION BY k ORDER BY d) AS gain FROM daily)
+                SELECT d, SUM(gain) AS xp FROM gains
+                WHERE gain IS NOT NULL AND gain >= 0 AND d >= (?::timestamptz AT TIME ZONE 'UTC')::date
+                GROUP BY d ORDER BY d
+                """, rs -> new DayXp(rs.getObject("d", LocalDate.class), rs.getLong("xp")), guildId, rsn, rsn, from, to, from);
+    }
+
+    /** Adventure-log entries first seen inside the window, for one member or everyone. */
+    public List<ActivityRow> activitiesBetween(long guildId, String rsn, OffsetDateTime from, OffsetDateTime to) {
+        return query("activities in window", """
+                SELECT m.rsn, a.activity_text, a.activity_details, a.activity_date, a.recorded_at
+                FROM younglings.player_activity a
+                JOIN younglings.clan_member m ON m.guild_id = a.guild_id AND LOWER(m.rsn) = LOWER(a.rsn) AND m.active
+                WHERE a.guild_id = ? AND (?::text IS NULL OR LOWER(a.rsn) = LOWER(?)) AND a.recorded_at >= ? AND a.recorded_at < ?
+                ORDER BY a.recorded_at
+                """, rs -> new ActivityRow(rs.getString("rsn"), rs.getString("activity_text"), rs.getString("activity_details"),
+                rs.getString("activity_date"), rs.getObject("recorded_at", OffsetDateTime.class)), guildId, rsn, rsn, from, to);
+    }
+
+    /** Clan points awarded inside the window, per member (or just one). */
+    public List<PointsEarned> pointsBetween(long guildId, String rsn, OffsetDateTime from, OffsetDateTime to) {
+        return query("points in window", """
+                SELECT a.rsn, SUM(a.points) AS points FROM younglings.clan_points_award a
+                WHERE a.guild_id = ? AND (?::text IS NULL OR LOWER(a.rsn) = LOWER(?))
+                  AND a.awarded_for_date >= (?::timestamptz AT TIME ZONE 'UTC')::date AND a.awarded_for_date < (?::timestamptz AT TIME ZONE 'UTC')::date
+                GROUP BY a.rsn
+                """, rs -> new PointsEarned(rs.getString("rsn"), rs.getLong("points")), guildId, rsn, rsn, from, to);
+    }
+
+    /** A member's total level at the start and end of the window ({@code null} if they have no snapshot there). */
+    public Integer[] totalLevelsBetween(long guildId, String rsn, OffsetDateTime from, OffsetDateTime to) {
+        Integer end = firstInt("""
+                SELECT total_level FROM younglings.player_stats_snapshot WHERE guild_id = ? AND LOWER(rsn) = LOWER(?) AND snapshot_at <= ? ORDER BY snapshot_at DESC LIMIT 1
+                """, guildId, rsn, to);
+        Integer start = firstInt("""
+                SELECT total_level FROM younglings.player_stats_snapshot WHERE guild_id = ? AND LOWER(rsn) = LOWER(?) AND snapshot_at <= ? ORDER BY snapshot_at DESC LIMIT 1
+                """, guildId, rsn, from);
+        if (start == null) {
+            start = firstInt("""
+                    SELECT total_level FROM younglings.player_stats_snapshot WHERE guild_id = ? AND LOWER(rsn) = LOWER(?) AND snapshot_at > ? ORDER BY snapshot_at ASC LIMIT 1
+                    """, guildId, rsn, from);
+        }
+        return new Integer[]{start, end};
+    }
+
+    private Integer firstInt(String sql, Object... params) {
+        List<Integer> rows = query("a level", sql, rs -> rs.getInt(1), params);
+        return rows.isEmpty() ? null : rows.getFirst();
     }
 
     // ---------- activity, records, history ----------

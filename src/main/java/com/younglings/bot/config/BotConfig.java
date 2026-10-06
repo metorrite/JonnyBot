@@ -250,6 +250,23 @@ public class BotConfig {
         return (secret == null || secret.isBlank()) ? null : secret;
     }
 
+    /**
+     * The website's public address (e.g. {@code https://rsyounglings.com}), no trailing slash — where {@code /wrapped}
+     * fetches recap images from and what its "open the full recap" button links to. {@code null} if unset, in which
+     * case {@code /wrapped} says it isn't set up.
+     */
+    public String getSiteUrl() {
+        String url = System.getenv("SITE_URL");
+
+        if (url == null || url.isBlank()) {
+            url = dotenv.get("SITE_URL");
+        }
+
+        if (url == null || url.isBlank()) return null;
+        url = url.trim();
+        return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
+    }
+
     /** Port the internal API listens on. Defaults to 8081 if unset. */
     public int getInternalApiPort() {
         String raw = System.getenv("INTERNAL_API_PORT");
