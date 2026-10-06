@@ -44,6 +44,11 @@ public class CommunitySettings {
                     poll_id BIGINT PRIMARY KEY,
                     closes_at TIMESTAMPTZ NOT NULL
                 );
+                """,
+                // Whether the website's Events menu shows a "something new" bubble alongside the bell. Off unless an admin turns it on.
+                """
+                ALTER TABLE younglings.site_setting
+                    ADD COLUMN IF NOT EXISTS nav_event_bubble BOOLEAN NOT NULL DEFAULT FALSE;
                 """));
     }
 
@@ -71,6 +76,33 @@ public class CommunitySettings {
             s.executeUpdate();
         } catch (SQLException e) {
             throw fail("save the poll channel", e);
+        }
+    }
+
+    // ---------- the Events menu's "new" bubble ----------
+
+    public boolean navEventBubble(long guildId) {
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("SELECT nav_event_bubble FROM younglings.site_setting WHERE guild_id = ?")) {
+            s.setLong(1, guildId);
+            try (ResultSet rs = s.executeQuery()) {
+                return rs.next() && rs.getBoolean(1);
+            }
+        } catch (SQLException e) {
+            throw fail("read the Events bubble setting", e);
+        }
+    }
+
+    public void setNavEventBubble(long guildId, boolean on) {
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("""
+                     INSERT INTO younglings.site_setting (guild_id, nav_event_bubble) VALUES (?, ?)
+                     ON CONFLICT (guild_id) DO UPDATE SET nav_event_bubble = EXCLUDED.nav_event_bubble""")) {
+            s.setLong(1, guildId);
+            s.setBoolean(2, on);
+            s.executeUpdate();
+        } catch (SQLException e) {
+            throw fail("save the Events bubble setting", e);
         }
     }
 

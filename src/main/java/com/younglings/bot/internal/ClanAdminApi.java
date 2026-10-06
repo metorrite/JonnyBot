@@ -1,5 +1,7 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.configure.GuildSettingsService;
+import com.younglings.bot.configure.WebsiteLink;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.announcement.PostMarkup;
 import com.younglings.bot.announcement.PostTextConverter;
@@ -40,15 +42,51 @@ public class ClanAdminApi {
     private final SiteStatsRepository stats;
     private final TrackingRepository tracking;
     private final CommunitySettings communitySettings;
+    private final GuildSettingsService guildSettings;
+    private final SiteCache cache;
 
     public ClanAdminApi(MemberProfileRepository members, ClanPointsRepository points, SiteNewsService news, SiteStatsRepository stats, TrackingRepository tracking,
-                        CommunitySettings communitySettings) {
+                        CommunitySettings communitySettings, GuildSettingsService guildSettings, SiteCache cache) {
+        this.guildSettings = guildSettings;
+        this.cache = cache;
         this.members = members;
         this.points = points;
         this.news = news;
         this.stats = stats;
         this.tracking = tracking;
         this.communitySettings = communitySettings;
+    }
+
+    // ---------- the clan's website (the same setting as /configure's Website Link) ----------
+
+    DataObject clanWebsite(Guild guild) {
+        return DataObject.empty().put("websiteUrl", guildSettings.getEffective(guild.getIdLong()).websiteUrl());
+    }
+
+    DataObject saveClanWebsite(Guild guild, Member actor, DataObject body) {
+        String raw = body.isNull("websiteUrl") ? "" : body.getString("websiteUrl", "").strip();
+        if (raw.isEmpty()) {
+            guildSettings.updateWebsiteUrl(guild.getIdLong(), null);
+        } else {
+            var url = WebsiteLink.normalize(raw);
+            if (url.isEmpty()) throw new ApiError(400, "That doesn't look like a web address. Try something like https://example.com (up to " + WebsiteLink.MAX_LENGTH + " characters).");
+            guildSettings.updateWebsiteUrl(guild.getIdLong(), url.get());
+        }
+        log.info("Dashboard: {} set the clan website to {}", actor.getId(), raw.isEmpty() ? "none" : "a new address");
+        return clanWebsite(guild);
+    }
+
+    // ---------- options for how the public website behaves ----------
+
+    DataObject siteOptions(Guild guild) {
+        return DataObject.empty().put("navEventBubble", communitySettings.navEventBubble(guild.getIdLong()));
+    }
+
+    DataObject saveSiteOptions(Guild guild, Member actor, DataObject body) {
+        communitySettings.setNavEventBubble(guild.getIdLong(), body.getBoolean("navEventBubble", false));
+        cache.invalidate("options");
+        log.info("Dashboard: {} changed the website's options", actor.getId());
+        return siteOptions(guild);
     }
 
     // ---------- the website's news channels ----------

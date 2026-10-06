@@ -128,6 +128,7 @@ public class SiteApi {
                 case "recap" -> recap.build(guild, query(exchange, "scope"), query(exchange, "rsn"), query(exchange, "period"));
                 case "pvm" -> pvm(guild);
                 case "drops" -> drops(guild);
+                case "options" -> DataObject.empty().put("navEventBubble", community.navEventBubble(guild.getIdLong()));
                 case "bosses" -> bossStats.bosses(guild, query(exchange, "period"));
                 case "boss" -> bossStats.boss(guild, query(exchange, "boss"), query(exchange, "period"));
                 case "item" -> bossStats.item(guild, query(exchange, "item"), query(exchange, "period"), query(exchange, "boss"));
@@ -156,6 +157,7 @@ public class SiteApi {
             case "events" -> 30_000;
             case "members", "overview", "member", "news" -> 60_000;
             case "me" -> 15_000;
+            case "options" -> 30_000;
             case "recap" -> 300_000;
             case "bosses", "boss", "item", "drop-log" -> 60_000;
             default -> 120_000; // records, history, citadel grid, PvM, drops, coffer, leaderboards, skill series
