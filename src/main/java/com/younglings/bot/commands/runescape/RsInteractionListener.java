@@ -1,5 +1,6 @@
 package com.younglings.bot.commands.runescape;
 
+import com.younglings.bot.runescape.XpText;
 import com.younglings.bot.configure.GuildSettingsService;
 import com.younglings.bot.discord.Containers;
 import com.younglings.bot.discord.Pagination;
@@ -744,7 +745,7 @@ public class RsInteractionListener extends ListenerAdapter {
 
         var activity = statsService.getRecentActivities(guild.getIdLong(), link.rsn(), 1);
         if (!activity.isEmpty()) {
-            sb.append("\n-# Latest activity: ").append(activity.getFirst().text());
+            sb.append("\n-# Latest activity: ").append(XpText.shorten(activity.getFirst().text()));
         }
 
         return sb.toString();
@@ -918,7 +919,7 @@ public class RsInteractionListener extends ListenerAdapter {
     }
 
     private String activityLine(PlayerActivity activity) {
-        return "`" + activity.date() + "` — " + activity.text() + "\n";
+        return "`" + activity.date() + "` — " + XpText.shorten(activity.text()) + "\n";
     }
 
     /**
