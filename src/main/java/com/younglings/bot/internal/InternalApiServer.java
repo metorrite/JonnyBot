@@ -66,11 +66,13 @@ public class InternalApiServer {
 
     private final BotConfig botConfig;
     private final TicketAdminApi ticketAdminApi;
+    private final SiteApi siteApi;
     private JDA jda;
 
-    public InternalApiServer(BotConfig botConfig, TicketAdminApi ticketAdminApi) {
+    public InternalApiServer(BotConfig botConfig, TicketAdminApi ticketAdminApi, SiteApi siteApi) {
         this.botConfig = botConfig;
         this.ticketAdminApi = ticketAdminApi;
+        this.siteApi = siteApi;
     }
 
     @BEventListener
@@ -103,6 +105,7 @@ public class InternalApiServer {
             server.createContext("/internal/color-role", exchange -> handleSetColorRole(exchange, secret, guildId));
 
             server.createContext("/internal/admin/", exchange -> handleAdmin(exchange, secret, guildId));
+            server.createContext("/internal/site/", exchange -> handleSite(exchange, secret, guildId));
 
             server.setExecutor(Executors.newFixedThreadPool(4));
             server.start();
@@ -157,6 +160,18 @@ public class InternalApiServer {
             ticketAdminApi.handle(exchange, guild);
         } catch (Exception e) {
             log.error("Internal API admin request failed", e);
+            sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));
+        }
+    }
+
+    /** The website's public clan data (roster, stats, profiles, who's online, events) — secret and guild checked here, the rest in {@link SiteApi}. */
+    private void handleSite(HttpExchange exchange, String secret, long guildId) throws IOException {
+        try {
+            Guild guild = authorize(exchange, secret, guildId, "GET");
+            if (guild == null) return;
+            siteApi.handle(exchange, guild);
+        } catch (Exception e) {
+            log.error("Internal API site request failed", e);
             sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));
         }
     }
