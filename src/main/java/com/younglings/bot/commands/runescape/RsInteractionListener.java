@@ -495,29 +495,51 @@ public class RsInteractionListener extends ListenerAdapter {
         if (!modalId.equals("rs_link_modal:_")) return;
 
         String rsn = event.getValue("rs_link_name").getAsString().trim();
-        long guildId = event.getGuild().getIdLong();
-        long userId = event.getUser().getIdLong();
+        String name = rsn;
+
+        LinkSubmission result = submitLinkRequest(event.getGuild(), event.getMember(), event.getUser().getIdLong(), rsn);
+        switch (result.status()) {
+            case ALREADY_YOURS -> Containers.replyEphemeral(event, Containers.WARNING, "**" + name + "** is already linked to your account.");
+            case TAKEN -> Containers.replyEphemeral(event, Containers.WARNING, "**" + name + "** is already linked to another Discord account.");
+            case PENDING_EXISTS, SUBMITTED ->
+                    event.replyComponents(List.of(buildPendingStatusPanel(result.attempt()))).useComponentsV2(true).setEphemeral(true).queue();
+        }
+    }
+
+    /** What came of asking to link a RuneScape name. */
+    public record LinkSubmission(Status status, VerificationAttempt attempt) {
+        public enum Status { SUBMITTED, ALREADY_YOURS, TAKEN, PENDING_EXISTS }
+    }
+
+    /**
+     * Asks to link {@code rsn} to a Discord account: the same request {@code /rs} makes — an admin reviews it, the member gets
+     * the onboarding role and a DM. Shared by the Discord modal and the website so the two can't drift apart.
+     */
+    public LinkSubmission submitLinkRequest(Guild guild, Member member, long userId, String rsn) {
+        long guildId = guild.getIdLong();
 
         PlayerLink existing = linkService.getLinkForRsn(guildId, rsn);
         if (existing != null) {
-            Containers.replyEphemeral(event, Containers.WARNING, existing.discordUserId() == userId
-                    ? "**" + rsn + "** is already linked to your account."
-                    : "**" + rsn + "** is already linked to another Discord account.");
-            return;
+            return new LinkSubmission(existing.discordUserId() == userId ? LinkSubmission.Status.ALREADY_YOURS : LinkSubmission.Status.TAKEN, null);
         }
 
         VerificationAttempt pending = linkService.getPendingAttemptForUser(guildId, userId);
-        if (pending != null) {
-            event.replyComponents(List.of(buildPendingStatusPanel(pending))).useComponentsV2(true).setEphemeral(true).queue();
-            return;
-        }
+        if (pending != null) return new LinkSubmission(LinkSubmission.Status.PENDING_EXISTS, pending);
 
         VerificationAttempt attempt = linkService.startVerification(guildId, userId, rsn);
-        postForAdminReview(event.getGuild(), attempt);
-        grantOnboardingRole(event.getGuild(), event.getMember(), guildId);
-        dmVerificationUpdate(event.getGuild(), userId, Containers.INFO,
+        postForAdminReview(guild, attempt);
+        grantOnboardingRole(guild, member, guildId);
+        dmVerificationUpdate(guild, userId, Containers.INFO,
                 "Your request to link **" + rsn + "** has been submitted — an admin is reviewing it. You'll get a DM once it's approved or denied.");
-        event.replyComponents(List.of(buildPendingStatusPanel(attempt))).useComponentsV2(true).setEphemeral(true).queue();
+        return new LinkSubmission(LinkSubmission.Status.SUBMITTED, attempt);
+    }
+
+    /** Withdraws the member's own pending request (a mistyped name, say). False when there is nothing pending. */
+    public boolean cancelLinkRequest(Guild guild, long userId) {
+        VerificationAttempt pending = linkService.getPendingAttemptForUser(guild.getIdLong(), userId);
+        if (pending == null || !linkService.cancelOwn(pending.attemptId(), userId)) return false;
+        revokeOnboardingRole(guild, userId);
+        return true;
     }
 
     /**
