@@ -4,10 +4,8 @@ import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.discord.Containers;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
 import io.github.freya022.botcommands.api.commands.application.CommandScope;
-import io.github.freya022.botcommands.api.commands.application.annotations.Test;
 import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.JDASlashCommand;
-import io.github.freya022.botcommands.api.commands.application.slash.annotations.TopLevelSlashCommandData;
 
 /**
  * Dev-only: opens a paste box, and {@link DevEmbedListener} posts whatever's pasted as an embed in the
@@ -25,9 +23,7 @@ public class DevEmbedCommand {
         this.botConfig = botConfig;
     }
 
-    @TopLevelSlashCommandData(scope = CommandScope.GUILD)
-    @Test({})
-    @JDASlashCommand(name = "devembed", description = "[Dev only] Paste text into a form and the bot posts it here as an embed")
+    @JDASlashCommand(name = "dev", subcommand = "embed", description = "Paste text into a form and the bot posts it here as an embed")
     public void onDevEmbed(GuildSlashEvent event) {
         if (botConfig.getLiveEnvironment()) {
             Containers.replyEphemeral(event, Containers.WARNING, "This command is dev-only.");

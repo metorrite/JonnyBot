@@ -87,12 +87,12 @@ public class DevEmbedListener extends ListenerAdapter {
                     .queue(sent -> event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.SUCCESS,
                                     "Posted." + (parsed.problems().isEmpty() ? "" : "\n" + parsed.problemsText())))).useComponentsV2(true).queue(),
                             error -> {
-                                log.warn("Failed to post a /devembed message in channel {}", channel.getIdLong(), error);
+                                log.warn("Failed to post a /dev embed message in channel {}", channel.getIdLong(), error);
                                 event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.DANGER,
                                         "Couldn't post it — check the bot can send messages here."))).useComponentsV2(true).queue();
                             });
         } catch (Exception e) {
-            log.error("Unhandled exception in /devembed", e);
+            log.error("Unhandled exception in /dev embed", e);
             Containers.replyError(event);
         }
     }

@@ -61,7 +61,7 @@ public class ClanPointsService {
      * week's visit/cap points (idempotent either way — see {@link ClanPointsRepository#awardPoints}),
      * recomputes every active member's promotion-needed flag, then sends the Clan Report if anyone
      * needs one. Returns how many members the report listed (0 if nobody needed one, so nothing was
-     * sent) — the scheduler ignores it; {@code /devclanreport} reports it back.
+     * sent) — the scheduler ignores it; {@code /dev clanreport} reports it back.
      */
     public int runDailyPointsAndPromotionCheck(Guild guild) {
         long guildId = guild.getIdLong();

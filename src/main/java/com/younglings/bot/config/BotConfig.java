@@ -216,7 +216,7 @@ public class BotConfig {
     /**
      * The dev/test guild ID — outside of production, commands are pushed here as guild commands
      * (near-instant sync) instead of globally, and {@code @Test}-annotated commands (e.g.
-     * {@code /devsignups}) are only ever pushed here regardless of environment. Returns {@code
+     * {@code /dev signups}) are only ever pushed here regardless of environment. Returns {@code
      * null} if unset, in which case dev falls back to global command registration and {@code
      * @Test} commands register nowhere at all.
      */

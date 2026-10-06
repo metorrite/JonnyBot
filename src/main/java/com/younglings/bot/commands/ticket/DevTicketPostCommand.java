@@ -11,12 +11,9 @@ import com.younglings.bot.ticket.TicketModels.PanelDefinition;
 import com.younglings.bot.ticket.TicketModels.PanelRoles;
 import com.younglings.bot.ticket.TicketRepository;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
-import io.github.freya022.botcommands.api.commands.application.CommandScope;
-import io.github.freya022.botcommands.api.commands.application.annotations.Test;
 import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.JDASlashCommand;
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.SlashOption;
-import io.github.freya022.botcommands.api.commands.application.slash.annotations.TopLevelSlashCommandData;
 import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel;
 import org.jetbrains.annotations.Nullable;
 
@@ -44,9 +41,7 @@ public class DevTicketPostCommand {
         this.service = service;
     }
 
-    @TopLevelSlashCommandData(scope = CommandScope.GUILD)
-    @Test({})
-    @JDASlashCommand(name = "devticketpost", description = "[Dev only] Posts a ticket panel in this channel (creates a sample one if none exist)")
+    @JDASlashCommand(name = "dev", subcommand = "ticketpost", description = "Posts a ticket panel in this channel (creates a sample one if none exist)")
     public void onDevTicketPost(GuildSlashEvent event,
                                 @SlashOption(description = "Panel id — leave blank for the first panel") @Nullable Long panel) {
         if (botConfig.getLiveEnvironment()) {

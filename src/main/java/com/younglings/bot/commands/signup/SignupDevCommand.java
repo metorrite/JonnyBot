@@ -4,10 +4,8 @@ import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.discord.Containers;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
 import io.github.freya022.botcommands.api.commands.application.CommandScope;
-import io.github.freya022.botcommands.api.commands.application.annotations.Test;
 import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.JDASlashCommand;
-import io.github.freya022.botcommands.api.commands.application.slash.annotations.TopLevelSlashCommandData;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
 import net.dv8tion.jda.api.components.buttons.Button;
 import net.dv8tion.jda.api.components.container.Container;
@@ -40,9 +38,7 @@ public class SignupDevCommand {
         this.botConfig = botConfig;
     }
 
-    @TopLevelSlashCommandData(scope = CommandScope.GUILD)
-    @Test({})
-    @JDASlashCommand(name = "devsignups", description = "[Dev only] Lists every active signup across every server this bot is in")
+    @JDASlashCommand(name = "dev", subcommand = "signups", description = "Lists every active signup across every server this bot is in")
     public void onDevSignups(GuildSlashEvent event) {
         if (botConfig.getLiveEnvironment()) {
             Containers.replyEphemeral(event, Containers.WARNING, "This command is dev-only.");

@@ -3,11 +3,8 @@ package com.younglings.bot.commands;
 import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.discord.Containers;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
-import io.github.freya022.botcommands.api.commands.application.CommandScope;
-import io.github.freya022.botcommands.api.commands.application.annotations.Test;
 import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.JDASlashCommand;
-import io.github.freya022.botcommands.api.commands.application.slash.annotations.TopLevelSlashCommandData;
 import net.dv8tion.jda.api.entities.Guild;
 
 import java.util.List;
@@ -33,9 +30,7 @@ public class DevClearCommandsCommand {
         this.botConfig = botConfig;
     }
 
-    @TopLevelSlashCommandData(scope = CommandScope.GUILD)
-    @Test({})
-    @JDASlashCommand(name = "devclearcommands", description = "[Dev only] Clears every dev-registered command from this server")
+    @JDASlashCommand(name = "dev", subcommand = "clearcommands", description = "Clears every dev-registered command from this server")
     public void onDevClearCommands(GuildSlashEvent event) {
         if (botConfig.getLiveEnvironment()) {
             Containers.replyEphemeral(event, Containers.WARNING, "This command is dev-only.");

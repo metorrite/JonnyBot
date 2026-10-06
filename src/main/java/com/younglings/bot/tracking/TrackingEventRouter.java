@@ -40,17 +40,17 @@ public class TrackingEventRouter {
     /**
      * Why a post to {@code group} would currently reach nobody — or empty if it would actually be
      * delivered. Mirrors the checks {@link #dispatchAll}/{@link #dispatchContainer} make, so the
-     * admin-facing "Send Now" buttons and {@code /devclanreport} can say *why* nothing went out
+     * admin-facing "Send Now" buttons and {@code /dev clanreport} can say *why* nothing went out
      * instead of leaving that to guesswork.
      */
     public Optional<String> undeliverableReason(long guildId, TrackingGroup group) {
-        if (!postingToggle.isEnabled()) return Optional.of("posting is toggled off on this instance (`/devtoggleposting`)");
+        if (!postingToggle.isEnabled()) return Optional.of("posting is toggled off on this instance (`/dev toggleposting`)");
         if (!repository.isEnabled(guildId, group.name())) return Optional.of("**" + group.displayName() + "** is disabled");
         if (repository.getDestinations(guildId, group.name()).isEmpty()) return Optional.of("**" + group.displayName() + "** has no destination channels yet");
         return Optional.empty();
     }
 
-    /** False when {@code /devtoggleposting} has turned posting off for this instance — nothing is sent anywhere. */
+    /** False when {@code /dev toggleposting} has turned posting off for this instance — nothing is sent anywhere. */
     public boolean isPostingEnabled() {
         return postingToggle.isEnabled();
     }

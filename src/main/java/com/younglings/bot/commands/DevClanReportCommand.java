@@ -6,10 +6,8 @@ import com.younglings.bot.tracking.TrackingGroup;
 import com.younglings.bot.tracking.TrackingSendNowService;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
 import io.github.freya022.botcommands.api.commands.application.CommandScope;
-import io.github.freya022.botcommands.api.commands.application.annotations.Test;
 import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.JDASlashCommand;
-import io.github.freya022.botcommands.api.commands.application.slash.annotations.TopLevelSlashCommandData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,9 +36,7 @@ public class DevClanReportCommand {
         this.sendNowService = sendNowService;
     }
 
-    @TopLevelSlashCommandData(scope = CommandScope.GUILD)
-    @Test({})
-    @JDASlashCommand(name = "devclanreport", description = "[Dev only] Recomputes points and posts the Clan Report to its channels now")
+    @JDASlashCommand(name = "dev", subcommand = "clanreport", description = "Recomputes points and posts the Clan Report to its channels now")
     public void onDevClanReport(GuildSlashEvent event) {
         if (botConfig.getLiveEnvironment()) {
             Containers.replyEphemeral(event, Containers.WARNING, "This command is dev-only.");
