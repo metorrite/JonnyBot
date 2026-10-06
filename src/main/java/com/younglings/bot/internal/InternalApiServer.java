@@ -26,7 +26,9 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * A small, private HTTP API for the companion website (younglings-website) to read live guild
@@ -110,7 +112,9 @@ public class InternalApiServer {
             server.createContext("/internal/site/", exchange -> handleSite(exchange, secret, guildId));
             server.createContext("/internal/me/", exchange -> handleMe(exchange, secret, guildId));
 
-            server.setExecutor(Executors.newFixedThreadPool(4));
+            // A fixed crew with a bounded queue. When it's full the accepting thread runs the work itself, which slows
+            // new connections down (back-pressure) instead of letting an unbounded backlog build up behind a flood.
+            server.setExecutor(new ThreadPoolExecutor(6, 6, 0L, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<>(64), new ThreadPoolExecutor.CallerRunsPolicy()));
             server.start();
             log.info("Internal API listening on port {}", port);
         } catch (IOException e) {
