@@ -76,9 +76,10 @@ public class SiteApi {
     private final SiteCache cache;
     private final RecapService recap;
     private final CommunitySettings community;
+    private final BossStatsService bossStats;
 
     public SiteApi(SiteStatsRepository stats, PlayerLinkRepository links, ClanPointsRepository points, GuildSettingsService settings, WeeklyDigestRepository rosterEvents,
-                   MemberProfileRepository profiles, SiteNewsService news, SignupService signupService, SiteCache cache, RecapService recap, CommunitySettings community) {
+                   MemberProfileRepository profiles, SiteNewsService news, SignupService signupService, SiteCache cache, RecapService recap, CommunitySettings community, BossStatsService bossStats) {
         this.stats = stats;
         this.links = links;
         this.points = points;
@@ -90,6 +91,7 @@ public class SiteApi {
         this.cache = cache;
         this.recap = recap;
         this.community = community;
+        this.bossStats = bossStats;
     }
 
     public void handle(HttpExchange exchange, Guild guild) throws IOException {
@@ -114,7 +116,7 @@ public class SiteApi {
                 case "overview" -> overview(guild);
                 case "member" -> member(guild, query(exchange, "rsn"));
                 case "member/skill" -> memberSkill(guild, query(exchange, "rsn"), query(exchange, "skill"));
-                case "leaderboard" -> leaderboard(guild, query(exchange, "month"));
+                case "leaderboard" -> leaderboard(guild, query(exchange, "month"), query(exchange, "period"));
                 case "coffer" -> coffer(guild);
                 case "feed" -> feed(guild, query(exchange, "limit"), query(exchange, "kind"));
                 case "records" -> records(guild);
@@ -126,6 +128,10 @@ public class SiteApi {
                 case "recap" -> recap.build(guild, query(exchange, "scope"), query(exchange, "rsn"), query(exchange, "period"));
                 case "pvm" -> pvm(guild);
                 case "drops" -> drops(guild);
+                case "bosses" -> bossStats.bosses(guild, query(exchange, "period"));
+                case "boss" -> bossStats.boss(guild, query(exchange, "boss"), query(exchange, "period"));
+                case "item" -> bossStats.item(guild, query(exchange, "item"), query(exchange, "period"), query(exchange, "boss"));
+                case "drop-log" -> bossStats.drops(guild, query(exchange, "period"), query(exchange, "bosses"));
                 case "me" -> me(guild, query(exchange, "userId"));
                 default -> null;
             });
@@ -150,6 +156,7 @@ public class SiteApi {
             case "events" -> 30_000;
             case "members", "overview", "member", "me", "news" -> 60_000;
             case "recap" -> 300_000;
+            case "bosses", "boss", "item", "drop-log" -> 60_000;
             default -> 120_000; // records, history, citadel grid, PvM, drops, coffer, leaderboards, skill series
         };
     }
@@ -796,19 +803,32 @@ public class SiteApi {
     // ---------- month-by-month leaderboards ----------
 
     /** Top XP gainers, Citadel cappers and roster changes for one calendar month ({@code month} is {@code YYYY-MM}; blank means this month), plus the months that have data. */
-    DataObject leaderboard(Guild guild, String monthRaw) {
+    DataObject leaderboard(Guild guild, String monthRaw, String periodRaw) {
         long guildId = guild.getIdLong();
         YearMonth current = YearMonth.now(ZoneOffset.UTC);
-        YearMonth month;
-        try {
-            month = monthRaw == null || monthRaw.isBlank() ? current : YearMonth.parse(monthRaw.trim());
-        } catch (Exception e) {
-            return null;
-        }
-        if (month.isAfter(current)) return null;
 
-        OffsetDateTime from = month.atDay(1).atStartOfDay().atOffset(ZoneOffset.UTC);
-        OffsetDateTime to = month.plusMonths(1).atDay(1).atStartOfDay().atOffset(ZoneOffset.UTC);
+        OffsetDateTime from;
+        OffsetDateTime to;
+        DataObject periodJson;
+        if (periodRaw != null && !periodRaw.isBlank()) {
+            // Any window the recap understands: week, last-30d, ytd, 2026-09, a custom 2026-09-01_2026-09-20 range, all...
+            RecapPeriod p = RecapPeriod.parse(periodRaw, OffsetDateTime.now(ZoneOffset.UTC), stats.firstSnapshotAt(guildId)).orElse(null);
+            if (p == null) return null;
+            from = p.from();
+            to = p.to();
+            periodJson = DataObject.empty().put("token", p.token()).put("label", p.label()).put("from", from.toString()).put("to", to.toString()).put("toDate", p.toDate());
+        } else {
+            YearMonth month;
+            try {
+                month = monthRaw == null || monthRaw.isBlank() ? current : YearMonth.parse(monthRaw.trim());
+            } catch (Exception e) {
+                return null;
+            }
+            if (month.isAfter(current)) return null;
+            from = month.atDay(1).atStartOfDay().atOffset(ZoneOffset.UTC);
+            to = month.plusMonths(1).atDay(1).atStartOfDay().atOffset(ZoneOffset.UTC);
+            periodJson = DataObject.empty().put("token", month.toString()).put("label", month.toString()).put("from", from.toString()).put("to", to.toString()).put("toDate", month.equals(current));
+        }
 
         Set<String> hiddenBoards = profiles.hiddenRsns(guildId, true);
         List<Gain> allGains = stats.xpGainsBetween(guildId, from, to);
@@ -831,7 +851,8 @@ public class SiteApi {
         }
 
         return DataObject.empty()
-                .put("month", month.toString())
+                .put("month", from.toString().substring(0, 7))
+                .put("period", periodJson)
                 .put("months", months)
                 .put("totalXp", allGains.stream().mapToLong(Gain::xp).sum())
                 .put("gainers", gainsJson(gains, 15))

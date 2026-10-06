@@ -79,4 +79,28 @@ class RecapPeriodTest {
         assertTrue(RecapPeriod.parse("2027-01", NOW, TRACKING).isEmpty());
         assertTrue(RecapPeriod.parse(null, NOW, TRACKING).isEmpty());
     }
+
+    @Test
+    void rollingWindowsEndNow() {
+        RecapPeriod p = parse("last-30d");
+        assertEquals(NOW.minusDays(30), p.from());
+        assertEquals(NOW, p.to());
+        assertTrue(p.toDate());
+    }
+
+    @Test
+    void mtdAndYtdAreMonthAndYear() {
+        assertEquals(parse("month").from(), parse("mtd").from());
+        assertEquals(parse("year").from(), parse("ytd").from());
+    }
+
+    @Test
+    void customRangesAreInclusiveOfTheLastDay() {
+        RecapPeriod p = parse("2026-09-01_2026-09-20");
+        assertEquals(OffsetDateTime.parse("2026-09-01T00:00:00Z"), p.from());
+        assertEquals(OffsetDateTime.parse("2026-09-21T00:00:00Z"), p.to());
+        assertFalse(p.toDate());
+        assertTrue(RecapPeriod.parse("2026-09-20_2026-09-01", NOW, TRACKING).isEmpty(), "backwards range");
+        assertTrue(RecapPeriod.parse("2027-01-01_2027-01-05", NOW, TRACKING).isEmpty(), "future range");
+    }
 }

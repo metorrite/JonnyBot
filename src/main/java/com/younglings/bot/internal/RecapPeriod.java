@@ -8,6 +8,8 @@ import java.time.ZoneOffset;
 import java.time.format.TextStyle;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * A window of time a recap covers, worked out from the short token that appears in the website's URL.
@@ -16,11 +18,17 @@ import java.util.Optional;
  *       month or calendar year, <em>to date</em>;</li>
  *   <li>{@code last-week}, {@code last-month}, {@code last-year} — the previous complete one;</li>
  *   <li>{@code 2026} or {@code 2026-09} — a specific year or month, however long ago;</li>
+ *   <li>{@code mtd}/{@code ytd} (same as month/year), {@code last-7d}…{@code last-365d} (rolling), and {@code 2026-09-01_2026-09-20} (custom range);</li>
  *   <li>{@code all} — everything since tracking began (the caller supplies that start).</li>
  * </ul>
  * All windows are UTC and half-open: {@code [from, to)}. A window that is still running is cut off at "now".
  */
 record RecapPeriod(String token, String label, OffsetDateTime from, OffsetDateTime to, boolean toDate) {
+
+    /** {@code last-7d}, {@code last-30d}, {@code last-90d}: a rolling window ending now. */
+    private static final Pattern ROLLING = Pattern.compile("last-(7|14|30|60|90|180|365)d");
+    /** {@code 2026-09-01_2026-09-20}: an explicit inclusive range of days (a single day is the same date twice). */
+    private static final Pattern RANGE = Pattern.compile("(\\d{4}-\\d{2}-\\d{2})_(\\d{4}-\\d{2}-\\d{2})");
 
     /** The Wednesday that starts the Citadel week containing {@code date}. */
     static LocalDate citadelWeekStart(LocalDate date) {
@@ -40,6 +48,27 @@ record RecapPeriod(String token, String label, OffsetDateTime from, OffsetDateTi
         if (raw == null) return Optional.empty();
         String token = raw.trim().toLowerCase(Locale.ROOT);
         LocalDate today = now.withOffsetSameInstant(ZoneOffset.UTC).toLocalDate();
+        if (token.equals("mtd")) token = "month";
+        if (token.equals("ytd")) token = "year";
+
+        Matcher rolling = ROLLING.matcher(token);
+        if (rolling.matches()) {
+            int days = Integer.parseInt(rolling.group(1));
+            return Optional.of(running(token, "Last " + days + " days", now.minusDays(days), now));
+        }
+        Matcher range = RANGE.matcher(token);
+        if (range.matches()) {
+            try {
+                LocalDate first = LocalDate.parse(range.group(1));
+                LocalDate last = LocalDate.parse(range.group(2));
+                if (last.isBefore(first) || first.isAfter(today)) return Optional.empty();
+                OffsetDateTime to = start(last.plusDays(1));
+                String label = first.equals(last) ? first.toString() : first + " to " + last;
+                return Optional.of(to.isAfter(now) ? running(token, label, start(first), now) : complete(token, label, start(first), to));
+            } catch (RuntimeException e) {
+                return Optional.empty();
+            }
+        }
 
         switch (token) {
             case "week" -> {
