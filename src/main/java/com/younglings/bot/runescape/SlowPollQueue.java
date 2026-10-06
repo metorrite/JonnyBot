@@ -51,6 +51,11 @@ public class SlowPollQueue {
         log.info("Rate-limited polling '{}' (guild {}) — retrying in {} (attempt {}).", rsn, guildId, backoff, attempt);
     }
 
+    /** How many players are currently waiting out a rate-limit backoff. */
+    public synchronized int size() {
+        return queue.size();
+    }
+
     /** Removes and returns every entry whose backoff has elapsed. */
     public synchronized List<Entry> drainDue() {
         Instant now = Instant.now();

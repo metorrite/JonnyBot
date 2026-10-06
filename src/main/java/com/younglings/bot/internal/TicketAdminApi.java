@@ -58,13 +58,17 @@ public class TicketAdminApi {
     private final CommunityAdminApi communityAdmin;
     /** Writes per admin: a few quick clicks are fine, a sustained flood is refused. */
     private final RateLimiter adminWrites = new RateLimiter(20, 1_000);
+    private final AdminOpsApi ops;
+    private final AdminToolsStore auditStore;
 
-    public TicketAdminApi(DashboardAccess access, TicketRepository repository, TicketService service, ClanAdminApi clanAdmin, CommunityAdminApi communityAdmin) {
+    public TicketAdminApi(DashboardAccess access, TicketRepository repository, TicketService service, ClanAdminApi clanAdmin, CommunityAdminApi communityAdmin, AdminOpsApi ops, AdminToolsStore auditStore) {
         this.access = access;
         this.repository = repository;
         this.service = service;
         this.clanAdmin = clanAdmin;
         this.communityAdmin = communityAdmin;
+        this.ops = ops;
+        this.auditStore = auditStore;
     }
 
     /** A failure with the status and message the website should see. */
@@ -110,6 +114,8 @@ public class TicketAdminApi {
                 InternalApiServer.sendJson(exchange, 404, DataObject.empty().put("error", "Not found"));
                 return;
             }
+            // Every change made from the dashboard is written to the audit log (never the request body, which may hold private text).
+            if (!method.equals("GET")) auditStore.audit(guild.getIdLong(), actor.getId(), actor.getEffectiveName(), method, route, 200);
             InternalApiServer.sendJson(exchange, 200, result);
         } catch (ApiError e) {
             DataObject body = DataObject.empty().put("error", e.getMessage());
@@ -168,6 +174,9 @@ public class TicketAdminApi {
             return structure(guild);
         }
         if (!method.equals("GET") && !adminWrites.tryAcquire(actor.getId())) throw new ApiError(429, "You're doing that too fast — give it a moment.");
+
+        DataObject opsResult = opsRoute(exchange, guild, actor, method, parts);
+        if (opsResult != null) return opsResult;
 
         if (parts.length >= 1 && (parts[0].equals("polls") || parts[0].equals("signups"))) return communityRoute(exchange, guild, actor, method, parts);
         if (parts.length == 1 && parts[0].equals("selfroles")) {
@@ -240,6 +249,67 @@ public class TicketAdminApi {
                 return null;
             }
         }
+    }
+
+    /** Roster view, attention list, health, audit log, notes and scheduled posts; {@code null} when the path isn't one of those. */
+    private DataObject opsRoute(HttpExchange exchange, Guild guild, Member actor, String method, String[] parts) {
+        if (parts.length == 0) return null;
+        switch (parts[0]) {
+            case "members" -> {
+                if (parts.length != 1) return null;
+                requireMethod(method, "GET");
+                return ops.members(guild);
+            }
+            case "attention" -> {
+                requireMethod(method, "GET");
+                return ops.attention(guild);
+            }
+            case "health" -> {
+                requireMethod(method, "GET");
+                return ops.health(guild);
+            }
+            case "audit" -> {
+                requireMethod(method, "GET");
+                return ops.audit(guild, queryParam(exchange, "limit"), queryParam(exchange, "actor"), queryParam(exchange, "q"));
+            }
+            case "notes" -> {
+                if (parts.length == 1 && method.equals("GET")) return ops.notes(guild, queryParam(exchange, "rsn"));
+                if (parts.length == 1) {
+                    requireMethod(method, "POST");
+                    return ops.addNote(guild, actor, body(exchange));
+                }
+                if (parts.length == 2) {
+                    requireMethod(method, "DELETE");
+                    return ops.deleteNote(guild, idOf(parts[1]), queryParam(exchange, "rsn"));
+                }
+                return null;
+            }
+            case "scheduled" -> {
+                if (parts.length == 1 && method.equals("GET")) return ops.scheduled(guild);
+                if (parts.length == 1) {
+                    requireMethod(method, "POST");
+                    return ops.schedulePost(guild, actor, body(exchange));
+                }
+                if (parts.length == 2) {
+                    requireMethod(method, "DELETE");
+                    return ops.cancelScheduled(guild, idOf(parts[1]));
+                }
+                return null;
+            }
+            default -> {
+                return null;
+            }
+        }
+    }
+
+    private static String queryParam(HttpExchange exchange, String name) {
+        String raw = exchange.getRequestURI().getRawQuery();
+        if (raw == null) return null;
+        for (String pair : raw.split("&")) {
+            int eq = pair.indexOf('=');
+            if (eq > 0 && pair.substring(0, eq).equals(name)) return java.net.URLDecoder.decode(pair.substring(eq + 1), java.nio.charset.StandardCharsets.UTF_8);
+        }
+        return null;
     }
 
     /** Polls and signups: {@code POST polls}, {@code POST polls/{id}/end}, {@code GET|POST signups}, {@code POST signups/{id}/{action}}. */
