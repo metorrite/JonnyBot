@@ -217,6 +217,16 @@ public class TicketAdminApi {
             requireMethod(method, "PUT");
             return clanAdmin.saveNewsChannels(guild, actor, body(exchange));
         }
+        if (parts.length == 2 && parts[0].equals("clan") && parts[1].equals("website")) {
+            if (method.equals("GET")) return clanAdmin.clanWebsite(guild);
+            requireMethod(method, "PUT");
+            return clanAdmin.saveClanWebsite(guild, actor, body(exchange));
+        }
+        if (parts.length == 2 && parts[0].equals("site") && parts[1].equals("options")) {
+            if (method.equals("GET")) return clanAdmin.siteOptions(guild);
+            requireMethod(method, "PUT");
+            return clanAdmin.saveSiteOptions(guild, actor, body(exchange));
+        }
         if (parts.length == 2 && parts[0].equals("clan") && parts[1].equals("points")) {
             if (method.equals("GET")) return clanAdmin.clanPoints(guild);
             requireMethod(method, "PUT");
