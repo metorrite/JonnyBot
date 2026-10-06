@@ -6,10 +6,8 @@ import com.younglings.bot.runescape.PlayerLink;
 import com.younglings.bot.runescape.PlayerLinkService;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
 import io.github.freya022.botcommands.api.commands.application.CommandScope;
-import io.github.freya022.botcommands.api.commands.application.annotations.Test;
 import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.JDASlashCommand;
-import io.github.freya022.botcommands.api.commands.application.slash.annotations.TopLevelSlashCommandData;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Role;
@@ -51,9 +49,7 @@ public class DevExportMembersCommand {
         this.linkService = linkService;
     }
 
-    @TopLevelSlashCommandData(scope = CommandScope.GUILD)
-    @Test({})
-    @JDASlashCommand(name = "devexportmembers", description = "[Dev only] Writes a local CSV of every member's username, display name, and linked RSN(s)")
+    @JDASlashCommand(name = "dev", subcommand = "exportmembers", description = "Writes a local CSV of every member's username, display name, and linked RSN(s)")
     public void onDevExportMembers(GuildSlashEvent event) {
         if (botConfig.getLiveEnvironment()) {
             Containers.replyEphemeral(event, Containers.WARNING, "This command is dev-only.");

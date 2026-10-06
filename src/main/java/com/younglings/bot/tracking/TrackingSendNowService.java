@@ -152,7 +152,7 @@ public class TrackingSendNowService {
     /** Per-event groups post straight from polling — if any of this section's groups would drop that on the floor, say so rather than letting a quiet result look like "nothing happened". */
     private void noteUndeliverableGroups(long guildId, String source, List<String> lines) {
         if (!router.isPostingEnabled()) {
-            lines.add("⚠️ Posting is toggled off on this instance (`/devtoggleposting`) — nothing was actually sent.");
+            lines.add("⚠️ Posting is toggled off on this instance (`/dev toggleposting`) — nothing was actually sent.");
             return;
         }
         List<String> reasons = new ArrayList<>();

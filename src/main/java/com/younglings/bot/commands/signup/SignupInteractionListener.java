@@ -563,7 +563,7 @@ public class SignupInteractionListener extends ListenerAdapter {
         }
     }
 
-    // --- /devsignups: bulk close (dev only, double-checked here even though @Test already keeps
+    // --- /dev signups: bulk close (dev only, double-checked here even though @Test already keeps
     // the slash command itself out of production) ---
 
     private void handleDevCloseAll(ButtonInteractionEvent event, String id) {

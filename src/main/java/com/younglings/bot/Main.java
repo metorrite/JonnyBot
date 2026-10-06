@@ -34,7 +34,7 @@ public class Main {
             // propagate, which makes iterating on commands during development painful. Production
             // keeps registering commands globally (unaffected — this whole block is skipped when
             // LIVE_ENV is true, no matter what GUILD_ID is set to). This also populates
-            // testGuildIds, the only thing @Test-annotated commands (e.g. /devsignups) ever push
+            // testGuildIds, the only thing @Test-annotated commands (e.g. /dev signups) ever push
             // to — in production, that list stays empty and they register nowhere at all.
             if (!config.getLiveEnvironment() && config.getGuildId() != null) {
                 builder.applicationCommands(applicationCommands -> {
