@@ -13,7 +13,16 @@ package com.younglings.bot.configure;
 public record GuildSettings(long guildId, String clanName, Long adminRoleId, Long renameAlertChannelId,
                              Long verificationReviewChannelId, Long verifiedClanRoleId,
                              Long verifiedNonClanRoleId, Long unverifiedRoleId, Long onboardingRoleId,
-                             boolean clanEnabled, String savedClanName, Long supportRoleId, Long developerRoleId) {
+                             boolean clanEnabled, String savedClanName, Long supportRoleId, Long developerRoleId, String websiteUrl) {
+    /** Without a website — for the many callers (and tests) that predate it. */
+    public GuildSettings(long guildId, String clanName, Long adminRoleId, Long renameAlertChannelId,
+                         Long verificationReviewChannelId, Long verifiedClanRoleId,
+                         Long verifiedNonClanRoleId, Long unverifiedRoleId, Long onboardingRoleId,
+                         boolean clanEnabled, String savedClanName, Long supportRoleId, Long developerRoleId) {
+        this(guildId, clanName, adminRoleId, renameAlertChannelId, verificationReviewChannelId, verifiedClanRoleId,
+                verifiedNonClanRoleId, unverifiedRoleId, onboardingRoleId, clanEnabled, savedClanName, supportRoleId, developerRoleId, null);
+    }
+
     /** True only if a clan name is set <em>and</em> clan features haven't been switched off — what gates every clan-specific button and job. */
     public boolean clanActive() {
         return clanName != null;

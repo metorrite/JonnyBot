@@ -2,6 +2,7 @@ package com.younglings.bot.commands.configure;
 
 import com.younglings.bot.announcement.AnnouncementRepository;
 import com.younglings.bot.commands.embed.EmbedService;
+import com.younglings.bot.configure.WebsiteLink;
 import com.younglings.bot.configure.GuildSettings;
 import com.younglings.bot.configure.GuildSettingsService;
 import com.younglings.bot.discord.Containers;
@@ -78,6 +79,7 @@ public class ConfigureInteractionListener extends ListenerAdapter {
             switch (id.split(":")[0]) {
                 case "configure_clan" -> event.editComponents(List.of(buildClanPanel(guild))).useComponentsV2(true).queue();
                 case "configure_clan_name" -> doClanNamePrompt(event);
+                case "configure_clan_website" -> doWebsitePrompt(event);
                 case "configure_clan_toggle" -> doClanToggle(event, guild);
                 case "configure_verification" -> event.editComponents(List.of(buildVerificationPanel(guild))).useComponentsV2(true).queue();
                 case "configure_back" -> event.editComponents(List.of(buildMainPanel(guild))).useComponentsV2(true).queue();
@@ -109,6 +111,8 @@ public class ConfigureInteractionListener extends ListenerAdapter {
             }
             if (id.equals("configure_clan_name_modal:_")) {
                 handleClanNameModal(event, guild);
+            } else if (id.equals("configure_clan_website_modal:_")) {
+                handleWebsiteModal(event, guild);
             } else if (id.startsWith("configure_channel_link_modal:")) {
                 handleChannelLinkModal(event, guild, id.split(":", 2)[1]);
             } else if (id.startsWith("configure_role_link_modal:")) {
@@ -339,6 +343,39 @@ public class ConfigureInteractionListener extends ListenerAdapter {
                 .useComponentsV2(true).setEphemeral(true).queue();
     }
 
+    private void doWebsitePrompt(ButtonInteractionEvent event) {
+        GuildSettings current = settingsService.getEffective(event.getGuild().getIdLong());
+
+        TextInput.Builder builder = TextInput.create("website_url", TextInputStyle.SHORT)
+                .setPlaceholder("https://your-clan-site.com — leave blank to remove the link")
+                .setRequired(false)
+                .setMaxLength(WebsiteLink.MAX_LENGTH);
+        if (current.websiteUrl() != null) builder.setValue(current.websiteUrl());
+
+        Modal modal = Modal.create("configure_clan_website_modal:_", "Clan Website")
+                .addComponents(Label.of("Website address", builder.build()))
+                .build();
+        event.replyModal(modal).queue();
+    }
+
+    /** A blank answer removes the link; anything else must be a real web address, which is cleaned before it is saved. */
+    private void handleWebsiteModal(ModalInteractionEvent event, Guild guild) {
+        String raw = blankToNull(event.getValue("website_url").getAsString());
+        if (raw == null) {
+            settingsService.updateWebsiteUrl(guild.getIdLong(), null);
+            event.editComponents(List.of(buildClanPanel(guild))).useComponentsV2(true).queue();
+            return;
+        }
+
+        var url = WebsiteLink.normalize(raw);
+        if (url.isEmpty()) {
+            Containers.replyEphemeral(event, Containers.WARNING, "That doesn't look like a web address. Try something like `https://example.com` (up to " + WebsiteLink.MAX_LENGTH + " characters).");
+            return;
+        }
+        settingsService.updateWebsiteUrl(guild.getIdLong(), url.get());
+        event.editComponents(List.of(buildClanPanel(guild))).useComponentsV2(true).queue();
+    }
+
     private void doClanToggle(ButtonInteractionEvent event, Guild guild) {
         GuildSettings settings = settingsService.getEffective(guild.getIdLong());
         if (settings.savedClanName() == null) {
@@ -401,14 +438,17 @@ public class ConfigureInteractionListener extends ListenerAdapter {
         List<ContainerChildComponent> children = new ArrayList<>();
         children.add(TextDisplay.of("### Clan Setup\n" +
                 "**Clan:** " + display(settings.savedClanName()) + "\n" +
-                "**Status:** " + status));
+                "**Status:** " + status + "\n" +
+                "**Website:** " + (settings.websiteUrl() != null ? settings.websiteUrl() : "*not set*")));
         children.add(TextDisplay.of("-# Setting a clan checks that it exists and that you're a verified Admin-rank (or higher) member of it. " +
-                "Turning clan features off hides the clan tools and pauses clan tracking, without forgetting the name."));
+                "Turning clan features off hides the clan tools and pauses clan tracking, without forgetting the name. " +
+                "If the clan has a website, add its address and the clan name at the top of `/rs` becomes a link to it."));
         children.add(ActionRow.of(
                 Button.primary("configure_clan_name:_", settings.savedClanName() != null ? "Change Clan" : "Set Clan"),
                 settings.clanEnabled()
                         ? Button.danger("configure_clan_toggle:_", "Turn Clan Features Off")
-                        : Button.success("configure_clan_toggle:_", "Turn Clan Features On")));
+                        : Button.success("configure_clan_toggle:_", "Turn Clan Features On"),
+                Button.secondary("configure_clan_website:_", settings.websiteUrl() != null ? "Change Website Link" : "Set Website Link")));
 
         children.add(TextDisplay.of("**Bot Admin Role** — who can use `/rsadmin` and the admin-only tools. Leave empty to fall back to the server default."));
         EntitySelectMenu.Builder roleMenu = EntitySelectMenu.create("configure_admin_role:_", EntitySelectMenu.SelectTarget.ROLE)
