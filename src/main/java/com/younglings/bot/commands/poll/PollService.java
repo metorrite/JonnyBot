@@ -53,7 +53,8 @@ public class PollService {
 
     // --- Creation ---
 
-    public void createPoll(Guild guild, GuildMessageChannel channel, String title, boolean anonymous,
+    /** @return the new poll's id */
+    public long createPoll(Guild guild, GuildMessageChannel channel, String title, boolean anonymous,
                            boolean multipleVotes, List<String> optionLabels, long createdByUserId) {
         long pollId = pollRepository.createPoll(
                 guild.getIdLong(), channel.getIdLong(), title, anonymous, multipleVotes, createdByUserId);
@@ -77,6 +78,7 @@ public class PollService {
                             message.getIdLong(), title, anonymous, multipleVotes, "ACTIVE", createdByUserId));
                     log.info("Created poll {} '{}' in guild {}", pollId, title, guild.getIdLong());
                 }, error -> log.warn("Failed to post poll {} '{}' in channel {}", pollId, title, channel.getIdLong(), error));
+        return pollId;
     }
 
     // --- Lookup ---

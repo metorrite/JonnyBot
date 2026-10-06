@@ -1,7 +1,11 @@
 package com.younglings.bot.internal;
 
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
+import com.younglings.bot.announcement.PostMarkup;
+import com.younglings.bot.announcement.PostTextConverter;
 import com.younglings.bot.member.MemberProfileRepository;
+import com.younglings.bot.tracking.TrackingGroup;
+import com.younglings.bot.tracking.TrackingRepository;
 import com.younglings.bot.member.MemberProfileRepository.SelfRole;
 import com.younglings.bot.runescape.ClanPointsRepository;
 import com.younglings.bot.runescape.ClanPointsRepository.RankConfigRow;
@@ -33,11 +37,18 @@ public class ClanAdminApi {
     private final MemberProfileRepository members;
     private final ClanPointsRepository points;
     private final SiteNewsService news;
+    private final SiteStatsRepository stats;
+    private final TrackingRepository tracking;
+    private final CommunitySettings communitySettings;
 
-    public ClanAdminApi(MemberProfileRepository members, ClanPointsRepository points, SiteNewsService news) {
+    public ClanAdminApi(MemberProfileRepository members, ClanPointsRepository points, SiteNewsService news, SiteStatsRepository stats, TrackingRepository tracking,
+                        CommunitySettings communitySettings) {
         this.members = members;
         this.points = points;
         this.news = news;
+        this.stats = stats;
+        this.tracking = tracking;
+        this.communitySettings = communitySettings;
     }
 
     // ---------- the website's news channels ----------
@@ -81,6 +92,149 @@ public class ClanAdminApi {
         news.replaceChannels(guild.getIdLong(), chosen);
         log.info("Dashboard: {} set {} public news channel(s)", actor.getId(), chosen.size());
         return newsChannels(guild);
+    }
+
+    // ---------- promotions ----------
+
+    /** Members the points system says are due a rank-up, who then get promoted in game and are cleared here. */
+    DataObject promotions(Guild guild) {
+        long guildId = guild.getIdLong();
+        var ranks = points.getRanksOrdered(guildId);
+        var byRsn = new java.util.HashMap<String, SiteStatsRepository.MemberRow>();
+        stats.members(guildId).forEach(m -> byRsn.put(m.rsn().toLowerCase(), m));
+
+        DataArray array = DataArray.empty();
+        for (var row : points.getAllNeedingPromotion(guildId)) {
+            var member = byRsn.get(row.rsn().toLowerCase());
+            if (member == null) continue; // left the clan since
+            var next = ranks.stream().filter(r -> r.rankOrder() > member.rankOrder()).min(java.util.Comparator.comparingInt(RankConfigRow::rankOrder)).orElse(null);
+            array.add(DataObject.empty().put("rsn", member.rsn()).put("rank", member.clanRank()).put("nextRank", next == null ? null : next.rankName())
+                    .put("points", row.totalPoints()).put("since", row.promotionNeededSince() == null ? null : row.promotionNeededSince().toString()));
+        }
+        return DataObject.empty().put("members", array);
+    }
+
+    DataObject markPromoted(Guild guild, Member actor, String rsn) {
+        points.setPromotionNeeded(guild.getIdLong(), rsn, false, java.time.LocalDate.now(java.time.ZoneOffset.UTC));
+        log.info("Dashboard: {} marked {} as promoted", actor.getId(), rsn);
+        return promotions(guild);
+    }
+
+    // ---------- tracking channels (where the bot posts clan events) ----------
+
+    DataObject tracking(Guild guild) {
+        DataArray groups = DataArray.empty();
+        for (TrackingGroup group : TrackingGroup.values()) {
+            DataArray channels = DataArray.empty();
+            for (var destination : tracking.getDestinations(guild.getIdLong(), group.name())) {
+                var channel = guild.getChannelById(net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel.class, destination.channelId());
+                channels.add(DataObject.empty().put("channelId", Long.toString(destination.channelId())).put("name", channel == null ? null : channel.getName()));
+            }
+            groups.add(DataObject.empty().put("key", group.name()).put("source", group.source()).put("name", group.displayName())
+                    .put("enabled", tracking.isEnabled(guild.getIdLong(), group.name())).put("channels", channels));
+        }
+        return DataObject.empty().put("groups", groups);
+    }
+
+    DataObject saveTracking(Guild guild, Member actor, String key, DataObject body) {
+        TrackingGroup group;
+        try {
+            group = TrackingGroup.valueOf(key);
+        } catch (IllegalArgumentException e) {
+            throw new ApiError(404, "That isn't a tracking group.");
+        }
+        long guildId = guild.getIdLong();
+
+        Set<Long> wanted = new HashSet<>();
+        if (!body.isNull("channelIds")) {
+            DataArray array = body.getArray("channelIds");
+            if (array.length() > 5) throw new ApiError(400, "At most 5 channels per group.");
+            for (int i = 0; i < array.length(); i++) {
+                long id;
+                try {
+                    id = Long.parseLong(array.getString(i));
+                } catch (NumberFormatException e) {
+                    throw new ApiError(400, "A chosen channel isn't valid.");
+                }
+                var channel = guild.getChannelById(net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel.class, id);
+                if (channel == null) throw new ApiError(400, "A chosen channel isn't a text channel in this server.");
+                if (!channel.canTalk()) throw new ApiError(400, "JonnyBot can't post in #" + channel.getName() + " — give it View Channel and Send Messages there first.");
+                wanted.add(id);
+            }
+        }
+
+        var current = tracking.getDestinations(guildId, group.name());
+        Set<Long> have = new HashSet<>();
+        for (var destination : current) {
+            have.add(destination.channelId());
+            if (!wanted.contains(destination.channelId())) tracking.removeDestination(guildId, destination.id());
+        }
+        for (long id : wanted) if (!have.contains(id)) tracking.addDestination(guildId, group.name(), id);
+        tracking.setEnabled(guildId, group.name(), body.getBoolean("enabled", true));
+
+        log.info("Dashboard: {} set tracking group {} to {} channel(s), enabled={}", actor.getId(), group.name(), wanted.size(), body.getBoolean("enabled", true));
+        return tracking(guild);
+    }
+
+    // ---------- posting a message (the same post markup as the Discord tools) ----------
+
+    /** Posts markup text as a message in a channel; with {@code dryRun} it only checks it and reports any problems. */
+    DataObject post(Guild guild, Member actor, DataObject body) {
+        String raw = body.getString("text", "");
+        if (raw.isBlank()) throw new ApiError(400, "Write something to post.");
+        if (raw.length() > 3500) throw new ApiError(400, "That's too long — keep it under 3500 characters.");
+        String text = body.getBoolean("convert", false) ? PostTextConverter.convert(raw) : raw.strip();
+
+        PostMarkup.Parsed parsed = PostMarkup.parse(text, true);
+        if (parsed.hasErrors()) throw new ApiError(400, "Nothing was posted — fix these first.", parsed.errors().stream().map(p -> "line " + p.line() + ": " + p.message()).toList());
+
+        DataArray warnings = DataArray.empty();
+        parsed.problems().stream().filter(p -> p.severity() != PostMarkup.Severity.ERROR).forEach(p -> warnings.add("line " + p.line() + ": " + p.message()));
+        if (body.getBoolean("dryRun", false)) return DataObject.empty().put("ok", true).put("posted", false).put("warnings", warnings);
+
+        long channelId;
+        try {
+            channelId = Long.parseLong(body.getString("channelId", ""));
+        } catch (NumberFormatException e) {
+            throw new ApiError(400, "Choose a channel.");
+        }
+        var channel = guild.getChannelById(net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel.class, channelId);
+        if (channel == null) throw new ApiError(400, "That isn't a text channel in this server.");
+        if (!channel.canTalk()) throw new ApiError(400, "JonnyBot can't post in #" + channel.getName() + ".");
+
+        try {
+            channel.sendMessageComponents(java.util.List.of(parsed.toContainer(com.younglings.bot.discord.Containers.PRIMARY))).useComponentsV2(true)
+                    .setAllowedMentions(java.util.EnumSet.noneOf(net.dv8tion.jda.api.entities.Message.MentionType.class)).complete();
+        } catch (Exception e) {
+            log.warn("Dashboard post to {} failed", channelId, e);
+            throw new ApiError(502, "Discord wouldn't let the message be posted there.");
+        }
+        log.info("Dashboard: {} posted a message in #{}", actor.getId(), channel.getName());
+        return DataObject.empty().put("ok", true).put("posted", true).put("warnings", warnings);
+    }
+
+    // ---------- community settings ----------
+
+    DataObject community(Guild guild) {
+        Long id = communitySettings.pollChannel(guild.getIdLong());
+        var channel = id == null ? null : guild.getChannelById(net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel.class, id);
+        return DataObject.empty().put("pollChannelId", id == null ? null : Long.toString(id)).put("pollChannelName", channel == null ? null : channel.getName());
+    }
+
+    DataObject saveCommunity(Guild guild, Member actor, DataObject body) {
+        Long channelId = null;
+        if (!body.isNull("pollChannelId") && !body.getString("pollChannelId").isBlank()) {
+            try {
+                channelId = Long.parseLong(body.getString("pollChannelId"));
+            } catch (NumberFormatException e) {
+                throw new ApiError(400, "That channel isn't valid.");
+            }
+            var channel = guild.getChannelById(net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel.class, channelId);
+            if (channel == null || !channel.canTalk()) throw new ApiError(400, "JonnyBot can't post in that channel — it needs View Channel and Send Messages there.");
+        }
+        communitySettings.setPollChannel(guild.getIdLong(), channelId);
+        log.info("Dashboard: {} set the member-poll channel to {}", actor.getId(), channelId);
+        return community(guild);
     }
 
     // ---------- self-assignable roles ----------

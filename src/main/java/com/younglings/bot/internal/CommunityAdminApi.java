@@ -19,10 +19,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 
 /**
  * Admin controls for polls and signups, for the website. Reached only through {@link TicketAdminApi}, which has
@@ -35,10 +33,6 @@ public class CommunityAdminApi {
     private static final Logger log = LoggerFactory.getLogger(CommunityAdminApi.class);
 
     // Mirrors the limits the /poll panel in Discord enforces.
-    private static final int MAX_TITLE = 150;
-    private static final int MAX_OPTION = 100;
-    private static final int MIN_OPTIONS = 2;
-    private static final int MAX_OPTIONS = 6;
     private static final long REFRESH_DELAY_MILLIS = 800;
 
     private final PollService polls;
@@ -47,8 +41,10 @@ public class CommunityAdminApi {
     private final PlayerLinkRepository links;
     private final Debouncer debouncer;
     private final SiteCache cache;
+    private final CommunitySettings community;
 
-    public CommunityAdminApi(PollService polls, SignupService signups, SiteStatsRepository stats, PlayerLinkRepository links, Debouncer debouncer, SiteCache cache) {
+    public CommunityAdminApi(PollService polls, SignupService signups, SiteStatsRepository stats, PlayerLinkRepository links, Debouncer debouncer, SiteCache cache, CommunitySettings community) {
+        this.community = community;
         this.polls = polls;
         this.signups = signups;
         this.stats = stats;
@@ -86,18 +82,14 @@ public class CommunityAdminApi {
             }
         }
 
-        if (title.isEmpty()) throw new ApiError(400, "A poll needs a question.");
-        if (title.length() > MAX_TITLE) throw new ApiError(400, "Keep the question under " + MAX_TITLE + " characters.");
-        if (options.size() < MIN_OPTIONS) throw new ApiError(400, "A poll needs at least " + MIN_OPTIONS + " options.");
-        if (options.size() > MAX_OPTIONS) throw new ApiError(400, "A poll can have at most " + MAX_OPTIONS + " options.");
-        Set<String> seen = new HashSet<>();
-        for (String option : options) {
-            if (option.length() > MAX_OPTION) throw new ApiError(400, "An option is longer than " + MAX_OPTION + " characters.");
-            if (!seen.add(option.toLowerCase(Locale.ROOT))) throw new ApiError(400, "\"" + option + "\" is listed twice.");
-        }
+        Integer hours = body.isNull("durationHours") ? null : body.getInt("durationHours");
+        String problem = PollRules.validate(title, options);
+        if (problem == null) problem = PollRules.validateDuration(hours);
+        if (problem != null) throw new ApiError(400, problem);
 
         GuildMessageChannel channel = postableChannel(guild, body.getString("channelId", ""), GuildMessageChannel.class);
-        polls.createPoll(guild, channel, title, anonymous, multiple, options, actor.getIdLong());
+        long pollId = polls.createPoll(guild, channel, title, anonymous, multiple, options, actor.getIdLong());
+        if (hours != null) community.scheduleClose(pollId, java.time.OffsetDateTime.now().plusHours(hours));
         cache.invalidate("polls");
         log.info("Dashboard: {} created a poll '{}' in #{}", actor.getId(), title, channel.getName());
         return DataObject.empty().put("created", true);

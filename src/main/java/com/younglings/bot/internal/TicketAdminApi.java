@@ -175,6 +175,34 @@ public class TicketAdminApi {
             requireMethod(method, "PUT");
             return clanAdmin.saveSelfRoles(guild, actor, body(exchange));
         }
+        if (parts.length >= 1 && parts[0].equals("promotions")) {
+            if (parts.length == 1) {
+                requireMethod(method, "GET");
+                return clanAdmin.promotions(guild);
+            }
+            if (parts.length == 3 && parts[2].equals("done")) {
+                requireMethod(method, "POST");
+                return clanAdmin.markPromoted(guild, actor, parts[1]);
+            }
+            return null;
+        }
+        if (parts.length >= 1 && parts[0].equals("tracking")) {
+            if (parts.length == 1) {
+                requireMethod(method, "GET");
+                return clanAdmin.tracking(guild);
+            }
+            requireMethod(method, "PUT");
+            return clanAdmin.saveTracking(guild, actor, parts[1], body(exchange));
+        }
+        if (parts.length == 1 && parts[0].equals("post")) {
+            requireMethod(method, "POST");
+            return clanAdmin.post(guild, actor, body(exchange));
+        }
+        if (parts.length == 1 && parts[0].equals("community")) {
+            if (method.equals("GET")) return clanAdmin.community(guild);
+            requireMethod(method, "PUT");
+            return clanAdmin.saveCommunity(guild, actor, body(exchange));
+        }
         if (parts.length == 1 && parts[0].equals("news")) {
             if (method.equals("GET")) return clanAdmin.newsChannels(guild);
             requireMethod(method, "PUT");
