@@ -88,7 +88,8 @@ public class TicketRepository {
 
     private static final String PANEL_COLUMNS = """
             id, guild_id, name, title, description, button_label, category_id, channel_name_template, welcome_text, enabled,
-            per_user_limit, default_ping_role_id, helper_cap, escalation_hours, default_escalate_role_id, posted_channel_id, posted_message_id
+            per_user_limit, default_ping_role_id, helper_cap, escalation_hours, default_escalate_role_id, posted_channel_id, posted_message_id,
+            opening_message
             """;
 
     private static Panel mapPanel(ResultSet rs) throws SQLException {
@@ -96,7 +97,7 @@ public class TicketRepository {
                 rs.getString("button_label"), (Long) rs.getObject("category_id"), rs.getString("channel_name_template"), rs.getString("welcome_text"),
                 rs.getBoolean("enabled"), rs.getInt("per_user_limit"), (Long) rs.getObject("default_ping_role_id"), (Integer) rs.getObject("helper_cap"),
                 (Integer) rs.getObject("escalation_hours"), (Long) rs.getObject("default_escalate_role_id"),
-                (Long) rs.getObject("posted_channel_id"), (Long) rs.getObject("posted_message_id"));
+                (Long) rs.getObject("posted_channel_id"), (Long) rs.getObject("posted_message_id"), rs.getString("opening_message"));
     }
 
     public List<Panel> getPanels(long guildId) {
@@ -197,8 +198,9 @@ public class TicketRepository {
                 if (panelId == 0) {
                     String insert = """
                             INSERT INTO younglings.ticket_panel (guild_id, name, title, description, button_label, category_id, channel_name_template,
-                                welcome_text, enabled, per_user_limit, default_ping_role_id, helper_cap, escalation_hours, default_escalate_role_id)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
+                                welcome_text, enabled, per_user_limit, default_ping_role_id, helper_cap, escalation_hours, default_escalate_role_id,
+                                opening_message)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
                             """;
                     try (PreparedStatement s = c.prepareStatement(insert)) {
                         bindPanel(s, p, 1);
@@ -211,7 +213,7 @@ public class TicketRepository {
                     String update = """
                             UPDATE younglings.ticket_panel SET name = ?, title = ?, description = ?, button_label = ?, category_id = ?, channel_name_template = ?,
                                 welcome_text = ?, enabled = ?, per_user_limit = ?, default_ping_role_id = ?, helper_cap = ?, escalation_hours = ?,
-                                default_escalate_role_id = ?
+                                default_escalate_role_id = ?, opening_message = ?
                             WHERE id = ? AND guild_id = ?
                             """;
                     try (PreparedStatement s = c.prepareStatement(update)) {
@@ -228,8 +230,9 @@ public class TicketRepository {
                         setInt(s, 11, p.helperCap());
                         setInt(s, 12, p.escalationHours());
                         setLong(s, 13, p.defaultEscalateRoleId());
-                        s.setLong(14, panelId);
-                        s.setLong(15, p.guildId());
+                        s.setString(14, p.openingMessage());
+                        s.setLong(15, panelId);
+                        s.setLong(16, p.guildId());
                         if (s.executeUpdate() == 0) throw new IllegalArgumentException("That panel doesn't exist.");
                     }
                     try (PreparedStatement s = c.prepareStatement("DELETE FROM younglings.ticket_panel_field WHERE panel_id = ?")) {
@@ -307,7 +310,8 @@ public class TicketRepository {
         setLong(s, i++, p.defaultPingRoleId());
         setInt(s, i++, p.helperCap());
         setInt(s, i++, p.escalationHours());
-        setLong(s, i, p.defaultEscalateRoleId());
+        setLong(s, i++, p.defaultEscalateRoleId());
+        s.setString(i, p.openingMessage());
     }
 
     private void insertRoles(Connection c, long panelId, Set<Long> roleIds, String kind) throws SQLException {

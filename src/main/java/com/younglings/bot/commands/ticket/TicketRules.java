@@ -147,7 +147,8 @@ public final class TicketRules {
         if (panel.name() != null && panel.name().length() > 60) problems.add("The panel name must be 60 characters or fewer.");
         if (panel.title() != null && panel.title().length() > 100) problems.add("The title must be 100 characters or fewer.");
         if (panel.description() != null && panel.description().length() > 2500) problems.add("The description must be 2500 characters or fewer.");
-        if (panel.welcomeText() != null && panel.welcomeText().length() > 1000) problems.add("The welcome text must be 1000 characters or fewer.");
+        if (panel.welcomeText() != null && panel.welcomeText().length() > 1000) problems.add("The support message must be 1000 characters or fewer.");
+        if (panel.openingMessage() != null && panel.openingMessage().length() > 500) problems.add("The opening message must be 500 characters or fewer.");
         if (panel.channelNameTemplate() == null || panel.channelNameTemplate().isBlank() || panel.channelNameTemplate().length() > 60) problems.add("The channel name template must be 1 to 60 characters.");
         if (fields.size() > MAX_FIELDS) problems.add("A form holds at most " + MAX_FIELDS + " questions — this panel has " + fields.size() + ".");
 

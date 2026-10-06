@@ -165,4 +165,60 @@ class TicketViewTest {
         assertEquals("ticket_form:4", modal.getId());
         assertEquals(5, modal.getComponents().size());
     }
+
+    // ---------- the Ticket Tool style opening ----------
+
+    private static String embedText(net.dv8tion.jda.api.entities.MessageEmbed e) {
+        StringBuilder sb = new StringBuilder(e.getDescription() == null ? "" : e.getDescription());
+        for (var f : e.getFields()) sb.append("\n").append(f.getName()).append(": ").append(f.getValue());
+        return sb.toString();
+    }
+
+    @Test
+    void aTicketOpensAsAWelcomeLineTwoEmbedsAndButtons() {
+        var o = TicketView.opening(panel("", 2, true), ticket(Status.OPEN, List.of(new Answer("Which achievement?", "Elite Vorago"))), List.of("Metorrite"), List.of(), 77L);
+        assertTrue(o.content().startsWith("<@100> Welcome"), o.content());
+        assertTrue(o.content().contains("<@&77>"), "the tier's role is pinged in the message itself");
+        assertEquals(2, o.embeds().size());
+
+        String info = embedText(o.embeds().get(0));
+        assertTrue(info.contains("A helper will join you."));
+        assertTrue(info.contains("Opened by: <@100>") && info.contains("RuneScape name: Metorrite") && info.contains("Type: Elite"));
+        assertTrue(info.contains("Helping: "));
+
+        String qa = embedText(o.embeds().get(1));
+        assertTrue(qa.contains("**Which achievement?**\n```\nElite Vorago\n```"), qa);
+
+        assertEquals(List.of("ticket_join:9", "ticket_close:9"), o.buttons().getButtons().stream().map(Button::getCustomId).toList());
+        o.toCreate();
+        o.toEdit();
+    }
+
+    @Test
+    void theOpeningMessageIsEditableAndBlankFallsBackToTheDefaults() {
+        Panel custom = new Panel(4, 1, "CA Help", "Help", "", "Open", null, "ca-{number}", "", true, 1, null, 2, 24, null, null, null, "Hey {user}, thanks for asking!");
+        var o = TicketView.opening(custom, ticket(Status.OPEN, List.of()), List.of(), List.of(), null);
+        assertEquals("Hey <@100>, thanks for asking!", o.content());
+        assertTrue(embedText(o.embeds().get(0)).contains("Support will be with you shortly."), "a blank support message uses the default");
+
+        Panel blank = new Panel(4, 1, "CA Help", "Help", "", "Open", null, "ca-{number}", "", true, 1, null, 2, 24, null, null, null, " ");
+        assertEquals("<@100> Welcome", TicketView.opening(blank, ticket(Status.OPEN, List.of()), List.of(), List.of(), null).content());
+    }
+
+    @Test
+    void noAnswersMeansNoSecondEmbedAndAnAnswerCannotBreakOutOfItsCodeBlock() {
+        assertEquals(1, TicketView.opening(panel("", 2, true), ticket(Status.OPEN, List.of(new Answer("Notes", " "))), List.of(), List.of(), null).embeds().size());
+
+        var o = TicketView.opening(panel("", 2, true), ticket(Status.OPEN, List.of(new Answer("Notes", "evil ``` fence"))), List.of(), List.of(), null);
+        String qa = embedText(o.embeds().get(1));
+        assertEquals(2, qa.split("```", -1).length - 1, "only our own opening and closing fence remain: " + qa);
+    }
+
+    @Test
+    void aClosedTicketHasDisabledButtonsAndNoPing() {
+        var o = TicketView.opening(panel("", 2, true), ticket(Status.CLOSED, List.of()), List.of(), List.of(), 77L);
+        assertFalse(o.content().contains("<@&77>"));
+        assertTrue(o.buttons().getButtons().stream().allMatch(Button::isDisabled));
+        assertTrue(embedText(o.embeds().get(0)).contains("Closed by <@101>"));
+    }
 }
