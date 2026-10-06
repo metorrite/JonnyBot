@@ -73,7 +73,7 @@ public class WrappedCommand {
 
     @JDASlashCommand(name = "wrapped", description = "Your recap card — XP, Citadel, boss kills and more — for a week, month, year or all time")
     public void onWrapped(GuildSlashEvent event,
-                          @SlashOption(description = "How far back to look (default: this month)") @Nullable Period period,
+                          @SlashOption(description = "How far back to look (default: this month)", usePredefinedChoices = true) @Nullable Period period,
                           @SlashOption(description = "A RuneScape name, or clan for the whole clan (default: you)") @Nullable String who) {
         Guild guild = event.getGuild();
         Member member = event.getMember();
