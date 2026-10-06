@@ -49,6 +49,11 @@ public class MemberProfileRepository {
                 );
                 """,
 
+                // Added later: keeps a member's Discord name in the website's "Who's Online" list from linking to their clan profile.
+                """
+                ALTER TABLE younglings.member_profile ADD COLUMN IF NOT EXISTS hide_discord_link BOOLEAN NOT NULL DEFAULT FALSE;
+                """,
+
                 """
                 CREATE TABLE IF NOT EXISTS younglings.member_goal (
                     id BIGSERIAL PRIMARY KEY,
@@ -91,23 +96,23 @@ public class MemberProfileRepository {
     // ---------- profile settings ----------
 
     public record Profile(long guildId, long userId, String bio, String accentColor, Integer pinnedSkill, boolean hideAdventureLog,
-                          boolean hideFromLeaderboards, boolean dmGoals, boolean dmEvents) {
+                          boolean hideFromLeaderboards, boolean dmGoals, boolean dmEvents, boolean hideDiscordLink) {
         public static Profile defaults(long guildId, long userId) {
-            return new Profile(guildId, userId, "", null, null, false, false, true, false);
+            return new Profile(guildId, userId, "", null, null, false, false, true, false, false);
         }
     }
 
     public Profile getProfile(long guildId, long userId) {
         try (Connection c = connectionSupplier.getConnection();
              PreparedStatement s = c.prepareStatement("""
-                     SELECT bio, accent_color, pinned_skill, hide_adventure_log, hide_from_leaderboards, dm_goals, dm_events
+                     SELECT bio, accent_color, pinned_skill, hide_adventure_log, hide_from_leaderboards, dm_goals, dm_events, hide_discord_link
                      FROM younglings.member_profile WHERE guild_id = ? AND discord_user_id = ?""")) {
             s.setLong(1, guildId);
             s.setLong(2, userId);
             try (ResultSet rs = s.executeQuery()) {
                 if (!rs.next()) return Profile.defaults(guildId, userId);
                 return new Profile(guildId, userId, rs.getString("bio"), rs.getString("accent_color"), (Integer) rs.getObject("pinned_skill"),
-                        rs.getBoolean("hide_adventure_log"), rs.getBoolean("hide_from_leaderboards"), rs.getBoolean("dm_goals"), rs.getBoolean("dm_events"));
+                        rs.getBoolean("hide_adventure_log"), rs.getBoolean("hide_from_leaderboards"), rs.getBoolean("dm_goals"), rs.getBoolean("dm_events"), rs.getBoolean("hide_discord_link"));
             }
         } catch (SQLException e) {
             throw fail("read a member profile", e);
@@ -118,12 +123,12 @@ public class MemberProfileRepository {
         try (Connection c = connectionSupplier.getConnection();
              PreparedStatement s = c.prepareStatement("""
                      INSERT INTO younglings.member_profile (guild_id, discord_user_id, bio, accent_color, pinned_skill, hide_adventure_log,
-                         hide_from_leaderboards, dm_goals, dm_events, updated_at)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                         hide_from_leaderboards, dm_goals, dm_events, hide_discord_link, updated_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
                      ON CONFLICT (guild_id, discord_user_id) DO UPDATE SET bio = EXCLUDED.bio, accent_color = EXCLUDED.accent_color,
                          pinned_skill = EXCLUDED.pinned_skill, hide_adventure_log = EXCLUDED.hide_adventure_log,
                          hide_from_leaderboards = EXCLUDED.hide_from_leaderboards, dm_goals = EXCLUDED.dm_goals,
-                         dm_events = EXCLUDED.dm_events, updated_at = NOW()""")) {
+                         dm_events = EXCLUDED.dm_events, hide_discord_link = EXCLUDED.hide_discord_link, updated_at = NOW()""")) {
             s.setLong(1, p.guildId());
             s.setLong(2, p.userId());
             s.setString(3, p.bio());
@@ -133,6 +138,7 @@ public class MemberProfileRepository {
             s.setBoolean(7, p.hideFromLeaderboards());
             s.setBoolean(8, p.dmGoals());
             s.setBoolean(9, p.dmEvents());
+            s.setBoolean(10, p.hideDiscordLink());
             s.executeUpdate();
         } catch (SQLException e) {
             throw fail("save a member profile", e);
@@ -143,7 +149,7 @@ public class MemberProfileRepository {
     public Profile getProfileForRsn(long guildId, String rsn) {
         try (Connection c = connectionSupplier.getConnection();
              PreparedStatement s = c.prepareStatement("""
-                     SELECT p.discord_user_id, p.bio, p.accent_color, p.pinned_skill, p.hide_adventure_log, p.hide_from_leaderboards, p.dm_goals, p.dm_events
+                     SELECT p.discord_user_id, p.bio, p.accent_color, p.pinned_skill, p.hide_adventure_log, p.hide_from_leaderboards, p.dm_goals, p.dm_events, p.hide_discord_link
                      FROM younglings.player_link l JOIN younglings.member_profile p ON p.guild_id = l.guild_id AND p.discord_user_id = l.discord_user_id
                      WHERE l.guild_id = ? AND LOWER(l.rsn) = LOWER(?)""")) {
             s.setLong(1, guildId);
@@ -151,7 +157,7 @@ public class MemberProfileRepository {
             try (ResultSet rs = s.executeQuery()) {
                 if (!rs.next()) return null;
                 return new Profile(guildId, rs.getLong("discord_user_id"), rs.getString("bio"), rs.getString("accent_color"), (Integer) rs.getObject("pinned_skill"),
-                        rs.getBoolean("hide_adventure_log"), rs.getBoolean("hide_from_leaderboards"), rs.getBoolean("dm_goals"), rs.getBoolean("dm_events"));
+                        rs.getBoolean("hide_adventure_log"), rs.getBoolean("hide_from_leaderboards"), rs.getBoolean("dm_goals"), rs.getBoolean("dm_events"), rs.getBoolean("hide_discord_link"));
             }
         } catch (SQLException e) {
             throw fail("read a profile by name", e);
@@ -171,6 +177,21 @@ public class MemberProfileRepository {
             return hidden;
         } catch (SQLException e) {
             throw fail("read hidden members", e);
+        }
+    }
+
+    /** Discord users who asked not to be linked to their clan profile from the Who's Online list. */
+    public Set<Long> hiddenDiscordUsers(long guildId) {
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("SELECT discord_user_id FROM younglings.member_profile WHERE guild_id = ? AND hide_discord_link")) {
+            s.setLong(1, guildId);
+            Set<Long> hidden = new HashSet<>();
+            try (ResultSet rs = s.executeQuery()) {
+                while (rs.next()) hidden.add(rs.getLong(1));
+            }
+            return hidden;
+        } catch (SQLException e) {
+            throw fail("read hidden discord links", e);
         }
     }
 
