@@ -11,6 +11,7 @@ import com.younglings.bot.runescape.PlayerLinkRepository;
 import com.younglings.bot.runescape.PlayerLinkRepository.SkillHistoryPoint;
 import com.younglings.bot.runescape.PlayerLinkRepository.StatsSnapshotRow;
 import com.younglings.bot.runescape.RuneScapeSkillCatalog;
+import com.younglings.bot.runescape.RuneScapeXpTable;
 import com.younglings.bot.runescape.SkillValue;
 import com.younglings.bot.runescape.WeeklyDigestRepository;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -92,6 +93,13 @@ public class SiteApi {
                 case "member/skill" -> memberSkill(guild, query(exchange, "rsn"), query(exchange, "skill"));
                 case "leaderboard" -> leaderboard(guild, query(exchange, "month"));
                 case "coffer" -> coffer(guild);
+                case "feed" -> feed(guild, query(exchange, "limit"), query(exchange, "kind"));
+                case "records" -> records(guild);
+                case "citadel-grid" -> citadelGrid(guild, query(exchange, "weeks"));
+                case "history" -> history(guild);
+                case "polls" -> polls(guild);
+                case "pvm" -> pvm(guild);
+                case "drops" -> drops(guild);
                 case "me" -> me(guild, query(exchange, "userId"));
                 default -> null;
             };
@@ -376,7 +384,10 @@ public class SiteApi {
         if (latest != null) {
             for (SkillValue skill : links.getSkillsForSnapshot(latest.snapshotId())) {
                 skills.add(DataObject.empty().put("id", skill.skillId()).put("name", RuneScapeSkillCatalog.nameFor(skill.skillId()))
-                        .put("level", skill.level()).put("xp", skill.xp()).put("rank", skill.rank()));
+                        .put("level", skill.level()).put("xp", skill.xp()).put("rank", skill.rank())
+                        .put("xpToNext", RuneScapeXpTable.xpToNextLevel(skill.skillId(), skill.level(), skill.xp()))
+                        .put("xpTo99", Math.max(0, RuneScapeXpTable.xpForLevel(skill.skillId(), 99) - skill.xp()))
+                        .put("xpTo120", Math.max(0, RuneScapeXpTable.xpForLevel(skill.skillId(), 120) - skill.xp())));
             }
         }
         json.put("skills", skills);
@@ -422,6 +433,229 @@ public class SiteApi {
 
         return json;
     }
+
+    // ---------- activity feed, records, history, polls, PvM and drops ----------
+
+    /** The clan's newest notable adventure-log entries (level-ups, milestones, quests, boss kills, drops, pets, caps…). */
+    DataObject feed(Guild guild, String limitRaw, String kindRaw) {
+        int limit = 40;
+        try {
+            if (limitRaw != null) limit = Math.max(1, Math.min(100, Integer.parseInt(limitRaw.trim())));
+        } catch (NumberFormatException ignored) {
+            // keep the default
+        }
+        ActivityKinds.Kind wanted = null;
+        if (kindRaw != null && !kindRaw.isBlank()) {
+            try {
+                wanted = ActivityKinds.Kind.valueOf(kindRaw.trim().toUpperCase());
+            } catch (IllegalArgumentException e) {
+                return null;
+            }
+        }
+
+        DataArray items = DataArray.empty();
+        for (var row : stats.recentActivities(guild.getIdLong(), limit * 6)) {
+            ActivityKinds.Kind kind = ActivityKinds.kindOf(row.text());
+            if (kind == ActivityKinds.Kind.OTHER || kind == ActivityKinds.Kind.CITADEL_VISIT) continue;
+            if (wanted != null && kind != wanted) continue;
+            items.add(DataObject.empty().put("rsn", row.rsn()).put("kind", kind.name()).put("text", row.text()).put("details", row.details())
+                    .put("date", row.date()).put("recordedAt", row.recordedAt().toString()));
+            if (items.length() >= limit) break;
+        }
+        return DataObject.empty().put("items", items);
+    }
+
+    /** The longest run of consecutive Citadel weeks capped, and whether it is still going. */
+    record Streak(String rsn, int longest, int current) {}
+
+    static List<Streak> capStreaks(List<SiteStatsRepository.CapWeek> capWeeks, LocalDate currentWeekStart) {
+        Map<String, TreeMap<LocalDate, Boolean>> byMember = new HashMap<>();
+        capWeeks.forEach(c -> byMember.computeIfAbsent(c.rsn(), k -> new TreeMap<>()).put(c.weekStart(), true));
+
+        List<Streak> streaks = new ArrayList<>();
+        byMember.forEach((rsn, weeks) -> {
+            int longest = 0;
+            int run = 0;
+            LocalDate previous = null;
+            for (LocalDate week : weeks.keySet()) {
+                run = previous != null && previous.plusWeeks(1).equals(week) ? run + 1 : 1;
+                longest = Math.max(longest, run);
+                previous = week;
+            }
+            // "Current" counts only if the last capped week is this week or the one before (this week may not be done yet).
+            boolean live = previous != null && !previous.isBefore(currentWeekStart.minusWeeks(1));
+            streaks.add(new Streak(rsn, longest, live ? run : 0));
+        });
+        streaks.sort(Comparator.comparingInt(Streak::longest).reversed().thenComparing(Streak::rsn));
+        return streaks;
+    }
+
+    private static LocalDate currentCitadelWeekStart() {
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        int sinceWednesday = (today.getDayOfWeek().getValue() - java.time.DayOfWeek.WEDNESDAY.getValue() + 7) % 7;
+        return today.minusDays(sinceWednesday);
+    }
+
+    DataObject records(Guild guild) {
+        long guildId = guild.getIdLong();
+        DataArray days = DataArray.empty();
+        stats.biggestDays(guildId, 8).forEach(d -> days.add(DataObject.empty().put("rsn", d.rsn()).put("date", d.date().toString()).put("xp", d.xp())));
+        DataArray club = DataArray.empty();
+        stats.twoHundredMillionClub(guildId, 10).forEach(c -> club.add(DataObject.empty().put("rsn", c.rsn()).put("skills", c.skills())));
+
+        DataArray streaks = DataArray.empty();
+        capStreaks(stats.allCapWeeks(guildId), currentCitadelWeekStart()).stream().limit(10)
+                .forEach(s -> streaks.add(DataObject.empty().put("rsn", s.rsn()).put("longest", s.longest()).put("current", s.current())));
+
+        DataArray veterans = DataArray.empty();
+        stats.members(guildId).stream()
+                .sorted(Comparator.comparing((MemberRow m) -> m.clanJoinedAt() != null ? m.clanJoinedAt() : m.firstSeen().toLocalDate()).thenComparing(MemberRow::rsn))
+                .limit(8).forEach(m -> veterans.add(DataObject.empty().put("rsn", m.rsn())
+                        .put("joined", (m.clanJoinedAt() != null ? m.clanJoinedAt() : m.firstSeen().toLocalDate()).toString()).put("joinedExact", m.clanJoinedAt() != null)));
+
+        return DataObject.empty().put("biggestDays", days).put("twoHundredClub", club).put("capStreaks", streaks).put("veterans", veterans);
+    }
+
+    DataObject citadelGrid(Guild guild, String weeksRaw) {
+        int weeks = 12;
+        try {
+            if (weeksRaw != null) weeks = Math.max(4, Math.min(26, Integer.parseInt(weeksRaw.trim())));
+        } catch (NumberFormatException ignored) {
+            // keep the default
+        }
+        LocalDate current = currentCitadelWeekStart();
+        List<LocalDate> weekStarts = new ArrayList<>();
+        for (int i = weeks - 1; i >= 0; i--) weekStarts.add(current.minusWeeks(i));
+
+        Map<String, int[]> grid = new LinkedHashMap<>();
+        final int weekCount = weeks;
+        stats.members(guild.getIdLong()).forEach(m -> grid.put(m.rsn(), new int[weekCount]));
+        for (var cell : stats.citadelGrid(guild.getIdLong(), weeks)) {
+            int[] row = grid.get(cell.rsn());
+            int index = weekStarts.indexOf(cell.weekStart());
+            if (row != null && index >= 0) row[index] = cell.capped() ? 2 : 1;
+        }
+
+        DataArray weekArray = DataArray.empty();
+        weekStarts.forEach(w -> weekArray.add(w.toString()));
+        DataArray rows = DataArray.empty();
+        grid.entrySet().stream()
+                .sorted(Comparator.comparingInt((Map.Entry<String, int[]> e) -> (int) java.util.Arrays.stream(e.getValue()).filter(v -> v == 2).count()).reversed()
+                        .thenComparing(Map.Entry::getKey, String.CASE_INSENSITIVE_ORDER))
+                .forEach(e -> {
+                    DataArray cells = DataArray.empty();
+                    for (int v : e.getValue()) cells.add(v);
+                    rows.add(DataObject.empty().put("rsn", e.getKey()).put("weeks", cells));
+                });
+        return DataObject.empty().put("weeks", weekArray).put("members", rows);
+    }
+
+    DataObject history(Guild guild) {
+        long guildId = guild.getIdLong();
+        List<MemberRow> members = stats.members(guildId);
+        var events = stats.rosterEvents(guildId, 200);
+
+        // Member count after each day with changes, walking backwards from today's roster size.
+        TreeMap<LocalDate, Integer> countByDay = new TreeMap<>();
+        int count = members.size();
+        countByDay.put(LocalDate.now(ZoneOffset.UTC), count);
+        for (var event : events) { // newest first
+            LocalDate day = event.at().withOffsetSameInstant(ZoneOffset.UTC).toLocalDate();
+            countByDay.putIfAbsent(day, count); // the count at the END of that day
+            count += event.type().equals("JOIN") ? -1 : 1;
+        }
+        if (!events.isEmpty()) countByDay.putIfAbsent(events.getLast().at().withOffsetSameInstant(ZoneOffset.UTC).toLocalDate().minusDays(1), count);
+        DataArray series = DataArray.empty();
+        countByDay.forEach((day, n) -> series.add(DataObject.empty().put("date", day.toString()).put("members", n)));
+
+        // A merged timeline of joins, leaves and confirmed renames.
+        record Entry(String type, String rsn, String other, OffsetDateTime at) {}
+        List<Entry> timeline = new ArrayList<>();
+        events.stream().limit(60).forEach(e -> timeline.add(new Entry(e.type(), e.rsn(), null, e.at())));
+        stats.confirmedRenames(guildId, 20).forEach(r -> timeline.add(new Entry("RENAME", r.newRsn(), r.oldRsn(), r.at())));
+        timeline.sort(Comparator.comparing(Entry::at).reversed());
+        DataArray timelineArray = DataArray.empty();
+        timeline.stream().limit(60).forEach(e -> timelineArray.add(DataObject.empty().put("type", e.type()).put("rsn", e.rsn()).put("from", e.other()).put("at", e.at().toString())));
+
+        // The rank ladder, and the members closest to their next rank.
+        List<RankConfigRow> ranks = points.getRanksOrdered(guildId);
+        record Close(MemberRow member, RankConfigRow next, long needed) {}
+        List<Close> close = new ArrayList<>();
+        for (MemberRow m : members) {
+            RankConfigRow next = ranks.stream().filter(r -> r.rankOrder() > m.rankOrder()).min(Comparator.comparingInt(RankConfigRow::rankOrder)).orElse(null);
+            if (next != null && next.pointThreshold() > 0) close.add(new Close(m, next, Math.max(0, next.pointThreshold() - m.points())));
+        }
+        close.sort(Comparator.comparingLong(Close::needed).thenComparing(c -> c.member().rsn()));
+        DataArray closeArray = DataArray.empty();
+        close.stream().limit(12).forEach(c -> closeArray.add(DataObject.empty().put("rsn", c.member().rsn()).put("rank", c.member().clanRank())
+                .put("next", c.next().rankName()).put("points", c.member().points()).put("needed", c.needed()).put("promotionNeeded", c.member().promotionNeeded())));
+
+        return DataObject.empty().put("memberCount", series).put("timeline", timelineArray).put("ranks", ranksJson(guildId, members)).put("closeToPromotion", closeArray);
+    }
+
+    DataObject polls(Guild guild) {
+        DataArray array = DataArray.empty();
+        for (var poll : stats.polls(guild.getIdLong(), 20)) {
+            DataArray options = DataArray.empty();
+            int total = poll.options().stream().mapToInt(SiteStatsRepository.PollOption::votes).sum();
+            poll.options().forEach(o -> options.add(DataObject.empty().put("label", o.label()).put("votes", o.votes())));
+            array.add(DataObject.empty().put("id", Long.toString(poll.id())).put("title", poll.title()).put("status", poll.status())
+                    .put("anonymous", poll.anonymous()).put("multiple", poll.multiple()).put("totalVotes", total)
+                    .put("createdAt", poll.createdAt().toString()).put("closedAt", poll.closedAt() == null ? null : poll.closedAt().toString())
+                    .put("url", poll.messageId() == null ? null : "https://discord.com/channels/" + guild.getId() + "/" + poll.channelId() + "/" + poll.messageId())
+                    .put("options", options));
+        }
+        return DataObject.empty().put("polls", array);
+    }
+
+    /** Boss kill tallies from the adventure log: per boss, and who has killed it most. Only covers what the bot has seen since it began polling. */
+    DataObject pvm(Guild guild) {
+        long guildId = guild.getIdLong();
+        Map<String, Map<String, Integer>> byBoss = new HashMap<>();
+        Map<String, Integer> byPlayer = new HashMap<>();
+        for (String prefix : List.of("I killed", "I defeated")) {
+            for (var row : stats.activitiesStartingWith(guildId, prefix)) {
+                var boss = ActivityKinds.bossOf(row.text());
+                if (boss.isEmpty()) continue;
+                int kills = ActivityKinds.killCount(row.text());
+                byBoss.computeIfAbsent(boss.get(), k -> new HashMap<>()).merge(row.rsn(), kills, Integer::sum);
+                byPlayer.merge(row.rsn(), kills, Integer::sum);
+            }
+        }
+
+        DataArray bosses = DataArray.empty();
+        byBoss.entrySet().stream()
+                .sorted(Comparator.comparingInt((Map.Entry<String, Map<String, Integer>> e) -> e.getValue().values().stream().mapToInt(Integer::intValue).sum()).reversed())
+                .limit(40).forEach(e -> {
+                    DataArray killers = DataArray.empty();
+                    e.getValue().entrySet().stream().sorted(Map.Entry.<String, Integer>comparingByValue().reversed()).limit(3)
+                            .forEach(k -> killers.add(DataObject.empty().put("rsn", k.getKey()).put("kills", k.getValue())));
+                    bosses.add(DataObject.empty().put("boss", e.getKey()).put("total", e.getValue().values().stream().mapToInt(Integer::intValue).sum()).put("killers", killers));
+                });
+        DataArray players = DataArray.empty();
+        byPlayer.entrySet().stream().sorted(Map.Entry.<String, Integer>comparingByValue().reversed()).limit(10)
+                .forEach(p -> players.add(DataObject.empty().put("rsn", p.getKey()).put("kills", p.getValue())));
+
+        return DataObject.empty().put("totalKills", byPlayer.values().stream().mapToInt(Integer::intValue).sum()).put("bosses", bosses).put("topKillers", players);
+    }
+
+    /** Notable drops recorded in adventure logs, newest first, with a tally of which items drop most. */
+    DataObject drops(Guild guild) {
+        DataArray recent = DataArray.empty();
+        Map<String, Integer> tally = new HashMap<>();
+        for (var row : stats.activitiesStartingWith(guild.getIdLong(), "I found")) {
+            var item = ActivityKinds.dropOf(row.text());
+            if (item.isEmpty()) continue;
+            tally.merge(item.get(), 1, Integer::sum);
+            if (recent.length() < 60) recent.add(DataObject.empty().put("rsn", row.rsn()).put("item", item.get()).put("date", row.date()).put("recordedAt", row.recordedAt().toString()));
+        }
+        DataArray top = DataArray.empty();
+        tally.entrySet().stream().sorted(Map.Entry.<String, Integer>comparingByValue().reversed()).limit(12)
+                .forEach(e -> top.add(DataObject.empty().put("item", e.getKey()).put("count", e.getValue())));
+        return DataObject.empty().put("total", tally.values().stream().mapToInt(Integer::intValue).sum()).put("recent", recent).put("topItems", top);
+    }
+
+    // ---------- one skill's XP over time ----------
 
     /** One skill's XP over the last 90 days, one point per UTC day (that day's last snapshot). */
     DataObject memberSkill(Guild guild, String rsn, String skillRaw) {
