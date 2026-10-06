@@ -67,12 +67,14 @@ public class InternalApiServer {
     private final BotConfig botConfig;
     private final TicketAdminApi ticketAdminApi;
     private final SiteApi siteApi;
+    private final MemberApi memberApi;
     private JDA jda;
 
-    public InternalApiServer(BotConfig botConfig, TicketAdminApi ticketAdminApi, SiteApi siteApi) {
+    public InternalApiServer(BotConfig botConfig, TicketAdminApi ticketAdminApi, SiteApi siteApi, MemberApi memberApi) {
         this.botConfig = botConfig;
         this.ticketAdminApi = ticketAdminApi;
         this.siteApi = siteApi;
+        this.memberApi = memberApi;
     }
 
     @BEventListener
@@ -106,6 +108,7 @@ public class InternalApiServer {
 
             server.createContext("/internal/admin/", exchange -> handleAdmin(exchange, secret, guildId));
             server.createContext("/internal/site/", exchange -> handleSite(exchange, secret, guildId));
+            server.createContext("/internal/me/", exchange -> handleMe(exchange, secret, guildId));
 
             server.setExecutor(Executors.newFixedThreadPool(4));
             server.start();
@@ -160,6 +163,26 @@ public class InternalApiServer {
             ticketAdminApi.handle(exchange, guild);
         } catch (Exception e) {
             log.error("Internal API admin request failed", e);
+            sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));
+        }
+    }
+
+    /** A member's own settings, goals and roles — secret and guild checked here; the user id is trusted from the website's verified session. */
+    private void handleMe(HttpExchange exchange, String secret, long guildId) throws IOException {
+        try {
+            String provided = exchange.getRequestHeaders().getFirst(SECRET_HEADER);
+            if (provided == null || !constantTimeEquals(provided, secret)) {
+                sendJson(exchange, 401, DataObject.empty().put("error", "Unauthorized"));
+                return;
+            }
+            Guild guild = jda.getGuildById(guildId);
+            if (guild == null) {
+                sendJson(exchange, 503, DataObject.empty().put("error", "Guild not available yet"));
+                return;
+            }
+            memberApi.handle(exchange, guild);
+        } catch (Exception e) {
+            log.error("Internal API member request failed", e);
             sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));
         }
     }
