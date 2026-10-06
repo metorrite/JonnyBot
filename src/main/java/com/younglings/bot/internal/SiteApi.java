@@ -74,9 +74,10 @@ public class SiteApi {
     private final SiteNewsService news;
     private final SignupService signupService;
     private final SiteCache cache;
+    private final RecapService recap;
 
     public SiteApi(SiteStatsRepository stats, PlayerLinkRepository links, ClanPointsRepository points, GuildSettingsService settings, WeeklyDigestRepository rosterEvents,
-                   MemberProfileRepository profiles, SiteNewsService news, SignupService signupService, SiteCache cache) {
+                   MemberProfileRepository profiles, SiteNewsService news, SignupService signupService, SiteCache cache, RecapService recap) {
         this.stats = stats;
         this.links = links;
         this.points = points;
@@ -86,6 +87,7 @@ public class SiteApi {
         this.news = news;
         this.signupService = signupService;
         this.cache = cache;
+        this.recap = recap;
     }
 
     public void handle(HttpExchange exchange, Guild guild) throws IOException {
@@ -119,6 +121,7 @@ public class SiteApi {
                 case "polls" -> polls(guild);
                 case "signups" -> signups(guild);
                 case "news" -> DataObject.empty().put("posts", news.latest(guild, 14));
+                case "recap" -> recap.build(guild, query(exchange, "scope"), query(exchange, "rsn"), query(exchange, "period"));
                 case "pvm" -> pvm(guild);
                 case "drops" -> drops(guild);
                 case "me" -> me(guild, query(exchange, "userId"));
@@ -144,6 +147,7 @@ public class SiteApi {
             case "feed" -> 15_000;
             case "events" -> 30_000;
             case "members", "overview", "member", "me", "news" -> 60_000;
+            case "recap" -> 300_000;
             default -> 120_000; // records, history, citadel grid, PvM, drops, coffer, leaderboards, skill series
         };
     }
