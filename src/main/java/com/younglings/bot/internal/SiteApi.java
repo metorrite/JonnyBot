@@ -164,13 +164,24 @@ public class SiteApi {
                         .put("name", event.getName())
                         .put("description", event.getDescription())
                         .put("imageUrl", event.getImageUrl())
-                        .put("location", event.getLocation())
+                        .put("location", locationOf(guild, event))
                         .put("status", event.getStatus().name())
                         .put("startTime", event.getStartTime().toString())
                         .put("endTime", event.getEndTime() == null ? null : event.getEndTime().toString())
                         .put("interestedCount", event.getInterestedUserCount())
                         .put("url", "https://discord.com/events/" + guild.getId() + "/" + event.getId())));
         return DataObject.empty().put("events", events);
+    }
+
+    /** For a voice or stage event JDA's "location" is the channel's id, which means nothing to a reader — show its name instead. */
+    private static String locationOf(Guild guild, ScheduledEvent event) {
+        if (event.getType() == ScheduledEvent.Type.EXTERNAL) return event.getLocation();
+        try {
+            var channel = guild.getGuildChannelById(Long.parseLong(event.getLocation()));
+            return channel == null ? null : (event.getType() == ScheduledEvent.Type.STAGE_INSTANCE ? "Stage: " : "Voice: ") + channel.getName();
+        } catch (NumberFormatException e) {
+            return event.getLocation();
+        }
     }
 
     // ---------- the roster ----------
