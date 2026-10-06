@@ -173,6 +173,11 @@ public class TicketAdminApi {
             case "panels" -> {
                 return routePanels(exchange, guild, actor, method, parts);
             }
+            case "stats" -> {
+                if (parts.length != 2) return null;
+                requireMethod(method, "GET");
+                return stats(guild);
+            }
             case "tickets" -> {
                 requireMethod(method, "GET");
                 if (parts.length == 2) return listTickets(exchange, guild);
@@ -387,6 +392,22 @@ public class TicketAdminApi {
     }
 
     // ---------- tickets ----------
+
+    private DataObject stats(Guild guild) {
+        var stats = repository.stats(guild.getIdLong());
+
+        DataArray byPanel = DataArray.empty();
+        stats.byPanel().forEach(p -> byPanel.add(DataObject.empty().put("panel", p.panel()).put("total", p.total()).put("open", p.open())));
+        DataArray byWeek = DataArray.empty();
+        stats.byWeek().forEach(w -> byWeek.add(DataObject.empty().put("weekStart", w.weekStart().toString()).put("opened", w.opened())));
+        DataArray helpers = DataArray.empty();
+        stats.topHelpers().forEach(h -> helpers.add(DataObject.empty().put("id", Long.toString(h.userId())).put("name", nameOf(guild, h.userId())).put("tickets", h.tickets())));
+
+        return DataObject.empty()
+                .put("open", stats.open()).put("closed", stats.closed()).put("escalated", stats.escalated()).put("flagged", stats.flagged())
+                .put("avgHoursToClose", stats.avgHoursToClose()).put("avgMinutesToFirstHelper", stats.avgMinutesToFirstHelper())
+                .put("byPanel", byPanel).put("byWeek", byWeek).put("topHelpers", helpers);
+    }
 
     private DataObject listTickets(HttpExchange exchange, Guild guild) {
         String statusRaw = query(exchange, "status");

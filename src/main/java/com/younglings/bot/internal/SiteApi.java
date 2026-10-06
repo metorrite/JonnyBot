@@ -12,6 +12,7 @@ import com.younglings.bot.runescape.PlayerLinkRepository.SkillHistoryPoint;
 import com.younglings.bot.runescape.PlayerLinkRepository.StatsSnapshotRow;
 import com.younglings.bot.runescape.RuneScapeSkillCatalog;
 import com.younglings.bot.runescape.SkillValue;
+import com.younglings.bot.runescape.WeeklyDigestRepository;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.OnlineStatus;
 import net.dv8tion.jda.api.entities.Guild;
@@ -29,6 +30,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.YearMonth;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -60,12 +62,14 @@ public class SiteApi {
     private final PlayerLinkRepository links;
     private final ClanPointsRepository points;
     private final GuildSettingsService settings;
+    private final WeeklyDigestRepository rosterEvents;
 
-    public SiteApi(SiteStatsRepository stats, PlayerLinkRepository links, ClanPointsRepository points, GuildSettingsService settings) {
+    public SiteApi(SiteStatsRepository stats, PlayerLinkRepository links, ClanPointsRepository points, GuildSettingsService settings, WeeklyDigestRepository rosterEvents) {
         this.stats = stats;
         this.links = links;
         this.points = points;
         this.settings = settings;
+        this.rosterEvents = rosterEvents;
     }
 
     public void handle(HttpExchange exchange, Guild guild) throws IOException {
@@ -85,6 +89,10 @@ public class SiteApi {
                 case "members" -> members(guild);
                 case "overview" -> overview(guild);
                 case "member" -> member(guild, query(exchange, "rsn"));
+                case "member/skill" -> memberSkill(guild, query(exchange, "rsn"), query(exchange, "skill"));
+                case "leaderboard" -> leaderboard(guild, query(exchange, "month"));
+                case "coffer" -> coffer(guild);
+                case "me" -> me(guild, query(exchange, "userId"));
                 default -> null;
             };
 
@@ -398,6 +406,13 @@ public class SiteApi {
         for (LocalDate week : citadel.cappedWeeks()) weeks.add(week.toString());
         json.put("citadel", DataObject.empty().put("caps", citadel.caps()).put("visits", citadel.visits()).put("cappedWeeks", weeks));
 
+        // Clan-point awards, newest first.
+        DataArray awards = DataArray.empty();
+        for (var award : stats.awards(guildId, row.rsn(), 60)) {
+            awards.add(DataObject.empty().put("type", award.type()).put("points", award.points()).put("date", award.date().toString()));
+        }
+        json.put("awards", awards);
+
         // Adventure log.
         DataArray activities = DataArray.empty();
         for (PlayerActivity activity : links.getRecentActivities(guildId, row.rsn(), 30)) {
@@ -406,6 +421,108 @@ public class SiteApi {
         json.put("activities", activities);
 
         return json;
+    }
+
+    /** One skill's XP over the last 90 days, one point per UTC day (that day's last snapshot). */
+    DataObject memberSkill(Guild guild, String rsn, String skillRaw) {
+        if (rsn == null || skillRaw == null) return null;
+        int skillId;
+        try {
+            skillId = Integer.parseInt(skillRaw.trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+        if (skillId < 0 || skillId >= RuneScapeSkillCatalog.skillCount()) return null;
+
+        TreeMap<LocalDate, Long> byDay = new TreeMap<>();
+        for (var point : links.getSkillXpHistory(guild.getIdLong(), rsn.trim(), skillId, OffsetDateTime.now(ZoneOffset.UTC).minusDays(HISTORY_DAYS))) {
+            byDay.put(point.timestamp().withOffsetSameInstant(ZoneOffset.UTC).toLocalDate(), point.xp()); // ascending, so the last write per day wins
+        }
+        DataArray history = DataArray.empty();
+        byDay.forEach((date, xp) -> history.add(DataObject.empty().put("date", date.toString()).put("xp", xp)));
+        return DataObject.empty().put("skillId", skillId).put("skill", RuneScapeSkillCatalog.nameFor(skillId)).put("history", history);
+    }
+
+    // ---------- month-by-month leaderboards ----------
+
+    /** Top XP gainers, Citadel cappers and roster changes for one calendar month ({@code month} is {@code YYYY-MM}; blank means this month), plus the months that have data. */
+    DataObject leaderboard(Guild guild, String monthRaw) {
+        long guildId = guild.getIdLong();
+        YearMonth current = YearMonth.now(ZoneOffset.UTC);
+        YearMonth month;
+        try {
+            month = monthRaw == null || monthRaw.isBlank() ? current : YearMonth.parse(monthRaw.trim());
+        } catch (Exception e) {
+            return null;
+        }
+        if (month.isAfter(current)) return null;
+
+        OffsetDateTime from = month.atDay(1).atStartOfDay().atOffset(ZoneOffset.UTC);
+        OffsetDateTime to = month.plusMonths(1).atDay(1).atStartOfDay().atOffset(ZoneOffset.UTC);
+
+        List<Gain> gains = stats.xpGainsBetween(guildId, from, to);
+        DataArray cappers = DataArray.empty();
+        for (var c : stats.cappersBetween(guildId, from, to, 15)) {
+            cappers.add(DataObject.empty().put("rsn", c.rsn()).put("weeksCapped", c.weeksCapped()).put("totalCaps", c.totalCaps()));
+        }
+
+        DataArray joined = DataArray.empty();
+        DataArray left = DataArray.empty();
+        for (var event : rosterEvents.getRosterEventsInWindow(guildId, from, to)) {
+            (event.eventType().equals("JOIN") ? joined : left).add(event.rsn());
+        }
+
+        OffsetDateTime first = stats.firstSnapshotAt(guildId);
+        DataArray months = DataArray.empty();
+        if (first != null) {
+            for (YearMonth m = YearMonth.from(first.withOffsetSameInstant(ZoneOffset.UTC)); !m.isAfter(current); m = m.plusMonths(1)) months.add(m.toString());
+        }
+
+        return DataObject.empty()
+                .put("month", month.toString())
+                .put("months", months)
+                .put("totalXp", gains.stream().mapToLong(Gain::xp).sum())
+                .put("gainers", gainsJson(gains, 15))
+                .put("cappers", cappers)
+                .put("joined", joined)
+                .put("left", left);
+    }
+
+    // ---------- the clan coffer (totals only) ----------
+
+    DataObject coffer(Guild guild) {
+        long guildId = guild.getIdLong();
+        var totals = stats.cofferTotals(guildId);
+
+        DataArray weeks = DataArray.empty();
+        stats.cofferByWeek(guildId, CHART_WEEKS).forEach(w -> weeks.add(DataObject.empty().put("weekStart", w.weekStart().toString()).put("donated", w.donated())));
+        DataArray donors = DataArray.empty();
+        stats.topDonors(guildId, 10).forEach(d -> donors.add(DataObject.empty().put("name", d.name()).put("total", d.total()).put("donations", d.donations())));
+        DataArray giveaways = DataArray.empty();
+        stats.recentGiveaways(guildId, 8).forEach(g -> giveaways.add(DataObject.empty().put("amount", g.amount()).put("description", g.description()).put("at", g.at().toString())));
+
+        return DataObject.empty()
+                .put("donated", totals.donated()).put("donations", totals.donations()).put("donors", totals.donors())
+                .put("held", totals.held()).put("giveaways", totals.giveaways()).put("givenAway", totals.givenAway())
+                .put("weeks", weeks).put("topDonors", donors).put("recentGiveaways", giveaways);
+    }
+
+    // ---------- "my profile": which RuneScape names a logged-in Discord user has linked ----------
+
+    /**
+     * The RuneScape names linked to a Discord user. The website calls this only with the id from the visitor's
+     * own verified login session, so it reveals a person's own link to themselves and to no one else.
+     */
+    DataObject me(Guild guild, String userIdRaw) {
+        long userId;
+        try {
+            userId = Long.parseLong(userIdRaw == null ? "" : userIdRaw.trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+        DataArray rsns = DataArray.empty();
+        links.getLinksForUser(guild.getIdLong(), userId).forEach(link -> rsns.add(link.rsn()));
+        return DataObject.empty().put("rsns", rsns);
     }
 
     private static DataArray skillGainsJson(Map<Integer, Long> gains) {

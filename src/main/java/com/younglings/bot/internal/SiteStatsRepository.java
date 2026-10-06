@@ -55,6 +55,16 @@ public class SiteStatsRepository {
 
     public record CitadelTotals(int caps, int visits, List<LocalDate> cappedWeeks) {}
 
+    public record Award(String type, long points, LocalDate date) {}
+
+    public record CofferTotals(long donated, int donations, int donors, long held, int giveaways, long givenAway) {}
+
+    public record CofferWeek(LocalDate weekStart, long donated) {}
+
+    public record Donor(String name, long total, int donations) {}
+
+    public record Giveaway(long amount, String description, OffsetDateTime at) {}
+
     // ---------- queries ----------
 
     private interface RowMapper<T> {
@@ -106,12 +116,17 @@ public class SiteStatsRepository {
      * (or, failing that, just after) the start. Members with no snapshots yet are left out.
      */
     public List<Gain> xpGains(long guildId, OffsetDateTime since) {
+        return xpGainsBetween(guildId, since, OffsetDateTime.now().plusMinutes(1));
+    }
+
+    /** XP gained inside {@code [from, to]}: the newest snapshot at or before {@code to}, minus the one at (or, failing that, just after) {@code from}. */
+    public List<Gain> xpGainsBetween(long guildId, OffsetDateTime from, OffsetDateTime to) {
         return query("xp gains", """
                 WITH members AS (
                     SELECT LOWER(rsn) AS k, rsn FROM younglings.clan_member WHERE guild_id = ? AND active),
                 latest AS (
                     SELECT DISTINCT ON (LOWER(s.rsn)) LOWER(s.rsn) AS k, s.total_xp FROM younglings.player_stats_snapshot s
-                    WHERE s.guild_id = ? ORDER BY LOWER(s.rsn), s.snapshot_at DESC),
+                    WHERE s.guild_id = ? AND s.snapshot_at <= ? ORDER BY LOWER(s.rsn), s.snapshot_at DESC),
                 before AS (
                     SELECT DISTINCT ON (LOWER(s.rsn)) LOWER(s.rsn) AS k, s.total_xp FROM younglings.player_stats_snapshot s
                     WHERE s.guild_id = ? AND s.snapshot_at <= ? ORDER BY LOWER(s.rsn), s.snapshot_at DESC),
@@ -124,7 +139,75 @@ public class SiteStatsRepository {
                 LEFT JOIN before b ON b.k = m.k
                 LEFT JOIN after a ON a.k = m.k
                 WHERE COALESCE(b.total_xp, a.total_xp) IS NOT NULL
-                """, rs -> new Gain(rs.getString("rsn"), rs.getLong("gain")), guildId, guildId, guildId, since, guildId, since);
+                """, rs -> new Gain(rs.getString("rsn"), rs.getLong("gain")), guildId, guildId, to, guildId, from, guildId, from);
+    }
+
+    /** The first moment the bot has any XP snapshot for the clan — where the month-by-month leaderboards can start. */
+    public OffsetDateTime firstSnapshotAt(long guildId) {
+        List<OffsetDateTime> rows = query("first snapshot", "SELECT MIN(snapshot_at) AS first FROM younglings.player_stats_snapshot WHERE guild_id = ?",
+                rs -> rs.getObject("first", OffsetDateTime.class), guildId);
+        return rows.isEmpty() ? null : rows.getFirst();
+    }
+
+    /** Members ranked by Citadel weeks capped inside {@code [from, to)}. */
+    public List<Capper> cappersBetween(long guildId, OffsetDateTime from, OffsetDateTime to, int limit) {
+        return query("cappers in window", """
+                SELECT m.rsn, COUNT(DISTINCT (date_trunc('week', (a.recorded_at AT TIME ZONE 'UTC') - INTERVAL '2 days'))) AS weeks_capped, COUNT(*) AS total_caps
+                FROM younglings.player_activity a
+                JOIN younglings.clan_member m ON m.guild_id = a.guild_id AND LOWER(m.rsn) = LOWER(a.rsn) AND m.active
+                WHERE a.guild_id = ? AND a.activity_text LIKE 'Capped at my Clan Citadel%' AND a.recorded_at >= ? AND a.recorded_at < ?
+                GROUP BY m.rsn ORDER BY weeks_capped DESC, total_caps DESC, m.rsn LIMIT ?
+                """, rs -> new Capper(rs.getString("rsn"), rs.getInt("weeks_capped"), rs.getInt("total_caps")), guildId, from, to, limit);
+    }
+
+    /** A member's clan-point awards, newest first. */
+    public List<Award> awards(long guildId, String rsn, int limit) {
+        return query("point awards", """
+                SELECT award_type, points, awarded_for_date FROM younglings.clan_points_award
+                WHERE guild_id = ? AND LOWER(rsn) = LOWER(?) ORDER BY awarded_for_date DESC, id DESC LIMIT ?
+                """, rs -> new Award(rs.getString("award_type"), rs.getLong("points"), rs.getObject("awarded_for_date", LocalDate.class)), guildId, rsn, limit);
+    }
+
+    // ---------- the clan coffer (aggregates only — who holds what stays private) ----------
+
+    public CofferTotals cofferTotals(long guildId) {
+        long donated = 0, held = 0, givenAway = 0;
+        int donations = 0, donors = 0, giveaways = 0;
+        for (long[] row : query("coffer donations", "SELECT COALESCE(SUM(amount), 0) AS total, COUNT(*) AS n, COUNT(DISTINCT LOWER(donor_name)) AS donors FROM younglings.coffer_donation WHERE guild_id = ?",
+                rs -> new long[]{rs.getLong("total"), rs.getLong("n"), rs.getLong("donors")}, guildId)) {
+            donated = row[0];
+            donations = (int) row[1];
+            donors = (int) row[2];
+        }
+        for (long[] row : query("coffer held", "SELECT COALESCE(SUM(amount), 0) AS total FROM younglings.coffer_holder WHERE guild_id = ?", rs -> new long[]{rs.getLong("total")}, guildId)) {
+            held = row[0];
+        }
+        for (long[] row : query("coffer giveaways", "SELECT COALESCE(SUM(amount), 0) AS total, COUNT(*) AS n FROM younglings.coffer_giveaway WHERE guild_id = ?",
+                rs -> new long[]{rs.getLong("total"), rs.getLong("n")}, guildId)) {
+            givenAway = row[0];
+            giveaways = (int) row[1];
+        }
+        return new CofferTotals(donated, donations, donors, held, giveaways, givenAway);
+    }
+
+    public List<CofferWeek> cofferByWeek(long guildId, int weeks) {
+        return query("coffer weeks", """
+                SELECT date_trunc('week', submitted_at AT TIME ZONE 'UTC')::date AS week_start, SUM(amount) AS donated
+                FROM younglings.coffer_donation WHERE guild_id = ? AND submitted_at >= NOW() - (? * INTERVAL '7 days')
+                GROUP BY week_start ORDER BY week_start
+                """, rs -> new CofferWeek(rs.getObject("week_start", LocalDate.class), rs.getLong("donated")), guildId, weeks + 1);
+    }
+
+    public List<Donor> topDonors(long guildId, int limit) {
+        return query("top donors", """
+                SELECT MIN(donor_name) AS name, SUM(amount) AS total, COUNT(*) AS n FROM younglings.coffer_donation
+                WHERE guild_id = ? GROUP BY LOWER(donor_name) ORDER BY total DESC LIMIT ?
+                """, rs -> new Donor(rs.getString("name"), rs.getLong("total"), rs.getInt("n")), guildId, limit);
+    }
+
+    public List<Giveaway> recentGiveaways(long guildId, int limit) {
+        return query("recent giveaways", "SELECT amount, description, given_at FROM younglings.coffer_giveaway WHERE guild_id = ? ORDER BY given_at DESC LIMIT ?",
+                rs -> new Giveaway(rs.getLong("amount"), rs.getString("description"), rs.getObject("given_at", OffsetDateTime.class)), guildId, limit);
     }
 
     /** Capped / visited head-counts for each of the last {@code weeks} Citadel weeks, oldest first, including the running week. */
