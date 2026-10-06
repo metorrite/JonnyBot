@@ -54,15 +54,17 @@ public class TicketAdminApi {
     private final DashboardAccess access;
     private final TicketRepository repository;
     private final TicketService service;
+    private final ClanAdminApi clanAdmin;
 
-    public TicketAdminApi(DashboardAccess access, TicketRepository repository, TicketService service) {
+    public TicketAdminApi(DashboardAccess access, TicketRepository repository, TicketService service, ClanAdminApi clanAdmin) {
         this.access = access;
         this.repository = repository;
         this.service = service;
+        this.clanAdmin = clanAdmin;
     }
 
     /** A failure with the status and message the website should see. */
-    private static final class ApiError extends RuntimeException {
+    static final class ApiError extends RuntimeException {
         final int status;
         final List<String> problems;
 
@@ -160,6 +162,16 @@ public class TicketAdminApi {
         if (parts.length == 1 && parts[0].equals("structure")) {
             requireMethod(method, "GET");
             return structure(guild);
+        }
+        if (parts.length == 1 && parts[0].equals("selfroles")) {
+            if (method.equals("GET")) return clanAdmin.selfRoles(guild);
+            requireMethod(method, "PUT");
+            return clanAdmin.saveSelfRoles(guild, actor, body(exchange));
+        }
+        if (parts.length == 2 && parts[0].equals("clan") && parts[1].equals("points")) {
+            if (method.equals("GET")) return clanAdmin.clanPoints(guild);
+            requireMethod(method, "PUT");
+            return clanAdmin.saveClanPoints(guild, actor, body(exchange));
         }
         if (parts.length < 2 || !parts[0].equals("ticket")) return null;
 

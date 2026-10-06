@@ -4,6 +4,8 @@ import com.sun.net.httpserver.HttpExchange;
 import com.younglings.bot.configure.GuildSettingsService;
 import com.younglings.bot.internal.SiteStatsRepository.Gain;
 import com.younglings.bot.internal.SiteStatsRepository.MemberRow;
+import com.younglings.bot.member.MemberProfileRepository;
+import com.younglings.bot.member.MemberProfileRepository.Profile;
 import com.younglings.bot.runescape.ClanPointsRepository;
 import com.younglings.bot.runescape.ClanPointsRepository.RankConfigRow;
 import com.younglings.bot.runescape.PlayerActivity;
@@ -39,6 +41,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.ToLongFunction;
 
@@ -64,13 +67,16 @@ public class SiteApi {
     private final ClanPointsRepository points;
     private final GuildSettingsService settings;
     private final WeeklyDigestRepository rosterEvents;
+    private final MemberProfileRepository profiles;
 
-    public SiteApi(SiteStatsRepository stats, PlayerLinkRepository links, ClanPointsRepository points, GuildSettingsService settings, WeeklyDigestRepository rosterEvents) {
+    public SiteApi(SiteStatsRepository stats, PlayerLinkRepository links, ClanPointsRepository points, GuildSettingsService settings, WeeklyDigestRepository rosterEvents,
+                   MemberProfileRepository profiles) {
         this.stats = stats;
         this.links = links;
         this.points = points;
         this.settings = settings;
         this.rosterEvents = rosterEvents;
+        this.profiles = profiles;
     }
 
     public void handle(HttpExchange exchange, Guild guild) throws IOException {
@@ -113,6 +119,16 @@ public class SiteApi {
             log.error("Site API request {} failed", exchange.getRequestURI().getPath(), e);
             InternalApiServer.sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));
         }
+    }
+
+    // ---------- members who chose to stay out of the rankings or hide their adventure log ----------
+
+    private static boolean shown(Set<String> hidden, String rsn) {
+        return !hidden.contains(rsn.toLowerCase());
+    }
+
+    private static List<Gain> visible(List<Gain> gains, Set<String> hidden) {
+        return gains.stream().filter(g -> shown(hidden, g.rsn())).toList();
     }
 
     // ---------- who's online, in the order Discord's own member list uses ----------
@@ -279,15 +295,18 @@ public class SiteApi {
                 .put("xpWeek", week.stream().mapToLong(Gain::xp).sum())
                 .put("xpMonth", month.stream().mapToLong(Gain::xp).sum());
 
+        Set<String> hiddenBoards = profiles.hiddenRsns(guildId, true);
+        List<MemberRow> ranked = members.stream().filter(m -> shown(hiddenBoards, m.rsn())).toList();
+
         DataObject gains = DataObject.empty()
-                .put("day", gainsJson(day, 10)).put("week", gainsJson(week, 10)).put("month", gainsJson(month, 10));
+                .put("day", gainsJson(visible(day, hiddenBoards), 10)).put("week", gainsJson(visible(week, hiddenBoards), 10)).put("month", gainsJson(visible(month, hiddenBoards), 10));
 
         DataArray citadelWeeks = DataArray.empty();
         for (var w : stats.citadelByWeek(guildId, CHART_WEEKS)) {
             citadelWeeks.add(DataObject.empty().put("weekStart", w.weekStart().toString()).put("capped", w.capped()).put("visited", w.visited()));
         }
         DataArray cappers = DataArray.empty();
-        for (var c : stats.topCappers(guildId, 10)) {
+        for (var c : stats.topCappers(guildId, 40).stream().filter(c -> shown(hiddenBoards, c.rsn())).limit(10).toList()) {
             cappers.add(DataObject.empty().put("rsn", c.rsn()).put("weeksCapped", c.weeksCapped()).put("totalCaps", c.totalCaps()));
         }
 
@@ -297,7 +316,7 @@ public class SiteApi {
         }
 
         Map<Integer, List<SiteStatsRepository.SkillLeader>> bySkill = new TreeMap<>();
-        stats.skillLeaders(guildId, 3).forEach(l -> bySkill.computeIfAbsent(l.skillId(), k -> new ArrayList<>()).add(l));
+        stats.skillLeaders(guildId, 12).stream().filter(l -> shown(hiddenBoards, l.rsn())).forEach(l -> bySkill.computeIfAbsent(l.skillId(), k -> new ArrayList<>()).add(l));
         DataArray skills = DataArray.empty();
         bySkill.forEach((skillId, leaders) -> {
             DataArray array = DataArray.empty();
@@ -312,10 +331,10 @@ public class SiteApi {
                 .put("citadel", DataObject.empty().put("weeks", citadelWeeks).put("topCappers", cappers))
                 .put("roster", roster)
                 .put("skillLeaders", skills)
-                .put("topXp", topBy(members, MemberRow::totalXp, 10))
-                .put("topKills", topBy(members, MemberRow::kills, 10))
-                .put("topLevel", topBy(members, m -> m.totalLevel() == null ? 0 : m.totalLevel(), 10))
-                .put("topPoints", topBy(members, MemberRow::points, 10));
+                .put("topXp", topBy(ranked, MemberRow::totalXp, 10))
+                .put("topKills", topBy(ranked, MemberRow::kills, 10))
+                .put("topLevel", topBy(ranked, m -> m.totalLevel() == null ? 0 : m.totalLevel(), 10))
+                .put("topPoints", topBy(ranked, MemberRow::points, 10));
     }
 
     // ---------- one member's profile ----------
@@ -424,9 +443,16 @@ public class SiteApi {
         }
         json.put("awards", awards);
 
+        // What the member chose to show on their profile.
+        Profile chosen = profiles.getProfileForRsn(guildId, row.rsn());
+        json.put("bio", chosen == null ? "" : chosen.bio()).put("accentColor", chosen == null ? null : chosen.accentColor())
+                .put("pinnedSkill", chosen == null ? null : chosen.pinnedSkill());
+        boolean hideLog = chosen != null && chosen.hideAdventureLog();
+        json.put("adventureLogHidden", hideLog);
+
         // Adventure log.
         DataArray activities = DataArray.empty();
-        for (PlayerActivity activity : links.getRecentActivities(guildId, row.rsn(), 30)) {
+        for (PlayerActivity activity : hideLog ? List.<PlayerActivity>of() : links.getRecentActivities(guildId, row.rsn(), 30)) {
             activities.add(DataObject.empty().put("date", activity.date()).put("text", activity.text()).put("details", activity.details()));
         }
         json.put("activities", activities);
@@ -453,8 +479,10 @@ public class SiteApi {
             }
         }
 
+        Set<String> hiddenLogs = profiles.hiddenRsns(guild.getIdLong(), false);
         DataArray items = DataArray.empty();
         for (var row : stats.recentActivities(guild.getIdLong(), limit * 6)) {
+            if (!shown(hiddenLogs, row.rsn())) continue;
             ActivityKinds.Kind kind = ActivityKinds.kindOf(row.text());
             if (kind == ActivityKinds.Kind.OTHER || kind == ActivityKinds.Kind.CITADEL_VISIT) continue;
             if (wanted != null && kind != wanted) continue;
@@ -498,13 +526,14 @@ public class SiteApi {
 
     DataObject records(Guild guild) {
         long guildId = guild.getIdLong();
+        Set<String> hiddenBoards = profiles.hiddenRsns(guildId, true);
         DataArray days = DataArray.empty();
-        stats.biggestDays(guildId, 8).forEach(d -> days.add(DataObject.empty().put("rsn", d.rsn()).put("date", d.date().toString()).put("xp", d.xp())));
+        stats.biggestDays(guildId, 30).stream().filter(d -> shown(hiddenBoards, d.rsn())).limit(8).forEach(d -> days.add(DataObject.empty().put("rsn", d.rsn()).put("date", d.date().toString()).put("xp", d.xp())));
         DataArray club = DataArray.empty();
-        stats.twoHundredMillionClub(guildId, 10).forEach(c -> club.add(DataObject.empty().put("rsn", c.rsn()).put("skills", c.skills())));
+        stats.twoHundredMillionClub(guildId, 40).stream().filter(c -> shown(hiddenBoards, c.rsn())).limit(10).forEach(c -> club.add(DataObject.empty().put("rsn", c.rsn()).put("skills", c.skills())));
 
         DataArray streaks = DataArray.empty();
-        capStreaks(stats.allCapWeeks(guildId), currentCitadelWeekStart()).stream().limit(10)
+        capStreaks(stats.allCapWeeks(guildId), currentCitadelWeekStart()).stream().filter(s -> shown(hiddenBoards, s.rsn())).limit(10)
                 .forEach(s -> streaks.add(DataObject.empty().put("rsn", s.rsn()).put("longest", s.longest()).put("current", s.current())));
 
         DataArray veterans = DataArray.empty();
@@ -529,7 +558,8 @@ public class SiteApi {
 
         Map<String, int[]> grid = new LinkedHashMap<>();
         final int weekCount = weeks;
-        stats.members(guild.getIdLong()).forEach(m -> grid.put(m.rsn(), new int[weekCount]));
+        Set<String> hiddenBoards = profiles.hiddenRsns(guild.getIdLong(), true);
+        stats.members(guild.getIdLong()).stream().filter(m -> shown(hiddenBoards, m.rsn())).forEach(m -> grid.put(m.rsn(), new int[weekCount]));
         for (var cell : stats.citadelGrid(guild.getIdLong(), weeks)) {
             int[] row = grid.get(cell.rsn());
             int index = weekStarts.indexOf(cell.weekStart());
@@ -613,8 +643,10 @@ public class SiteApi {
         long guildId = guild.getIdLong();
         Map<String, Map<String, Integer>> byBoss = new HashMap<>();
         Map<String, Integer> byPlayer = new HashMap<>();
+        Set<String> hiddenLogs = profiles.hiddenRsns(guildId, false);
         for (String prefix : List.of("I killed", "I defeated")) {
             for (var row : stats.activitiesStartingWith(guildId, prefix)) {
+                if (!shown(hiddenLogs, row.rsn())) continue;
                 var boss = ActivityKinds.bossOf(row.text());
                 if (boss.isEmpty()) continue;
                 int kills = ActivityKinds.killCount(row.text());
@@ -643,7 +675,9 @@ public class SiteApi {
     DataObject drops(Guild guild) {
         DataArray recent = DataArray.empty();
         Map<String, Integer> tally = new HashMap<>();
+        Set<String> hiddenLogs = profiles.hiddenRsns(guild.getIdLong(), false);
         for (var row : stats.activitiesStartingWith(guild.getIdLong(), "I found")) {
+            if (!shown(hiddenLogs, row.rsn())) continue;
             var item = ActivityKinds.dropOf(row.text());
             if (item.isEmpty()) continue;
             tally.merge(item.get(), 1, Integer::sum);
@@ -694,9 +728,11 @@ public class SiteApi {
         OffsetDateTime from = month.atDay(1).atStartOfDay().atOffset(ZoneOffset.UTC);
         OffsetDateTime to = month.plusMonths(1).atDay(1).atStartOfDay().atOffset(ZoneOffset.UTC);
 
-        List<Gain> gains = stats.xpGainsBetween(guildId, from, to);
+        Set<String> hiddenBoards = profiles.hiddenRsns(guildId, true);
+        List<Gain> allGains = stats.xpGainsBetween(guildId, from, to);
+        List<Gain> gains = visible(allGains, hiddenBoards);
         DataArray cappers = DataArray.empty();
-        for (var c : stats.cappersBetween(guildId, from, to, 15)) {
+        for (var c : stats.cappersBetween(guildId, from, to, 60).stream().filter(c -> shown(hiddenBoards, c.rsn())).limit(15).toList()) {
             cappers.add(DataObject.empty().put("rsn", c.rsn()).put("weeksCapped", c.weeksCapped()).put("totalCaps", c.totalCaps()));
         }
 
@@ -715,7 +751,7 @@ public class SiteApi {
         return DataObject.empty()
                 .put("month", month.toString())
                 .put("months", months)
-                .put("totalXp", gains.stream().mapToLong(Gain::xp).sum())
+                .put("totalXp", allGains.stream().mapToLong(Gain::xp).sum())
                 .put("gainers", gainsJson(gains, 15))
                 .put("cappers", cappers)
                 .put("joined", joined)
