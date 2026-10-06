@@ -898,7 +898,20 @@ public class SiteApi {
         links.getLinksForUser(guild.getIdLong(), userId).forEach(link -> rsns.add(link.rsn()));
         var pending = links.getPendingAttemptForUser(guild.getIdLong(), userId);
         String state = rsns.length() > 0 ? "LINKED" : pending != null ? "PENDING" : "NONE";
-        return DataObject.empty().put("rsns", rsns).put("state", state).put("pendingRsn", pending == null ? null : pending.rsn());
+
+        // Things worth telling this member about, from the last two weeks: how a link request ended, and goals they reached.
+        OffsetDateTime since = OffsetDateTime.now(ZoneOffset.UTC).minusDays(14);
+        DataArray notices = DataArray.empty();
+        var decision = links.latestDecision(guild.getIdLong(), userId, since);
+        if (decision != null) {
+            notices.add(DataObject.empty().put("id", "link-" + decision.attemptId()).put("kind", "LINK_" + decision.status()).put("rsn", decision.rsn()).put("at", decision.resolvedAt().toString()));
+        }
+        for (var goal : profiles.goalsFor(guild.getIdLong(), userId)) {
+            if (goal.achievedAt() == null || goal.achievedAt().isBefore(since)) continue;
+            notices.add(DataObject.empty().put("id", "goal-" + goal.id()).put("kind", "GOAL_REACHED").put("rsn", goal.rsn())
+                    .put("skill", RuneScapeSkillCatalog.nameFor(goal.skillId())).put("level", goal.targetLevel()).put("at", goal.achievedAt().toString()));
+        }
+        return DataObject.empty().put("rsns", rsns).put("state", state).put("pendingRsn", pending == null ? null : pending.rsn()).put("notices", notices);
     }
 
     private static DataArray skillGainsJson(Map<Integer, Long> gains) {

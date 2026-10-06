@@ -182,6 +182,32 @@ public class PlayerLinkRepository {
         }
     }
 
+    /** How an admin settled a member's link request. */
+    public record Decision(long attemptId, String rsn, String status, java.time.OffsetDateTime resolvedAt) {}
+
+    /** The member's most recent approved or turned-down request since {@code since}, or null — what the website's bell tells them about. */
+    public Decision latestDecision(long guildId, long discordUserId, java.time.OffsetDateTime since) {
+        String sql = """
+                SELECT attempt_id, rsn, status, resolved_at
+                FROM younglings.player_verification_attempt
+                WHERE guild_id = ? AND discord_user_id = ? AND status IN ('APPROVED', 'REJECTED') AND resolved_at >= ?
+                ORDER BY resolved_at DESC
+                LIMIT 1
+                """;
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setLong(1, guildId);
+            statement.setLong(2, discordUserId);
+            statement.setObject(3, since);
+            try (ResultSet rs = statement.executeQuery()) {
+                return rs.next() ? new Decision(rs.getLong("attempt_id"), rs.getString("rsn"), rs.getString("status"), rs.getObject("resolved_at", java.time.OffsetDateTime.class)) : null;
+            }
+        } catch (SQLException e) {
+            log.error("Failed to read the latest verification decision for user {}", discordUserId, e);
+            throw new RuntimeException("Failed to read the latest verification decision", e);
+        }
+    }
+
     // --- Confirmed links ---
 
     public void createLink(long guildId, long discordUserId, String rsn, String verificationMethod) {
