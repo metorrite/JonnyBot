@@ -1,6 +1,7 @@
 package com.younglings.bot.internal;
 
 import com.sun.net.httpserver.HttpExchange;
+import com.younglings.bot.commands.runescape.RsInteractionListener;
 import com.younglings.bot.commands.poll.PollOption;
 import com.younglings.bot.commands.poll.PollService;
 import com.younglings.bot.commands.poll.PollSession;
@@ -69,12 +70,14 @@ public class MemberApi {
     private final SiteCache cache;
     private final CommunitySettings community;
     private final SiteStatsRepository stats;
+    private final RsInteractionListener rsLinks;
     // Per member: a handful of quick clicks is normal, a sustained flood is not. Reads are far cheaper than writes.
     private final RateLimiter writes = new RateLimiter(8, 1_500);
     private final RateLimiter reads = new RateLimiter(40, 500);
 
     public MemberApi(MemberProfileRepository repository, PlayerLinkRepository links, PollService pollService, SignupService signupService, MemberAccess memberAccess,
-                     Debouncer debouncer, SiteCache cache, CommunitySettings community, SiteStatsRepository stats) {
+                     Debouncer debouncer, SiteCache cache, CommunitySettings community, SiteStatsRepository stats, RsInteractionListener rsLinks) {
+        this.rsLinks = rsLinks;
         this.community = community;
         this.stats = stats;
         this.debouncer = debouncer;
@@ -132,6 +135,12 @@ public class MemberApi {
                 case "roles" -> method.equals("GET") ? roles(guild, userId) : method.equals("POST") ? toggleRole(guild, userId, body) : null;
                 case "polls" -> method.equals("GET") ? myPolls(guild, userId) : method.equals("POST") ? createPoll(guild, userId, body) : null;
                 case "coffer" -> method.equals("GET") ? myCoffer(guild, userId) : null;
+                case "link" -> switch (method) {
+                    case "GET" -> linkStatus(guild, userId);
+                    case "POST" -> submitLink(guild, userId, body);
+                    case "DELETE" -> cancelLink(guild, userId);
+                    default -> null;
+                };
                 case "polls/vote" -> method.equals("POST") ? votePoll(guild, userId, body) : null;
                 case "signups" -> method.equals("GET") ? mySignups(guild, userId) : null;
                 case "signups/join" -> method.equals("POST") ? joinSignup(guild, userId, body) : null;
@@ -150,6 +159,47 @@ public class MemberApi {
             log.error("Member API request {} failed", exchange.getRequestURI().getPath(), e);
             InternalApiServer.sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));
         }
+    }
+
+    // ---------- linking a RuneScape name ----------
+
+    private static final java.util.regex.Pattern RSN = java.util.regex.Pattern.compile("[A-Za-z0-9 _-]{1,12}");
+
+    /** NONE, PENDING (an admin is reviewing a request) or LINKED, with the names involved. */
+    private DataObject linkStatus(Guild guild, long userId) {
+        DataArray rsns = DataArray.empty();
+        links.getLinksForUser(guild.getIdLong(), userId).forEach(l -> rsns.add(l.rsn()));
+        var pending = links.getPendingAttemptForUser(guild.getIdLong(), userId);
+        String state = rsns.length() > 0 ? "LINKED" : pending != null ? "PENDING" : "NONE";
+        return DataObject.empty().put("state", state).put("rsns", rsns).put("pendingRsn", pending == null ? null : pending.rsn());
+    }
+
+    private DataObject submitLink(Guild guild, long userId, DataObject body) {
+        String rsn = body.getString("rsn", "").strip().replaceAll("\\s+", " ");
+        if (!RSN.matcher(rsn).matches()) throw new Rejected(400, "RuneScape names are 1 to 12 letters, numbers, spaces, hyphens or underscores.");
+        net.dv8tion.jda.api.entities.Member member = guild.getMemberById(userId);
+        if (member == null) {
+            try {
+                member = guild.retrieveMemberById(userId).complete();
+            } catch (Exception e) {
+                throw new Rejected(403, "Join the Discord server first, then link your name.");
+            }
+        }
+
+        var result = rsLinks.submitLinkRequest(guild, member, userId, rsn);
+        cache.invalidate("me");
+        return switch (result.status()) {
+            case ALREADY_YOURS -> throw new Rejected(409, rsn + " is already linked to your account.");
+            case TAKEN -> throw new Rejected(409, rsn + " is already linked to another Discord account. If that's you, ask an admin.");
+            case PENDING_EXISTS -> throw new Rejected(409, "You already have a request waiting for review (" + result.attempt().rsn() + "). Cancel it first to submit a different name.");
+            case SUBMITTED -> linkStatus(guild, userId).put("submitted", true);
+        };
+    }
+
+    private DataObject cancelLink(Guild guild, long userId) {
+        if (!rsLinks.cancelLinkRequest(guild, userId)) throw new Rejected(404, "There's no pending request to cancel.");
+        cache.invalidate("me");
+        return linkStatus(guild, userId);
     }
 
     // ---------- settings ----------

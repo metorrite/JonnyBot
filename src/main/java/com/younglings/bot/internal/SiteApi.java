@@ -154,7 +154,8 @@ public class SiteApi {
             case "polls", "signups" -> 5_000;
             case "feed" -> 15_000;
             case "events" -> 30_000;
-            case "members", "overview", "member", "me", "news" -> 60_000;
+            case "members", "overview", "member", "news" -> 60_000;
+            case "me" -> 15_000;
             case "recap" -> 300_000;
             case "bosses", "boss", "item", "drop-log" -> 60_000;
             default -> 120_000; // records, history, citadel grid, PvM, drops, coffer, leaderboards, skill series
@@ -895,7 +896,9 @@ public class SiteApi {
         }
         DataArray rsns = DataArray.empty();
         links.getLinksForUser(guild.getIdLong(), userId).forEach(link -> rsns.add(link.rsn()));
-        return DataObject.empty().put("rsns", rsns);
+        var pending = links.getPendingAttemptForUser(guild.getIdLong(), userId);
+        String state = rsns.length() > 0 ? "LINKED" : pending != null ? "PENDING" : "NONE";
+        return DataObject.empty().put("rsns", rsns).put("state", state).put("pendingRsn", pending == null ? null : pending.rsn());
     }
 
     private static DataArray skillGainsJson(Map<Integer, Long> gains) {
