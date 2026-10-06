@@ -173,6 +173,16 @@ public class SiteApi {
      */
     DataObject online(Guild guild) {
         record Group(long id, String name, int colorRaw, int position) {}
+        // Which online members can be linked to a clan profile: they have a linked RuneScape name that is a current member and haven't opted out.
+        long guildId = guild.getIdLong();
+        Set<String> activeRsns = new java.util.HashSet<>();
+        stats.members(guildId).forEach(m -> activeRsns.add(m.rsn().toLowerCase()));
+        Set<Long> hiddenLinks = profiles.hiddenDiscordUsers(guildId);
+        Map<Long, String> rsnByUser = new HashMap<>();
+        for (var link : links.getAllLinks(guildId)) {
+            if (activeRsns.contains(link.rsn().toLowerCase()) && !hiddenLinks.contains(link.discordUserId())) rsnByUser.putIfAbsent(link.discordUserId(), link.rsn());
+        }
+
         Map<Long, List<Member>> byGroup = new HashMap<>();
         Map<Long, Group> groups = new HashMap<>();
         int total = 0;
@@ -206,6 +216,7 @@ public class SiteApi {
                         .put("avatarUrl", m.getEffectiveAvatarUrl())
                         .put("status", m.getOnlineStatus().getKey())
                         .put("colorRaw", m.getColors().getPrimaryRaw())
+                        .put("rsn", rsnByUser.get(m.getIdLong()))
                         .put("topRole", top == null ? null : top.getName()));
             }
             groupArray.add(DataObject.empty()

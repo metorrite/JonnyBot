@@ -158,7 +158,7 @@ public class MemberApi {
         return DataObject.empty()
                 .put("bio", p.bio()).put("accentColor", p.accentColor()).put("pinnedSkill", p.pinnedSkill())
                 .put("hideAdventureLog", p.hideAdventureLog()).put("hideFromLeaderboards", p.hideFromLeaderboards())
-                .put("dmGoals", p.dmGoals()).put("dmEvents", p.dmEvents());
+                .put("dmGoals", p.dmGoals()).put("dmEvents", p.dmEvents()).put("hideDiscordLink", p.hideDiscordLink());
     }
 
     private DataObject getSettings(Guild guild, long userId) {
@@ -185,10 +185,10 @@ public class MemberApi {
             pinned = id;
         }
 
-        cache.clear(); // a profile change can alter many cached answers (privacy toggles hide people from several lists)
         repository.saveProfile(new Profile(guild.getIdLong(), userId, bio, accent, pinned,
                 body.getBoolean("hideAdventureLog", current.hideAdventureLog()), body.getBoolean("hideFromLeaderboards", current.hideFromLeaderboards()),
-                body.getBoolean("dmGoals", current.dmGoals()), body.getBoolean("dmEvents", current.dmEvents())));
+                body.getBoolean("dmGoals", current.dmGoals()), body.getBoolean("dmEvents", current.dmEvents()), body.getBoolean("hideDiscordLink", current.hideDiscordLink())));
+        cache.clear(); // a profile change can alter many cached answers (privacy toggles hide people from several lists) — cleared after the save so nothing re-caches the old answer
         return getSettings(guild, userId);
     }
 
