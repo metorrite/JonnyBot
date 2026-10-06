@@ -75,9 +75,10 @@ public class SiteApi {
     private final SignupService signupService;
     private final SiteCache cache;
     private final RecapService recap;
+    private final CommunitySettings community;
 
     public SiteApi(SiteStatsRepository stats, PlayerLinkRepository links, ClanPointsRepository points, GuildSettingsService settings, WeeklyDigestRepository rosterEvents,
-                   MemberProfileRepository profiles, SiteNewsService news, SignupService signupService, SiteCache cache, RecapService recap) {
+                   MemberProfileRepository profiles, SiteNewsService news, SignupService signupService, SiteCache cache, RecapService recap, CommunitySettings community) {
         this.stats = stats;
         this.links = links;
         this.points = points;
@@ -88,6 +89,7 @@ public class SiteApi {
         this.signupService = signupService;
         this.cache = cache;
         this.recap = recap;
+        this.community = community;
     }
 
     public void handle(HttpExchange exchange, Guild guild) throws IOException {
@@ -691,13 +693,16 @@ public class SiteApi {
 
     DataObject polls(Guild guild) {
         DataArray array = DataArray.empty();
-        for (var poll : stats.polls(guild.getIdLong(), 20)) {
+        var allPolls = stats.polls(guild.getIdLong(), 20);
+        var closing = community.closesAt(allPolls.stream().map(SiteStatsRepository.PollRow::id).toList());
+        for (var poll : allPolls) {
             DataArray options = DataArray.empty();
             int total = poll.options().stream().mapToInt(SiteStatsRepository.PollOption::votes).sum();
             poll.options().forEach(o -> options.add(DataObject.empty().put("number", o.number()).put("label", o.label()).put("votes", o.votes())));
             array.add(DataObject.empty().put("id", Long.toString(poll.id())).put("title", poll.title()).put("status", poll.status())
                     .put("anonymous", poll.anonymous()).put("multiple", poll.multiple()).put("totalVotes", total).put("active", "ACTIVE".equalsIgnoreCase(poll.status()))
                     .put("createdAt", poll.createdAt().toString()).put("closedAt", poll.closedAt() == null ? null : poll.closedAt().toString())
+                    .put("closesAt", closing.get(poll.id()) == null || !"ACTIVE".equalsIgnoreCase(poll.status()) ? null : closing.get(poll.id()).toString())
                     .put("url", poll.messageId() == null ? null : "https://discord.com/channels/" + guild.getId() + "/" + poll.channelId() + "/" + poll.messageId())
                     .put("options", options));
         }

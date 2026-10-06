@@ -67,12 +67,16 @@ public class MemberApi {
     private final MemberAccess memberAccess;
     private final Debouncer debouncer;
     private final SiteCache cache;
+    private final CommunitySettings community;
+    private final SiteStatsRepository stats;
     // Per member: a handful of quick clicks is normal, a sustained flood is not. Reads are far cheaper than writes.
     private final RateLimiter writes = new RateLimiter(8, 1_500);
     private final RateLimiter reads = new RateLimiter(40, 500);
 
     public MemberApi(MemberProfileRepository repository, PlayerLinkRepository links, PollService pollService, SignupService signupService, MemberAccess memberAccess,
-                     Debouncer debouncer, SiteCache cache) {
+                     Debouncer debouncer, SiteCache cache, CommunitySettings community, SiteStatsRepository stats) {
+        this.community = community;
+        this.stats = stats;
         this.debouncer = debouncer;
         this.cache = cache;
         this.repository = repository;
@@ -126,7 +130,8 @@ public class MemberApi {
                     default -> null;
                 };
                 case "roles" -> method.equals("GET") ? roles(guild, userId) : method.equals("POST") ? toggleRole(guild, userId, body) : null;
-                case "polls" -> method.equals("GET") ? myPolls(guild, userId) : null;
+                case "polls" -> method.equals("GET") ? myPolls(guild, userId) : method.equals("POST") ? createPoll(guild, userId, body) : null;
+                case "coffer" -> method.equals("GET") ? myCoffer(guild, userId) : null;
                 case "polls/vote" -> method.equals("POST") ? votePoll(guild, userId, body) : null;
                 case "signups" -> method.equals("GET") ? mySignups(guild, userId) : null;
                 case "signups/join" -> method.equals("POST") ? joinSignup(guild, userId, body) : null;
@@ -308,6 +313,53 @@ public class MemberApi {
             array.add(DataObject.empty().put("pollId", Long.toString(poll.pollId())).put("mine", mine));
         }
         return DataObject.empty().put("polls", array);
+    }
+
+    /** A member starts a poll from the website: same rules and limits as /poll, posted in the channel an admin chose for member polls. */
+    private DataObject createPoll(Guild guild, long userId, DataObject body) {
+        Member member = memberOf(guild, userId);
+        if (!memberAccess.isMemberTier(guild, member)) throw new Rejected(403, "Starting a poll is for verified clan members.");
+
+        Long channelId = community.pollChannel(guild.getIdLong());
+        net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel channel = channelId == null ? null
+                : guild.getChannelById(net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel.class, channelId);
+        if (channel == null) throw new Rejected(409, "Member polls aren't set up yet — an admin needs to choose a channel for them.");
+        if (!channel.canTalk()) throw new Rejected(502, "JonnyBot can't post in the polls channel right now.");
+
+        String title = body.getString("title", "").strip();
+        List<String> options = new ArrayList<>();
+        if (!body.isNull("options")) {
+            DataArray array = body.getArray("options");
+            for (int i = 0; i < array.length(); i++) {
+                String option = array.getString(i).strip();
+                if (!option.isEmpty()) options.add(option);
+            }
+        }
+        Integer hours = body.isNull("durationHours") ? null : body.getInt("durationHours");
+        String problem = PollRules.validate(title, options);
+        if (problem == null) problem = PollRules.validateDuration(hours);
+        if (problem != null) throw new Rejected(400, problem);
+
+        if (pollService.activePollsOwnedBy(guild.getIdLong(), userId).size() >= 3) throw new Rejected(409, "You already have 3 polls running — end one first.");
+
+        long pollId = pollService.createPoll(guild, channel, title, body.getBoolean("anonymous", false), body.getBoolean("multiple", false), options, userId);
+        if (hours != null) community.scheduleClose(pollId, java.time.OffsetDateTime.now().plusHours(hours));
+        cache.invalidate("polls");
+        return DataObject.empty().put("created", true).put("channel", channel.getName());
+    }
+
+    /** What the member has put into and got out of the clan coffer: their donations (matched by their linked RuneScape names), balance and giveaways. */
+    private DataObject myCoffer(Guild guild, long userId) {
+        List<String> names = links.getLinksForUser(guild.getIdLong(), userId).stream().map(PlayerLink::rsn).toList();
+        var donations = stats.donationsBy(guild.getIdLong(), names, 50);
+
+        DataArray donationArray = DataArray.empty();
+        donations.forEach(d -> donationArray.add(DataObject.empty().put("name", d.donorName()).put("amount", d.amount()).put("at", d.at().toString())));
+        DataArray giveaways = DataArray.empty();
+        stats.giveawaysTo(guild.getIdLong(), userId, 20).forEach(g -> giveaways.add(DataObject.empty().put("amount", g.amount()).put("description", g.description()).put("at", g.at().toString())));
+
+        return DataObject.empty().put("linked", !names.isEmpty()).put("donated", donations.stream().mapToLong(SiteStatsRepository.MyDonation::amount).sum())
+                .put("balance", stats.holderBalance(guild.getIdLong(), userId)).put("donations", donationArray).put("giveaways", giveaways);
     }
 
     /** Votes the way the Discord button does — same rules, same message update — so the site and the poll message always agree. */

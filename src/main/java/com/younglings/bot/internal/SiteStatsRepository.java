@@ -77,6 +77,8 @@ public class SiteStatsRepository {
 
     public record RenameRow(String oldRsn, String newRsn, OffsetDateTime at) {}
 
+    public record MyDonation(String donorName, long amount, OffsetDateTime at) {}
+
     public record SkillGain(int skillId, long xp) {}
 
     public record DayXp(LocalDate date, long xp) {}
@@ -193,6 +195,28 @@ public class SiteStatsRepository {
                 SELECT award_type, points, awarded_for_date FROM younglings.clan_points_award
                 WHERE guild_id = ? AND LOWER(rsn) = LOWER(?) ORDER BY awarded_for_date DESC, id DESC LIMIT ?
                 """, rs -> new Award(rs.getString("award_type"), rs.getLong("points"), rs.getObject("awarded_for_date", LocalDate.class)), guildId, rsn, limit);
+    }
+
+    // ---------- one member's coffer ----------
+
+    /** Donations recorded under any of {@code names} (compared ignoring case), newest first. */
+    public List<MyDonation> donationsBy(long guildId, List<String> names, int limit) {
+        if (names.isEmpty()) return List.of();
+        String[] lowered = names.stream().map(String::toLowerCase).toArray(String[]::new);
+        return query("my donations", """
+                SELECT donor_name, amount, submitted_at FROM younglings.coffer_donation
+                WHERE guild_id = ? AND LOWER(donor_name) = ANY (?) ORDER BY submitted_at DESC LIMIT ?
+                """, rs -> new MyDonation(rs.getString("donor_name"), rs.getLong("amount"), rs.getObject("submitted_at", OffsetDateTime.class)), guildId, lowered, limit);
+    }
+
+    public long holderBalance(long guildId, long userId) {
+        List<Long> rows = query("coffer balance", "SELECT amount FROM younglings.coffer_holder WHERE guild_id = ? AND discord_user_id = ?", rs -> rs.getLong(1), guildId, userId);
+        return rows.isEmpty() ? 0 : rows.getFirst();
+    }
+
+    public List<Giveaway> giveawaysTo(long guildId, long userId, int limit) {
+        return query("my giveaways", "SELECT amount, description, given_at FROM younglings.coffer_giveaway WHERE guild_id = ? AND recipient_discord_id = ? ORDER BY given_at DESC LIMIT ?",
+                rs -> new Giveaway(rs.getLong("amount"), rs.getString("description"), rs.getObject("given_at", OffsetDateTime.class)), guildId, userId, limit);
     }
 
     // ---------- recap windows ----------
