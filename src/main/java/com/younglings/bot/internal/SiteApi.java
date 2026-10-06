@@ -104,6 +104,7 @@ public class SiteApi {
                 case "citadel-grid" -> citadelGrid(guild, query(exchange, "weeks"));
                 case "history" -> history(guild);
                 case "polls" -> polls(guild);
+                case "signups" -> signups(guild);
                 case "pvm" -> pvm(guild);
                 case "drops" -> drops(guild);
                 case "me" -> me(guild, query(exchange, "userId"));
@@ -621,6 +622,17 @@ public class SiteApi {
                 .put("next", c.next().rankName()).put("points", c.member().points()).put("needed", c.needed()).put("promotionNeeded", c.member().promotionNeeded())));
 
         return DataObject.empty().put("memberCount", series).put("timeline", timelineArray).put("ranks", ranksJson(guildId, members)).put("closeToPromotion", closeArray);
+    }
+
+    DataObject signups(Guild guild) {
+        DataArray array = DataArray.empty();
+        for (var sheet : stats.activeSignups(guild.getIdLong())) {
+            DataArray entries = DataArray.empty();
+            sheet.entries().forEach(e -> entries.add(DataObject.empty().put("rsn", e.rsn()).put("position", e.position())));
+            array.add(DataObject.empty().put("id", Long.toString(sheet.id())).put("title", sheet.title()).put("note", sheet.notification())
+                    .put("max", sheet.max()).put("createdAt", sheet.createdAt().toString()).put("entries", entries));
+        }
+        return DataObject.empty().put("signups", array);
     }
 
     DataObject polls(Guild guild) {

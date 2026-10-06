@@ -77,6 +77,10 @@ public class SiteStatsRepository {
 
     public record RenameRow(String oldRsn, String newRsn, OffsetDateTime at) {}
 
+    public record SignupRow(long id, String title, String notification, Integer max, OffsetDateTime createdAt, List<SignupEntry> entries) {}
+
+    public record SignupEntry(String rsn, int position) {}
+
     public record PollOption(int number, String label, int votes) {}
 
     public record PollRow(long id, long channelId, Long messageId, String title, boolean anonymous, boolean multiple, String status,
@@ -267,6 +271,24 @@ public class SiteStatsRepository {
                 SELECT old_rsn, new_rsn, COALESCE(resolved_at, detected_at) AS at FROM younglings.rsn_rename_candidate
                 WHERE guild_id = ? AND status = 'CONFIRMED' ORDER BY COALESCE(resolved_at, detected_at) DESC LIMIT ?
                 """, rs -> new RenameRow(rs.getString("old_rsn"), rs.getString("new_rsn"), rs.getObject("at", OffsetDateTime.class)), guildId, limit);
+    }
+
+    /** Active signup sheets with who has signed up (RuneScape names only), in queue order. */
+    public List<SignupRow> activeSignups(long guildId) {
+        record Head(long id, String title, String notification, Integer max, OffsetDateTime createdAt) {}
+        List<Head> heads = query("signups", """
+                SELECT signup_id, title, notification_message, max_signups, created_at FROM younglings.signup
+                WHERE guild_id = ? AND status = 'ACTIVE' AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 20
+                """, rs -> new Head(rs.getLong("signup_id"), rs.getString("title"), rs.getString("notification_message"), (Integer) rs.getObject("max_signups"),
+                rs.getObject("created_at", OffsetDateTime.class)), guildId);
+
+        List<SignupRow> rows = new ArrayList<>();
+        for (Head head : heads) {
+            List<SignupEntry> entries = query("signup entries", "SELECT rsn, queue_position FROM younglings.signup_entry WHERE signup_id = ? ORDER BY queue_position",
+                    rs -> new SignupEntry(rs.getString("rsn"), rs.getInt("queue_position")), head.id());
+            rows.add(new SignupRow(head.id(), head.title(), head.notification(), head.max(), head.createdAt(), entries));
+        }
+        return rows;
     }
 
     /** The server's polls, newest first, each with its options and vote counts. */
