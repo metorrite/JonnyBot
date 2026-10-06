@@ -3,6 +3,9 @@ package com.younglings.bot.internal;
 import com.sun.net.httpserver.HttpExchange;
 import com.younglings.bot.configure.GuildSettingsService;
 import com.younglings.bot.internal.SiteStatsRepository.Gain;
+import com.younglings.bot.commands.signup.SignupService;
+import com.younglings.bot.commands.signup.SignupSession;
+import com.younglings.bot.commands.signup.SubmissionField;
 import com.younglings.bot.internal.SiteStatsRepository.MemberRow;
 import com.younglings.bot.member.MemberProfileRepository;
 import com.younglings.bot.member.MemberProfileRepository.Profile;
@@ -68,15 +71,19 @@ public class SiteApi {
     private final GuildSettingsService settings;
     private final WeeklyDigestRepository rosterEvents;
     private final MemberProfileRepository profiles;
+    private final SiteNewsService news;
+    private final SignupService signupService;
 
     public SiteApi(SiteStatsRepository stats, PlayerLinkRepository links, ClanPointsRepository points, GuildSettingsService settings, WeeklyDigestRepository rosterEvents,
-                   MemberProfileRepository profiles) {
+                   MemberProfileRepository profiles, SiteNewsService news, SignupService signupService) {
         this.stats = stats;
         this.links = links;
         this.points = points;
         this.settings = settings;
         this.rosterEvents = rosterEvents;
         this.profiles = profiles;
+        this.news = news;
+        this.signupService = signupService;
     }
 
     public void handle(HttpExchange exchange, Guild guild) throws IOException {
@@ -105,6 +112,7 @@ public class SiteApi {
                 case "history" -> history(guild);
                 case "polls" -> polls(guild);
                 case "signups" -> signups(guild);
+                case "news" -> DataObject.empty().put("posts", news.latest(guild, 14));
                 case "pvm" -> pvm(guild);
                 case "drops" -> drops(guild);
                 case "me" -> me(guild, query(exchange, "userId"));
@@ -624,13 +632,37 @@ public class SiteApi {
         return DataObject.empty().put("memberCount", series).put("timeline", timelineArray).put("ranks", ranksJson(guildId, members)).put("closeToPromotion", closeArray);
     }
 
+    /**
+     * Open signup sheets and who is on them. A sheet's entry stores either the name someone typed (queue
+     * signups) or just their Discord id (group and submission signups) — the id is never sent: the site shows
+     * the member's linked RuneScape name, or "A member" if they haven't linked one.
+     */
     DataObject signups(Guild guild) {
+        long guildId = guild.getIdLong();
         DataArray array = DataArray.empty();
-        for (var sheet : stats.activeSignups(guild.getIdLong())) {
+        for (var sheet : stats.activeSignups(guildId)) {
+            SignupSession session = signupService.getSessionById(sheet.id());
+            String type = session == null ? "QUEUE" : session.type().name();
+
+            DataArray fields = DataArray.empty();
+            if (session != null && session.type() == com.younglings.bot.commands.signup.SignupType.SUBMISSION) {
+                for (SubmissionField f : SubmissionField.deserialize(session.submissionFields())) {
+                    fields.add(DataObject.empty().put("label", f.label()).put("type", f.type()).put("required", f.required()));
+                }
+            }
+
             DataArray entries = DataArray.empty();
-            sheet.entries().forEach(e -> entries.add(DataObject.empty().put("rsn", e.rsn()).put("position", e.position())));
+            for (var entry : sheet.entries()) {
+                String name = entry.rsn();
+                if (!type.equals("QUEUE")) {
+                    var linked = links.getLinksForUser(guildId, entry.userId());
+                    name = linked.isEmpty() ? "A member" : linked.getFirst().rsn();
+                }
+                entries.add(DataObject.empty().put("name", name).put("position", entry.position()));
+            }
             array.add(DataObject.empty().put("id", Long.toString(sheet.id())).put("title", sheet.title()).put("note", sheet.notification())
-                    .put("max", sheet.max()).put("createdAt", sheet.createdAt().toString()).put("entries", entries));
+                    .put("max", sheet.max()).put("type", type).put("paused", !"ACTIVE".equalsIgnoreCase(sheet.status()))
+                    .put("createdAt", sheet.createdAt().toString()).put("fields", fields).put("entries", entries));
         }
         return DataObject.empty().put("signups", array);
     }
@@ -640,9 +672,9 @@ public class SiteApi {
         for (var poll : stats.polls(guild.getIdLong(), 20)) {
             DataArray options = DataArray.empty();
             int total = poll.options().stream().mapToInt(SiteStatsRepository.PollOption::votes).sum();
-            poll.options().forEach(o -> options.add(DataObject.empty().put("label", o.label()).put("votes", o.votes())));
+            poll.options().forEach(o -> options.add(DataObject.empty().put("number", o.number()).put("label", o.label()).put("votes", o.votes())));
             array.add(DataObject.empty().put("id", Long.toString(poll.id())).put("title", poll.title()).put("status", poll.status())
-                    .put("anonymous", poll.anonymous()).put("multiple", poll.multiple()).put("totalVotes", total)
+                    .put("anonymous", poll.anonymous()).put("multiple", poll.multiple()).put("totalVotes", total).put("active", "ACTIVE".equalsIgnoreCase(poll.status()))
                     .put("createdAt", poll.createdAt().toString()).put("closedAt", poll.closedAt() == null ? null : poll.closedAt().toString())
                     .put("url", poll.messageId() == null ? null : "https://discord.com/channels/" + guild.getId() + "/" + poll.channelId() + "/" + poll.messageId())
                     .put("options", options));

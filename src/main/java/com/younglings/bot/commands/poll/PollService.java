@@ -125,6 +125,14 @@ public class PollService {
         return lines;
     }
 
+    /** The option numbers {@code userId} has picked in a poll — what the website highlights as "your vote". */
+    public java.util.Set<Integer> myOptionNumbers(long pollId, long userId) {
+        java.util.Set<Long> mine = pollRepository.getUserVotes(pollId, userId);
+        java.util.Set<Integer> numbers = new java.util.TreeSet<>();
+        for (PollOption option : getOptions(pollId)) if (mine.contains(option.optionId())) numbers.add(option.optionNumber());
+        return numbers;
+    }
+
     // --- Voting ---
 
     public enum VoteResult { ADDED, REMOVED, SWITCHED, POLL_CLOSED }
