@@ -1,7 +1,14 @@
 package com.younglings.bot.internal;
 
 import com.sun.net.httpserver.HttpExchange;
+import com.younglings.bot.commands.poll.PollOption;
+import com.younglings.bot.commands.poll.PollService;
+import com.younglings.bot.commands.poll.PollSession;
+import com.younglings.bot.commands.signup.SignupService;
+import com.younglings.bot.commands.signup.SignupSession;
+import com.younglings.bot.commands.signup.SubmissionField;
 import com.younglings.bot.member.MemberProfileRepository;
+import com.younglings.bot.permission.MemberAccess;
 import com.younglings.bot.member.MemberProfileRepository.Goal;
 import com.younglings.bot.member.MemberProfileRepository.Profile;
 import com.younglings.bot.member.MemberProfileRepository.SelfRole;
@@ -23,6 +30,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -54,10 +62,16 @@ public class MemberApi {
 
     private final MemberProfileRepository repository;
     private final PlayerLinkRepository links;
+    private final PollService pollService;
+    private final SignupService signupService;
+    private final MemberAccess memberAccess;
 
-    public MemberApi(MemberProfileRepository repository, PlayerLinkRepository links) {
+    public MemberApi(MemberProfileRepository repository, PlayerLinkRepository links, PollService pollService, SignupService signupService, MemberAccess memberAccess) {
         this.repository = repository;
         this.links = links;
+        this.pollService = pollService;
+        this.signupService = signupService;
+        this.memberAccess = memberAccess;
     }
 
     /** A failure with the status and message the website should show. */
@@ -101,6 +115,11 @@ public class MemberApi {
                     default -> null;
                 };
                 case "roles" -> method.equals("GET") ? roles(guild, userId) : method.equals("POST") ? toggleRole(guild, userId, body) : null;
+                case "polls" -> method.equals("GET") ? myPolls(guild, userId) : null;
+                case "polls/vote" -> method.equals("POST") ? votePoll(guild, userId, body) : null;
+                case "signups" -> method.equals("GET") ? mySignups(guild, userId) : null;
+                case "signups/join" -> method.equals("POST") ? joinSignup(guild, userId, body) : null;
+                case "signups/leave" -> method.equals("POST") ? leaveSignup(guild, userId, body) : null;
                 default -> null;
             };
 
@@ -254,6 +273,114 @@ public class MemberApi {
             throw new Rejected(502, "Discord wouldn't change that role.");
         }
         return roles(guild, userId);
+    }
+
+    // ---------- polls ----------
+
+    private Member memberOf(Guild guild, long userId) {
+        Member member = guild.getMemberById(userId);
+        if (member != null) return member;
+        try {
+            return guild.retrieveMemberById(userId).complete();
+        } catch (Exception e) {
+            throw new Rejected(404, "You're not in the server.");
+        }
+    }
+
+    /** Which options the member has picked in each active poll. */
+    private DataObject myPolls(Guild guild, long userId) {
+        DataArray array = DataArray.empty();
+        for (PollSession poll : pollService.activePolls(guild.getIdLong())) {
+            DataArray mine = DataArray.empty();
+            pollService.myOptionNumbers(poll.pollId(), userId).forEach(mine::add);
+            array.add(DataObject.empty().put("pollId", Long.toString(poll.pollId())).put("mine", mine));
+        }
+        return DataObject.empty().put("polls", array);
+    }
+
+    /** Votes the way the Discord button does — same rules, same message update — so the site and the poll message always agree. */
+    private DataObject votePoll(Guild guild, long userId, DataObject body) {
+        long pollId = parseId(body.getString("pollId", null), "pollId");
+        int number = body.getInt("optionNumber", -1);
+
+        Member member = memberOf(guild, userId);
+        if (!memberAccess.isMemberTier(guild, member)) throw new Rejected(403, "Voting is for verified clan members.");
+
+        PollSession poll = pollService.getSessionById(pollId);
+        if (poll == null || poll.guildId() != guild.getIdLong()) throw new Rejected(404, "That poll doesn't exist or has ended.");
+        PollOption option = pollService.getOptions(pollId).stream().filter(o -> o.optionNumber() == number).findFirst().orElse(null);
+        if (option == null) throw new Rejected(400, "That isn't an option in this poll.");
+
+        if (pollService.toggleVote(pollId, option.optionId(), userId) == PollService.VoteResult.POLL_CLOSED) throw new Rejected(409, "That poll has ended.");
+        pollService.updateMessage(guild, pollId);
+        return myPolls(guild, userId);
+    }
+
+    // ---------- signups ----------
+
+    /** The signup sheets the member is currently on. */
+    private DataObject mySignups(Guild guild, long userId) {
+        DataArray joined = DataArray.empty();
+        for (SignupSession session : signupService.getVisibleSignups(guild.getIdLong())) {
+            if (signupService.getEntries(session.signupId()).stream().anyMatch(e -> e.userId() == userId)) joined.add(Long.toString(session.signupId()));
+        }
+        DataArray rsns = DataArray.empty();
+        links.getLinksForUser(guild.getIdLong(), userId).forEach(l -> rsns.add(l.rsn()));
+        return DataObject.empty().put("joined", joined).put("rsns", rsns);
+    }
+
+    private SignupSession ownSignup(Guild guild, long signupId) {
+        SignupSession session = signupService.getSessionById(signupId);
+        if (session == null || session.guildId() != guild.getIdLong()) throw new Rejected(404, "That signup doesn't exist any more.");
+        return session;
+    }
+
+    private DataObject joinSignup(Guild guild, long userId, DataObject body) {
+        long signupId = parseId(body.getString("signupId", null), "signupId");
+        SignupSession session = ownSignup(guild, signupId);
+        memberOf(guild, userId); // must be in the server, like clicking the button there
+        if (!signupService.isSignupActive(signupId)) throw new Rejected(409, "This signup is paused right now.");
+
+        String rsn;
+        String submission = null;
+        switch (session.type()) {
+            case QUEUE -> {
+                rsn = body.getString("rsn", "").strip();
+                if (rsn.isEmpty()) rsn = links.getLinksForUser(guild.getIdLong(), userId).stream().findFirst().map(PlayerLink::rsn).orElse("");
+                if (rsn.isEmpty() || rsn.length() > 50) throw new Rejected(400, "Enter your RuneScape name (up to 50 characters).");
+            }
+            case GROUP -> rsn = String.valueOf(userId);
+            case SUBMISSION -> {
+                rsn = String.valueOf(userId);
+                List<SubmissionField> fields = SubmissionField.deserialize(session.submissionFields());
+                DataArray given = body.isNull("fields") ? DataArray.empty() : body.getArray("fields");
+                List<String> values = new ArrayList<>();
+                for (int i = 0; i < fields.size(); i++) {
+                    String value = i < given.length() ? given.getString(i).strip() : "";
+                    SubmissionField field = fields.get(i);
+                    if (value.length() > 500) throw new Rejected(400, "\"" + field.label() + "\" is too long.");
+                    if (field.required() && value.isEmpty()) throw new Rejected(400, "\"" + field.label() + "\" is required.");
+                    if (!value.isEmpty() && !field.type().equals(SubmissionField.TYPE_TEXT) && !value.matches("^https?://\\S+$")) {
+                        throw new Rejected(400, "\"" + field.label() + "\" needs a link starting with https://.");
+                    }
+                    values.add(value);
+                }
+                submission = SubmissionField.serializeValues(values);
+            }
+            default -> throw new Rejected(400, "That signup type isn't supported here.");
+        }
+
+        if (!signupService.addUser(guild, signupId, userId, rsn, submission)) throw new Rejected(409, "You're already signed up, or it's full.");
+        signupService.updateMessages(guild, signupId);
+        return mySignups(guild, userId);
+    }
+
+    private DataObject leaveSignup(Guild guild, long userId, DataObject body) {
+        long signupId = parseId(body.getString("signupId", null), "signupId");
+        ownSignup(guild, signupId);
+        if (!signupService.removeUser(guild, signupId, userId)) throw new Rejected(409, "You aren't on that signup.");
+        signupService.updateMessages(guild, signupId);
+        return mySignups(guild, userId);
     }
 
     // ---------- helpers ----------

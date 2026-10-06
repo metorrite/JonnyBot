@@ -77,9 +77,9 @@ public class SiteStatsRepository {
 
     public record RenameRow(String oldRsn, String newRsn, OffsetDateTime at) {}
 
-    public record SignupRow(long id, String title, String notification, Integer max, OffsetDateTime createdAt, List<SignupEntry> entries) {}
+    public record SignupRow(long id, String title, String notification, Integer max, String status, OffsetDateTime createdAt, List<SignupEntry> entries) {}
 
-    public record SignupEntry(String rsn, int position) {}
+    public record SignupEntry(long userId, String rsn, int position) {}
 
     public record PollOption(int number, String label, int votes) {}
 
@@ -275,18 +275,18 @@ public class SiteStatsRepository {
 
     /** Active signup sheets with who has signed up (RuneScape names only), in queue order. */
     public List<SignupRow> activeSignups(long guildId) {
-        record Head(long id, String title, String notification, Integer max, OffsetDateTime createdAt) {}
+        record Head(long id, String title, String notification, Integer max, String status, OffsetDateTime createdAt) {}
         List<Head> heads = query("signups", """
-                SELECT signup_id, title, notification_message, max_signups, created_at FROM younglings.signup
-                WHERE guild_id = ? AND status = 'ACTIVE' AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 20
+                SELECT signup_id, title, notification_message, max_signups, status, created_at FROM younglings.signup
+                WHERE guild_id = ? AND status IN ('ACTIVE', 'PAUSED') AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 20
                 """, rs -> new Head(rs.getLong("signup_id"), rs.getString("title"), rs.getString("notification_message"), (Integer) rs.getObject("max_signups"),
-                rs.getObject("created_at", OffsetDateTime.class)), guildId);
+                rs.getString("status"), rs.getObject("created_at", OffsetDateTime.class)), guildId);
 
         List<SignupRow> rows = new ArrayList<>();
         for (Head head : heads) {
-            List<SignupEntry> entries = query("signup entries", "SELECT rsn, queue_position FROM younglings.signup_entry WHERE signup_id = ? ORDER BY queue_position",
-                    rs -> new SignupEntry(rs.getString("rsn"), rs.getInt("queue_position")), head.id());
-            rows.add(new SignupRow(head.id(), head.title(), head.notification(), head.max(), head.createdAt(), entries));
+            List<SignupEntry> entries = query("signup entries", "SELECT discord_user_id, rsn, queue_position FROM younglings.signup_entry WHERE signup_id = ? ORDER BY queue_position",
+                    rs -> new SignupEntry(rs.getLong("discord_user_id"), rs.getString("rsn"), rs.getInt("queue_position")), head.id());
+            rows.add(new SignupRow(head.id(), head.title(), head.notification(), head.max(), head.status(), head.createdAt(), entries));
         }
         return rows;
     }

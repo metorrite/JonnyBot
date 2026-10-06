@@ -32,10 +32,55 @@ public class ClanAdminApi {
 
     private final MemberProfileRepository members;
     private final ClanPointsRepository points;
+    private final SiteNewsService news;
 
-    public ClanAdminApi(MemberProfileRepository members, ClanPointsRepository points) {
+    public ClanAdminApi(MemberProfileRepository members, ClanPointsRepository points, SiteNewsService news) {
         this.members = members;
         this.points = points;
+        this.news = news;
+    }
+
+    // ---------- the website's news channels ----------
+
+    DataObject newsChannels(Guild guild) {
+        DataArray array = DataArray.empty();
+        for (var configured : news.channels(guild.getIdLong())) {
+            var channel = guild.getChannelById(net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel.class, configured.channelId());
+            array.add(DataObject.empty().put("channelId", Long.toString(configured.channelId())).put("name", channel == null ? null : channel.getName())
+                    .put("label", configured.label()).put("readable", channel != null && guild.getSelfMember().hasPermission(channel,
+                            net.dv8tion.jda.api.Permission.VIEW_CHANNEL, net.dv8tion.jda.api.Permission.MESSAGE_HISTORY)));
+        }
+        return DataObject.empty().put("channels", array);
+    }
+
+    DataObject saveNewsChannels(Guild guild, Member actor, DataObject body) {
+        DataArray input = body.isNull("channels") ? DataArray.empty() : body.getArray("channels");
+        if (input.length() > 6) throw new ApiError(400, "At most 6 news channels.");
+
+        List<SiteNewsService.NewsChannel> chosen = new ArrayList<>();
+        Set<Long> seen = new HashSet<>();
+        for (int i = 0; i < input.length(); i++) {
+            DataObject item = input.getObject(i);
+            long channelId;
+            try {
+                channelId = Long.parseLong(item.getString("channelId", ""));
+            } catch (NumberFormatException e) {
+                throw new ApiError(400, "A chosen channel isn't valid.");
+            }
+            if (!seen.add(channelId)) continue;
+            var channel = guild.getChannelById(net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel.class, channelId);
+            if (channel == null) throw new ApiError(400, "A chosen channel isn't a text channel in this server.");
+            if (!guild.getSelfMember().hasPermission(channel, net.dv8tion.jda.api.Permission.VIEW_CHANNEL, net.dv8tion.jda.api.Permission.MESSAGE_HISTORY)) {
+                throw new ApiError(400, "JonnyBot can't read #" + channel.getName() + " — give it View Channel and Read Message History there first.");
+            }
+            String label = item.getString("label", "").strip();
+            if (label.length() > 40) throw new ApiError(400, "Labels are up to 40 characters.");
+            chosen.add(new SiteNewsService.NewsChannel(channelId, label.isEmpty() ? null : label, i));
+        }
+
+        news.replaceChannels(guild.getIdLong(), chosen);
+        log.info("Dashboard: {} set {} public news channel(s)", actor.getId(), chosen.size());
+        return newsChannels(guild);
     }
 
     // ---------- self-assignable roles ----------
