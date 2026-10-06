@@ -73,9 +73,10 @@ public class SiteApi {
     private final MemberProfileRepository profiles;
     private final SiteNewsService news;
     private final SignupService signupService;
+    private final SiteCache cache;
 
     public SiteApi(SiteStatsRepository stats, PlayerLinkRepository links, ClanPointsRepository points, GuildSettingsService settings, WeeklyDigestRepository rosterEvents,
-                   MemberProfileRepository profiles, SiteNewsService news, SignupService signupService) {
+                   MemberProfileRepository profiles, SiteNewsService news, SignupService signupService, SiteCache cache) {
         this.stats = stats;
         this.links = links;
         this.points = points;
@@ -84,6 +85,7 @@ public class SiteApi {
         this.profiles = profiles;
         this.news = news;
         this.signupService = signupService;
+        this.cache = cache;
     }
 
     public void handle(HttpExchange exchange, Guild guild) throws IOException {
@@ -97,7 +99,11 @@ public class SiteApi {
             String route = path.startsWith(PREFIX) ? path.substring(PREFIX.length()) : "";
             if (route.endsWith("/")) route = route.substring(0, route.length() - 1);
 
-            DataObject result = switch (route) {
+            // Every answer is cached briefly (and loaded once even if many requests arrive together) — the website
+            // already caches too, but this protects the bot's database from several instances or a cold start.
+            String cacheKey = route + "?" + exchange.getRequestURI().getRawQuery();
+            final String finalRoute = route;
+            DataObject result = cache.get(cacheKey, ttlMillis(route), () -> switch (finalRoute) {
                 case "online" -> online(guild);
                 case "events" -> events(guild);
                 case "members" -> members(guild);
@@ -117,7 +123,7 @@ public class SiteApi {
                 case "drops" -> drops(guild);
                 case "me" -> me(guild, query(exchange, "userId"));
                 default -> null;
-            };
+            });
 
             if (result == null) {
                 InternalApiServer.sendJson(exchange, 404, DataObject.empty().put("error", "Not found"));
@@ -128,6 +134,18 @@ public class SiteApi {
             log.error("Site API request {} failed", exchange.getRequestURI().getPath(), e);
             InternalApiServer.sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));
         }
+    }
+
+    /** How long an answer may be reused. Live things are short; heavy aggregates are longer. Writes drop their own entries early. */
+    private static long ttlMillis(String route) {
+        return switch (route) {
+            case "online" -> 10_000;
+            case "polls", "signups" -> 5_000;
+            case "feed" -> 15_000;
+            case "events" -> 30_000;
+            case "members", "overview", "member", "me", "news" -> 60_000;
+            default -> 120_000; // records, history, citadel grid, PvM, drops, coffer, leaderboards, skill series
+        };
     }
 
     // ---------- members who chose to stay out of the rankings or hide their adventure log ----------

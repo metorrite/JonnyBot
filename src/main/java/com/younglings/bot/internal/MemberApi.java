@@ -65,8 +65,16 @@ public class MemberApi {
     private final PollService pollService;
     private final SignupService signupService;
     private final MemberAccess memberAccess;
+    private final Debouncer debouncer;
+    private final SiteCache cache;
+    // Per member: a handful of quick clicks is normal, a sustained flood is not. Reads are far cheaper than writes.
+    private final RateLimiter writes = new RateLimiter(8, 1_500);
+    private final RateLimiter reads = new RateLimiter(40, 500);
 
-    public MemberApi(MemberProfileRepository repository, PlayerLinkRepository links, PollService pollService, SignupService signupService, MemberAccess memberAccess) {
+    public MemberApi(MemberProfileRepository repository, PlayerLinkRepository links, PollService pollService, SignupService signupService, MemberAccess memberAccess,
+                     Debouncer debouncer, SiteCache cache) {
+        this.debouncer = debouncer;
+        this.cache = cache;
         this.repository = repository;
         this.links = links;
         this.pollService = pollService;
@@ -104,7 +112,10 @@ public class MemberApi {
             String method = exchange.getRequestMethod().toUpperCase();
 
             DataObject body = method.equals("GET") || method.equals("DELETE") ? DataObject.empty() : readBody(exchange);
-            long userId = parseId(method.equals("GET") || method.equals("DELETE") ? query(exchange, "userId") : body.getString("userId", null), "userId");
+            long userId = parseId(method.equals("GET") ? query(exchange, "userId") : method.equals("DELETE") ? query(exchange, "userId") : body.getString("userId", null), "userId");
+            if (!(method.equals("GET") ? reads : writes).tryAcquire(Long.toString(userId))) {
+                throw new Rejected(429, "You're doing that too fast — give it a moment.");
+            }
 
             DataObject result = switch (route) {
                 case "settings" -> method.equals("GET") ? getSettings(guild, userId) : method.equals("PUT") ? saveSettings(guild, userId, body) : null;
@@ -169,6 +180,7 @@ public class MemberApi {
             pinned = id;
         }
 
+        cache.clear(); // a profile change can alter many cached answers (privacy toggles hide people from several lists)
         repository.saveProfile(new Profile(guild.getIdLong(), userId, bio, accent, pinned,
                 body.getBoolean("hideAdventureLog", current.hideAdventureLog()), body.getBoolean("hideFromLeaderboards", current.hideFromLeaderboards()),
                 body.getBoolean("dmGoals", current.dmGoals()), body.getBoolean("dmEvents", current.dmEvents())));
@@ -312,7 +324,9 @@ public class MemberApi {
         if (option == null) throw new Rejected(400, "That isn't an option in this poll.");
 
         if (pollService.toggleVote(pollId, option.optionId(), userId) == PollService.VoteResult.POLL_CLOSED) throw new Rejected(409, "That poll has ended.");
-        pollService.updateMessage(guild, pollId);
+        // One Discord edit for a whole burst of votes (Discord rate-limits message edits), and drop the cached poll numbers now.
+        cache.invalidate("polls");
+        debouncer.run("poll:" + pollId, 1_200, () -> pollService.updateMessage(guild, pollId));
         return myPolls(guild, userId);
     }
 
@@ -371,7 +385,8 @@ public class MemberApi {
         }
 
         if (!signupService.addUser(guild, signupId, userId, rsn, submission)) throw new Rejected(409, "You're already signed up, or it's full.");
-        signupService.updateMessages(guild, signupId);
+        cache.invalidate("signups");
+        debouncer.run("signup:" + signupId, 1_200, () -> signupService.updateMessages(guild, signupId));
         return mySignups(guild, userId);
     }
 
@@ -379,7 +394,8 @@ public class MemberApi {
         long signupId = parseId(body.getString("signupId", null), "signupId");
         ownSignup(guild, signupId);
         if (!signupService.removeUser(guild, signupId, userId)) throw new Rejected(409, "You aren't on that signup.");
-        signupService.updateMessages(guild, signupId);
+        cache.invalidate("signups");
+        debouncer.run("signup:" + signupId, 1_200, () -> signupService.updateMessages(guild, signupId));
         return mySignups(guild, userId);
     }
 

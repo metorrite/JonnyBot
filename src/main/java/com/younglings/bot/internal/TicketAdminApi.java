@@ -55,12 +55,16 @@ public class TicketAdminApi {
     private final TicketRepository repository;
     private final TicketService service;
     private final ClanAdminApi clanAdmin;
+    private final CommunityAdminApi communityAdmin;
+    /** Writes per admin: a few quick clicks are fine, a sustained flood is refused. */
+    private final RateLimiter adminWrites = new RateLimiter(20, 1_000);
 
-    public TicketAdminApi(DashboardAccess access, TicketRepository repository, TicketService service, ClanAdminApi clanAdmin) {
+    public TicketAdminApi(DashboardAccess access, TicketRepository repository, TicketService service, ClanAdminApi clanAdmin, CommunityAdminApi communityAdmin) {
         this.access = access;
         this.repository = repository;
         this.service = service;
         this.clanAdmin = clanAdmin;
+        this.communityAdmin = communityAdmin;
     }
 
     /** A failure with the status and message the website should see. */
@@ -163,6 +167,9 @@ public class TicketAdminApi {
             requireMethod(method, "GET");
             return structure(guild);
         }
+        if (!method.equals("GET") && !adminWrites.tryAcquire(actor.getId())) throw new ApiError(429, "You're doing that too fast — give it a moment.");
+
+        if (parts.length >= 1 && (parts[0].equals("polls") || parts[0].equals("signups"))) return communityRoute(exchange, guild, actor, method, parts);
         if (parts.length == 1 && parts[0].equals("selfroles")) {
             if (method.equals("GET")) return clanAdmin.selfRoles(guild);
             requireMethod(method, "PUT");
@@ -205,6 +212,39 @@ public class TicketAdminApi {
                 return null;
             }
         }
+    }
+
+    /** Polls and signups: {@code POST polls}, {@code POST polls/{id}/end}, {@code GET|POST signups}, {@code POST signups/{id}/{action}}. */
+    private DataObject communityRoute(HttpExchange exchange, Guild guild, Member actor, String method, String[] parts) {
+        if (parts[0].equals("polls")) {
+            if (parts.length == 1) {
+                requireMethod(method, "POST");
+                return communityAdmin.createPoll(guild, actor, body(exchange));
+            }
+            if (parts.length == 3 && parts[2].equals("end")) {
+                requireMethod(method, "POST");
+                return communityAdmin.endPoll(guild, actor, idOf(parts[1]));
+            }
+            return null;
+        }
+
+        if (parts.length == 1) {
+            if (method.equals("GET")) return communityAdmin.signupList(guild);
+            requireMethod(method, "POST");
+            return communityAdmin.createSignup(guild, actor, body(exchange));
+        }
+        if (parts.length == 3) {
+            requireMethod(method, "POST");
+            DataObject body;
+            try (var in = exchange.getRequestBody()) {
+                byte[] bytes = in.readAllBytes();
+                body = bytes.length == 0 ? DataObject.empty() : DataObject.fromJson(bytes);
+            } catch (Exception e) {
+                throw new ApiError(400, "The request body isn't valid JSON.");
+            }
+            return communityAdmin.signupAction(guild, actor, idOf(parts[1]), parts[2], body);
+        }
+        return null;
     }
 
     private DataObject routePanels(HttpExchange exchange, Guild guild, Member actor, String method, String[] parts) throws IOException {
