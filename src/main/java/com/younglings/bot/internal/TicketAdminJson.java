@@ -98,7 +98,8 @@ final class TicketAdminJson {
                 intOrNull(json, "helperCap"),
                 intOrNull(json, "escalationHours"),
                 idOrNull(json, "defaultEscalateRoleId"),
-                null, null);
+                null, null,
+                json.getString("openingMessage", Panel.DEFAULT_OPENING).strip());
 
         List<Field> fields = new ArrayList<>();
         if (!json.isNull("fields")) {
@@ -176,6 +177,7 @@ final class TicketAdminJson {
                 .put("categoryId", idString(panel.categoryId()))
                 .put("channelNameTemplate", panel.channelNameTemplate())
                 .put("welcomeText", panel.welcomeText())
+                .put("openingMessage", panel.openingMessage())
                 .put("enabled", panel.enabled())
                 .put("perUserLimit", panel.perUserLimit())
                 .put("defaultPingRoleId", idString(panel.defaultPingRoleId()))

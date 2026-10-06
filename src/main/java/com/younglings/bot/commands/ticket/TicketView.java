@@ -6,11 +6,17 @@ import com.younglings.bot.ticket.TicketModels.Answer;
 import com.younglings.bot.ticket.TicketModels.Panel;
 import com.younglings.bot.ticket.TicketModels.Status;
 import com.younglings.bot.ticket.TicketModels.Ticket;
+import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
 import net.dv8tion.jda.api.components.buttons.Button;
 import net.dv8tion.jda.api.components.container.Container;
 import net.dv8tion.jda.api.components.container.ContainerChildComponent;
 import net.dv8tion.jda.api.components.textdisplay.TextDisplay;
+import net.dv8tion.jda.api.entities.MessageEmbed;
+import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
+import net.dv8tion.jda.api.utils.messages.MessageCreateData;
+import net.dv8tion.jda.api.utils.messages.MessageEditBuilder;
+import net.dv8tion.jda.api.utils.messages.MessageEditData;
 
 import java.awt.Color;
 import java.time.OffsetDateTime;
@@ -53,6 +59,68 @@ final class TicketView {
     }
 
     // ---------- a ticket ----------
+
+    /**
+     * What sits at the top of a ticket: a welcome line (editable on the panel, {@code {user}} is the requester), a support
+     * embed with who opened it, and an embed with every question and its answer, then the buttons. Laid out like Ticket
+     * Tool's so it will feel familiar. Plain messages, not Components V2, because embeds can't share a message with those.
+     */
+    record Opening(String content, List<MessageEmbed> embeds, ActionRow buttons) {
+        MessageCreateData toCreate() {
+            return new MessageCreateBuilder().setContent(content).setEmbeds(embeds).setComponents(buttons).build();
+        }
+
+        MessageEditData toEdit() {
+            return new MessageEditBuilder().setContent(content).setEmbeds(embeds).setComponents(buttons).build();
+        }
+    }
+
+    static Opening opening(Panel panel, Ticket ticket, List<String> rsns, List<Long> helperIds, Long pingRoleId) {
+        boolean closed = ticket.status() == Status.CLOSED;
+        Color color = closed ? Color.DARK_GRAY : Containers.PRIMARY;
+
+        String template = panel == null || panel.openingMessage() == null || panel.openingMessage().isBlank() ? Panel.DEFAULT_OPENING : panel.openingMessage();
+        String content = truncate(template.replace("{user}", "<@" + ticket.requesterId() + ">"), 1800);
+        if (pingRoleId != null && !closed) content += "\n🔔 <@&" + pingRoleId + ">";
+
+        String support = panel == null || panel.welcomeText() == null || panel.welcomeText().isBlank() ? Panel.DEFAULT_SUPPORT : truncate(panel.welcomeText(), 1500);
+        EmbedBuilder info = new EmbedBuilder().setColor(color).setDescription(support)
+                .setFooter("Ticket #" + String.format("%04d", ticket.number()) + (panel != null ? " · " + panel.title() : ""));
+        info.addField("Opened by", "<@" + ticket.requesterId() + ">", true);
+        if (!rsns.isEmpty()) info.addField("RuneScape name", truncate(String.join(", ", rsns), 1000), true);
+        if (ticket.routingLabel() != null) info.addField("Type", truncate(ticket.routingLabel(), 1000), true);
+        if (panel != null && panel.usesHelpers()) info.addField("Helping", helpersLine(panel.helperCap(), helperIds, closed), false);
+        if (closed) {
+            StringBuilder end = new StringBuilder("🔒 Closed");
+            if (ticket.closedBy() != null) end.append(" by <@").append(ticket.closedBy()).append(">");
+            if (ticket.closeReason() != null && !ticket.closeReason().isBlank()) end.append("\n").append(truncate(ticket.closeReason(), 500));
+            info.addField("Status", end.toString(), false);
+        }
+
+        List<MessageEmbed> embeds = new ArrayList<>();
+        embeds.add(info.build());
+
+        // Each question in bold with the answer in a code block underneath, as Ticket Tool shows them.
+        StringBuilder qa = new StringBuilder();
+        for (Answer answer : ticket.answers()) {
+            if (answer.answer() == null || answer.answer().isBlank()) continue;
+            qa.append("**").append(truncate(answer.label(), 200)).append("**\n```\n")
+                    .append(truncate(answer.answer().replace("```", "ˋˋˋ"), ANSWER_MAX)).append("\n```\n");
+        }
+        if (!qa.isEmpty()) embeds.add(new EmbedBuilder().setColor(color).setDescription(truncate(qa.toString().strip(), 3900)).build());
+
+        List<Button> buttons = new ArrayList<>();
+        if (panel != null && panel.usesHelpers()) {
+            Button join = Button.success(JOIN_PREFIX + ticket.id(), "Join as helper");
+            buttons.add(closed ? join.asDisabled() : join);
+        }
+        Button close = Button.danger(CLOSE_PREFIX + ticket.id(), "Close");
+        buttons.add(closed ? close.asDisabled() : close);
+
+        return new Opening(content, embeds, ActionRow.of(buttons));
+    }
+
+    /** The older Components V2 layout, kept so tickets opened before the change keep updating in place. */
 
     static Container welcome(Panel panel, Ticket ticket, List<String> rsns, List<Long> helperIds, Long pingRoleId) {
         boolean closed = ticket.status() == Status.CLOSED;

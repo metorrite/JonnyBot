@@ -147,7 +147,10 @@ public class TicketDatabaseInitializer {
                     note TEXT NULL,
                     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 );
-                """
+                """,
+
+                // The line posted above a new ticket's embeds; {user} is replaced with a mention of whoever opened it.
+                "ALTER TABLE younglings.ticket_panel ADD COLUMN IF NOT EXISTS opening_message TEXT NOT NULL DEFAULT '{user} Welcome';"
         ));
     }
 }

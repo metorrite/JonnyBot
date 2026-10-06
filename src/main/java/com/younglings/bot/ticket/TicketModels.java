@@ -20,7 +20,21 @@ public final class TicketModels {
 
     public record Panel(long id, long guildId, String name, String title, String description, String buttonLabel, Long categoryId,
                         String channelNameTemplate, String welcomeText, boolean enabled, int perUserLimit, Long defaultPingRoleId,
-                        Integer helperCap, Integer escalationHours, Long defaultEscalateRoleId, Long postedChannelId, Long postedMessageId) {
+                        Integer helperCap, Integer escalationHours, Long defaultEscalateRoleId, Long postedChannelId, Long postedMessageId,
+                        String openingMessage) {
+        /** The line posted above a new ticket's embeds; {@code {user}} becomes a mention of whoever opened it. */
+        public static final String DEFAULT_OPENING = "{user} Welcome";
+        /** The first embed's text when a panel doesn't set its own. */
+        public static final String DEFAULT_SUPPORT = "Support will be with you shortly.\nTo close this press the close button.";
+
+        /** A panel with the default opening message, for code that predates it. */
+        public Panel(long id, long guildId, String name, String title, String description, String buttonLabel, Long categoryId,
+                     String channelNameTemplate, String welcomeText, boolean enabled, int perUserLimit, Long defaultPingRoleId,
+                     Integer helperCap, Integer escalationHours, Long defaultEscalateRoleId, Long postedChannelId, Long postedMessageId) {
+            this(id, guildId, name, title, description, buttonLabel, categoryId, channelNameTemplate, welcomeText, enabled, perUserLimit,
+                    defaultPingRoleId, helperCap, escalationHours, defaultEscalateRoleId, postedChannelId, postedMessageId, DEFAULT_OPENING);
+        }
+
         /** Whether tickets on this panel use the join-as-helper system at all. */
         public boolean usesHelpers() {
             return helperCap != null;

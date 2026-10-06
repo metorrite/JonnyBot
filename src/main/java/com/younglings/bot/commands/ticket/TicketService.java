@@ -143,8 +143,7 @@ public class TicketService {
                 .thenCompose(channel -> {
                     repository.setChannel(ticket.id(), channel.getIdLong());
                     Ticket withChannel = repository.getTicket(ticket.id());
-                    return channel.sendMessageComponents(TicketView.welcome(panel, withChannel, rsnsOf(guild.getIdLong(), requester.getIdLong()), List.of(), pingRole))
-                            .useComponentsV2(true)
+                    return channel.sendMessage(TicketView.opening(panel, withChannel, rsnsOf(guild.getIdLong(), requester.getIdLong()), List.of(), pingRole).toCreate())
                             .setAllowedMentions(EnumSet.noneOf(Message.MentionType.class))
                             .mentionUsers(requester.getIdLong())
                             .mentionRoles(pingRole == null ? new long[0] : new long[]{pingRole})
@@ -190,9 +189,18 @@ public class TicketService {
 
         Panel panel = ticket.panelId() == null ? null : repository.getPanel(ticket.panelId());
         Long pingRole = panel == null ? null : pingRoleFor(panel, ticket);
-        var container = TicketView.welcome(panel, ticket, rsnsOf(guild.getIdLong(), ticket.requesterId()), repository.getHelpers(ticket.id()), pingRole);
+        List<String> rsns = rsnsOf(guild.getIdLong(), ticket.requesterId());
+        List<Long> helpers = repository.getHelpers(ticket.id());
         channel.retrieveMessageById(ticket.welcomeMessageId()).queue(
-                message -> message.editMessageComponents(container).useComponentsV2(true).queue(null, error -> log.warn("Couldn't update ticket {}'s message", ticket.id(), error)),
+                message -> {
+                    // A ticket opened before the Ticket Tool style layout still has the older card: keep updating that kind in the old way.
+                    if (message.getFlags().contains(Message.MessageFlag.IS_COMPONENTS_V2)) {
+                        var container = TicketView.welcome(panel, ticket, rsns, helpers, pingRole);
+                        message.editMessageComponents(container).useComponentsV2(true).queue(null, error -> log.warn("Couldn't update ticket {}'s message", ticket.id(), error));
+                    } else {
+                        message.editMessage(TicketView.opening(panel, ticket, rsns, helpers, pingRole).toEdit()).queue(null, error -> log.warn("Couldn't update ticket {}'s message", ticket.id(), error));
+                    }
+                },
                 error -> log.warn("Couldn't find ticket {}'s opening message", ticket.id()));
     }
 

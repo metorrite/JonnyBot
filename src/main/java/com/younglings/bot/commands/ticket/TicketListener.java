@@ -149,8 +149,15 @@ public class TicketListener extends ListenerAdapter {
         switch (result) {
             case OK -> {
                 Ticket fresh = repository.getTicket(ticketId);
-                event.editComponents(List.of(TicketView.welcome(panel, fresh, service.rsnsOf(guild.getIdLong(), fresh.requesterId()),
-                        repository.getHelpers(ticketId), service.pingRoleFor(panel, fresh)))).useComponentsV2(true).queue();
+                List<String> rsns = service.rsnsOf(guild.getIdLong(), fresh.requesterId());
+                List<Long> helpers = repository.getHelpers(ticketId);
+                Long pingRole = service.pingRoleFor(panel, fresh);
+                if (event.getMessage().getFlags().contains(net.dv8tion.jda.api.entities.Message.MessageFlag.IS_COMPONENTS_V2)) {
+                    // Opened before the Ticket Tool style layout: still the older card.
+                    event.editComponents(List.of(TicketView.welcome(panel, fresh, rsns, helpers, pingRole))).useComponentsV2(true).queue();
+                } else {
+                    event.editMessage(TicketView.opening(panel, fresh, rsns, helpers, pingRole).toEdit()).queue();
+                }
             }
             case TICKET_CLOSED -> Containers.replyEphemeral(event, Containers.WARNING, "This ticket is already closed.");
             case NO_HELPER_SYSTEM -> Containers.replyEphemeral(event, Containers.WARNING, "This ticket type doesn't use helpers.");
