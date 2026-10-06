@@ -99,6 +99,12 @@ public class GuildSettingsDatabaseInitializer {
                 """
                 ALTER TABLE younglings.guild_settings
                     ADD COLUMN IF NOT EXISTS developer_role_id BIGINT NULL;
+                """,
+
+                // The clan's website, if it has one: makes the clan name at the top of /rs a clickable link.
+                """
+                ALTER TABLE younglings.guild_settings
+                    ADD COLUMN IF NOT EXISTS website_url TEXT NULL;
                 """
         ));
     }

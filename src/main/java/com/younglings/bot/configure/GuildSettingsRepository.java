@@ -26,7 +26,7 @@ public class GuildSettingsRepository {
         String sql = """
                 SELECT guild_id, clan_name, admin_role_id, rename_alert_channel_id, verification_review_channel_id,
                        verified_clan_role_id, verified_non_clan_role_id, unverified_role_id, onboarding_role_id,
-                       clan_enabled, support_role_id, developer_role_id
+                       clan_enabled, support_role_id, developer_role_id, website_url
                 FROM younglings.guild_settings WHERE guild_id = ?
                 """;
 
@@ -50,7 +50,8 @@ public class GuildSettingsRepository {
                         rs.getBoolean("clan_enabled"),
                         rs.getString("clan_name"),
                         (Long) rs.getObject("support_role_id"),
-                        (Long) rs.getObject("developer_role_id"));
+                        (Long) rs.getObject("developer_role_id"),
+                        rs.getString("website_url"));
             }
 
         } catch (SQLException e) {
@@ -195,6 +196,30 @@ public class GuildSettingsRepository {
         } catch (SQLException e) {
             log.error("Failed to upsert onboarding role for {}", guildId, e);
             throw new RuntimeException("Failed to upsert onboarding role", e);
+        }
+    }
+
+    /** {@code null} clears the website link. */
+    public void upsertWebsiteUrl(long guildId, String websiteUrl) {
+        String sql = """
+                INSERT INTO younglings.guild_settings (guild_id, website_url)
+                VALUES (?, ?)
+                ON CONFLICT (guild_id) DO UPDATE SET
+                    website_url = EXCLUDED.website_url
+                """;
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setLong(1, guildId);
+            statement.setString(2, websiteUrl);
+            statement.executeUpdate();
+
+            log.info("Updated website link for guild {}", guildId);
+
+        } catch (SQLException e) {
+            log.error("Failed to upsert website link for {}", guildId, e);
+            throw new RuntimeException("Failed to upsert website link", e);
         }
     }
 

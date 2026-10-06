@@ -41,7 +41,13 @@ public class GuildSettingsService {
 
         return new GuildSettings(guildId, clanEnabled ? clanName : null, adminRoleId, renameAlertChannelId, verificationReviewChannelId,
                 verifiedClanRoleId, verifiedNonClanRoleId, unverifiedRoleId, onboardingRoleId, clanEnabled, clanName,
-                stored != null ? stored.supportRoleId() : null, stored != null ? stored.developerRoleId() : null);
+                stored != null ? stored.supportRoleId() : null, stored != null ? stored.developerRoleId() : null,
+                stored != null ? stored.websiteUrl() : null);
+    }
+
+    /** The clan's website, already cleaned by {@link WebsiteLink#normalize}; {@code null} clears it. */
+    public void updateWebsiteUrl(long guildId, String websiteUrl) {
+        repository.upsertWebsiteUrl(guildId, websiteUrl);
     }
 
     /** {@code null} clears it — nobody has the Support tier. */

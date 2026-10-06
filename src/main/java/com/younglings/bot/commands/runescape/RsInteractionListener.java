@@ -1,6 +1,7 @@
 package com.younglings.bot.commands.runescape;
 
 import com.younglings.bot.runescape.XpText;
+import com.younglings.bot.configure.WebsiteLink;
 import com.younglings.bot.configure.GuildSettingsService;
 import com.younglings.bot.discord.Containers;
 import com.younglings.bot.discord.Pagination;
@@ -692,7 +693,7 @@ public class RsInteractionListener extends ListenerAdapter {
     private List<ContainerChildComponent> buildClanHeader(Guild guild, long discordUserId) {
         List<ContainerChildComponent> children = new ArrayList<>();
 
-        children.add(TextDisplay.of("# " + clanNameOrFallback(guild)));
+        children.add(TextDisplay.of("# " + clanTitle(guild)));
         children.add(Separator.createInvisible(Separator.Spacing.SMALL));
 
         boolean shareOn = isShareEnabled(discordUserId);
@@ -1008,6 +1009,11 @@ public class RsInteractionListener extends ListenerAdapter {
 
     // --- Clan header actions (always ephemeral, regardless of the Share toggle) ---
 
+    /** The clan name for a heading: a link to the clan's website when one is configured, plain text otherwise. */
+    private String clanTitle(Guild guild) {
+        return WebsiteLink.linkedTitle(clanNameOrFallback(guild), guildSettingsService.getEffective(guild.getIdLong()).websiteUrl());
+    }
+
     private String clanNameOrFallback(Guild guild) {
         String clanName = clanSyncService.getClanName(guild.getIdLong());
         return clanName != null ? clanName : "the clan";
@@ -1073,7 +1079,7 @@ public class RsInteractionListener extends ListenerAdapter {
         }
 
         Container container = Containers.card(RS3_ORANGE,
-                TextDisplay.of("### " + clanNameOrFallback(guild) + " Leaderboard — Total XP"),
+                TextDisplay.of("### " + clanTitle(guild) + " Leaderboard — Total XP"),
                 TextDisplay.of(sb.toString()),
                 TextDisplay.of("-# Based on each player's last synced snapshot, not a live update."));
 
