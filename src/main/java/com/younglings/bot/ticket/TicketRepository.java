@@ -670,6 +670,100 @@ public class TicketRepository {
         else s.setInt(index, value);
     }
 
+    // ================= statistics (admin dashboard) =================
+
+    public record PanelCount(String panel, int total, int open) {}
+
+    public record WeekOpened(java.time.LocalDate weekStart, int opened) {}
+
+    public record HelperCount(long userId, int tickets) {}
+
+    public record Stats(int open, int closed, int escalated, int flagged, Double avgHoursToClose, Double avgMinutesToFirstHelper,
+                        List<PanelCount> byPanel, List<WeekOpened> byWeek, List<HelperCount> topHelpers) {}
+
+    /** Everything the dashboard's overview shows: counts, speeds, the busiest panels and the most active helpers. */
+    public Stats stats(long guildId) {
+        try (Connection c = connectionSupplier.getConnection()) {
+            int open = 0, closed = 0, escalated = 0, flagged = 0;
+            Double avgClose = null, avgFirstHelper = null;
+
+            try (PreparedStatement s = c.prepareStatement("""
+                    SELECT COUNT(*) FILTER (WHERE status = 'OPEN') AS open, COUNT(*) FILTER (WHERE status = 'CLOSED') AS closed,
+                           COUNT(*) FILTER (WHERE escalated_at IS NOT NULL) AS escalated,
+                           AVG(EXTRACT(EPOCH FROM (closed_at - created_at)) / 3600) FILTER (WHERE closed_at IS NOT NULL) AS avg_close
+                    FROM younglings.ticket WHERE guild_id = ?""")) {
+                s.setLong(1, guildId);
+                try (ResultSet rs = s.executeQuery()) {
+                    rs.next();
+                    open = rs.getInt("open");
+                    closed = rs.getInt("closed");
+                    escalated = rs.getInt("escalated");
+                    avgClose = nullableDouble(rs, "avg_close");
+                }
+            }
+            try (PreparedStatement s = c.prepareStatement("""
+                    SELECT AVG(EXTRACT(EPOCH FROM (f.first_join - t.created_at)) / 60) AS avg_first
+                    FROM younglings.ticket t JOIN (SELECT ticket_id, MIN(joined_at) AS first_join FROM younglings.ticket_helper GROUP BY ticket_id) f
+                      ON f.ticket_id = t.id WHERE t.guild_id = ?""")) {
+                s.setLong(1, guildId);
+                try (ResultSet rs = s.executeQuery()) {
+                    rs.next();
+                    avgFirstHelper = nullableDouble(rs, "avg_first");
+                }
+            }
+            try (PreparedStatement s = c.prepareStatement("""
+                    SELECT COUNT(*) FROM younglings.ticket_flag f JOIN younglings.ticket t ON t.id = f.ticket_id WHERE t.guild_id = ?""")) {
+                s.setLong(1, guildId);
+                try (ResultSet rs = s.executeQuery()) {
+                    rs.next();
+                    flagged = rs.getInt(1);
+                }
+            }
+
+            List<PanelCount> byPanel = new ArrayList<>();
+            try (PreparedStatement s = c.prepareStatement("""
+                    SELECT COALESCE(p.name, '(deleted panel)') AS panel, COUNT(*) AS total, COUNT(*) FILTER (WHERE t.status = 'OPEN') AS open
+                    FROM younglings.ticket t LEFT JOIN younglings.ticket_panel p ON p.id = t.panel_id
+                    WHERE t.guild_id = ? GROUP BY p.name ORDER BY total DESC""")) {
+                s.setLong(1, guildId);
+                try (ResultSet rs = s.executeQuery()) {
+                    while (rs.next()) byPanel.add(new PanelCount(rs.getString("panel"), rs.getInt("total"), rs.getInt("open")));
+                }
+            }
+
+            List<WeekOpened> byWeek = new ArrayList<>();
+            try (PreparedStatement s = c.prepareStatement("""
+                    SELECT date_trunc('week', created_at AT TIME ZONE 'UTC')::date AS week_start, COUNT(*) AS opened
+                    FROM younglings.ticket WHERE guild_id = ? AND created_at >= NOW() - INTERVAL '63 days'
+                    GROUP BY week_start ORDER BY week_start""")) {
+                s.setLong(1, guildId);
+                try (ResultSet rs = s.executeQuery()) {
+                    while (rs.next()) byWeek.add(new WeekOpened(rs.getObject("week_start", java.time.LocalDate.class), rs.getInt("opened")));
+                }
+            }
+
+            List<HelperCount> topHelpers = new ArrayList<>();
+            try (PreparedStatement s = c.prepareStatement("""
+                    SELECT h.user_id, COUNT(*) AS tickets FROM younglings.ticket_helper h JOIN younglings.ticket t ON t.id = h.ticket_id
+                    WHERE t.guild_id = ? GROUP BY h.user_id ORDER BY tickets DESC LIMIT 8""")) {
+                s.setLong(1, guildId);
+                try (ResultSet rs = s.executeQuery()) {
+                    while (rs.next()) topHelpers.add(new HelperCount(rs.getLong("user_id"), rs.getInt("tickets")));
+                }
+            }
+
+            return new Stats(open, closed, escalated, flagged, avgClose, avgFirstHelper, byPanel, byWeek, topHelpers);
+        } catch (SQLException e) {
+            throw fail("read ticket statistics", e);
+        }
+    }
+
+    /** Postgres' AVG() is a numeric, which JDBC hands back as a BigDecimal — read it as a double, keeping SQL NULL as null. */
+    private static Double nullableDouble(ResultSet rs, String column) throws SQLException {
+        double value = rs.getDouble(column);
+        return rs.wasNull() ? null : value;
+    }
+
     private static RuntimeException fail(String action, SQLException e) {
         log.error("Failed to {}", action, e);
         return new RuntimeException("Failed to " + action, e);
