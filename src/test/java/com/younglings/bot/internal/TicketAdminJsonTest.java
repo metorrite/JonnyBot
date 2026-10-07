@@ -90,6 +90,48 @@ class TicketAdminJsonTest {
     }
 
     @Test
+    void helpKindAndFieldPurposeSurviveTheTripAndDefaultToNone() {
+        DataObject body = DataObject.fromJson("""
+                {"name":"CA","title":"CA","helpKind":"ca","fields":[{"label":"Tier","kind":"SELECT","purpose":"TIER","options":[{"label":"Master"}]},{"label":"Boss","kind":"SHORT"}]}
+                """);
+        PanelDefinition read = TicketAdminJson.readPanel(1, 0, body);
+        assertEquals(com.younglings.bot.ticket.TicketModels.HelpKind.CA, read.panel().helpKind());
+        assertEquals(com.younglings.bot.ticket.TicketModels.FieldPurpose.TIER, read.fields().get(0).purpose());
+        assertEquals(com.younglings.bot.ticket.TicketModels.FieldPurpose.NONE, read.fields().get(1).purpose());
+
+        DataObject out = TicketAdminJson.definitionJson(read);
+        assertEquals("CA", out.getString("helpKind"));
+        assertEquals("TIER", out.getArray("fields").getObject(0).getString("purpose"));
+
+        assertEquals(com.younglings.bot.ticket.TicketModels.HelpKind.NONE, TicketAdminJson.readPanel(1, 0, DataObject.fromJson("{\"name\":\"a\",\"title\":\"b\"}")).panel().helpKind());
+        assertThrows(BadRequest.class, () -> TicketAdminJson.readPanel(1, 0, DataObject.fromJson("{\"helpKind\":\"nope\"}")));
+    }
+
+    @Test
+    void helpSettingsKeepWhatTheClientLeavesOutAndStoreTheDraftAsNotEdited() {
+        com.younglings.bot.ticket.TicketModels.HelpSettings current = com.younglings.bot.ticket.TicketModels.HelpSettings.defaults(1);
+
+        var read = TicketAdminJson.readHelpSettings(current, DataObject.fromJson("{\"helperRoleId\":\"42\",\"guestPingsEnabled\":true,\"memberEscalationHours\":null,\"guestEscalationHours\":24}"));
+        assertEquals(42L, read.helperRoleId());
+        assertTrue(read.guestPingsEnabled());
+        assertNull(read.memberEscalationHours(), "an explicit null means never");
+        assertEquals(24, read.guestEscalationHours());
+        assertTrue(read.memberPingOnOpen(), "left out, so unchanged");
+        assertNull(read.guidelines());
+
+        var edited = TicketAdminJson.readHelpSettings(current, DataObject.fromJson("{\"guidelines\":\"  Be nice.  \"}"));
+        assertEquals("Be nice.", edited.guidelines());
+        var backToDraft = TicketAdminJson.readHelpSettings(edited, DataObject.fromJson("{\"guidelines\":\"\"}"));
+        assertNull(backToDraft.guidelines(), "blank goes back to the built-in draft");
+        assertNull(TicketAdminJson.readHelpSettings(edited, DataObject.empty().put("guidelines", com.younglings.bot.ticket.TicketModels.HelpSettings.DEFAULT_GUIDELINES)).guidelines());
+
+        DataObject json = TicketAdminJson.helpSettingsJson(read);
+        assertEquals("42", json.getString("helperRoleId"));
+        assertTrue(json.getBoolean("guidelinesAreDefault"));
+        assertEquals(com.younglings.bot.ticket.TicketModels.HelpSettings.DEFAULT_GUIDELINES, json.getString("guidelines"));
+    }
+
+    @Test
     void theBuiltInDefaultsAreAValidStartingPanel() {
         PanelDefinition read = TicketAdminJson.readPanel(1, 0, TicketAdminJson.builtinDefaults().put("name", "n").put("title", "t"));
         assertTrue(TicketRules.validatePanel(read.panel(), read.fields()).isEmpty());

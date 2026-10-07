@@ -3,6 +3,9 @@ package com.younglings.bot.ticket;
 import com.younglings.bot.ticket.TicketModels.Answer;
 import com.younglings.bot.ticket.TicketModels.Field;
 import com.younglings.bot.ticket.TicketModels.FieldKind;
+import com.younglings.bot.ticket.TicketModels.FieldPurpose;
+import com.younglings.bot.ticket.TicketModels.HelpKind;
+import com.younglings.bot.ticket.TicketModels.HelpSettings;
 import com.younglings.bot.ticket.TicketModels.Option;
 import com.younglings.bot.ticket.TicketModels.Panel;
 import com.younglings.bot.ticket.TicketModels.PanelDefinition;
@@ -89,7 +92,7 @@ public class TicketRepository {
     private static final String PANEL_COLUMNS = """
             id, guild_id, name, title, description, button_label, category_id, channel_name_template, welcome_text, enabled,
             per_user_limit, default_ping_role_id, helper_cap, escalation_hours, default_escalate_role_id, posted_channel_id, posted_message_id,
-            opening_message, close_by_requester, close_by_helpers
+            opening_message, close_by_requester, close_by_helpers, help_kind
             """;
 
     private static Panel mapPanel(ResultSet rs) throws SQLException {
@@ -98,7 +101,7 @@ public class TicketRepository {
                 rs.getBoolean("enabled"), rs.getInt("per_user_limit"), (Long) rs.getObject("default_ping_role_id"), (Integer) rs.getObject("helper_cap"),
                 (Integer) rs.getObject("escalation_hours"), (Long) rs.getObject("default_escalate_role_id"),
                 (Long) rs.getObject("posted_channel_id"), (Long) rs.getObject("posted_message_id"), rs.getString("opening_message"),
-                rs.getBoolean("close_by_requester"), rs.getBoolean("close_by_helpers"));
+                rs.getBoolean("close_by_requester"), rs.getBoolean("close_by_helpers"), HelpKind.valueOf(rs.getString("help_kind")));
     }
 
     public List<Panel> getPanels(long guildId) {
@@ -134,7 +137,7 @@ public class TicketRepository {
                 FROM younglings.ticket_panel_option o JOIN younglings.ticket_panel_field f ON f.id = o.field_id
                 WHERE f.panel_id = ? ORDER BY o.position
                 """;
-        String fieldSql = "SELECT id, panel_id, position, label, kind, required, placeholder, max_length FROM younglings.ticket_panel_field WHERE panel_id = ? ORDER BY position";
+        String fieldSql = "SELECT id, panel_id, position, label, kind, required, placeholder, max_length, purpose FROM younglings.ticket_panel_field WHERE panel_id = ? ORDER BY position";
         try (Connection c = connectionSupplier.getConnection()) {
             try (PreparedStatement s = c.prepareStatement(optionSql)) {
                 s.setLong(1, panelId);
@@ -153,7 +156,7 @@ public class TicketRepository {
                         long id = rs.getLong("id");
                         fields.add(new Field(id, rs.getLong("panel_id"), rs.getInt("position"), rs.getString("label"), FieldKind.valueOf(rs.getString("kind")),
                                 rs.getBoolean("required"), rs.getString("placeholder"), (Integer) rs.getObject("max_length"),
-                                optionsByField.getOrDefault(id, List.of())));
+                                optionsByField.getOrDefault(id, List.of()), FieldPurpose.valueOf(rs.getString("purpose"))));
                     }
                 }
             }
@@ -207,8 +210,8 @@ public class TicketRepository {
                     String insert = """
                             INSERT INTO younglings.ticket_panel (guild_id, name, title, description, button_label, category_id, channel_name_template,
                                 welcome_text, enabled, per_user_limit, default_ping_role_id, helper_cap, escalation_hours, default_escalate_role_id,
-                                opening_message, close_by_requester, close_by_helpers)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
+                                opening_message, close_by_requester, close_by_helpers, help_kind)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
                             """;
                     try (PreparedStatement s = c.prepareStatement(insert)) {
                         bindPanel(s, p, 1);
@@ -221,7 +224,7 @@ public class TicketRepository {
                     String update = """
                             UPDATE younglings.ticket_panel SET name = ?, title = ?, description = ?, button_label = ?, category_id = ?, channel_name_template = ?,
                                 welcome_text = ?, enabled = ?, per_user_limit = ?, default_ping_role_id = ?, helper_cap = ?, escalation_hours = ?,
-                                default_escalate_role_id = ?, opening_message = ?, close_by_requester = ?, close_by_helpers = ?
+                                default_escalate_role_id = ?, opening_message = ?, close_by_requester = ?, close_by_helpers = ?, help_kind = ?
                             WHERE id = ? AND guild_id = ?
                             """;
                     try (PreparedStatement s = c.prepareStatement(update)) {
@@ -241,8 +244,9 @@ public class TicketRepository {
                         s.setString(14, p.openingMessage());
                         s.setBoolean(15, p.closeByRequester());
                         s.setBoolean(16, p.closeByHelpers());
-                        s.setLong(17, panelId);
-                        s.setLong(18, p.guildId());
+                        s.setString(17, p.helpKind().name());
+                        s.setLong(18, panelId);
+                        s.setLong(19, p.guildId());
                         if (s.executeUpdate() == 0) throw new IllegalArgumentException("That panel doesn't exist.");
                     }
                     try (PreparedStatement s = c.prepareStatement("DELETE FROM younglings.ticket_panel_field WHERE panel_id = ?")) {
@@ -263,8 +267,8 @@ public class TicketRepository {
                 for (Field field : definition.fields()) {
                     long fieldId;
                     try (PreparedStatement s = c.prepareStatement("""
-                            INSERT INTO younglings.ticket_panel_field (panel_id, position, label, kind, required, placeholder, max_length)
-                            VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id
+                            INSERT INTO younglings.ticket_panel_field (panel_id, position, label, kind, required, placeholder, max_length, purpose)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
                             """)) {
                         s.setLong(1, panelId);
                         s.setInt(2, position++);
@@ -273,6 +277,7 @@ public class TicketRepository {
                         s.setBoolean(5, field.required());
                         s.setString(6, field.placeholder());
                         setInt(s, 7, field.maxLength());
+                        s.setString(8, field.purpose().name());
                         try (ResultSet rs = s.executeQuery()) {
                             rs.next();
                             fieldId = rs.getLong(1);
@@ -334,7 +339,8 @@ public class TicketRepository {
         setLong(s, i++, p.defaultEscalateRoleId());
         s.setString(i++, p.openingMessage());
         s.setBoolean(i++, p.closeByRequester());
-        s.setBoolean(i, p.closeByHelpers());
+        s.setBoolean(i++, p.closeByHelpers());
+        s.setString(i, p.helpKind().name());
     }
 
     private void insertRoles(Connection c, long panelId, Set<Long> roleIds, String kind) throws SQLException {
@@ -661,13 +667,16 @@ public class TicketRepository {
 
     // ----- escalation -----
 
-    /** Open tickets on a panel with an escalation window, nobody helping, and past that window, not yet escalated. */
+    /**
+     * Open tickets with an escalation window, nobody helping, and past that window, not yet escalated. The window is the ticket's own
+     * (set by the PvM Help member/guest rules when it opened; 0 means never) or, without one, its panel's.
+     */
     public List<Ticket> getEscalationDue() {
         String sql = "SELECT " + prefixed("t.", TICKET_COLUMNS) + """
                  FROM younglings.ticket t JOIN younglings.ticket_panel p ON p.id = t.panel_id
                 WHERE t.status = 'OPEN' AND t.channel_id IS NOT NULL AND t.escalated_at IS NULL
-                  AND p.escalation_hours IS NOT NULL
-                  AND t.created_at <= NOW() - (p.escalation_hours * INTERVAL '1 hour')
+                  AND COALESCE(t.escalation_hours_override, p.escalation_hours) > 0
+                  AND t.created_at <= NOW() - (COALESCE(t.escalation_hours_override, p.escalation_hours) * INTERVAL '1 hour')
                   AND NOT EXISTS (SELECT 1 FROM younglings.ticket_helper h WHERE h.ticket_id = t.id)
                 """;
         try (Connection c = connectionSupplier.getConnection(); Statement s = c.createStatement(); ResultSet rs = s.executeQuery(sql)) {
@@ -676,6 +685,120 @@ public class TicketRepository {
             return tickets;
         } catch (SQLException e) {
             throw fail("find tickets due for escalation", e);
+        }
+    }
+
+    /**
+     * Records how the PvM Help rules shaped a ticket as it opened: its own escalation wait in hours ({@code null} keeps the panel's,
+     * 0 means never) and whether the opening ping was left out.
+     */
+    public void setHelpRouting(long ticketId, Integer escalationHoursOverride, boolean pingSuppressed) {
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("UPDATE younglings.ticket SET escalation_hours_override = ?, ping_suppressed = ? WHERE id = ?")) {
+            setInt(s, 1, escalationHoursOverride);
+            s.setBoolean(2, pingSuppressed);
+            s.setLong(3, ticketId);
+            s.executeUpdate();
+        } catch (SQLException e) {
+            throw fail("record how a ticket's pings were set", e);
+        }
+    }
+
+    /** Whether the ticket was opened without its role ping, so the message never shows one. */
+    public boolean isPingSuppressed(long ticketId) {
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("SELECT ping_suppressed FROM younglings.ticket WHERE id = ?")) {
+            s.setLong(1, ticketId);
+            try (ResultSet rs = s.executeQuery()) {
+                return rs.next() && rs.getBoolean(1);
+            }
+        } catch (SQLException e) {
+            throw fail("read whether a ticket's ping was left out", e);
+        }
+    }
+
+    /** The hours this ticket waits before escalating (its own, else its panel's), or {@code null} if it never does. */
+    public Integer getEscalationHours(long ticketId) {
+        String sql = "SELECT COALESCE(t.escalation_hours_override, p.escalation_hours) FROM younglings.ticket t LEFT JOIN younglings.ticket_panel p ON p.id = t.panel_id WHERE t.id = ?";
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
+            s.setLong(1, ticketId);
+            try (ResultSet rs = s.executeQuery()) {
+                if (!rs.next()) return null;
+                int hours = rs.getInt(1);
+                return rs.wasNull() || hours <= 0 ? null : hours;
+            }
+        } catch (SQLException e) {
+            throw fail("read a ticket's escalation wait", e);
+        }
+    }
+
+    // ================= PvM Help settings =================
+
+    public HelpSettings getHelpSettings(long guildId) {
+        String sql = """
+                SELECT guild_id, helper_role_id, helper_plus_role_id, guidelines, member_ping_on_open, member_escalation_hours,
+                       guest_pings_enabled, guest_ping_on_open, guest_escalation_hours, guest_high_tier_needs_attempts, high_tier_labels,
+                       posted_channel_id, posted_message_id
+                FROM younglings.help_settings WHERE guild_id = ?
+                """;
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
+            s.setLong(1, guildId);
+            try (ResultSet rs = s.executeQuery()) {
+                if (!rs.next()) return HelpSettings.defaults(guildId);
+                return new HelpSettings(rs.getLong("guild_id"), (Long) rs.getObject("helper_role_id"), (Long) rs.getObject("helper_plus_role_id"),
+                        rs.getString("guidelines"), rs.getBoolean("member_ping_on_open"), (Integer) rs.getObject("member_escalation_hours"),
+                        rs.getBoolean("guest_pings_enabled"), rs.getBoolean("guest_ping_on_open"), (Integer) rs.getObject("guest_escalation_hours"),
+                        rs.getBoolean("guest_high_tier_needs_attempts"), rs.getString("high_tier_labels"),
+                        (Long) rs.getObject("posted_channel_id"), (Long) rs.getObject("posted_message_id"));
+            }
+        } catch (SQLException e) {
+            throw fail("read the PvM Help settings", e);
+        }
+    }
+
+    /** Saves everything except where the guidelines panel is posted, which only changes when it is posted. */
+    public void saveHelpSettings(HelpSettings h) {
+        String sql = """
+                INSERT INTO younglings.help_settings (guild_id, helper_role_id, helper_plus_role_id, guidelines, member_ping_on_open, member_escalation_hours,
+                    guest_pings_enabled, guest_ping_on_open, guest_escalation_hours, guest_high_tier_needs_attempts, high_tier_labels)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (guild_id) DO UPDATE SET
+                    helper_role_id = EXCLUDED.helper_role_id, helper_plus_role_id = EXCLUDED.helper_plus_role_id, guidelines = EXCLUDED.guidelines,
+                    member_ping_on_open = EXCLUDED.member_ping_on_open, member_escalation_hours = EXCLUDED.member_escalation_hours,
+                    guest_pings_enabled = EXCLUDED.guest_pings_enabled, guest_ping_on_open = EXCLUDED.guest_ping_on_open,
+                    guest_escalation_hours = EXCLUDED.guest_escalation_hours, guest_high_tier_needs_attempts = EXCLUDED.guest_high_tier_needs_attempts,
+                    high_tier_labels = EXCLUDED.high_tier_labels
+                """;
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
+            s.setLong(1, h.guildId());
+            setLong(s, 2, h.helperRoleId());
+            setLong(s, 3, h.helperPlusRoleId());
+            s.setString(4, h.guidelines());
+            s.setBoolean(5, h.memberPingOnOpen());
+            setInt(s, 6, h.memberEscalationHours());
+            s.setBoolean(7, h.guestPingsEnabled());
+            s.setBoolean(8, h.guestPingOnOpen());
+            setInt(s, 9, h.guestEscalationHours());
+            s.setBoolean(10, h.guestHighTierNeedsAttempts());
+            s.setString(11, h.highTierLabels());
+            s.executeUpdate();
+        } catch (SQLException e) {
+            throw fail("save the PvM Help settings", e);
+        }
+    }
+
+    public void setHelpPosted(long guildId, Long channelId, Long messageId) {
+        String sql = """
+                INSERT INTO younglings.help_settings (guild_id, posted_channel_id, posted_message_id) VALUES (?, ?, ?)
+                ON CONFLICT (guild_id) DO UPDATE SET posted_channel_id = EXCLUDED.posted_channel_id, posted_message_id = EXCLUDED.posted_message_id
+                """;
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
+            s.setLong(1, guildId);
+            setLong(s, 2, channelId);
+            setLong(s, 3, messageId);
+            s.executeUpdate();
+        } catch (SQLException e) {
+            throw fail("record where the helper guidelines were posted", e);
         }
     }
 

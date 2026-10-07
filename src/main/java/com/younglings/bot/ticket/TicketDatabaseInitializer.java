@@ -165,6 +165,34 @@ public class TicketDatabaseInitializer {
                 );
                 """,
 
+                // The PvM Help system. A panel is NONE (an ordinary ticket), PVM (general help) or CA (combat achievement help); on a help
+                // panel a question can be marked as the tier picked or the requester's earlier attempts, which the guest rules read.
+                "ALTER TABLE younglings.ticket_panel ADD COLUMN IF NOT EXISTS help_kind TEXT NOT NULL DEFAULT 'NONE';",
+                "ALTER TABLE younglings.ticket_panel_field ADD COLUMN IF NOT EXISTS purpose TEXT NOT NULL DEFAULT 'NONE';",
+                // Per ticket: its own escalation wait (NULL = the panel's, 0 = never, set by the member/guest rules when it opens) and
+                // whether the opening ping was left out, so a later edit of the message doesn't show a ping that was never sent.
+                "ALTER TABLE younglings.ticket ADD COLUMN IF NOT EXISTS escalation_hours_override INTEGER NULL;",
+                "ALTER TABLE younglings.ticket ADD COLUMN IF NOT EXISTS ping_suppressed BOOLEAN NOT NULL DEFAULT FALSE;",
+
+                // One row per server: the two helper roles, the guidelines text, member/guest ping timers and the attempts rule.
+                """
+                CREATE TABLE IF NOT EXISTS younglings.help_settings (
+                    guild_id BIGINT PRIMARY KEY,
+                    helper_role_id BIGINT NULL,
+                    helper_plus_role_id BIGINT NULL,
+                    guidelines TEXT NULL,
+                    member_ping_on_open BOOLEAN NOT NULL DEFAULT TRUE,
+                    member_escalation_hours INTEGER NULL DEFAULT 72,
+                    guest_pings_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+                    guest_ping_on_open BOOLEAN NOT NULL DEFAULT TRUE,
+                    guest_escalation_hours INTEGER NULL,
+                    guest_high_tier_needs_attempts BOOLEAN NOT NULL DEFAULT TRUE,
+                    high_tier_labels TEXT NOT NULL DEFAULT 'Master, Grandmaster',
+                    posted_channel_id BIGINT NULL,
+                    posted_message_id BIGINT NULL
+                );
+                """,
+
                 // What a new panel starts with, as the dashboard's JSON: roles, category, limits, wording. Edited per panel afterwards.
                 """
                 CREATE TABLE IF NOT EXISTS younglings.ticket_panel_defaults (

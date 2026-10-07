@@ -109,7 +109,7 @@ class ConfigurePanelsTest {
     void everySectionHasItsRenamedButton() {
         when(settingsService.getEffective(GUILD_ID)).thenReturn(settings("Younglings", true));
         List<String> labels = ComponentTree.of(List.of(listener.buildMainPanel(guild))).findAll(Button.class).stream().map(Button::getLabel).toList();
-        assertEquals(List.of("Clan Setup", "RSN Link", "Embedded Posts (3)", "Tracker Channels", "Command Only Channels"), labels);
+        assertEquals(List.of("Clan Setup", "RSN Link", "Embedded Posts (3)", "Tracker Channels", "Command Only Channels", "PvM Help"), labels);
     }
 
     @Test

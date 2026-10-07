@@ -3,6 +3,9 @@ package com.younglings.bot.internal;
 import com.younglings.bot.ticket.TicketModels.Answer;
 import com.younglings.bot.ticket.TicketModels.Field;
 import com.younglings.bot.ticket.TicketModels.FieldKind;
+import com.younglings.bot.ticket.TicketModels.FieldPurpose;
+import com.younglings.bot.ticket.TicketModels.HelpKind;
+import com.younglings.bot.ticket.TicketModels.HelpSettings;
 import com.younglings.bot.ticket.TicketModels.Option;
 import com.younglings.bot.ticket.TicketModels.Panel;
 import com.younglings.bot.ticket.TicketModels.PanelDefinition;
@@ -101,7 +104,8 @@ final class TicketAdminJson {
                 null, null,
                 json.getString("openingMessage", Panel.DEFAULT_OPENING).strip(),
                 json.getBoolean("closeByRequester", true),
-                json.getBoolean("closeByHelpers", true));
+                json.getBoolean("closeByHelpers", true),
+                enumOr(HelpKind.class, json, "helpKind", HelpKind.NONE, "A panel has an unknown help type"));
 
         List<Field> fields = new ArrayList<>();
         if (!json.isNull("fields")) {
@@ -159,6 +163,17 @@ final class TicketAdminJson {
                 .put("closeRoleIds", DataArray.empty());
     }
 
+    private static <E extends Enum<E>> E enumOr(Class<E> type, DataObject json, String key, E fallback, String complaint) {
+        if (json.isNull(key)) return fallback;
+        String raw = json.getString(key, "").strip();
+        if (raw.isEmpty()) return fallback;
+        try {
+            return Enum.valueOf(type, raw.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new BadRequest(complaint + " \"" + raw + "\".");
+        }
+    }
+
     private static int intOr(DataObject json, String key, int fallback) {
         Integer value = intOrNull(json, key);
         return value == null ? fallback : value;
@@ -183,7 +198,8 @@ final class TicketAdminJson {
 
         String placeholder = text(json, "placeholder", null);
         return new Field(0, panelId, position, text(json, "label", ""), kind, json.getBoolean("required", true),
-                placeholder == null || placeholder.isEmpty() ? null : placeholder, intOrNull(json, "maxLength"), options);
+                placeholder == null || placeholder.isEmpty() ? null : placeholder, intOrNull(json, "maxLength"), options,
+                enumOr(FieldPurpose.class, json, "purpose", FieldPurpose.NONE, "A question has an unknown role in the help rules"));
     }
 
     static Settings readSettings(Settings current, DataObject json) {
@@ -214,6 +230,46 @@ final class TicketAdminJson {
                 .put("transcriptRetentionDays", settings.transcriptRetentionDays());
     }
 
+    // ---------- PvM Help settings ----------
+
+    static DataObject helpSettingsJson(HelpSettings settings) {
+        return DataObject.empty()
+                .put("helperRoleId", idString(settings.helperRoleId()))
+                .put("helperPlusRoleId", idString(settings.helperPlusRoleId()))
+                .put("guidelines", settings.guidelinesOrDefault())
+                .put("guidelinesAreDefault", settings.guidelines() == null || settings.guidelines().isBlank())
+                .put("defaultGuidelines", HelpSettings.DEFAULT_GUIDELINES)
+                .put("memberPingOnOpen", settings.memberPingOnOpen())
+                .put("memberEscalationHours", settings.memberEscalationHours())
+                .put("guestPingsEnabled", settings.guestPingsEnabled())
+                .put("guestPingOnOpen", settings.guestPingOnOpen())
+                .put("guestEscalationHours", settings.guestEscalationHours())
+                .put("guestHighTierNeedsAttempts", settings.guestHighTierNeedsAttempts())
+                .put("highTierLabels", settings.highTierLabels())
+                .put("postedChannelId", idString(settings.postedChannelId()));
+    }
+
+    /**
+     * Applies what the dashboard sent over the saved settings; anything it left out keeps its value. Guidelines equal to the built-in
+     * draft (or blank) are stored as "not edited" so the draft can improve later without anyone's saved copy hiding it.
+     */
+    static HelpSettings readHelpSettings(HelpSettings current, DataObject json) {
+        String sent = json.isNull("guidelines") ? null : json.getString("guidelines", "").strip();
+        String guidelines = sent == null ? current.guidelines() : (sent.isEmpty() || sent.equals(HelpSettings.DEFAULT_GUIDELINES) ? null : sent);
+        return new HelpSettings(current.guildId(),
+                json.hasKey("helperRoleId") ? idOrNull(json, "helperRoleId") : current.helperRoleId(),
+                json.hasKey("helperPlusRoleId") ? idOrNull(json, "helperPlusRoleId") : current.helperPlusRoleId(),
+                guidelines,
+                json.getBoolean("memberPingOnOpen", current.memberPingOnOpen()),
+                json.hasKey("memberEscalationHours") ? intOrNull(json, "memberEscalationHours") : current.memberEscalationHours(),
+                json.getBoolean("guestPingsEnabled", current.guestPingsEnabled()),
+                json.getBoolean("guestPingOnOpen", current.guestPingOnOpen()),
+                json.hasKey("guestEscalationHours") ? intOrNull(json, "guestEscalationHours") : current.guestEscalationHours(),
+                json.getBoolean("guestHighTierNeedsAttempts", current.guestHighTierNeedsAttempts()),
+                json.hasKey("highTierLabels") ? json.getString("highTierLabels", "").strip() : current.highTierLabels(),
+                current.postedChannelId(), current.postedMessageId());
+    }
+
     /** The panel's own columns plus where it's posted — what the list view shows. */
     static DataObject panelJson(Panel panel) {
         return DataObject.empty()
@@ -228,6 +284,7 @@ final class TicketAdminJson {
                 .put("openingMessage", panel.openingMessage())
                 .put("closeByRequester", panel.closeByRequester())
                 .put("closeByHelpers", panel.closeByHelpers())
+                .put("helpKind", panel.helpKind().name())
                 .put("enabled", panel.enabled())
                 .put("perUserLimit", panel.perUserLimit())
                 .put("defaultPingRoleId", idString(panel.defaultPingRoleId()))
@@ -260,6 +317,7 @@ final class TicketAdminJson {
                     .put("required", field.required())
                     .put("placeholder", field.placeholder())
                     .put("maxLength", field.maxLength())
+                    .put("purpose", field.purpose().name())
                     .put("options", options));
         }
         return json.put("fields", fields);

@@ -123,6 +123,12 @@ public class TicketListener extends ListenerAdapter {
             }
         }
 
+        Optional<String> needsAttempts = service.attemptsProblem(guild, member, panel, fields, raw);
+        if (needsAttempts.isPresent()) {
+            Containers.replyEphemeral(event, Containers.WARNING, needsAttempts.get());
+            return;
+        }
+
         event.deferReply(true).queue();
         service.openTicket(guild, member, panel, fields, raw).whenComplete((ticket, error) -> {
             if (error != null || ticket == null || ticket.channelId() == null) {

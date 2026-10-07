@@ -423,6 +423,8 @@ public class ConfigureInteractionListener extends ListenerAdapter {
         children.add(TextDisplay.of("-# Where clan activity is posted — drops, levels, quests, Citadel, joins and leaves, and the weekly reports."));
         children.add(ActionRow.of(Button.secondary("configure_cmdchan_main:_", "Command Only Channels")));
         children.add(TextDisplay.of("-# Channels where only bot commands are allowed — anything else typed there is deleted."));
+        children.add(ActionRow.of(Button.secondary(PvmHelpConfigureListener.OPEN_ID, "PvM Help")));
+        children.add(TextDisplay.of("-# The PVM Helper roles and guidelines, and when help tickets ping helpers for members and guests."));
         children.add(Containers.autoCloseNote());
         return Containers.card(Containers.PRIMARY, children);
     }

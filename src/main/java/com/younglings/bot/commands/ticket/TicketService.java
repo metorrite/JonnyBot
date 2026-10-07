@@ -1,6 +1,7 @@
 package com.younglings.bot.commands.ticket;
 
 import com.younglings.bot.permission.AdminRoleFilter;
+import com.younglings.bot.permission.MemberAccess;
 import com.younglings.bot.runescape.PlayerLink;
 import com.younglings.bot.runescape.PlayerLinkService;
 import com.younglings.bot.ticket.TicketModels.Answer;
@@ -63,11 +64,13 @@ public class TicketService {
     private final TicketRepository repository;
     private final PlayerLinkService linkService;
     private final AdminRoleFilter adminRoleFilter;
+    private final MemberAccess memberAccess;
 
-    public TicketService(TicketRepository repository, PlayerLinkService linkService, AdminRoleFilter adminRoleFilter) {
+    public TicketService(TicketRepository repository, PlayerLinkService linkService, AdminRoleFilter adminRoleFilter, MemberAccess memberAccess) {
         this.repository = repository;
         this.linkService = linkService;
         this.adminRoleFilter = adminRoleFilter;
+        this.memberAccess = memberAccess;
     }
 
     // ================= the form =================
@@ -138,7 +141,7 @@ public class TicketService {
             action = o.isRole() ? action.addRolePermissionOverride(o.id(), o.allow(), o.deny()) : action.addMemberPermissionOverride(o.id(), o.allow(), o.deny());
         }
 
-        Long pingRole = TicketRules.pingRole(panel, routing.orElse(null));
+        Long pingRole = openingPingRole(guild, requester, panel, ticket, routing.orElse(null));
         return action.submit()
                 .thenCompose(channel -> {
                     repository.setChannel(ticket.id(), channel.getIdLong());
@@ -159,6 +162,27 @@ public class TicketService {
                         repository.closeTicket(ticket.id(), guild.getSelfMember().getIdLong(), "The ticket channel could not be created.");
                     }
                 });
+    }
+
+    /**
+     * The role pinged as a ticket opens. On a PvM Help panel the ticket follows the member or guest settings: a guest's pings nobody
+     * (unless guest pings are on), and the ticket remembers its own escalation wait and whether its ping was left out, so later edits
+     * of its message agree with what happened. Any other panel just pings its tier's role.
+     */
+    private Long openingPingRole(Guild guild, Member requester, Panel panel, Ticket ticket, Option routing) {
+        Long role = TicketRules.pingRole(panel, routing);
+        if (!panel.isHelpPanel()) return role;
+
+        boolean member = memberAccess.isMemberTier(guild, requester);
+        HelpRules.Pings pings = HelpRules.pingsFor(repository.getHelpSettings(guild.getIdLong()), member);
+        repository.setHelpRouting(ticket.id(), pings.escalationHours() == null ? 0 : pings.escalationHours(), !pings.pingOnOpen());
+        return pings.pingOnOpen() ? role : null;
+    }
+
+    /** The reason a guest's form can't open a ticket yet (a Master or Grandmaster request with no earlier attempts), or empty if it can. */
+    public Optional<String> attemptsProblem(Guild guild, Member requester, Panel panel, List<Field> fields, Map<Long, String> rawValues) {
+        if (panel.helpKind() != com.younglings.bot.ticket.TicketModels.HelpKind.CA) return Optional.empty();
+        return HelpRules.attemptsProblem(repository.getHelpSettings(guild.getIdLong()), panel, fields, rawValues, memberAccess.isMemberTier(guild, requester));
     }
 
     private static String displayAnswer(Field field, String raw) {
@@ -205,6 +229,7 @@ public class TicketService {
     }
 
     Long pingRoleFor(Panel panel, Ticket ticket) {
+        if (repository.isPingSuppressed(ticket.id())) return null;
         Option routing = routingOptionOf(panel, ticket);
         return TicketRules.pingRole(panel, routing);
     }
@@ -339,7 +364,8 @@ public class TicketService {
                 GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, ticket.channelId());
                 if (role == null || channel == null) continue;
 
-                channel.sendMessage("⏰ Nobody has joined this ticket after " + panel.escalationHours() + " hour(s) — <@&" + role + ">, can someone take a look?")
+                Integer waited = repository.getEscalationHours(ticket.id());
+                channel.sendMessage("⏰ Nobody has joined this ticket" + (waited == null ? "" : " after " + waited + " hour(s)") + " — <@&" + role + ">, can someone take a look?")
                         .setAllowedMentions(EnumSet.noneOf(Message.MentionType.class)).mentionRoles(role)
                         .queue(null, error -> log.warn("Couldn't post the escalation for ticket {}", ticket.id(), error));
             } catch (Exception e) {
