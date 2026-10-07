@@ -25,6 +25,42 @@ public final class HelpRules {
     public static final int MIN_HOURS = 1;
     public static final int MAX_HOURS = 720;
 
+    /** The Combat Mastery tiers, easiest first, as helpers pick them in their ping settings. */
+    public static final List<String> TIERS = List.of("Easy", "Medium", "Hard", "Elite", "Master", "Grandmaster");
+    /** The ping choice for a ticket where nobody picked a tier (general PvM help can leave it blank). */
+    public static final String GENERAL = "General";
+
+    /**
+     * The tiers this helper may be pinged for: PVM Helper+ gets every tier, PVM Helper everything below the Master-and-above tiers
+     * (the same names the earlier-attempts rule uses), and both can opt in to general help tickets. A PVM Helper can still see and
+     * join a Master or Grandmaster ticket, they just can't be pinged for it.
+     */
+    public static List<String> allowedTiers(HelpSettings settings, boolean helperPlus) {
+        List<String> high = highTierLabels(settings);
+        List<String> allowed = new ArrayList<>();
+        for (String tier : TIERS) {
+            if (helperPlus || high.stream().noneMatch(tier::equalsIgnoreCase)) allowed.add(tier);
+        }
+        allowed.add(GENERAL);
+        return allowed;
+    }
+
+    /** The ping group a ticket falls in: its tier ("Master"...) when that is one of ours, otherwise {@link #GENERAL}. */
+    public static String pingGroup(String tierLabel) {
+        if (tierLabel == null) return GENERAL;
+        return TIERS.stream().filter(t -> t.equalsIgnoreCase(tierLabel.strip())).findFirst().orElse(GENERAL);
+    }
+
+    /** The label of the option picked in the question marked as the tier, or {@code null} if there is none or it was left blank. */
+    public static String tierOf(List<Field> fields, Map<Long, String> rawValues) {
+        for (Field field : fields) {
+            if (field.purpose() != FieldPurpose.TIER || field.kind() != FieldKind.SELECT) continue;
+            String picked = rawValues.get(field.id());
+            return field.options().stream().filter(o -> String.valueOf(o.id()).equals(picked)).map(Option::label).findFirst().orElse(null);
+        }
+        return null;
+    }
+
     /** How a ticket's pings are set up as it opens: whether the helpers are pinged right away, and the hours before the next role up is pinged ({@code null} = never). */
     public record Pings(boolean pingOnOpen, Integer escalationHours) {}
 

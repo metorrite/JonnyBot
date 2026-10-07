@@ -31,7 +31,20 @@ final class TicketText {
     }
 
     static String fill(String template, Panel panel, Ticket ticket, List<String> rsns, List<Long> helperIds, Long pingRoleId) {
-        String ping = pingRoleId != null && ticket.status() == Status.OPEN ? "<@&" + pingRoleId + ">" : "";
+        return fill(template, panel, ticket, rsns, helperIds, pingRoleId, List.of());
+    }
+
+    /** What {@code {ping}} stands for: the pinged role and/or the helpers who opted in for the ticket's tier, or nothing once it's closed. */
+    static String pingMentions(Ticket ticket, Long pingRoleId, List<Long> pingUserIds) {
+        if (ticket.status() != Status.OPEN) return "";
+        List<String> mentions = new java.util.ArrayList<>();
+        if (pingRoleId != null) mentions.add("<@&" + pingRoleId + ">");
+        for (long id : pingUserIds) mentions.add("<@" + id + ">");
+        return String.join(" ", mentions);
+    }
+
+    static String fill(String template, Panel panel, Ticket ticket, List<String> rsns, List<Long> helperIds, Long pingRoleId, List<Long> pingUserIds) {
+        String ping = pingMentions(ticket, pingRoleId, pingUserIds);
         String helpers = helperIds.isEmpty() ? "nobody yet" : String.join(", ", helperIds.stream().map(id -> "<@" + id + ">").toList());
 
         return template

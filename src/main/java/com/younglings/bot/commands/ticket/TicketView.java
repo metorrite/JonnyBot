@@ -79,18 +79,24 @@ final class TicketView {
     }
 
     static Opening opening(Panel panel, Ticket ticket, List<String> rsns, List<Long> helperIds, Long pingRoleId) {
+        return opening(panel, ticket, rsns, helperIds, pingRoleId, List.of());
+    }
+
+    /** {@code pingUserIds} are helpers who chose this ticket's tier in their ping settings; they are mentioned wherever the role would be. */
+    static Opening opening(Panel panel, Ticket ticket, List<String> rsns, List<Long> helperIds, Long pingRoleId, List<Long> pingUserIds) {
         boolean closed = ticket.status() == Status.CLOSED;
         Color color = closed ? Color.DARK_GRAY : Containers.PRIMARY;
 
         // The plain-text line. A role ping has to live in the message itself to notify anyone, so unless the wording places it
         // with {ping}, it goes on a line of its own.
         String template = panel == null || panel.openingMessage() == null || panel.openingMessage().isBlank() ? Panel.DEFAULT_OPENING : panel.openingMessage();
-        String content = truncate(TicketText.fill(template, panel, ticket, rsns, helperIds, pingRoleId), 1800);
-        if (pingRoleId != null && !closed && !TicketText.usesPing(template)) content += "\n🔔 <@&" + pingRoleId + ">";
+        String content = truncate(TicketText.fill(template, panel, ticket, rsns, helperIds, pingRoleId, pingUserIds), 1800);
+        String mentions = TicketText.pingMentions(ticket, pingRoleId, pingUserIds);
+        if (!mentions.isEmpty() && !TicketText.usesPing(template)) content += "\n🔔 " + mentions;
 
         // The panel's embedded message, then whether anyone has joined and (once closed) how it ended.
         String supportTemplate = panel == null || panel.welcomeText() == null || panel.welcomeText().isBlank() ? Panel.DEFAULT_SUPPORT : panel.welcomeText();
-        StringBuilder support = new StringBuilder(truncate(TicketText.fill(supportTemplate, panel, ticket, rsns, helperIds, pingRoleId), 1500));
+        StringBuilder support = new StringBuilder(truncate(TicketText.fill(supportTemplate, panel, ticket, rsns, helperIds, pingRoleId, pingUserIds), 1500));
         if (panel != null && panel.usesHelpers()) support.append("\n\n").append(helpersLine(panel.helperCap(), helperIds, closed));
         if (closed) {
             support.append("\n\n🔒 Closed");

@@ -8,6 +8,7 @@ import net.dv8tion.jda.api.components.actionrow.ActionRow;
 import net.dv8tion.jda.api.components.buttons.Button;
 import net.dv8tion.jda.api.components.container.Container;
 import net.dv8tion.jda.api.components.container.ContainerChildComponent;
+import net.dv8tion.jda.api.components.selections.StringSelectMenu;
 import net.dv8tion.jda.api.components.textdisplay.TextDisplay;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Message;
@@ -17,6 +18,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -30,6 +32,8 @@ public class HelpOnboarding {
 
     static final String ACCEPT_ID = "pvmhelp_accept";
     static final String LEAVE_ID = "pvmhelp_leave";
+    static final String PINGS_ID = "pvmhelp_pings";
+    static final String PING_SELECT_ID = "pvmhelp_pings_select";
 
     private final TicketRepository repository;
 
@@ -37,15 +41,46 @@ public class HelpOnboarding {
         this.repository = repository;
     }
 
-    /** The guidelines, a line saying what pressing the button means, then the two buttons. */
+    /** The guidelines, a line saying what pressing the button means, then the buttons: agree, ping settings, step down. */
     static Container message(HelpSettings settings) {
         List<ContainerChildComponent> children = new ArrayList<>();
-        children.add(TextDisplay.of("### Become a PVM Helper"));
+        children.add(TextDisplay.of("### Sign up as a PVM Helper"));
         children.add(TextDisplay.of(truncate(settings.guidelinesOrDefault(), HelpSettings.MAX_GUIDELINES)));
-        children.add(TextDisplay.of("-# Pressing the green button means you have read these guidelines and agree to them. You can hand the role back at any time."));
+        children.add(TextDisplay.of("-# Pressing the green button means you have read these guidelines and agree to them. Once you're a helper, **Ping Settings** lets you "
+                + "choose which tiers ping you. You can hand the role back at any time."));
         children.add(ActionRow.of(
-                Button.success(ACCEPT_ID, "I agree — make me a PVM Helper"),
+                Button.success(ACCEPT_ID, "I agree — sign me up"),
+                Button.primary(PINGS_ID, "Ping Settings"),
                 Button.secondary(LEAVE_ID, "Stop being a PVM Helper")));
+        return Containers.card(Containers.PRIMARY, children);
+    }
+
+    /**
+     * A helper's own ping settings, shown only to them: the tiers their role allows, ticked where they asked to be pinged. A PVM Helper
+     * can be pinged for the tiers below Master; a PVM Helper+ for every tier. Every helper can see and join any ticket either way.
+     */
+    static Container pingSettings(HelpSettings settings, HelpPingService.HelperLevel level, Set<String> chosen) {
+        boolean plus = level == HelpPingService.HelperLevel.HELPER_PLUS;
+        List<String> allowed = HelpRules.allowedTiers(settings, plus);
+        List<String> ticked = allowed.stream().filter(chosen::contains).toList();
+
+        List<ContainerChildComponent> children = new ArrayList<>();
+        StringBuilder text = new StringBuilder("### Your ping settings\n");
+        if (plus) text.append("You're a **PVM Helper+**, so you can be pinged for every tier.");
+        else text.append("You're a **PVM Helper**, so you can be pinged for the tiers below ").append(String.join(" and ", HelpRules.highTierLabels(settings)))
+                .append(". Those tickets won't ping you, but you can still see and join them.");
+        text.append("\n**Pinged for:** ").append(ticked.isEmpty() ? "*nothing. No ticket will ping you.*" : String.join(", ", ticked));
+        children.add(TextDisplay.of(text.toString()));
+        children.add(TextDisplay.of("Choose the tiers you want to hear about. Clear them all to turn pings off."));
+
+        StringSelectMenu.Builder menu = StringSelectMenu.create(PING_SELECT_ID)
+                .setPlaceholder("Choose tiers")
+                .setRequiredRange(0, allowed.size());
+        for (String tier : allowed) menu.addOption(tier.equals(HelpRules.GENERAL) ? "General help (no tier picked)" : tier, tier);
+        if (!ticked.isEmpty()) menu.setDefaultValues(ticked);
+        children.add(ActionRow.of(menu.build()));
+
+        if (!settings.guestPingsEnabled()) children.add(TextDisplay.of("-# Tickets opened by guests (anyone who isn't in the clan) don't ping anyone yet."));
         return Containers.card(Containers.PRIMARY, children);
     }
 

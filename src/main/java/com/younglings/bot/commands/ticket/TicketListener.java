@@ -158,11 +158,12 @@ public class TicketListener extends ListenerAdapter {
                 List<String> rsns = service.rsnsOf(guild.getIdLong(), fresh.requesterId());
                 List<Long> helpers = repository.getHelpers(ticketId);
                 Long pingRole = service.pingRoleFor(panel, fresh);
+                List<Long> pingUsers = service.pingUsersFor(fresh);
                 if (event.getMessage().getFlags().contains(net.dv8tion.jda.api.entities.Message.MessageFlag.IS_COMPONENTS_V2)) {
                     // Opened before the Ticket Tool style layout: still the older card.
                     event.editComponents(List.of(TicketView.welcome(panel, fresh, rsns, helpers, pingRole))).useComponentsV2(true).queue();
                 } else {
-                    event.editMessage(TicketView.opening(panel, fresh, rsns, helpers, pingRole).toEdit()).queue();
+                    event.editMessage(TicketView.opening(panel, fresh, rsns, helpers, pingRole, pingUsers).toEdit()).queue();
                 }
             }
             case TICKET_CLOSED -> Containers.replyEphemeral(event, Containers.WARNING, "This ticket is already closed.");

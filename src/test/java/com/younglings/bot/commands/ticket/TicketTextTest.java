@@ -32,6 +32,16 @@ class TicketTextTest {
     }
 
     @Test
+    void thePingCanBeHelpersByNameAsWellAsARole() {
+        Ticket open = ticket(Status.OPEN, "Hard");
+        assertEquals("<@&77> <@5> <@6>", TicketText.pingMentions(open, 77L, List.of(5L, 6L)));
+        assertEquals("<@5>", TicketText.pingMentions(open, null, List.of(5L)));
+        assertEquals("", TicketText.pingMentions(open, null, List.of()));
+        assertEquals("", TicketText.pingMentions(ticket(Status.CLOSED, "Hard"), 77L, List.of(5L)), "no pings once it's closed");
+        assertEquals("hi <@5>", TicketText.fill("hi {ping}", PANEL, open, List.of(), List.of(), null, List.of(5L)));
+    }
+
+    @Test
     void aClosedTicketNoLongerPings() {
         assertFalse(TicketText.fill("hello {ping}", PANEL, ticket(Status.CLOSED, null), List.of(), List.of(), 77L).contains("<@&77>"));
     }
