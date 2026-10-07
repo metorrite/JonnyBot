@@ -154,12 +154,7 @@ public class DevHelpSetup {
                 "Ask for PvM help", null, "pvm-{number}",
                 "A helper will be with you soon. They'll give advice, guides and tips here, or review a recording of your attempt. They won't join you in game.",
                 true, 1, null, 2, null, null, null, null, Panel.DEFAULT_OPENING, true, true, HelpKind.PVM);
-        List<Field> fields = List.of(
-                new Field(0, 0, 0, "Which boss?", FieldKind.SHORT, true, "e.g. Vorago", 100, List.of(), FieldPurpose.NONE),
-                new Field(0, 0, 1, "Tier (optional)", FieldKind.SELECT, false, "Leave blank if it isn't about a tier", null, tiers(), FieldPurpose.TIER),
-                new Field(0, 0, 2, "A specific achievement (optional)", FieldKind.SHORT, false, "e.g. Maul and Brawl", 100, List.of(), FieldPurpose.NONE),
-                new Field(0, 0, 3, "What do you need help with?", FieldKind.PARAGRAPH, false, "Anything that helps a helper understand", 500, List.of(), FieldPurpose.NONE));
-        return new PanelDefinition(panel, fields, PanelRoles.none());
+        return new PanelDefinition(panel, helpFields(false), PanelRoles.none());
     }
 
     /** CA help: a boss and a tier are needed; one achievement is optional, and a guest asking for Master or above says what they have tried. */
@@ -171,12 +166,21 @@ public class DevHelpSetup {
                 "Ask for CA help", null, "ca-{number}",
                 "A helper will be with you soon. If you named one achievement they will only help with that one.",
                 true, 1, null, 2, null, null, null, null, Panel.DEFAULT_OPENING, true, true, HelpKind.CA);
-        List<Field> fields = List.of(
-                new Field(0, 0, 0, "Which boss?", FieldKind.SHORT, true, "e.g. Amascut", 100, List.of(), FieldPurpose.NONE),
-                new Field(0, 0, 1, "Tier", FieldKind.SELECT, true, "Pick the tier", null, tiers(), FieldPurpose.TIER),
-                new Field(0, 0, 2, "One achievement (optional)", FieldKind.SHORT, false, "If you choose one, we only help with that one", 100, List.of(), FieldPurpose.NONE),
-                new Field(0, 0, 3, "Earlier attempts", FieldKind.PARAGRAPH, false, "Needed for Master and Grandmaster if you aren't in the clan", 500, List.of(), FieldPurpose.ATTEMPTS),
-                new Field(0, 0, 4, "Anything else?", FieldKind.PARAGRAPH, false, "When you're free, what you've tried, and so on", 500, List.of(), FieldPurpose.NONE));
-        return new PanelDefinition(panel, fields, PanelRoles.none());
+        return new PanelDefinition(panel, helpFields(true), PanelRoles.none());
+    }
+
+    /**
+     * The questions of a help panel. The boss, tier and achievement are chosen from lists in the guided flow ({@link HelpTicketFlow}), so their
+     * kinds here only say how the answer is filed; the checkbox and the last box are the small form at the end. {@code tierRequired} is CA Help.
+     */
+    private static List<Field> helpFields(boolean tierRequired) {
+        return List.of(
+                new Field(0, 0, 0, "Which boss?", FieldKind.SHORT, true, null, 100, List.of(), FieldPurpose.BOSS),
+                new Field(0, 0, 1, tierRequired ? "Tier" : "Tier (optional)", FieldKind.SELECT, tierRequired, null, null, tiers(), FieldPurpose.TIER),
+                new Field(0, 0, 2, "Specific achievement? (Optional)", FieldKind.SHORT, false, null, 100, List.of(), FieldPurpose.ACHIEVEMENT),
+                new Field(0, 0, 3, "Have you already made attempts yourself?", FieldKind.CHECKBOX, false, null, null, List.of(), FieldPurpose.ATTEMPTS),
+                // A text box's hint holds 100 characters at most, so this is the long wording shortened.
+                new Field(0, 0, 4, "Where you stand / what you need", FieldKind.PARAGRAPH, false,
+                        "Where you currently stand with this boss/CA, and what you need help with", 500, List.of(), FieldPurpose.NONE));
     }
 }

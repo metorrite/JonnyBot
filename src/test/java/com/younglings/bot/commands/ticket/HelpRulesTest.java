@@ -152,11 +152,44 @@ class HelpRulesTest {
 
         // PvM help: only the boss is required. CA help: the boss and the tier are required, and the tier is the marked dropdown.
         var pvm = DevHelpSetup.pvmPanel(1).fields();
-        assertEquals(List.of(true, false, false, false), pvm.stream().map(f -> f.required()).toList());
+        assertEquals(List.of(true, false, false, false, false), pvm.stream().map(f -> f.required()).toList());
         var ca = DevHelpSetup.caPanel(1).fields();
         assertTrue(ca.get(0).required() && ca.get(1).required());
         assertEquals(com.younglings.bot.ticket.TicketModels.FieldPurpose.TIER, ca.get(1).purpose());
         assertEquals(com.younglings.bot.ticket.TicketModels.FieldPurpose.ATTEMPTS, ca.get(3).purpose());
+        assertEquals(FieldKind.CHECKBOX, ca.get(3).kind(), "earlier attempts is a yes/no checkbox");
+        assertEquals(com.younglings.bot.ticket.TicketModels.FieldPurpose.BOSS, ca.get(0).purpose());
+        assertEquals(com.younglings.bot.ticket.TicketModels.FieldPurpose.ACHIEVEMENT, ca.get(2).purpose());
+    }
+
+    @Test
+    void withACheckboxAGuestAskingForMasterMustAnswerYes() {
+        Field checkbox = new Field(12, 1, 2, "Have you already made attempts yourself?", FieldKind.CHECKBOX, false, null, null, List.of(), FieldPurpose.ATTEMPTS);
+        List<Field> fields = List.of(BOSS, TIER, checkbox);
+
+        var no = HelpRules.attemptsProblem(DEFAULTS, panel(HelpKind.CA), fields, Map.of(11L, "111", 12L, "false"), false);
+        assertTrue(no.isPresent());
+        assertTrue(no.get().contains("Master") && no.get().contains("Yes"), no.get());
+        assertFalse(no.get().toLowerCase().contains("clan"), "it never talks about the clan");
+        assertTrue(HelpRules.attemptsProblem(DEFAULTS, panel(HelpKind.CA), fields, Map.of(11L, "111"), false).isPresent(), "unanswered is no");
+
+        assertTrue(HelpRules.attemptsProblem(DEFAULTS, panel(HelpKind.CA), fields, Map.of(11L, "111", 12L, "true"), false).isEmpty());
+        assertTrue(HelpRules.attemptsProblem(DEFAULTS, panel(HelpKind.CA), fields, Map.of(11L, "110", 12L, "false"), false).isEmpty(), "Hard needs nothing");
+        assertTrue(HelpRules.attemptsProblem(DEFAULTS, panel(HelpKind.PVM), fields, Map.of(11L, "111", 12L, "false"), false).isEmpty(), "PvM help never blocks");
+    }
+
+    @Test
+    void bossAndAchievementMustBeWrittenQuestionsAndABossNeedsATier() {
+        Field boss = new Field(20, 1, 0, "Which boss?", FieldKind.SHORT, true, null, null, List.of(), FieldPurpose.BOSS);
+        Field achievement = new Field(21, 1, 2, "Specific achievement?", FieldKind.SHORT, false, null, null, List.of(), FieldPurpose.ACHIEVEMENT);
+        Field checkbox = new Field(22, 1, 3, "Tried?", FieldKind.CHECKBOX, false, null, null, List.of(), FieldPurpose.ATTEMPTS);
+        assertTrue(HelpRules.validatePanelHelp(panel(HelpKind.CA), List.of(boss, TIER, achievement, checkbox)).isEmpty());
+
+        assertEquals(1, HelpRules.validatePanelHelp(panel(HelpKind.PVM), List.of(boss)).size(), "a boss question needs a tier question too");
+        Field dropdownBoss = new Field(20, 1, 0, "Which boss?", FieldKind.SELECT, true, null, null, List.of(new Option(1, 20, 0, "x", null, null)), FieldPurpose.BOSS);
+        assertEquals(1, HelpRules.validatePanelHelp(panel(HelpKind.PVM), List.of(dropdownBoss, TIER)).size());
+        assertEquals(1, HelpRules.validatePanelHelp(panel(HelpKind.PVM), List.of(boss, boss, TIER)).size(), "only one boss question");
+        assertEquals(1, HelpRules.validatePanelHelp(panel(HelpKind.NONE), List.of(boss)).size(), "an ordinary panel can't mark questions");
     }
 
     // ---------- settings ----------
@@ -203,6 +236,7 @@ class HelpRulesTest {
         Field textTier = new Field(13, 1, 3, "Tier typed", FieldKind.SHORT, true, null, null, List.of(), FieldPurpose.TIER);
         Field checkboxAttempts = new Field(14, 1, 4, "Tried?", FieldKind.CHECKBOX, false, null, null, List.of(), FieldPurpose.ATTEMPTS);
         List<String> problems = HelpRules.validatePanelHelp(panel(HelpKind.PVM), List.of(TIER, textTier, ATTEMPTS, checkboxAttempts));
-        assertEquals(4, problems.size(), problems.toString());
+        // two tier questions, two attempts questions, and the typed tier isn't a dropdown; a checkbox is a fine way to ask about attempts
+        assertEquals(3, problems.size(), problems.toString());
     }
 }

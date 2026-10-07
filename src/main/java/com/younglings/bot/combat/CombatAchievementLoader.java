@@ -27,7 +27,7 @@ import java.util.Map;
 @BService
 public class CombatAchievementLoader {
     private static final Logger log = LoggerFactory.getLogger(CombatAchievementLoader.class);
-    static final String RESOURCE = "/catalog/combat_achievements.json";
+    public static final String RESOURCE = "/catalog/combat_achievements.json";
 
     /** What the file holds. */
     public record Catalog(List<Tier> tiers, List<Achievement> achievements) {}
