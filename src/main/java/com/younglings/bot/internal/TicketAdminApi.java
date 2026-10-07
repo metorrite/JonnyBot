@@ -244,6 +244,12 @@ public class TicketAdminApi {
             case "panels" -> {
                 return routePanels(exchange, guild, actor, method, parts);
             }
+            case "defaults" -> {
+                if (parts.length != 2) return null;
+                if (method.equals("GET")) return panelDefaults(guild);
+                requireMethod(method, "PUT");
+                return savePanelDefaults(exchange, guild, actor);
+            }
             case "stats" -> {
                 if (parts.length != 2) return null;
                 requireMethod(method, "GET");
@@ -440,6 +446,38 @@ public class TicketAdminApi {
         return TicketAdminJson.settingsJson(repository.getSettings(guild.getIdLong()));
     }
 
+    // ---------- what a new panel starts with ----------
+
+    /** The saved starting values for new panels, or the built-in ones if none were saved yet. */
+    private DataObject panelDefaults(Guild guild) {
+        String stored = repository.getPanelDefaults(guild.getIdLong());
+        if (stored == null) return TicketAdminJson.builtinDefaults();
+        try {
+            DataObject json = DataObject.fromJson(stored);
+            // Anything saved before a setting existed reads as that setting's built-in value.
+            DataObject merged = TicketAdminJson.builtinDefaults();
+            for (String key : json.keys()) merged.put(key, json.get(key));
+            return merged;
+        } catch (RuntimeException e) {
+            log.warn("The saved default panel settings for guild {} couldn't be read; using the built-in ones", guild.getId(), e);
+            return TicketAdminJson.builtinDefaults();
+        }
+    }
+
+    private DataObject savePanelDefaults(HttpExchange exchange, Guild guild, Member actor) {
+        // Read it the way a panel is read, so the same limits and checks apply; the name and title are stand-ins that never get stored.
+        DataObject body = body(exchange).put("name", "Defaults").put("title", "Defaults");
+        PanelDefinition definition = TicketAdminJson.readPanel(guild.getIdLong(), 0, body);
+
+        List<String> problems = new ArrayList<>(TicketRules.validatePanel(definition.panel(), List.of()));
+        problems.addAll(guildProblems(guild, definition));
+        if (!problems.isEmpty()) throw new ApiError(400, "Those defaults can't be saved yet.", problems);
+
+        repository.savePanelDefaults(guild.getIdLong(), TicketAdminJson.defaultsJson(definition).toString());
+        log.info("Dashboard: {} updated the default settings for new ticket panels", actor.getId());
+        return panelDefaults(guild);
+    }
+
     // ---------- panels ----------
 
     private DataObject listPanels(Guild guild) {
@@ -492,6 +530,7 @@ public class TicketAdminApi {
         Set<Long> roleIds = new HashSet<>();
         roleIds.addAll(definition.roles().helperRoleIds());
         roleIds.addAll(definition.roles().staffRoleIds());
+        roleIds.addAll(definition.roles().closeRoleIds());
         if (panel.defaultPingRoleId() != null) roleIds.add(panel.defaultPingRoleId());
         if (panel.defaultEscalateRoleId() != null) roleIds.add(panel.defaultEscalateRoleId());
         for (Field field : definition.fields()) {

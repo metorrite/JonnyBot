@@ -182,7 +182,7 @@ public class TicketListener extends ListenerAdapter {
         }
         Panel panel = ticket.panelId() == null ? null : repository.getPanel(ticket.panelId());
         if (!service.mayClose(guild, member, ticket, panel)) {
-            Containers.replyEphemeral(event, Containers.WARNING, "Only the person who opened the ticket, its helpers, or staff can close it.");
+            Containers.replyEphemeral(event, Containers.WARNING, "You don't have permission to close this ticket.");
             return;
         }
 

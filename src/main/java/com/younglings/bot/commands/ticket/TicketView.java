@@ -13,6 +13,7 @@ import net.dv8tion.jda.api.components.container.Container;
 import net.dv8tion.jda.api.components.container.ContainerChildComponent;
 import net.dv8tion.jda.api.components.textdisplay.TextDisplay;
 import net.dv8tion.jda.api.entities.MessageEmbed;
+import net.dv8tion.jda.api.entities.emoji.Emoji;
 import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
 import net.dv8tion.jda.api.utils.messages.MessageCreateData;
 import net.dv8tion.jda.api.utils.messages.MessageEditBuilder;
@@ -61,9 +62,11 @@ final class TicketView {
     // ---------- a ticket ----------
 
     /**
-     * What sits at the top of a ticket: a welcome line (editable on the panel, {@code {user}} is the requester), a support
-     * embed with who opened it, and an embed with every question and its answer, then the buttons. Laid out like Ticket
-     * Tool's so it will feel familiar. Plain messages, not Components V2, because embeds can't share a message with those.
+     * What sits at the top of a ticket, laid out like Ticket Tool's so it feels familiar: a plain-text welcome line, an embed
+     * with the panel's message, an info block with the requester's answers (each question in bold, the answer in a code box
+     * beneath it), then the buttons, with Close last. The welcome line and the embed's text are the panel's own wording and
+     * can use the placeholders listed in {@link TicketText}. Plain messages, not Components V2, because embeds can't share a
+     * message with those.
      */
     record Opening(String content, List<MessageEmbed> embeds, ActionRow buttons) {
         MessageCreateData toCreate() {
@@ -79,45 +82,51 @@ final class TicketView {
         boolean closed = ticket.status() == Status.CLOSED;
         Color color = closed ? Color.DARK_GRAY : Containers.PRIMARY;
 
+        // The plain-text line. A role ping has to live in the message itself to notify anyone, so unless the wording places it
+        // with {ping}, it goes on a line of its own.
         String template = panel == null || panel.openingMessage() == null || panel.openingMessage().isBlank() ? Panel.DEFAULT_OPENING : panel.openingMessage();
-        String content = truncate(template.replace("{user}", "<@" + ticket.requesterId() + ">"), 1800);
-        if (pingRoleId != null && !closed) content += "\n🔔 <@&" + pingRoleId + ">";
+        String content = truncate(TicketText.fill(template, panel, ticket, rsns, helperIds, pingRoleId), 1800);
+        if (pingRoleId != null && !closed && !TicketText.usesPing(template)) content += "\n🔔 <@&" + pingRoleId + ">";
 
-        String support = panel == null || panel.welcomeText() == null || panel.welcomeText().isBlank() ? Panel.DEFAULT_SUPPORT : truncate(panel.welcomeText(), 1500);
-        EmbedBuilder info = new EmbedBuilder().setColor(color).setDescription(support)
-                .setFooter("Ticket #" + String.format("%04d", ticket.number()) + (panel != null ? " · " + panel.title() : ""));
-        info.addField("Opened by", "<@" + ticket.requesterId() + ">", true);
-        if (!rsns.isEmpty()) info.addField("RuneScape name", truncate(String.join(", ", rsns), 1000), true);
-        if (ticket.routingLabel() != null) info.addField("Type", truncate(ticket.routingLabel(), 1000), true);
-        if (panel != null && panel.usesHelpers()) info.addField("Helping", helpersLine(panel.helperCap(), helperIds, closed), false);
+        // The panel's embedded message, then whether anyone has joined and (once closed) how it ended.
+        String supportTemplate = panel == null || panel.welcomeText() == null || panel.welcomeText().isBlank() ? Panel.DEFAULT_SUPPORT : panel.welcomeText();
+        StringBuilder support = new StringBuilder(truncate(TicketText.fill(supportTemplate, panel, ticket, rsns, helperIds, pingRoleId), 1500));
+        if (panel != null && panel.usesHelpers()) support.append("\n\n").append(helpersLine(panel.helperCap(), helperIds, closed));
         if (closed) {
-            StringBuilder end = new StringBuilder("🔒 Closed");
-            if (ticket.closedBy() != null) end.append(" by <@").append(ticket.closedBy()).append(">");
-            if (ticket.closeReason() != null && !ticket.closeReason().isBlank()) end.append("\n").append(truncate(ticket.closeReason(), 500));
-            info.addField("Status", end.toString(), false);
+            support.append("\n\n🔒 Closed");
+            if (ticket.closedBy() != null) support.append(" by <@").append(ticket.closedBy()).append(">");
+            if (ticket.closeReason() != null && !ticket.closeReason().isBlank()) support.append("\n").append(truncate(ticket.closeReason(), 500));
         }
+        EmbedBuilder message = new EmbedBuilder().setColor(color).setDescription(support.toString())
+                .setFooter("Ticket #" + String.format("%04d", ticket.number()) + (panel != null ? " · " + panel.title() : ""));
 
         List<MessageEmbed> embeds = new ArrayList<>();
-        embeds.add(info.build());
+        embeds.add(message.build());
 
-        // Each question in bold with the answer in a code block underneath, as Ticket Tool shows them.
-        StringBuilder qa = new StringBuilder();
+        // The info block: each question in bold with the answer in a code box underneath, as Ticket Tool shows them. The linked
+        // RuneScape name comes first, since a helper wants it before anything else.
+        StringBuilder info = new StringBuilder();
+        if (!rsns.isEmpty()) appendEntry(info, "RuneScape name", String.join(", ", rsns));
         for (Answer answer : ticket.answers()) {
             if (answer.answer() == null || answer.answer().isBlank()) continue;
-            qa.append("**").append(truncate(answer.label(), 200)).append("**\n```\n")
-                    .append(truncate(answer.answer().replace("```", "ˋˋˋ"), ANSWER_MAX)).append("\n```\n");
+            appendEntry(info, answer.label(), answer.answer());
         }
-        if (!qa.isEmpty()) embeds.add(new EmbedBuilder().setColor(color).setDescription(truncate(qa.toString().strip(), 3900)).build());
+        if (!info.isEmpty()) embeds.add(new EmbedBuilder().setColor(color).setDescription(truncate(info.toString().strip(), 3900)).build());
 
         List<Button> buttons = new ArrayList<>();
         if (panel != null && panel.usesHelpers()) {
             Button join = Button.success(JOIN_PREFIX + ticket.id(), "Join as helper");
             buttons.add(closed ? join.asDisabled() : join);
         }
-        Button close = Button.danger(CLOSE_PREFIX + ticket.id(), "Close");
+        Button close = Button.danger(CLOSE_PREFIX + ticket.id(), "Close").withEmoji(Emoji.fromUnicode("🔒"));
         buttons.add(closed ? close.asDisabled() : close);
 
         return new Opening(content, embeds, ActionRow.of(buttons));
+    }
+
+    private static void appendEntry(StringBuilder into, String question, String answer) {
+        into.append("**").append(truncate(question, 200)).append("**\n```\n")
+                .append(truncate(answer.replace("```", "ˋˋˋ"), ANSWER_MAX)).append("\n```\n");
     }
 
     /** The older Components V2 layout, kept so tickets opened before the change keep updating in place. */

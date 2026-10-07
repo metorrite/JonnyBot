@@ -181,17 +181,31 @@ class TicketViewTest {
         assertTrue(o.content().contains("<@&77>"), "the tier's role is pinged in the message itself");
         assertEquals(2, o.embeds().size());
 
-        String info = embedText(o.embeds().get(0));
-        assertTrue(info.contains("A helper will join you."));
-        assertTrue(info.contains("Opened by: <@100>") && info.contains("RuneScape name: Metorrite") && info.contains("Type: Elite"));
-        assertTrue(info.contains("Helping: "));
+        String message = embedText(o.embeds().get(0));
+        assertTrue(message.contains("A helper will join you."));
+        assertTrue(o.embeds().get(0).getFields().isEmpty(), "the message embed is just text, no field clutter");
+        assertTrue(message.contains("Nobody has joined yet"));
+        assertEquals("Ticket #0003 · Combat Achievement Help", o.embeds().get(0).getFooter().getText());
 
-        String qa = embedText(o.embeds().get(1));
-        assertTrue(qa.contains("**Which achievement?**\n```\nElite Vorago\n```"), qa);
+        String info = embedText(o.embeds().get(1));
+        assertTrue(info.startsWith("**RuneScape name**\n```\nMetorrite\n```"), "the linked name leads the info block: " + info);
+        assertTrue(info.contains("**Which achievement?**\n```\nElite Vorago\n```"), info);
 
         assertEquals(List.of("ticket_join:9", "ticket_close:9"), o.buttons().getButtons().stream().map(Button::getCustomId).toList());
+        assertEquals("Close", o.buttons().getButtons().getLast().getLabel());
+        assertEquals("🔒", o.buttons().getButtons().getLast().getEmoji().getName(), "Close comes last, with a lock");
         o.toCreate();
         o.toEdit();
+    }
+
+    @Test
+    void thePanelsOwnWordingCanUsePlaceholdersAndPlacesThePingItself() {
+        Panel custom = new Panel(4, 1, "CA Help", "CA Help", "", "Open", null, "ca-{number}", "Ticket {number} for {type}: {rsn}. Helpers: {helpers}", true, 1, null, 2, 24, null, null, null,
+                "{user} thanks for asking! {ping}");
+        var o = TicketView.opening(custom, ticket(Status.OPEN, List.of()), List.of("Metorrite"), List.of(201L), 77L);
+        assertEquals("<@100> thanks for asking! <@&77>", o.content(), "the ping sits where the wording put it, not added again underneath");
+        String message = embedText(o.embeds().get(0));
+        assertTrue(message.startsWith("Ticket 0003 for Elite: Metorrite. Helpers: <@201>"), message);
     }
 
     @Test
@@ -215,10 +229,18 @@ class TicketViewTest {
     }
 
     @Test
+    void aTicketWithOnlyALinkedNameStillGetsAnInfoBlock() {
+        var o = TicketView.opening(panel("", 2, true), ticket(Status.OPEN, List.of()), List.of("Metorrite"), List.of(), null);
+        assertEquals(2, o.embeds().size());
+        assertTrue(embedText(o.embeds().get(1)).contains("Metorrite"));
+    }
+
+    @Test
     void aClosedTicketHasDisabledButtonsAndNoPing() {
         var o = TicketView.opening(panel("", 2, true), ticket(Status.CLOSED, List.of()), List.of(), List.of(), 77L);
         assertFalse(o.content().contains("<@&77>"));
         assertTrue(o.buttons().getButtons().stream().allMatch(Button::isDisabled));
-        assertTrue(embedText(o.embeds().get(0)).contains("Closed by <@101>"));
+        String message = embedText(o.embeds().get(0));
+        assertTrue(message.contains("Closed by <@101>") && message.contains("Done"), message);
     }
 }

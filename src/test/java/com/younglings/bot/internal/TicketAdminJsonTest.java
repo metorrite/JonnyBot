@@ -45,6 +45,57 @@ class TicketAdminJsonTest {
     }
 
     @Test
+    void closeSettingsAndCloseRolesSurviveTheTrip() {
+        DataObject json = TicketAdminJson.definitionJson(DevTicketPostCommand.sample(1))
+                .put("closeByRequester", false)
+                .put("closeByHelpers", true)
+                .put("closeRoleIds", net.dv8tion.jda.api.utils.data.DataArray.fromCollection(List.of("42", "43")));
+        PanelDefinition back = TicketAdminJson.readPanel(1, 0, DataObject.fromJson(json.toJson()));
+
+        assertFalse(back.panel().closeByRequester());
+        assertTrue(back.panel().closeByHelpers());
+        assertEquals(java.util.Set.of(42L, 43L), back.roles().closeRoleIds());
+
+        DataObject out = TicketAdminJson.definitionJson(back);
+        assertFalse(out.getBoolean("closeByRequester"));
+        assertEquals(2, out.getArray("closeRoleIds").length());
+    }
+
+    @Test
+    void aPanelWithoutCloseSettingsKeepsTheOldBehaviour() {
+        PanelDefinition read = TicketAdminJson.readPanel(1, 0, DataObject.fromJson("{\"name\":\"a\",\"title\":\"b\"}"));
+        assertTrue(read.panel().closeByRequester());
+        assertTrue(read.panel().closeByHelpers());
+        assertTrue(read.roles().closeRoleIds().isEmpty());
+    }
+
+    @Test
+    void theDefaultsForNewPanelsKeepTheSharedSettingsAndLeaveOutTheContent() {
+        DataObject body = DataObject.fromJson("""
+                {"name":"x","title":"x","description":"Not a default","buttonLabel":"Ask for help","categoryId":"900","staffRoleIds":["1","2"],
+                 "closeRoleIds":["3"],"closeByRequester":false,"perUserLimit":2,"helperCap":2,"escalationHours":72,
+                 "openingMessage":"{user} Welcome","fields":[{"label":"Q","kind":"SHORT"}]}
+                """);
+        DataObject defaults = TicketAdminJson.defaultsJson(TicketAdminJson.readPanel(1, 0, body));
+
+        assertEquals("Ask for help", defaults.getString("buttonLabel"));
+        assertEquals("900", defaults.getString("categoryId"));
+        assertEquals(2, defaults.getArray("staffRoleIds").length());
+        assertEquals(1, defaults.getArray("closeRoleIds").length());
+        assertFalse(defaults.getBoolean("closeByRequester"));
+        assertEquals(72, defaults.getInt("escalationHours"));
+        assertFalse(defaults.hasKey("description"), "descriptions, names, titles and questions are per panel");
+        assertFalse(defaults.hasKey("fields"));
+        assertFalse(defaults.hasKey("name"));
+    }
+
+    @Test
+    void theBuiltInDefaultsAreAValidStartingPanel() {
+        PanelDefinition read = TicketAdminJson.readPanel(1, 0, TicketAdminJson.builtinDefaults().put("name", "n").put("title", "t"));
+        assertTrue(TicketRules.validatePanel(read.panel(), read.fields()).isEmpty());
+    }
+
+    @Test
     void idsTravelAsStringsSoTheWebsiteCannotRoundThem() {
         Settings settings = new Settings(1, BIG_ID, 5, true, 10, null);
         DataObject json = DataObject.fromJson(TicketAdminJson.settingsJson(settings).toJson());
