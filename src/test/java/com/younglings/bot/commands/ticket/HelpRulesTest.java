@@ -7,6 +7,8 @@ import com.younglings.bot.ticket.TicketModels.HelpKind;
 import com.younglings.bot.ticket.TicketModels.HelpSettings;
 import com.younglings.bot.ticket.TicketModels.Option;
 import com.younglings.bot.ticket.TicketModels.Panel;
+import net.dv8tion.jda.api.components.tree.ComponentTree;
+import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -14,6 +16,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class HelpRulesTest {
@@ -85,6 +88,75 @@ class HelpRulesTest {
         HelpSettings custom = new HelpSettings(1, null, null, null, true, 72, false, true, null, true, " elite ,, MASTER ", null, null);
         assertEquals(List.of("elite", "MASTER"), HelpRules.highTierLabels(custom));
         assertTrue(HelpRules.attemptsProblem(custom, panel(HelpKind.CA), FIELDS, Map.of(10L, "x", 11L, "111"), false).isPresent());
+    }
+
+    // ---------- tiers and ping settings ----------
+
+    @Test
+    void aHelperCanBePingedBelowMasterAndAHelperPlusForEveryTier() {
+        assertEquals(List.of("Easy", "Medium", "Hard", "Elite", "General"), HelpRules.allowedTiers(DEFAULTS, false));
+        assertEquals(List.of("Easy", "Medium", "Hard", "Elite", "Master", "Grandmaster", "General"), HelpRules.allowedTiers(DEFAULTS, true));
+    }
+
+    @Test
+    void whichTiersAreHighFollowsTheSettingsNotAFixedList() {
+        HelpSettings onlyGrandmaster = new HelpSettings(1, null, null, null, true, 72, false, true, null, true, "grandmaster", null, null);
+        assertEquals(List.of("Easy", "Medium", "Hard", "Elite", "Master", "General"), HelpRules.allowedTiers(onlyGrandmaster, false));
+    }
+
+    @Test
+    void aTicketsPingGroupIsItsTierOrGeneral() {
+        assertEquals("Master", HelpRules.pingGroup(" master "));
+        assertEquals("Elite", HelpRules.pingGroup("Elite"));
+        assertEquals(HelpRules.GENERAL, HelpRules.pingGroup(null));
+        assertEquals(HelpRules.GENERAL, HelpRules.pingGroup(""));
+        assertEquals(HelpRules.GENERAL, HelpRules.pingGroup("Legendary"));
+    }
+
+    @Test
+    void theTierIsReadFromTheQuestionMarkedAsTheTier() {
+        assertEquals("Master", HelpRules.tierOf(FIELDS, Map.of(10L, "x", 11L, "111")));
+        assertNull(HelpRules.tierOf(FIELDS, Map.of(10L, "x")), "left blank");
+        assertNull(HelpRules.tierOf(List.of(BOSS), Map.of(10L, "x")), "no tier question");
+    }
+
+    @Test
+    void thePingSettingsShowOnlyWhatTheRoleAllowsAndTickWhatWasChosen() {
+        var helper = HelpOnboarding.pingSettings(DEFAULTS, HelpPingService.HelperLevel.HELPER, java.util.Set.of("Easy", "Grandmaster"));
+        var menu = ComponentTree.of(List.of(helper)).findAll(net.dv8tion.jda.api.components.selections.StringSelectMenu.class).getFirst();
+        assertEquals(List.of("Easy", "Medium", "Hard", "Elite", "General"), menu.getOptions().stream().map(o -> o.getValue()).toList());
+        assertEquals(List.of("Easy"), menu.getOptions().stream().filter(o -> o.isDefault()).map(o -> o.getValue()).toList(), "a tier the role can't have is never shown as ticked");
+        assertEquals(0, menu.getMinValues(), "clearing everything turns pings off");
+        new MessageCreateBuilder().useComponentsV2(true).setComponents(helper).build();
+
+        var plus = HelpOnboarding.pingSettings(DEFAULTS, HelpPingService.HelperLevel.HELPER_PLUS, java.util.Set.of("Grandmaster"));
+        var plusMenu = ComponentTree.of(List.of(plus)).findAll(net.dv8tion.jda.api.components.selections.StringSelectMenu.class).getFirst();
+        assertEquals(7, plusMenu.getOptions().size());
+        assertEquals(List.of("Grandmaster"), plusMenu.getOptions().stream().filter(o -> o.isDefault()).map(o -> o.getValue()).toList());
+    }
+
+    @Test
+    void theSignupMessageHasTheAgreePingSettingsAndStepDownButtons() {
+        var buttons = ComponentTree.of(List.of(HelpOnboarding.message(DEFAULTS))).findAll(net.dv8tion.jda.api.components.buttons.Button.class);
+        assertEquals(List.of("pvmhelp_accept", "pvmhelp_pings", "pvmhelp_leave"), buttons.stream().map(b -> b.getCustomId()).toList());
+    }
+
+    @Test
+    void theTwoTestPanelsAreValidHelpPanels() {
+        for (var definition : List.of(DevHelpSetup.pvmPanel(1), DevHelpSetup.caPanel(1))) {
+            assertTrue(TicketRules.validatePanel(definition.panel(), definition.fields()).isEmpty(), TicketRules.validatePanel(definition.panel(), definition.fields()).toString());
+            assertTrue(HelpRules.validatePanelHelp(definition.panel(), definition.fields()).isEmpty(), HelpRules.validatePanelHelp(definition.panel(), definition.fields()).toString());
+        }
+        assertEquals(HelpKind.PVM, DevHelpSetup.pvmPanel(1).panel().helpKind());
+        assertEquals(HelpKind.CA, DevHelpSetup.caPanel(1).panel().helpKind());
+
+        // PvM help: only the boss is required. CA help: the boss and the tier are required, and the tier is the marked dropdown.
+        var pvm = DevHelpSetup.pvmPanel(1).fields();
+        assertEquals(List.of(true, false, false, false), pvm.stream().map(f -> f.required()).toList());
+        var ca = DevHelpSetup.caPanel(1).fields();
+        assertTrue(ca.get(0).required() && ca.get(1).required());
+        assertEquals(com.younglings.bot.ticket.TicketModels.FieldPurpose.TIER, ca.get(1).purpose());
+        assertEquals(com.younglings.bot.ticket.TicketModels.FieldPurpose.ATTEMPTS, ca.get(3).purpose());
     }
 
     // ---------- settings ----------

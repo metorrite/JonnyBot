@@ -692,15 +692,33 @@ public class TicketRepository {
      * Records how the PvM Help rules shaped a ticket as it opened: its own escalation wait in hours ({@code null} keeps the panel's,
      * 0 means never) and whether the opening ping was left out.
      */
-    public void setHelpRouting(long ticketId, Integer escalationHoursOverride, boolean pingSuppressed) {
+    public void setHelpRouting(long ticketId, Integer escalationHoursOverride, boolean pingSuppressed, List<Long> pingUserIds) {
         try (Connection c = connectionSupplier.getConnection();
-             PreparedStatement s = c.prepareStatement("UPDATE younglings.ticket SET escalation_hours_override = ?, ping_suppressed = ? WHERE id = ?")) {
+             PreparedStatement s = c.prepareStatement("UPDATE younglings.ticket SET escalation_hours_override = ?, ping_suppressed = ?, ping_user_ids = ? WHERE id = ?")) {
             setInt(s, 1, escalationHoursOverride);
             s.setBoolean(2, pingSuppressed);
-            s.setLong(3, ticketId);
+            s.setString(3, pingUserIds.isEmpty() ? null : String.join(",", pingUserIds.stream().map(String::valueOf).toList()));
+            s.setLong(4, ticketId);
             s.executeUpdate();
         } catch (SQLException e) {
             throw fail("record how a ticket's pings were set", e);
+        }
+    }
+
+    /** The helpers this ticket pinged when it opened, for showing the same names whenever its message is edited. */
+    public List<Long> getPingUserIds(long ticketId) {
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("SELECT ping_user_ids FROM younglings.ticket WHERE id = ?")) {
+            s.setLong(1, ticketId);
+            try (ResultSet rs = s.executeQuery()) {
+                String raw = rs.next() ? rs.getString(1) : null;
+                if (raw == null || raw.isBlank()) return List.of();
+                List<Long> ids = new ArrayList<>();
+                for (String part : raw.split(",")) ids.add(Long.parseLong(part.strip()));
+                return ids;
+            }
+        } catch (SQLException e) {
+            throw fail("read the helpers a ticket pinged", e);
         }
     }
 
@@ -729,6 +747,68 @@ public class TicketRepository {
             }
         } catch (SQLException e) {
             throw fail("read a ticket's escalation wait", e);
+        }
+    }
+
+    // ================= helper ping preferences =================
+
+    /** The tiers this helper wants to be pinged for. */
+    public Set<String> getPingTiers(long guildId, long userId) {
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("SELECT tier FROM younglings.help_ping_pref WHERE guild_id = ? AND user_id = ?")) {
+            s.setLong(1, guildId);
+            s.setLong(2, userId);
+            Set<String> tiers = new HashSet<>();
+            try (ResultSet rs = s.executeQuery()) {
+                while (rs.next()) tiers.add(rs.getString(1));
+            }
+            return tiers;
+        } catch (SQLException e) {
+            throw fail("read a helper's ping tiers", e);
+        }
+    }
+
+    /** Replaces the helper's chosen tiers wholesale (an empty set means no pings at all). */
+    public void setPingTiers(long guildId, long userId, Set<String> tiers) {
+        try (Connection c = connectionSupplier.getConnection()) {
+            c.setAutoCommit(false);
+            try {
+                try (PreparedStatement s = c.prepareStatement("DELETE FROM younglings.help_ping_pref WHERE guild_id = ? AND user_id = ?")) {
+                    s.setLong(1, guildId);
+                    s.setLong(2, userId);
+                    s.executeUpdate();
+                }
+                for (String tier : tiers) {
+                    try (PreparedStatement s = c.prepareStatement("INSERT INTO younglings.help_ping_pref (guild_id, user_id, tier) VALUES (?, ?, ?) ON CONFLICT DO NOTHING")) {
+                        s.setLong(1, guildId);
+                        s.setLong(2, userId);
+                        s.setString(3, tier);
+                        s.executeUpdate();
+                    }
+                }
+                c.commit();
+            } catch (SQLException | RuntimeException e) {
+                c.rollback();
+                throw e;
+            }
+        } catch (SQLException e) {
+            throw fail("save a helper's ping tiers", e);
+        }
+    }
+
+    /** Everyone who opted in to being pinged for this tier (not yet checked against who still holds a helper role). */
+    public List<Long> getPingUsers(long guildId, String tier) {
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("SELECT user_id FROM younglings.help_ping_pref WHERE guild_id = ? AND tier = ? ORDER BY user_id")) {
+            s.setLong(1, guildId);
+            s.setString(2, tier);
+            List<Long> users = new ArrayList<>();
+            try (ResultSet rs = s.executeQuery()) {
+                while (rs.next()) users.add(rs.getLong(1));
+            }
+            return users;
+        } catch (SQLException e) {
+            throw fail("find the helpers to ping", e);
         }
     }
 

@@ -6,6 +6,7 @@ import com.younglings.bot.runescape.PlayerLink;
 import com.younglings.bot.runescape.PlayerLinkService;
 import com.younglings.bot.ticket.TicketModels.Answer;
 import com.younglings.bot.ticket.TicketModels.Field;
+import com.younglings.bot.ticket.TicketModels.HelpSettings;
 import com.younglings.bot.ticket.TicketModels.FieldKind;
 import com.younglings.bot.ticket.TicketModels.Option;
 import com.younglings.bot.ticket.TicketModels.Panel;
@@ -65,12 +66,15 @@ public class TicketService {
     private final PlayerLinkService linkService;
     private final AdminRoleFilter adminRoleFilter;
     private final MemberAccess memberAccess;
+    private final HelpPingService helpPings;
 
-    public TicketService(TicketRepository repository, PlayerLinkService linkService, AdminRoleFilter adminRoleFilter, MemberAccess memberAccess) {
+    public TicketService(TicketRepository repository, PlayerLinkService linkService, AdminRoleFilter adminRoleFilter, MemberAccess memberAccess,
+                         HelpPingService helpPings) {
         this.repository = repository;
         this.linkService = linkService;
         this.adminRoleFilter = adminRoleFilter;
         this.memberAccess = memberAccess;
+        this.helpPings = helpPings;
     }
 
     // ================= the form =================
@@ -141,20 +145,26 @@ public class TicketService {
             action = o.isRole() ? action.addRolePermissionOverride(o.id(), o.allow(), o.deny()) : action.addMemberPermissionOverride(o.id(), o.allow(), o.deny());
         }
 
-        Long pingRole = openingPingRole(guild, requester, panel, ticket, routing.orElse(null));
-        return action.submit()
-                .thenCompose(channel -> {
-                    repository.setChannel(ticket.id(), channel.getIdLong());
-                    Ticket withChannel = repository.getTicket(ticket.id());
-                    return channel.sendMessage(TicketView.opening(panel, withChannel, rsnsOf(guild.getIdLong(), requester.getIdLong()), List.of(), pingRole).toCreate())
-                            .setAllowedMentions(EnumSet.noneOf(Message.MentionType.class))
-                            .mentionUsers(requester.getIdLong())
-                            .mentionRoles(pingRole == null ? new long[0] : new long[]{pingRole})
-                            .submit()
-                            .thenApply(message -> {
-                                repository.setWelcomeMessage(ticket.id(), message.getIdLong());
-                                return repository.getTicket(ticket.id());
-                            });
+        PingPlan plan = planPings(guild, requester, panel, ticket, routing.orElse(null), fields, rawValues);
+        final ChannelAction<TextChannel> channelAction = action;
+        return plan.users().thenCompose(pingUsers -> {
+                    // A help ticket remembers who it pinged and how long it waits, so editing its message later shows what really happened.
+                    if (panel.isHelpPanel()) repository.setHelpRouting(ticket.id(), plan.escalationOverride(), true, pingUsers);
+                    return channelAction.submit().thenCompose(channel -> {
+                        repository.setChannel(ticket.id(), channel.getIdLong());
+                        Ticket withChannel = repository.getTicket(ticket.id());
+                        long[] mentioned = java.util.stream.LongStream.concat(java.util.stream.LongStream.of(requester.getIdLong()),
+                                pingUsers.stream().mapToLong(Long::longValue)).toArray();
+                        return channel.sendMessage(TicketView.opening(panel, withChannel, rsnsOf(guild.getIdLong(), requester.getIdLong()), List.of(), plan.role(), pingUsers).toCreate())
+                                .setAllowedMentions(EnumSet.noneOf(Message.MentionType.class))
+                                .mentionUsers(mentioned)
+                                .mentionRoles(plan.role() == null ? new long[0] : new long[]{plan.role()})
+                                .submit()
+                                .thenApply(message -> {
+                                    repository.setWelcomeMessage(ticket.id(), message.getIdLong());
+                                    return repository.getTicket(ticket.id());
+                                });
+                    });
                 })
                 .whenComplete((created, error) -> {
                     if (error != null) {
@@ -164,19 +174,24 @@ public class TicketService {
                 });
     }
 
-    /**
-     * The role pinged as a ticket opens. On a PvM Help panel the ticket follows the member or guest settings: a guest's pings nobody
-     * (unless guest pings are on), and the ticket remembers its own escalation wait and whether its ping was left out, so later edits
-     * of its message agree with what happened. Any other panel just pings its tier's role.
-     */
-    private Long openingPingRole(Guild guild, Member requester, Panel panel, Ticket ticket, Option routing) {
-        Long role = TicketRules.pingRole(panel, routing);
-        if (!panel.isHelpPanel()) return role;
+    /** Who a ticket pings as it opens: a role, and/or helpers (looked up asynchronously), plus its own escalation wait on a help panel. */
+    private record PingPlan(Long role, CompletableFuture<List<Long>> users, Integer escalationOverride) {}
 
-        boolean member = memberAccess.isMemberTier(guild, requester);
-        HelpRules.Pings pings = HelpRules.pingsFor(repository.getHelpSettings(guild.getIdLong()), member);
-        repository.setHelpRouting(ticket.id(), pings.escalationHours() == null ? 0 : pings.escalationHours(), !pings.pingOnOpen());
-        return pings.pingOnOpen() ? role : null;
+    /**
+     * On an ordinary panel the ticket pings its tier's role. On a PvM Help panel it follows the member or guest settings instead: a guest's
+     * pings nobody (unless guest pings are on), and a ping goes to the individual helpers who chose the ticket's tier in their ping
+     * settings, not to a role.
+     */
+    private PingPlan planPings(Guild guild, Member requester, Panel panel, Ticket ticket, Option routing, List<Field> fields, Map<Long, String> rawValues) {
+        Long role = TicketRules.pingRole(panel, routing);
+        if (!panel.isHelpPanel()) return new PingPlan(role, CompletableFuture.completedFuture(List.of()), null);
+
+        HelpSettings settings = repository.getHelpSettings(guild.getIdLong());
+        HelpRules.Pings pings = HelpRules.pingsFor(settings, memberAccess.isMemberTier(guild, requester));
+        CompletableFuture<List<Long>> users = pings.pingOnOpen()
+                ? helpPings.usersFor(guild, settings, HelpRules.tierOf(fields, rawValues))
+                : CompletableFuture.completedFuture(List.of());
+        return new PingPlan(null, users, pings.escalationHours() == null ? 0 : pings.escalationHours());
     }
 
     /** The reason a guest's form can't open a ticket yet (a Master or Grandmaster request with no earlier attempts), or empty if it can. */
@@ -213,6 +228,7 @@ public class TicketService {
 
         Panel panel = ticket.panelId() == null ? null : repository.getPanel(ticket.panelId());
         Long pingRole = panel == null ? null : pingRoleFor(panel, ticket);
+        List<Long> pingUsers = pingUsersFor(ticket);
         List<String> rsns = rsnsOf(guild.getIdLong(), ticket.requesterId());
         List<Long> helpers = repository.getHelpers(ticket.id());
         channel.retrieveMessageById(ticket.welcomeMessageId()).queue(
@@ -222,10 +238,15 @@ public class TicketService {
                         var container = TicketView.welcome(panel, ticket, rsns, helpers, pingRole);
                         message.editMessageComponents(container).useComponentsV2(true).queue(null, error -> log.warn("Couldn't update ticket {}'s message", ticket.id(), error));
                     } else {
-                        message.editMessage(TicketView.opening(panel, ticket, rsns, helpers, pingRole).toEdit()).queue(null, error -> log.warn("Couldn't update ticket {}'s message", ticket.id(), error));
+                        message.editMessage(TicketView.opening(panel, ticket, rsns, helpers, pingRole, pingUsers).toEdit()).queue(null, error -> log.warn("Couldn't update ticket {}'s message", ticket.id(), error));
                     }
                 },
                 error -> log.warn("Couldn't find ticket {}'s opening message", ticket.id()));
+    }
+
+    /** The helpers this ticket pinged when it opened, so a later edit of its message shows the same names. */
+    List<Long> pingUsersFor(Ticket ticket) {
+        return repository.getPingUserIds(ticket.id());
     }
 
     Long pingRoleFor(Panel panel, Ticket ticket) {
@@ -360,6 +381,8 @@ public class TicketService {
                 if (guild == null || panel == null || ticket.channelId() == null) continue;
 
                 Long role = TicketRules.escalateRole(panel, routingOptionOf(panel, ticket));
+                // A help panel with no escalation role of its own goes up to PVM Helper+.
+                if (role == null && panel.isHelpPanel()) role = repository.getHelpSettings(ticket.guildId()).helperPlusRoleId();
                 if (!repository.markEscalated(ticket.id())) continue; // someone else got there first
                 GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, ticket.channelId());
                 if (role == null || channel == null) continue;

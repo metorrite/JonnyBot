@@ -1,6 +1,7 @@
 package com.younglings.bot.commands;
 
 import com.younglings.bot.commands.signup.SignupDevCommand;
+import com.younglings.bot.commands.ticket.DevHelpSetupCommand;
 import com.younglings.bot.commands.ticket.DevTicketPostCommand;
 import io.github.freya022.botcommands.api.commands.application.CommandScope;
 import io.github.freya022.botcommands.api.commands.application.annotations.Test;
@@ -24,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class DevCommandGroupTest {
     private static final List<Class<?>> DEV_CLASSES = List.of(
             DevClanReportCommand.class, DevClearCommandsCommand.class, DevEmbedCommand.class, DevExportMembersCommand.class,
-            DevTogglePostingCommand.class, SignupDevCommand.class, DevTicketPostCommand.class, SlashPing.class);
+            DevTogglePostingCommand.class, SignupDevCommand.class, DevTicketPostCommand.class, DevHelpSetupCommand.class, SlashPing.class);
 
     private static List<Method> slashMethods() {
         List<Method> methods = new ArrayList<>();
@@ -43,7 +44,7 @@ class DevCommandGroupTest {
             assertFalse(a.subcommand().isEmpty(), m.getDeclaringClass().getSimpleName() + " needs a subcommand name");
             assertTrue(subcommands.add(a.subcommand()), "duplicate /dev " + a.subcommand());
         }
-        assertEquals(Set.of("clanreport", "clearcommands", "embed", "exportmembers", "ping", "signups", "toggleposting", "ticketpost"), subcommands);
+        assertEquals(Set.of("clanreport", "clearcommands", "embed", "exportmembers", "helpsetup", "ping", "signups", "toggleposting", "ticketpost"), subcommands);
     }
 
     @org.junit.jupiter.api.Test

@@ -174,6 +174,19 @@ public class TicketDatabaseInitializer {
                 "ALTER TABLE younglings.ticket ADD COLUMN IF NOT EXISTS escalation_hours_override INTEGER NULL;",
                 "ALTER TABLE younglings.ticket ADD COLUMN IF NOT EXISTS ping_suppressed BOOLEAN NOT NULL DEFAULT FALSE;",
 
+                // Which tiers each helper wants to be pinged for ("Easy".."Grandmaster", or "General" for a ticket with no tier picked), and
+                // the helpers a ticket pinged when it opened (comma separated ids), so later edits of its message show the same names.
+                """
+                CREATE TABLE IF NOT EXISTS younglings.help_ping_pref (
+                    guild_id BIGINT NOT NULL,
+                    user_id BIGINT NOT NULL,
+                    tier TEXT NOT NULL,
+                    PRIMARY KEY (guild_id, user_id, tier)
+                );
+                """,
+                "CREATE INDEX IF NOT EXISTS help_ping_pref_tier_idx ON younglings.help_ping_pref (guild_id, tier);",
+                "ALTER TABLE younglings.ticket ADD COLUMN IF NOT EXISTS ping_user_ids TEXT NULL;",
+
                 // One row per server: the two helper roles, the guidelines text, member/guest ping timers and the attempts rule.
                 """
                 CREATE TABLE IF NOT EXISTS younglings.help_settings (
