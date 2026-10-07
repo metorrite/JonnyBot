@@ -1,12 +1,15 @@
 package com.younglings.bot.internal;
 
 import com.sun.net.httpserver.HttpExchange;
+import com.younglings.bot.commands.ticket.HelpOnboarding;
+import com.younglings.bot.commands.ticket.HelpRules;
 import com.younglings.bot.commands.ticket.TicketRules;
 import com.younglings.bot.commands.ticket.TicketService;
 import com.younglings.bot.internal.TicketAdminJson.BadRequest;
 import com.younglings.bot.permission.DashboardAccess;
 import com.younglings.bot.permission.DashboardAccess.Tier;
 import com.younglings.bot.ticket.TicketModels.Field;
+import com.younglings.bot.ticket.TicketModels.HelpSettings;
 import com.younglings.bot.ticket.TicketModels.Option;
 import com.younglings.bot.ticket.TicketModels.Panel;
 import com.younglings.bot.ticket.TicketModels.PanelDefinition;
@@ -60,8 +63,11 @@ public class TicketAdminApi {
     private final RateLimiter adminWrites = new RateLimiter(20, 1_000);
     private final AdminOpsApi ops;
     private final AdminToolsStore auditStore;
+    private final HelpOnboarding onboarding;
 
-    public TicketAdminApi(DashboardAccess access, TicketRepository repository, TicketService service, ClanAdminApi clanAdmin, CommunityAdminApi communityAdmin, AdminOpsApi ops, AdminToolsStore auditStore) {
+    public TicketAdminApi(DashboardAccess access, TicketRepository repository, TicketService service, ClanAdminApi clanAdmin, CommunityAdminApi communityAdmin, AdminOpsApi ops, AdminToolsStore auditStore,
+                          HelpOnboarding onboarding) {
+        this.onboarding = onboarding;
         this.access = access;
         this.repository = repository;
         this.service = service;
@@ -232,6 +238,7 @@ public class TicketAdminApi {
             requireMethod(method, "PUT");
             return clanAdmin.saveClanPoints(guild, actor, body(exchange));
         }
+        if (parts.length >= 2 && parts[0].equals("help")) return helpRoute(exchange, guild, actor, method, parts);
         if (parts.length < 2 || !parts[0].equals("ticket")) return null;
 
         switch (parts[1]) {
@@ -446,6 +453,53 @@ public class TicketAdminApi {
         return TicketAdminJson.settingsJson(repository.getSettings(guild.getIdLong()));
     }
 
+    // ---------- PvM Help ----------
+
+    private DataObject helpRoute(HttpExchange exchange, Guild guild, Member actor, String method, String[] parts) {
+        if (parts.length == 2 && parts[1].equals("settings")) {
+            if (method.equals("GET")) return TicketAdminJson.helpSettingsJson(repository.getHelpSettings(guild.getIdLong()));
+            requireMethod(method, "PUT");
+            return saveHelpSettings(exchange, guild, actor);
+        }
+        if (parts.length == 3 && parts[1].equals("guidelines") && parts[2].equals("post")) {
+            requireMethod(method, "POST");
+            return postGuidelines(exchange, guild, actor);
+        }
+        return null;
+    }
+
+    private DataObject saveHelpSettings(HttpExchange exchange, Guild guild, Member actor) {
+        HelpSettings updated = TicketAdminJson.readHelpSettings(repository.getHelpSettings(guild.getIdLong()), body(exchange));
+
+        List<String> problems = new ArrayList<>(HelpRules.validate(updated));
+        if (updated.helperRoleId() != null && guild.getRoleById(updated.helperRoleId()) == null) problems.add("The PVM Helper role no longer exists in this server.");
+        if (updated.helperPlusRoleId() != null && guild.getRoleById(updated.helperPlusRoleId()) == null) problems.add("The PVM Helper+ role no longer exists in this server.");
+        if (!problems.isEmpty()) throw new ApiError(400, "Those settings can't be saved.", problems);
+
+        repository.saveHelpSettings(updated);
+        onboarding.refreshPosted(guild); // new guidelines show up on the message members read
+        log.info("Dashboard: {} updated the PvM Help settings", actor.getId());
+        return TicketAdminJson.helpSettingsJson(repository.getHelpSettings(guild.getIdLong()));
+    }
+
+    private DataObject postGuidelines(HttpExchange exchange, Guild guild, Member actor) {
+        Long channelId = TicketAdminJson.idOrNull(body(exchange), "channelId");
+        if (channelId == null) throw new ApiError(400, "Choose a channel to post in.");
+        GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, channelId);
+        if (channel == null) throw new ApiError(400, "That isn't a text channel in this server.");
+        if (!channel.canTalk()) throw new ApiError(400, "JonnyBot can't post in #" + channel.getName() + " — it needs permission to view and send messages there.");
+        if (repository.getHelpSettings(guild.getIdLong()).helperRoleId() == null) throw new ApiError(400, "Choose the PVM Helper role first — the button on that message hands it out.");
+
+        try {
+            onboarding.post(guild, channel).get(15, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            log.warn("Posting the helper guidelines to {} failed", channelId, e);
+            throw new ApiError(502, "Discord wouldn't let the guidelines be posted there.");
+        }
+        log.info("Dashboard: {} posted the helper guidelines in {}", actor.getId(), channelId);
+        return TicketAdminJson.helpSettingsJson(repository.getHelpSettings(guild.getIdLong()));
+    }
+
     // ---------- what a new panel starts with ----------
 
     /** The saved starting values for new panels, or the built-in ones if none were saved yet. */
@@ -505,6 +559,7 @@ public class TicketAdminApi {
         PanelDefinition definition = TicketAdminJson.readPanel(guild.getIdLong(), panelId, body(exchange));
 
         List<String> problems = new ArrayList<>(TicketRules.validatePanel(definition.panel(), definition.fields()));
+        problems.addAll(HelpRules.validatePanelHelp(definition.panel(), definition.fields()));
         problems.addAll(guildProblems(guild, definition));
         if (!problems.isEmpty()) throw new ApiError(400, "That panel can't be saved yet.", problems);
 

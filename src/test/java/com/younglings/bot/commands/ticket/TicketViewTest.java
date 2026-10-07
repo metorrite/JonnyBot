@@ -160,7 +160,7 @@ class TicketViewTest {
             withIds.add(new Field(fieldId, 4, f.position(), f.label(), f.kind(), f.required(), f.placeholder(), f.maxLength(), options));
         }
 
-        TicketService service = new TicketService(mock(TicketRepository.class), mock(PlayerLinkService.class), mock(AdminRoleFilter.class));
+        TicketService service = new TicketService(mock(TicketRepository.class), mock(PlayerLinkService.class), mock(AdminRoleFilter.class), mock(com.younglings.bot.permission.MemberAccess.class));
         var modal = service.buildForm(panel("", 2, true), withIds);
         assertEquals("ticket_form:4", modal.getId());
         assertEquals(5, modal.getComponents().size());
