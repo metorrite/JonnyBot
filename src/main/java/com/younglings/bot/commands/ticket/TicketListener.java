@@ -36,10 +36,12 @@ public class TicketListener extends ListenerAdapter {
 
     private final TicketRepository repository;
     private final TicketService service;
+    private final HelpTicketFlow helpFlow;
 
-    public TicketListener(TicketRepository repository, TicketService service) {
+    public TicketListener(TicketRepository repository, TicketService service, HelpTicketFlow helpFlow) {
         this.repository = repository;
         this.service = service;
+        this.helpFlow = helpFlow;
     }
 
     @Override
@@ -93,6 +95,11 @@ public class TicketListener extends ListenerAdapter {
             Containers.replyEphemeral(event, Containers.WARNING, blocked.get());
             return;
         }
+        // A PvM Help or CA Help panel is asked for step by step (boss, tier, achievement), not as one long form.
+        if (HelpTicketFlow.applies(panel, fields)) {
+            helpFlow.start(event, panel);
+            return;
+        }
         event.replyModal(service.buildForm(panel, fields)).queue();
     }
 
@@ -109,19 +116,7 @@ public class TicketListener extends ListenerAdapter {
             return;
         }
 
-        Map<Long, String> raw = new HashMap<>();
-        for (Field field : fields) {
-            var mapping = event.getValue("f" + field.id());
-            if (mapping == null) continue;
-            switch (field.kind()) {
-                case SHORT, PARAGRAPH -> raw.put(field.id(), mapping.getAsString());
-                case SELECT -> {
-                    List<String> picked = mapping.getAsStringList();
-                    if (!picked.isEmpty()) raw.put(field.id(), picked.getFirst());
-                }
-                case CHECKBOX -> raw.put(field.id(), String.valueOf(mapping.getAsBoolean()));
-            }
-        }
+        Map<Long, String> raw = readValues(event, fields);
 
         Optional<String> needsAttempts = service.attemptsProblem(guild, member, panel, fields, raw);
         if (needsAttempts.isPresent()) {
@@ -139,6 +134,24 @@ public class TicketListener extends ListenerAdapter {
                         "✅ Your ticket is open: <#" + ticket.channelId() + ">"))).useComponentsV2(true).queue();
             }
         });
+    }
+
+    /** What was submitted for each of these questions, by question id: the text, the chosen option's id, or "true"/"false". */
+    static Map<Long, String> readValues(ModalInteractionEvent event, List<Field> fields) {
+        Map<Long, String> raw = new HashMap<>();
+        for (Field field : fields) {
+            var mapping = event.getValue("f" + field.id());
+            if (mapping == null) continue;
+            switch (field.kind()) {
+                case SHORT, PARAGRAPH -> raw.put(field.id(), mapping.getAsString());
+                case SELECT -> {
+                    List<String> picked = mapping.getAsStringList();
+                    if (!picked.isEmpty()) raw.put(field.id(), picked.getFirst());
+                }
+                case CHECKBOX -> raw.put(field.id(), String.valueOf(mapping.getAsBoolean()));
+            }
+        }
+        return raw;
     }
 
     // ---------- join ----------

@@ -15,8 +15,12 @@ public final class TicketModels {
     /** Which part of the PvM Help system a panel belongs to; NONE is an ordinary ticket panel the help rules never touch. */
     public enum HelpKind { NONE, PVM, CA }
 
-    /** What a question means to the PvM Help rules: the tier picked, or the requester's earlier attempts. */
-    public enum FieldPurpose { NONE, TIER, ATTEMPTS }
+    /**
+     * What a question means to the PvM Help rules: the boss, the tier, the one achievement they want help with, or whether they have already made
+     * attempts. A help panel that has a boss question is filled in through a guided flow (boss, tier, achievement chosen from the achievement
+     * catalogue) instead of one long form.
+     */
+    public enum FieldPurpose { NONE, BOSS, TIER, ACHIEVEMENT, ATTEMPTS }
 
     public record Settings(long guildId, Long logChannelId, int nextNumber, boolean transcriptDm, int closeDelaySeconds, Integer transcriptRetentionDays) {
         public static Settings defaults(long guildId) {
@@ -142,8 +146,9 @@ public final class TicketModels {
         public static final String DEFAULT_GUIDELINES = """
                 By taking the PVM Helper role you agree to the guidelines below. You represent the Younglings every time you help, so please read them properly.
 
-                **What PvM help is**
-                • Advice, guides, resources, tips and VOD reviews, given in the ticket. It is not going in game to carry or run the content for someone.
+                **What helping means**
+                • **PvM Help** tickets are advice only: guides, resources, tips and VOD reviews, given in the ticket. You don't go in game to carry or run the content for someone.
+                • **CA Help** tickets are different: you do go in and help with the achievement they asked for, and only that one if they named one.
                 • Teamforming comes first. If someone needs a group, point them to #teamforming; a ticket is the last resort.
 
                 **Stay in your lane**

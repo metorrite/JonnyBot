@@ -3,6 +3,9 @@ package com.younglings.bot;
 import com.younglings.bot.announcement.AnnouncementInteractionListener;
 import com.younglings.bot.announcement.PostActionListener;
 import com.younglings.bot.commands.DevEmbedListener;
+import com.younglings.bot.commands.configure.PvmHelpConfigureListener;
+import com.younglings.bot.commands.ticket.HelpListener;
+import com.younglings.bot.commands.ticket.HelpTicketFlow;
 import com.younglings.bot.commands.ticket.TicketListener;
 import com.younglings.bot.commandchannel.CommandChannelConfigInteractionListener;
 import com.younglings.bot.commandchannel.CommandChannelListener;
@@ -64,6 +67,9 @@ public class Bot extends JDAService {
     private final PostActionListener postActionListener;
     private final DevEmbedListener devEmbedListener;
     private final TicketListener ticketListener;
+    private final HelpListener helpListener;
+    private final HelpTicketFlow helpTicketFlow;
+    private final PvmHelpConfigureListener pvmHelpConfigureListener;
 
     public Bot(BotConfig botConfig, SignupInteractionListener signupInteractionListener,
                PollInteractionListener pollInteractionListener,
@@ -88,7 +94,7 @@ public class Bot extends JDAService {
                EphemeralLifecycle ephemeralLifecycle,
                PostActionListener postActionListener,
                DevEmbedListener devEmbedListener,
-               TicketListener ticketListener) {
+               TicketListener ticketListener, HelpListener helpListener, HelpTicketFlow helpTicketFlow, PvmHelpConfigureListener pvmHelpConfigureListener) {
         this.botConfig = botConfig;
         this.signupInteractionListener = signupInteractionListener;
         this.pollInteractionListener = pollInteractionListener;
@@ -114,6 +120,9 @@ public class Bot extends JDAService {
         this.postActionListener = postActionListener;
         this.devEmbedListener = devEmbedListener;
         this.ticketListener = ticketListener;
+        this.helpListener = helpListener;
+        this.helpTicketFlow = helpTicketFlow;
+        this.pvmHelpConfigureListener = pvmHelpConfigureListener;
     }
 
     // If you use Spring, you can return values provided by JDAConfiguration in the getters below
@@ -159,7 +168,7 @@ public class Bot extends JDAService {
                         trackingAuditLogListener, trackingConfigInteractionListener,
                         announcementInteractionListener, weeklyDigestInteractionListener,
                         commandChannelListener, commandChannelConfigInteractionListener, ephemeralLifecycle,
-                        postActionListener, devEmbedListener, ticketListener)
+                        postActionListener, devEmbedListener, ticketListener, helpListener, helpTicketFlow, pvmHelpConfigureListener)
                 .build();
     }
 }

@@ -49,12 +49,14 @@ public class DevHelpSetup {
     private final TicketRepository repository;
     private final TicketService ticketService;
     private final HelpOnboarding onboarding;
+    private final HelpPanels helpPanels;
 
-    public DevHelpSetup(BotConfig botConfig, TicketRepository repository, TicketService ticketService, HelpOnboarding onboarding) {
+    public DevHelpSetup(BotConfig botConfig, TicketRepository repository, TicketService ticketService, HelpOnboarding onboarding, HelpPanels helpPanels) {
         this.botConfig = botConfig;
         this.repository = repository;
         this.ticketService = ticketService;
         this.onboarding = onboarding;
+        this.helpPanels = helpPanels;
     }
 
     /** With {@code DEV_HELP_SEED_CHANNEL} set (and never on the live bot), sets everything up in the channel of that name as the bot starts. */
@@ -114,8 +116,8 @@ public class DevHelpSetup {
                     s.highTierLabels(), s.postedChannelId(), s.postedMessageId()));
 
             PanelRoles roles = new PanelRoles(Set.of(helper.getIdLong(), plus.getIdLong()), Set.of(), Set.of());
-            long pvm = save(guild.getIdLong(), pvmPanel(guild.getIdLong()), roles);
-            long ca = save(guild.getIdLong(), caPanel(guild.getIdLong()), roles);
+            long pvm = helpPanels.replace(guild.getIdLong(), pvmPanel(guild.getIdLong()), roles);
+            long ca = helpPanels.replace(guild.getIdLong(), caPanel(guild.getIdLong()), roles);
             return new Prepared(helper, plus, pvm, ca);
         } catch (Exception e) {
             throw new IllegalStateException("Couldn't prepare the PvM Help test setup: " + e.getMessage(), e);
@@ -128,55 +130,11 @@ public class DevHelpSetup {
         return guild.createRole().setName(name).setMentionable(false).submit().get(15, TimeUnit.SECONDS);
     }
 
-    /** Creates the panel, or replaces the earlier one of the same name so it matches this code (where it was posted is untouched). */
-    private long save(long guildId, PanelDefinition definition, PanelRoles roles) {
-        Panel wanted = definition.panel();
-        Panel existing = repository.getPanels(guildId).stream().filter(p -> p.name().equalsIgnoreCase(wanted.name())).findFirst().orElse(null);
-        Panel withId = existing == null ? wanted : new Panel(existing.id(), guildId, wanted.name(), wanted.title(), wanted.description(), wanted.buttonLabel(),
-                wanted.categoryId(), wanted.channelNameTemplate(), wanted.welcomeText(), wanted.enabled(), wanted.perUserLimit(), wanted.defaultPingRoleId(),
-                wanted.helperCap(), wanted.escalationHours(), wanted.defaultEscalateRoleId(), existing.postedChannelId(), existing.postedMessageId(),
-                wanted.openingMessage(), wanted.closeByRequester(), wanted.closeByHelpers(), wanted.helpKind());
-        return repository.saveDefinition(new PanelDefinition(withId, definition.fields(), roles));
-    }
-
-    private static List<Option> tiers() {
-        List<Option> options = new ArrayList<>();
-        for (int i = 0; i < HelpRules.TIERS.size(); i++) options.add(new Option(0, 0, i, HelpRules.TIERS.get(i), null, null));
-        return options;
-    }
-
-    /** General PvM help: a boss is needed, a tier and a specific achievement are optional. */
     static PanelDefinition pvmPanel(long guildId) {
-        Panel panel = new Panel(0, guildId, PVM_PANEL, "PvM Help",
-                "Stuck on a boss, or want to get better at one? Open a ticket and a helper will give you advice, guides, tips and resources, or review a recording of your attempts.\n"
-                        + "~<LS>~\n"
-                        + "This is advice, not a carry: helpers don't go in game and run the content for you. Looking for a group? Try #teamforming first.",
-                "Ask for PvM help", null, "pvm-{number}",
-                "A helper will be with you soon. They'll give advice, guides and tips here, or review a recording of your attempt. They won't join you in game.",
-                true, 1, null, 2, null, null, null, null, Panel.DEFAULT_OPENING, true, true, HelpKind.PVM);
-        List<Field> fields = List.of(
-                new Field(0, 0, 0, "Which boss?", FieldKind.SHORT, true, "e.g. Vorago", 100, List.of(), FieldPurpose.NONE),
-                new Field(0, 0, 1, "Tier (optional)", FieldKind.SELECT, false, "Leave blank if it isn't about a tier", null, tiers(), FieldPurpose.TIER),
-                new Field(0, 0, 2, "A specific achievement (optional)", FieldKind.SHORT, false, "e.g. Maul and Brawl", 100, List.of(), FieldPurpose.NONE),
-                new Field(0, 0, 3, "What do you need help with?", FieldKind.PARAGRAPH, false, "Anything that helps a helper understand", 500, List.of(), FieldPurpose.NONE));
-        return new PanelDefinition(panel, fields, PanelRoles.none());
+        return HelpPanels.pvm(guildId, PVM_PANEL);
     }
 
-    /** CA help: a boss and a tier are needed; one achievement is optional, and a guest asking for Master or above says what they have tried. */
     static PanelDefinition caPanel(long guildId) {
-        Panel panel = new Panel(0, guildId, CA_PANEL, "Combat Achievement Help",
-                "Working on a Combat Achievement? Pick the boss and the tier. You can also name one specific achievement, and if you do we will only help with that one.\n"
-                        + "~<LS>~\n"
-                        + "Helpers give advice, guides and tips, or review a recording of your attempt. They don't go in game with you.",
-                "Ask for CA help", null, "ca-{number}",
-                "A helper will be with you soon. If you named one achievement they will only help with that one.",
-                true, 1, null, 2, null, null, null, null, Panel.DEFAULT_OPENING, true, true, HelpKind.CA);
-        List<Field> fields = List.of(
-                new Field(0, 0, 0, "Which boss?", FieldKind.SHORT, true, "e.g. Amascut", 100, List.of(), FieldPurpose.NONE),
-                new Field(0, 0, 1, "Tier", FieldKind.SELECT, true, "Pick the tier", null, tiers(), FieldPurpose.TIER),
-                new Field(0, 0, 2, "One achievement (optional)", FieldKind.SHORT, false, "If you choose one, we only help with that one", 100, List.of(), FieldPurpose.NONE),
-                new Field(0, 0, 3, "Earlier attempts", FieldKind.PARAGRAPH, false, "Needed for Master and Grandmaster if you aren't in the clan", 500, List.of(), FieldPurpose.ATTEMPTS),
-                new Field(0, 0, 4, "Anything else?", FieldKind.PARAGRAPH, false, "When you're free, what you've tried, and so on", 500, List.of(), FieldPurpose.NONE));
-        return new PanelDefinition(panel, fields, PanelRoles.none());
+        return HelpPanels.ca(guildId, CA_PANEL);
     }
 }

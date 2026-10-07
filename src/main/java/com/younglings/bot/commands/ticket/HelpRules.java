@@ -102,9 +102,11 @@ public final class HelpRules {
         if (pickedLabel == null || highTierLabels(settings).stream().noneMatch(pickedLabel::equalsIgnoreCase)) return Optional.empty();
 
         String said = rawValues.get(attempts.id());
-        if (said != null && !said.isBlank()) return Optional.empty();
-        return Optional.of("**" + pickedLabel + "** tickets from guests need a note of your earlier attempts in \"" + attempts.label()
-                + "\". Open the ticket again and fill that in.");
+        boolean madeAttempts = attempts.kind() == FieldKind.CHECKBOX ? "true".equalsIgnoreCase(said) : said != null && !said.isBlank();
+        if (madeAttempts) return Optional.empty();
+        return Optional.of(attempts.kind() == FieldKind.CHECKBOX
+                ? "**" + pickedLabel + "** tickets are for people who have already made their own attempts. Start again and answer **Yes** to \"" + attempts.label() + "\" once you have."
+                : "**" + pickedLabel + "** tickets need a note of your earlier attempts in \"" + attempts.label() + "\". Open the ticket again and fill that in.");
     }
 
     /** Everything wrong with a set of settings, one sentence each — empty if they can be saved. */
@@ -124,21 +126,47 @@ public final class HelpRules {
         if (hours != null && (hours < MIN_HOURS || hours > MAX_HOURS)) problems.add(what + " must be between " + MIN_HOURS + " and " + MAX_HOURS + " hours.");
     }
 
+    private static String describe(FieldPurpose purpose) {
+        return switch (purpose) {
+            case BOSS -> "boss";
+            case TIER -> "tier";
+            case ACHIEVEMENT -> "achievement";
+            case ATTEMPTS -> "earlier attempts";
+            case NONE -> "other";
+        };
+    }
+
     /** Problems with how a panel's questions are marked for the help rules; the dashboard's Save adds these to the general panel checks. */
     public static List<String> validatePanelHelp(Panel panel, List<Field> fields) {
         List<String> problems = new ArrayList<>();
-        long tiers = fields.stream().filter(f -> f.purpose() == FieldPurpose.TIER).count();
-        long attempts = fields.stream().filter(f -> f.purpose() == FieldPurpose.ATTEMPTS).count();
+        long marked = fields.stream().filter(f -> f.purpose() != FieldPurpose.NONE).count();
 
         if (!panel.isHelpPanel()) {
-            if (tiers + attempts > 0) problems.add("Questions can only be marked as the tier or earlier attempts on a PvM Help or CA Help panel.");
+            if (marked > 0) problems.add("Questions can only be marked for the help rules (boss, tier, achievement, earlier attempts) on a PvM Help or CA Help panel.");
             return problems;
         }
-        if (tiers > 1) problems.add("Only one question can be marked as the tier.");
-        if (attempts > 1) problems.add("Only one question can be marked as earlier attempts.");
+        for (FieldPurpose purpose : FieldPurpose.values()) {
+            if (purpose != FieldPurpose.NONE && fields.stream().filter(f -> f.purpose() == purpose).count() > 1) {
+                problems.add("Only one question can be marked as the " + describe(purpose) + ".");
+            }
+        }
         for (Field field : fields) {
-            if (field.purpose() == FieldPurpose.TIER && field.kind() != FieldKind.SELECT) problems.add("The question marked as the tier (\"" + field.label() + "\") has to be a dropdown.");
-            if (field.purpose() == FieldPurpose.ATTEMPTS && field.kind() != FieldKind.SHORT && field.kind() != FieldKind.PARAGRAPH) problems.add("The question marked as earlier attempts (\"" + field.label() + "\") has to be a written answer.");
+            boolean written = field.kind() == FieldKind.SHORT || field.kind() == FieldKind.PARAGRAPH;
+            switch (field.purpose()) {
+                case TIER -> {
+                    if (field.kind() != FieldKind.SELECT) problems.add("The question marked as the tier (\"" + field.label() + "\") has to be a dropdown.");
+                }
+                case BOSS, ACHIEVEMENT -> {
+                    if (!written) problems.add("The question marked as the " + describe(field.purpose()) + " (\"" + field.label() + "\") has to be a written answer; members choose it from a list.");
+                }
+                case ATTEMPTS -> {
+                    if (!written && field.kind() != FieldKind.CHECKBOX) problems.add("The question marked as earlier attempts (\"" + field.label() + "\") has to be a written answer or a yes/no checkbox.");
+                }
+                default -> { }
+            }
+        }
+        if (fields.stream().anyMatch(f -> f.purpose() == FieldPurpose.BOSS) && fields.stream().noneMatch(f -> f.purpose() == FieldPurpose.TIER)) {
+            problems.add("A panel with a boss question also needs a question marked as the tier.");
         }
         if (panel.helpKind() == HelpKind.CA) {
             boolean requiredTier = fields.stream().anyMatch(f -> f.purpose() == FieldPurpose.TIER && f.kind() == FieldKind.SELECT && f.required());

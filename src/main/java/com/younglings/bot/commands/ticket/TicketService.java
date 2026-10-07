@@ -81,7 +81,12 @@ public class TicketService {
 
     /** The form for a panel: one input per question, in order. */
     public Modal buildForm(Panel panel, List<Field> fields) {
-        Modal.Builder modal = Modal.create("ticket_form:" + panel.id(), truncate(panel.title(), 45));
+        return buildForm("ticket_form:" + panel.id(), panel, fields);
+    }
+
+    /** A form with the given modal id for some of a panel's questions (the guided help flow asks the rest itself). */
+    public Modal buildForm(String modalId, Panel panel, List<Field> fields) {
+        Modal.Builder modal = Modal.create(modalId, truncate(panel.title(), 45));
         for (Field field : fields) {
             String id = "f" + field.id();
             switch (field.kind()) {

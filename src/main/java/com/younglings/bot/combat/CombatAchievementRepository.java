@@ -194,6 +194,49 @@ public class CombatAchievementRepository {
         }
     }
 
+    /**
+     * The bosses and activities achievements belong to (the wiki's "subcategory", such as Amascut or Boss Dungeon: Sanctum of Rebirth), sorted by name.
+     * A dungeon is one entry; the bosses inside it are only the achievements' subsubcategory and are not listed here.
+     */
+    public List<String> bosses() {
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("SELECT DISTINCT subcategory FROM younglings.combat_achievement WHERE subcategory IS NOT NULL ORDER BY subcategory");
+             ResultSet rs = s.executeQuery()) {
+            List<String> bosses = new ArrayList<>();
+            while (rs.next()) bosses.add(rs.getString(1));
+            bosses.sort(String.CASE_INSENSITIVE_ORDER);
+            return bosses;
+        } catch (SQLException e) {
+            throw new RuntimeException("Couldn't read the combat achievement bosses", e);
+        }
+    }
+
+    /** Every achievement name, for autocomplete. */
+    public List<String> names() {
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("SELECT name FROM younglings.combat_achievement ORDER BY LOWER(name)");
+             ResultSet rs = s.executeQuery()) {
+            List<String> names = new ArrayList<>();
+            while (rs.next()) names.add(rs.getString(1));
+            return names;
+        } catch (SQLException e) {
+            throw new RuntimeException("Couldn't read the combat achievement names", e);
+        }
+    }
+
+    /** The names of one boss's achievements, optionally only those in one tier (1 to 6): what a lookup offers once the boss and tier are known. */
+    public List<String> names(String boss, Integer tierNumber) {
+        return search(null, tierNumber, boss, 500).stream().map(Achievement::name).toList();
+    }
+
+    /** One achievement of this boss by its exact name (or wiki page title), ignoring case, optionally only in a tier. */
+    public Optional<Achievement> findInBoss(String boss, String name, Integer tierNumber) {
+        String wanted = name.strip();
+        return search(null, tierNumber, boss, 500).stream()
+                .filter(a -> a.name().equalsIgnoreCase(wanted) || a.wikiTitle().equalsIgnoreCase(wanted))
+                .findFirst();
+    }
+
     /** An achievement by its exact name or wiki page title, ignoring case. */
     public Optional<Achievement> findByName(String name) {
         List<Achievement> found = query("WHERE LOWER(name) = LOWER(?) OR LOWER(wiki_title) = LOWER(?)", 1, name.strip(), name.strip());

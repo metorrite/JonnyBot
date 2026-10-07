@@ -2,6 +2,7 @@ package com.younglings.bot.internal;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.younglings.bot.commands.ticket.HelpOnboarding;
+import com.younglings.bot.commands.ticket.HelpPanels;
 import com.younglings.bot.commands.ticket.HelpRules;
 import com.younglings.bot.commands.ticket.TicketRules;
 import com.younglings.bot.commands.ticket.TicketService;
@@ -64,10 +65,12 @@ public class TicketAdminApi {
     private final AdminOpsApi ops;
     private final AdminToolsStore auditStore;
     private final HelpOnboarding onboarding;
+    private final HelpPanels helpPanels;
 
     public TicketAdminApi(DashboardAccess access, TicketRepository repository, TicketService service, ClanAdminApi clanAdmin, CommunityAdminApi communityAdmin, AdminOpsApi ops, AdminToolsStore auditStore,
-                          HelpOnboarding onboarding) {
+                          HelpOnboarding onboarding, HelpPanels helpPanels) {
         this.onboarding = onboarding;
+        this.helpPanels = helpPanels;
         this.access = access;
         this.repository = repository;
         this.service = service;
@@ -457,15 +460,43 @@ public class TicketAdminApi {
 
     private DataObject helpRoute(HttpExchange exchange, Guild guild, Member actor, String method, String[] parts) {
         if (parts.length == 2 && parts[1].equals("settings")) {
-            if (method.equals("GET")) return TicketAdminJson.helpSettingsJson(repository.getHelpSettings(guild.getIdLong()));
+            if (method.equals("GET")) return helpSettingsResponse(guild);
             requireMethod(method, "PUT");
             return saveHelpSettings(exchange, guild, actor);
+        }
+        if (parts.length == 2 && parts[1].equals("panels")) {
+            requireMethod(method, "POST");
+            return createHelpPanels(guild, actor);
         }
         if (parts.length == 3 && parts[1].equals("guidelines") && parts[2].equals("post")) {
             requireMethod(method, "POST");
             return postGuidelines(exchange, guild, actor);
         }
         return null;
+    }
+
+    /** The help settings, plus the PvM Help and CA Help panels that exist, so the page can link to them. */
+    private DataObject helpSettingsResponse(Guild guild) {
+        DataArray panels = DataArray.empty();
+        for (Panel panel : repository.getPanels(guild.getIdLong())) {
+            if (!panel.isHelpPanel()) continue;
+            panels.add(DataObject.empty()
+                    .put("id", Long.toString(panel.id()))
+                    .put("name", panel.name())
+                    .put("helpKind", panel.helpKind().name())
+                    .put("categoryId", panel.categoryId() == null ? null : Long.toString(panel.categoryId()))
+                    .put("postedChannelId", panel.postedChannelId() == null ? null : Long.toString(panel.postedChannelId())));
+        }
+        return TicketAdminJson.helpSettingsJson(repository.getHelpSettings(guild.getIdLong())).put("panels", panels);
+    }
+
+    /** Creates the standard PvM Help and CA Help panels where the server doesn't have them; ones already there are left as they are. */
+    private DataObject createHelpPanels(Guild guild, Member actor) {
+        HelpPanels.Result result = helpPanels.createMissing(guild.getIdLong());
+        log.info("Dashboard: {} created {} help panel(s); {} already existed", actor.getId(), result.created().size(), result.existing().size());
+        return helpSettingsResponse(guild)
+                .put("createdPanels", DataArray.fromCollection(result.created().stream().map(Panel::name).toList()))
+                .put("existingPanels", DataArray.fromCollection(result.existing().stream().map(Panel::name).toList()));
     }
 
     private DataObject saveHelpSettings(HttpExchange exchange, Guild guild, Member actor) {
@@ -479,7 +510,7 @@ public class TicketAdminApi {
         repository.saveHelpSettings(updated);
         onboarding.refreshPosted(guild); // new guidelines show up on the message members read
         log.info("Dashboard: {} updated the PvM Help settings", actor.getId());
-        return TicketAdminJson.helpSettingsJson(repository.getHelpSettings(guild.getIdLong()));
+        return helpSettingsResponse(guild);
     }
 
     private DataObject postGuidelines(HttpExchange exchange, Guild guild, Member actor) {
@@ -497,7 +528,7 @@ public class TicketAdminApi {
             throw new ApiError(502, "Discord wouldn't let the guidelines be posted there.");
         }
         log.info("Dashboard: {} posted the helper guidelines in {}", actor.getId(), channelId);
-        return TicketAdminJson.helpSettingsJson(repository.getHelpSettings(guild.getIdLong()));
+        return helpSettingsResponse(guild);
     }
 
     // ---------- what a new panel starts with ----------
