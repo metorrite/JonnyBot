@@ -240,7 +240,7 @@ public class TicketService {
     public boolean mayClose(Guild guild, Member member, Ticket ticket, Panel panel) {
         PanelRoles roles = panel == null ? PanelRoles.none() : repository.getRoles(panel.id());
         Set<Long> memberRoles = member.getRoles().stream().map(r -> r.getIdLong()).collect(Collectors.toSet());
-        return TicketRules.canClose(ticket, member.getIdLong(), memberRoles, roles, adminRoleFilter.isAuthorized(guild, member), repository.getHelpers(ticket.id()));
+        return TicketRules.canClose(ticket, panel, member.getIdLong(), memberRoles, roles, adminRoleFilter.isAuthorized(guild, member), repository.getHelpers(ticket.id()));
     }
 
     // ================= closing =================

@@ -89,7 +89,7 @@ public class TicketRepository {
     private static final String PANEL_COLUMNS = """
             id, guild_id, name, title, description, button_label, category_id, channel_name_template, welcome_text, enabled,
             per_user_limit, default_ping_role_id, helper_cap, escalation_hours, default_escalate_role_id, posted_channel_id, posted_message_id,
-            opening_message
+            opening_message, close_by_requester, close_by_helpers
             """;
 
     private static Panel mapPanel(ResultSet rs) throws SQLException {
@@ -97,7 +97,8 @@ public class TicketRepository {
                 rs.getString("button_label"), (Long) rs.getObject("category_id"), rs.getString("channel_name_template"), rs.getString("welcome_text"),
                 rs.getBoolean("enabled"), rs.getInt("per_user_limit"), (Long) rs.getObject("default_ping_role_id"), (Integer) rs.getObject("helper_cap"),
                 (Integer) rs.getObject("escalation_hours"), (Long) rs.getObject("default_escalate_role_id"),
-                (Long) rs.getObject("posted_channel_id"), (Long) rs.getObject("posted_message_id"), rs.getString("opening_message"));
+                (Long) rs.getObject("posted_channel_id"), (Long) rs.getObject("posted_message_id"), rs.getString("opening_message"),
+                rs.getBoolean("close_by_requester"), rs.getBoolean("close_by_helpers"));
     }
 
     public List<Panel> getPanels(long guildId) {
@@ -171,7 +172,14 @@ public class TicketRepository {
             try (ResultSet rs = s.executeQuery()) {
                 while (rs.next()) ("STAFF".equals(rs.getString("kind")) ? staff : helpers).add(rs.getLong("role_id"));
             }
-            return new PanelRoles(helpers, staff);
+            Set<Long> closers = new HashSet<>();
+            try (PreparedStatement closeStatement = c.prepareStatement("SELECT role_id FROM younglings.ticket_panel_closer WHERE panel_id = ?")) {
+                closeStatement.setLong(1, panelId);
+                try (ResultSet rs = closeStatement.executeQuery()) {
+                    while (rs.next()) closers.add(rs.getLong("role_id"));
+                }
+            }
+            return new PanelRoles(helpers, staff, closers);
         } catch (SQLException e) {
             throw fail("read ticket panel roles", e);
         }
@@ -199,8 +207,8 @@ public class TicketRepository {
                     String insert = """
                             INSERT INTO younglings.ticket_panel (guild_id, name, title, description, button_label, category_id, channel_name_template,
                                 welcome_text, enabled, per_user_limit, default_ping_role_id, helper_cap, escalation_hours, default_escalate_role_id,
-                                opening_message)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
+                                opening_message, close_by_requester, close_by_helpers)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
                             """;
                     try (PreparedStatement s = c.prepareStatement(insert)) {
                         bindPanel(s, p, 1);
@@ -213,7 +221,7 @@ public class TicketRepository {
                     String update = """
                             UPDATE younglings.ticket_panel SET name = ?, title = ?, description = ?, button_label = ?, category_id = ?, channel_name_template = ?,
                                 welcome_text = ?, enabled = ?, per_user_limit = ?, default_ping_role_id = ?, helper_cap = ?, escalation_hours = ?,
-                                default_escalate_role_id = ?, opening_message = ?
+                                default_escalate_role_id = ?, opening_message = ?, close_by_requester = ?, close_by_helpers = ?
                             WHERE id = ? AND guild_id = ?
                             """;
                     try (PreparedStatement s = c.prepareStatement(update)) {
@@ -231,8 +239,10 @@ public class TicketRepository {
                         setInt(s, 12, p.escalationHours());
                         setLong(s, 13, p.defaultEscalateRoleId());
                         s.setString(14, p.openingMessage());
-                        s.setLong(15, panelId);
-                        s.setLong(16, p.guildId());
+                        s.setBoolean(15, p.closeByRequester());
+                        s.setBoolean(16, p.closeByHelpers());
+                        s.setLong(17, panelId);
+                        s.setLong(18, p.guildId());
                         if (s.executeUpdate() == 0) throw new IllegalArgumentException("That panel doesn't exist.");
                     }
                     try (PreparedStatement s = c.prepareStatement("DELETE FROM younglings.ticket_panel_field WHERE panel_id = ?")) {
@@ -240,6 +250,10 @@ public class TicketRepository {
                         s.executeUpdate();
                     }
                     try (PreparedStatement s = c.prepareStatement("DELETE FROM younglings.ticket_panel_role WHERE panel_id = ?")) {
+                        s.setLong(1, panelId);
+                        s.executeUpdate();
+                    }
+                    try (PreparedStatement s = c.prepareStatement("DELETE FROM younglings.ticket_panel_closer WHERE panel_id = ?")) {
                         s.setLong(1, panelId);
                         s.executeUpdate();
                     }
@@ -282,6 +296,13 @@ public class TicketRepository {
 
                 insertRoles(c, panelId, definition.roles().helperRoleIds(), "HELPER");
                 insertRoles(c, panelId, definition.roles().staffRoleIds(), "STAFF");
+                for (long roleId : definition.roles().closeRoleIds()) {
+                    try (PreparedStatement s = c.prepareStatement("INSERT INTO younglings.ticket_panel_closer (panel_id, role_id) VALUES (?, ?) ON CONFLICT DO NOTHING")) {
+                        s.setLong(1, panelId);
+                        s.setLong(2, roleId);
+                        s.executeUpdate();
+                    }
+                }
 
                 c.commit();
                 return panelId;
@@ -311,7 +332,9 @@ public class TicketRepository {
         setInt(s, i++, p.helperCap());
         setInt(s, i++, p.escalationHours());
         setLong(s, i++, p.defaultEscalateRoleId());
-        s.setString(i, p.openingMessage());
+        s.setString(i++, p.openingMessage());
+        s.setBoolean(i++, p.closeByRequester());
+        s.setBoolean(i, p.closeByHelpers());
     }
 
     private void insertRoles(Connection c, long panelId, Set<Long> roleIds, String kind) throws SQLException {
@@ -322,6 +345,35 @@ public class TicketRepository {
                 s.setString(3, kind);
                 s.executeUpdate();
             }
+        }
+    }
+
+    // ----- what a new panel starts with -----
+
+    /** The saved starting values for new panels as the dashboard's JSON, or {@code null} if none were ever saved. */
+    public String getPanelDefaults(long guildId) {
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("SELECT settings FROM younglings.ticket_panel_defaults WHERE guild_id = ?")) {
+            s.setLong(1, guildId);
+            try (ResultSet rs = s.executeQuery()) {
+                return rs.next() ? rs.getString(1) : null;
+            }
+        } catch (SQLException e) {
+            throw fail("read the default ticket panel settings", e);
+        }
+    }
+
+    public void savePanelDefaults(long guildId, String json) {
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("""
+                     INSERT INTO younglings.ticket_panel_defaults (guild_id, settings) VALUES (?, ?)
+                     ON CONFLICT (guild_id) DO UPDATE SET settings = EXCLUDED.settings
+                     """)) {
+            s.setLong(1, guildId);
+            s.setString(2, json);
+            s.executeUpdate();
+        } catch (SQLException e) {
+            throw fail("save the default ticket panel settings", e);
         }
     }
 

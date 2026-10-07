@@ -121,6 +121,36 @@ class TicketRulesTest {
         assertFalse(TicketRules.canClose(ticket(Status.CLOSED), REQUESTER, Set.of(), ROLES, true, List.of()), "a closed ticket can't be closed again");
     }
 
+    private static Panel panelClosing(boolean byRequester, boolean byHelpers) {
+        return new Panel(1, 1, "CA Help", "CA Help", "", "Open", null, "ca-{number}", "", true, 1, 500L, 2, 24, 600L, null, null, "{user} Welcome", byRequester, byHelpers);
+    }
+
+    @Test
+    void aPanelCanSwitchOffClosingByTheRequesterOrByHelpersButStaffAlwaysCan() {
+        Ticket open = ticket(Status.OPEN);
+        Panel staffOnly = panelClosing(false, false);
+        assertFalse(TicketRules.canClose(open, staffOnly, REQUESTER, Set.of(), ROLES, false, List.of()));
+        assertFalse(TicketRules.canClose(open, staffOnly, HELPER_USER, Set.of(), ROLES, false, List.of(HELPER_USER)));
+        assertTrue(TicketRules.canClose(open, staffOnly, 555, Set.of(STAFF_ROLE), ROLES, false, List.of()));
+        assertTrue(TicketRules.canClose(open, staffOnly, 555, Set.of(), ROLES, true, List.of()), "admins can always close");
+
+        Panel requesterOnly = panelClosing(true, false);
+        assertTrue(TicketRules.canClose(open, requesterOnly, REQUESTER, Set.of(), ROLES, false, List.of()));
+        assertFalse(TicketRules.canClose(open, requesterOnly, HELPER_USER, Set.of(), ROLES, false, List.of(HELPER_USER)));
+
+        Panel helpersOnly = panelClosing(false, true);
+        assertFalse(TicketRules.canClose(open, helpersOnly, REQUESTER, Set.of(), ROLES, false, List.of()));
+        assertTrue(TicketRules.canClose(open, helpersOnly, HELPER_USER, Set.of(), ROLES, false, List.of(HELPER_USER)));
+    }
+
+    @Test
+    void aCloseRoleMayCloseAnyTicketOnThePanelAndCanSeeTheChannel() {
+        PanelRoles withCloser = new PanelRoles(Set.of(HELPER_ROLE), Set.of(STAFF_ROLE), Set.of(OTHER_ROLE));
+        assertTrue(TicketRules.canClose(ticket(Status.OPEN), panelClosing(false, false), 555, Set.of(OTHER_ROLE), withCloser, false, List.of()));
+        assertFalse(TicketRules.canClose(ticket(Status.OPEN), panelClosing(false, false), 555, Set.of(OTHER_ROLE), ROLES, false, List.of()), "only where the panel names that role");
+        assertTrue(TicketRules.participantRoles(withCloser).contains(OTHER_ROLE), "a role that may close has to be able to see the channel");
+    }
+
     // ---------- routing ----------
 
     private static final List<Field> FIELDS = List.of(

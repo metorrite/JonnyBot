@@ -99,7 +99,9 @@ final class TicketAdminJson {
                 intOrNull(json, "escalationHours"),
                 idOrNull(json, "defaultEscalateRoleId"),
                 null, null,
-                json.getString("openingMessage", Panel.DEFAULT_OPENING).strip());
+                json.getString("openingMessage", Panel.DEFAULT_OPENING).strip(),
+                json.getBoolean("closeByRequester", true),
+                json.getBoolean("closeByHelpers", true));
 
         List<Field> fields = new ArrayList<>();
         if (!json.isNull("fields")) {
@@ -108,7 +110,53 @@ final class TicketAdminJson {
                 fields.add(readField(panelId, i, array.getObject(i)));
             }
         }
-        return new PanelDefinition(panel, fields, new PanelRoles(idSet(json, "helperRoleIds"), idSet(json, "staffRoleIds")));
+        return new PanelDefinition(panel, fields, new PanelRoles(idSet(json, "helperRoleIds"), idSet(json, "staffRoleIds"), idSet(json, "closeRoleIds")));
+    }
+
+    // ---------- what a new panel starts with ----------
+
+    /**
+     * The starting values for a new panel: the settings an admin tends to repeat on every panel (where tickets go, who staffs them,
+     * who may close them, the limits, the standard wording), never the panel's own name, title, description or questions.
+     */
+    static DataObject defaultsJson(PanelDefinition definition) {
+        Panel p = definition.panel();
+        return DataObject.empty()
+                .put("buttonLabel", p.buttonLabel())
+                .put("categoryId", idString(p.categoryId()))
+                .put("channelNameTemplate", p.channelNameTemplate())
+                .put("welcomeText", p.welcomeText())
+                .put("openingMessage", p.openingMessage())
+                .put("perUserLimit", p.perUserLimit())
+                .put("defaultPingRoleId", idString(p.defaultPingRoleId()))
+                .put("helperCap", p.helperCap())
+                .put("escalationHours", p.escalationHours())
+                .put("defaultEscalateRoleId", idString(p.defaultEscalateRoleId()))
+                .put("closeByRequester", p.closeByRequester())
+                .put("closeByHelpers", p.closeByHelpers())
+                .put("helperRoleIds", idArray(definition.roles().helperRoleIds()))
+                .put("staffRoleIds", idArray(definition.roles().staffRoleIds()))
+                .put("closeRoleIds", idArray(definition.roles().closeRoleIds()));
+    }
+
+    /** What a new panel starts with before anyone has saved their own defaults. */
+    static DataObject builtinDefaults() {
+        return DataObject.empty()
+                .put("buttonLabel", "Open a Ticket")
+                .put("categoryId", null)
+                .put("channelNameTemplate", "ticket-{number}")
+                .put("welcomeText", "")
+                .put("openingMessage", Panel.DEFAULT_OPENING)
+                .put("perUserLimit", 1)
+                .put("defaultPingRoleId", null)
+                .put("helperCap", null)
+                .put("escalationHours", null)
+                .put("defaultEscalateRoleId", null)
+                .put("closeByRequester", true)
+                .put("closeByHelpers", true)
+                .put("helperRoleIds", DataArray.empty())
+                .put("staffRoleIds", DataArray.empty())
+                .put("closeRoleIds", DataArray.empty());
     }
 
     private static int intOr(DataObject json, String key, int fallback) {
@@ -178,6 +226,8 @@ final class TicketAdminJson {
                 .put("channelNameTemplate", panel.channelNameTemplate())
                 .put("welcomeText", panel.welcomeText())
                 .put("openingMessage", panel.openingMessage())
+                .put("closeByRequester", panel.closeByRequester())
+                .put("closeByHelpers", panel.closeByHelpers())
                 .put("enabled", panel.enabled())
                 .put("perUserLimit", panel.perUserLimit())
                 .put("defaultPingRoleId", idString(panel.defaultPingRoleId()))
@@ -192,7 +242,8 @@ final class TicketAdminJson {
     static DataObject definitionJson(PanelDefinition definition) {
         DataObject json = panelJson(definition.panel())
                 .put("helperRoleIds", idArray(definition.roles().helperRoleIds()))
-                .put("staffRoleIds", idArray(definition.roles().staffRoleIds()));
+                .put("staffRoleIds", idArray(definition.roles().staffRoleIds()))
+                .put("closeRoleIds", idArray(definition.roles().closeRoleIds()));
 
         DataArray fields = DataArray.empty();
         for (Field field : definition.fields()) {

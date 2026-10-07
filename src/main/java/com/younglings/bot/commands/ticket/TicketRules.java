@@ -68,10 +68,11 @@ public final class TicketRules {
         return overwrites;
     }
 
-    /** Every role that should see all of a panel's tickets: its helper roles and its staff roles. */
+    /** Every role that should see all of a panel's tickets: its helper, staff and close roles (a role that may close has to be able to see the channel). */
     public static Set<Long> participantRoles(PanelRoles roles) {
         Set<Long> all = new java.util.HashSet<>(roles.helperRoleIds());
         all.addAll(roles.staffRoleIds());
+        all.addAll(roles.closeRoleIds());
         return all;
     }
 
@@ -101,10 +102,24 @@ public final class TicketRules {
         return JoinResult.OK;
     }
 
-    /** The requester, anyone who joined as a helper, staff, and admins may close a ticket. */
+    /** The requester, anyone who joined as a helper, staff, and admins may close a ticket — the default for a ticket whose panel is gone. */
     public static boolean canClose(Ticket ticket, long userId, Set<Long> memberRoleIds, PanelRoles roles, boolean isAdmin, Collection<Long> helperIds) {
-        return ticket.status() == Status.OPEN
-                && (ticket.requesterId() == userId || helperIds.contains(userId) || isStaff(roles, memberRoleIds, isAdmin));
+        return canClose(ticket, null, userId, memberRoleIds, roles, isAdmin, helperIds);
+    }
+
+    /**
+     * Who may press Close on this panel's tickets. Staff and admins always can, and so can anyone holding one of the panel's
+     * close roles. The requester and the helpers who joined can too, unless the panel switches either off.
+     * {@code panel} may be {@code null} (the panel was deleted since), which keeps the requester and helpers allowed.
+     */
+    public static boolean canClose(Ticket ticket, Panel panel, long userId, Set<Long> memberRoleIds, PanelRoles roles, boolean isAdmin, Collection<Long> helperIds) {
+        if (ticket.status() != Status.OPEN) return false;
+        if (isStaff(roles, memberRoleIds, isAdmin)) return true;
+        if (roles.closeRoleIds().stream().anyMatch(memberRoleIds::contains)) return true;
+
+        boolean requesterMay = panel == null || panel.closeByRequester();
+        boolean helpersMay = panel == null || panel.closeByHelpers();
+        return (requesterMay && ticket.requesterId() == userId) || (helpersMay && helperIds.contains(userId));
     }
 
     // ---------- routing ----------

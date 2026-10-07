@@ -150,7 +150,28 @@ public class TicketDatabaseInitializer {
                 """,
 
                 // The line posted above a new ticket's embeds; {user} is replaced with a mention of whoever opened it.
-                "ALTER TABLE younglings.ticket_panel ADD COLUMN IF NOT EXISTS opening_message TEXT NOT NULL DEFAULT '{user} Welcome';"
+                "ALTER TABLE younglings.ticket_panel ADD COLUMN IF NOT EXISTS opening_message TEXT NOT NULL DEFAULT '{user} Welcome';",
+
+                // Who may press Close, per panel: the requester and the helpers who joined (switchable), plus any extra roles below.
+                // Staff roles and admins can always close.
+                "ALTER TABLE younglings.ticket_panel ADD COLUMN IF NOT EXISTS close_by_requester BOOLEAN NOT NULL DEFAULT TRUE;",
+                "ALTER TABLE younglings.ticket_panel ADD COLUMN IF NOT EXISTS close_by_helpers BOOLEAN NOT NULL DEFAULT TRUE;",
+                // Kept apart from ticket_panel_role (one row per role there) so a role can be a helper and a closer at once.
+                """
+                CREATE TABLE IF NOT EXISTS younglings.ticket_panel_closer (
+                    panel_id BIGINT NOT NULL REFERENCES younglings.ticket_panel(id) ON DELETE CASCADE,
+                    role_id BIGINT NOT NULL,
+                    PRIMARY KEY (panel_id, role_id)
+                );
+                """,
+
+                // What a new panel starts with, as the dashboard's JSON: roles, category, limits, wording. Edited per panel afterwards.
+                """
+                CREATE TABLE IF NOT EXISTS younglings.ticket_panel_defaults (
+                    guild_id BIGINT PRIMARY KEY,
+                    settings TEXT NOT NULL
+                );
+                """
         ));
     }
 }
