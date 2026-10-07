@@ -224,6 +224,19 @@ public class CombatAchievementRepository {
         }
     }
 
+    /** The names of one boss's achievements, optionally only those in one tier (1 to 6): what a lookup offers once the boss and tier are known. */
+    public List<String> names(String boss, Integer tierNumber) {
+        return search(null, tierNumber, boss, 500).stream().map(Achievement::name).toList();
+    }
+
+    /** One achievement of this boss by its exact name (or wiki page title), ignoring case, optionally only in a tier. */
+    public Optional<Achievement> findInBoss(String boss, String name, Integer tierNumber) {
+        String wanted = name.strip();
+        return search(null, tierNumber, boss, 500).stream()
+                .filter(a -> a.name().equalsIgnoreCase(wanted) || a.wikiTitle().equalsIgnoreCase(wanted))
+                .findFirst();
+    }
+
     /** An achievement by its exact name or wiki page title, ignoring case. */
     public Optional<Achievement> findByName(String name) {
         List<Achievement> found = query("WHERE LOWER(name) = LOWER(?) OR LOWER(wiki_title) = LOWER(?)", 1, name.strip(), name.strip());

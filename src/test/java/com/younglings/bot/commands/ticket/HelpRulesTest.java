@@ -208,7 +208,8 @@ class HelpRulesTest {
         assertEquals(HelpSettings.DEFAULT_GUIDELINES, DEFAULTS.guidelinesOrDefault());
         assertEquals("custom", new HelpSettings(1, null, null, "custom", true, 72, false, true, null, true, "Master", null, null).guidelinesOrDefault());
         assertTrue(HelpSettings.DEFAULT_GUIDELINES.length() < HelpSettings.MAX_GUIDELINES);
-        assertTrue(HelpSettings.DEFAULT_GUIDELINES.contains("not going in game"), "it says help is advice, not in-game");
+        assertTrue(HelpSettings.DEFAULT_GUIDELINES.contains("PvM Help** tickets are advice only") && HelpSettings.DEFAULT_GUIDELINES.contains("CA Help** tickets are different"),
+                "it says PvM help is advice only and CA help goes in game");
     }
 
     @Test

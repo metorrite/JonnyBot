@@ -118,7 +118,9 @@ public class HelpTicketFlow extends ListenerAdapter {
     static Container bossStep(Panel panel, List<String> bosses) {
         List<ContainerChildComponent> children = new ArrayList<>();
         children.add(TextDisplay.of("### " + panel.title() + "\n**Step 1: which boss?**\nChoose the boss or activity you want help with."
-                + "\n-# Helpers give advice, guides and tips, or review a recording. They don't join you in game."));
+                // Only PvM Help is advice without going in game; on CA Help the helpers do go in and help with the achievement.
+                + (panel.helpKind() == com.younglings.bot.ticket.TicketModels.HelpKind.PVM
+                        ? "\n-# Helpers give advice, guides and tips, or review a recording. They don't join you in game." : "")));
 
         int number = 0;
         for (List<String> chunk : balancedChunks(bosses, MAX_CHOICES)) {
@@ -134,7 +136,8 @@ public class HelpTicketFlow extends ListenerAdapter {
     static Container tierStep(Panel panel, String boss, int bossIndex, boolean tierRequired) {
         List<ContainerChildComponent> children = new ArrayList<>();
         children.add(TextDisplay.of("### " + panel.title() + "\n**Boss:** " + boss + "\n**Step 2: which tier?**\n"
-                + (tierRequired ? "Choose the tier you're working on." : "Choose a tier, or \"No tier\" if your question isn't about one.")));
+                + (tierRequired ? "Choose the tier you're working on."
+                        : "Choose a tier, or \"No tier\" if your question isn't about one. Pick a tier if you want to name a specific achievement.")));
 
         StringSelectMenu.Builder menu = StringSelectMenu.create(TIER_PREFIX + panel.id() + ":" + bossIndex)
                 .setPlaceholder(tierRequired ? "Choose a tier" : "Choose a tier (optional)")
@@ -145,9 +148,10 @@ public class HelpTicketFlow extends ListenerAdapter {
         return Containers.card(Containers.PRIMARY, children);
     }
 
+    /** The achievements of one boss in the tier that was chosen, so the lists stay short and everything in them is the right difficulty. */
     static Container achievementStep(Panel panel, String boss, String tier, int bossIndex, int tierNumber, List<Achievement> achievements) {
         List<ContainerChildComponent> children = new ArrayList<>();
-        children.add(TextDisplay.of("### " + panel.title() + "\n**Boss:** " + boss + (tier == null ? "" : "  ·  **Tier:** " + tier)
+        children.add(TextDisplay.of("### " + panel.title() + "\n**Boss:** " + boss + "  ·  **Tier:** " + tier
                 + "\n**Step 3: a specific achievement?** (optional)\nIf you choose one, helpers will only help with that one."));
 
         int number = 0;
@@ -156,8 +160,7 @@ public class HelpTicketFlow extends ListenerAdapter {
                     .setPlaceholder(shorten(chunk.getFirst().name() + " to " + chunk.getLast().name(), 100))
                     .setRequiredRange(1, 1);
             for (Achievement a : chunk) {
-                String label = tier == null ? a.name() + " (" + a.tier() + ")" : a.name();
-                menu.addOption(shorten(label, 100), String.valueOf(a.id()), shorten(a.description(), DESCRIPTION_MAX));
+                menu.addOption(shorten(a.name(), 100), String.valueOf(a.id()), shorten(a.description(), DESCRIPTION_MAX));
             }
             children.add(ActionRow.of(menu.build()));
         }
@@ -215,7 +218,8 @@ public class HelpTicketFlow extends ListenerAdapter {
                 }
                 String boss = bosses.get(bossIndex);
                 String tier = tierNumber == 0 ? null : HelpRules.TIERS.get(tierNumber - 1);
-                List<Achievement> achievements = catalog.search(null, tierNumber == 0 ? null : tierNumber, boss, 200);
+                // No tier chosen means no list to pick from: an achievement belongs to a tier, so naming one starts with choosing the tier.
+                List<Achievement> achievements = tierNumber == 0 ? List.of() : catalog.search(null, tierNumber, boss, 200);
                 if (achievements.isEmpty()) askRest(event, panel, fields, bossIndex, tierNumber, 0);
                 else event.editComponents(achievementStep(panel, boss, tier, bossIndex, tierNumber, achievements)).useComponentsV2(true).queue();
             } else {

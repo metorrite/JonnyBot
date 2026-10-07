@@ -82,6 +82,22 @@ class HelpTicketFlowTest {
     }
 
     @Test
+    void theNoGoingInGameNoteIsOnlyOnPvmHelp() {
+        String pvm = String.join(" ", ComponentTree.of(List.of(HelpTicketFlow.bossStep(panel(com.younglings.bot.ticket.TicketModels.HelpKind.PVM), List.of("Vorago"))))
+                .findAll(net.dv8tion.jda.api.components.textdisplay.TextDisplay.class).stream().map(t -> t.getContent()).toList());
+        String ca = String.join(" ", ComponentTree.of(List.of(HelpTicketFlow.bossStep(panel(com.younglings.bot.ticket.TicketModels.HelpKind.CA), List.of("Vorago"))))
+                .findAll(net.dv8tion.jda.api.components.textdisplay.TextDisplay.class).stream().map(t -> t.getContent()).toList());
+        assertTrue(pvm.contains("don't join you in game"));
+        assertFalse(ca.contains("in game"), "CA helpers do go in");
+    }
+
+    @Test
+    void theCaPanelDoesNotSayHelpersStayOutOfTheGame() {
+        assertFalse(DevHelpSetup.caPanel(1).panel().description().contains("in game"));
+        assertTrue(DevHelpSetup.pvmPanel(1).panel().description().contains("don't go in game"));
+    }
+
+    @Test
     void theTierStepOffersNoTierOnlyWhenTheTierIsOptional() {
         var optional = menus(HelpTicketFlow.tierStep(panel(com.younglings.bot.ticket.TicketModels.HelpKind.PVM), "Vorago", 36, false)).getFirst();
         assertEquals(List.of("No tier", "Easy", "Medium", "Hard", "Elite", "Master", "Grandmaster"), optional.getOptions().stream().map(o -> o.getLabel()).toList());
@@ -93,30 +109,31 @@ class HelpTicketFlowTest {
     }
 
     @Test
-    void voragosFortyTwoAchievementsSplitAcrossDropdownsAndCanBeSkipped() {
-        List<Achievement> vorago = achievements.stream().filter(a -> a.subcategory().equals("Vorago")).toList();
-        assertEquals(42, vorago.size());
-        var container = HelpTicketFlow.achievementStep(panel(com.younglings.bot.ticket.TicketModels.HelpKind.PVM), "Vorago", null, 36, 0, vorago);
+    void onlyTheChosenTiersAchievementsAreOfferedAndVoragosEliteOnesSplitAcrossTwoDropdowns() {
+        List<Achievement> voragoElite = achievements.stream().filter(a -> a.subcategory().equals("Vorago") && a.tierNumber() == 4).toList();
+        assertEquals(31, voragoElite.size(), "Vorago has 42 in all, 31 of them Elite");
+        var container = HelpTicketFlow.achievementStep(panel(com.younglings.bot.ticket.TicketModels.HelpKind.PVM), "Vorago", "Elite", 36, 4, voragoElite);
         new MessageCreateBuilder().useComponentsV2(true).setComponents(container).build();
 
         var menus = menus(container);
         assertEquals(2, menus.size());
-        assertEquals(42, menus.stream().mapToInt(m -> m.getOptions().size()).sum());
-        assertTrue(menus.stream().flatMap(m -> m.getOptions().stream()).allMatch(o -> o.getLabel().endsWith(")")), "with no tier chosen each shows its tier");
+        assertEquals(31, menus.stream().mapToInt(m -> m.getOptions().size()).sum());
         assertTrue(menus.stream().flatMap(m -> m.getOptions().stream()).allMatch(o -> o.getDescription() != null && o.getDescription().length() <= 100));
+        var chosen = voragoElite.stream().map(Achievement::name).toList();
+        assertTrue(menus.stream().flatMap(m -> m.getOptions().stream()).allMatch(o -> chosen.contains(o.getLabel())), "nothing from another tier");
 
         var buttons = ComponentTree.of(List.of(container)).findAll(Button.class);
-        assertEquals(List.of("tickethelp_skip:11:36:0"), buttons.stream().map(Button::getCustomId).toList());
+        assertEquals(List.of("tickethelp_skip:11:36:4"), buttons.stream().map(Button::getCustomId).toList());
     }
 
     @Test
     void everyBossAndTierCombinationFitsInAMessage() {
         for (String boss : bosses()) {
-            for (int tier = 0; tier <= 6; tier++) {
+            for (int tier = 1; tier <= 6; tier++) {
                 int t = tier;
-                List<Achievement> list = achievements.stream().filter(a -> a.subcategory().equals(boss) && (t == 0 || a.tierNumber() == t)).toList();
+                List<Achievement> list = achievements.stream().filter(a -> a.subcategory().equals(boss) && a.tierNumber() == t).toList();
                 if (list.isEmpty()) continue;
-                var container = HelpTicketFlow.achievementStep(panel(com.younglings.bot.ticket.TicketModels.HelpKind.CA), boss, t == 0 ? null : HelpRules.TIERS.get(t - 1), 0, t, list);
+                var container = HelpTicketFlow.achievementStep(panel(com.younglings.bot.ticket.TicketModels.HelpKind.CA), boss, HelpRules.TIERS.get(t - 1), 0, t, list);
                 new MessageCreateBuilder().useComponentsV2(true).setComponents(container).build();
                 assertTrue(menus(container).stream().allMatch(m -> m.getOptions().size() <= 25), boss + " tier " + t);
             }
