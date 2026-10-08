@@ -788,9 +788,32 @@ public class RsInteractionListener extends ListenerAdapter {
         }
 
         event.deferEdit().queue();
+        boolean justJoined = detectClanJoin(guild, link);
         statsService.pollAndSnapshot(guild.getIdLong(), rsn);
         linkService.recordSelfPoll(link.linkId());
         event.getHook().editOriginalComponents(List.of(renderAfterOwnAction(guild, link))).useComponentsV2(true).queue();
+        if (justJoined) {
+            event.getHook().sendMessageComponents(List.of(Containers.toast(Containers.SUCCESS,
+                            "**" + rsn + "** is in the clan. Your roles are being updated now.")))
+                    .useComponentsV2(true).setEphemeral(true).queue();
+        }
+    }
+
+    /**
+     * The point of updating yourself right after joining the clan: if {@code link}'s RSN isn't on the stored
+     * roster yet, looks at the clan list now (see {@link ClanSyncService#refreshRosterIfStale}) so a new member
+     * gets their Member role immediately rather than at the next daily sync. Costs nothing for anyone already
+     * on the roster. True only if this refresh found {@code link}'s player joining; a failure is logged and
+     * never stops the update itself.
+     */
+    private boolean detectClanJoin(Guild guild, PlayerLink link) {
+        try {
+            if (clanSyncService.isActiveMember(guild.getIdLong(), link.rsn())) return false;
+            return clanSyncService.refreshRosterIfStale(guild).joinedDiscordUserIds().contains(link.discordUserId());
+        } catch (Exception e) {
+            log.warn("Couldn't check the clan roster for '{}' during a self-update", link.rsn(), e);
+            return false;
+        }
     }
 
     /**

@@ -1,9 +1,13 @@
 package com.younglings.bot.commands.runescape;
 
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.runescape.PlayerLink;
+import com.younglings.bot.runescape.PlayerLinkService;
 import com.younglings.bot.runescape.RsnRenameRepository;
 import com.younglings.bot.runescape.RsnRenameService;
+import com.younglings.bot.runescape.VerificationRoleSyncService;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
+import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import org.slf4j.Logger;
@@ -21,9 +25,14 @@ public class RsnRenameInteractionListener extends ListenerAdapter {
     private static final Logger log = LoggerFactory.getLogger(RsnRenameInteractionListener.class);
 
     private final RsnRenameService renameService;
+    private final PlayerLinkService linkService;
+    private final VerificationRoleSyncService roleSyncService;
 
-    public RsnRenameInteractionListener(RsnRenameService renameService) {
+    public RsnRenameInteractionListener(RsnRenameService renameService, PlayerLinkService linkService,
+                                        VerificationRoleSyncService roleSyncService) {
         this.renameService = renameService;
+        this.linkService = linkService;
+        this.roleSyncService = roleSyncService;
     }
 
     @Override
@@ -53,6 +62,14 @@ public class RsnRenameInteractionListener extends ListenerAdapter {
             if (!ok) {
                 Containers.edit(event, Containers.WARNING, "Couldn't process this — it may have just been handled elsewhere.");
                 return;
+            }
+
+            // The roster sync left this player's roles alone while the rename was open. Now that it's said to be
+            // somebody else, the old name really has left the clan, so the player goes back to Guest.
+            if (!isConfirm) {
+                Guild guild = event.getJDA().getGuildById(candidate.guildId());
+                PlayerLink link = linkService.getLinkForRsn(candidate.guildId(), candidate.oldRsn());
+                if (guild != null && link != null) roleSyncService.syncLeftClan(guild, link.discordUserId());
             }
 
             Containers.edit(event, isConfirm ? Containers.SUCCESS : Containers.DANGER,
