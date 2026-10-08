@@ -17,6 +17,7 @@ What it does (run it after tools/wiki_sync.py, which builds the boss catalogue a
 The pictures are RuneScape artwork (Jagex), used the way the wiki uses them. Requests are sequential with a short pause, like wiki_sync.py.
 """
 import argparse
+import hashlib
 import json
 import shutil
 import sys
@@ -68,6 +69,14 @@ def main():
 
     # a boss whose picture is missing is left out, so it keeps the generic icon rather than a broken one
     bosses = [b for b in bosses if b["image"] and (site / "public" / b["image"].lstrip("/")).exists()]
+
+    # two bosses with the very same picture means one was fetched wrong (Nakatra once showed Amascut); refuse rather than ship it
+    seen = {}
+    for b in bosses:
+        digest = hashlib.md5((site / "public" / b["image"].lstrip("/")).read_bytes()).hexdigest()
+        if digest in seen:
+            sys.exit(f"{b['name']} and {seen[digest]} have identical pictures; delete the wrong one from {site / 'public/bosses'} and run again with --force")
+        seen[digest] = b["name"]
 
     out = root / "src/main/resources/catalog/boss_icons.json"
     out.write_text(json.dumps({"bosses": bosses}, indent=1, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n")
