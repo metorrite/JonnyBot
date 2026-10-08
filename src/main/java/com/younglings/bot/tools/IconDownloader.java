@@ -133,11 +133,9 @@ public final class IconDownloader {
             if (ok) downloaded++; else missing.add("drop: " + item.name());
         }
 
-        System.out.println("== Bosses (" + BossCatalog.all().size() + ") ==");
-        for (BossCatalog.Boss boss : BossCatalog.all()) {
-            boolean ok = fetchAndSave(client, boss.name(), IMAGES_ROOT.resolve("bosses").resolve(boss.key() + ".png"));
-            if (ok) downloaded++; else missing.add("boss: " + boss.name());
-        }
+        // Boss pictures aren't fetched here any more: BossCatalog lists every name a boss goes by (many bosses, several names each), and a name is
+        // not always a wiki page title. tools/boss_icons.py keeps the pictures in images/bosses in step with the website's and the boss list.
+        System.out.println("== Bosses (" + BossCatalog.keys().size() + ") == left to tools/boss_icons.py");
 
         System.out.println("== Category icons ==");
         for (var e : CATEGORY_SOURCES.entrySet()) {
