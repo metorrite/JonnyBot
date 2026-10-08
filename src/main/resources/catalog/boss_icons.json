@@ -1,0 +1,473 @@
+{
+ "bosses": [
+  {
+   "key": "king_black_dragon",
+   "name": "King Black Dragon",
+   "aliases": [
+    "King Black Dragon"
+   ],
+   "image": "/bosses/king_black_dragon.png"
+  },
+  {
+   "key": "vindicta_gorvek",
+   "name": "Vindicta & Gorvek",
+   "aliases": [
+    "Gorvek",
+    "Vindicta",
+    "Vindicta & Gorvek"
+   ],
+   "image": "/bosses/vindicta_gorvek.png"
+  },
+  {
+   "key": "kril_tsutsaroth",
+   "name": "K'ril Tsutsaroth",
+   "aliases": [
+    "K'ril Tsutsaroth"
+   ],
+   "image": "/bosses/kril_tsutsaroth.png"
+  },
+  {
+   "key": "raksha",
+   "name": "Raksha",
+   "aliases": [
+    "Raksha"
+   ],
+   "image": "/bosses/raksha.png"
+  },
+  {
+   "key": "arch_glacor",
+   "name": "Arch-Glacor",
+   "aliases": [
+    "Arch-Glacor"
+   ],
+   "image": "/bosses/arch_glacor.png"
+  },
+  {
+   "key": "kalphite_queen",
+   "name": "Kalphite Queen",
+   "aliases": [
+    "Kalphite Queen"
+   ],
+   "image": "/bosses/kalphite_queen.png"
+  },
+  {
+   "key": "kreearra",
+   "name": "Kree'arra",
+   "aliases": [
+    "Kree'arra"
+   ],
+   "image": "/bosses/kreearra.png"
+  },
+  {
+   "key": "telos",
+   "name": "Telos",
+   "aliases": [
+    "Telos",
+    "Telos, the Warden"
+   ],
+   "image": "/bosses/telos.png"
+  },
+  {
+   "key": "the_gate_of_elidinis",
+   "name": "The Gate of Elidinis",
+   "aliases": [
+    "Gate of Elidinis",
+    "The Gate of Elidinis"
+   ],
+   "image": "/bosses/the_gate_of_elidinis.png"
+  },
+  {
+   "key": "helwyr",
+   "name": "Helwyr",
+   "aliases": [
+    "Helwyr"
+   ],
+   "image": "/bosses/helwyr.png"
+  },
+  {
+   "key": "rex_matriarch",
+   "name": "Rex Matriarch",
+   "aliases": [
+    "Rex Matriarch",
+    "Rex Matriarchs"
+   ],
+   "image": "/bosses/rex_matriarch.png"
+  },
+  {
+   "key": "zamorak",
+   "name": "Zamorak",
+   "aliases": [
+    "Zamorak"
+   ],
+   "image": "/bosses/zamorak.png"
+  },
+  {
+   "key": "amascut",
+   "name": "Amascut",
+   "aliases": [
+    "Amascut"
+   ],
+   "image": "/bosses/amascut.png"
+  },
+  {
+   "key": "nex",
+   "name": "Nex",
+   "aliases": [
+    "Nex"
+   ],
+   "image": "/bosses/nex.png"
+  },
+  {
+   "key": "araxxi",
+   "name": "Araxxi",
+   "aliases": [
+    "Araxxi"
+   ],
+   "image": "/bosses/araxxi.png"
+  },
+  {
+   "key": "kerapac",
+   "name": "Kerapac",
+   "aliases": [
+    "Kerapac",
+    "Kerapac, the Bound"
+   ],
+   "image": "/bosses/kerapac.png"
+  },
+  {
+   "key": "commander_zilyana",
+   "name": "Commander Zilyana",
+   "aliases": [
+    "Commander Zilyana"
+   ],
+   "image": "/bosses/commander_zilyana.png"
+  },
+  {
+   "key": "chaos_elemental",
+   "name": "Chaos Elemental",
+   "aliases": [
+    "Chaos Elemental"
+   ],
+   "image": "/bosses/chaos_elemental.png"
+  },
+  {
+   "key": "hermod",
+   "name": "Hermod",
+   "aliases": [
+    "Hermod",
+    "Hermod, the Spirit of War"
+   ],
+   "image": "/bosses/hermod.png"
+  },
+  {
+   "key": "vermyx",
+   "name": "Vermyx",
+   "aliases": [
+    "Vermyx"
+   ],
+   "image": "/bosses/vermyx.png"
+  },
+  {
+   "key": "kezalam",
+   "name": "Kezalam",
+   "aliases": [
+    "Kezalam",
+    "Kezalam, the Wanderer"
+   ],
+   "image": "/bosses/kezalam.png"
+  },
+  {
+   "key": "nakatra",
+   "name": "Nakatra",
+   "aliases": [
+    "Nakatra",
+    "Nakatra, Devourer Eternal"
+   ],
+   "image": "/bosses/nakatra.png"
+  },
+  {
+   "key": "general_graardor",
+   "name": "General Graardor",
+   "aliases": [
+    "General Graardor"
+   ],
+   "image": "/bosses/general_graardor.png"
+  },
+  {
+   "key": "gregorovic",
+   "name": "Gregorovic",
+   "aliases": [
+    "Gregorovic"
+   ],
+   "image": "/bosses/gregorovic.png"
+  },
+  {
+   "key": "rasial",
+   "name": "Rasial",
+   "aliases": [
+    "Rasial",
+    "Rasial, the First Necromancer"
+   ],
+   "image": "/bosses/rasial.png"
+  },
+  {
+   "key": "zemouregal_vorkath",
+   "name": "Zemouregal & Vorkath",
+   "aliases": [
+    "Zemouregal & Vorkath",
+    "Zemouregal and Vorkath"
+   ],
+   "image": "/bosses/zemouregal_vorkath.png"
+  },
+  {
+   "key": "croesus",
+   "name": "Croesus",
+   "aliases": [
+    "Croesus",
+    "Croesus'"
+   ],
+   "image": "/bosses/croesus.png"
+  },
+  {
+   "key": "dagannoth_kings",
+   "name": "Dagannoth Kings",
+   "aliases": [
+    "Dagannoth King",
+    "Dagannoth Kings",
+    "Dagannoth Prime",
+    "Dagannoth Rex",
+    "Dagannoth Supreme"
+   ],
+   "image": "/bosses/dagannoth_kings.png"
+  },
+  {
+   "key": "black_stone_dragon",
+   "name": "Black Stone Dragon",
+   "aliases": [
+    "Black Stone Dragon"
+   ],
+   "image": "/bosses/black_stone_dragon.png"
+  },
+  {
+   "key": "vorago",
+   "name": "Vorago",
+   "aliases": [
+    "Vorago"
+   ],
+   "image": "/bosses/vorago.png"
+  },
+  {
+   "key": "corporeal_beast",
+   "name": "Corporeal Beast",
+   "aliases": [
+    "Corporeal Beast"
+   ],
+   "image": "/bosses/corporeal_beast.png"
+  },
+  {
+   "key": "the_magister",
+   "name": "The Magister",
+   "aliases": [
+    "Magister",
+    "The Magister"
+   ],
+   "image": "/bosses/the_magister.png"
+  },
+  {
+   "key": "kalphite_king",
+   "name": "Kalphite King",
+   "aliases": [
+    "Kalphite King"
+   ],
+   "image": "/bosses/kalphite_king.png"
+  },
+  {
+   "key": "queen_black_dragon",
+   "name": "Queen Black Dragon",
+   "aliases": [
+    "Queen Black Dragon"
+   ],
+   "image": "/bosses/queen_black_dragon.png"
+  },
+  {
+   "key": "seiryu_the_azure_serpent",
+   "name": "Seiryu the Azure Serpent",
+   "aliases": [
+    "Seiryu",
+    "Seiryu the Azure Serpent"
+   ],
+   "image": "/bosses/seiryu_the_azure_serpent.png"
+  },
+  {
+   "key": "har_aken",
+   "name": "Har-Aken",
+   "aliases": [
+    "Har-Aken"
+   ],
+   "image": "/bosses/har_aken.png"
+  },
+  {
+   "key": "tzkal_zuk",
+   "name": "TzKal-Zuk",
+   "aliases": [
+    "TzKal-Zuk"
+   ],
+   "image": "/bosses/tzkal_zuk.png"
+  },
+  {
+   "key": "tztok_jad",
+   "name": "TzTok-Jad",
+   "aliases": [
+    "TzTok-Jad"
+   ],
+   "image": "/bosses/tztok_jad.png"
+  },
+  {
+   "key": "solak",
+   "name": "Solak",
+   "aliases": [
+    "Solak"
+   ],
+   "image": "/bosses/solak.png"
+  },
+  {
+   "key": "the_twin_furies",
+   "name": "The Twin Furies",
+   "aliases": [
+    "Avaryss",
+    "Avaryss, the Unceasing",
+    "Nymora",
+    "Nymora, the Vengeful",
+    "The Twin Furies"
+   ],
+   "image": "/bosses/the_twin_furies.png"
+  },
+  {
+   "key": "tormented_demon",
+   "name": "Tormented demon",
+   "aliases": [
+    "Tormented demon",
+    "tormented demon"
+   ],
+   "image": "/bosses/tormented_demon.png"
+  },
+  {
+   "key": "giant_mole",
+   "name": "Giant Mole",
+   "aliases": [
+    "Giant Mole"
+   ],
+   "image": "/bosses/giant_mole.png"
+  },
+  {
+   "key": "barrows_brothers",
+   "name": "Barrows brothers",
+   "aliases": [
+    "Barrows brothers"
+   ],
+   "image": "/bosses/barrows_brothers.png"
+  },
+  {
+   "key": "astellarn",
+   "name": "Astellarn",
+   "aliases": [
+    "Astellarn"
+   ],
+   "image": "/bosses/astellarn.png"
+  },
+  {
+   "key": "beastmaster_durzag",
+   "name": "Beastmaster Durzag",
+   "aliases": [
+    "Beastmaster Durzag"
+   ],
+   "image": "/bosses/beastmaster_durzag.png"
+  },
+  {
+   "key": "crassian_leviathan",
+   "name": "Crassian Leviathan",
+   "aliases": [
+    "Crassian Leviathan"
+   ],
+   "image": "/bosses/crassian_leviathan.png"
+  },
+  {
+   "key": "the_ambassador",
+   "name": "The Ambassador",
+   "aliases": [
+    "Ambassador",
+    "The Ambassador"
+   ],
+   "image": "/bosses/the_ambassador.png"
+  },
+  {
+   "key": "ivar_king_of_bones",
+   "name": "Ivar, King of Bones",
+   "aliases": [
+    "Ivar",
+    "Ivar, King of Bones"
+   ],
+   "image": "/bosses/ivar_king_of_bones.png"
+  },
+  {
+   "key": "legiones",
+   "name": "Legiones",
+   "aliases": [
+    "Legiones"
+   ],
+   "image": "/bosses/legiones.png"
+  },
+  {
+   "key": "masuta_the_ascended",
+   "name": "Masuta the Ascended",
+   "aliases": [
+    "Masuta",
+    "Masuta the Ascended"
+   ],
+   "image": "/bosses/masuta_the_ascended.png"
+  },
+  {
+   "key": "silverquill_the_dreadhog",
+   "name": "Silverquill, the Dreadhog",
+   "aliases": [
+    "Silverquill",
+    "Silverquill, the Dreadhog"
+   ],
+   "image": "/bosses/silverquill_the_dreadhog.png"
+  },
+  {
+   "key": "taraket_the_necromancer",
+   "name": "Taraket the Necromancer",
+   "aliases": [
+    "Taraket",
+    "Taraket the Necromancer"
+   ],
+   "image": "/bosses/taraket_the_necromancer.png"
+  },
+  {
+   "key": "verak_lith",
+   "name": "Verak Lith",
+   "aliases": [
+    "Verak Lith"
+   ],
+   "image": "/bosses/verak_lith.png"
+  },
+  {
+   "key": "yakamaru",
+   "name": "Yakamaru",
+   "aliases": [
+    "Yakamaru"
+   ],
+   "image": "/bosses/yakamaru.png"
+  },
+  {
+   "key": "the_sanctum_guardian",
+   "name": "The Sanctum Guardian",
+   "aliases": [
+    "Sanctum Guardian",
+    "The Sanctum Guardian"
+   ],
+   "image": "/bosses/the_sanctum_guardian.png"
+  }
+ ]
+}

@@ -97,10 +97,11 @@ public class TrackingIconCatalog extends ListenerAdapter {
             if (bytes != null) CATEGORY_BYTES.put(key, bytes);
         }
         int bossesFound = 0;
-        for (BossCatalog.Boss boss : BossCatalog.all()) {
-            byte[] bytes = readResource("images/bosses/" + boss.key() + ".png");
+        List<String> bossKeys = BossCatalog.keys();
+        for (String bossKey : bossKeys) {
+            byte[] bytes = readResource("images/bosses/" + bossKey + ".png");
             if (bytes != null) {
-                BOSS_BYTES.put(boss.key(), bytes);
+                BOSS_BYTES.put(bossKey, bytes);
                 bossesFound++;
             }
         }
@@ -116,7 +117,7 @@ public class TrackingIconCatalog extends ListenerAdapter {
         DEFAULT_BOSS_BYTES = readResource("images/tracking/default_boss.png");
         log.info("Loaded {}/{} drop icon images, {}/{} category icon images, {}/{} boss icon images, {}/{} rank icon images, default drop icon: {}, default boss icon: {}.",
                 found, DropItemCatalog.all().size(), CATEGORY_BYTES.size(), CATEGORY_KEYS.size(),
-                bossesFound, BossCatalog.all().size(), ranksFound, RANK_COUNT,
+                bossesFound, bossKeys.size(), ranksFound, RANK_COUNT,
                 DEFAULT_DROP_BYTES != null ? "found" : "missing — run IconDownloader",
                 DEFAULT_BOSS_BYTES != null ? "found" : "missing — run IconDownloader");
     }
