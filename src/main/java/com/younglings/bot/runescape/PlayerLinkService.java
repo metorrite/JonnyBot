@@ -55,6 +55,32 @@ public class PlayerLinkService {
         return repository.getPendingAttempts(guildId);
     }
 
+    public void setReviewCard(long attemptId, long channelId, long messageId) {
+        repository.setReviewCard(attemptId, channelId, messageId);
+    }
+
+    public PlayerLinkRepository.ReviewCard getReviewCard(long attemptId) {
+        return repository.getReviewCard(attemptId);
+    }
+
+    public PlayerLinkRepository.Resolution getResolution(long attemptId) {
+        return repository.getResolution(attemptId);
+    }
+
+    /**
+     * Closes a pending request because an admin linked that same RSN to the same person by hand
+     * ({@link #manualLink}), so it doesn't sit in the queue for someone to approve again. Unlike
+     * {@link #approve} it creates no link, which the manual link already did and must not be overwritten.
+     * Returns false if the attempt is gone or already resolved.
+     */
+    public boolean closeAsLinkedByAdmin(long attemptId, long adminUserId) {
+        VerificationAttempt attempt = repository.getAttempt(attemptId);
+        if (attempt == null || !"PENDING".equals(attempt.status())) return false;
+
+        repository.resolveAttempt(attemptId, "APPROVED", adminUserId);
+        return true;
+    }
+
     /** Approves the attempt and creates the confirmed link. Returns false if the attempt is gone or already resolved. */
     public boolean approve(long attemptId, long resolvedByUserId) {
         VerificationAttempt attempt = repository.getAttempt(attemptId);

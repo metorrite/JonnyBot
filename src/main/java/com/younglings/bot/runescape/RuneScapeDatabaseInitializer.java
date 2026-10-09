@@ -78,6 +78,18 @@ public class RuneScapeDatabaseInitializer {
                 ON younglings.player_verification_attempt (guild_id, status);
                 """,
 
+                // Where the request's card was posted for admin review, so the card can be edited to say how the
+                // request ended (cancelled by the member, approved, rejected) instead of keeping live buttons.
+                """
+                ALTER TABLE younglings.player_verification_attempt
+                    ADD COLUMN IF NOT EXISTS review_channel_id BIGINT NULL;
+                """,
+
+                """
+                ALTER TABLE younglings.player_verification_attempt
+                    ADD COLUMN IF NOT EXISTS review_message_id BIGINT NULL;
+                """,
+
                 // Periodic snapshot of a linked player's RuneMetrics profile — one row per poll
                 // (manual only, see RosterPollScheduler/BotConfig#getRunescapeAutoPollEnabled),
                 // so XP-gain-over-time can be derived by comparing rows rather than only ever
