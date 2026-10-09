@@ -40,7 +40,7 @@ class RsAdminPanelTest {
         adminRoleFilter = mock(AdminRoleFilter.class);
         weeklyDigestService = mock(WeeklyDigestService.class);
         listener = new RsAdminInteractionListener(null, null, adminRoleFilter, null, null, clanSyncService, null, null, null, null, null,
-                mock(ConfigureInteractionListener.class), weeklyDigestService);
+                mock(ConfigureInteractionListener.class), weeklyDigestService, null);
         guild = mock(Guild.class);
         viewer = mock(Member.class);
         when(guild.getIdLong()).thenReturn(1L);
@@ -114,6 +114,21 @@ class RsAdminPanelTest {
         for (String action : List.of("rsnadmin_review_approve", "rsnadmin_review_reject", "rsnadmin_manualverify_modal")) {
             assertTrue(RsAdminInteractionListener.SUPPORT_ACTIONS.contains(action), action);
         }
+    }
+
+    @Test
+    void theGuestsWithoutALinkListIsForAdminsOnly() {
+        when(clanSyncService.getClanName(1L)).thenReturn("Younglings");
+
+        asAdmin();
+        Container panel = listener.buildPanel(guild, viewer);
+        new MessageCreateBuilder().useComponentsV2(true).setComponents(panel).build();
+        assertTrue(ids(panel).contains("rsnadmin_guests:_"));
+
+        asSupportOnly();
+        assertFalse(ids(listener.buildPanel(guild, viewer)).contains("rsnadmin_guests:_"));
+        assertFalse(RsAdminInteractionListener.SUPPORT_ACTIONS.contains("rsnadmin_guests"));
+        assertFalse(RsAdminInteractionListener.SUPPORT_ACTIONS.contains("rsnadmin_guests_page"));
     }
 
     @Test

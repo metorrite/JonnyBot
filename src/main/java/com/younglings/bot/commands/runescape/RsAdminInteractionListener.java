@@ -22,6 +22,7 @@ import com.younglings.bot.runescape.RuneScapeStatsService;
 import com.younglings.bot.runescape.RuneScapeTestDataSeeder;
 import com.younglings.bot.runescape.RuneScapeXpTable;
 import com.younglings.bot.runescape.SkillValue;
+import com.younglings.bot.runescape.UnverifiedGuestService;
 import com.younglings.bot.runescape.VerificationAttempt;
 import com.younglings.bot.runescape.VerificationRoleSyncService;
 import com.younglings.bot.tracking.WeeklyDigestService;
@@ -102,6 +103,7 @@ public class RsAdminInteractionListener extends ListenerAdapter {
     private final RsInteractionListener rsInteractionListener;
     private final ConfigureInteractionListener configureListener;
     private final WeeklyDigestService weeklyDigestService;
+    private final UnverifiedGuestService unverifiedGuestService;
     private final HttpClient httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
 
     public RsAdminInteractionListener(PlayerLinkService linkService, RuneScapeStatsService statsService,
@@ -111,7 +113,9 @@ public class RsAdminInteractionListener extends ListenerAdapter {
                                        RsnRenameService renameService, RsChartInteractionListener chartListener,
                                        RsInteractionListener rsInteractionListener,
                                        ConfigureInteractionListener configureListener,
-                                       WeeklyDigestService weeklyDigestService) {
+                                       WeeklyDigestService weeklyDigestService,
+                                       UnverifiedGuestService unverifiedGuestService) {
+        this.unverifiedGuestService = unverifiedGuestService;
         this.linkService = linkService;
         this.statsService = statsService;
         this.adminRoleFilter = adminRoleFilter;
@@ -319,6 +323,8 @@ public class RsAdminInteractionListener extends ListenerAdapter {
             case "rsnadmin_clanlist" -> doClanList(event, guild);
             case "rsnadmin_clanoverview" -> doClanOverviewPrompt(event, guild);
             case "rsnadmin_review_pending" -> showPendingVerifications(event, guild, 0, false);
+            case "rsnadmin_guests" -> showUnverifiedGuests(event, guild, 0, false);
+            case "rsnadmin_guests_page" -> showUnverifiedGuests(event, guild, Integer.parseInt(id.split(":")[1]), true);
             case "rsnadmin_citadel" -> {
                 LocalDate today = LocalDate.now(ZoneOffset.UTC);
                 showCitadelViewer(event, guild, WeeklyDigestService.citadelWeekStart(today), today);
@@ -603,6 +609,60 @@ public class RsAdminInteractionListener extends ListenerAdapter {
             event.replyComponents(List.of(container)).useComponentsV2(true).setEphemeral(true)
                     .setAllowedMentions(EnumSet.noneOf(Message.MentionType.class)).queue();
         }
+    }
+
+    // --- Guests who never linked an RSN ---
+
+    private static final int GUEST_LIST_PAGE_SIZE = 10;
+
+    /**
+     * Everyone who holds Guest but never linked an RSN and has no request waiting (see
+     * {@link UnverifiedGuestService}) — who was most likely given the role by hand. Visibility only: nothing here
+     * removes a role, since handing out Guest to someone who doesn't play RS is allowed. Fetching the role's
+     * holders from Discord can take a moment, so the click is acknowledged first.
+     */
+    private void showUnverifiedGuests(ComponentInteraction event, Guild guild, int pageIndex, boolean isPageNav) {
+        if (isPageNav) event.deferEdit().queue();
+        else event.deferReply(true).queue();
+
+        unverifiedGuestService.find(guild, result -> {
+            if (result.guestRole() == null) {
+                event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.WARNING,
+                        "No Guest role is configured. Set the Onboarding (or verified / unverified) role under **Configure → Verification**."))).useComponentsV2(true).queue();
+                return;
+            }
+            if (result.guests().isEmpty()) {
+                event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.SUCCESS,
+                        "Everyone holding " + result.guestRole().getAsMention() + " has a linked RSN or a request waiting."))).useComponentsV2(true)
+                        .setAllowedMentions(EnumSet.noneOf(Message.MentionType.class)).queue();
+                return;
+            }
+
+            var page = Pagination.paginate(result.guests(), pageIndex, GUEST_LIST_PAGE_SIZE);
+            List<ContainerChildComponent> children = new ArrayList<>();
+            children.add(TextDisplay.of("# Guests Without a Link (" + result.guests().size() + ")"));
+            children.add(TextDisplay.of("Hold " + result.guestRole().getAsMention() + " but have no linked RSN and no request waiting.\n"
+                    + "-# Visibility only, nothing is removed. Bots, admins and clan Members are left out. Use **Manually Verify** to link one."));
+            children.add(Separator.createDivider(Separator.Spacing.SMALL));
+            StringBuilder lines = new StringBuilder();
+            for (var guest : page.items()) {
+                lines.append("<@").append(guest.userId()).append(">");
+                if (guest.joinedServerAt() != null) lines.append(" — joined the server <t:").append(guest.joinedServerAt().toEpochSecond()).append(":R>");
+                lines.append('\n');
+            }
+            children.add(TextDisplay.of(lines.toString().stripTrailing()));
+            if (!page.isSinglePage()) {
+                children.add(Separator.createDivider(Separator.Spacing.SMALL));
+                children.add(Pagination.navRow(page, "rsnadmin_guests_page:"));
+            }
+
+            event.getHook().editOriginalComponents(List.of(Containers.card(Containers.INFO, children))).useComponentsV2(true)
+                    .setAllowedMentions(EnumSet.noneOf(Message.MentionType.class)).queue();
+        }, error -> {
+            log.warn("Couldn't list guests without a link for guild {}", guild.getIdLong(), error);
+            event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.WARNING,
+                    "Couldn't load the Guest role's members from Discord right now. Try again in a moment."))).useComponentsV2(true).queue();
+        });
     }
 
     /** One row's Approve/Reject from the Review Pending list — shares the exact side effects (link, role sync, DM) that a standalone review-message click gets, then refreshes the list in place. */
@@ -1063,6 +1123,7 @@ public class RsAdminInteractionListener extends ListenerAdapter {
                 Button.secondary("rsnadmin_review_pending:_", "Review Pending"),
                 Button.secondary("rsnadmin_post_pending:_", "Post Pending to Review Channel")
         ));
+        children.add(ActionRow.of(Button.secondary("rsnadmin_guests:_", "Guests Without a Link")));
         children.add(Separator.createDivider(Separator.Spacing.SMALL));
 
         if (hasClan) {
