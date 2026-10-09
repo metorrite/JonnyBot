@@ -24,6 +24,7 @@ import com.younglings.bot.runescape.RuneScapeXpTable;
 import com.younglings.bot.runescape.SkillValue;
 import com.younglings.bot.runescape.UnverifiedGuestService;
 import com.younglings.bot.runescape.VerificationAttempt;
+import com.younglings.bot.runescape.VerificationReviewCards;
 import com.younglings.bot.runescape.VerificationRoleSyncService;
 import com.younglings.bot.tracking.WeeklyDigestService;
 import com.younglings.bot.runescape.XpChartRenderer;
@@ -307,6 +308,7 @@ public class RsAdminInteractionListener extends ListenerAdapter {
         }
 
         linkService.manualLink(guild.getIdLong(), discordUserId, rsn, admin.getIdLong());
+        rsInteractionListener.closeMatchingRequestAfterManualLink(guild, discordUserId, rsn, admin.getIdLong());
         roleSyncService.syncRoles(guild, discordUserId, rsn);
         Containers.replyEphemeral(event, Containers.SUCCESS, "Linked **" + rsn + "** to <@" + discordUserId + ">.");
     }
@@ -673,7 +675,11 @@ public class RsAdminInteractionListener extends ListenerAdapter {
                 : rsInteractionListener.completeRejection(guild, attemptId, event.getUser().getIdLong());
 
         if (result == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "That request was already resolved.");
+            var resolution = linkService.getResolution(attemptId);
+            var attempt = linkService.getAttempt(attemptId);
+            String how = resolution == null || attempt == null ? ""
+                    : " " + VerificationReviewCards.outcome(resolution.status(), resolution.resolvedByUserId(), attempt.discordUserId());
+            Containers.replyEphemeral(event, Containers.WARNING, "That request was already resolved." + how);
             return;
         }
         showPendingVerifications(event, guild, 0, true);

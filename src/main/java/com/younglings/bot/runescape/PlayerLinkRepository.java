@@ -127,6 +127,61 @@ public class PlayerLinkRepository {
         }
     }
 
+    /** Where a request's card sits in the review channel. */
+    public record ReviewCard(long channelId, long messageId) {}
+
+    /** How a request ended, and who ended it (the requester themselves for a cancel). */
+    public record Resolution(String status, Long resolvedByUserId) {}
+
+    public void setReviewCard(long attemptId, long channelId, long messageId) {
+        String sql = "UPDATE younglings.player_verification_attempt SET review_channel_id = ?, review_message_id = ? WHERE attempt_id = ?";
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setLong(1, channelId);
+            statement.setLong(2, messageId);
+            statement.setLong(3, attemptId);
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            log.error("Failed to remember the review card for verification attempt {}", attemptId, e);
+            throw new RuntimeException("Failed to remember the review card", e);
+        }
+    }
+
+    /** The card posted for this request, or null if none was recorded (it predates this, or no review channel was set). */
+    public ReviewCard getReviewCard(long attemptId) {
+        String sql = "SELECT review_channel_id, review_message_id FROM younglings.player_verification_attempt WHERE attempt_id = ?";
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setLong(1, attemptId);
+            try (ResultSet rs = statement.executeQuery()) {
+                if (!rs.next()) return null;
+                long channelId = rs.getLong("review_channel_id");
+                long messageId = rs.getLong("review_message_id");
+                return rs.wasNull() || channelId == 0 || messageId == 0 ? null : new ReviewCard(channelId, messageId);
+            }
+        } catch (SQLException e) {
+            log.error("Failed to read the review card for verification attempt {}", attemptId, e);
+            throw new RuntimeException("Failed to read the review card", e);
+        }
+    }
+
+    /** How this request ended, or null if it doesn't exist. */
+    public Resolution getResolution(long attemptId) {
+        String sql = "SELECT status, resolved_by_user_id FROM younglings.player_verification_attempt WHERE attempt_id = ?";
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setLong(1, attemptId);
+            try (ResultSet rs = statement.executeQuery()) {
+                if (!rs.next()) return null;
+                long by = rs.getLong("resolved_by_user_id");
+                return new Resolution(rs.getString("status"), rs.wasNull() ? null : by);
+            }
+        } catch (SQLException e) {
+            log.error("Failed to read how verification attempt {} ended", attemptId, e);
+            throw new RuntimeException("Failed to read how a verification attempt ended", e);
+        }
+    }
+
     public List<VerificationAttempt> getPendingAttempts(long guildId) {
         String sql = """
                 SELECT attempt_id, guild_id, discord_user_id, rsn, assigned_hairstyle,

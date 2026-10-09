@@ -21,6 +21,7 @@ import com.younglings.bot.runescape.RuneScapeStatsService;
 import com.younglings.bot.runescape.SkillEmojiCatalog;
 import com.younglings.bot.runescape.SkillValue;
 import com.younglings.bot.runescape.VerificationAttempt;
+import com.younglings.bot.runescape.VerificationReviewCards;
 import com.younglings.bot.runescape.VerificationRoleSyncService;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
@@ -102,6 +103,7 @@ public class RsInteractionListener extends ListenerAdapter {
     private final ClanSyncService clanSyncService;
     private final ClanOverviewService clanOverviewService;
     private final GuildSettingsService guildSettingsService;
+    private final VerificationReviewCards reviewCards;
     private final HttpClient httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
     // "Share" toggle per member — in-memory only (resets on restart, and every fresh /rs invocation
     // always starts off; see buildClanHeader). Not worth a DB column for a runtime preference this
@@ -114,7 +116,8 @@ public class RsInteractionListener extends ListenerAdapter {
                                   SkillEmojiCatalog skillEmojiCatalog, VerificationRoleSyncService roleSyncService,
                                   RsChartInteractionListener chartListener, MonthlyRecapService monthlyRecapService,
                                   ClanSyncService clanSyncService, ClanOverviewService clanOverviewService,
-                                  GuildSettingsService guildSettingsService) {
+                                  GuildSettingsService guildSettingsService, VerificationReviewCards reviewCards) {
+        this.reviewCards = reviewCards;
         this.linkService = linkService;
         this.statsService = statsService;
         this.adminRoleFilter = adminRoleFilter;
@@ -287,6 +290,7 @@ public class RsInteractionListener extends ListenerAdapter {
                     return;
                 }
                 revokeOnboardingRole(event.getGuild(), event.getUser().getIdLong());
+                reviewCards.update(event.getGuild(), attemptId, Containers.INFO, VerificationReviewCards.outcome("CANCELLED", event.getUser().getIdLong(), event.getUser().getIdLong()));
                 Containers.replyEphemeral(event, Containers.SUCCESS, "Cancelled — run `/rs` again to start over with a different name.");
             }
         }
@@ -352,10 +356,15 @@ public class RsInteractionListener extends ListenerAdapter {
                 ));
     }
 
-    private static CompletableFuture<Message> postReviewCard(GuildMessageChannel channel, VerificationAttempt attempt) {
+    /** Posts the card and remembers which message it is, so it can be edited once the request ends. */
+    private CompletableFuture<Message> postReviewCard(GuildMessageChannel channel, VerificationAttempt attempt) {
         return channel.sendMessageComponents(List.of(reviewCard(attempt))).useComponentsV2(true)
                 .setAllowedMentions(EnumSet.noneOf(Message.MentionType.class))
-                .submit();
+                .submit()
+                .thenApply(message -> {
+                    reviewCards.track(attempt.attemptId(), message);
+                    return message;
+                });
     }
 
     /**
@@ -370,7 +379,11 @@ public class RsInteractionListener extends ListenerAdapter {
         if (channel == null) return false;
 
         List<CompletableFuture<Message>> posts = new ArrayList<>();
-        for (VerificationAttempt attempt : pending) posts.add(postReviewCard(channel, attempt));
+        for (VerificationAttempt attempt : pending) {
+            // the earlier card for this request stays in the channel, so say it has been replaced rather than leave two live ones
+            reviewCards.update(guild, attempt.attemptId(), Containers.INFO, "Posted again below.");
+            posts.add(postReviewCard(channel, attempt));
+        }
 
         CompletableFuture.allOf(posts.toArray(CompletableFuture[]::new)).handle((ignored, error) -> {
             int posted = 0;
@@ -415,6 +428,8 @@ public class RsInteractionListener extends ListenerAdapter {
         roleSyncService.syncRoles(guild, attempt.discordUserId(), attempt.rsn());
         dmVerificationUpdate(guild, attempt.discordUserId(), Containers.SUCCESS,
                 "✅ Your request to link **" + attempt.rsn() + "** has been approved!");
+        reviewCards.update(guild, attemptId, Containers.SUCCESS,
+                "✅ Approved by <@" + resolvedByUserId + "> — **" + attempt.rsn() + "** is now linked to <@" + attempt.discordUserId() + ">.");
         return attempt;
     }
 
@@ -452,7 +467,21 @@ public class RsInteractionListener extends ListenerAdapter {
 
         dmVerificationUpdate(guild, attempt.discordUserId(), Containers.DANGER,
                 "❌ Your request to link **" + attempt.rsn() + "** was denied. Contact an admin if you think this is a mistake.");
+        reviewCards.update(guild, attemptId, Containers.DANGER, "❌ Rejected by <@" + resolvedByUserId + ">.");
         return attempt;
+    }
+
+    /**
+     * An admin linked {@code rsn} to {@code userId} by hand. If that person has the very same name waiting for
+     * review, closes the request and updates its card, so it doesn't sit in the queue to be approved again.
+     */
+    void closeMatchingRequestAfterManualLink(Guild guild, long userId, String rsn, long adminUserId) {
+        VerificationAttempt pending = linkService.getPendingAttemptForUser(guild.getIdLong(), userId);
+        if (pending == null || !pending.rsn().equalsIgnoreCase(rsn)) return;
+        if (!linkService.closeAsLinkedByAdmin(pending.attemptId(), adminUserId)) return;
+
+        reviewCards.update(guild, pending.attemptId(), Containers.SUCCESS,
+                "✅ Linked by <@" + adminUserId + "> — **" + pending.rsn() + "** is now linked to <@" + userId + ">.");
     }
 
     private void handleVerifyApprove(ButtonInteractionEvent event, String id) {
@@ -464,12 +493,31 @@ public class RsInteractionListener extends ListenerAdapter {
         long attemptId = Long.parseLong(id.split(":")[1]);
         VerificationAttempt attempt = completeApproval(event.getGuild(), attemptId, event.getUser().getIdLong());
         if (attempt == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "This request was already resolved.");
+            showAlreadyResolved(event, attemptId);
             return;
         }
 
-        Containers.edit(event, Containers.SUCCESS, "✅ Approved by " + event.getUser().getAsMention() +
-                " — **" + attempt.rsn() + "** is now linked to <@" + attempt.discordUserId() + ">.");
+        event.editComponents(List.of(VerificationReviewCards.resolvedCard(attempt, Containers.SUCCESS,
+                        "✅ Approved by " + event.getUser().getAsMention() + " — **" + attempt.rsn() + "** is now linked to <@" + attempt.discordUserId() + ">.")))
+                .useComponentsV2(true).setAllowedMentions(EnumSet.noneOf(Message.MentionType.class)).queue();
+    }
+
+    /**
+     * A card was clicked for a request that has already ended (cancelled by the member, or handled elsewhere).
+     * Rewrites that card in place to say how it ended, which also tidies up cards posted before the bot kept
+     * track of them. Falls back to a plain notice if the request no longer exists.
+     */
+    private void showAlreadyResolved(ButtonInteractionEvent event, long attemptId) {
+        VerificationAttempt attempt = linkService.getAttempt(attemptId);
+        PlayerLinkRepository.Resolution resolution = linkService.getResolution(attemptId);
+        if (attempt == null || resolution == null) {
+            Containers.replyEphemeral(event, Containers.WARNING, "This request no longer exists.");
+            return;
+        }
+
+        event.editComponents(List.of(VerificationReviewCards.resolvedCard(attempt, VerificationReviewCards.accent(resolution.status()),
+                        VerificationReviewCards.outcome(resolution.status(), resolution.resolvedByUserId(), attempt.discordUserId()))))
+                .useComponentsV2(true).setAllowedMentions(EnumSet.noneOf(Message.MentionType.class)).queue();
     }
 
     private void handleVerifyReject(ButtonInteractionEvent event, String id) {
@@ -481,11 +529,13 @@ public class RsInteractionListener extends ListenerAdapter {
         long attemptId = Long.parseLong(id.split(":")[1]);
         VerificationAttempt attempt = completeRejection(event.getGuild(), attemptId, event.getUser().getIdLong());
         if (attempt == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "This request was already resolved.");
+            showAlreadyResolved(event, attemptId);
             return;
         }
 
-        Containers.edit(event, Containers.DANGER, "❌ Rejected by " + event.getUser().getAsMention() + ".");
+        event.editComponents(List.of(VerificationReviewCards.resolvedCard(attempt, Containers.DANGER,
+                        "❌ Rejected by " + event.getUser().getAsMention() + ".")))
+                .useComponentsV2(true).setAllowedMentions(EnumSet.noneOf(Message.MentionType.class)).queue();
     }
 
     private void handleModal(ModalInteractionEvent event, String modalId) {
@@ -540,6 +590,7 @@ public class RsInteractionListener extends ListenerAdapter {
         VerificationAttempt pending = linkService.getPendingAttemptForUser(guild.getIdLong(), userId);
         if (pending == null || !linkService.cancelOwn(pending.attemptId(), userId)) return false;
         revokeOnboardingRole(guild, userId);
+        reviewCards.update(guild, pending.attemptId(), Containers.INFO, VerificationReviewCards.outcome("CANCELLED", userId, userId));
         return true;
     }
 
