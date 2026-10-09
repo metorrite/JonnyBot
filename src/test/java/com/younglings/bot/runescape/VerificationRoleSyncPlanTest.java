@@ -58,6 +58,56 @@ class VerificationRoleSyncPlanTest {
         assertEquals(Set.of(), none.remove());
     }
 
+    private static VerificationRoleSyncService.RolePlan leave(Long clan, Long nonClan, Set<Long> held) {
+        return VerificationRoleSyncService.planLeave(clan, nonClan, held, id -> id != GONE);
+    }
+
+    @Test
+    void aPlayerWhoLeavesTheClanTradesMemberForGuest() {
+        var plan = leave(MEMBER, GUEST, Set.of(MEMBER, OTHER));
+        assertEquals(Set.of(GUEST), plan.add());
+        assertEquals(Set.of(MEMBER), plan.remove());
+    }
+
+    @Test
+    void aPlayerWhoLeavesButAlreadyHasGuestOnlyLosesMember() {
+        var plan = leave(MEMBER, GUEST, Set.of(MEMBER, GUEST));
+        assertEquals(Set.of(), plan.add());
+        assertEquals(Set.of(MEMBER), plan.remove());
+    }
+
+    @Test
+    void leavingChangesNothingForSomeoneWhoWasNeverAMember() {
+        var plan = leave(MEMBER, GUEST, Set.of(GUEST));
+        assertEquals(Set.of(), plan.add());
+        assertEquals(Set.of(), plan.remove());
+    }
+
+    @Test
+    void leavingNeverStripsARoleThatIsAlsoTheGuestRole() {
+        var plan = leave(GUEST, GUEST, Set.of(GUEST));
+        assertEquals(Set.of(), plan.add());
+        assertEquals(Set.of(), plan.remove());
+    }
+
+    @Test
+    void leavingNeverTakesMemberAwayWithoutAGuestRoleToPutInItsPlace() {
+        assertEquals(Set.of(), leave(MEMBER, null, Set.of(MEMBER)).remove());
+        assertEquals(Set.of(), leave(null, GUEST, Set.of(MEMBER)).remove());
+
+        var guestGone = leave(MEMBER, GONE, Set.of(MEMBER));
+        assertEquals(Set.of(GONE), guestGone.missing());
+        assertEquals(Set.of(), guestGone.add());
+        assertEquals(Set.of(), guestGone.remove(), "Member stays rather than leaving the player with no role");
+    }
+
+    @Test
+    void aDeletedMemberRoleIsReportedButGuestIsStillGiven() {
+        var plan = leave(GONE, GUEST, Set.of());
+        assertEquals(Set.of(GONE), plan.missing());
+        assertEquals(Set.of(GUEST), plan.add());
+    }
+
     @Test
     void aDeletedRoleIsReportedAndSkippedNeverGuessed() {
         var plan = plan(GONE, GUEST, Set.of(GUEST));

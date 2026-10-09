@@ -76,12 +76,16 @@ public class RsnRenameService {
      * Compares this sync's disappeared names against its appeared names and flags any plausible
      * renames. {@code polledResults} only needs entries for {@code newLower}'s names — the profile
      * poll {@link ClanSyncService} already runs for every current roster member during its own sync.
+     * <p>
+     * Returns the (lowercase) departed names that look like they might be a rename — any name that
+     * paired with an appeared one, whether it was then flagged, ambiguous, or couldn't be checked further
+     * — so the caller can leave that player's roles alone until an admin has decided.
      */
-    public void detectAndNotify(Guild guild, List<ClanMemberRepository.ClanMemberRow> before,
-                                 List<RuneScapeApiClient.ClanMember> currentRoster,
-                                 Set<String> departedLower, Set<String> newLower,
-                                 Map<String, ProfileResult> polledResults) {
-        if (departedLower.isEmpty() || newLower.isEmpty()) return;
+    public Set<String> detectAndNotify(Guild guild, List<ClanMemberRepository.ClanMemberRow> before,
+                                        List<RuneScapeApiClient.ClanMember> currentRoster,
+                                        Set<String> departedLower, Set<String> newLower,
+                                        Map<String, ProfileResult> polledResults) {
+        if (departedLower.isEmpty() || newLower.isEmpty()) return Set.of();
 
         Map<String, ClanMemberRepository.ClanMemberRow> beforeByLower = new HashMap<>();
         for (var row : before) beforeByLower.put(row.rsn().toLowerCase(), row);
@@ -101,7 +105,7 @@ public class RsnRenameService {
                 }
             }
         }
-        if (pairs.isEmpty()) return;
+        if (pairs.isEmpty()) return Set.of();
 
         Map<String, List<Pair>> byOld = pairs.stream().collect(Collectors.groupingBy(p -> p.oldRsn().toLowerCase()));
         Map<String, List<Pair>> byNew = pairs.stream().collect(Collectors.groupingBy(p -> p.newMember().rsn().toLowerCase()));
@@ -120,6 +124,7 @@ public class RsnRenameService {
 
             evaluateCandidate(guild, pair.oldRsn(), pair.newMember().rsn(), polledResults.get(newKey));
         }
+        return Set.copyOf(byOld.keySet());
     }
 
     private boolean isXpPlausible(long oldTotalXp, long newTotalXp) {
