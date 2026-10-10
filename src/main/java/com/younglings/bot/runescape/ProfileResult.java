@@ -22,9 +22,9 @@ public sealed interface ProfileResult {
 
     /**
      * {@code HTTP 429} — the API asked us to back off. Kept distinct from {@link Unavailable} because
-     * the right response is different: {@link RuneScapeStatsService} queues this RSN in
-     * {@link SlowPollQueue} for a slow, backing-off retry instead of just counting it as a failed poll
-     * and moving on at the normal cadence, which would only make the rate limit worse.
+     * the right response is different: the poll coordinator slows its whole request rate and
+     * puts this RSN back in the queue for a later retry instead of just counting it as a failed poll and
+     * moving on at the normal cadence, which would only make the rate limit worse.
      * {@code retryAfter} is the server's own {@code Retry-After} hint, if it sent one parseable as a
      * plain number of seconds; {@code null} otherwise.
      */

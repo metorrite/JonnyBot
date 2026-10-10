@@ -374,6 +374,17 @@ public class TicketAdminApi {
                 requireMethod(method, "GET");
                 return ops.health(guild);
             }
+            case "polling" -> {
+                if (parts.length == 1) {
+                    requireMethod(method, "GET");
+                    return ops.pollingStatus();
+                }
+                if (parts.length == 2 && parts[1].equals("poll")) {
+                    requireMethod(method, "POST");
+                    return ops.pollPlayer(body(exchange).getString("rsn", ""));
+                }
+                return null;
+            }
             case "audit" -> {
                 requireMethod(method, "GET");
                 return ops.audit(guild, queryParam(exchange, "limit"), queryParam(exchange, "actor"), queryParam(exchange, "q"));

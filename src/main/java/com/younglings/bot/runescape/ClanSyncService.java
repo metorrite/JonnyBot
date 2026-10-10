@@ -1,7 +1,10 @@
 package com.younglings.bot.runescape;
 
-import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.configure.GuildSettingsService;
+import com.younglings.bot.runescape.polling.PollCoordinator;
+import com.younglings.bot.runescape.polling.PollOutcome;
+import com.younglings.bot.runescape.polling.PollPriority;
+import com.younglings.bot.runescape.polling.PollRequest;
 import com.younglings.bot.tracking.ClassifiedEntry;
 import com.younglings.bot.tracking.TrackingEventRouter;
 import com.younglings.bot.tracking.TrackingGroup;
@@ -27,8 +30,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Discovers and tracks the clan's roster from the Clan Hiscores API, independent of
  * {@link PlayerLinkService}'s verified links — a name shows up here, and gets its full stats
  * polled, whether or not anyone has claimed it belongs to them. This is what makes "track the
- * whole clan even where nobody's verified" possible, since {@link RuneScapeStatsService#pollAndSnapshot}
- * only ever needed a raw RSN to begin with, not a link.
+ * whole clan even where nobody's verified" possible, since polling only ever needs a raw RSN, not a link.
  */
 @BService
 public class ClanSyncService {
@@ -36,10 +38,9 @@ public class ClanSyncService {
 
     private final RuneScapeApiClient apiClient;
     private final ClanMemberRepository clanMemberRepository;
-    private final RuneScapeStatsService statsService;
+    private final PollCoordinator pollCoordinator;
     private final RsnRenameService renameService;
     private final GuildSettingsService guildSettingsService;
-    private final BotConfig botConfig;
     private final TrackingEventRouter trackingEventRouter;
     private final WeeklyDigestRepository weeklyDigestRepository;
     private final TrackingIconCatalog trackingIconCatalog;
@@ -55,17 +56,16 @@ public class ClanSyncService {
     private static final int MIN_DEPARTURE_CAP = 5;
 
     public ClanSyncService(RuneScapeApiClient apiClient, ClanMemberRepository clanMemberRepository,
-                            RuneScapeStatsService statsService, RsnRenameService renameService,
-                            GuildSettingsService guildSettingsService, BotConfig botConfig,
+                            PollCoordinator pollCoordinator, RsnRenameService renameService,
+                            GuildSettingsService guildSettingsService,
                             TrackingEventRouter trackingEventRouter, WeeklyDigestRepository weeklyDigestRepository,
                             TrackingIconCatalog trackingIconCatalog, VerificationRoleSyncService roleSyncService,
                             PlayerLinkService linkService) {
         this.apiClient = apiClient;
         this.clanMemberRepository = clanMemberRepository;
-        this.statsService = statsService;
+        this.pollCoordinator = pollCoordinator;
         this.renameService = renameService;
         this.guildSettingsService = guildSettingsService;
-        this.botConfig = botConfig;
         this.trackingEventRouter = trackingEventRouter;
         this.weeklyDigestRepository = weeklyDigestRepository;
         this.trackingIconCatalog = trackingIconCatalog;
@@ -93,10 +93,9 @@ public class ClanSyncService {
     /**
      * Refreshes the roster (adds new members, updates ranks/XP/kills, marks anyone no longer listed
      * as inactive) and then polls every currently-listed member's full RuneMetrics profile, same as
-     * a manual "Poll Now" would for a linked player. Spaced out by
-     * {@link BotConfig#getRunescapePollDelaySeconds()} between members, same tuning knob the
-     * (currently-disabled) auto-poll scheduler uses — for a clan this size that means this call
-     * blocks for a couple of minutes, which is expected, not a hang.
+     * a manual "Poll Now" would for a linked player. The polls go through the poll coordinator, which paces
+     * them with everything else the bot is polling and skips anyone polled within {@link #SYNC_MAX_AGE} — for a
+     * clan this size this call blocks for a few minutes, which is expected, not a hang.
      * <p>
      * Also runs rename detection ({@link RsnRenameService}) against this cycle's departed/new sets
      * — takes a {@link Guild}, not just a guild ID, since a detected rename may need to DM the
@@ -117,21 +116,19 @@ public class ClanSyncService {
         // that needs the full profile result, not just pass/fail, and there's no reason to hold onto
         // every other roster member's full skills/activities in memory once its snapshot is saved.
         // This poll isn't spread across a window like RosterPollScheduler's — it needs everyone's
-        // current data now, as fast as the API's safe floor allows, so the daily diff/rename check has
+        // current data now, as fast as the shared request budget allows, so the daily diff/rename check has
         // it to work with immediately.
         Map<String, ProfileResult> newMemberResults = new HashMap<>();
-        long floorDelayMs = botConfig.getRunescapePollDelaySeconds() * 1000L;
-        RequestPacer.Stats paceBefore = statsService.requestStats();
-        PollTally tally = pollRsns(roster.stream().map(RuneScapeApiClient.ClanMember::rsn).toList(), floorDelayMs, change.newLower(), newMemberResults);
+        PollTally tally = pollRsns(roster.stream().map(RuneScapeApiClient.ClanMember::rsn).toList(), PollPriority.CLAN,
+                SYNC_MAX_AGE, Duration.ZERO, "clan sync", change.newLower(), newMemberResults);
         int polled = tally.polled();
         int pollFailed = tally.pollFailed();
 
         Set<String> maybeRenamed = detectRenames(guild, change, newMemberResults);
         applyMembershipRoles(guild, change, maybeRenamed);
 
-        log.info("Clan sync for '{}' (guild {}) finished: {} in roster, {} new, {} departed, {}/{} polled successfully. RuneMetrics, bot-wide during the sync: {}.",
-                clanName, guildId, roster.size(), change.newLower().size(), change.departedLower().size(), polled, roster.size(),
-                statsService.requestStats().minus(paceBefore).describe());
+        log.info("Clan sync for '{}' (guild {}) finished: {} in roster, {} new, {} departed, {}/{} up to date.",
+                clanName, guildId, roster.size(), change.newLower().size(), change.departedLower().size(), polled, roster.size());
         return new SyncResult(roster.size(), change.newLower().size(), change.departedLower().size(), polled, pollFailed);
     }
 
@@ -256,8 +253,8 @@ public class ClanSyncService {
 
         Map<String, ProfileResult> newMemberResults = new HashMap<>();
         if (!change.newLower().isEmpty() && !change.departedLower().isEmpty()) {
-            long floorDelayMs = botConfig.getRunescapePollDelaySeconds() * 1000L;
-            pollRsns(change.newNames(), floorDelayMs, change.newLower(), newMemberResults);
+            // A member is waiting on this, so it goes ahead of any background pass; the names are new, so each needs a real poll.
+            pollRsns(change.newNames(), PollPriority.INTERACTIVE, Duration.ZERO, Duration.ZERO, "roster refresh", change.newLower(), newMemberResults);
         }
         Set<String> maybeRenamed = detectRenames(guild, change, newMemberResults);
 
@@ -314,14 +311,20 @@ public class ClanSyncService {
 
     public record RosterPollResult(int polled, int pollFailed) {}
 
+    /** A clan member polled within this long counts as current for a sync or a "send now": nobody needs a second request that soon. */
+    static final Duration SYNC_MAX_AGE = Duration.ofMinutes(15);
+    private static final Duration SEND_NOW_MAX_AGE = Duration.ofMinutes(2);
+    /** The longest a sync waits for its polls: a few hundred players at the shared rate, with room for rate-limit retries. */
+    private static final Duration POLL_WAIT = Duration.ofMinutes(90);
+
     /**
      * Polls every currently-active clan-roster member's RuneMetrics profile, spread evenly across
-     * {@code window} — see {@link PollPacing} — instead of bursting everyone at once. Tracking dispatch
-     * (drops/levels/quests/Citadel/etc., see {@link RuneScapeStatsService#pollAndSnapshotResult})
-     * happens as a side effect of that poll, same as it does during {@link #syncAndPoll}. Doesn't touch
-     * the roster itself or run rename detection — that's still {@link #syncAndPoll}'s job, once a day;
-     * this is what keeps every member's data (and the tracking feed) fresh the rest of the time,
-     * regardless of whether they've ever linked their Discord to their RSN.
+     * {@code window} instead of bursting everyone at once (a zero window queues them all, and the coordinator's
+     * request budget paces them). Tracking dispatch (drops/levels/quests/Citadel/etc., see
+     * {@link RuneScapeStatsService#fetchAndStore}) happens as a side effect of that poll, same as it does during
+     * {@link #syncAndPoll}. Doesn't touch the roster itself or run rename detection — that's still
+     * {@link #syncAndPoll}'s job, once a day; this is what keeps every member's data (and the tracking feed) fresh the
+     * rest of the time, regardless of whether they've ever linked their Discord to their RSN.
      */
     public RosterPollResult pollActiveRosterOnly(long guildId, Duration window) {
         List<String> rsns = clanMemberRepository.getAll(guildId, true).stream()
@@ -329,37 +332,39 @@ public class ClanSyncService {
                 .toList();
         if (rsns.isEmpty()) return new RosterPollResult(0, 0);
 
-        long delayMs = PollPacing.evenSpreadDelayMs(rsns.size(), window, botConfig.getRunescapePollDelaySeconds() * 1000L);
-        PollTally tally = pollRsns(rsns, delayMs, Set.of(), new HashMap<>());
+        PollTally tally = pollRsns(rsns, PollPriority.CLAN, SEND_NOW_MAX_AGE, window, "send now", Set.of(), new HashMap<>());
         return new RosterPollResult(tally.polled(), tally.pollFailed());
     }
 
     private record PollTally(int polled, int pollFailed) {}
 
-    /** Shared by {@link #syncAndPoll} and {@link #pollActiveRosterOnly} — {@code newLower}/{@code newMemberResultsOut} are only meaningful for the former (rename detection needs the full profile of a name that just appeared); pass {@code Set.of()}/a throwaway map otherwise. */
-    private PollTally pollRsns(List<String> rsns, long delayMs, Set<String> newLower, Map<String, ProfileResult> newMemberResultsOut) {
-        int polled = 0;
-        int pollFailed = 0;
-
-        for (String rsn : rsns) {
-            try {
-                ProfileResult result = statsService.pollAndSnapshotResult(rsn);
-                if (result instanceof ProfileResult.Found) polled++;
-                else pollFailed++;
-
-                String lower = rsn.toLowerCase();
-                if (newLower.contains(lower)) newMemberResultsOut.put(lower, result);
-
-                Thread.sleep(delayMs);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                break;
-            } catch (Exception e) {
-                log.warn("Failed to poll clan member '{}'", rsn, e);
-                pollFailed++;
-            }
+    /**
+     * Shared by {@link #syncAndPoll}, {@link #refreshRosterIfStale} and {@link #pollActiveRosterOnly}: hands the names to the
+     * poll coordinator and waits for all of them. {@code newLower}/{@code newMemberResultsOut} are only meaningful for the
+     * first two (rename detection needs the full profile of a name that just appeared, so those are always polled for real);
+     * pass {@code Set.of()}/a throwaway map otherwise. A player the coordinator found already current counts as polled.
+     */
+    private PollTally pollRsns(List<String> rsns, PollPriority priority, Duration maxAge, Duration spread, String source,
+                               Set<String> newLower, Map<String, ProfileResult> newMemberResultsOut) {
+        int count = rsns.size();
+        List<PollRequest> requests = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            String rsn = rsns.get(i);
+            Duration age = newLower.contains(rsn.toLowerCase()) ? Duration.ZERO : maxAge;
+            requests.add(new PollRequest(rsn, priority, age, spread.multipliedBy(i).dividedBy(Math.max(1, count)), source));
         }
 
+        List<PollOutcome> outcomes = pollCoordinator.awaitAll(pollCoordinator.submitAll(requests), POLL_WAIT.plus(spread));
+        int polled = 0;
+        int pollFailed = 0;
+        for (int i = 0; i < count; i++) {
+            PollOutcome outcome = i < outcomes.size() ? outcomes.get(i) : PollOutcome.failed(0);
+            if (outcome.hasFreshData()) polled++;
+            else pollFailed++;
+
+            String lower = rsns.get(i).toLowerCase();
+            if (newLower.contains(lower)) newMemberResultsOut.put(lower, outcome.resultOrUnavailable());
+        }
         return new PollTally(polled, pollFailed);
     }
 }

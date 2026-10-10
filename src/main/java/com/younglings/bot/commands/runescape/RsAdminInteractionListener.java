@@ -19,6 +19,9 @@ import com.younglings.bot.runescape.ProfileResult;
 import com.younglings.bot.runescape.RsnRenameService;
 import com.younglings.bot.runescape.RuneScapeSkillCatalog;
 import com.younglings.bot.runescape.RuneScapeStatsService;
+import com.younglings.bot.runescape.polling.PollCoordinator;
+import com.younglings.bot.runescape.polling.PollPriority;
+import com.younglings.bot.runescape.polling.PollRequest;
 import com.younglings.bot.runescape.RuneScapeTestDataSeeder;
 import com.younglings.bot.runescape.RuneScapeXpTable;
 import com.younglings.bot.runescape.SkillValue;
@@ -93,6 +96,7 @@ public class RsAdminInteractionListener extends ListenerAdapter {
 
     private final PlayerLinkService linkService;
     private final RuneScapeStatsService statsService;
+    private final PollCoordinator pollCoordinator;
     private final AdminRoleFilter adminRoleFilter;
     private final RuneScapeTestDataSeeder testDataSeeder;
     private final MonthlyRecapService monthlyRecapService;
@@ -115,7 +119,8 @@ public class RsAdminInteractionListener extends ListenerAdapter {
                                        RsInteractionListener rsInteractionListener,
                                        ConfigureInteractionListener configureListener,
                                        WeeklyDigestService weeklyDigestService,
-                                       UnverifiedGuestService unverifiedGuestService) {
+                                       UnverifiedGuestService unverifiedGuestService, PollCoordinator pollCoordinator) {
+        this.pollCoordinator = pollCoordinator;
         this.unverifiedGuestService = unverifiedGuestService;
         this.linkService = linkService;
         this.statsService = statsService;
@@ -239,7 +244,7 @@ public class RsAdminInteractionListener extends ListenerAdapter {
         String rsn = event.getValue("lookup_rsn").getAsString().trim();
         event.deferReply(true).queue();
 
-        ProfileResult result = statsService.pollAndSnapshotResult(rsn);
+        ProfileResult result = pollCoordinator.pollNow(rsn, "admin lookup").resultOrUnavailable();
         event.getHook().editOriginalComponents(List.of(buildLookupCard(guild, rsn, result))).useComponentsV2(true)
                 .setAllowedMentions(EnumSet.noneOf(Message.MentionType.class)).queue();
     }
@@ -444,9 +449,12 @@ public class RsAdminInteractionListener extends ListenerAdapter {
         // than a couple of players.
         event.deferEdit().queue();
         List<PlayerLink> links = linkService.getAllLinks(guild.getIdLong());
-        for (PlayerLink link : links) {
-            statsService.pollAndSnapshot(link.rsn());
-        }
+        // A bulk refresh queues at the clan tier, not the interactive one: dozens of players must not jump ahead of the people
+        // pressing Update. Anyone polled in the last few minutes is already current and is skipped.
+        List<PollRequest> requests = links.stream()
+                .map(link -> PollRequest.background(link.rsn(), PollPriority.CLAN, java.time.Duration.ofMinutes(5), "admin poll all"))
+                .toList();
+        pollCoordinator.awaitAll(pollCoordinator.submitAll(requests), java.time.Duration.ofMinutes(30));
         event.getHook().editOriginalComponents(List.of(buildPanel(guild, event.getMember()))).useComponentsV2(true).queue();
     }
 
@@ -484,7 +492,7 @@ public class RsAdminInteractionListener extends ListenerAdapter {
         }
 
         // Deferred — fetches the whole clan roster, then polls every member with a delay between
-        // each (RUNESCAPE_POLL_DELAY_SECONDS), so this can genuinely take a couple of minutes for a
+        // each (paced by the poll coordinator), so this can genuinely take a few minutes for a
         // clan this size. That's expected, not a hang.
         event.deferReply(true).queue();
         var result = clanSyncService.syncAndPoll(guild);
@@ -767,7 +775,7 @@ public class RsAdminInteractionListener extends ListenerAdapter {
     /** Reached from a Player Lookup card's "Update" button — re-renders that same card, not the admin panel (which no longer shows any one player inline anyway). */
     private void doPollOne(ComponentInteraction event, Guild guild, String rsn) {
         event.deferEdit().queue();
-        ProfileResult result = statsService.pollAndSnapshotResult(rsn);
+        ProfileResult result = pollCoordinator.pollNow(rsn, "admin lookup").resultOrUnavailable();
         event.getHook().editOriginalComponents(List.of(buildLookupCard(guild, rsn, result)))
                 .useComponentsV2(true).setAllowedMentions(EnumSet.noneOf(Message.MentionType.class)).queue();
     }

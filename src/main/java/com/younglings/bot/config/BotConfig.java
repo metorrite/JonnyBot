@@ -308,29 +308,28 @@ public class BotConfig {
     }
 
     /**
-     * Delay, in seconds, between individual player polls within one sync pass — spaces out
-     * requests against the RuneScape API instead of bursting them. Defaults to 2 if unset; set
-     * {@code RUNESCAPE_POLL_DELAY_SECONDS} to tune this without a code change or redeploy.
+     * The steady rate, in RuneMetrics profile requests per minute, the whole bot may send. Defaults to 10, which the live
+     * API sustained without a single rate-limit in {@code tools/RuneMetricsRateTest.java}; set
+     * {@code RUNESCAPE_POLL_REQUESTS_PER_MINUTE} to tune it without a code change. The poll coordinator spends from one
+     * shared budget at this rate, so raising it makes every tier faster and every rate-limit more likely.
      */
-    public long getRunescapePollDelaySeconds() {
-        String raw = System.getenv("RUNESCAPE_POLL_DELAY_SECONDS");
+    public int getRunescapePollRequestsPerMinute() {
+        return (int) positiveNumber("RUNESCAPE_POLL_REQUESTS_PER_MINUTE", 10);
+    }
 
-        if (raw == null || raw.isBlank()) {
-            raw = dotenv.get("RUNESCAPE_POLL_DELAY_SECONDS");
-        }
-
-        if (raw == null || raw.isBlank()) {
-            return 2;
-        }
-
-        return Long.parseLong(raw.trim());
+    /**
+     * How many requests the budget may store up while the bot is quiet, to be spent at once on a burst (a person pressing
+     * Update, a clan sync starting). Defaults to 6; set {@code RUNESCAPE_POLL_BURST} to tune it.
+     */
+    public int getRunescapePollBurst() {
+        return (int) positiveNumber("RUNESCAPE_POLL_BURST", 6);
     }
 
     /**
      * How long one pass over the polling list's first tier takes: every player in a clan that has been registered with
      * JonnyBot is refreshed once per window, spread evenly across it. Defaults to 180 minutes; set
      * {@code RUNESCAPE_CLAN_POLL_WINDOW_MINUTES} to tune it without a code change. Shorter means fresher tracking feeds
-     * and more RuneMetrics requests; the per-request delay ({@link #getRunescapePollDelaySeconds}) still sets the floor.
+     * and more RuneMetrics requests; the shared request rate ({@link #getRunescapePollRequestsPerMinute}) still caps it.
      */
     public long getRunescapeClanPollWindowMinutes() {
         return positiveMinutes("RUNESCAPE_CLAN_POLL_WINDOW_MINUTES", 180);
@@ -346,6 +345,10 @@ public class BotConfig {
     }
 
     private long positiveMinutes(String name, long fallback) {
+        return positiveNumber(name, fallback);
+    }
+
+    private long positiveNumber(String name, long fallback) {
         String raw = System.getenv(name);
 
         if (raw == null || raw.isBlank()) {
