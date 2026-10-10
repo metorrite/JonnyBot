@@ -119,4 +119,39 @@ class WelcomeValidatorTest {
         assertTrue(mentions(WelcomeValidator.validate(with(b -> b.button(true, "x".repeat(81)))), "at most 80"));
         assertEquals(List.of(), WelcomeValidator.validate(with(b -> b.button(false, ""))));
     }
+
+    // ---- container messages and the {rs_button} variable
+
+    private static WelcomeConfig container(MessageType type, boolean button, String style, String title, String description, String footer, List<EmbedField> fields) {
+        return new WelcomeConfig(1L, false, type, null, false, "", null, title, "", description, "", "", "", "", footer, "", fields, button, "Link", style);
+    }
+
+    @Test
+    void aContainerWithTheButtonInItsFooterIsFine() {
+        assertEquals(List.of(), WelcomeValidator.validate(container(MessageType.CONTAINER, true, "secondary", "Hi", "Body", "Clan {rs_button}", List.of())));
+    }
+
+    @Test
+    void theButtonMarkerOnlyWorksInAContainerWithTheButtonOn() {
+        assertTrue(mentions(WelcomeValidator.validate(container(MessageType.EMBED, true, "primary", "Hi", "Body {rs_button}", "", List.of())), "only works in a Container"));
+        assertTrue(mentions(WelcomeValidator.validate(container(MessageType.CONTAINER, false, "primary", "Hi", "Body {rs_button}", "", List.of())), "needs the link button turned on"));
+    }
+
+    @Test
+    void theButtonMarkerCannotGoInATitleOrAFieldName() {
+        assertTrue(mentions(WelcomeValidator.validate(container(MessageType.CONTAINER, true, "primary", "Hi {rs_button}", "Body", "", List.of())), "not in a title"));
+        assertTrue(mentions(WelcomeValidator.validate(container(MessageType.CONTAINER, true, "primary", "Hi", "Body", "", List.of(new EmbedField("Name {rs_button}", "v", false)))), "not in a title"));
+        assertEquals(List.of(), WelcomeValidator.validate(container(MessageType.CONTAINER, true, "primary", "Hi", "Body", "", List.of(new EmbedField("Name", "v {rs_button}", false)))));
+    }
+
+    @Test
+    void theButtonColourMustBeOneOfTheFour() {
+        assertTrue(mentions(WelcomeValidator.validate(container(MessageType.CONTAINER, true, "pink", "Hi", "Body", "", List.of())), "colour for the link button"));
+    }
+
+    @Test
+    void anEmptyContainerIsRefusedAndALongOneToo() {
+        assertTrue(mentions(WelcomeValidator.validate(container(MessageType.CONTAINER, false, "primary", "", "", "", List.of())), "empty"));
+        assertTrue(mentions(WelcomeValidator.validate(container(MessageType.CONTAINER, false, "primary", "Hi", "x".repeat(3900), "y".repeat(100), List.of())), "too long overall"));
+    }
 }

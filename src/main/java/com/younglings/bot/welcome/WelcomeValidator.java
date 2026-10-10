@@ -25,6 +25,7 @@ public final class WelcomeValidator {
     static final int MAX_EMBED_TOTAL = 5500;  // Discord allows 6000 across the whole embed
     static final int MAX_URL = 2000;
     static final int MAX_BUTTON_LABEL = 80;
+    static final int MAX_CONTAINER_TOTAL = 3800; // Discord allows 4000 characters of text across a container
 
     /** Every reason this message can't be saved as it is; empty when it is fine. */
     public static List<String> validate(WelcomeConfig c) {
@@ -73,8 +74,37 @@ public final class WelcomeValidator {
         if (c.linkButton()) {
             if (c.linkButtonLabel().isBlank()) problems.add("The link button needs a label.");
             else if (c.linkButtonLabel().length() > MAX_BUTTON_LABEL) problems.add("The link button label can be at most " + MAX_BUTTON_LABEL + " characters.");
+            if (!WelcomeConfig.BUTTON_STYLES.contains(c.linkButtonStyle())) problems.add("Choose a colour for the link button.");
+        }
+
+        buttonMarker(problems, c);
+        if (c.messageType().isContainer()) {
+            int total = c.title().length() + c.description().length() + c.authorName().length() + c.footerText().length();
+            for (EmbedField field : c.fields()) total += field.name().length() + field.value().length();
+            if (total > MAX_CONTAINER_TOTAL) problems.add("The message is too long overall (" + total + " characters; a container can hold about " + MAX_CONTAINER_TOTAL + " including what the variables fill in).");
         }
         return problems;
+    }
+
+    /**
+     * The {@code {rs_button}} variable puts the link button inside a container, so it needs one, and the button turned on, and a place a
+     * block of text can hold it: the description, a field's value or the footer.
+     */
+    private static void buttonMarker(List<String> problems, WelcomeConfig c) {
+        String marker = ContainerWelcome.BUTTON_MARKER;
+        boolean anywhere = c.content().contains(marker) || c.title().contains(marker) || c.titleUrl().contains(marker) || c.authorName().contains(marker)
+                || c.description().contains(marker) || c.footerText().contains(marker)
+                || c.fields().stream().anyMatch(f -> f.name().contains(marker) || f.value().contains(marker));
+        if (!anywhere) return;
+
+        if (!c.messageType().isContainer()) {
+            problems.add(marker + " only works in a Container message: an embed or a plain message can't hold a button inside it. Choose Container, or remove " + marker + ".");
+            return;
+        }
+        if (!c.linkButton()) problems.add(marker + " needs the link button turned on.");
+        if (c.title().contains(marker) || c.authorName().contains(marker) || c.titleUrl().contains(marker) || c.fields().stream().anyMatch(f -> f.name().contains(marker))) {
+            problems.add(marker + " can go in the description, a field's value or the footer, not in a title, author or field name.");
+        }
     }
 
     /** True if the embed has anything in it worth sending. */
