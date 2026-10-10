@@ -159,7 +159,7 @@ public class RsChartInteractionListener extends ListenerAdapter {
     /** Total XP per poll (not one skill's) — the same {@code player_stats_snapshot} rows the guild-wide chart and history views already read. */
     private List<SkillXpPoint> overallXpHistory(Guild guild, String rsn) {
         OffsetDateTime since = OffsetDateTime.now().minusDays(CHART_HISTORY_DAYS);
-        return statsService.getSnapshotsSince(guild.getIdLong(), rsn, since).stream()
+        return statsService.getSnapshotsSince(rsn, since).stream()
                 .map(row -> new SkillXpPoint(row.snapshotAt(), row.totalXp()))
                 .toList();
     }
@@ -167,7 +167,7 @@ public class RsChartInteractionListener extends ListenerAdapter {
     private Map<String, List<SkillXpPoint>> lineSeriesFor(Guild guild, String rsn, Set<Integer> skillIds) {
         Map<String, List<SkillXpPoint>> series = new LinkedHashMap<>();
         for (int skillId : skillIds) {
-            series.put(RuneScapeSkillCatalog.nameFor(skillId), statsService.getSkillXpHistory(guild.getIdLong(), rsn, skillId, CHART_HISTORY_DAYS));
+            series.put(RuneScapeSkillCatalog.nameFor(skillId), statsService.getSkillXpHistory(rsn, skillId, CHART_HISTORY_DAYS));
         }
         return series;
     }
@@ -175,7 +175,7 @@ public class RsChartInteractionListener extends ListenerAdapter {
     /** One query for every skill's history, filtered down to {@code skillIds} unless {@code overall} (then every skill), kept in hiscores order. */
     private Map<String, List<SkillXpPoint>> stackedSeriesFor(Guild guild, String rsn, Set<Integer> skillIds, boolean overall) {
         OffsetDateTime since = OffsetDateTime.now().minusDays(CHART_HISTORY_DAYS);
-        List<PlayerLinkRepository.SkillHistoryPoint> all = statsService.getAllSkillsXpHistorySince(guild.getIdLong(), rsn, since);
+        List<PlayerLinkRepository.SkillHistoryPoint> all = statsService.getAllSkillsXpHistorySince(rsn, since);
 
         Map<Integer, List<SkillXpPoint>> bySkill = new LinkedHashMap<>();
         for (var point : all) {
@@ -197,7 +197,7 @@ public class RsChartInteractionListener extends ListenerAdapter {
 
     /** Each skill's XP as of the latest snapshot. {@code overall} keeps only the top {@link #MAX_PIE_SLICES}, folding the rest into "Other"; a specific selection shows every one of {@code skillIds} uncapped. */
     private Map<String, Long> pieDataFor(Guild guild, String rsn, Set<Integer> skillIds, boolean overall) {
-        var latest = statsService.getLatestSnapshot(guild.getIdLong(), rsn);
+        var latest = statsService.getLatestSnapshot(rsn);
         if (latest == null) return Map.of();
 
         List<SkillValue> skills = statsService.getSkillsForSnapshot(latest.snapshotId());

@@ -66,7 +66,7 @@ public class ClanOverviewService {
         for (ClanMemberRepository.ClanMemberRow member : roster) {
             if (linkService.getLinkForRsn(guildId, member.rsn()) != null) verifiedMembers++;
 
-            PlayerLinkRepository.StatsSnapshotRow latest = statsService.getLatestSnapshot(guildId, member.rsn());
+            PlayerLinkRepository.StatsSnapshotRow latest = statsService.getLatestSnapshot(member.rsn());
             if (latest == null) continue;
 
             membersWithData++;
@@ -83,12 +83,12 @@ public class ClanOverviewService {
             if (hasMaxedSkill) membersWithMaxedSkill++;
             if (has120Skill) membersWith120Skill++;
 
-            List<PlayerLinkRepository.StatsSnapshotRow> monthSnapshots = statsService.getSnapshotsSince(guildId, member.rsn(), monthStart);
+            List<PlayerLinkRepository.StatsSnapshotRow> monthSnapshots = statsService.getSnapshotsSince(member.rsn(), monthStart);
             if (monthSnapshots.size() >= 2) {
                 totalXpGainedThisMonth += monthSnapshots.getLast().totalXp() - monthSnapshots.getFirst().totalXp();
             }
 
-            for (PlayerActivity activity : statsService.getActivitiesSince(guildId, member.rsn(), monthStart)) {
+            for (PlayerActivity activity : statsService.getActivitiesSince(member.rsn(), monthStart)) {
                 if (activity.text().toLowerCase(Locale.ROOT).contains("capped")) timesCapped++;
 
                 Matcher matcher = CHAMPION_WIN.matcher(activity.text());

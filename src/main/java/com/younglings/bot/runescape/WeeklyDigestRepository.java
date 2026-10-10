@@ -86,9 +86,10 @@ public class WeeklyDigestRepository {
      */
     public List<CitadelActivityRow> getCitadelActivityInWindow(long guildId, OffsetDateTime from, OffsetDateTime to) {
         String sql = """
-                SELECT rsn, activity_text, activity_date FROM younglings.player_activity
-                WHERE guild_id = ? AND recorded_at >= ? AND recorded_at < ?
-                  AND (activity_text LIKE 'Visited my Clan Citadel%' OR activity_text LIKE 'Capped at my Clan Citadel%')
+                SELECT a.rsn, a.activity_text, a.activity_date FROM younglings.player_activity a
+                WHERE EXISTS (SELECT 1 FROM younglings.clan_member m WHERE m.guild_id = ? AND LOWER(m.rsn) = LOWER(a.rsn))
+                  AND a.recorded_at >= ? AND a.recorded_at < ?
+                  AND (a.activity_text LIKE 'Visited my Clan Citadel%' OR a.activity_text LIKE 'Capped at my Clan Citadel%')
                 """;
 
         List<CitadelActivityRow> results = new ArrayList<>();

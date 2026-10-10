@@ -67,7 +67,7 @@ public class MemberNotifier {
 
     void checkGoals(JDA jda) {
         for (Goal goal : repository.pendingGoals()) {
-            var snapshot = links.getLatestSnapshot(goal.guildId(), goal.rsn());
+            var snapshot = links.getLatestSnapshot(goal.rsn());
             if (snapshot == null) continue;
             SkillValue skill = links.getSkillsForSnapshot(snapshot.snapshotId()).stream().filter(s -> s.skillId() == goal.skillId()).findFirst().orElse(null);
             if (skill == null || skill.xp() < RuneScapeXpTable.xpForLevel(goal.skillId(), goal.targetLevel())) continue;

@@ -136,13 +136,13 @@ public class RsnRenameService {
         if (!(newResult instanceof ProfileResult.Found(var newProfile))) return;
 
         long guildId = guild.getIdLong();
-        var oldSnapshot = statsService.getLatestSnapshot(guildId, oldRsn);
+        var oldSnapshot = statsService.getLatestSnapshot(oldRsn);
         if (oldSnapshot == null) return; // never actually polled before — nothing to compare against
 
         List<SkillValue> oldSkills = statsService.getSkillsForSnapshot(oldSnapshot.snapshotId());
         if (!isMonotonic(oldSkills, newProfile.skills())) return; // a real decrease anywhere rules this pair out
 
-        List<PlayerActivity> oldActivities = statsService.getRecentActivities(guildId, oldRsn, ACTIVITY_MATCH_DEPTH);
+        List<PlayerActivity> oldActivities = statsService.getRecentActivities(oldRsn, ACTIVITY_MATCH_DEPTH);
         int overlapCount = countActivityOverlap(oldActivities, newProfile.activities());
 
         String confidence = overlapCount > 0 ? "HIGH" : "MEDIUM";

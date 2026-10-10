@@ -284,7 +284,7 @@ public class AdminToolsStore {
              PreparedStatement s = c.prepareStatement("""
                      SELECT LOWER(m.rsn) AS rsn, MAX(a.recorded_at) AS last_at
                      FROM younglings.clan_member m
-                     JOIN younglings.player_activity a ON a.guild_id = m.guild_id AND LOWER(a.rsn) = LOWER(m.rsn)
+                     JOIN younglings.player_activity a ON LOWER(a.rsn) = LOWER(m.rsn)
                      WHERE m.guild_id = ? AND m.active GROUP BY LOWER(m.rsn)
                      """)) {
             s.setLong(1, guildId);
@@ -299,10 +299,9 @@ public class AdminToolsStore {
     }
 
     /** The newest adventure-log entry of anyone, and how long a trivial query takes — two cheap health signals. */
-    public OffsetDateTime newestActivity(long guildId) {
+    public OffsetDateTime newestActivity() {
         try (Connection c = connectionSupplier.getConnection();
-             PreparedStatement s = c.prepareStatement("SELECT MAX(recorded_at) FROM younglings.player_activity WHERE guild_id = ?")) {
-            s.setLong(1, guildId);
+             PreparedStatement s = c.prepareStatement("SELECT MAX(recorded_at) FROM younglings.player_activity")) {
             try (ResultSet rs = s.executeQuery()) {
                 if (!rs.next()) return null;
                 Timestamp t = rs.getTimestamp(1);

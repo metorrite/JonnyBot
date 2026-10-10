@@ -239,7 +239,7 @@ public class RsAdminInteractionListener extends ListenerAdapter {
         String rsn = event.getValue("lookup_rsn").getAsString().trim();
         event.deferReply(true).queue();
 
-        ProfileResult result = statsService.pollAndSnapshotResult(guild.getIdLong(), rsn);
+        ProfileResult result = statsService.pollAndSnapshotResult(rsn);
         event.getHook().editOriginalComponents(List.of(buildLookupCard(guild, rsn, result))).useComponentsV2(true)
                 .setAllowedMentions(EnumSet.noneOf(Message.MentionType.class)).queue();
     }
@@ -307,7 +307,13 @@ public class RsAdminInteractionListener extends ListenerAdapter {
             return;
         }
 
-        linkService.manualLink(guild.getIdLong(), discordUserId, rsn, admin.getIdLong());
+        try {
+            linkService.manualLink(guild.getIdLong(), discordUserId, rsn, admin.getIdLong());
+        } catch (PlayerLinkRepository.RsnTakenException taken) {
+            Containers.replyEphemeral(event, Containers.WARNING, "**" + rsn + "** is already registered with JonnyBot to <@" + taken.ownerDiscordUserId()
+                    + "> in another server, so it can't be moved here. They can unlink it themselves with `/rs` first.");
+            return;
+        }
         rsInteractionListener.closeMatchingRequestAfterManualLink(guild, discordUserId, rsn, admin.getIdLong());
         roleSyncService.syncRoles(guild, discordUserId, rsn);
         Containers.replyEphemeral(event, Containers.SUCCESS, "Linked **" + rsn + "** to <@" + discordUserId + ">.");
@@ -373,9 +379,9 @@ public class RsAdminInteractionListener extends ListenerAdapter {
             case "rsnadmin_unlink_confirm" -> {
                 String rsn = id.split(":", 2)[1];
                 PlayerLink link = linkService.getLinkForRsn(guild.getIdLong(), rsn);
-                boolean unlinked = link != null && linkService.unlink(guild.getIdLong(), link.discordUserId(), link.linkId());
+                boolean unlinked = link != null && linkService.removeFromServer(guild.getIdLong(), link.linkId());
                 Containers.edit(event, unlinked ? Containers.SUCCESS : Containers.WARNING,
-                        unlinked ? "Unlinked **" + rsn + "**." : "Couldn't unlink — that link may already be gone.");
+                        unlinked ? "Removed **" + rsn + "** from this server." : "Couldn't unlink — that link may already be gone.");
             }
 
             case "rsnadmin_unlink_cancel" -> Containers.edit(event, Containers.INFO, "Cancelled — nothing was unlinked.");
@@ -439,7 +445,7 @@ public class RsAdminInteractionListener extends ListenerAdapter {
         event.deferEdit().queue();
         List<PlayerLink> links = linkService.getAllLinks(guild.getIdLong());
         for (PlayerLink link : links) {
-            statsService.pollAndSnapshot(guild.getIdLong(), link.rsn());
+            statsService.pollAndSnapshot(link.rsn());
         }
         event.getHook().editOriginalComponents(List.of(buildPanel(guild, event.getMember()))).useComponentsV2(true).queue();
     }
@@ -452,7 +458,7 @@ public class RsAdminInteractionListener extends ListenerAdapter {
         Map<String, List<PlayerLinkRepository.StatsSnapshotRow>> historyByRsn = new LinkedHashMap<>();
         OffsetDateTime since = OffsetDateTime.now().minusDays(GUILD_CHART_HISTORY_DAYS);
         for (PlayerLink link : links) {
-            historyByRsn.put(link.rsn(), statsService.getSnapshotsSince(guild.getIdLong(), link.rsn(), since));
+            historyByRsn.put(link.rsn(), statsService.getSnapshotsSince(link.rsn(), since));
         }
 
         FileUpload chart = XpChartRenderer.renderMultiPlayer(historyByRsn);
@@ -746,7 +752,11 @@ public class RsAdminInteractionListener extends ListenerAdapter {
         event.deferEdit().queue();
         int approved = 0;
         for (VerificationAttempt attempt : pending) {
-            if (rsInteractionListener.completeApproval(guild, attempt.attemptId(), event.getUser().getIdLong()) != null) approved++;
+            try {
+                if (rsInteractionListener.completeApproval(guild, attempt.attemptId(), event.getUser().getIdLong()) != null) approved++;
+            } catch (PlayerLinkRepository.RsnTakenException taken) {
+                log.warn("Skipped approving '{}': registered to another Discord account in another server", attempt.rsn());
+            }
         }
         event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.SUCCESS,
                 "Approved " + approved + " of " + pending.size() + " pending request(s)."))).useComponentsV2(true).queue();
@@ -757,7 +767,7 @@ public class RsAdminInteractionListener extends ListenerAdapter {
     /** Reached from a Player Lookup card's "Update" button — re-renders that same card, not the admin panel (which no longer shows any one player inline anyway). */
     private void doPollOne(ComponentInteraction event, Guild guild, String rsn) {
         event.deferEdit().queue();
-        ProfileResult result = statsService.pollAndSnapshotResult(guild.getIdLong(), rsn);
+        ProfileResult result = statsService.pollAndSnapshotResult(rsn);
         event.getHook().editOriginalComponents(List.of(buildLookupCard(guild, rsn, result)))
                 .useComponentsV2(true).setAllowedMentions(EnumSet.noneOf(Message.MentionType.class)).queue();
     }
@@ -766,7 +776,7 @@ public class RsAdminInteractionListener extends ListenerAdapter {
         // Deferred, not a plain reply — 30 backdated snapshots means ~60 round trips to the
         // database, comfortably longer than Discord's 3-second ack window.
         event.deferReply(true).queue();
-        int created = testDataSeeder.seed(guild.getIdLong(), rsn);
+        int created = testDataSeeder.seed(rsn);
 
         if (created == 0) {
             event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.WARNING,
@@ -779,7 +789,7 @@ public class RsAdminInteractionListener extends ListenerAdapter {
     }
 
     private void doXpChart(ComponentInteraction event, Guild guild, String rsn) {
-        if (statsService.getLatestSnapshot(guild.getIdLong(), rsn) == null) {
+        if (statsService.getLatestSnapshot(rsn) == null) {
             Containers.replyEphemeral(event, Containers.WARNING,
                     "No synced data for **" + rsn + "** yet — use **Update** first.");
             return;
@@ -793,7 +803,7 @@ public class RsAdminInteractionListener extends ListenerAdapter {
         // comfortably more than the 3-second ack window allows for.
         event.deferReply(true).queue();
 
-        MonthlyRecapStats stats = monthlyRecapService.getStats(guild.getIdLong(), rsn);
+        MonthlyRecapStats stats = monthlyRecapService.getStats(rsn);
         if (stats == null) {
             event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.WARNING,
                     "No snapshots for **" + rsn + "** yet this month — update (or seed test data) first."))).useComponentsV2(true).queue();
@@ -814,7 +824,7 @@ public class RsAdminInteractionListener extends ListenerAdapter {
     }
 
     private void doNearlyThere(ComponentInteraction event, Guild guild, String rsn) {
-        PlayerLinkRepository.StatsSnapshotRow latest = statsService.getLatestSnapshot(guild.getIdLong(), rsn);
+        PlayerLinkRepository.StatsSnapshotRow latest = statsService.getLatestSnapshot(rsn);
         if (latest == null) {
             Containers.replyEphemeral(event, Containers.WARNING,
                     "No synced data for **" + rsn + "** yet — use **Update** first.");
@@ -853,7 +863,7 @@ public class RsAdminInteractionListener extends ListenerAdapter {
     private void doUnlinkPrompt(ComponentInteraction event, String rsn) {
         Container confirm = Containers.card(Containers.WARNING,
                 TextDisplay.of("### Unlink " + rsn + "?"),
-                TextDisplay.of("This removes the link between the linked Discord account and **" + rsn + "**. Historical stats are kept."),
+                TextDisplay.of("This removes **" + rsn + "** from this server. The account stays with its owner in any other server JonnyBot is in, and they can link it here again. Historical stats are kept."),
                 ActionRow.of(
                         Button.danger("rsnadmin_unlink_confirm:" + rsn, "Yes, Unlink"),
                         Button.secondary("rsnadmin_unlink_cancel:_", "Cancel")

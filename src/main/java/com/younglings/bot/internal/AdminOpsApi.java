@@ -33,8 +33,6 @@ import java.util.Map;
  */
 @BService
 public class AdminOpsApi {
-    /** Every roster member is refreshed once per cycle (RosterPollScheduler spreads them across this window). */
-    static final Duration POLL_CYCLE = Duration.ofHours(3);
     private static final Duration STALE_AFTER = Duration.ofHours(8);
     private static final Duration INACTIVE_AFTER = Duration.ofDays(30);
     private static final int MAX_NOTE = 1000;
@@ -45,6 +43,17 @@ public class AdminOpsApi {
     private final ClanAdminApi clanAdmin;
     private final SlowPollQueue slowPolls;
     private final BotConfig config;
+
+    /** Every roster member is refreshed once per cycle (RosterPollScheduler spreads them across this window). */
+    private Duration pollCycle() {
+        return Duration.ofMinutes(config.getRunescapeClanPollWindowMinutes());
+    }
+
+    /** A refresh this old means a member has been missed, whatever the cycle: a few hours more than one full cycle. */
+    private Duration staleAfter() {
+        Duration relative = pollCycle().plusHours(5);
+        return relative.compareTo(STALE_AFTER) > 0 ? relative : STALE_AFTER;
+    }
 
     public AdminOpsApi(SiteStatsRepository stats, PlayerLinkRepository links, AdminToolsStore store, ClanAdminApi clanAdmin, SlowPollQueue slowPolls, BotConfig config) {
         this.stats = stats;
@@ -90,12 +99,12 @@ public class AdminOpsApi {
                     .put("discordId", link == null ? null : Long.toString(link.discordUserId())).put("discordName", discord == null ? null : discord.getEffectiveName())
                     .put("totalLevel", m.totalLevel()).put("combatLevel", m.combatLevel()).put("totalXp", m.totalXp()).put("kills", m.kills())
                     .put("joinedAt", m.clanJoinedAt() == null ? null : m.clanJoinedAt().toString()).put("firstSeen", iso(m.firstSeen()))
-                    .put("lastPolled", iso(last)).put("nextPoll", autoPoll && last != null ? iso(last.plus(POLL_CYCLE)) : null)
+                    .put("lastPolled", iso(last)).put("nextPoll", autoPoll && last != null ? iso(last.plus(pollCycle())) : null)
                     .put("lastActivity", iso(r.lastActivity().get(key)))
                     .put("visitedThisWeek", capped != null).put("cappedThisWeek", capped != null && capped)
                     .put("notes", r.notes().getOrDefault(key, 0)));
         });
-        return DataObject.empty().put("members", rows).put("pollCycleSeconds", POLL_CYCLE.toSeconds()).put("autoPoll", autoPoll)
+        return DataObject.empty().put("members", rows).put("pollCycleSeconds", pollCycle().toSeconds()).put("autoPoll", autoPoll)
                 .put("weekStart", r.weekStart().toString()).put("generatedAt", OffsetDateTime.now(ZoneOffset.UTC).toString());
     }
 
@@ -117,7 +126,7 @@ public class AdminOpsApi {
             String key = m.rsn().toLowerCase(Locale.ROOT);
             if (!m.verified()) unverified.add(item(m.rsn(), m.clanRank() + " · no Discord account linked"));
             if (m.lastPolled() == null) stale.add(item(m.rsn(), "never refreshed"));
-            else if (Duration.between(m.lastPolled(), now).compareTo(STALE_AFTER) > 0) stale.add(item(m.rsn(), "last refreshed " + Duration.between(m.lastPolled(), now).toHours() + "h ago"));
+            else if (Duration.between(m.lastPolled(), now).compareTo(staleAfter()) > 0) stale.add(item(m.rsn(), "last refreshed " + Duration.between(m.lastPolled(), now).toHours() + "h ago"));
             OffsetDateTime activity = r.lastActivity().get(key);
             boolean newcomer = m.firstSeen() != null && Duration.between(m.firstSeen(), now).toDays() < 7;
             if (!newcomer && (activity == null || Duration.between(activity, now).compareTo(INACTIVE_AFTER) > 0)) {
@@ -138,8 +147,8 @@ public class AdminOpsApi {
         Runtime rt = Runtime.getRuntime();
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         List<MemberRow> rows = stats.members(guildId);
-        long polledRecently = rows.stream().filter(m -> m.lastPolled() != null && Duration.between(m.lastPolled(), now).compareTo(POLL_CYCLE.plusHours(1)) <= 0).count();
-        long stale = rows.stream().filter(m -> m.lastPolled() == null || Duration.between(m.lastPolled(), now).compareTo(STALE_AFTER) > 0).count();
+        long polledRecently = rows.stream().filter(m -> m.lastPolled() != null && Duration.between(m.lastPolled(), now).compareTo(pollCycle().plusHours(1)) <= 0).count();
+        long stale = rows.stream().filter(m -> m.lastPolled() == null || Duration.between(m.lastPolled(), now).compareTo(staleAfter()) > 0).count();
         OffsetDateTime newestPoll = rows.stream().map(MemberRow::lastPolled).filter(t -> t != null).max(Comparator.naturalOrder()).orElse(null);
         long dbMs = store.pingDatabaseMillis();
 
@@ -151,8 +160,8 @@ public class AdminOpsApi {
                 .put("database", DataObject.empty().put("ok", dbMs >= 0).put("pingMs", dbMs))
                 .put("environment", DataObject.empty().put("live", config.getLiveEnvironment()).put("siteUrlConfigured", config.getSiteUrl() != null).put("autoPoll", config.getRunescapeAutoPollEnabled()))
                 .put("polling", DataObject.empty().put("rosterSize", rows.size()).put("refreshedRecently", polledRecently).put("stale", stale).put("newestRefresh", iso(newestPoll))
-                        .put("cycleSeconds", POLL_CYCLE.toSeconds()).put("rateLimitedQueue", slowPolls.size()).put("delaySeconds", config.getRunescapePollDelaySeconds()))
-                .put("data", DataObject.empty().put("newestActivity", iso(store.newestActivity(guildId))).put("firstSnapshot", iso(stats.firstSnapshotAt(guildId))))
+                        .put("cycleSeconds", pollCycle().toSeconds()).put("rateLimitedQueue", slowPolls.size()).put("delaySeconds", config.getRunescapePollDelaySeconds()))
+                .put("data", DataObject.empty().put("newestActivity", iso(store.newestActivity())).put("firstSnapshot", iso(stats.firstSnapshotAt(guildId))))
                 .put("scheduledPending", store.scheduled(guildId, 0).size());
     }
 

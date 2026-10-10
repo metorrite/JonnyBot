@@ -50,14 +50,17 @@ public class RuneScapeStatsService {
     }
 
     /**
+     * A player's data belongs to the player, not to a server: one poll, one stored snapshot, whichever server asked, and
+     * every server reads the same history.
+     * <p>
      * Fetches the player's current profile and saves a snapshot of it — the per-skill breakdown
      * and any new activities go into their own tables (see {@link PlayerLinkRepository}), not just
      * the summary row. Empty if the profile couldn't be fetched (private, doesn't exist, or the
      * request failed) — nothing is saved in that case. See {@link #pollAndSnapshotResult} to tell
      * those failure reasons apart.
      */
-    public Optional<RuneScapeProfile> pollAndSnapshot(long guildId, String rsn) {
-        return pollAndSnapshotResult(guildId, rsn) instanceof ProfileResult.Found(var profile)
+    public Optional<RuneScapeProfile> pollAndSnapshot(String rsn) {
+        return pollAndSnapshotResult(rsn) instanceof ProfileResult.Found(var profile)
                 ? Optional.of(profile) : Optional.empty();
     }
 
@@ -76,40 +79,43 @@ public class RuneScapeStatsService {
      * method later, so a repeat rate-limit backs off further automatically instead of needing its own
      * handling here.
      */
-    public ProfileResult pollAndSnapshotResult(long guildId, String rsn) {
+    public ProfileResult pollAndSnapshotResult(String rsn) {
         ProfileResult result = apiClient.fetchProfileResult(rsn);
         if (result instanceof ProfileResult.RateLimited(var retryAfter)) {
-            slowPollQueue.enqueue(guildId, rsn, retryAfter);
+            slowPollQueue.enqueue(rsn, retryAfter);
         } else if (result instanceof ProfileResult.Found(var profile)) {
-            long snapshotId = repository.saveSnapshot(guildId, rsn, profile, serializeSkills(profile.skills()));
+            long snapshotId = repository.saveSnapshot(rsn, profile, serializeSkills(profile.skills()));
             repository.saveSkillSnapshot(snapshotId, profile.skills());
-            List<PlayerActivity> newActivities = repository.saveActivities(guildId, rsn, profile.activities());
-            dispatchNewActivities(guildId, rsn, newActivities);
+            List<PlayerActivity> newActivities = repository.saveActivities(rsn, profile.activities());
+            dispatchNewActivities(rsn, newActivities);
         }
         return result;
     }
 
     /**
-     * No-ops if JDA isn't ready yet, the guild can't be resolved, or nothing new classified — the
-     * tracking feed is a bonus on top of polling, never a reason to fail it. Also no-ops if {@code rsn}
-     * isn't currently an active member of this guild's tracked clan roster — polling and the personal
-     * {@code /rs} profile work for anyone linked regardless, but the tracking feed is specifically a
-     * clan-wide announcement channel, not a "every RSN anyone's ever linked" one.
+     * Announces what a poll found to every server whose clan this player is currently in: the same player in two servers'
+     * clans (or the same clan tracked by two servers) is announced in each, from the one poll. No-ops if JDA isn't ready
+     * yet or nothing new classified, because the tracking feed is a bonus on top of polling, never a reason to fail it.
+     * Servers the player isn't a clan member of hear nothing: polling and the personal {@code /rs} profile work for
+     * anyone linked, but the tracking feed is a clan-wide announcement channel, not an "every RSN anyone has linked" one.
      */
-    private void dispatchNewActivities(long guildId, String rsn, List<PlayerActivity> newActivities) {
+    private void dispatchNewActivities(String rsn, List<PlayerActivity> newActivities) {
         if (newActivities.isEmpty()) return;
-        if (!clanMemberRepository.isActiveMember(guildId, rsn)) return;
 
         JDA currentJda = jda;
         if (currentJda == null) return;
-        Guild guild = currentJda.getGuildById(guildId);
-        if (guild == null) return;
+        List<Guild> guilds = new ArrayList<>();
+        for (long guildId : clanMemberRepository.activeGuildIds(rsn)) {
+            Guild guild = currentJda.getGuildById(guildId);
+            if (guild != null) guilds.add(guild);
+        }
+        if (guilds.isEmpty()) return;
 
         List<ClassifiedEntry> entries = new ArrayList<>();
         for (ActivityRun run : collapseConsecutive(newActivities)) {
             classifier.classify(rsn, run.activity(), run.count()).ifPresent(entries::add);
         }
-        router.dispatchAll(guild, entries);
+        for (Guild guild : guilds) router.dispatchAll(guild, entries);
     }
 
     private record ActivityRun(PlayerActivity activity, int count) {}
@@ -170,41 +176,41 @@ public class RuneScapeStatsService {
         return activity.text() + "\u0000" + activity.details();
     }
 
-    public PlayerLinkRepository.StatsSnapshotRow getLatestSnapshot(long guildId, String rsn) {
-        return repository.getLatestSnapshot(guildId, rsn);
+    public PlayerLinkRepository.StatsSnapshotRow getLatestSnapshot(String rsn) {
+        return repository.getLatestSnapshot(rsn);
     }
 
     /** Snapshot history, most recent first — the data source for a "gains over time" view. */
-    public List<PlayerLinkRepository.StatsSnapshotRow> getSnapshotHistory(long guildId, String rsn, int limit) {
-        return repository.getSnapshotHistory(guildId, rsn, limit);
+    public List<PlayerLinkRepository.StatsSnapshotRow> getSnapshotHistory(String rsn, int limit) {
+        return repository.getSnapshotHistory(rsn, limit);
     }
 
     public List<SkillValue> getSkillsForSnapshot(long snapshotId) {
         return repository.getSkillsForSnapshot(snapshotId);
     }
 
-    public List<PlayerActivity> getRecentActivities(long guildId, String rsn, int limit) {
-        return repository.getRecentActivities(guildId, rsn, limit);
+    public List<PlayerActivity> getRecentActivities(String rsn, int limit) {
+        return repository.getRecentActivities(rsn, limit);
     }
 
     /** One skill's XP at each poll over the last {@code days} days, oldest first — the XP chart's data source. */
-    public List<SkillXpPoint> getSkillXpHistory(long guildId, String rsn, int skillId, int days) {
-        return repository.getSkillXpHistory(guildId, rsn, skillId, java.time.OffsetDateTime.now().minusDays(days));
+    public List<SkillXpPoint> getSkillXpHistory(String rsn, int skillId, int days) {
+        return repository.getSkillXpHistory(rsn, skillId, java.time.OffsetDateTime.now().minusDays(days));
     }
 
     /** Every snapshot since {@code since}, oldest first. */
-    public List<PlayerLinkRepository.StatsSnapshotRow> getSnapshotsSince(long guildId, String rsn, java.time.OffsetDateTime since) {
-        return repository.getSnapshotsSince(guildId, rsn, since);
+    public List<PlayerLinkRepository.StatsSnapshotRow> getSnapshotsSince(String rsn, java.time.OffsetDateTime since) {
+        return repository.getSnapshotsSince(rsn, since);
     }
 
     /** Activities recorded since {@code since}, oldest first. */
-    public List<PlayerActivity> getActivitiesSince(long guildId, String rsn, java.time.OffsetDateTime since) {
-        return repository.getActivitiesSince(guildId, rsn, since);
+    public List<PlayerActivity> getActivitiesSince(String rsn, java.time.OffsetDateTime since) {
+        return repository.getActivitiesSince(rsn, since);
     }
 
     /** Every skill's XP at every poll since {@code since} in one query — the stacked-bar chart's data source. */
-    public List<PlayerLinkRepository.SkillHistoryPoint> getAllSkillsXpHistorySince(long guildId, String rsn, java.time.OffsetDateTime since) {
-        return repository.getAllSkillsXpHistorySince(guildId, rsn, since);
+    public List<PlayerLinkRepository.SkillHistoryPoint> getAllSkillsXpHistorySince(String rsn, java.time.OffsetDateTime since) {
+        return repository.getAllSkillsXpHistorySince(rsn, since);
     }
 
     static String serializeSkills(List<SkillValue> skills) {

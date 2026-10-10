@@ -365,6 +365,103 @@ public class RuneScapeDatabaseInitializer {
                     content_hash TEXT NOT NULL,
                     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 );
+                """,
+
+                // --- A player belongs to JonnyBot, not to a server ---
+                //
+                // player_account is who owns an RS account, once, everywhere: /rs links a name to a Discord user with
+                // JonnyBot, and every server that user is in sees the same account. player_link (above) stays what it was,
+                // one row per server, but now means "this account is registered in this server" — a server only shows a
+                // player once they've used JonnyBot there (/rs adopts their accounts into it), so linking in one server
+                // doesn't put someone on another server's lists unasked. verified_guild_id is the server whose admin vouched
+                // for the account; it is where trust came from, and it is what stops a different server re-linking the name.
+                """
+                CREATE TABLE IF NOT EXISTS younglings.player_account (
+                    account_id BIGSERIAL PRIMARY KEY,
+                    rsn TEXT NOT NULL,
+                    discord_user_id BIGINT NOT NULL,
+                    verification_method TEXT NOT NULL,
+                    verified_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    verified_guild_id BIGINT NULL
+                );
+                """,
+
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS player_account_unique_rsn_lower
+                ON younglings.player_account (LOWER(rsn));
+                """,
+
+                """
+                CREATE INDEX IF NOT EXISTS player_account_discord_user_idx
+                ON younglings.player_account (discord_user_id);
+                """,
+
+                // Every link that existed before accounts did becomes an account (the earliest link of a name wins, should
+                // two servers ever have linked the same one). Safe to run every boot: a name already there is left alone.
+                """
+                INSERT INTO younglings.player_account (rsn, discord_user_id, verification_method, verified_at, verified_guild_id)
+                SELECT DISTINCT ON (LOWER(rsn)) rsn, discord_user_id, verification_method, verified_at, guild_id
+                FROM younglings.player_link
+                ORDER BY LOWER(rsn), verified_at ASC
+                ON CONFLICT DO NOTHING;
+                """,
+
+                // A server's admin removing a registration from their own server (the owner's own unlink removes the account
+                // everywhere instead). Without this, /rs would register the same account right back; linking the name in
+                // that server on purpose clears the row.
+                """
+                CREATE TABLE IF NOT EXISTS younglings.player_link_exclusion (
+                    guild_id BIGINT NOT NULL,
+                    rsn TEXT NOT NULL,
+                    removed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+                """,
+
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS player_link_exclusion_unique
+                ON younglings.player_link_exclusion (guild_id, LOWER(rsn));
+                """,
+
+                // --- A player's RuneMetrics data belongs to the player, not to a server ---
+                //
+                // Snapshots and activities are now stored once per RS name, whichever server asked for the poll, and every
+                // server reads the same rows (a server's own lists still come from its roster and registrations, not from
+                // here). guild_id stays on the rows, nullable now: old rows keep theirs, new ones leave it empty.
+                """
+                ALTER TABLE younglings.player_stats_snapshot ALTER COLUMN guild_id DROP NOT NULL;
+                """,
+
+                """
+                ALTER TABLE younglings.player_activity ALTER COLUMN guild_id DROP NOT NULL;
+                """,
+
+                """
+                CREATE INDEX IF NOT EXISTS player_stats_snapshot_global_rsn_idx
+                ON younglings.player_stats_snapshot (LOWER(rsn), snapshot_at DESC);
+                """,
+
+                """
+                CREATE INDEX IF NOT EXISTS player_activity_global_rsn_idx
+                ON younglings.player_activity (LOWER(rsn), recorded_at DESC);
+                """,
+
+                // The same event seen by two servers' polls would be two rows; collapse any (there are none until a second
+                // server polls a name the first already has) and make "seen once per player" a rule the database enforces.
+                // Done once — the index existing is the marker that it has been.
+                """
+                DO $$
+                BEGIN
+                    IF to_regclass('younglings.player_activity_global_unique_idx') IS NULL THEN
+                        DELETE FROM younglings.player_activity a
+                        USING younglings.player_activity b
+                        WHERE a.id > b.id
+                          AND LOWER(a.rsn) = LOWER(b.rsn)
+                          AND a.activity_date = b.activity_date
+                          AND a.activity_text = b.activity_text;
+                        CREATE UNIQUE INDEX player_activity_global_unique_idx
+                            ON younglings.player_activity (LOWER(rsn), activity_date, activity_text);
+                    END IF;
+                END $$;
                 """
         ));
     }

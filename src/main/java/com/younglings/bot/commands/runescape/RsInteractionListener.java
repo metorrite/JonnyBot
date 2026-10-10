@@ -261,7 +261,7 @@ public class RsInteractionListener extends ListenerAdapter {
                 }
                 Container confirm = Containers.card(Containers.WARNING,
                         TextDisplay.of("### Unlink " + rsn + "?"),
-                        TextDisplay.of("This removes the link between your Discord account and **" + rsn + "**. Historical stats are kept."),
+                        TextDisplay.of("This removes the link between your Discord account and **" + rsn + "** everywhere JonnyBot is, not just in this server. Historical stats are kept."),
                         ActionRow.of(
                                 Button.danger("rs_unlink_confirm:" + rsn, "Yes, Unlink"),
                                 Button.secondary("rs_unlink_cancel:_", "Cancel")));
@@ -273,7 +273,7 @@ public class RsInteractionListener extends ListenerAdapter {
                 PlayerLink link = ownLinkOrNull(guild, event.getUser().getIdLong(), rsn);
                 boolean unlinked = link != null && linkService.unlink(guild.getIdLong(), link.discordUserId(), link.linkId());
                 Containers.edit(event, unlinked ? Containers.SUCCESS : Containers.WARNING,
-                        unlinked ? "Unlinked **" + rsn + "**. Run `/rs` again any time to relink." : "Couldn't unlink — that link may already be gone.");
+                        unlinked ? "Unlinked **" + rsn + "** from JonnyBot. Run `/rs` again any time to relink." : "Couldn't unlink — that link may already be gone.");
             }
 
             case "rs_unlink_cancel" -> Containers.edit(event, Containers.INFO, "Cancelled — nothing was unlinked.");
@@ -317,6 +317,9 @@ public class RsInteractionListener extends ListenerAdapter {
     public <E extends IReplyCallback & IModalCallback> void openRs(E event, Guild guild, long userId) {
         long guildId = guild.getIdLong();
 
+        // linking belongs to JonnyBot, not to a server: running /rs here brings along the accounts linked anywhere else
+        adoptAccountsHere(guild, userId);
+
         List<PlayerLink> links = linkService.getLinksForUser(guildId, userId);
         if (!links.isEmpty()) {
             event.replyComponents(List.of(buildAccountPanel(guild, userId))).useComponentsV2(true).setEphemeral(true).queue();
@@ -330,6 +333,18 @@ public class RsInteractionListener extends ListenerAdapter {
         }
 
         event.replyModal(buildLinkModal()).queue();
+    }
+
+    /** Registers this person's other accounts in this server and gives them the roles a verified account here earns. */
+    private void adoptAccountsHere(Guild guild, long userId) {
+        List<String> adopted = linkService.adoptAccounts(guild.getIdLong(), userId);
+        for (String rsn : adopted) {
+            try {
+                roleSyncService.syncRoles(guild, userId, rsn);
+            } catch (Exception e) {
+                log.warn("Couldn't update roles for '{}' after registering it in guild {}", rsn, guild.getIdLong(), e);
+            }
+        }
     }
 
     private void postForAdminReview(Guild guild, VerificationAttempt attempt) {
@@ -491,7 +506,14 @@ public class RsInteractionListener extends ListenerAdapter {
         }
 
         long attemptId = Long.parseLong(id.split(":")[1]);
-        VerificationAttempt attempt = completeApproval(event.getGuild(), attemptId, event.getUser().getIdLong());
+        VerificationAttempt attempt;
+        try {
+            attempt = completeApproval(event.getGuild(), attemptId, event.getUser().getIdLong());
+        } catch (PlayerLinkRepository.RsnTakenException taken) {
+            Containers.replyEphemeral(event, Containers.WARNING, "That name is already registered with JonnyBot to <@" + taken.ownerDiscordUserId()
+                    + "> in another server, so it can't be linked here. Reject this request, or ask them to unlink it first.");
+            return;
+        }
         if (attempt == null) {
             showAlreadyResolved(event, attemptId);
             return;
@@ -569,9 +591,12 @@ public class RsInteractionListener extends ListenerAdapter {
     public LinkSubmission submitLinkRequest(Guild guild, Member member, long userId, String rsn) {
         long guildId = guild.getIdLong();
 
-        PlayerLink existing = linkService.getLinkForRsn(guildId, rsn);
-        if (existing != null) {
-            return new LinkSubmission(existing.discordUserId() == userId ? LinkSubmission.Status.ALREADY_YOURS : LinkSubmission.Status.TAKEN, null);
+        // a name registered with JonnyBot in any server is spoken for, here or not
+        PlayerLinkRepository.PlayerAccount account = linkService.getAccountForRsn(rsn);
+        if (account != null) {
+            if (account.discordUserId() != userId) return new LinkSubmission(LinkSubmission.Status.TAKEN, null);
+            adoptAccountsHere(guild, userId);
+            return new LinkSubmission(LinkSubmission.Status.ALREADY_YOURS, null);
         }
 
         VerificationAttempt pending = linkService.getPendingAttemptForUser(guildId, userId);
@@ -788,7 +813,7 @@ public class RsInteractionListener extends ListenerAdapter {
 
     /** Level/combat/xp/quests, last-polled time, self-poll availability (🟢/🔴), and a latest-activity headline — everything at a glance. */
     private String buildOverviewLine(Guild guild, PlayerLink link) {
-        var history = statsService.getSnapshotHistory(guild.getIdLong(), link.rsn(), 2);
+        var history = statsService.getSnapshotHistory(link.rsn(), 2);
         if (history.isEmpty()) {
             return "*Never updated yet — click **Update** below.*";
         }
@@ -817,7 +842,7 @@ public class RsInteractionListener extends ListenerAdapter {
             sb.append("🔴 Available in ").append(minutesLeft).append("m");
         }
 
-        var activity = statsService.getRecentActivities(guild.getIdLong(), link.rsn(), 1);
+        var activity = statsService.getRecentActivities(link.rsn(), 1);
         if (!activity.isEmpty()) {
             sb.append("\n-# Latest activity: ").append(XpText.shorten(activity.getFirst().text()));
         }
@@ -840,7 +865,7 @@ public class RsInteractionListener extends ListenerAdapter {
 
         event.deferEdit().queue();
         boolean justJoined = detectClanJoin(guild, link);
-        statsService.pollAndSnapshot(guild.getIdLong(), rsn);
+        statsService.pollAndSnapshot(rsn);
         linkService.recordSelfPoll(link.linkId());
         event.getHook().editOriginalComponents(List.of(renderAfterOwnAction(guild, link))).useComponentsV2(true).queue();
         if (justJoined) {
@@ -889,7 +914,7 @@ public class RsInteractionListener extends ListenerAdapter {
         // comfortably more than the 3-second ack window allows for.
         event.deferReply(true).queue();
 
-        MonthlyRecapStats stats = monthlyRecapService.getStats(guild.getIdLong(), rsn);
+        MonthlyRecapStats stats = monthlyRecapService.getStats(rsn);
         if (stats == null) {
             event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.WARNING,
                     "No snapshots for **" + rsn + "** yet this month — update first."))).useComponentsV2(true).queue();
@@ -940,7 +965,7 @@ public class RsInteractionListener extends ListenerAdapter {
      * the 4000-character content budget, so there's no need to paginate.
      */
     void showSkills(ComponentInteraction event, Guild guild, String rsn) {
-        PlayerLinkRepository.StatsSnapshotRow latest = statsService.getLatestSnapshot(guild.getIdLong(), rsn);
+        PlayerLinkRepository.StatsSnapshotRow latest = statsService.getLatestSnapshot(rsn);
         if (latest == null) {
             Containers.replyEphemeral(event, Containers.WARNING,
                     "No synced data for **" + rsn + "** yet — use **Update** first.");
@@ -1055,7 +1080,7 @@ public class RsInteractionListener extends ListenerAdapter {
      */
     private Container buildActivityContainer(Guild guild, String rsn, int pageIndex) {
         OffsetDateTime since = OffsetDateTime.now().minusDays(ACTIVITY_HISTORY_DAYS);
-        List<PlayerActivity> activities = new ArrayList<>(statsService.getActivitiesSince(guild.getIdLong(), rsn, since));
+        List<PlayerActivity> activities = new ArrayList<>(statsService.getActivitiesSince(rsn, since));
         Collections.reverse(activities); // getActivitiesSince is oldest-first; newest-first reads better here
         if (activities.isEmpty()) return null;
 
@@ -1131,7 +1156,7 @@ public class RsInteractionListener extends ListenerAdapter {
         record Entry(PlayerLink link, PlayerLinkRepository.StatsSnapshotRow snapshot) {}
 
         List<Entry> entries = links.stream()
-                .map(link -> new Entry(link, statsService.getLatestSnapshot(guild.getIdLong(), link.rsn())))
+                .map(link -> new Entry(link, statsService.getLatestSnapshot(link.rsn())))
                 .filter(entry -> entry.snapshot() != null)
                 .sorted((a, b) -> Long.compare(b.snapshot().totalXp(), a.snapshot().totalXp()))
                 .limit(LEADERBOARD_SIZE)

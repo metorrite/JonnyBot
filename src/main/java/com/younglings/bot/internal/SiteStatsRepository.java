@@ -131,7 +131,7 @@ public class SiteStatsRepository {
                 LEFT JOIN younglings.clan_member_points p ON p.guild_id = m.guild_id AND LOWER(p.rsn) = LOWER(m.rsn)
                 LEFT JOIN LATERAL (
                     SELECT total_level, combat_level, snapshot_at FROM younglings.player_stats_snapshot s
-                    WHERE s.guild_id = m.guild_id AND LOWER(s.rsn) = LOWER(m.rsn)
+                    WHERE LOWER(s.rsn) = LOWER(m.rsn)
                     ORDER BY s.snapshot_at DESC LIMIT 1) s ON TRUE
                 WHERE m.guild_id = ? AND m.active
                 """, rs -> new MemberRow(rs.getString("rsn"), rs.getString("clan_rank"), rs.getInt("rank_order"), rs.getLong("total_xp"),
@@ -155,25 +155,25 @@ public class SiteStatsRepository {
                     SELECT LOWER(rsn) AS k, rsn FROM younglings.clan_member WHERE guild_id = ? AND active),
                 latest AS (
                     SELECT DISTINCT ON (LOWER(s.rsn)) LOWER(s.rsn) AS k, s.total_xp FROM younglings.player_stats_snapshot s
-                    WHERE s.guild_id = ? AND s.snapshot_at <= ? ORDER BY LOWER(s.rsn), s.snapshot_at DESC),
+                    JOIN members m ON m.k = LOWER(s.rsn) WHERE s.snapshot_at <= ? ORDER BY LOWER(s.rsn), s.snapshot_at DESC),
                 before AS (
                     SELECT DISTINCT ON (LOWER(s.rsn)) LOWER(s.rsn) AS k, s.total_xp FROM younglings.player_stats_snapshot s
-                    WHERE s.guild_id = ? AND s.snapshot_at <= ? ORDER BY LOWER(s.rsn), s.snapshot_at DESC),
+                    JOIN members m ON m.k = LOWER(s.rsn) WHERE s.snapshot_at <= ? ORDER BY LOWER(s.rsn), s.snapshot_at DESC),
                 after AS (
                     SELECT DISTINCT ON (LOWER(s.rsn)) LOWER(s.rsn) AS k, s.total_xp FROM younglings.player_stats_snapshot s
-                    WHERE s.guild_id = ? AND s.snapshot_at > ? ORDER BY LOWER(s.rsn), s.snapshot_at ASC)
+                    JOIN members m ON m.k = LOWER(s.rsn) WHERE s.snapshot_at > ? ORDER BY LOWER(s.rsn), s.snapshot_at ASC)
                 SELECT m.rsn, l.total_xp - COALESCE(b.total_xp, a.total_xp) AS gain
                 FROM members m
                 JOIN latest l ON l.k = m.k
                 LEFT JOIN before b ON b.k = m.k
                 LEFT JOIN after a ON a.k = m.k
                 WHERE COALESCE(b.total_xp, a.total_xp) IS NOT NULL
-                """, rs -> new Gain(rs.getString("rsn"), rs.getLong("gain")), guildId, guildId, to, guildId, from, guildId, from);
+                """, rs -> new Gain(rs.getString("rsn"), rs.getLong("gain")), guildId, to, from, from);
     }
 
     /** The first moment the bot has any XP snapshot for the clan — where the month-by-month leaderboards can start. */
     public OffsetDateTime firstSnapshotAt(long guildId) {
-        List<OffsetDateTime> rows = query("first snapshot", "SELECT MIN(snapshot_at) AS first FROM younglings.player_stats_snapshot WHERE guild_id = ?",
+        List<OffsetDateTime> rows = query("first snapshot", "SELECT MIN(s.snapshot_at) AS first FROM younglings.player_stats_snapshot s JOIN younglings.clan_member m ON LOWER(m.rsn) = LOWER(s.rsn) WHERE m.guild_id = ?",
                 rs -> rs.getObject("first", OffsetDateTime.class), guildId);
         return rows.isEmpty() ? null : rows.getFirst();
     }
@@ -183,8 +183,8 @@ public class SiteStatsRepository {
         return query("cappers in window", """
                 SELECT m.rsn, COUNT(DISTINCT (date_trunc('week', (a.recorded_at AT TIME ZONE 'UTC') - INTERVAL '2 days'))) AS weeks_capped, COUNT(*) AS total_caps
                 FROM younglings.player_activity a
-                JOIN younglings.clan_member m ON m.guild_id = a.guild_id AND LOWER(m.rsn) = LOWER(a.rsn) AND m.active
-                WHERE a.guild_id = ? AND a.activity_text LIKE 'Capped at my Clan Citadel%' AND a.recorded_at >= ? AND a.recorded_at < ?
+                JOIN younglings.clan_member m ON LOWER(m.rsn) = LOWER(a.rsn) AND m.active
+                WHERE m.guild_id = ? AND a.activity_text LIKE 'Capped at my Clan Citadel%' AND a.recorded_at >= ? AND a.recorded_at < ?
                 GROUP BY m.rsn ORDER BY weeks_capped DESC, total_caps DESC, m.rsn LIMIT ?
                 """, rs -> new Capper(rs.getString("rsn"), rs.getInt("weeks_capped"), rs.getInt("total_caps")), guildId, from, to, limit);
     }
@@ -228,13 +228,13 @@ public class SiteStatsRepository {
                     SELECT LOWER(rsn) AS k FROM younglings.clan_member WHERE guild_id = ? AND active AND (?::text IS NULL OR LOWER(rsn) = LOWER(?))),
                 latest AS (
                     SELECT DISTINCT ON (LOWER(s.rsn)) s.snapshot_id, LOWER(s.rsn) AS k FROM younglings.player_stats_snapshot s
-                    JOIN members m ON m.k = LOWER(s.rsn) WHERE s.guild_id = ? AND s.snapshot_at <= ? ORDER BY LOWER(s.rsn), s.snapshot_at DESC),
+                    JOIN members m ON m.k = LOWER(s.rsn) WHERE s.snapshot_at <= ? ORDER BY LOWER(s.rsn), s.snapshot_at DESC),
                 before AS (
                     SELECT DISTINCT ON (LOWER(s.rsn)) s.snapshot_id, LOWER(s.rsn) AS k FROM younglings.player_stats_snapshot s
-                    JOIN members m ON m.k = LOWER(s.rsn) WHERE s.guild_id = ? AND s.snapshot_at <= ? ORDER BY LOWER(s.rsn), s.snapshot_at DESC),
+                    JOIN members m ON m.k = LOWER(s.rsn) WHERE s.snapshot_at <= ? ORDER BY LOWER(s.rsn), s.snapshot_at DESC),
                 after AS (
                     SELECT DISTINCT ON (LOWER(s.rsn)) s.snapshot_id, LOWER(s.rsn) AS k FROM younglings.player_stats_snapshot s
-                    JOIN members m ON m.k = LOWER(s.rsn) WHERE s.guild_id = ? AND s.snapshot_at > ? ORDER BY LOWER(s.rsn), s.snapshot_at ASC),
+                    JOIN members m ON m.k = LOWER(s.rsn) WHERE s.snapshot_at > ? ORDER BY LOWER(s.rsn), s.snapshot_at ASC),
                 base AS (SELECT l.k, COALESCE(b.snapshot_id, a.snapshot_id) AS snapshot_id FROM latest l LEFT JOIN before b ON b.k = l.k LEFT JOIN after a ON a.k = l.k)
                 SELECT ls.skill_id, SUM(ls.xp - bs.xp) AS gain
                 FROM latest l
@@ -242,7 +242,7 @@ public class SiteStatsRepository {
                 JOIN younglings.player_skill_snapshot ls ON ls.snapshot_id = l.snapshot_id
                 JOIN younglings.player_skill_snapshot bs ON bs.snapshot_id = ba.snapshot_id AND bs.skill_id = ls.skill_id
                 GROUP BY ls.skill_id HAVING SUM(ls.xp - bs.xp) > 0 ORDER BY gain DESC
-                """, rs -> new SkillGain(rs.getInt("skill_id"), rs.getLong("gain")), guildId, rsn, rsn, guildId, to, guildId, from, guildId, from);
+                """, rs -> new SkillGain(rs.getInt("skill_id"), rs.getLong("gain")), guildId, rsn, rsn, to, from, from);
     }
 
     /** XP gained on each UTC day inside the window (one member, or the whole clan summed), oldest first. */
@@ -251,8 +251,8 @@ public class SiteStatsRepository {
                 WITH daily AS (
                     SELECT LOWER(s.rsn) AS k, (s.snapshot_at AT TIME ZONE 'UTC')::date AS d, MAX(s.total_xp) AS xp
                     FROM younglings.player_stats_snapshot s
-                    JOIN younglings.clan_member m ON m.guild_id = s.guild_id AND LOWER(m.rsn) = LOWER(s.rsn) AND m.active
-                    WHERE s.guild_id = ? AND (?::text IS NULL OR LOWER(s.rsn) = LOWER(?))
+                    JOIN younglings.clan_member m ON LOWER(m.rsn) = LOWER(s.rsn) AND m.active
+                    WHERE m.guild_id = ? AND (?::text IS NULL OR LOWER(s.rsn) = LOWER(?))
                       AND s.snapshot_at >= ?::timestamptz - INTERVAL '1 day' AND s.snapshot_at < ?
                     GROUP BY LOWER(s.rsn), (s.snapshot_at AT TIME ZONE 'UTC')::date),
                 gains AS (SELECT d, xp - LAG(xp) OVER (PARTITION BY k ORDER BY d) AS gain FROM daily)
@@ -267,8 +267,8 @@ public class SiteStatsRepository {
         return query("activities in window", """
                 SELECT m.rsn, a.activity_text, a.activity_details, a.activity_date, a.recorded_at
                 FROM younglings.player_activity a
-                JOIN younglings.clan_member m ON m.guild_id = a.guild_id AND LOWER(m.rsn) = LOWER(a.rsn) AND m.active
-                WHERE a.guild_id = ? AND (?::text IS NULL OR LOWER(a.rsn) = LOWER(?)) AND a.recorded_at >= ? AND a.recorded_at < ?
+                JOIN younglings.clan_member m ON LOWER(m.rsn) = LOWER(a.rsn) AND m.active
+                WHERE m.guild_id = ? AND (?::text IS NULL OR LOWER(a.rsn) = LOWER(?)) AND a.recorded_at >= ? AND a.recorded_at < ?
                 ORDER BY a.recorded_at
                 """, rs -> new ActivityRow(rs.getString("rsn"), rs.getString("activity_text"), rs.getString("activity_details"),
                 rs.getString("activity_date"), rs.getObject("recorded_at", OffsetDateTime.class)), guildId, rsn, rsn, from, to);
@@ -287,15 +287,15 @@ public class SiteStatsRepository {
     /** A member's total level at the start and end of the window ({@code null} if they have no snapshot there). */
     public Integer[] totalLevelsBetween(long guildId, String rsn, OffsetDateTime from, OffsetDateTime to) {
         Integer end = firstInt("""
-                SELECT total_level FROM younglings.player_stats_snapshot WHERE guild_id = ? AND LOWER(rsn) = LOWER(?) AND snapshot_at <= ? ORDER BY snapshot_at DESC LIMIT 1
-                """, guildId, rsn, to);
+                SELECT total_level FROM younglings.player_stats_snapshot WHERE LOWER(rsn) = LOWER(?) AND snapshot_at <= ? ORDER BY snapshot_at DESC LIMIT 1
+                """, rsn, to);
         Integer start = firstInt("""
-                SELECT total_level FROM younglings.player_stats_snapshot WHERE guild_id = ? AND LOWER(rsn) = LOWER(?) AND snapshot_at <= ? ORDER BY snapshot_at DESC LIMIT 1
-                """, guildId, rsn, from);
+                SELECT total_level FROM younglings.player_stats_snapshot WHERE LOWER(rsn) = LOWER(?) AND snapshot_at <= ? ORDER BY snapshot_at DESC LIMIT 1
+                """, rsn, from);
         if (start == null) {
             start = firstInt("""
-                    SELECT total_level FROM younglings.player_stats_snapshot WHERE guild_id = ? AND LOWER(rsn) = LOWER(?) AND snapshot_at > ? ORDER BY snapshot_at ASC LIMIT 1
-                    """, guildId, rsn, from);
+                    SELECT total_level FROM younglings.player_stats_snapshot WHERE LOWER(rsn) = LOWER(?) AND snapshot_at > ? ORDER BY snapshot_at ASC LIMIT 1
+                    """, rsn, from);
         }
         return new Integer[]{start, end};
     }
@@ -312,8 +312,8 @@ public class SiteStatsRepository {
         return query("recent activities", """
                 SELECT m.rsn, a.activity_text, a.activity_details, a.activity_date, a.recorded_at
                 FROM younglings.player_activity a
-                JOIN younglings.clan_member m ON m.guild_id = a.guild_id AND LOWER(m.rsn) = LOWER(a.rsn) AND m.active
-                WHERE a.guild_id = ? ORDER BY a.recorded_at DESC, a.id DESC LIMIT ?
+                JOIN younglings.clan_member m ON LOWER(m.rsn) = LOWER(a.rsn) AND m.active
+                WHERE m.guild_id = ? ORDER BY a.recorded_at DESC, a.id DESC LIMIT ?
                 """, rs -> new ActivityRow(rs.getString("rsn"), rs.getString("activity_text"), rs.getString("activity_details"),
                 rs.getString("activity_date"), rs.getObject("recorded_at", OffsetDateTime.class)), guildId, limit);
     }
@@ -323,8 +323,8 @@ public class SiteStatsRepository {
         return query("activities by prefix", """
                 SELECT m.rsn, a.activity_text, a.activity_details, a.activity_date, a.recorded_at
                 FROM younglings.player_activity a
-                JOIN younglings.clan_member m ON m.guild_id = a.guild_id AND LOWER(m.rsn) = LOWER(a.rsn) AND m.active
-                WHERE a.guild_id = ? AND a.activity_text LIKE ? ORDER BY a.recorded_at DESC, a.id DESC
+                JOIN younglings.clan_member m ON LOWER(m.rsn) = LOWER(a.rsn) AND m.active
+                WHERE m.guild_id = ? AND a.activity_text LIKE ? ORDER BY a.recorded_at DESC, a.id DESC
                 """, rs -> new ActivityRow(rs.getString("rsn"), rs.getString("activity_text"), rs.getString("activity_details"),
                 rs.getString("activity_date"), rs.getObject("recorded_at", OffsetDateTime.class)), guildId, prefix + "%");
     }
@@ -335,8 +335,8 @@ public class SiteStatsRepository {
                 WITH daily AS (
                     SELECT LOWER(s.rsn) AS k, MIN(m.rsn) AS rsn, (s.snapshot_at AT TIME ZONE 'UTC')::date AS d, MAX(s.total_xp) AS xp
                     FROM younglings.player_stats_snapshot s
-                    JOIN younglings.clan_member m ON m.guild_id = s.guild_id AND LOWER(m.rsn) = LOWER(s.rsn) AND m.active
-                    WHERE s.guild_id = ? GROUP BY LOWER(s.rsn), (s.snapshot_at AT TIME ZONE 'UTC')::date),
+                    JOIN younglings.clan_member m ON LOWER(m.rsn) = LOWER(s.rsn) AND m.active
+                    WHERE m.guild_id = ? GROUP BY LOWER(s.rsn), (s.snapshot_at AT TIME ZONE 'UTC')::date),
                 gains AS (SELECT rsn, d, xp - LAG(xp) OVER (PARTITION BY k ORDER BY d) AS gain FROM daily)
                 SELECT rsn, d, gain FROM gains WHERE gain IS NOT NULL AND gain > 0 ORDER BY gain DESC LIMIT ?
                 """, rs -> new BigDay(rs.getString("rsn"), rs.getObject("d", LocalDate.class), rs.getLong("gain")), guildId, limit);
@@ -347,8 +347,8 @@ public class SiteStatsRepository {
         return query("200m club", """
                 WITH latest AS (
                     SELECT DISTINCT ON (LOWER(s.rsn)) s.snapshot_id, m.rsn FROM younglings.player_stats_snapshot s
-                    JOIN younglings.clan_member m ON m.guild_id = s.guild_id AND LOWER(m.rsn) = LOWER(s.rsn) AND m.active
-                    WHERE s.guild_id = ? ORDER BY LOWER(s.rsn), s.snapshot_at DESC)
+                    JOIN younglings.clan_member m ON LOWER(m.rsn) = LOWER(s.rsn) AND m.active
+                    WHERE m.guild_id = ? ORDER BY LOWER(s.rsn), s.snapshot_at DESC)
                 SELECT l.rsn, COUNT(*) AS skills FROM latest l JOIN younglings.player_skill_snapshot k ON k.snapshot_id = l.snapshot_id
                 WHERE k.xp >= 200000000 GROUP BY l.rsn ORDER BY skills DESC, l.rsn LIMIT ?
                 """, rs -> new ClubMember(rs.getString("rsn"), rs.getInt("skills")), guildId, limit);
@@ -360,8 +360,8 @@ public class SiteStatsRepository {
                 SELECT m.rsn, (date_trunc('week', (a.recorded_at AT TIME ZONE 'UTC') - INTERVAL '2 days') + INTERVAL '2 days')::date AS week_start,
                        BOOL_OR(a.activity_text LIKE 'Capped at my Clan Citadel%') AS capped
                 FROM younglings.player_activity a
-                JOIN younglings.clan_member m ON m.guild_id = a.guild_id AND LOWER(m.rsn) = LOWER(a.rsn) AND m.active
-                WHERE a.guild_id = ? AND (a.activity_text LIKE 'Visited my Clan Citadel%' OR a.activity_text LIKE 'Capped at my Clan Citadel%')
+                JOIN younglings.clan_member m ON LOWER(m.rsn) = LOWER(a.rsn) AND m.active
+                WHERE m.guild_id = ? AND (a.activity_text LIKE 'Visited my Clan Citadel%' OR a.activity_text LIKE 'Capped at my Clan Citadel%')
                   AND a.recorded_at >= NOW() - (? * INTERVAL '7 days')
                 GROUP BY m.rsn, week_start
                 """, rs -> new CapWeek(rs.getString("rsn"), rs.getObject("week_start", LocalDate.class), rs.getBoolean("capped")), guildId, weeks + 1);
@@ -372,8 +372,8 @@ public class SiteStatsRepository {
         return query("all cap weeks", """
                 SELECT DISTINCT m.rsn, (date_trunc('week', (a.recorded_at AT TIME ZONE 'UTC') - INTERVAL '2 days') + INTERVAL '2 days')::date AS week_start
                 FROM younglings.player_activity a
-                JOIN younglings.clan_member m ON m.guild_id = a.guild_id AND LOWER(m.rsn) = LOWER(a.rsn) AND m.active
-                WHERE a.guild_id = ? AND a.activity_text LIKE 'Capped at my Clan Citadel%'
+                JOIN younglings.clan_member m ON LOWER(m.rsn) = LOWER(a.rsn) AND m.active
+                WHERE m.guild_id = ? AND a.activity_text LIKE 'Capped at my Clan Citadel%'
                 """, rs -> new CapWeek(rs.getString("rsn"), rs.getObject("week_start", LocalDate.class), true), guildId);
     }
 
@@ -480,8 +480,8 @@ public class SiteStatsRepository {
                            (date_trunc('week', (a.recorded_at AT TIME ZONE 'UTC') - INTERVAL '2 days') + INTERVAL '2 days')::date AS week_start,
                            (a.activity_text LIKE 'Capped at my Clan Citadel%') AS capped
                     FROM younglings.player_activity a
-                    JOIN younglings.clan_member m ON m.guild_id = a.guild_id AND LOWER(m.rsn) = LOWER(a.rsn) AND m.active
-                    WHERE a.guild_id = ? AND (a.activity_text LIKE 'Visited my Clan Citadel%' OR a.activity_text LIKE 'Capped at my Clan Citadel%')
+                    JOIN younglings.clan_member m ON LOWER(m.rsn) = LOWER(a.rsn) AND m.active
+                    WHERE m.guild_id = ? AND (a.activity_text LIKE 'Visited my Clan Citadel%' OR a.activity_text LIKE 'Capped at my Clan Citadel%')
                       AND a.recorded_at >= NOW() - (? * INTERVAL '7 days'))
                 SELECT week_start, COUNT(DISTINCT k) FILTER (WHERE capped) AS capped, COUNT(DISTINCT k) AS visited
                 FROM acts GROUP BY week_start ORDER BY week_start
@@ -493,8 +493,8 @@ public class SiteStatsRepository {
         return query("top cappers", """
                 SELECT m.rsn, COUNT(DISTINCT (date_trunc('week', (a.recorded_at AT TIME ZONE 'UTC') - INTERVAL '2 days'))) AS weeks_capped, COUNT(*) AS total_caps
                 FROM younglings.player_activity a
-                JOIN younglings.clan_member m ON m.guild_id = a.guild_id AND LOWER(m.rsn) = LOWER(a.rsn) AND m.active
-                WHERE a.guild_id = ? AND a.activity_text LIKE 'Capped at my Clan Citadel%'
+                JOIN younglings.clan_member m ON LOWER(m.rsn) = LOWER(a.rsn) AND m.active
+                WHERE m.guild_id = ? AND a.activity_text LIKE 'Capped at my Clan Citadel%'
                 GROUP BY m.rsn ORDER BY weeks_capped DESC, total_caps DESC, m.rsn LIMIT ?
                 """, rs -> new Capper(rs.getString("rsn"), rs.getInt("weeks_capped"), rs.getInt("total_caps")), guildId, limit);
     }
@@ -516,8 +516,8 @@ public class SiteStatsRepository {
                 WITH latest AS (
                     SELECT DISTINCT ON (LOWER(s.rsn)) s.snapshot_id, m.rsn
                     FROM younglings.player_stats_snapshot s
-                    JOIN younglings.clan_member m ON m.guild_id = s.guild_id AND LOWER(m.rsn) = LOWER(s.rsn) AND m.active
-                    WHERE s.guild_id = ? ORDER BY LOWER(s.rsn), s.snapshot_at DESC)
+                    JOIN younglings.clan_member m ON LOWER(m.rsn) = LOWER(s.rsn) AND m.active
+                    WHERE m.guild_id = ? ORDER BY LOWER(s.rsn), s.snapshot_at DESC)
                 SELECT skill_id, rsn, level, xp FROM (
                     SELECT k.skill_id, l.rsn, k.level, k.xp, ROW_NUMBER() OVER (PARTITION BY k.skill_id ORDER BY k.xp DESC, l.rsn) AS rn
                     FROM latest l JOIN younglings.player_skill_snapshot k ON k.snapshot_id = l.snapshot_id) t
@@ -530,9 +530,9 @@ public class SiteStatsRepository {
         return query("daily history", """
                 SELECT DISTINCT ON ((snapshot_at AT TIME ZONE 'UTC')::date) (snapshot_at AT TIME ZONE 'UTC')::date AS d, total_xp, total_level
                 FROM younglings.player_stats_snapshot
-                WHERE guild_id = ? AND LOWER(rsn) = LOWER(?) AND snapshot_at >= NOW() - (? * INTERVAL '1 day')
+                WHERE LOWER(rsn) = LOWER(?) AND snapshot_at >= NOW() - (? * INTERVAL '1 day')
                 ORDER BY (snapshot_at AT TIME ZONE 'UTC')::date, snapshot_at DESC
-                """, rs -> new DayPoint(rs.getObject("d", LocalDate.class), rs.getLong("total_xp"), rs.getInt("total_level")), guildId, rsn, days);
+                """, rs -> new DayPoint(rs.getObject("d", LocalDate.class), rs.getLong("total_xp"), rs.getInt("total_level")), rsn, days);
     }
 
     /** One player's Citadel record: how many caps and visits the bot has seen, and which of the last weeks they capped. */
@@ -542,8 +542,8 @@ public class SiteStatsRepository {
                 SELECT (activity_text LIKE 'Capped at my Clan Citadel%') AS capped,
                        (date_trunc('week', (recorded_at AT TIME ZONE 'UTC') - INTERVAL '2 days') + INTERVAL '2 days')::date AS week_start
                 FROM younglings.player_activity
-                WHERE guild_id = ? AND LOWER(rsn) = LOWER(?) AND (activity_text LIKE 'Visited my Clan Citadel%' OR activity_text LIKE 'Capped at my Clan Citadel%')
-                """, rs -> new Row(rs.getBoolean("capped"), rs.getObject("week_start", LocalDate.class)), guildId, rsn);
+                WHERE LOWER(rsn) = LOWER(?) AND (activity_text LIKE 'Visited my Clan Citadel%' OR activity_text LIKE 'Capped at my Clan Citadel%')
+                """, rs -> new Row(rs.getBoolean("capped"), rs.getObject("week_start", LocalDate.class)), rsn);
 
         int caps = 0, visits = 0;
         List<LocalDate> cappedWeeks = new ArrayList<>();
