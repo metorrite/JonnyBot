@@ -188,4 +188,11 @@ class ContainerWelcomeTest {
     private static ContainerChildComponentUnion lastText(WelcomeConfig c) {
         return children(WelcomeMessageBuilder.build(c, LOOKUP, 42L, true)).getLast();
     }
+
+    @Test
+    void aFieldWithOnlyANameIsASingleBoldLineAndOneWithOnlyAValueIsPlainText() {
+        MessageCreateData data = WelcomeMessageBuilder.build(container("", "", "", List.of(new EmbedField("[Website](https://example.com)", "", false), new EmbedField("", "Just a note", false), new EmbedField("", "", false)), false, "primary", "", ""), LOOKUP, 42L, true);
+
+        assertEquals(List.of("text:**[Website](https://example.com)**\n\nJust a note"), children(data).stream().map(ContainerWelcomeTest::describe).toList());
+    }
 }

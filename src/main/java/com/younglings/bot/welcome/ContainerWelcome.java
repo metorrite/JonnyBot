@@ -76,8 +76,9 @@ final class ContainerWelcome {
         for (EmbedField field : c.fields()) {
             String name = text(field.name(), lookup);
             String value = text(field.value(), lookup);
-            if (name.isEmpty() || value.isEmpty()) continue;
-            String block = "**" + clip(name, 256) + "**\n" + clip(value, 1024);
+            if (name.isEmpty() && value.isEmpty()) continue;
+            // A container needs only one of the two: a name alone is a single bold line (a link on its own, say), a value alone is plain text.
+            String block = name.isEmpty() ? clip(value, 1024) : value.isEmpty() ? "**" + clip(name, 256) + "**" : "**" + clip(name, 256) + "**\n" + clip(value, 1024);
             if (block.contains(BUTTON_MARKER) && button != null && !buttonPlaced[0]) {
                 blocks(children, fields.toString().strip(), null, buttonPlaced, null, NO_WRAP);
                 fields.setLength(0);

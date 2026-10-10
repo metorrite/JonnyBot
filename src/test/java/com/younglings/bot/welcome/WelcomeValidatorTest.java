@@ -154,4 +154,12 @@ class WelcomeValidatorTest {
         assertTrue(mentions(WelcomeValidator.validate(container(MessageType.CONTAINER, false, "primary", "", "", "", List.of())), "empty"));
         assertTrue(mentions(WelcomeValidator.validate(container(MessageType.CONTAINER, false, "primary", "Hi", "x".repeat(3900), "y".repeat(100), List.of())), "too long overall"));
     }
+
+    @Test
+    void aContainerFieldNeedsOnlyOneOfNameAndValueButAnEmbedFieldNeedsBoth() {
+        var nameOnly = List.of(new EmbedField("[Website](https://example.com)", "", false));
+        assertEquals(List.of(), WelcomeValidator.validate(container(MessageType.CONTAINER, false, "primary", "Hi", "Body", "", nameOnly)));
+        assertTrue(mentions(WelcomeValidator.validate(container(MessageType.EMBED, false, "primary", "Hi", "Body", "", nameOnly)), "needs both a name and a value"));
+        assertTrue(mentions(WelcomeValidator.validate(container(MessageType.CONTAINER, false, "primary", "Hi", "Body", "", List.of(new EmbedField("", "", false)))), "is empty"));
+    }
 }
