@@ -76,6 +76,7 @@ public final class WelcomeValidator {
             else if (c.linkButtonLabel().length() > MAX_BUTTON_LABEL) problems.add("The link button label can be at most " + MAX_BUTTON_LABEL + " characters.");
             if (!WelcomeConfig.BUTTON_STYLES.contains(c.linkButtonStyle())) problems.add("Choose a colour for the link button.");
         }
+        if (!WelcomeConfig.FOOTER_STYLES.contains(c.footerStyle())) problems.add("Choose how the footer looks: small, normal or bold.");
 
         buttonMarker(problems, c);
         if (c.messageType().isContainer()) {

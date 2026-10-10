@@ -69,7 +69,7 @@ final class ContainerWelcome {
         if (!description.isEmpty()) header.append(clip(description, 3900));
 
         String thumbnail = safeUrl(WelcomeTemplate.renderPlain(c.thumbnailUrl(), lookup).strip());
-        blocks(children, header.toString().strip(), button, buttonPlaced, thumbnail, "");
+        blocks(children, header.toString().strip(), button, buttonPlaced, thumbnail, NO_WRAP);
 
         // ---- fields: stacked, name in bold. Neighbours with no button between them share one text block.
         StringBuilder fields = new StringBuilder();
@@ -79,15 +79,15 @@ final class ContainerWelcome {
             if (name.isEmpty() || value.isEmpty()) continue;
             String block = "**" + clip(name, 256) + "**\n" + clip(value, 1024);
             if (block.contains(BUTTON_MARKER) && button != null && !buttonPlaced[0]) {
-                blocks(children, fields.toString().strip(), null, buttonPlaced, null, "");
+                blocks(children, fields.toString().strip(), null, buttonPlaced, null, NO_WRAP);
                 fields.setLength(0);
-                blocks(children, block, button, buttonPlaced, null, "");
+                blocks(children, block, button, buttonPlaced, null, NO_WRAP);
             } else {
                 if (fields.length() > 0) fields.append("\n\n");
                 fields.append(block.replace(BUTTON_MARKER, ""));
             }
         }
-        blocks(children, fields.toString().strip(), null, buttonPlaced, null, "");
+        blocks(children, fields.toString().strip(), null, buttonPlaced, null, NO_WRAP);
 
         // ---- image
         String image = safeUrl(WelcomeTemplate.renderPlain(c.imageUrl(), lookup).strip());
@@ -97,7 +97,7 @@ final class ContainerWelcome {
         String footer = text(c.footerText(), lookup);
         if (!footer.isEmpty()) {
             if (!children.isEmpty()) children.add(Separator.createInvisible(Separator.Spacing.SMALL));
-            blocks(children, clip(footer, 2048), button, buttonPlaced, null, "-# ");
+            blocks(children, clip(footer, 2048), button, buttonPlaced, null, footerWrap(c.footerStyle()));
         }
 
         if (button != null && !buttonPlaced[0]) children.add(ActionRow.of(button));
@@ -111,24 +111,24 @@ final class ContainerWelcome {
      * it becomes a section with the button beside it, with the text before and after as blocks of their own.
      *
      * @param thumbnail goes beside the first block, if there is one
-     * @param prefix    put before every line, for small text ({@code -# })
+     * @param wrap      put around every line: the footer's look (small grey, normal or bold)
      */
-    private static void blocks(List<ContainerChildComponent> out, String text, Button button, boolean[] buttonPlaced, String thumbnail, String prefix) {
+    private static void blocks(List<ContainerChildComponent> out, String text, Button button, boolean[] buttonPlaced, String thumbnail, Wrap wrap) {
         if (text.isBlank()) return;
         boolean wantButton = button != null && !buttonPlaced[0];
         Pieces pieces = wantButton ? split(text) : new Pieces(text.replace(BUTTON_MARKER, "").strip(), "", "", false);
         boolean[] thumbnailUsed = {thumbnail == null};
 
         if (!pieces.hasButton()) {
-            addText(out, styled(pieces.before(), prefix), thumbnail, thumbnailUsed);
+            addText(out, styled(pieces.before(), wrap), thumbnail, thumbnailUsed);
             return;
         }
 
         buttonPlaced[0] = true;
-        if (!pieces.before().isBlank()) addText(out, styled(pieces.before(), prefix), thumbnail, thumbnailUsed);
-        String line = pieces.line().isEmpty() ? BLANK : styled(pieces.line(), prefix);
+        if (!pieces.before().isBlank()) addText(out, styled(pieces.before(), wrap), thumbnail, thumbnailUsed);
+        String line = pieces.line().isEmpty() ? BLANK : styled(pieces.line(), wrap);
         out.add(Section.of(button, TextDisplay.of(line)));
-        if (!pieces.after().isBlank()) addText(out, styled(pieces.after(), prefix), null, thumbnailUsed);
+        if (!pieces.after().isBlank()) addText(out, styled(pieces.after(), wrap), null, thumbnailUsed);
         if (!thumbnailUsed[0]) addText(out, BLANK, thumbnail, thumbnailUsed); // a thumbnail with nothing before the button still needs a block to sit beside
     }
 
@@ -142,13 +142,26 @@ final class ContainerWelcome {
         }
     }
 
-    private static String styled(String text, String prefix) {
-        if (prefix.isEmpty()) return text;
+    /** Text put before and after each line: {@code -# } for small grey text, {@code **} either side for bold. */
+    record Wrap(String before, String after) {}
+
+    static final Wrap NO_WRAP = new Wrap("", "");
+
+    static Wrap footerWrap(String style) {
+        return switch (style == null ? "small" : style) {
+            case "normal" -> NO_WRAP;
+            case "bold" -> new Wrap("**", "**");
+            default -> new Wrap("-# ", "");
+        };
+    }
+
+    private static String styled(String text, Wrap wrap) {
+        if (wrap == NO_WRAP) return text;
         StringBuilder out = new StringBuilder();
         for (String line : text.split("\\R")) {
             if (line.isBlank()) continue;
             if (out.length() > 0) out.append('\n');
-            out.append(prefix).append(line.strip());
+            out.append(wrap.before()).append(line.strip()).append(wrap.after());
         }
         return out.toString();
     }

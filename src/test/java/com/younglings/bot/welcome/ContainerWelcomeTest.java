@@ -160,4 +160,32 @@ class ContainerWelcomeTest {
         assertEquals("d \ne", pieces.after());
         assertFalse(ContainerWelcome.split("nothing here").hasButton());
     }
+
+    private static WelcomeConfig withFooterStyle(String style, String footer) {
+        return new WelcomeConfig(1L, true, MessageType.CONTAINER, 10L, false, "", null, "Hi", "", "Body", "", "", "", "", footer, "", List.of(), false, "Link", "primary", style);
+    }
+
+    @Test
+    void theFooterCanBeSmallGreyNormalOrBold() {
+        assertEquals("text:-# The Younglings", describe(lastText(withFooterStyle("small", "The Younglings"))));
+        assertEquals("text:The Younglings", describe(lastText(withFooterStyle("normal", "The Younglings"))));
+        assertEquals("text:**The Younglings**", describe(lastText(withFooterStyle("bold", "The Younglings"))));
+    }
+
+    @Test
+    void anUnknownFooterStyleFallsBackToSmall() {
+        assertEquals("text:-# The Younglings", describe(lastText(withFooterStyle("loud", "The Younglings"))));
+    }
+
+    @Test
+    void aBoldFooterKeepsTheButtonBesideIt() {
+        MessageCreateData data = WelcomeMessageBuilder.build(new WelcomeConfig(1L, true, MessageType.CONTAINER, 10L, false, "", null, "Hi", "", "Body", "", "", "", "",
+                "The Younglings {rs_button}", "", List.of(), true, "Link", "secondary", "bold"), LOOKUP, 42L, true);
+
+        assertTrue(children(data).stream().map(ContainerWelcomeTest::describe).toList().contains("section:**The Younglings**|BUTTON"));
+    }
+
+    private static ContainerChildComponentUnion lastText(WelcomeConfig c) {
+        return children(WelcomeMessageBuilder.build(c, LOOKUP, 42L, true)).getLast();
+    }
 }

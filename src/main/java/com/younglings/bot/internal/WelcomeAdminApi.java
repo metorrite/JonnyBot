@@ -110,7 +110,8 @@ public class WelcomeAdminApi {
                 b.getString("description", "").stripTrailing(), b.getString("authorName", "").strip(), b.getString("authorIconUrl", "").strip(),
                 b.getString("thumbnailUrl", "").strip(), b.getString("imageUrl", "").strip(), b.getString("footerText", "").strip(),
                 b.getString("footerIconUrl", "").strip(), fields, b.getBoolean("linkButton", false),
-                b.getString("linkButtonLabel", "Link your RuneScape name").strip(), b.getString("linkButtonStyle", "primary").strip().toLowerCase());
+                b.getString("linkButtonLabel", "Link your RuneScape name").strip(), b.getString("linkButtonStyle", "primary").strip().toLowerCase(),
+                b.getString("footerStyle", "small").strip().toLowerCase());
     }
 
     // ---------- writing the answer ----------
@@ -146,6 +147,7 @@ public class WelcomeAdminApi {
                 .put("linkButton", c.linkButton())
                 .put("linkButtonLabel", c.linkButtonLabel())
                 .put("linkButtonStyle", c.linkButtonStyle())
+                .put("footerStyle", c.footerStyle())
                 // for the editor's preview only; never saved
                 .put("serverName", guild.getName())
                 .put("memberCount", guild.getMemberCount())
