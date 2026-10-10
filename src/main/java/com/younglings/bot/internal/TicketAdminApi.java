@@ -73,9 +73,11 @@ public class TicketAdminApi {
     private final ServerSetupAdminApi serverSetup;
     private final PermissionsAdminApi permissions;
     private final HubAdminApi hubAdmin;
+    private final OverviewAdminApi overviewAdmin;
 
     public TicketAdminApi(DashboardAccess access, TicketRepository repository, TicketService service, ClanAdminApi clanAdmin, CommunityAdminApi communityAdmin, AdminOpsApi ops, AdminToolsStore auditStore,
-                          HelpOnboarding onboarding, HelpPanels helpPanels, WelcomeAdminApi welcomeAdmin, ServerSetupAdminApi serverSetup, PermissionsAdminApi permissions, HubAdminApi hubAdmin) {
+                          HelpOnboarding onboarding, HelpPanels helpPanels, WelcomeAdminApi welcomeAdmin, ServerSetupAdminApi serverSetup, PermissionsAdminApi permissions, HubAdminApi hubAdmin, OverviewAdminApi overviewAdmin) {
+        this.overviewAdmin = overviewAdmin;
         this.welcomeAdmin = welcomeAdmin;
         this.serverSetup = serverSetup;
         this.permissions = permissions;
@@ -121,7 +123,9 @@ public class TicketAdminApi {
             // whoami is the one route that answers "no" with a 200: the website uses it to decide what to show.
             if (parts.length == 1 && parts[0].equals("whoami")) {
                 requireMethod(method, "GET");
-                InternalApiServer.sendJson(exchange, 200, whoami(guild, actor, tier));
+                DataObject who = whoami(guild, actor, tier);
+                if (actor != null && tier != Tier.NONE) who.put("isOwner", overviewAdmin.isOwner(guild, actor.getIdLong()));
+                InternalApiServer.sendJson(exchange, 200, who);
                 return;
             }
             if (tier == Tier.NONE) {
@@ -287,6 +291,22 @@ public class TicketAdminApi {
             if (method.equals("GET")) return clanAdmin.clanPoints(guild);
             requireMethod(method, "PUT");
             return clanAdmin.saveClanPoints(guild, actor, body(exchange));
+        }
+        if (parts.length == 1 && parts[0].equals("overview")) {
+            requireMethod(method, "GET");
+            return overviewAdmin.overview(guild, actor);
+        }
+        if (parts.length >= 1 && parts[0].equals("notices")) {
+            if (parts.length == 1) {
+                if (method.equals("GET")) return overviewAdmin.listNotices();
+                requireMethod(method, "POST");
+                return overviewAdmin.addNotice(guild, actor, body(exchange));
+            }
+            if (parts.length == 2) {
+                requireMethod(method, "DELETE");
+                return overviewAdmin.removeNotice(guild, actor, parts[1]);
+            }
+            return null;
         }
         if (parts.length >= 1 && parts[0].equals("hub")) {
             if (parts.length == 1) {
