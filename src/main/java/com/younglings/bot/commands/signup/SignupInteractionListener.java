@@ -3,6 +3,7 @@ package com.younglings.bot.commands.signup;
 import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.discord.Containers;
 import com.younglings.bot.discord.Pagination;
+import com.younglings.bot.hub.HubService;
 import com.younglings.bot.permission.AdminRoleFilter;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.Permission;
@@ -39,8 +40,10 @@ public class SignupInteractionListener extends ListenerAdapter {
     private final SignupService signupService;
     private final BotConfig botConfig;
     private final AdminRoleFilter adminRoleFilter;
+    private final HubService hub;
 
-    public SignupInteractionListener(SignupService signupService, BotConfig botConfig, AdminRoleFilter adminRoleFilter) {
+    public SignupInteractionListener(SignupService signupService, BotConfig botConfig, AdminRoleFilter adminRoleFilter, HubService hub) {
+        this.hub = hub;
         this.signupService = signupService;
         this.botConfig = botConfig;
         this.adminRoleFilter = adminRoleFilter;
@@ -668,6 +671,11 @@ public class SignupInteractionListener extends ListenerAdapter {
             Containers.replyEphemeral(event, Containers.WARNING, "That channel isn't a usable text channel.");
             return;
         }
+        String notAllowed = hub.publicChannelProblem(guild.getIdLong(), channel.getIdLong());
+        if (notAllowed != null) {
+            Containers.replyEphemeral(event, Containers.WARNING, notAllowed);
+            return;
+        }
 
         try {
             signupService.postSignupEmbed(guild, channel, signupId, panelType);
@@ -832,8 +840,14 @@ public class SignupInteractionListener extends ListenerAdapter {
                 Guild guild = event.getGuild();
                 long userId = event.getUser().getIdLong();
 
-                long adminChannelId = event.getValue("signup_builder_admin_channel").getAsLongList().getFirst();
+                // the server may have fixed its signup admin channel, or limited where the public panel can go (Hub settings)
+                long adminChannelId = hub.adminChannelFor(guild.getIdLong(), event.getValue("signup_builder_admin_channel").getAsLongList().getFirst());
                 long publicChannelId = event.getValue("signup_builder_public_channel").getAsLongList().getFirst();
+                String notAllowed = hub.publicChannelProblem(guild.getIdLong(), publicChannelId);
+                if (notAllowed != null) {
+                    Containers.replyThenDelete(event, Containers.WARNING, notAllowed);
+                    return;
+                }
                 TextChannel adminChannel = guild.getTextChannelById(adminChannelId);
                 TextChannel publicChannel = guild.getTextChannelById(publicChannelId);
 
