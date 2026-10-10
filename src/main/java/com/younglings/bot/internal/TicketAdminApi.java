@@ -112,7 +112,7 @@ public class TicketAdminApi {
             // whoami is the one route that answers "no" with a 200: the website uses it to decide what to show.
             if (parts.length == 1 && parts[0].equals("whoami")) {
                 requireMethod(method, "GET");
-                InternalApiServer.sendJson(exchange, 200, whoami(actor, tier));
+                InternalApiServer.sendJson(exchange, 200, whoami(guild, actor, tier));
                 return;
             }
             if (tier == Tier.NONE) {
@@ -198,11 +198,13 @@ public class TicketAdminApi {
         return id == 0 ? null : memberIn(guild, id);
     }
 
-    private static DataObject whoami(Member actor, Tier tier) {
+    private static DataObject whoami(Guild guild, Member actor, Tier tier) {
         DataObject json = DataObject.empty().put("allowed", tier != Tier.NONE).put("tier", tier.name());
         if (actor != null) {
             json.put("id", actor.getId()).put("displayName", actor.getEffectiveName()).put("avatarUrl", actor.getEffectiveAvatarUrl());
         }
+        // which server this answer is about; only given to someone allowed in, so it never names a server to a stranger
+        if (tier != Tier.NONE) json.put("guildName", guild.getName()).put("guildIconUrl", guild.getIconUrl());
         return json;
     }
 
