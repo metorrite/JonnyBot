@@ -176,6 +176,11 @@ public class RuneScapeStatsService {
         return activity.text() + "\u0000" + activity.details();
     }
 
+    /** The RuneMetrics request counters so far, so a polling pass can report what it cost (see {@link RequestPacer.Stats#minus}). */
+    public RequestPacer.Stats requestStats() {
+        return apiClient.paceStats();
+    }
+
     public PlayerLinkRepository.StatsSnapshotRow getLatestSnapshot(String rsn) {
         return repository.getLatestSnapshot(rsn);
     }

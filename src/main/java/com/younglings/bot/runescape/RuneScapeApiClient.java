@@ -1,5 +1,6 @@
 package com.younglings.bot.runescape;
 
+import com.younglings.bot.config.BotConfig;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.utils.data.DataArray;
 import net.dv8tion.jda.api.utils.data.DataObject;
@@ -45,6 +46,18 @@ public class RuneScapeApiClient {
             .connectTimeout(Duration.ofSeconds(10))
             .followRedirects(HttpClient.Redirect.NORMAL)
             .build();
+
+    // Every RuneMetrics profile request, from any thread, takes a slot from this one pacer: see RequestPacer.
+    private final RequestPacer pacer;
+
+    public RuneScapeApiClient(BotConfig botConfig) {
+        this.pacer = new RequestPacer(botConfig.getRunescapePollDelaySeconds() * 1000L, System::currentTimeMillis);
+    }
+
+    /** What the bot-wide RuneMetrics pacing has done since startup; subtract two readings to describe one polling pass. */
+    public RequestPacer.Stats paceStats() {
+        return pacer.stats();
+    }
 
     /** Empty if the player doesn't exist, has their profile set to private, or the request failed — see {@link #fetchProfileResult} to tell those apart. */
     public Optional<RuneScapeProfile> fetchProfile(String rsn) {
@@ -92,6 +105,7 @@ public class RuneScapeApiClient {
     }
 
     private ProfileResult attemptFetchProfile(String rsn) throws IOException, InterruptedException {
+        pacer.awaitSlot();
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(PROFILE_URL.formatted(encode(rsn))))
                 .timeout(Duration.ofSeconds(10))
@@ -99,6 +113,7 @@ public class RuneScapeApiClient {
                 .build();
 
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        pacer.recordResult(response.statusCode() == 429);
         if (response.statusCode() == 429) {
             Duration retryAfter = parseRetryAfter(response);
             log.info("RuneMetrics profile request for '{}' was rate-limited (HTTP 429){}", rsn,
