@@ -10,6 +10,7 @@ import com.younglings.bot.permission.PermissionGroupService;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel;
 import net.dv8tion.jda.api.utils.data.DataArray;
 import net.dv8tion.jda.api.utils.data.DataObject;
@@ -128,6 +129,7 @@ public class HubAdminApi {
             } else {
                 GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, Long.parseLong(raw));
                 if (channel == null) problems.add("Admin channel: that channel doesn't exist in this server.");
+                else if (!(channel instanceof TextChannel)) problems.add("Admin channel: signups can only use a text channel, not a forum or thread.");
                 else if (!channel.canTalk()) problems.add("Admin channel: JonnyBot can't post in #" + channel.getName() + ".");
                 else adminChannel = channel.getIdLong();
             }
@@ -135,6 +137,9 @@ public class HubAdminApi {
         boolean lock = b.getBoolean("lockAdminChannel", false);
         if (lock && adminChannel == null && problems.isEmpty()) problems.add("Choose the admin channel before fixing it.");
         List<Long> publics = b.isNull("publicChannelIds") ? List.of() : channelIds(guild, "Public panel channels", b.getArray("publicChannelIds"), problems);
+        for (long id : publics) {
+            if (guild.getTextChannelById(id) == null) problems.add("Public panel channels: signup panels can only go in text channels, not forums or threads.");
+        }
         return HubService.writeSignup(new HubService.SignupPolicy(adminChannel, lock, publics));
     }
 

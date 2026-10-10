@@ -9,6 +9,8 @@ import com.younglings.bot.permission.PermissionGroupService;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Role;
+import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
+import net.dv8tion.jda.api.entities.channel.concrete.ThreadChannel;
 import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel;
 import net.dv8tion.jda.api.utils.data.DataObject;
 import org.junit.jupiter.api.BeforeEach;
@@ -55,7 +57,8 @@ class HubAdminApiTest {
     }
 
     private GuildMessageChannel channel(long id, boolean canTalk) {
-        GuildMessageChannel channel = mock(GuildMessageChannel.class);
+        TextChannel channel = mock(TextChannel.class);
+        when(guild.getTextChannelById(id)).thenReturn(channel);
         when(channel.getIdLong()).thenReturn(id);
         when(channel.getName()).thenReturn("chan" + id);
         when(channel.canTalk()).thenReturn(canTalk);
@@ -145,6 +148,28 @@ class HubAdminApiTest {
                 DataObject.fromJson("{\"signup\": {\"adminChannelId\": \"77\", \"lockAdminChannel\": true, \"publicChannelIds\": []}}")));
 
         assertTrue(thrown.problems.getFirst().contains("can't post"));
+    }
+
+    @Test
+    void signupsCannotUseAForumThreadAsTheirAdminChannel() {
+        ThreadChannel thread = mock(ThreadChannel.class);
+        when(thread.canTalk()).thenReturn(true);
+        when(guild.getChannelById(GuildMessageChannel.class, 90L)).thenReturn(thread);
+
+        var thrown = assertThrows(TicketAdminApi.ApiError.class, () -> api.save(guild, actor, "signup",
+                DataObject.fromJson("{\"signup\": {\"adminChannelId\": \"90\", \"lockAdminChannel\": false, \"publicChannelIds\": []}}")));
+
+        assertTrue(thrown.problems.getFirst().contains("text channel"));
+    }
+
+    @Test
+    void aForumThreadIsFineWhereMembersMayUseACommand() {
+        ThreadChannel thread = mock(ThreadChannel.class);
+        when(guild.getChannelById(GuildMessageChannel.class, 91L)).thenReturn(thread);
+
+        api.save(guild, actor, "signup", DataObject.fromJson("{\"channelIds\": [\"91\"]}"));
+
+        assertEquals(List.of(91L), saved().channelIds());
     }
 
     @Test
