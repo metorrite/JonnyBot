@@ -44,7 +44,7 @@ public class ImageUploadService {
         if (data == null || data.length == 0) throw new InvalidImageException("That file is empty.");
         if (data.length > MAX_BYTES) throw new InvalidImageException("That picture is too big. Keep it under " + (MAX_BYTES / (1024 * 1024)) + " MB.");
         String type = sniff(data).orElseThrow(() -> new InvalidImageException("Upload a PNG, JPEG, GIF or WebP picture."));
-        return repository.put(guildId, scope, slot, newToken(), type, data);
+        return repository.put(guildId, scope, slot, newToken(), type, ImageResizer.fitFor(slot, type, data));
     }
 
     public boolean remove(long guildId, String scope, String slot) {
