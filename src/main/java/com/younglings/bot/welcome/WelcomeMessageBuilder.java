@@ -4,7 +4,6 @@ import com.younglings.bot.announcement.PostMarkup;
 import com.younglings.bot.welcome.WelcomeConfig.EmbedField;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
-import net.dv8tion.jda.api.components.buttons.Button;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
 import net.dv8tion.jda.api.utils.messages.MessageCreateData;
@@ -25,6 +24,14 @@ public final class WelcomeMessageBuilder {
     public static MessageCreateData build(WelcomeConfig c, WelcomeTemplate.Lookup lookup, long userId, boolean withLinkButton) {
         MessageCreateBuilder message = new MessageCreateBuilder();
 
+        if (c.messageType().isContainer()) {
+            // A container can't share a message with text or an embed, so it is the whole message. The link button, if wanted, is inside it.
+            var button = withLinkButton && c.linkButton() ? ContainerWelcome.linkButton(c, LINK_BUTTON_ID) : null;
+            message.useComponentsV2(true).setComponents(ContainerWelcome.build(c, lookup, button));
+            message.setAllowedMentions(EnumSet.noneOf(Message.MentionType.class)).mentionUsers(userId);
+            return message.build();
+        }
+
         if (c.messageType().hasText()) {
             String text = WelcomeTemplate.render(c.content(), lookup).strip();
             if (!text.isEmpty()) message.setContent(clip(text, 2000));
@@ -36,8 +43,7 @@ public final class WelcomeMessageBuilder {
         message.setAllowedMentions(EnumSet.noneOf(Message.MentionType.class)).mentionUsers(userId);
 
         if (withLinkButton && c.linkButton()) {
-            String label = c.linkButtonLabel().isBlank() ? "Link your RuneScape name" : c.linkButtonLabel();
-            message.addComponents(ActionRow.of(Button.primary(LINK_BUTTON_ID, clip(label, 80))));
+            message.addComponents(ActionRow.of(ContainerWelcome.linkButton(c, LINK_BUTTON_ID)));
         }
         return message.build();
     }

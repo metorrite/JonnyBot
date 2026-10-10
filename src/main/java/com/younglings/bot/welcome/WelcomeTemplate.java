@@ -55,7 +55,8 @@ public final class WelcomeTemplate {
             new String[]{"{&role}", "Mention a role by name"},
             new String[]{"{#channel}", "Link a channel by name"},
             new String[]{"{everyone}", "Shows @everyone without pinging"},
-            new String[]{"{here}", "Shows @here without pinging"});
+            new String[]{"{here}", "Shows @here without pinging"},
+            new String[]{"{rs_button}", "Where the link button goes (Container messages only)"});
 
     private static final Pattern TOKEN = Pattern.compile("\\{([^{}\\n]{1,100})}");
 

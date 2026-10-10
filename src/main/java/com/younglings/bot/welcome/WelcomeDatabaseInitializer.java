@@ -44,7 +44,10 @@ public class WelcomeDatabaseInitializer {
                     link_button_label TEXT NOT NULL DEFAULT 'Link your RuneScape name',
                     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 );
-                """
+                """,
+
+                // The link button's colour: primary, secondary, success or danger.
+                "ALTER TABLE younglings.welcome_config ADD COLUMN IF NOT EXISTS link_button_style TEXT NOT NULL DEFAULT 'primary';"
         ));
     }
 }
