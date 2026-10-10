@@ -72,6 +72,7 @@ public class Bot extends JDAService {
     private final HelpTicketFlow helpTicketFlow;
     private final PvmHelpConfigureListener pvmHelpConfigureListener;
     private final WelcomeListener welcomeListener;
+    private final GuildLifecycleListener guildLifecycleListener;
 
     public Bot(BotConfig botConfig, SignupInteractionListener signupInteractionListener,
                PollInteractionListener pollInteractionListener,
@@ -97,8 +98,9 @@ public class Bot extends JDAService {
                PostActionListener postActionListener,
                DevEmbedListener devEmbedListener,
                TicketListener ticketListener, HelpListener helpListener, HelpTicketFlow helpTicketFlow, PvmHelpConfigureListener pvmHelpConfigureListener,
-               WelcomeListener welcomeListener) {
+               WelcomeListener welcomeListener, GuildLifecycleListener guildLifecycleListener) {
         this.welcomeListener = welcomeListener;
+        this.guildLifecycleListener = guildLifecycleListener;
         this.botConfig = botConfig;
         this.signupInteractionListener = signupInteractionListener;
         this.pollInteractionListener = pollInteractionListener;
@@ -172,7 +174,7 @@ public class Bot extends JDAService {
                         trackingAuditLogListener, trackingConfigInteractionListener,
                         announcementInteractionListener, weeklyDigestInteractionListener,
                         commandChannelListener, commandChannelConfigInteractionListener, ephemeralLifecycle,
-                        postActionListener, devEmbedListener, ticketListener, helpListener, helpTicketFlow, pvmHelpConfigureListener, welcomeListener)
+                        postActionListener, devEmbedListener, ticketListener, helpListener, helpTicketFlow, pvmHelpConfigureListener, welcomeListener, guildLifecycleListener)
                 .build();
     }
 }

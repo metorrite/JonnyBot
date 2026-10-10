@@ -64,6 +64,7 @@ import java.util.concurrent.TimeUnit;
 public class InternalApiServer {
     private static final Logger log = LoggerFactory.getLogger(InternalApiServer.class);
     private static final String SECRET_HEADER = "X-Internal-Secret";
+    private static final String GUILD_HEADER = "X-Guild-Id";
     private static final int MAX_NICKNAME_LENGTH = 32; // Discord's own limit
 
     private final BotConfig botConfig;
@@ -148,9 +149,12 @@ public class InternalApiServer {
 
     /**
      * The dashboard's routes: this checks the secret and finds the guild (any HTTP method), then
-     * {@link TicketAdminApi} checks who is asking and does the rest.
+     * {@link TicketAdminApi} checks who is asking and does the rest. The server comes from the {@code X-Guild-Id}
+     * header; without one it is the bot's home server, so the clan website's own admin console keeps working
+     * unchanged. Whoever is asking is always checked against <em>that</em> server, never the home server's rules.
+     * {@code /internal/admin/guilds} is the one route with no server: it lists the servers the asker may manage.
      */
-    private void handleAdmin(HttpExchange exchange, String secret, long guildId) throws IOException {
+    private void handleAdmin(HttpExchange exchange, String secret, long homeGuildId) throws IOException {
         try {
             String provided = exchange.getRequestHeaders().getFirst(SECRET_HEADER);
             if (provided == null || !constantTimeEquals(provided, secret)) {
@@ -158,17 +162,42 @@ public class InternalApiServer {
                 return;
             }
 
-            Guild guild = jda.getGuildById(guildId);
-            if (guild == null) {
-                sendJson(exchange, 503, DataObject.empty().put("error", "Guild not available yet"));
+            String path = exchange.getRequestURI().getPath();
+            if (path.equals("/internal/admin/guilds") || path.equals("/internal/admin/guilds/")) {
+                ticketAdminApi.handleGuildList(exchange, jda);
                 return;
             }
 
+            Guild guild = adminGuild(exchange, homeGuildId);
+            if (guild == null) return;
             ticketAdminApi.handle(exchange, guild);
         } catch (Exception e) {
             log.error("Internal API admin request failed", e);
             sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));
         }
+    }
+
+    /** The server an admin request is about, or {@code null} after the error has been sent. */
+    private Guild adminGuild(HttpExchange exchange, long homeGuildId) throws IOException {
+        String raw = exchange.getRequestHeaders().getFirst(GUILD_HEADER);
+        boolean requested = raw != null && !raw.isBlank();
+        long id = homeGuildId;
+        if (requested) {
+            try {
+                id = Long.parseLong(raw.trim());
+            } catch (NumberFormatException e) {
+                sendJson(exchange, 400, DataObject.empty().put("error", "That isn't a valid server id."));
+                return null;
+            }
+        }
+
+        Guild guild = jda.getGuildById(id);
+        if (guild == null) {
+            if (requested) sendJson(exchange, 404, DataObject.empty().put("error", "JonnyBot isn't in that server."));
+            else sendJson(exchange, 503, DataObject.empty().put("error", "Guild not available yet"));
+            return null;
+        }
+        return guild;
     }
 
     /** A member's own settings, goals and roles — secret and guild checked here; the user id is trusted from the website's verified session. */

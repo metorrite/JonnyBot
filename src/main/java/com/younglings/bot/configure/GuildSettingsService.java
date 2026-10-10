@@ -20,21 +20,33 @@ public class GuildSettingsService {
         this.botConfig = botConfig;
     }
 
+    /**
+     * Whether {@code guildId} may fall back to the environment's settings. Those describe the bot's own home server
+     * ({@code GUILD_ID}): a clan name and role and channel ids that mean nothing anywhere else, and that would hand a
+     * newly installed server somebody else's clan. So any other server starts with nothing and has to be configured.
+     * With no {@code GUILD_ID} at all (a single-server setup) every server counts as home, which is how it behaved before.
+     */
+    boolean usesEnvironmentDefaults(long guildId) {
+        Long home = botConfig.getGuildId();
+        return home == null || home == guildId;
+    }
+
     public GuildSettings getEffective(long guildId) {
         GuildSettings stored = repository.get(guildId);
+        boolean env = usesEnvironmentDefaults(guildId);
 
-        String clanName = stored != null && stored.clanName() != null ? stored.clanName() : botConfig.getClanName();
-        Long adminRoleId = stored != null && stored.adminRoleId() != null ? stored.adminRoleId() : botConfig.getAdminRoleId();
+        String clanName = stored != null && stored.clanName() != null ? stored.clanName() : env ? botConfig.getClanName() : null;
+        Long adminRoleId = stored != null && stored.adminRoleId() != null ? stored.adminRoleId() : env ? botConfig.getAdminRoleId() : null;
         Long renameAlertChannelId = stored != null && stored.renameAlertChannelId() != null
-                ? stored.renameAlertChannelId() : botConfig.getRenameAlertChannelId();
+                ? stored.renameAlertChannelId() : env ? botConfig.getRenameAlertChannelId() : null;
         Long verificationReviewChannelId = stored != null && stored.verificationReviewChannelId() != null
-                ? stored.verificationReviewChannelId() : botConfig.getVerificationReviewChannelId();
+                ? stored.verificationReviewChannelId() : env ? botConfig.getVerificationReviewChannelId() : null;
         Long verifiedClanRoleId = stored != null && stored.verifiedClanRoleId() != null
-                ? stored.verifiedClanRoleId() : botConfig.getVerifiedClanRoleId();
+                ? stored.verifiedClanRoleId() : env ? botConfig.getVerifiedClanRoleId() : null;
         Long verifiedNonClanRoleId = stored != null && stored.verifiedNonClanRoleId() != null
-                ? stored.verifiedNonClanRoleId() : botConfig.getVerifiedNonClanRoleId();
+                ? stored.verifiedNonClanRoleId() : env ? botConfig.getVerifiedNonClanRoleId() : null;
         Long unverifiedRoleId = stored != null && stored.unverifiedRoleId() != null
-                ? stored.unverifiedRoleId() : botConfig.getUnverifiedRoleId();
+                ? stored.unverifiedRoleId() : env ? botConfig.getUnverifiedRoleId() : null;
         Long onboardingRoleId = stored != null ? stored.onboardingRoleId() : null;
 
         boolean clanEnabled = stored == null || stored.clanEnabled();

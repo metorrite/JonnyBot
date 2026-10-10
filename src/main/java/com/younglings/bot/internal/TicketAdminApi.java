@@ -144,24 +144,58 @@ public class TicketAdminApi {
         }
     }
 
+    /**
+     * The servers JonnyBot is in where the asker may use the dashboard, for the dashboard's server picker. Each server is
+     * judged by its own rules ({@link DashboardAccess}), and only servers the asker can manage are named, so nobody
+     * learns which other servers the bot is in. Answers an empty list, not an error, for an unknown asker.
+     */
+    public void handleGuildList(HttpExchange exchange, net.dv8tion.jda.api.JDA jda) throws IOException {
+        try {
+            requireMethod(exchange.getRequestMethod().toUpperCase(), "GET");
+            DataArray guilds = DataArray.empty();
+            long actorId = actorIdOf(exchange);
+            if (actorId != 0) {
+                for (Guild guild : jda.getGuilds()) {
+                    Member member = memberIn(guild, actorId);
+                    if (member == null) continue;
+                    Tier tier = access.tierOf(guild, member);
+                    if (tier == Tier.NONE) continue;
+                    guilds.add(DataObject.empty().put("id", guild.getId()).put("name", guild.getName()).put("iconUrl", guild.getIconUrl())
+                            .put("memberCount", guild.getMemberCount()).put("tier", tier.name()));
+                }
+            }
+            InternalApiServer.sendJson(exchange, 200, DataObject.empty().put("guilds", guilds));
+        } catch (ApiError e) {
+            InternalApiServer.sendJson(exchange, e.status, DataObject.empty().put("error", e.getMessage()));
+        }
+    }
+
     // ---------- who is asking ----------
 
-    private Member actorOf(HttpExchange exchange, Guild guild) {
+    /** The asker's Discord id from the request, or 0 if there isn't a usable one. */
+    private static long actorIdOf(HttpExchange exchange) {
         String raw = exchange.getRequestHeaders().getFirst(ACTOR_HEADER);
-        if (raw == null || raw.isBlank()) return null;
-        long id;
+        if (raw == null || raw.isBlank()) return 0;
         try {
-            id = Long.parseLong(raw.trim());
+            return Long.parseLong(raw.trim());
         } catch (NumberFormatException e) {
-            return null;
+            return 0;
         }
-        Member cached = guild.getMemberById(id);
+    }
+
+    private static Member memberIn(Guild guild, long userId) {
+        Member cached = guild.getMemberById(userId);
         if (cached != null) return cached;
         try {
-            return guild.retrieveMemberById(id).complete();
+            return guild.retrieveMemberById(userId).complete();
         } catch (Exception e) {
             return null; // not in the server (or Discord couldn't say) — no access
         }
+    }
+
+    private Member actorOf(HttpExchange exchange, Guild guild) {
+        long id = actorIdOf(exchange);
+        return id == 0 ? null : memberIn(guild, id);
     }
 
     private static DataObject whoami(Member actor, Tier tier) {

@@ -14,11 +14,14 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -49,10 +52,9 @@ import java.util.stream.Collectors;
  * looping over every guild in one job is what lets guilds run concurrently instead of queueing behind
  * each other.
  * <p>
- * A guild that adds a clan after boot won't get its own job until the bot restarts — same tradeoff
- * {@link ClanSyncScheduler} already makes for its daily job, for the same reason: this is a
- * single-guild bot in practice, and it's not worth reacting live to guild changes a restart already
- * handles.
+ * The per-guild jobs are re-checked every {@link #JOB_RECONCILE_INTERVAL}: a guild that sets up a clan, or
+ * installs the bot, gets its own job within minutes, and one that clears its clan or removes the bot loses it
+ * (see {@link #reconcileClanJobs}). Only the single non-clan pool below is fixed at boot.
  */
 @BService
 public class RosterPollScheduler {
@@ -62,7 +64,10 @@ public class RosterPollScheduler {
     private static final Duration CLAN_MEMBER_INITIAL_DELAY = Duration.ofMinutes(2);
     private static final Duration NON_CLAN_MEMBER_WINDOW = Duration.ofHours(8);
     private static final LocalTime NON_CLAN_MEMBER_ANCHOR_UTC = LocalTime.of(23, 30);
+    private static final Duration JOB_RECONCILE_INTERVAL = Duration.ofMinutes(10);
 
+    /** The running roster-poll job for each server that has a clan. */
+    private final Map<Long, ScheduledFuture<?>> clanJobs = new ConcurrentHashMap<>();
     private final ClanSyncService clanSyncService;
     private final PlayerLinkService linkService;
     private final RuneScapeStatsService statsService;
@@ -104,23 +109,49 @@ public class RosterPollScheduler {
     }
 
     private void setUpJobs(JDA jda) {
-        int guildJobs = 0;
-        for (Guild guild : jda.getGuilds()) {
-            long guildId = guild.getIdLong();
-            if (clanSyncService.getClanName(guildId) == null) continue; // nothing configured to poll
-
-            executor.scheduleAtFixedRate(() -> pollClanRoster(guildId),
-                    CLAN_MEMBER_INITIAL_DELAY.toSeconds(), CLAN_MEMBER_WINDOW.toSeconds(), TimeUnit.SECONDS);
-            guildJobs++;
-        }
+        // the per-server jobs are kept in step with which servers have a clan, now and every few minutes after
+        executor.scheduleWithFixedDelay(() -> reconcileClanJobs(jda), 0, JOB_RECONCILE_INTERVAL.toSeconds(), TimeUnit.SECONDS);
 
         Duration nonClanInitialDelay = durationUntilNextUtc(NON_CLAN_MEMBER_ANCHOR_UTC);
         executor.scheduleAtFixedRate(this::pollNonClanMembers,
                 nonClanInitialDelay.toSeconds(), NON_CLAN_MEMBER_WINDOW.toSeconds(), TimeUnit.SECONDS);
 
-        log.info("Roster poll scheduler starting: {} guild(s) spreading their clan roster across every {}; " +
-                        "non-clan-member linked accounts spreading across every {}, first cycle ending near {} UTC.",
-                guildJobs, CLAN_MEMBER_WINDOW, NON_CLAN_MEMBER_WINDOW, NON_CLAN_MEMBER_ANCHOR_UTC);
+        log.info("Roster poll scheduler starting: each server with a clan spreads its roster across every {}; " +
+                        "non-clan-member linked accounts spread across every {}, first cycle ending near {} UTC.",
+                CLAN_MEMBER_WINDOW, NON_CLAN_MEMBER_WINDOW, NON_CLAN_MEMBER_ANCHOR_UTC);
+    }
+
+    /**
+     * Gives every server that has a clan its own roster-poll job, and stops the job of any server that no longer does
+     * (it cleared its clan, or the bot left it). Runs repeatedly, so a server that sets up a clan, or installs the bot,
+     * starts being polled within minutes instead of at the next restart.
+     */
+    void reconcileClanJobs(JDA jda) {
+        try {
+            Set<Long> wanted = new HashSet<>();
+            for (Guild guild : jda.getGuilds()) {
+                if (clanSyncService.getClanName(guild.getIdLong()) != null) wanted.add(guild.getIdLong());
+            }
+
+            for (long guildId : wanted) {
+                clanJobs.computeIfAbsent(guildId, id -> {
+                    log.info("Starting roster-spread polling for guild {}.", id);
+                    return executor.scheduleAtFixedRate(() -> pollClanRoster(id),
+                            CLAN_MEMBER_INITIAL_DELAY.toSeconds(), CLAN_MEMBER_WINDOW.toSeconds(), TimeUnit.SECONDS);
+                });
+            }
+
+            var jobs = clanJobs.entrySet().iterator();
+            while (jobs.hasNext()) {
+                var job = jobs.next();
+                if (wanted.contains(job.getKey())) continue;
+                job.getValue().cancel(false);
+                jobs.remove();
+                log.info("Stopped roster-spread polling for guild {}: it no longer has a clan.", job.getKey());
+            }
+        } catch (Exception e) {
+            log.error("Couldn't bring the roster-poll jobs in line with the servers' clans", e);
+        }
     }
 
     private void pollClanRoster(long guildId) {
