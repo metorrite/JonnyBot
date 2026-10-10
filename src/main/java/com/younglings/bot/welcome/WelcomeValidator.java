@@ -61,7 +61,12 @@ public final class WelcomeValidator {
             int number = 0;
             for (EmbedField field : c.fields()) {
                 number++;
-                if (field.name().isBlank() || field.value().isBlank()) problems.add("Field " + number + " needs both a name and a value.");
+                // An embed field needs both (Discord insists); a container's blocks are plain text, so either one is enough.
+                if (c.messageType().isContainer()) {
+                    if (field.name().isBlank() && field.value().isBlank()) problems.add("Field " + number + " is empty. Add a name, a value or both.");
+                } else if (field.name().isBlank() || field.value().isBlank()) {
+                    problems.add("Field " + number + " needs both a name and a value.");
+                }
                 tooLong(problems, "The name of field " + number, field.name(), MAX_FIELD_NAME);
                 tooLong(problems, "The value of field " + number, field.value(), MAX_FIELD_VALUE);
             }
