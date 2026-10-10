@@ -7,6 +7,8 @@ import com.younglings.bot.configure.GuildSettings;
 import com.younglings.bot.configure.GuildSettingsService;
 import com.younglings.bot.discord.Containers;
 import com.younglings.bot.discord.DiscordLinks;
+import com.younglings.bot.permission.PermissionGroup;
+import com.younglings.bot.permission.PermissionGroupService;
 import com.younglings.bot.runescape.ClanVerificationService;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.Permission;
@@ -54,9 +56,11 @@ public class ConfigureInteractionListener extends ListenerAdapter {
     private final ClanVerificationService clanVerificationService;
     private final AnnouncementRepository announcementRepository;
     private final EmbedService embedService;
+    private final PermissionGroupService permissionGroups;
 
     public ConfigureInteractionListener(GuildSettingsService settingsService, ClanVerificationService clanVerificationService,
-                                        AnnouncementRepository announcementRepository, EmbedService embedService) {
+                                        AnnouncementRepository announcementRepository, EmbedService embedService, PermissionGroupService permissionGroups) {
+        this.permissionGroups = permissionGroups;
         this.settingsService = settingsService;
         this.clanVerificationService = clanVerificationService;
         this.announcementRepository = announcementRepository;
@@ -170,6 +174,10 @@ public class ConfigureInteractionListener extends ListenerAdapter {
         }
     }
 
+    private static List<Long> selectedRoleIds(EntitySelectInteractionEvent event) {
+        return event.getValues().stream().map(net.dv8tion.jda.api.entities.IMentionable::getIdLong).toList();
+    }
+
     /** The Rename Alert and Verification Review channel pickers — same immediate-apply pattern as the role dropdowns above, just for a channel instead of a role. */
     @Override
     public void onEntitySelectInteraction(EntitySelectInteractionEvent event) {
@@ -192,15 +200,15 @@ public class ConfigureInteractionListener extends ListenerAdapter {
                     event.editComponents(List.of(buildVerificationPanel(guild))).useComponentsV2(true).queue();
                 }
                 case "configure_support_role" -> {
-                    settingsService.updateSupportRole(guild.getIdLong(), selectedChannelId);
+                    permissionGroups.setRoles(guild.getIdLong(), PermissionGroup.SUPPORT, selectedRoleIds(event));
                     event.editComponents(List.of(buildClanPanel(guild))).useComponentsV2(true).queue();
                 }
                 case "configure_developer_role" -> {
-                    settingsService.updateDeveloperRole(guild.getIdLong(), selectedChannelId);
+                    permissionGroups.setRoles(guild.getIdLong(), PermissionGroup.DEVELOPER, selectedRoleIds(event));
                     event.editComponents(List.of(buildClanPanel(guild))).useComponentsV2(true).queue();
                 }
                 case "configure_admin_role" -> {
-                    settingsService.updateAdminRole(guild.getIdLong(), selectedChannelId);
+                    permissionGroups.setRoles(guild.getIdLong(), PermissionGroup.ADMIN, selectedRoleIds(event));
                     event.editComponents(List.of(buildClanPanel(guild))).useComponentsV2(true).queue();
                 }
                 case "configure_verification_channel" -> {
@@ -452,36 +460,32 @@ public class ConfigureInteractionListener extends ListenerAdapter {
                         : Button.success("configure_clan_toggle:_", "Turn Clan Features On"),
                 Button.secondary("configure_clan_website:_", settings.websiteUrl() != null ? "Change Website Link" : "Set Website Link")));
 
-        children.add(TextDisplay.of("**Bot Admin Role** — who can use `/rsadmin` and the admin-only tools. Leave empty to fall back to the server default."));
-        EntitySelectMenu.Builder roleMenu = EntitySelectMenu.create("configure_admin_role:_", EntitySelectMenu.SelectTarget.ROLE)
-                .setPlaceholder("Select a role (optional)")
-                .setRequiredRange(0, 1);
-        if (settings.adminRoleId() != null && guild.getRoleById(settings.adminRoleId()) != null) {
-            roleMenu.setDefaultValues(EntitySelectMenu.DefaultValue.role(settings.adminRoleId()));
-        }
-        children.add(ActionRow.of(roleMenu.build()));
+        children.add(TextDisplay.of("**Bot Admin Roles** — who can use `/rsadmin` and the admin-only tools. Anyone with a role ranked above the lowest of these counts too. " +
+                "Add more groups of your own, such as a Web Dev group, in the website dashboard."));
+        children.add(ActionRow.of(groupRoleMenu(guild, "configure_admin_role:_", PermissionGroup.ADMIN)));
 
-        children.add(TextDisplay.of("**Bot Support Role** — can review and verify RSN requests in `/rsadmin`, and nothing else there. Leave empty for none."));
-        EntitySelectMenu.Builder supportMenu = EntitySelectMenu.create("configure_support_role:_", EntitySelectMenu.SelectTarget.ROLE)
-                .setPlaceholder("Select a role (optional)")
-                .setRequiredRange(0, 1);
-        if (settings.supportRoleId() != null && guild.getRoleById(settings.supportRoleId()) != null) {
-            supportMenu.setDefaultValues(EntitySelectMenu.DefaultValue.role(settings.supportRoleId()));
-        }
-        children.add(ActionRow.of(supportMenu.build()));
+        children.add(TextDisplay.of("**Bot Support Roles** — can review and verify RSN requests in `/rsadmin`, and nothing else there. Leave empty for none."));
+        children.add(ActionRow.of(groupRoleMenu(guild, "configure_support_role:_", PermissionGroup.SUPPORT)));
 
-        children.add(TextDisplay.of("**Bot Developer Role** — may open the website's admin dashboard (ticket panels and settings), alongside the Admin role and above. Leave empty for none."));
-        EntitySelectMenu.Builder developerMenu = EntitySelectMenu.create("configure_developer_role:_", EntitySelectMenu.SelectTarget.ROLE)
-                .setPlaceholder("Select a role (optional)")
-                .setRequiredRange(0, 1);
-        if (settings.developerRoleId() != null && guild.getRoleById(settings.developerRoleId()) != null) {
-            developerMenu.setDefaultValues(EntitySelectMenu.DefaultValue.role(settings.developerRoleId()));
-        }
-        children.add(ActionRow.of(developerMenu.build()));
+        children.add(TextDisplay.of("**Bot Developer Roles** — may open the website's dashboard (ticket panels and settings), alongside the Admin roles and above. Leave empty for none."));
+        children.add(ActionRow.of(groupRoleMenu(guild, "configure_developer_role:_", PermissionGroup.DEVELOPER)));
 
         children.add(ActionRow.of(Button.primary("configure_back:_", "Back")));
         children.add(Containers.autoCloseNote());
         return Containers.card(Containers.PRIMARY, children);
+    }
+
+    /** A role dropdown for one permission group, showing the group's roles that still exist. */
+    private EntitySelectMenu groupRoleMenu(Guild guild, String id, String groupKey) {
+        List<EntitySelectMenu.DefaultValue> current = permissionGroups.roleIds(guild.getIdLong(), groupKey).stream()
+                .filter(roleId -> guild.getRoleById(roleId) != null)
+                .map(EntitySelectMenu.DefaultValue::role)
+                .toList();
+        EntitySelectMenu.Builder menu = EntitySelectMenu.create(id, EntitySelectMenu.SelectTarget.ROLE)
+                .setPlaceholder("Select roles (optional)")
+                .setRequiredRange(0, PermissionGroupService.MAX_ROLES_PER_GROUP);
+        if (!current.isEmpty()) menu.setDefaultValues(current);
+        return menu.build();
     }
 
     private static String display(String value) {

@@ -60,33 +60,7 @@ public class GuildSettingsRepository {
         }
     }
 
-    /** Any parameter may be {@code null} to clear that override (falling back to {@code BotConfig} again). */
-    public void upsertClanSettings(long guildId, String clanName, Long adminRoleId) {
-        String sql = """
-                INSERT INTO younglings.guild_settings (guild_id, clan_name, admin_role_id)
-                VALUES (?, ?, ?)
-                ON CONFLICT (guild_id) DO UPDATE SET
-                    clan_name = EXCLUDED.clan_name,
-                    admin_role_id = EXCLUDED.admin_role_id
-                """;
-
-        try (Connection connection = connectionSupplier.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
-
-            statement.setLong(1, guildId);
-            statement.setString(2, clanName);
-            setNullableLong(statement, 3, adminRoleId);
-            statement.executeUpdate();
-
-            log.info("Updated clan settings for guild {}", guildId);
-
-        } catch (SQLException e) {
-            log.error("Failed to upsert guild settings for {}", guildId, e);
-            throw new RuntimeException("Failed to upsert guild settings", e);
-        }
-    }
-
-    /** A narrower upsert than {@link #upsertClanSettings} — only ever touches this one column, picked via a native channel dropdown now instead of a typed/pasted ID. */
+    /** A narrower upsert than the old combined upsert — only ever touches this one column, picked via a native channel dropdown now instead of a typed/pasted ID. */
     public void upsertRenameAlertChannel(long guildId, Long renameAlertChannelId) {
         String sql = """
                 INSERT INTO younglings.guild_settings (guild_id, rename_alert_channel_id)
@@ -111,7 +85,7 @@ public class GuildSettingsRepository {
     }
 
     /**
-     * A narrower upsert than {@link #upsertClanSettings} — only ever touches these three columns.
+     * A narrower upsert than the old combined upsert — only ever touches these three columns.
      * Each of the Verification panel's three role dropdowns calls this with the other two values
      * unchanged (read from {@link GuildSettingsService#getEffective} first), so picking one role
      * never clobbers the other two.
@@ -144,7 +118,7 @@ public class GuildSettingsRepository {
     }
 
     /**
-     * A narrower upsert than {@link #upsertClanSettings} — only ever touches this one column, so a
+     * A narrower upsert than the old combined upsert — only ever touches this one column, so a
      * guild that's only ever set its Verification settings doesn't have its (unrelated) clan name,
      * admin role, etc. wiped back to {@code null} by a modal that never asked about them.
      */
@@ -172,7 +146,7 @@ public class GuildSettingsRepository {
     }
 
     /**
-     * A narrower upsert than {@link #upsertClanSettings} — only ever touches this one column. Separate
+     * A narrower upsert than the old combined upsert — only ever touches this one column. Separate
      * from {@link #upsertVerificationRoleSettings} since this role applies at a different moment
      * (submission, not approval) and is edited from its own dropdown.
      */
@@ -223,7 +197,7 @@ public class GuildSettingsRepository {
         }
     }
 
-    /** A narrower upsert than {@link #upsertClanSettings} — only the clan name. */
+    /** A narrower upsert than the old combined upsert — only the clan name. */
     public void upsertClanName(long guildId, String clanName) {
         String sql = """
                 INSERT INTO younglings.guild_settings (guild_id, clan_name)
@@ -244,78 +218,6 @@ public class GuildSettingsRepository {
         } catch (SQLException e) {
             log.error("Failed to upsert clan name for {}", guildId, e);
             throw new RuntimeException("Failed to upsert clan name", e);
-        }
-    }
-
-    /** A narrower upsert than {@link #upsertClanSettings} — only the bot's Admin role. */
-    public void upsertAdminRole(long guildId, Long adminRoleId) {
-        String sql = """
-                INSERT INTO younglings.guild_settings (guild_id, admin_role_id)
-                VALUES (?, ?)
-                ON CONFLICT (guild_id) DO UPDATE SET
-                    admin_role_id = EXCLUDED.admin_role_id
-                """;
-
-        try (Connection connection = connectionSupplier.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
-
-            statement.setLong(1, guildId);
-            setNullableLong(statement, 2, adminRoleId);
-            statement.executeUpdate();
-
-            log.info("Updated admin role for guild {}", guildId);
-
-        } catch (SQLException e) {
-            log.error("Failed to upsert admin role for {}", guildId, e);
-            throw new RuntimeException("Failed to upsert admin role", e);
-        }
-    }
-
-    /** A narrower upsert than {@link #upsertClanSettings} — only the Support role. */
-    public void upsertSupportRole(long guildId, Long supportRoleId) {
-        String sql = """
-                INSERT INTO younglings.guild_settings (guild_id, support_role_id)
-                VALUES (?, ?)
-                ON CONFLICT (guild_id) DO UPDATE SET
-                    support_role_id = EXCLUDED.support_role_id
-                """;
-
-        try (Connection connection = connectionSupplier.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
-
-            statement.setLong(1, guildId);
-            setNullableLong(statement, 2, supportRoleId);
-            statement.executeUpdate();
-
-            log.info("Updated support role for guild {}", guildId);
-
-        } catch (SQLException e) {
-            log.error("Failed to upsert support role for {}", guildId, e);
-            throw new RuntimeException("Failed to upsert support role", e);
-        }
-    }
-
-    /** A narrower upsert than {@link #upsertClanSettings} — only the Developer role. */
-    public void upsertDeveloperRole(long guildId, Long developerRoleId) {
-        String sql = """
-                INSERT INTO younglings.guild_settings (guild_id, developer_role_id)
-                VALUES (?, ?)
-                ON CONFLICT (guild_id) DO UPDATE SET
-                    developer_role_id = EXCLUDED.developer_role_id
-                """;
-
-        try (Connection connection = connectionSupplier.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
-
-            statement.setLong(1, guildId);
-            setNullableLong(statement, 2, developerRoleId);
-            statement.executeUpdate();
-
-            log.info("Updated developer role for guild {}", guildId);
-
-        } catch (SQLException e) {
-            log.error("Failed to upsert developer role for {}", guildId, e);
-            throw new RuntimeException("Failed to upsert developer role", e);
         }
     }
 

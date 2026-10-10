@@ -1,6 +1,5 @@
 package com.younglings.bot.permission;
 
-import com.younglings.bot.configure.GuildSettings;
 import com.younglings.bot.configure.GuildSettingsService;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
@@ -25,7 +24,9 @@ class AdminRoleFilterTest {
     private static final long ADMIN_ROLE_ID = 100L;
 
     @Mock
-    private GuildSettingsService guildSettingsService;
+    private PermissionGroupRepository repository;
+    @Mock
+    private GuildSettingsService legacySettings;
     @Mock
     private Guild guild;
     @Mock
@@ -37,19 +38,23 @@ class AdminRoleFilterTest {
 
     @BeforeEach
     void setUp() {
-        filter = new AdminRoleFilter(guildSettingsService);
+        filter = new AdminRoleFilter(new PermissionGroupService(repository, legacySettings));
         lenient().when(adminRole.getPosition()).thenReturn(10);
+        lenient().when(adminRole.getIdLong()).thenReturn(ADMIN_ROLE_ID);
+        lenient().when(guild.getIdLong()).thenReturn(1L);
         lenient().when(guild.getRoleById(ADMIN_ROLE_ID)).thenReturn(adminRole);
     }
 
     private void withAdminRoleId(Long adminRoleId) {
-        when(guildSettingsService.getEffective(anyLong())).thenReturn(
-                new GuildSettings(0L, null, adminRoleId, null, null, null, null, null, null, true, null, null, null));
+        withRoles(adminRoleId, null);
     }
 
+    /** The server's three built-in groups, as the old single Admin and Support roles were seeded into them: Admin includes higher roles, Support is exact. */
     private void withRoles(Long adminRoleId, Long supportRoleId) {
-        when(guildSettingsService.getEffective(anyLong())).thenReturn(
-                new GuildSettings(0L, null, adminRoleId, null, null, null, null, null, null, true, null, supportRoleId, null));
+        when(repository.list(anyLong())).thenReturn(List.of(
+                new PermissionGroup(1, 1, PermissionGroup.ADMIN, "Admin", true, true, adminRoleId == null ? List.of() : List.of(adminRoleId)),
+                new PermissionGroup(2, 1, PermissionGroup.SUPPORT, "Support", true, false, supportRoleId == null ? List.of() : List.of(supportRoleId)),
+                new PermissionGroup(3, 1, PermissionGroup.DEVELOPER, "Developer", true, false, List.of())));
     }
 
     @Test
