@@ -20,10 +20,13 @@ import com.younglings.bot.ticket.TicketModels.Ticket;
 import com.younglings.bot.ticket.TicketRepository;
 import com.younglings.bot.ticket.TicketRepository.Transcript;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
+import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.entities.channel.concrete.Category;
+import net.dv8tion.jda.api.entities.channel.concrete.ForumChannel;
+import net.dv8tion.jda.api.entities.channel.concrete.ThreadChannel;
 import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel;
 import net.dv8tion.jda.api.utils.data.DataArray;
 import net.dv8tion.jda.api.utils.data.DataObject;
@@ -513,7 +516,53 @@ public class TicketAdminApi {
                 .put("category", channel.getParentCategory() == null ? null : channel.getParentCategory().getName())
                 .put("canPost", channel.canTalk())));
 
-        return DataObject.empty().put("roles", roles).put("categories", categories).put("channels", channels);
+        // announcement channels post like text channels
+        guild.getNewsChannels().forEach(channel -> channels.add(DataObject.empty()
+                .put("id", channel.getId())
+                .put("name", channel.getName())
+                .put("category", channel.getParentCategory() == null ? null : channel.getParentCategory().getName())
+                .put("canPost", channel.canTalk())));
+
+        // A forum can't be posted in directly: JonnyBot posts in one of its threads, so the picker offers each forum with its threads.
+        DataArray forums = DataArray.empty();
+        DataArray threads = DataArray.empty();
+        for (ForumChannel forum : guild.getForumChannels()) {
+            boolean forumCanPost = guild.getSelfMember().hasPermission(forum, Permission.VIEW_CHANNEL, Permission.MESSAGE_SEND_IN_THREADS);
+            forums.add(DataObject.empty()
+                    .put("id", forum.getId())
+                    .put("name", forum.getName())
+                    .put("category", forum.getParentCategory() == null ? null : forum.getParentCategory().getName())
+                    .put("canPost", forumCanPost));
+
+            java.util.Map<Long, ThreadChannel> all = new java.util.LinkedHashMap<>();
+            forum.getThreadChannels().forEach(thread -> all.put(thread.getIdLong(), thread));
+            for (ThreadChannel archived : archivedThreads(forum)) all.putIfAbsent(archived.getIdLong(), archived);
+            all.values().forEach(thread -> threads.add(DataObject.empty()
+                    .put("id", thread.getId())
+                    .put("name", thread.getName())
+                    .put("forumId", forum.getId())
+                    .put("archived", thread.isArchived())
+                    .put("canPost", forumCanPost && !thread.isLocked())));
+        }
+
+        return DataObject.empty().put("roles", roles).put("categories", categories).put("channels", channels).put("forums", forums).put("threads", threads);
+    }
+
+    private static final int ARCHIVED_THREADS_PER_FORUM = 25;
+    private final TtlCache archivedThreadCache = new TtlCache();
+
+    /**
+     * A forum's most recently archived threads. Forum posts are archived after a few days of quiet, so without these the list would
+     * usually be empty; posting in an archived thread opens it again. One request per forum, remembered for a minute.
+     */
+    private List<ThreadChannel> archivedThreads(ForumChannel forum) {
+        return archivedThreadCache.get("forum:" + forum.getId(), 60_000, () -> {
+            try {
+                return forum.retrieveArchivedPublicThreadChannels().limit(ARCHIVED_THREADS_PER_FORUM).complete();
+            } catch (RuntimeException e) {
+                return List.of(); // no permission to see them, or Discord is slow: the active threads still work
+            }
+        });
     }
 
     // ---------- settings ----------
@@ -523,7 +572,7 @@ public class TicketAdminApi {
         Settings updated = TicketAdminJson.readSettings(current, body(exchange));
 
         List<String> problems = new ArrayList<>();
-        if (updated.logChannelId() != null && guild.getTextChannelById(updated.logChannelId()) == null) problems.add("The log channel isn't a text channel in this server.");
+        if (updated.logChannelId() != null && guild.getChannelById(GuildMessageChannel.class, updated.logChannelId()) == null) problems.add("The log channel isn't a channel JonnyBot can post in, in this server.");
         if (updated.closeDelaySeconds() < 0 || updated.closeDelaySeconds() > 300) problems.add("The close delay must be between 0 and 300 seconds.");
         if (updated.transcriptRetentionDays() != null && (updated.transcriptRetentionDays() < 1 || updated.transcriptRetentionDays() > 3650)) problems.add("Transcript retention must be between 1 and 3650 days.");
         if (!problems.isEmpty()) throw new ApiError(400, "Those settings can't be saved.", problems);

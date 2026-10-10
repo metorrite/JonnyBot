@@ -11,7 +11,7 @@ import net.dv8tion.jda.api.components.container.Container;
 import net.dv8tion.jda.api.components.textdisplay.TextDisplay;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Message;
-import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
+import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -193,7 +193,7 @@ public class RsnRenameService {
     }
 
     private void postAdminAlert(Guild guild, RsnRenameRepository.RenameCandidate candidate) {
-        TextChannel channel = resolveAlertChannel(guild);
+        GuildMessageChannel channel = resolveAlertChannel(guild);
         if (channel == null) return;
 
         String ping = adminPing(guild);
@@ -213,7 +213,7 @@ public class RsnRenameService {
     }
 
     private void notifyAmbiguous(Guild guild, String oldRsn, List<String> candidateNames) {
-        TextChannel channel = resolveAlertChannel(guild);
+        GuildMessageChannel channel = resolveAlertChannel(guild);
         if (channel == null) return;
 
         String ping = adminPing(guild);
@@ -246,13 +246,13 @@ public class RsnRenameService {
         }, error -> log.warn("Failed to retrieve member {} for rename DM", discordUserId, error));
     }
 
-    private TextChannel resolveAlertChannel(Guild guild) {
+    private GuildMessageChannel resolveAlertChannel(Guild guild) {
         Long channelId = guildSettingsService.getEffective(guild.getIdLong()).renameAlertChannelId();
         if (channelId == null) {
             log.warn("No rename alert channel configured for guild {} — a possible rename was detected but nobody was notified.", guild.getIdLong());
             return null;
         }
-        TextChannel channel = guild.getTextChannelById(channelId);
+        GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, channelId);
         if (channel == null) {
             log.warn("Configured rename alert channel {} not found in guild {}", channelId, guild.getIdLong());
         }
