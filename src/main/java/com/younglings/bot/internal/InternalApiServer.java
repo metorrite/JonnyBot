@@ -3,6 +3,7 @@ package com.younglings.bot.internal;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import com.younglings.bot.config.BotConfig;
+import com.younglings.bot.upload.ImageUploadService;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -71,9 +72,11 @@ public class InternalApiServer {
     private final TicketAdminApi ticketAdminApi;
     private final SiteApi siteApi;
     private final MemberApi memberApi;
+    private final ImageUploadService imageUploads;
     private JDA jda;
 
-    public InternalApiServer(BotConfig botConfig, TicketAdminApi ticketAdminApi, SiteApi siteApi, MemberApi memberApi) {
+    public InternalApiServer(BotConfig botConfig, TicketAdminApi ticketAdminApi, SiteApi siteApi, MemberApi memberApi, ImageUploadService imageUploads) {
+        this.imageUploads = imageUploads;
         this.botConfig = botConfig;
         this.ticketAdminApi = ticketAdminApi;
         this.siteApi = siteApi;
@@ -112,6 +115,7 @@ public class InternalApiServer {
             server.createContext("/internal/admin/", exchange -> handleAdmin(exchange, secret, guildId));
             server.createContext("/internal/site/", exchange -> handleSite(exchange, secret, guildId));
             server.createContext("/internal/me/", exchange -> handleMe(exchange, secret, guildId));
+            server.createContext("/internal/image/", exchange -> handleImage(exchange, secret));
 
             // A fixed crew with a bounded queue. When it's full the accepting thread runs the work itself, which slows
             // new connections down (back-pressure) instead of letting an unbounded backlog build up behind a flood.
@@ -457,6 +461,42 @@ public class InternalApiServer {
     }
 
     // --- Helpers ---
+
+    /**
+     * A picture a server uploaded, by its token, for the website to pass on to whoever asks (Discord fetches an embed's pictures from
+     * the website's address, never from the bot). No server is named: the token is the secret that names one picture.
+     */
+    private void handleImage(HttpExchange exchange, String secret) throws IOException {
+        try {
+            String provided = exchange.getRequestHeaders().getFirst(SECRET_HEADER);
+            if (provided == null || !constantTimeEquals(provided, secret)) {
+                sendJson(exchange, 401, DataObject.empty().put("error", "Unauthorized"));
+                return;
+            }
+            if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+                sendJson(exchange, 405, DataObject.empty().put("error", "Method not allowed"));
+                return;
+            }
+
+            String path = exchange.getRequestURI().getPath();
+            String token = path.substring("/internal/image/".length());
+            var image = imageUploads.find(token);
+            if (image.isEmpty()) {
+                sendJson(exchange, 404, DataObject.empty().put("error", "Not found"));
+                return;
+            }
+
+            byte[] data = image.get().data();
+            exchange.getResponseHeaders().set("Content-Type", image.get().contentType());
+            exchange.sendResponseHeaders(200, data.length);
+            try (OutputStream responseBody = exchange.getResponseBody()) {
+                responseBody.write(data);
+            }
+        } catch (Exception e) {
+            log.error("Internal API image request failed", e);
+            sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));
+        }
+    }
 
     static void sendJson(HttpExchange exchange, int statusCode, DataObject payload) throws IOException {
         byte[] body = payload.toJson();

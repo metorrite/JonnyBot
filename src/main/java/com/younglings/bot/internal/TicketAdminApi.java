@@ -74,9 +74,11 @@ public class TicketAdminApi {
     private final PermissionsAdminApi permissions;
     private final HubAdminApi hubAdmin;
     private final OverviewAdminApi overviewAdmin;
+    private final ImageAdminApi imageAdmin;
 
     public TicketAdminApi(DashboardAccess access, TicketRepository repository, TicketService service, ClanAdminApi clanAdmin, CommunityAdminApi communityAdmin, AdminOpsApi ops, AdminToolsStore auditStore,
-                          HelpOnboarding onboarding, HelpPanels helpPanels, WelcomeAdminApi welcomeAdmin, ServerSetupAdminApi serverSetup, PermissionsAdminApi permissions, HubAdminApi hubAdmin, OverviewAdminApi overviewAdmin) {
+                          HelpOnboarding onboarding, HelpPanels helpPanels, WelcomeAdminApi welcomeAdmin, ServerSetupAdminApi serverSetup, PermissionsAdminApi permissions, HubAdminApi hubAdmin, OverviewAdminApi overviewAdmin, ImageAdminApi imageAdmin) {
+        this.imageAdmin = imageAdmin;
         this.overviewAdmin = overviewAdmin;
         this.welcomeAdmin = welcomeAdmin;
         this.serverSetup = serverSetup;
@@ -291,6 +293,11 @@ public class TicketAdminApi {
             if (method.equals("GET")) return clanAdmin.clanPoints(guild);
             requireMethod(method, "PUT");
             return clanAdmin.saveClanPoints(guild, actor, body(exchange));
+        }
+        if (parts.length == 3 && parts[0].equals("images")) {
+            if (method.equals("PUT")) return imageAdmin.upload(guild, actor, parts[1], parts[2], body(exchange));
+            requireMethod(method, "DELETE");
+            return imageAdmin.remove(guild, actor, parts[1], parts[2]);
         }
         if (parts.length == 1 && parts[0].equals("overview")) {
             requireMethod(method, "GET");
