@@ -1,6 +1,6 @@
 package com.younglings.bot.runescape;
 
-import com.younglings.bot.config.BotConfig;
+import com.younglings.bot.runescape.polling.PollCoordinator;
 import com.younglings.bot.configure.GuildSettings;
 import com.younglings.bot.configure.GuildSettingsService;
 import com.younglings.bot.tracking.TrackingEventRouter;
@@ -50,8 +50,8 @@ class ClanSyncRoleTest {
         GuildSettingsService settings = mock(GuildSettingsService.class);
         when(settings.getEffective(GUILD)).thenReturn(new GuildSettings(GUILD, "Younglings", null, null, null, 2L, 1L, 1L, null, true, "Younglings", null, null));
 
-        service = new ClanSyncService(apiClient, clanMembers, mock(RuneScapeStatsService.class), renameService, settings,
-                mock(BotConfig.class), mock(TrackingEventRouter.class), mock(WeeklyDigestRepository.class),
+        service = new ClanSyncService(apiClient, clanMembers, mock(PollCoordinator.class), renameService, settings,
+                mock(TrackingEventRouter.class), mock(WeeklyDigestRepository.class),
                 mock(TrackingIconCatalog.class), roleSync, linkService);
     }
 

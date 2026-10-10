@@ -17,7 +17,6 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 @BService
 public class RuneScapeStatsService {
@@ -26,7 +25,6 @@ public class RuneScapeStatsService {
     private final TrackingEventClassifier classifier;
     private final TrackingEventRouter router;
     private final ClanMemberRepository clanMemberRepository;
-    private final SlowPollQueue slowPollQueue;
 
     // Set once JDA is ready (see #onJdaReady) — same reasoning/pattern as InternalApiServer's own
     // `jda` field. Only needed to resolve a Guild to post tracking announcements to; every other
@@ -35,13 +33,12 @@ public class RuneScapeStatsService {
 
     public RuneScapeStatsService(RuneScapeApiClient apiClient, PlayerLinkRepository repository,
                                   TrackingEventClassifier classifier, TrackingEventRouter router,
-                                  ClanMemberRepository clanMemberRepository, SlowPollQueue slowPollQueue) {
+                                  ClanMemberRepository clanMemberRepository) {
         this.apiClient = apiClient;
         this.repository = repository;
         this.classifier = classifier;
         this.router = router;
         this.clanMemberRepository = clanMemberRepository;
-        this.slowPollQueue = slowPollQueue;
     }
 
     @BEventListener
@@ -53,37 +50,22 @@ public class RuneScapeStatsService {
      * A player's data belongs to the player, not to a server: one poll, one stored snapshot, whichever server asked, and
      * every server reads the same history.
      * <p>
-     * Fetches the player's current profile and saves a snapshot of it — the per-skill breakdown
-     * and any new activities go into their own tables (see {@link PlayerLinkRepository}), not just
-     * the summary row. Empty if the profile couldn't be fetched (private, doesn't exist, or the
-     * request failed) — nothing is saved in that case. See {@link #pollAndSnapshotResult} to tell
-     * those failure reasons apart.
-     */
-    public Optional<RuneScapeProfile> pollAndSnapshot(String rsn) {
-        return pollAndSnapshotResult(rsn) instanceof ProfileResult.Found(var profile)
-                ? Optional.of(profile) : Optional.empty();
-    }
-
-    /**
-     * Same fetch-and-save as {@link #pollAndSnapshot}, but keeps the reason a failure happened
-     * instead of collapsing it to empty. Always writes a fresh snapshot on a successful fetch, even
-     * if nothing about the player changed since last time — a database write here is cheap, and
-     * keeping "polled X ago" accurate and the code simple is worth more than skipping an unchanged
-     * write. (An earlier version of this method kept an in-memory copy of each player's last-known
-     * stats specifically to skip that write; that traded a negligible amount of database traffic for
-     * held-in-memory state, the wrong side of that tradeoff for this app — see the memory/cost report
-     * from 2026-09-26.)
+     * Fetches the player's current profile and saves a snapshot of it — the per-skill breakdown and any new activities go
+     * into their own tables (see {@link PlayerLinkRepository}), not just the summary row — then announces what's new. The
+     * reason a failure happened is kept ({@link ProfileResult}) instead of collapsed to empty, and nothing is saved unless
+     * the profile was fetched. Always writes a fresh snapshot on a successful fetch, even if nothing about the player changed
+     * since last time — a database write here is cheap, and keeping "polled X ago" accurate and the code simple is worth
+     * more than skipping an unchanged write. (An earlier version of this method kept an in-memory copy of each player's
+     * last-known stats specifically to skip that write; that traded a negligible amount of database traffic for held-in-memory
+     * state, the wrong side of that tradeoff for this app — see the memory/cost report from 2026-09-26.)
      * <p>
-     * A rate-limited ({@code HTTP 429}) fetch is queued in {@link SlowPollQueue} for a slower retry
-     * rather than saved or dispatched — {@link SlowPollScheduler} calls right back into this same
-     * method later, so a repeat rate-limit backs off further automatically instead of needing its own
-     * handling here.
+     * This is one raw poll, with no pacing, no queueing and no memory of recent polls. Nothing but the poll coordinator
+     * calls it: everything else asks {@code PollCoordinator}, which decides when (and whether) the poll happens. A rate-limited
+     * ({@code HTTP 429}) fetch comes back as {@link ProfileResult.RateLimited} for the coordinator to retry.
      */
-    public ProfileResult pollAndSnapshotResult(String rsn) {
+    public ProfileResult fetchAndStore(String rsn) {
         ProfileResult result = apiClient.fetchProfileResult(rsn);
-        if (result instanceof ProfileResult.RateLimited(var retryAfter)) {
-            slowPollQueue.enqueue(rsn, retryAfter);
-        } else if (result instanceof ProfileResult.Found(var profile)) {
+        if (result instanceof ProfileResult.Found(var profile)) {
             long snapshotId = repository.saveSnapshot(rsn, profile, serializeSkills(profile.skills()));
             repository.saveSkillSnapshot(snapshotId, profile.skills());
             List<PlayerActivity> newActivities = repository.saveActivities(rsn, profile.activities());
@@ -174,11 +156,6 @@ public class RuneScapeStatsService {
 
     private static String activityKey(PlayerActivity activity) {
         return activity.text() + "\u0000" + activity.details();
-    }
-
-    /** The RuneMetrics request counters so far, so a polling pass can report what it cost (see {@link RequestPacer.Stats#minus}). */
-    public RequestPacer.Stats requestStats() {
-        return apiClient.paceStats();
     }
 
     public PlayerLinkRepository.StatsSnapshotRow getLatestSnapshot(String rsn) {

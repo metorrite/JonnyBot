@@ -18,6 +18,7 @@ import com.younglings.bot.runescape.PlayerLinkRepository;
 import com.younglings.bot.runescape.PlayerLinkService;
 import com.younglings.bot.runescape.RuneScapeSkillCatalog;
 import com.younglings.bot.runescape.RuneScapeStatsService;
+import com.younglings.bot.runescape.polling.PollCoordinator;
 import com.younglings.bot.runescape.SkillEmojiCatalog;
 import com.younglings.bot.runescape.SkillValue;
 import com.younglings.bot.runescape.VerificationAttempt;
@@ -95,6 +96,7 @@ public class RsInteractionListener extends ListenerAdapter {
 
     private final PlayerLinkService linkService;
     private final RuneScapeStatsService statsService;
+    private final PollCoordinator pollCoordinator;
     private final AdminRoleFilter adminRoleFilter;
     private final SkillEmojiCatalog skillEmojiCatalog;
     private final VerificationRoleSyncService roleSyncService;
@@ -116,7 +118,9 @@ public class RsInteractionListener extends ListenerAdapter {
                                   SkillEmojiCatalog skillEmojiCatalog, VerificationRoleSyncService roleSyncService,
                                   RsChartInteractionListener chartListener, MonthlyRecapService monthlyRecapService,
                                   ClanSyncService clanSyncService, ClanOverviewService clanOverviewService,
-                                  GuildSettingsService guildSettingsService, VerificationReviewCards reviewCards) {
+                                  GuildSettingsService guildSettingsService, VerificationReviewCards reviewCards,
+                                  PollCoordinator pollCoordinator) {
+        this.pollCoordinator = pollCoordinator;
         this.reviewCards = reviewCards;
         this.linkService = linkService;
         this.statsService = statsService;
@@ -865,7 +869,8 @@ public class RsInteractionListener extends ListenerAdapter {
 
         event.deferEdit().queue();
         boolean justJoined = detectClanJoin(guild, link);
-        statsService.pollAndSnapshot(rsn);
+        // Front of the poll queue: a person is waiting on this, and it also makes the schedule's next poll of them unnecessary.
+        pollCoordinator.pollNow(rsn, "update now");
         linkService.recordSelfPoll(link.linkId());
         event.getHook().editOriginalComponents(List.of(renderAfterOwnAction(guild, link))).useComponentsV2(true).queue();
         if (justJoined) {

@@ -32,7 +32,6 @@ class RuneScapeStatsServiceFanOutTest {
     private TrackingEventClassifier classifier;
     private TrackingEventRouter router;
     private ClanMemberRepository clanMembers;
-    private SlowPollQueue slowPollQueue;
     private RuneScapeStatsService service;
     private Guild first;
     private Guild second;
@@ -44,8 +43,7 @@ class RuneScapeStatsServiceFanOutTest {
         classifier = mock(TrackingEventClassifier.class);
         router = mock(TrackingEventRouter.class);
         clanMembers = mock(ClanMemberRepository.class);
-        slowPollQueue = mock(SlowPollQueue.class);
-        service = new RuneScapeStatsService(apiClient, repository, classifier, router, clanMembers, slowPollQueue);
+        service = new RuneScapeStatsService(apiClient, repository, classifier, router, clanMembers);
 
         first = mock(Guild.class);
         second = mock(Guild.class);
@@ -76,7 +74,7 @@ class RuneScapeStatsServiceFanOutTest {
         polledAndFound(activity);
         when(clanMembers.activeGuildIds(RSN)).thenReturn(List.of(10L, 20L));
 
-        service.pollAndSnapshotResult(RSN);
+        service.fetchAndStore(RSN);
 
         verify(apiClient).fetchProfileResult(RSN);
         verify(repository).saveSnapshot(eq(RSN), any(), any());
@@ -90,7 +88,7 @@ class RuneScapeStatsServiceFanOutTest {
         polledAndFound(activity);
         when(clanMembers.activeGuildIds(RSN)).thenReturn(List.of(20L));
 
-        service.pollAndSnapshotResult(RSN);
+        service.fetchAndStore(RSN);
 
         verify(router, never()).dispatchAll(eq(first), anyList());
         verify(router).dispatchAll(eq(second), anyList());
@@ -102,19 +100,18 @@ class RuneScapeStatsServiceFanOutTest {
         polledAndFound(activity);
         when(clanMembers.activeGuildIds(RSN)).thenReturn(List.of());
 
-        service.pollAndSnapshotResult(RSN);
+        service.fetchAndStore(RSN);
 
         verify(repository).saveActivities(eq(RSN), anyList());
         verify(router, never()).dispatchAll(any(), anyList());
     }
 
     @Test
-    void aRateLimitedPollIsQueuedForARetryByNameAlone() {
+    void aRateLimitedPollIsReportedAndNothingIsSaved() {
         when(apiClient.fetchProfileResult(RSN)).thenReturn(new ProfileResult.RateLimited(Duration.ofSeconds(30)));
 
-        assertInstanceOf(ProfileResult.RateLimited.class, service.pollAndSnapshotResult(RSN));
+        assertInstanceOf(ProfileResult.RateLimited.class, service.fetchAndStore(RSN));
 
-        verify(slowPollQueue).enqueue(RSN, Duration.ofSeconds(30));
         verify(repository, never()).saveSnapshot(any(), any(), any());
     }
 }

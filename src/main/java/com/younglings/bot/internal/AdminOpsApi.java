@@ -5,7 +5,8 @@ import com.younglings.bot.internal.SiteStatsRepository.MemberRow;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.runescape.PlayerLink;
 import com.younglings.bot.runescape.PlayerLinkRepository;
-import com.younglings.bot.runescape.SlowPollQueue;
+import com.younglings.bot.runescape.polling.PollCoordinator;
+import com.younglings.bot.runescape.polling.PollEngine;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
@@ -41,7 +42,7 @@ public class AdminOpsApi {
     private final PlayerLinkRepository links;
     private final AdminToolsStore store;
     private final ClanAdminApi clanAdmin;
-    private final SlowPollQueue slowPolls;
+    private final PollCoordinator polls;
     private final BotConfig config;
 
     /** Every roster member is refreshed once per cycle (RosterPollScheduler spreads them across this window). */
@@ -55,12 +56,12 @@ public class AdminOpsApi {
         return relative.compareTo(STALE_AFTER) > 0 ? relative : STALE_AFTER;
     }
 
-    public AdminOpsApi(SiteStatsRepository stats, PlayerLinkRepository links, AdminToolsStore store, ClanAdminApi clanAdmin, SlowPollQueue slowPolls, BotConfig config) {
+    public AdminOpsApi(SiteStatsRepository stats, PlayerLinkRepository links, AdminToolsStore store, ClanAdminApi clanAdmin, PollCoordinator polls, BotConfig config) {
         this.stats = stats;
         this.links = links;
         this.store = store;
         this.clanAdmin = clanAdmin;
-        this.slowPolls = slowPolls;
+        this.polls = polls;
         this.config = config;
     }
 
@@ -160,9 +161,55 @@ public class AdminOpsApi {
                 .put("database", DataObject.empty().put("ok", dbMs >= 0).put("pingMs", dbMs))
                 .put("environment", DataObject.empty().put("live", config.getLiveEnvironment()).put("siteUrlConfigured", config.getSiteUrl() != null).put("autoPoll", config.getRunescapeAutoPollEnabled()))
                 .put("polling", DataObject.empty().put("rosterSize", rows.size()).put("refreshedRecently", polledRecently).put("stale", stale).put("newestRefresh", iso(newestPoll))
-                        .put("cycleSeconds", pollCycle().toSeconds()).put("rateLimitedQueue", slowPolls.size()).put("delaySeconds", config.getRunescapePollDelaySeconds()))
+                        .put("cycleSeconds", pollCycle().toSeconds()).put("rateLimitedQueue", slowedQueue()).put("delaySeconds", Math.round(polls.status().engine().intervalMs() / 1000.0))
+                        .put("queue", pollingStatus()))
                 .put("data", DataObject.empty().put("newestActivity", iso(store.newestActivity())).put("firstSnapshot", iso(stats.firstSnapshotAt(guildId))))
                 .put("scheduledPending", store.scheduled(guildId, 0).size());
+    }
+
+    // ---------- polling ----------
+
+    /** Players waiting in the poll queue while RuneMetrics is making the bot slow down; 0 when it is not (the old "rate limited" indicator). */
+    private int slowedQueue() {
+        PollEngine.Status engine = polls.status().engine();
+        return engine.multiplier() > 1 ? engine.queued() : 0;
+    }
+
+    /** The poll coordinator at a glance: what is waiting, how fast it may go, what it has saved, and the recurring jobs. */
+    DataObject pollingStatus() {
+        PollCoordinator.Status status = polls.status();
+        PollEngine.Status engine = status.engine();
+
+        DataObject byPriority = DataObject.empty();
+        engine.queuedByPriority().forEach((priority, count) -> byPriority.put(priority.name(), count));
+
+        DataArray jobs = DataArray.empty();
+        for (PollCoordinator.JobStatus job : status.jobs()) {
+            jobs.add(DataObject.empty().put("name", job.name()).put("priority", job.priority().name()).put("periodSeconds", job.periodSeconds())
+                    .put("spreadSeconds", job.spreadSeconds()).put("lastRunAt", job.lastRunAtMs() == 0 ? null : iso(OffsetDateTime.ofInstant(java.time.Instant.ofEpochMilli(job.lastRunAtMs()), ZoneOffset.UTC)))
+                    .put("lastSubmitted", job.lastSubmitted()));
+        }
+
+        return DataObject.empty()
+                .put("queued", engine.queued()).put("queuedByPriority", byPriority).put("inFlight", engine.inFlight())
+                .put("oldestWaitingSeconds", engine.oldestWaitingMs() / 1000)
+                .put("requestBudget", Math.round(engine.tokens() * 10) / 10.0).put("burst", engine.burst())
+                .put("secondsPerRequest", Math.round(engine.intervalMs() / 100.0) / 10.0).put("slowdown", engine.multiplier())
+                .put("requestsLastMinute", engine.requestsLastMinute()).put("requestsLast10Minutes", engine.requestsLast10Minutes())
+                .put("polled", engine.polled()).put("skippedAsRecent", engine.reusedRecent()).put("mergedDuplicates", engine.merged())
+                .put("rateLimited", engine.rateLimited()).put("gaveUp", engine.gaveUp()).put("failed", engine.failed())
+                .put("jobs", jobs);
+    }
+
+    /**
+     * Queues one player for an immediate poll from the dashboard, ahead of the background work. Returns as soon as it is
+     * queued, because a poll can wait behind other interactive ones; the dashboard watches {@code polling} for the result.
+     */
+    DataObject pollPlayer(String rsn) {
+        String name = rsn == null ? "" : rsn.trim();
+        if (name.isEmpty() || name.length() > 12) throw new ApiError(400, "That isn't a valid RuneScape name.");
+        polls.submit(com.younglings.bot.runescape.polling.PollRequest.interactive(name, "dashboard"));
+        return DataObject.empty().put("queued", true).put("rsn", name);
     }
 
     // ---------- audit log ----------
