@@ -49,3 +49,6 @@ application.properties
 
 # Written by /devexportmembers — real Discord usernames/display names, local only.
 /discord_members_export.csv
+
+# output of tools/RuneMetricsRateTest.java
+tools/ratetest_logs/

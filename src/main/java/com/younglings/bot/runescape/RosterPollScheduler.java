@@ -156,6 +156,7 @@ public class RosterPollScheduler {
 
         long delayMs = PollPacing.evenSpreadDelayMs(rsns.size(), window, botConfig.getRunescapePollDelaySeconds() * 1000L);
         log.info("Roster-spread poll starting for {} {}, spaced {}ms apart.", rsns.size(), tier, delayMs);
+        RequestPacer.Stats before = statsService.requestStats();
         int succeeded = 0;
 
         for (String rsn : rsns) {
@@ -170,7 +171,8 @@ public class RosterPollScheduler {
             }
         }
 
-        log.info("Roster-spread poll finished for {}: {}/{} succeeded.", tier, succeeded, rsns.size());
+        log.info("Roster-spread poll finished for {}: {}/{} succeeded. RuneMetrics, bot-wide during this pass: {}.",
+                tier, succeeded, rsns.size(), statsService.requestStats().minus(before).describe());
     }
 
     private static Duration durationUntilNextUtc(LocalTime target) {

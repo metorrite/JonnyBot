@@ -121,6 +121,7 @@ public class ClanSyncService {
         // it to work with immediately.
         Map<String, ProfileResult> newMemberResults = new HashMap<>();
         long floorDelayMs = botConfig.getRunescapePollDelaySeconds() * 1000L;
+        RequestPacer.Stats paceBefore = statsService.requestStats();
         PollTally tally = pollRsns(roster.stream().map(RuneScapeApiClient.ClanMember::rsn).toList(), floorDelayMs, change.newLower(), newMemberResults);
         int polled = tally.polled();
         int pollFailed = tally.pollFailed();
@@ -128,8 +129,9 @@ public class ClanSyncService {
         Set<String> maybeRenamed = detectRenames(guild, change, newMemberResults);
         applyMembershipRoles(guild, change, maybeRenamed);
 
-        log.info("Clan sync for '{}' (guild {}) finished: {} in roster, {} new, {} departed, {}/{} polled successfully.",
-                clanName, guildId, roster.size(), change.newLower().size(), change.departedLower().size(), polled, roster.size());
+        log.info("Clan sync for '{}' (guild {}) finished: {} in roster, {} new, {} departed, {}/{} polled successfully. RuneMetrics, bot-wide during the sync: {}.",
+                clanName, guildId, roster.size(), change.newLower().size(), change.departedLower().size(), polled, roster.size(),
+                statsService.requestStats().minus(paceBefore).describe());
         return new SyncResult(roster.size(), change.newLower().size(), change.departedLower().size(), polled, pollFailed);
     }
 
