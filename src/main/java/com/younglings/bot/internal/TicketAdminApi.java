@@ -67,10 +67,12 @@ public class TicketAdminApi {
     private final HelpOnboarding onboarding;
     private final HelpPanels helpPanels;
     private final WelcomeAdminApi welcomeAdmin;
+    private final ServerSetupAdminApi serverSetup;
 
     public TicketAdminApi(DashboardAccess access, TicketRepository repository, TicketService service, ClanAdminApi clanAdmin, CommunityAdminApi communityAdmin, AdminOpsApi ops, AdminToolsStore auditStore,
-                          HelpOnboarding onboarding, HelpPanels helpPanels, WelcomeAdminApi welcomeAdmin) {
+                          HelpOnboarding onboarding, HelpPanels helpPanels, WelcomeAdminApi welcomeAdmin, ServerSetupAdminApi serverSetup) {
         this.welcomeAdmin = welcomeAdmin;
+        this.serverSetup = serverSetup;
         this.onboarding = onboarding;
         this.helpPanels = helpPanels;
         this.access = access;
@@ -278,6 +280,11 @@ public class TicketAdminApi {
             if (method.equals("GET")) return clanAdmin.clanPoints(guild);
             requireMethod(method, "PUT");
             return clanAdmin.saveClanPoints(guild, actor, body(exchange));
+        }
+        if (parts.length == 1 && parts[0].equals("setup")) {
+            if (method.equals("GET")) return serverSetup.get(guild);
+            requireMethod(method, "PUT");
+            return serverSetup.save(guild, actor, body(exchange));
         }
         if (parts.length >= 1 && parts[0].equals("welcome")) {
             if (parts.length == 1) {
