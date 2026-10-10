@@ -7,6 +7,7 @@ import com.younglings.bot.commands.configure.PvmHelpConfigureListener;
 import com.younglings.bot.commands.ticket.HelpListener;
 import com.younglings.bot.commands.ticket.HelpTicketFlow;
 import com.younglings.bot.commands.ticket.TicketListener;
+import com.younglings.bot.welcome.WelcomeListener;
 import com.younglings.bot.commandchannel.CommandChannelConfigInteractionListener;
 import com.younglings.bot.commandchannel.CommandChannelListener;
 import com.younglings.bot.commands.coffer.CofferInteractionListener;
@@ -70,6 +71,7 @@ public class Bot extends JDAService {
     private final HelpListener helpListener;
     private final HelpTicketFlow helpTicketFlow;
     private final PvmHelpConfigureListener pvmHelpConfigureListener;
+    private final WelcomeListener welcomeListener;
 
     public Bot(BotConfig botConfig, SignupInteractionListener signupInteractionListener,
                PollInteractionListener pollInteractionListener,
@@ -94,7 +96,9 @@ public class Bot extends JDAService {
                EphemeralLifecycle ephemeralLifecycle,
                PostActionListener postActionListener,
                DevEmbedListener devEmbedListener,
-               TicketListener ticketListener, HelpListener helpListener, HelpTicketFlow helpTicketFlow, PvmHelpConfigureListener pvmHelpConfigureListener) {
+               TicketListener ticketListener, HelpListener helpListener, HelpTicketFlow helpTicketFlow, PvmHelpConfigureListener pvmHelpConfigureListener,
+               WelcomeListener welcomeListener) {
+        this.welcomeListener = welcomeListener;
         this.botConfig = botConfig;
         this.signupInteractionListener = signupInteractionListener;
         this.pollInteractionListener = pollInteractionListener;
@@ -168,7 +172,7 @@ public class Bot extends JDAService {
                         trackingAuditLogListener, trackingConfigInteractionListener,
                         announcementInteractionListener, weeklyDigestInteractionListener,
                         commandChannelListener, commandChannelConfigInteractionListener, ephemeralLifecycle,
-                        postActionListener, devEmbedListener, ticketListener, helpListener, helpTicketFlow, pvmHelpConfigureListener)
+                        postActionListener, devEmbedListener, ticketListener, helpListener, helpTicketFlow, pvmHelpConfigureListener, welcomeListener)
                 .build();
     }
 }
