@@ -59,7 +59,7 @@ public class SlowPollScheduler {
         log.info("Slow-poll queue: retrying {} previously rate-limited player(s).", due.size());
         for (SlowPollQueue.Entry entry : due) {
             try {
-                statsService.pollAndSnapshotResult(entry.guildId(), entry.rsn());
+                statsService.pollAndSnapshotResult(entry.rsn());
                 Thread.sleep(BETWEEN_RETRIES.toMillis());
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();

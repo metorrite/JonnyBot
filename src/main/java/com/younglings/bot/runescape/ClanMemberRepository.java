@@ -96,6 +96,41 @@ public class ClanMemberRepository {
         }
     }
 
+    /** Every server whose tracked clan currently has this RS name as a member: who a poll of them is announced to. */
+    public List<Long> activeGuildIds(String rsn) {
+        String sql = "SELECT guild_id FROM younglings.clan_member WHERE LOWER(rsn) = LOWER(?) AND active = TRUE";
+        List<Long> results = new ArrayList<>();
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, rsn);
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) results.add(rs.getLong(1));
+            }
+            return results;
+        } catch (SQLException e) {
+            log.error("Failed to find the clans '{}' is in", rsn, e);
+            throw new RuntimeException("Failed to find the clans a player is in", e);
+        }
+    }
+
+    /** Each RS name once, however many of the given servers' clans it is in: the first tier of the polling list. */
+    public List<String> activeRsnsInGuilds(java.util.Collection<Long> guildIds) {
+        if (guildIds.isEmpty()) return List.of();
+        String sql = "SELECT DISTINCT ON (LOWER(rsn)) rsn FROM younglings.clan_member WHERE active = TRUE AND guild_id = ANY (?) ORDER BY LOWER(rsn)";
+        List<String> results = new ArrayList<>();
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setArray(1, connection.createArrayOf("bigint", guildIds.toArray()));
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) results.add(rs.getString(1));
+            }
+            return results;
+        } catch (SQLException e) {
+            log.error("Failed to list the clan members to poll", e);
+            throw new RuntimeException("Failed to list the clan members to poll", e);
+        }
+    }
+
     public List<ClanMemberRow> getAll(long guildId, boolean activeOnly) {
         String sql = "SELECT id, guild_id, rsn, clan_rank, first_seen, last_seen, active, total_xp, kills, clan_joined_at FROM younglings.clan_member WHERE guild_id = ?"
                 + (activeOnly ? " AND active = TRUE" : "") + " ORDER BY LOWER(rsn)";

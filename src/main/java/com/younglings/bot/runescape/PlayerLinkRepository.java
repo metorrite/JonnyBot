@@ -265,30 +265,203 @@ public class PlayerLinkRepository {
 
     // --- Confirmed links ---
 
+    /** Who owns an RS account with JonnyBot, in every server at once — see {@code player_account}. */
+    public record PlayerAccount(long accountId, String rsn, long discordUserId, String verificationMethod,
+                                java.time.OffsetDateTime verifiedAt, Long verifiedGuildId) {
+    }
+
+    /** Thrown when an RS name already belongs to a different Discord user in another server, so this server can't take it over. */
+    public static class RsnTakenException extends RuntimeException {
+        private final long ownerDiscordUserId;
+
+        public RsnTakenException(String rsn, long ownerDiscordUserId) {
+            super("'" + rsn + "' is already registered with JonnyBot to another Discord account.");
+            this.ownerDiscordUserId = ownerDiscordUserId;
+        }
+
+        public long ownerDiscordUserId() {
+            return ownerDiscordUserId;
+        }
+    }
+
+    private static PlayerAccount mapAccount(ResultSet rs) throws SQLException {
+        long verifiedGuild = rs.getLong("verified_guild_id");
+        return new PlayerAccount(rs.getLong("account_id"), rs.getString("rsn"), rs.getLong("discord_user_id"),
+                rs.getString("verification_method"), rs.getObject("verified_at", java.time.OffsetDateTime.class),
+                rs.wasNull() ? null : verifiedGuild);
+    }
+
+    private static final String ACCOUNT_COLUMNS = "account_id, rsn, discord_user_id, verification_method, verified_at, verified_guild_id";
+
+    /**
+     * Registers {@code rsn} to {@code discordUserId} with JonnyBot (once, for every server) and in {@code guildId} (so it
+     * shows there). A name that already belongs to the same person just gets registered in this server too. A name that
+     * belongs to someone else can only be taken over if no other server has it registered: within the one server that
+     * vouched for it, an admin re-linking a name to its real owner has always been how a mistake is fixed, but a different
+     * server must not be able to take a name away from the person another server verified.
+     *
+     * @throws RsnTakenException if the name is registered to a different Discord user in another server
+     */
     public void createLink(long guildId, long discordUserId, String rsn, String verificationMethod) {
-        String sql = """
-                INSERT INTO younglings.player_link (guild_id, discord_user_id, rsn, verification_method)
-                VALUES (?, ?, ?, ?)
-                ON CONFLICT (guild_id, LOWER(rsn)) DO UPDATE SET
-                    discord_user_id = EXCLUDED.discord_user_id,
-                    verification_method = EXCLUDED.verification_method,
-                    verified_at = NOW()
-                """;
+        try (Connection connection = connectionSupplier.getConnection()) {
+            connection.setAutoCommit(false);
+            try {
+                PlayerAccount existing = findAccount(connection, rsn, true);
+                if (existing == null) {
+                    try (PreparedStatement insert = connection.prepareStatement("""
+                            INSERT INTO younglings.player_account (rsn, discord_user_id, verification_method, verified_guild_id)
+                            VALUES (?, ?, ?, ?)
+                            """)) {
+                        insert.setString(1, rsn);
+                        insert.setLong(2, discordUserId);
+                        insert.setString(3, verificationMethod);
+                        insert.setLong(4, guildId);
+                        insert.executeUpdate();
+                    }
+                } else if (existing.discordUserId() != discordUserId) {
+                    if (registeredInAnotherServer(connection, rsn, guildId)) throw new RsnTakenException(rsn, existing.discordUserId());
+                    try (PreparedStatement takeOver = connection.prepareStatement("""
+                            UPDATE younglings.player_account
+                            SET discord_user_id = ?, verification_method = ?, verified_at = NOW(), verified_guild_id = ?
+                            WHERE account_id = ?
+                            """)) {
+                        takeOver.setLong(1, discordUserId);
+                        takeOver.setString(2, verificationMethod);
+                        takeOver.setLong(3, guildId);
+                        takeOver.setLong(4, existing.accountId());
+                        takeOver.executeUpdate();
+                    }
+                }
 
-        try (Connection connection = connectionSupplier.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
+                try (PreparedStatement link = connection.prepareStatement("""
+                        INSERT INTO younglings.player_link (guild_id, discord_user_id, rsn, verification_method)
+                        VALUES (?, ?, ?, ?)
+                        ON CONFLICT (guild_id, LOWER(rsn)) DO UPDATE SET
+                            discord_user_id = EXCLUDED.discord_user_id,
+                            verification_method = EXCLUDED.verification_method,
+                            verified_at = NOW()
+                        """)) {
+                    link.setLong(1, guildId);
+                    link.setLong(2, discordUserId);
+                    link.setString(3, rsn);
+                    link.setString(4, verificationMethod);
+                    link.executeUpdate();
+                }
 
-            statement.setLong(1, guildId);
-            statement.setLong(2, discordUserId);
-            statement.setString(3, rsn);
-            statement.setString(4, verificationMethod);
-            statement.executeUpdate();
+                // linking a name in a server on purpose undoes an admin having removed it from that server before
+                try (PreparedStatement allow = connection.prepareStatement(
+                        "DELETE FROM younglings.player_link_exclusion WHERE guild_id = ? AND LOWER(rsn) = LOWER(?)")) {
+                    allow.setLong(1, guildId);
+                    allow.setString(2, rsn);
+                    allow.executeUpdate();
+                }
 
-            log.info("Linked RSN '{}' to Discord user {} in guild {}", rsn, discordUserId, guildId);
-
+                connection.commit();
+                log.info("Linked RSN '{}' to Discord user {} in guild {}", rsn, discordUserId, guildId);
+            } catch (SQLException | RuntimeException e) {
+                connection.rollback();
+                throw e;
+            } finally {
+                connection.setAutoCommit(true);
+            }
         } catch (SQLException e) {
             log.error("Failed to link RSN '{}' to user {}", rsn, discordUserId, e);
             throw new RuntimeException("Failed to link RSN", e);
+        }
+    }
+
+    private PlayerAccount findAccount(Connection connection, String rsn, boolean lock) throws SQLException {
+        String sql = "SELECT " + ACCOUNT_COLUMNS + " FROM younglings.player_account WHERE LOWER(rsn) = LOWER(?)" + (lock ? " FOR UPDATE" : "");
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, rsn);
+            try (ResultSet rs = statement.executeQuery()) {
+                return rs.next() ? mapAccount(rs) : null;
+            }
+        }
+    }
+
+    private boolean registeredInAnotherServer(Connection connection, String rsn, long guildId) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT 1 FROM younglings.player_link WHERE LOWER(rsn) = LOWER(?) AND guild_id <> ? LIMIT 1")) {
+            statement.setString(1, rsn);
+            statement.setLong(2, guildId);
+            try (ResultSet rs = statement.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    /** The account registered under this RS name, in any server, or null. */
+    public PlayerAccount getAccountForRsn(String rsn) {
+        try (Connection connection = connectionSupplier.getConnection()) {
+            return findAccount(connection, rsn, false);
+        } catch (SQLException e) {
+            log.error("Failed to get the account for RSN '{}'", rsn, e);
+            throw new RuntimeException("Failed to get player account", e);
+        }
+    }
+
+    /** Every RS name registered with JonnyBot, in any server: the second tier of the polling list. */
+    public List<String> getAllAccountRsns() {
+        List<String> results = new ArrayList<>();
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement("SELECT rsn FROM younglings.player_account ORDER BY LOWER(rsn)");
+             ResultSet rs = statement.executeQuery()) {
+            while (rs.next()) results.add(rs.getString(1));
+            return results;
+        } catch (SQLException e) {
+            log.error("Failed to list the registered accounts to poll", e);
+            throw new RuntimeException("Failed to list registered accounts", e);
+        }
+    }
+
+    /** Every account registered to this Discord user, whichever server it was registered in. */
+    public List<PlayerAccount> getAccountsForUser(long discordUserId) {
+        String sql = "SELECT " + ACCOUNT_COLUMNS + " FROM younglings.player_account WHERE discord_user_id = ? ORDER BY verified_at ASC";
+        List<PlayerAccount> results = new ArrayList<>();
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setLong(1, discordUserId);
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) results.add(mapAccount(rs));
+            }
+            return results;
+        } catch (SQLException e) {
+            log.error("Failed to get accounts for user {}", discordUserId, e);
+            throw new RuntimeException("Failed to get player accounts", e);
+        }
+    }
+
+    /**
+     * Registers this user's accounts in a server they haven't used JonnyBot in yet, except any an admin there removed on
+     * purpose. Returns the names that were added. Running {@code /rs} is the opt-in: being in a server isn't enough to appear in it.
+     */
+    public List<String> adoptAccounts(long guildId, long discordUserId) {
+        String sql = """
+                INSERT INTO younglings.player_link (guild_id, discord_user_id, rsn, verification_method, verified_at)
+                SELECT ?, a.discord_user_id, a.rsn, a.verification_method, a.verified_at
+                FROM younglings.player_account a
+                WHERE a.discord_user_id = ?
+                  AND NOT EXISTS (SELECT 1 FROM younglings.player_link l WHERE l.guild_id = ? AND LOWER(l.rsn) = LOWER(a.rsn))
+                  AND NOT EXISTS (SELECT 1 FROM younglings.player_link_exclusion x WHERE x.guild_id = ? AND LOWER(x.rsn) = LOWER(a.rsn))
+                ON CONFLICT DO NOTHING
+                RETURNING rsn
+                """;
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setLong(1, guildId);
+            statement.setLong(2, discordUserId);
+            statement.setLong(3, guildId);
+            statement.setLong(4, guildId);
+            List<String> added = new ArrayList<>();
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) added.add(rs.getString(1));
+            }
+            if (!added.isEmpty()) log.info("Registered {} account(s) of Discord user {} in guild {}", added.size(), discordUserId, guildId);
+            return added;
+        } catch (SQLException e) {
+            log.error("Failed to register accounts of user {} in guild {}", discordUserId, guildId, e);
+            throw new RuntimeException("Failed to register accounts", e);
         }
     }
 
@@ -344,42 +517,119 @@ public class PlayerLinkRepository {
     }
 
     /**
-     * Repoints an existing link at a new RSN in place (same {@code link_id}), instead of deleting
-     * and recreating it — for a name change, not a re-verification, so no history should look like
-     * it belonged to two different accounts. Throws if {@code newRsn} collides with a different
-     * link's RSN (the same unique index {@link #createLink} relies on).
+     * Renames the account behind an existing link, in place and in every server (the same {@code link_id}, the same
+     * account), instead of deleting and recreating it — for a name change, not a re-verification, so no history should
+     * look like it belonged to two different accounts. Throws if {@code newRsn} collides with a different account's RSN.
      */
     public void updateRsn(long guildId, long linkId, String newRsn) {
-        String sql = "UPDATE younglings.player_link SET rsn = ? WHERE guild_id = ? AND link_id = ?";
-
-        try (Connection connection = connectionSupplier.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
-
-            statement.setString(1, newRsn);
-            statement.setLong(2, guildId);
-            statement.setLong(3, linkId);
-            statement.executeUpdate();
-
-            log.info("Renamed player_link {} to RSN '{}' in guild {}", linkId, newRsn, guildId);
-
+        try (Connection connection = connectionSupplier.getConnection()) {
+            connection.setAutoCommit(false);
+            try {
+                String oldRsn = rsnOfLink(connection, guildId, linkId);
+                if (oldRsn == null) {
+                    connection.rollback();
+                    return;
+                }
+                for (String table : List.of("player_account", "player_link", "player_link_exclusion")) {
+                    try (PreparedStatement statement = connection.prepareStatement(
+                            "UPDATE younglings." + table + " SET rsn = ? WHERE LOWER(rsn) = LOWER(?)")) {
+                        statement.setString(1, newRsn);
+                        statement.setString(2, oldRsn);
+                        statement.executeUpdate();
+                    }
+                }
+                connection.commit();
+                log.info("Renamed account '{}' to '{}' (link {} in guild {})", oldRsn, newRsn, linkId, guildId);
+            } catch (SQLException | RuntimeException e) {
+                connection.rollback();
+                throw e;
+            } finally {
+                connection.setAutoCommit(true);
+            }
         } catch (SQLException e) {
             log.error("Failed to rename link {} to '{}'", linkId, newRsn, e);
             throw new RuntimeException("Failed to rename link", e);
         }
     }
 
-    public void deleteLink(long guildId, long linkId) {
-        String sql = "DELETE FROM younglings.player_link WHERE guild_id = ? AND link_id = ?";
-
-        try (Connection connection = connectionSupplier.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
-
+    private String rsnOfLink(Connection connection, long guildId, long linkId) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT rsn FROM younglings.player_link WHERE guild_id = ? AND link_id = ?")) {
             statement.setLong(1, guildId);
             statement.setLong(2, linkId);
-            statement.executeUpdate();
+            try (ResultSet rs = statement.executeQuery()) {
+                return rs.next() ? rs.getString(1) : null;
+            }
+        }
+    }
 
-            log.info("Unlinked player_link {} in guild {}", linkId, guildId);
+    /**
+     * Takes the account out of every server, and off JonnyBot — what its owner choosing to unlink means. Its history stays,
+     * since that is RuneScape's data about a name, not theirs.
+     */
+    public void deleteAccount(long guildId, long linkId) {
+        try (Connection connection = connectionSupplier.getConnection()) {
+            connection.setAutoCommit(false);
+            try {
+                String rsn = rsnOfLink(connection, guildId, linkId);
+                if (rsn == null) {
+                    connection.rollback();
+                    return;
+                }
+                for (String table : List.of("player_link", "player_link_exclusion", "player_account")) {
+                    try (PreparedStatement statement = connection.prepareStatement(
+                            "DELETE FROM younglings." + table + " WHERE LOWER(rsn) = LOWER(?)")) {
+                        statement.setString(1, rsn);
+                        statement.executeUpdate();
+                    }
+                }
+                connection.commit();
+                log.info("Unlinked '{}' everywhere (link {} in guild {})", rsn, linkId, guildId);
+            } catch (SQLException | RuntimeException e) {
+                connection.rollback();
+                throw e;
+            } finally {
+                connection.setAutoCommit(true);
+            }
+        } catch (SQLException e) {
+            log.error("Failed to unlink {}", linkId, e);
+            throw new RuntimeException("Failed to unlink RSN", e);
+        }
+    }
 
+    /**
+     * Takes a name out of one server only — what a server's admin removing a link means. The account stays with its
+     * owner and in their other servers, and {@code /rs} here won't put it back unless they link it again on purpose.
+     */
+    public void deleteLink(long guildId, long linkId) {
+        try (Connection connection = connectionSupplier.getConnection()) {
+            connection.setAutoCommit(false);
+            try {
+                String rsn = rsnOfLink(connection, guildId, linkId);
+                if (rsn == null) {
+                    connection.rollback();
+                    return;
+                }
+                try (PreparedStatement statement = connection.prepareStatement(
+                        "DELETE FROM younglings.player_link WHERE guild_id = ? AND link_id = ?")) {
+                    statement.setLong(1, guildId);
+                    statement.setLong(2, linkId);
+                    statement.executeUpdate();
+                }
+                try (PreparedStatement statement = connection.prepareStatement(
+                        "INSERT INTO younglings.player_link_exclusion (guild_id, rsn) VALUES (?, ?) ON CONFLICT DO NOTHING")) {
+                    statement.setLong(1, guildId);
+                    statement.setString(2, rsn);
+                    statement.executeUpdate();
+                }
+                connection.commit();
+                log.info("Unlinked player_link {} in guild {}", linkId, guildId);
+            } catch (SQLException | RuntimeException e) {
+                connection.rollback();
+                throw e;
+            } finally {
+                connection.setAutoCommit(true);
+            }
         } catch (SQLException e) {
             log.error("Failed to unlink {}", linkId, e);
             throw new RuntimeException("Failed to unlink RSN", e);
@@ -429,51 +679,28 @@ public class PlayerLinkRepository {
         }
     }
 
-    /** Every confirmed link across every guild — used by the stats scheduler, which isn't scoped to one guild. */
-    public List<PlayerLink> getAllLinksAcrossGuilds() {
-        String sql = """
-                SELECT link_id, guild_id, discord_user_id, rsn, verification_method, verified_at, last_self_poll_at
-                FROM younglings.player_link
-                """;
-
-        List<PlayerLink> results = new ArrayList<>();
-
-        try (Connection connection = connectionSupplier.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql);
-             ResultSet rs = statement.executeQuery()) {
-
-            while (rs.next()) results.add(mapLink(rs));
-            return results;
-
-        } catch (SQLException e) {
-            log.error("Failed to get all player links across guilds", e);
-            throw new RuntimeException("Failed to get all player links", e);
-        }
-    }
-
     // --- Stats snapshots ---
 
     /** Saves a snapshot and returns its generated {@code snapshot_id}, so per-skill rows can reference it. */
-    public long saveSnapshot(long guildId, String rsn, RuneScapeProfile profile, String skillsJson) {
+    public long saveSnapshot(String rsn, RuneScapeProfile profile, String skillsJson) {
         String sql = """
                 INSERT INTO younglings.player_stats_snapshot
-                    (rsn, guild_id, total_level, total_xp, combat_level, quests_complete,
+                    (rsn, total_level, total_xp, combat_level, quests_complete,
                      quests_started, quests_not_started, skills_json)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """;
 
         try (Connection connection = connectionSupplier.getConnection();
              PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
 
             statement.setString(1, rsn);
-            statement.setLong(2, guildId);
-            statement.setInt(3, profile.totalLevel());
-            statement.setLong(4, profile.totalXp());
-            statement.setInt(5, profile.combatLevel());
-            statement.setInt(6, profile.questsComplete());
-            statement.setInt(7, profile.questsStarted());
-            statement.setInt(8, profile.questsNotStarted());
-            statement.setString(9, skillsJson);
+            statement.setInt(2, profile.totalLevel());
+            statement.setLong(3, profile.totalXp());
+            statement.setInt(4, profile.combatLevel());
+            statement.setInt(5, profile.questsComplete());
+            statement.setInt(6, profile.questsStarted());
+            statement.setInt(7, profile.questsNotStarted());
+            statement.setString(8, skillsJson);
             statement.executeUpdate();
 
             try (ResultSet keys = statement.getGeneratedKeys()) {
@@ -492,27 +719,26 @@ public class PlayerLinkRepository {
      * the column's {@code NOW()} default — only real callers need "right now"; backfilling test/
      * historical data needs to place rows in the past instead.
      */
-    public long saveSnapshotAt(long guildId, String rsn, java.time.OffsetDateTime snapshotAt, RuneScapeProfile profile, String skillsJson) {
+    public long saveSnapshotAt(String rsn, java.time.OffsetDateTime snapshotAt, RuneScapeProfile profile, String skillsJson) {
         String sql = """
                 INSERT INTO younglings.player_stats_snapshot
-                    (rsn, guild_id, snapshot_at, total_level, total_xp, combat_level, quests_complete,
+                    (rsn, snapshot_at, total_level, total_xp, combat_level, quests_complete,
                      quests_started, quests_not_started, skills_json)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """;
 
         try (Connection connection = connectionSupplier.getConnection();
              PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
 
             statement.setString(1, rsn);
-            statement.setLong(2, guildId);
-            statement.setObject(3, snapshotAt);
-            statement.setInt(4, profile.totalLevel());
-            statement.setLong(5, profile.totalXp());
-            statement.setInt(6, profile.combatLevel());
-            statement.setInt(7, profile.questsComplete());
-            statement.setInt(8, profile.questsStarted());
-            statement.setInt(9, profile.questsNotStarted());
-            statement.setString(10, skillsJson);
+            statement.setObject(2, snapshotAt);
+            statement.setInt(3, profile.totalLevel());
+            statement.setLong(4, profile.totalXp());
+            statement.setInt(5, profile.combatLevel());
+            statement.setInt(6, profile.questsComplete());
+            statement.setInt(7, profile.questsStarted());
+            statement.setInt(8, profile.questsNotStarted());
+            statement.setString(9, skillsJson);
             statement.executeUpdate();
 
             try (ResultSet keys = statement.getGeneratedKeys()) {
@@ -584,12 +810,12 @@ public class PlayerLinkRepository {
     }
 
     /** Every snapshot since {@code since}, oldest first — used to find "first vs. latest this period" totals. */
-    public List<StatsSnapshotRow> getSnapshotsSince(long guildId, String rsn, java.time.OffsetDateTime since) {
+    public List<StatsSnapshotRow> getSnapshotsSince(String rsn, java.time.OffsetDateTime since) {
         String sql = """
                 SELECT snapshot_id, snapshot_at, total_level, total_xp, combat_level,
                        quests_complete, quests_started, quests_not_started
                 FROM younglings.player_stats_snapshot
-                WHERE guild_id = ? AND LOWER(rsn) = LOWER(?) AND snapshot_at >= ?
+                WHERE LOWER(rsn) = LOWER(?) AND snapshot_at >= ?
                 ORDER BY snapshot_at ASC
                 """;
 
@@ -598,9 +824,8 @@ public class PlayerLinkRepository {
         try (Connection connection = connectionSupplier.getConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
 
-            statement.setLong(1, guildId);
-            statement.setString(2, rsn);
-            statement.setObject(3, since);
+            statement.setString(1, rsn);
+            statement.setObject(2, since);
 
             try (ResultSet rs = statement.executeQuery()) {
                 while (rs.next()) results.add(mapSnapshotRow(rs));
@@ -614,12 +839,12 @@ public class PlayerLinkRepository {
     }
 
     /** Every skill's XP at every poll since {@code since}, oldest first — grouped/reduced in Java to find per-skill gains over the period. */
-    public List<SkillHistoryPoint> getAllSkillsXpHistorySince(long guildId, String rsn, java.time.OffsetDateTime since) {
+    public List<SkillHistoryPoint> getAllSkillsXpHistorySince(String rsn, java.time.OffsetDateTime since) {
         String sql = """
                 SELECT sk.skill_id, s.snapshot_at, sk.xp
                 FROM younglings.player_skill_snapshot sk
                 JOIN younglings.player_stats_snapshot s ON s.snapshot_id = sk.snapshot_id
-                WHERE s.guild_id = ? AND LOWER(s.rsn) = LOWER(?) AND s.snapshot_at >= ?
+                WHERE LOWER(s.rsn) = LOWER(?) AND s.snapshot_at >= ?
                 ORDER BY sk.skill_id, s.snapshot_at ASC
                 """;
 
@@ -628,9 +853,8 @@ public class PlayerLinkRepository {
         try (Connection connection = connectionSupplier.getConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
 
-            statement.setLong(1, guildId);
-            statement.setString(2, rsn);
-            statement.setObject(3, since);
+            statement.setString(1, rsn);
+            statement.setObject(2, since);
 
             try (ResultSet rs = statement.executeQuery()) {
                 while (rs.next()) {
@@ -650,11 +874,11 @@ public class PlayerLinkRepository {
     }
 
     /** Activities recorded since {@code since}, oldest first — the monthly recap's data source for "times capped" and "most challenged". */
-    public List<PlayerActivity> getActivitiesSince(long guildId, String rsn, java.time.OffsetDateTime since) {
+    public List<PlayerActivity> getActivitiesSince(String rsn, java.time.OffsetDateTime since) {
         String sql = """
                 SELECT activity_date, activity_text, activity_details
                 FROM younglings.player_activity
-                WHERE guild_id = ? AND LOWER(rsn) = LOWER(?) AND recorded_at >= ?
+                WHERE LOWER(rsn) = LOWER(?) AND recorded_at >= ?
                 ORDER BY recorded_at ASC
                 """;
 
@@ -663,9 +887,8 @@ public class PlayerLinkRepository {
         try (Connection connection = connectionSupplier.getConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
 
-            statement.setLong(1, guildId);
-            statement.setString(2, rsn);
-            statement.setObject(3, since);
+            statement.setString(1, rsn);
+            statement.setObject(2, since);
 
             try (ResultSet rs = statement.executeQuery()) {
                 while (rs.next()) {
@@ -682,12 +905,12 @@ public class PlayerLinkRepository {
     }
 
     /** One skill's XP at each poll since {@code since}, oldest first — the XP-over-time chart's data source. */
-    public List<SkillXpPoint> getSkillXpHistory(long guildId, String rsn, int skillId, java.time.OffsetDateTime since) {
+    public List<SkillXpPoint> getSkillXpHistory(String rsn, int skillId, java.time.OffsetDateTime since) {
         String sql = """
                 SELECT s.snapshot_at, sk.xp
                 FROM younglings.player_skill_snapshot sk
                 JOIN younglings.player_stats_snapshot s ON s.snapshot_id = sk.snapshot_id
-                WHERE s.guild_id = ? AND LOWER(s.rsn) = LOWER(?) AND sk.skill_id = ? AND s.snapshot_at >= ?
+                WHERE LOWER(s.rsn) = LOWER(?) AND sk.skill_id = ? AND s.snapshot_at >= ?
                 ORDER BY s.snapshot_at ASC
                 """;
 
@@ -696,10 +919,9 @@ public class PlayerLinkRepository {
         try (Connection connection = connectionSupplier.getConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
 
-            statement.setLong(1, guildId);
-            statement.setString(2, rsn);
-            statement.setInt(3, skillId);
-            statement.setObject(4, since);
+            statement.setString(1, rsn);
+            statement.setInt(2, skillId);
+            statement.setObject(3, since);
 
             try (ResultSet rs = statement.executeQuery()) {
                 while (rs.next()) {
@@ -715,12 +937,12 @@ public class PlayerLinkRepository {
     }
 
     /** Most recent snapshot for {@code rsn}, or {@code null} if it's never been polled. */
-    public StatsSnapshotRow getLatestSnapshot(long guildId, String rsn) {
+    public StatsSnapshotRow getLatestSnapshot(String rsn) {
         String sql = """
                 SELECT snapshot_id, snapshot_at, total_level, total_xp, combat_level,
                        quests_complete, quests_started, quests_not_started
                 FROM younglings.player_stats_snapshot
-                WHERE guild_id = ? AND LOWER(rsn) = LOWER(?)
+                WHERE LOWER(rsn) = LOWER(?)
                 ORDER BY snapshot_at DESC
                 LIMIT 1
                 """;
@@ -728,8 +950,7 @@ public class PlayerLinkRepository {
         try (Connection connection = connectionSupplier.getConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
 
-            statement.setLong(1, guildId);
-            statement.setString(2, rsn);
+            statement.setString(1, rsn);
 
             try (ResultSet rs = statement.executeQuery()) {
                 return rs.next() ? mapSnapshotRow(rs) : null;
@@ -742,12 +963,12 @@ public class PlayerLinkRepository {
     }
 
     /** Every snapshot for {@code rsn}, most recent first, capped at {@code limit} — the trend/history view's data source. */
-    public List<StatsSnapshotRow> getSnapshotHistory(long guildId, String rsn, int limit) {
+    public List<StatsSnapshotRow> getSnapshotHistory(String rsn, int limit) {
         String sql = """
                 SELECT snapshot_id, snapshot_at, total_level, total_xp, combat_level,
                        quests_complete, quests_started, quests_not_started
                 FROM younglings.player_stats_snapshot
-                WHERE guild_id = ? AND LOWER(rsn) = LOWER(?)
+                WHERE LOWER(rsn) = LOWER(?)
                 ORDER BY snapshot_at DESC
                 LIMIT ?
                 """;
@@ -757,9 +978,8 @@ public class PlayerLinkRepository {
         try (Connection connection = connectionSupplier.getConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
 
-            statement.setLong(1, guildId);
-            statement.setString(2, rsn);
-            statement.setInt(3, limit);
+            statement.setString(1, rsn);
+            statement.setInt(2, limit);
 
             try (ResultSet rs = statement.executeQuery()) {
                 while (rs.next()) results.add(mapSnapshotRow(rs));
@@ -797,24 +1017,23 @@ public class PlayerLinkRepository {
      * the tracking system's signal for "what should actually get announced" from this poll, as
      * opposed to activities RuneMetrics' rolling window is just showing us again.
      */
-    public List<PlayerActivity> saveActivities(long guildId, String rsn, List<PlayerActivity> activities) {
+    public List<PlayerActivity> saveActivities(String rsn, List<PlayerActivity> activities) {
         if (activities.isEmpty()) return List.of();
 
         String sql = """
-                INSERT INTO younglings.player_activity (guild_id, rsn, activity_date, activity_text, activity_details)
-                VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT (guild_id, LOWER(rsn), activity_date, activity_text) DO NOTHING
+                INSERT INTO younglings.player_activity (rsn, activity_date, activity_text, activity_details)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT (LOWER(rsn), activity_date, activity_text) DO NOTHING
                 """;
 
         try (Connection connection = connectionSupplier.getConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
 
             for (PlayerActivity activity : activities) {
-                statement.setLong(1, guildId);
-                statement.setString(2, rsn);
-                statement.setString(3, activity.date());
-                statement.setString(4, activity.text());
-                statement.setString(5, activity.details());
+                statement.setString(1, rsn);
+                statement.setString(2, activity.date());
+                statement.setString(3, activity.text());
+                statement.setString(4, activity.details());
                 statement.addBatch();
             }
             int[] results = statement.executeBatch();
@@ -834,12 +1053,12 @@ public class PlayerLinkRepository {
     }
 
     /** Most recently *recorded* activities for {@code rsn} (i.e. by when we first saw them, not the in-game date string). */
-    public List<PlayerActivity> getRecentActivities(long guildId, String rsn, int limit) {
+    public List<PlayerActivity> getRecentActivities(String rsn, int limit) {
         String sql = """
                 SELECT activity_date, activity_text, activity_details
                 FROM younglings.player_activity
-                WHERE guild_id = ? AND LOWER(rsn) = LOWER(?)
-                ORDER BY recorded_at DESC
+                WHERE LOWER(rsn) = LOWER(?)
+                ORDER BY recorded_at DESC, id ASC
                 LIMIT ?
                 """;
 
@@ -848,9 +1067,8 @@ public class PlayerLinkRepository {
         try (Connection connection = connectionSupplier.getConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
 
-            statement.setLong(1, guildId);
-            statement.setString(2, rsn);
-            statement.setInt(3, limit);
+            statement.setString(1, rsn);
+            statement.setInt(2, limit);
 
             try (ResultSet rs = statement.executeQuery()) {
                 while (rs.next()) {

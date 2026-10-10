@@ -32,23 +32,23 @@ public class SlowPollQueue {
     private static final Duration BASE_BACKOFF = Duration.ofMinutes(2);
     private static final Duration MAX_BACKOFF = Duration.ofMinutes(60);
 
-    public record Entry(long guildId, String rsn, int attempt) {}
+    public record Entry(String rsn, int attempt) {}
 
-    private record QueuedEntry(long guildId, String rsn, int attempt, Instant nextRetryAt) {}
+    private record QueuedEntry(String rsn, int attempt, Instant nextRetryAt) {}
 
-    // Keyed by guild+lowercased rsn so a repeat 429 for the same player updates its existing entry
+    // Keyed by lowercased rsn (a player is polled once for every server) so a repeat 429 for the same player updates its existing entry
     // (fresh backoff, incremented attempt) instead of piling up duplicates for the same name.
     private final Map<String, QueuedEntry> queue = new LinkedHashMap<>();
 
     /** {@code retryAfterHint} is the server's own {@code Retry-After} value, if it sent one — never waited *less* than that, even on the first attempt. */
-    public synchronized void enqueue(long guildId, String rsn, Duration retryAfterHint) {
-        String key = key(guildId, rsn);
+    public synchronized void enqueue(String rsn, Duration retryAfterHint) {
+        String key = key(rsn);
         int attempt = queue.containsKey(key) ? queue.get(key).attempt() + 1 : 1;
         Duration backoff = backoffFor(attempt);
         if (retryAfterHint != null && retryAfterHint.compareTo(backoff) > 0) backoff = retryAfterHint;
 
-        queue.put(key, new QueuedEntry(guildId, rsn, attempt, Instant.now().plus(backoff)));
-        log.info("Rate-limited polling '{}' (guild {}) — retrying in {} (attempt {}).", rsn, guildId, backoff, attempt);
+        queue.put(key, new QueuedEntry(rsn, attempt, Instant.now().plus(backoff)));
+        log.info("Rate-limited polling '{}' — retrying in {} (attempt {}).", rsn, backoff, attempt);
     }
 
     /** How many players are currently waiting out a rate-limit backoff. */
@@ -62,7 +62,7 @@ public class SlowPollQueue {
         List<Entry> due = new ArrayList<>();
         queue.values().removeIf(entry -> {
             if (entry.nextRetryAt().isAfter(now)) return false;
-            due.add(new Entry(entry.guildId(), entry.rsn(), entry.attempt()));
+            due.add(new Entry(entry.rsn(), entry.attempt()));
             return true;
         });
         return due;
@@ -73,7 +73,7 @@ public class SlowPollQueue {
         return Duration.ofMinutes(Math.min(minutes, MAX_BACKOFF.toMinutes()));
     }
 
-    private static String key(long guildId, String rsn) {
-        return guildId + ":" + rsn.toLowerCase(Locale.ROOT);
+    private static String key(String rsn) {
+        return rsn.toLowerCase(Locale.ROOT);
     }
 }

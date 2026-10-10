@@ -38,17 +38,17 @@ public class MonthlyRecapService {
     }
 
     /** {@code null} if this RSN has no snapshot at all yet (nothing to build a recap from). */
-    public MonthlyRecapStats getStats(long guildId, String rsn) {
+    public MonthlyRecapStats getStats(String rsn) {
         OffsetDateTime monthStart = LocalDate.now().withDayOfMonth(1).atStartOfDay().atOffset(ZoneOffset.UTC);
         OffsetDateTime now = OffsetDateTime.now();
 
-        List<PlayerLinkRepository.StatsSnapshotRow> snapshotsThisMonth = repository.getSnapshotsSince(guildId, rsn, monthStart);
+        List<PlayerLinkRepository.StatsSnapshotRow> snapshotsThisMonth = repository.getSnapshotsSince(rsn, monthStart);
         if (snapshotsThisMonth.isEmpty()) return null;
 
         long totalXpGained = snapshotsThisMonth.getLast().totalXp() - snapshotsThisMonth.getFirst().totalXp();
 
         Map<Integer, Long> skillXpGained = new HashMap<>();
-        List<PlayerLinkRepository.SkillHistoryPoint> allSkillPoints = repository.getAllSkillsXpHistorySince(guildId, rsn, monthStart);
+        List<PlayerLinkRepository.SkillHistoryPoint> allSkillPoints = repository.getAllSkillsXpHistorySince(rsn, monthStart);
         int currentSkillId = -1;
         long firstXpThisSkill = 0;
         long lastXpThisSkill = 0;
@@ -66,7 +66,7 @@ public class MonthlyRecapService {
             skillXpGained.put(currentSkillId, Math.max(0, lastXpThisSkill - firstXpThisSkill));
         }
 
-        List<PlayerActivity> activities = repository.getActivitiesSince(guildId, rsn, monthStart);
+        List<PlayerActivity> activities = repository.getActivitiesSince(rsn, monthStart);
         int timesCapped = 0;
         Map<String, Integer> championWins = new HashMap<>();
         for (PlayerActivity activity : activities) {

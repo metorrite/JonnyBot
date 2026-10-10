@@ -326,6 +326,40 @@ public class BotConfig {
         return Long.parseLong(raw.trim());
     }
 
+    /**
+     * How long one pass over the polling list's first tier takes: every player in a clan that has been registered with
+     * JonnyBot is refreshed once per window, spread evenly across it. Defaults to 180 minutes; set
+     * {@code RUNESCAPE_CLAN_POLL_WINDOW_MINUTES} to tune it without a code change. Shorter means fresher tracking feeds
+     * and more RuneMetrics requests; the per-request delay ({@link #getRunescapePollDelaySeconds}) still sets the floor.
+     */
+    public long getRunescapeClanPollWindowMinutes() {
+        return positiveMinutes("RUNESCAPE_CLAN_POLL_WINDOW_MINUTES", 180);
+    }
+
+    /**
+     * The same for the second tier: players who have linked their RuneScape name with JonnyBot but aren't in any
+     * registered clan. They only need their own profile and history to stay roughly current, so they are polled far less
+     * often. Defaults to 480 minutes; set {@code RUNESCAPE_LINKED_POLL_WINDOW_MINUTES} to tune it.
+     */
+    public long getRunescapeLinkedPollWindowMinutes() {
+        return positiveMinutes("RUNESCAPE_LINKED_POLL_WINDOW_MINUTES", 480);
+    }
+
+    private long positiveMinutes(String name, long fallback) {
+        String raw = System.getenv(name);
+
+        if (raw == null || raw.isBlank()) {
+            raw = dotenv.get(name);
+        }
+
+        if (raw == null || raw.isBlank()) {
+            return fallback;
+        }
+
+        long minutes = Long.parseLong(raw.trim());
+        return minutes > 0 ? minutes : fallback;
+    }
+
     public List<Long> getOwnerIds() {
         String rawOwnerIds = System.getenv("OWNER_IDS");
 

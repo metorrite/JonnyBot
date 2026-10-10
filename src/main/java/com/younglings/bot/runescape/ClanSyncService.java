@@ -121,7 +121,7 @@ public class ClanSyncService {
         // it to work with immediately.
         Map<String, ProfileResult> newMemberResults = new HashMap<>();
         long floorDelayMs = botConfig.getRunescapePollDelaySeconds() * 1000L;
-        PollTally tally = pollRsns(guildId, roster.stream().map(RuneScapeApiClient.ClanMember::rsn).toList(), floorDelayMs, change.newLower(), newMemberResults);
+        PollTally tally = pollRsns(roster.stream().map(RuneScapeApiClient.ClanMember::rsn).toList(), floorDelayMs, change.newLower(), newMemberResults);
         int polled = tally.polled();
         int pollFailed = tally.pollFailed();
 
@@ -255,7 +255,7 @@ public class ClanSyncService {
         Map<String, ProfileResult> newMemberResults = new HashMap<>();
         if (!change.newLower().isEmpty() && !change.departedLower().isEmpty()) {
             long floorDelayMs = botConfig.getRunescapePollDelaySeconds() * 1000L;
-            pollRsns(guildId, change.newNames(), floorDelayMs, change.newLower(), newMemberResults);
+            pollRsns(change.newNames(), floorDelayMs, change.newLower(), newMemberResults);
         }
         Set<String> maybeRenamed = detectRenames(guild, change, newMemberResults);
 
@@ -328,20 +328,20 @@ public class ClanSyncService {
         if (rsns.isEmpty()) return new RosterPollResult(0, 0);
 
         long delayMs = PollPacing.evenSpreadDelayMs(rsns.size(), window, botConfig.getRunescapePollDelaySeconds() * 1000L);
-        PollTally tally = pollRsns(guildId, rsns, delayMs, Set.of(), new HashMap<>());
+        PollTally tally = pollRsns(rsns, delayMs, Set.of(), new HashMap<>());
         return new RosterPollResult(tally.polled(), tally.pollFailed());
     }
 
     private record PollTally(int polled, int pollFailed) {}
 
     /** Shared by {@link #syncAndPoll} and {@link #pollActiveRosterOnly} — {@code newLower}/{@code newMemberResultsOut} are only meaningful for the former (rename detection needs the full profile of a name that just appeared); pass {@code Set.of()}/a throwaway map otherwise. */
-    private PollTally pollRsns(long guildId, List<String> rsns, long delayMs, Set<String> newLower, Map<String, ProfileResult> newMemberResultsOut) {
+    private PollTally pollRsns(List<String> rsns, long delayMs, Set<String> newLower, Map<String, ProfileResult> newMemberResultsOut) {
         int polled = 0;
         int pollFailed = 0;
 
         for (String rsn : rsns) {
             try {
-                ProfileResult result = statsService.pollAndSnapshotResult(guildId, rsn);
+                ProfileResult result = statsService.pollAndSnapshotResult(rsn);
                 if (result instanceof ProfileResult.Found) polled++;
                 else pollFailed++;
 

@@ -436,7 +436,7 @@ public class SiteApi {
         if (row == null) return null;
 
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        List<StatsSnapshotRow> snapshots = links.getSnapshotHistory(guildId, row.rsn(), 2000);
+        List<StatsSnapshotRow> snapshots = links.getSnapshotHistory(row.rsn(), 2000);
         StatsSnapshotRow latest = snapshots.isEmpty() ? null : snapshots.getFirst();
 
         DataObject json = memberJson(row)
@@ -471,7 +471,7 @@ public class SiteApi {
                 .put("week", gainSince(snapshots, now.minus(Duration.ofDays(7))))
                 .put("month", gainSince(snapshots, now.minus(Duration.ofDays(30)))));
 
-        List<SkillHistoryPoint> skillHistory = links.getAllSkillsXpHistorySince(guildId, row.rsn(), now.minusDays(32));
+        List<SkillHistoryPoint> skillHistory = links.getAllSkillsXpHistorySince(row.rsn(), now.minusDays(32));
         json.put("skillGains", DataObject.empty()
                 .put("day", skillGainsJson(skillGainsSince(skillHistory, now.minusDays(1))))
                 .put("week", skillGainsJson(skillGainsSince(skillHistory, now.minusDays(7))))
@@ -506,7 +506,7 @@ public class SiteApi {
 
         // Adventure log.
         DataArray activities = DataArray.empty();
-        for (PlayerActivity activity : hideLog ? List.<PlayerActivity>of() : links.getRecentActivities(guildId, row.rsn(), 30)) {
+        for (PlayerActivity activity : hideLog ? List.<PlayerActivity>of() : links.getRecentActivities(row.rsn(), 30)) {
             activities.add(DataObject.empty().put("date", activity.date()).put("text", activity.text()).put("details", activity.details()));
         }
         json.put("activities", activities);
@@ -795,7 +795,7 @@ public class SiteApi {
         if (skillId < 0 || skillId >= RuneScapeSkillCatalog.skillCount()) return null;
 
         TreeMap<LocalDate, Long> byDay = new TreeMap<>();
-        for (var point : links.getSkillXpHistory(guild.getIdLong(), rsn.trim(), skillId, OffsetDateTime.now(ZoneOffset.UTC).minusDays(HISTORY_DAYS))) {
+        for (var point : links.getSkillXpHistory(rsn.trim(), skillId, OffsetDateTime.now(ZoneOffset.UTC).minusDays(HISTORY_DAYS))) {
             byDay.put(point.timestamp().withOffsetSameInstant(ZoneOffset.UTC).toLocalDate(), point.xp()); // ascending, so the last write per day wins
         }
         DataArray history = DataArray.empty();

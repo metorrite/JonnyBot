@@ -29,8 +29,8 @@ public class RuneScapeTestDataSeeder {
     }
 
     /** Number of backdated snapshots created, or 0 if this RSN has no real snapshot yet to anchor the trend to. */
-    public int seed(long guildId, String rsn) {
-        PlayerLinkRepository.StatsSnapshotRow latest = repository.getLatestSnapshot(guildId, rsn);
+    public int seed(String rsn) {
+        PlayerLinkRepository.StatsSnapshotRow latest = repository.getLatestSnapshot(rsn);
         if (latest == null) return 0;
 
         List<SkillValue> currentSkills = repository.getSkillsForSnapshot(latest.snapshotId());
@@ -64,7 +64,7 @@ public class RuneScapeTestDataSeeder {
             RuneScapeProfile fakeProfile = new RuneScapeProfile(rsn, totalLevel, totalXp, latest.combatLevel(),
                     latest.questsComplete(), latest.questsStarted(), latest.questsNotStarted(), historicalSkills, List.of());
 
-            long snapshotId = repository.saveSnapshotAt(guildId, rsn, at, fakeProfile, RuneScapeStatsService.serializeSkills(historicalSkills));
+            long snapshotId = repository.saveSnapshotAt(rsn, at, fakeProfile, RuneScapeStatsService.serializeSkills(historicalSkills));
             repository.saveSkillSnapshot(snapshotId, historicalSkills);
             created++;
         }

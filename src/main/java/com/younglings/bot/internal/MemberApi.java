@@ -245,7 +245,7 @@ public class MemberApi {
     // ---------- goals ----------
 
     private Map<Integer, SkillValue> latestSkills(Guild guild, String rsn) {
-        var snapshot = links.getLatestSnapshot(guild.getIdLong(), rsn);
+        var snapshot = links.getLatestSnapshot(rsn);
         Map<Integer, SkillValue> skills = new HashMap<>();
         if (snapshot != null) links.getSkillsForSnapshot(snapshot.snapshotId()).forEach(s -> skills.put(s.skillId(), s));
         return skills;
