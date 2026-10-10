@@ -2,7 +2,6 @@ package com.younglings.bot.internal;
 
 import com.younglings.bot.configure.GuildSettings;
 import com.younglings.bot.configure.GuildSettingsService;
-import com.younglings.bot.permission.DashboardAccess;
 import com.younglings.bot.runescape.ClanVerificationService;
 import com.younglings.bot.runescape.PlayerLinkService;
 import net.dv8tion.jda.api.entities.Guild;
@@ -35,7 +34,6 @@ class ServerSetupAdminApiTest {
     private GuildSettingsService settings;
     private ClanVerificationService clanVerification;
     private PlayerLinkService links;
-    private DashboardAccess access;
     private ServerSetupAdminApi api;
     private Guild guild;
     private Member actor;
@@ -46,8 +44,7 @@ class ServerSetupAdminApiTest {
         settings = mock(GuildSettingsService.class);
         clanVerification = mock(ClanVerificationService.class);
         links = mock(PlayerLinkService.class);
-        access = mock(DashboardAccess.class);
-        api = new ServerSetupAdminApi(settings, clanVerification, links, access);
+        api = new ServerSetupAdminApi(settings, clanVerification, links);
 
         guild = mock(Guild.class);
         actor = mock(Member.class);
@@ -55,7 +52,6 @@ class ServerSetupAdminApiTest {
         when(guild.getIdLong()).thenReturn(GUILD);
         when(guild.getSelfMember()).thenReturn(self);
         when(actor.getIdLong()).thenReturn(ACTOR);
-        when(access.tierOf(guild, actor)).thenReturn(DashboardAccess.Tier.ADMIN);
         when(settings.getEffective(GUILD)).thenReturn(new GuildSettings(GUILD, null, null, null, null, null, null, null, null, true, null, null, null));
     }
 
@@ -130,33 +126,9 @@ class ServerSetupAdminApiTest {
     @Test
     void aRoleThatDoesNotExistInThisServerIsRefused() {
         var thrown = assertThrows(TicketAdminApi.ApiError.class, () ->
-                api.save(guild, actor, DataObject.fromJson("{\"adminRoleId\": \"999\"}")));
+                api.save(guild, actor, DataObject.fromJson("{\"onboardingRoleId\": \"999\"}")));
 
         assertTrue(thrown.problems.getFirst().contains("doesn't exist in this server"));
-    }
-
-    @Test
-    void theDeveloperTierCannotChangeWhoIsStaff() {
-        role(500, false, true);
-        when(access.tierOf(guild, actor)).thenReturn(DashboardAccess.Tier.DEVELOPER);
-
-        var thrown = assertThrows(TicketAdminApi.ApiError.class, () ->
-                api.save(guild, actor, DataObject.fromJson("{\"adminRoleId\": \"500\"}")));
-
-        assertEquals(403, thrown.status);
-        verify(settings, never()).updateAdminRole(anyLong(), any());
-    }
-
-    @Test
-    void theDeveloperTierCanStillSaveTheFormWhenTheStaffRolesAreUnchanged() {
-        role(500, false, true);
-        when(access.tierOf(guild, actor)).thenReturn(DashboardAccess.Tier.DEVELOPER);
-        when(settings.getEffective(GUILD)).thenReturn(new GuildSettings(GUILD, null, 400L, null, null, null, null, null, null, true, null, null, null));
-        role(400, false, true);
-
-        api.save(guild, actor, DataObject.fromJson("{\"adminRoleId\": \"400\", \"onboardingRoleId\": \"500\"}"));
-
-        verify(settings).updateOnboardingRole(GUILD, 500L);
     }
 
     @Test

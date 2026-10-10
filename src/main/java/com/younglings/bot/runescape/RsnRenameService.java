@@ -2,6 +2,8 @@ package com.younglings.bot.runescape;
 
 import com.younglings.bot.configure.GuildSettingsService;
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.permission.PermissionGroup;
+import com.younglings.bot.permission.PermissionGroupService;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
 import net.dv8tion.jda.api.components.buttons.Button;
@@ -60,9 +62,11 @@ public class RsnRenameService {
     private final PlayerLinkService linkService;
     private final RsnRenameRepository renameRepository;
     private final GuildSettingsService guildSettingsService;
+    private final PermissionGroupService permissionGroups;
 
     public RsnRenameService(RuneScapeStatsService statsService, PlayerLinkService linkService,
-                             RsnRenameRepository renameRepository, GuildSettingsService guildSettingsService) {
+                             RsnRenameRepository renameRepository, GuildSettingsService guildSettingsService, PermissionGroupService permissionGroups) {
+        this.permissionGroups = permissionGroups;
         this.statsService = statsService;
         this.linkService = linkService;
         this.renameRepository = renameRepository;
@@ -256,8 +260,7 @@ public class RsnRenameService {
     }
 
     private String adminPing(Guild guild) {
-        Long adminRoleId = guildSettingsService.getEffective(guild.getIdLong()).adminRoleId();
-        return adminRoleId != null ? "<@&" + adminRoleId + "> " : "";
+        return permissionGroups.roleIds(guild.getIdLong(), PermissionGroup.ADMIN).stream().map(id -> "<@&" + id + "> ").collect(Collectors.joining());
     }
 
     private EnumSet<Message.MentionType> mentionsFor(String ping) {

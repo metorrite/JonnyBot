@@ -4,6 +4,7 @@ import com.younglings.bot.announcement.AnnouncementRepository;
 import com.younglings.bot.commands.embed.EmbedService;
 import com.younglings.bot.configure.GuildSettings;
 import com.younglings.bot.configure.GuildSettingsService;
+import com.younglings.bot.permission.PermissionGroupService;
 import com.younglings.bot.runescape.ClanVerificationService;
 import net.dv8tion.jda.api.components.buttons.Button;
 import net.dv8tion.jda.api.components.buttons.ButtonStyle;
@@ -41,7 +42,7 @@ class ConfigurePanelsTest {
     void setUp() {
         settingsService = mock(GuildSettingsService.class);
         announcements = mock(AnnouncementRepository.class);
-        listener = new ConfigureInteractionListener(settingsService, mock(ClanVerificationService.class), announcements, mock(EmbedService.class));
+        listener = new ConfigureInteractionListener(settingsService, mock(ClanVerificationService.class), announcements, mock(EmbedService.class), mock(PermissionGroupService.class));
 
         guild = mock(Guild.class);
         when(guild.getIdLong()).thenReturn(GUILD_ID);

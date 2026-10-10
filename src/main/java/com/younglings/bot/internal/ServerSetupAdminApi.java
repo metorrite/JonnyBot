@@ -3,7 +3,6 @@ package com.younglings.bot.internal;
 import com.younglings.bot.configure.GuildSettings;
 import com.younglings.bot.configure.GuildSettingsService;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
-import com.younglings.bot.permission.DashboardAccess;
 import com.younglings.bot.runescape.ClanVerificationService;
 import com.younglings.bot.runescape.PlayerLinkService;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -19,15 +18,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * A server's basic setup for the website: the same settings {@code /configure} edits in Discord (its clan, who counts as
- * staff, where link requests are reviewed, and the roles verification hands out). A freshly installed server starts with
+ * A server's basic setup for the website: the same settings {@code /configure} edits in Discord (its clan, where link requests
+ * are reviewed, and the roles verification hands out). Who counts as staff lives with the permission groups instead
+ * ({@link PermissionsAdminApi}), since that is more than one role per level. A freshly installed server starts with
  * none of these, so this is the first thing its owner needs. Reached only through {@link TicketAdminApi}, which has already
  * checked the acting user may use the dashboard in this server and which writes every change to the audit log.
  * <p>
- * Everything in a save is checked before anything is changed, so a refused save changes nothing. Two rules protect the
- * dashboard itself: setting a clan is verified exactly like {@code /configure} does it (the clan must exist and the person
- * must be an Admin-or-higher member of it, so a server can't claim someone else's clan), and the staff roles can only be
- * changed by the Admin tier, so someone with the lower Developer tier can't promote themselves.
+ * Everything in a save is checked before anything is changed, so a refused save changes nothing. Setting a clan is verified
+ * exactly like {@code /configure} does it: the clan must exist and the person must be an Admin-or-higher member of it, so a
+ * server can't claim someone else's clan.
  */
 @BService
 public class ServerSetupAdminApi {
@@ -36,13 +35,11 @@ public class ServerSetupAdminApi {
     private final GuildSettingsService settings;
     private final ClanVerificationService clanVerification;
     private final PlayerLinkService links;
-    private final DashboardAccess access;
 
-    public ServerSetupAdminApi(GuildSettingsService settings, ClanVerificationService clanVerification, PlayerLinkService links, DashboardAccess access) {
+    public ServerSetupAdminApi(GuildSettingsService settings, ClanVerificationService clanVerification, PlayerLinkService links) {
         this.settings = settings;
         this.clanVerification = clanVerification;
         this.links = links;
-        this.access = access;
     }
 
     DataObject get(Guild guild) {
@@ -51,9 +48,6 @@ public class ServerSetupAdminApi {
                 .put("clanName", s.savedClanName())
                 .put("clanEnabled", s.clanEnabled())
                 .put("clanActive", s.clanActive())
-                .put("adminRoleId", idOrNull(s.adminRoleId()))
-                .put("supportRoleId", idOrNull(s.supportRoleId()))
-                .put("developerRoleId", idOrNull(s.developerRoleId()))
                 .put("verificationReviewChannelId", idOrNull(s.verificationReviewChannelId()))
                 .put("renameAlertChannelId", idOrNull(s.renameAlertChannelId()))
                 .put("verifiedClanRoleId", idOrNull(s.verifiedClanRoleId()))
@@ -69,9 +63,6 @@ public class ServerSetupAdminApi {
 
         Field clan = text(body, "clanName", problems);
         Field clanEnabled = flag(body, "clanEnabled");
-        Field adminRole = id(body, "adminRoleId", problems);
-        Field supportRole = id(body, "supportRoleId", problems);
-        Field developerRole = id(body, "developerRoleId", problems);
         Field reviewChannel = id(body, "verificationReviewChannelId", problems);
         Field renameChannel = id(body, "renameAlertChannelId", problems);
         Field verifiedClanRole = id(body, "verifiedClanRoleId", problems);
@@ -79,15 +70,6 @@ public class ServerSetupAdminApi {
         Field unverifiedRole = id(body, "unverifiedRoleId", problems);
         Field onboardingRole = id(body, "onboardingRoleId", problems);
 
-        // the form sends every field on each save, so only a role that actually changes counts as a change of who is staff
-        boolean staffChange = changed(adminRole, current.adminRoleId()) || changed(supportRole, current.supportRoleId()) || changed(developerRole, current.developerRoleId());
-        if (staffChange && access.tierOf(guild, actor) != DashboardAccess.Tier.ADMIN) {
-            throw new ApiError(403, "Only an Admin can change which roles count as staff.");
-        }
-
-        checkRole(guild, "Admin role", adminRole, false, problems);
-        checkRole(guild, "Support role", supportRole, false, problems);
-        checkRole(guild, "Developer role", developerRole, false, problems);
         checkRole(guild, "Verified clan member role", verifiedClanRole, true, problems);
         checkRole(guild, "Verified, not in the clan role", verifiedNonClanRole, true, problems);
         checkRole(guild, "Unverified role", unverifiedRole, true, problems);
@@ -115,9 +97,6 @@ public class ServerSetupAdminApi {
             if (settingClan && !clanEnabled.present()) settings.setClanEnabled(guildId, true);
         }
         if (clanEnabled.present()) settings.setClanEnabled(guildId, clanEnabled.flag());
-        if (adminRole.present()) settings.updateAdminRole(guildId, adminRole.value());
-        if (supportRole.present()) settings.updateSupportRole(guildId, supportRole.value());
-        if (developerRole.present()) settings.updateDeveloperRole(guildId, developerRole.value());
         if (reviewChannel.present()) settings.updateVerificationSettings(guildId, reviewChannel.value());
         if (renameChannel.present()) settings.updateRenameAlertChannel(guildId, renameChannel.value());
         if (verifiedClanRole.present() || verifiedNonClanRole.present() || unverifiedRole.present()) {
@@ -129,8 +108,7 @@ public class ServerSetupAdminApi {
         }
         if (onboardingRole.present()) settings.updateOnboardingRole(guildId, onboardingRole.value());
 
-        log.info("Dashboard: {} saved the server setup (clan {}, staff roles changed: {})", actor.getId(),
-                clan.present() ? (newClan == null ? "cleared" : "set") : "unchanged", staffChange);
+        log.info("Dashboard: {} saved the server setup (clan {})", actor.getId(), clan.present() ? (newClan == null ? "cleared" : "set") : "unchanged");
         return get(guild);
     }
 
@@ -195,10 +173,6 @@ public class ServerSetupAdminApi {
         GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, field.value());
         if (channel == null) problems.add(label + ": that channel doesn't exist in this server.");
         else if (!channel.canTalk()) problems.add(label + ": JonnyBot can't post in #" + channel.getName() + ". It needs permission to view and send messages there.");
-    }
-
-    private static boolean changed(Field field, Long now) {
-        return field.present() && !java.util.Objects.equals(field.value(), now);
     }
 
     private static String idOrNull(Long id) {
