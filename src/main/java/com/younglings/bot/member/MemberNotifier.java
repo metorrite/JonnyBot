@@ -1,6 +1,5 @@
 package com.younglings.bot.member;
 
-import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.member.MemberProfileRepository.Goal;
 import com.younglings.bot.runescape.PlayerLinkRepository;
 import com.younglings.bot.runescape.RuneScapeSkillCatalog;
@@ -37,17 +36,15 @@ public class MemberNotifier {
 
     private final MemberProfileRepository repository;
     private final PlayerLinkRepository links;
-    private final BotConfig botConfig;
     private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor((ThreadFactory) r -> {
         Thread t = new Thread(r, "member-notifier");
         t.setDaemon(true);
         return t;
     });
 
-    public MemberNotifier(MemberProfileRepository repository, PlayerLinkRepository links, BotConfig botConfig) {
+    public MemberNotifier(MemberProfileRepository repository, PlayerLinkRepository links) {
         this.repository = repository;
         this.links = links;
-        this.botConfig = botConfig;
     }
 
     @BEventListener
@@ -88,11 +85,11 @@ public class MemberNotifier {
     // ---------- event reminders ----------
 
     void sendEventReminders(JDA jda) {
-        Long guildId = botConfig.getGuildId();
-        if (guildId == null) return;
-        Guild guild = jda.getGuildById(guildId);
-        if (guild == null) return;
+        for (Guild guild : jda.getGuilds()) sendEventReminders(jda, guild);
+    }
 
+    private void sendEventReminders(JDA jda, Guild guild) {
+        long guildId = guild.getIdLong();
         Set<Long> subscribers = new HashSet<>(repository.usersWantingEventReminders(guildId));
         if (subscribers.isEmpty()) return;
 

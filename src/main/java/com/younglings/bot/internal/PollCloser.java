@@ -1,7 +1,6 @@
 package com.younglings.bot.internal;
 
 import com.younglings.bot.commands.poll.PollService;
-import com.younglings.bot.config.BotConfig;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -26,7 +25,6 @@ public class PollCloser {
 
     private final CommunitySettings settings;
     private final PollService polls;
-    private final BotConfig botConfig;
     private final SiteCache cache;
     private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor((ThreadFactory) r -> {
         Thread t = new Thread(r, "poll-closer");
@@ -34,10 +32,9 @@ public class PollCloser {
         return t;
     });
 
-    public PollCloser(CommunitySettings settings, PollService polls, BotConfig botConfig, SiteCache cache) {
+    public PollCloser(CommunitySettings settings, PollService polls, SiteCache cache) {
         this.settings = settings;
         this.polls = polls;
-        this.botConfig = botConfig;
         this.cache = cache;
     }
 
@@ -54,12 +51,14 @@ public class PollCloser {
     }
 
     void closeDue(JDA jda) {
-        Long guildId = botConfig.getGuildId();
-        if (guildId == null) return;
-        Guild guild = jda.getGuildById(guildId);
-        if (guild == null) return;
-
         for (long pollId : settings.due(OffsetDateTime.now())) {
+            var poll = polls.getSessionById(pollId);
+            Guild guild = poll == null ? null : jda.getGuildById(poll.guildId());
+            if (guild == null) {
+                // the poll is gone, or the bot has left its server: either way there is nothing left to close
+                settings.clearSchedule(pollId);
+                continue;
+            }
             polls.closePoll(guild, pollId); // does nothing if it was already ended by hand
             settings.clearSchedule(pollId);
             cache.invalidate("polls");

@@ -112,7 +112,7 @@ public class TicketAdminApi {
             // whoami is the one route that answers "no" with a 200: the website uses it to decide what to show.
             if (parts.length == 1 && parts[0].equals("whoami")) {
                 requireMethod(method, "GET");
-                InternalApiServer.sendJson(exchange, 200, whoami(actor, tier));
+                InternalApiServer.sendJson(exchange, 200, whoami(guild, actor, tier));
                 return;
             }
             if (tier == Tier.NONE) {
@@ -144,31 +144,67 @@ public class TicketAdminApi {
         }
     }
 
+    /**
+     * The servers JonnyBot is in where the asker may use the dashboard, for the dashboard's server picker. Each server is
+     * judged by its own rules ({@link DashboardAccess}), and only servers the asker can manage are named, so nobody
+     * learns which other servers the bot is in. Answers an empty list, not an error, for an unknown asker.
+     */
+    public void handleGuildList(HttpExchange exchange, net.dv8tion.jda.api.JDA jda) throws IOException {
+        try {
+            requireMethod(exchange.getRequestMethod().toUpperCase(), "GET");
+            DataArray guilds = DataArray.empty();
+            long actorId = actorIdOf(exchange);
+            if (actorId != 0) {
+                for (Guild guild : jda.getGuilds()) {
+                    Member member = memberIn(guild, actorId);
+                    if (member == null) continue;
+                    Tier tier = access.tierOf(guild, member);
+                    if (tier == Tier.NONE) continue;
+                    guilds.add(DataObject.empty().put("id", guild.getId()).put("name", guild.getName()).put("iconUrl", guild.getIconUrl())
+                            .put("memberCount", guild.getMemberCount()).put("tier", tier.name()));
+                }
+            }
+            InternalApiServer.sendJson(exchange, 200, DataObject.empty().put("guilds", guilds));
+        } catch (ApiError e) {
+            InternalApiServer.sendJson(exchange, e.status, DataObject.empty().put("error", e.getMessage()));
+        }
+    }
+
     // ---------- who is asking ----------
 
-    private Member actorOf(HttpExchange exchange, Guild guild) {
+    /** The asker's Discord id from the request, or 0 if there isn't a usable one. */
+    private static long actorIdOf(HttpExchange exchange) {
         String raw = exchange.getRequestHeaders().getFirst(ACTOR_HEADER);
-        if (raw == null || raw.isBlank()) return null;
-        long id;
+        if (raw == null || raw.isBlank()) return 0;
         try {
-            id = Long.parseLong(raw.trim());
+            return Long.parseLong(raw.trim());
         } catch (NumberFormatException e) {
-            return null;
+            return 0;
         }
-        Member cached = guild.getMemberById(id);
+    }
+
+    private static Member memberIn(Guild guild, long userId) {
+        Member cached = guild.getMemberById(userId);
         if (cached != null) return cached;
         try {
-            return guild.retrieveMemberById(id).complete();
+            return guild.retrieveMemberById(userId).complete();
         } catch (Exception e) {
             return null; // not in the server (or Discord couldn't say) — no access
         }
     }
 
-    private static DataObject whoami(Member actor, Tier tier) {
+    private Member actorOf(HttpExchange exchange, Guild guild) {
+        long id = actorIdOf(exchange);
+        return id == 0 ? null : memberIn(guild, id);
+    }
+
+    private static DataObject whoami(Guild guild, Member actor, Tier tier) {
         DataObject json = DataObject.empty().put("allowed", tier != Tier.NONE).put("tier", tier.name());
         if (actor != null) {
             json.put("id", actor.getId()).put("displayName", actor.getEffectiveName()).put("avatarUrl", actor.getEffectiveAvatarUrl());
         }
+        // which server this answer is about; only given to someone allowed in, so it never names a server to a stranger
+        if (tier != Tier.NONE) json.put("guildName", guild.getName()).put("guildIconUrl", guild.getIconUrl());
         return json;
     }
 
