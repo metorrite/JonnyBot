@@ -1,9 +1,7 @@
 package com.younglings.bot.commands.signup;
 
 import com.younglings.bot.discord.Containers;
-import com.younglings.bot.permission.AdminRoleFilter;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
-import io.github.freya022.botcommands.api.commands.annotations.Filter;
 import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.JDASlashCommand;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
@@ -25,7 +23,7 @@ import java.util.List;
 @Command
 public class SignupHubCommand {
 
-    @Filter(AdminRoleFilter.class)
+    // Who may open this (Admins by default, and anyone else the server's Hub settings allow) is decided by HubCommandFilter, not here.
     @JDASlashCommand(name = "signup", description = "Create and manage signups")
     public void onSignup(GuildSlashEvent event) {
         if (event.getGuild() == null) {
