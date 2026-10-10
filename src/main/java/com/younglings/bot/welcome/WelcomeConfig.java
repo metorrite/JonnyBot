@@ -14,7 +14,17 @@ public record WelcomeConfig(long guildId, boolean enabled, MessageType messageTy
                             String content, Integer color, String title, String titleUrl, String description,
                             String authorName, String authorIconUrl, String thumbnailUrl, String imageUrl,
                             String footerText, String footerIconUrl, List<EmbedField> fields,
-                            boolean linkButton, String linkButtonLabel, String linkButtonStyle) {
+                            boolean linkButton, String linkButtonLabel, String linkButtonStyle, String footerStyle) {
+
+    /** Before the footer had a look of its own: small grey text. */
+    public WelcomeConfig(long guildId, boolean enabled, MessageType messageType, Long channelId, boolean alsoDm,
+                         String content, Integer color, String title, String titleUrl, String description,
+                         String authorName, String authorIconUrl, String thumbnailUrl, String imageUrl,
+                         String footerText, String footerIconUrl, List<EmbedField> fields,
+                         boolean linkButton, String linkButtonLabel, String linkButtonStyle) {
+        this(guildId, enabled, messageType, channelId, alsoDm, content, color, title, titleUrl, description, authorName, authorIconUrl,
+                thumbnailUrl, imageUrl, footerText, footerIconUrl, fields, linkButton, linkButtonLabel, linkButtonStyle, "small");
+    }
 
     /** The link button as it was before it could be coloured: blue. */
     public WelcomeConfig(long guildId, boolean enabled, MessageType messageType, Long channelId, boolean alsoDm,
@@ -23,11 +33,17 @@ public record WelcomeConfig(long guildId, boolean enabled, MessageType messageTy
                          String footerText, String footerIconUrl, List<EmbedField> fields,
                          boolean linkButton, String linkButtonLabel) {
         this(guildId, enabled, messageType, channelId, alsoDm, content, color, title, titleUrl, description, authorName, authorIconUrl,
-                thumbnailUrl, imageUrl, footerText, footerIconUrl, fields, linkButton, linkButtonLabel, "primary");
+                thumbnailUrl, imageUrl, footerText, footerIconUrl, fields, linkButton, linkButtonLabel, "primary", "small");
     }
 
     /** The colours a button can have. */
     public static final List<String> BUTTON_STYLES = List.of("primary", "secondary", "success", "danger");
+
+    /**
+     * How a container shows its footer. An embed's footer is always small and grey (Discord fixes that), but a container's is ordinary
+     * text: {@code small} is small and grey like an embed's, {@code normal} is as bright as the rest of the text, {@code bold} is bold.
+     */
+    public static final List<String> FOOTER_STYLES = List.of("small", "normal", "bold");
 
     /**
      * What gets sent: the text line, the embed, or both (the combination Dyno calls "Embed and Text"), or a container.
@@ -60,6 +76,6 @@ public record WelcomeConfig(long guildId, boolean enabled, MessageType messageTy
     public static WelcomeConfig defaults(long guildId) {
         return new WelcomeConfig(guildId, false, MessageType.EMBED_TEXT, null, false,
                 "Welcome to **{server}**, {user} 👋", null, "Welcome to {server}", "",
-                "We're glad to have you here!", "", "", "", "", "", "", List.of(), false, "Link your RuneScape name", "primary");
+                "We're glad to have you here!", "", "", "", "", "", "", List.of(), false, "Link your RuneScape name", "primary", "small");
     }
 }

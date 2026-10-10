@@ -48,8 +48,8 @@ public class WelcomeRepository {
                 INSERT INTO younglings.welcome_config
                     (guild_id, enabled, message_type, channel_id, also_dm, content, embed_color, embed_title, embed_title_url,
                      embed_description, author_name, author_icon_url, thumbnail_url, image_url, footer_text, footer_icon_url,
-                     fields_json, link_button, link_button_label, link_button_style, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                     fields_json, link_button, link_button_label, link_button_style, footer_style, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
                 ON CONFLICT (guild_id) DO UPDATE SET
                     enabled = EXCLUDED.enabled, message_type = EXCLUDED.message_type, channel_id = EXCLUDED.channel_id,
                     also_dm = EXCLUDED.also_dm, content = EXCLUDED.content, embed_color = EXCLUDED.embed_color,
@@ -58,7 +58,7 @@ public class WelcomeRepository {
                     author_icon_url = EXCLUDED.author_icon_url, thumbnail_url = EXCLUDED.thumbnail_url,
                     image_url = EXCLUDED.image_url, footer_text = EXCLUDED.footer_text, footer_icon_url = EXCLUDED.footer_icon_url,
                     fields_json = EXCLUDED.fields_json, link_button = EXCLUDED.link_button,
-                    link_button_label = EXCLUDED.link_button_label, link_button_style = EXCLUDED.link_button_style, updated_at = NOW()
+                    link_button_label = EXCLUDED.link_button_label, link_button_style = EXCLUDED.link_button_style, footer_style = EXCLUDED.footer_style, updated_at = NOW()
                 """;
         try (Connection connection = connectionSupplier.getConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
@@ -84,7 +84,8 @@ public class WelcomeRepository {
             statement.setString(i++, fieldsToJson(config.fields()));
             statement.setBoolean(i++, config.linkButton());
             statement.setString(i++, config.linkButtonLabel());
-            statement.setString(i, config.linkButtonStyle());
+            statement.setString(i++, config.linkButtonStyle());
+            statement.setString(i, config.footerStyle());
             statement.executeUpdate();
         } catch (SQLException e) {
             log.error("Failed to save the welcome message for guild {}", config.guildId(), e);
@@ -102,7 +103,7 @@ public class WelcomeRepository {
                 rs.getString("embed_description"), rs.getString("author_name"), rs.getString("author_icon_url"),
                 rs.getString("thumbnail_url"), rs.getString("image_url"), rs.getString("footer_text"), rs.getString("footer_icon_url"),
                 fieldsFromJson(rs.getString("fields_json")), rs.getBoolean("link_button"), rs.getString("link_button_label"),
-                rs.getString("link_button_style"));
+                rs.getString("link_button_style"), rs.getString("footer_style"));
     }
 
     private static MessageType parseType(String raw) {
