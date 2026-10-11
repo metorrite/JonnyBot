@@ -21,6 +21,14 @@ public final class PointsRules {
     /** Where a submission stands. */
     public enum Status { PENDING, APPROVED, DENIED }
 
+    /** Where a redemption stands: waiting for staff to hand the reward over, done, or cancelled (and refunded). */
+    public enum Fulfilment { PENDING, FULFILLED, CANCELLED }
+
+    public static final int MAX_REWARD_NAME = 60;
+    public static final int MAX_REWARD_DESCRIPTION = 200;
+    public static final int MAX_REWARDS = 25;
+    public static final long MAX_STOCK = 100_000;
+
     public static final int MIN_DESCRIPTION = 3;
     public static final int MAX_DESCRIPTION = 300;
     public static final int MAX_NOTE = 200;
@@ -41,6 +49,18 @@ public final class PointsRules {
         if (!image) return "The proof has to be an image (a screenshot).";
         if (size > MAX_PROOF_BYTES) return "That image is too big. Keep it under 8 MB.";
         if (pendingAlready >= MAX_PENDING_PER_MEMBER) return "You already have " + MAX_PENDING_PER_MEMBER + " submissions waiting. Wait for staff to look at them first.";
+        return null;
+    }
+
+    /** What is wrong with a reward, or null. A null {@code stock} means unlimited. */
+    public static String rewardProblem(String name, String description, long cost, Long stock) {
+        String n = name == null ? "" : name.strip();
+        if (n.isEmpty()) return "Give the reward a name.";
+        if (n.length() > MAX_REWARD_NAME) return "Keep the name to " + MAX_REWARD_NAME + " characters or fewer.";
+        if (description != null && description.strip().length() > MAX_REWARD_DESCRIPTION) return "Keep the description to " + MAX_REWARD_DESCRIPTION + " characters or fewer.";
+        if (cost <= 0) return "A reward has to cost more than zero.";
+        if (cost > MAX_PER_ENTRY) return "A reward can cost at most " + format(MAX_PER_ENTRY, "points") + ".";
+        if (stock != null && (stock < 0 || stock > MAX_STOCK)) return "Stock has to be between 0 and " + MAX_STOCK + ", or left empty for unlimited.";
         return null;
     }
 

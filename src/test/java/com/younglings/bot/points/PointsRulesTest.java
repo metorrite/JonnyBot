@@ -72,4 +72,16 @@ class PointsRulesTest {
         assertNotNull(PointsRules.decisionProblem(PointsRules.Status.DENIED, 0, "  "));
         assertNotNull(PointsRules.decisionProblem(PointsRules.Status.PENDING, 5, "x"));
     }
+
+    @Test
+    void aRewardNeedsANameAPositiveCostAndSaneStock() {
+        assertNull(PointsRules.rewardProblem("Zuk cape", "A shiny cape", 100, 3L));
+        assertNull(PointsRules.rewardProblem("Custom role", null, 30, null));
+        assertNull(PointsRules.rewardProblem("Raffled out", "", 30, 0L));
+        assertNotNull(PointsRules.rewardProblem(" ", "", 30, null));
+        assertNotNull(PointsRules.rewardProblem("Free", "", 0, null));
+        assertNotNull(PointsRules.rewardProblem("Too dear", "", PointsRules.MAX_PER_ENTRY + 1, null));
+        assertNotNull(PointsRules.rewardProblem("Negative stock", "", 5, -1L));
+        assertNotNull(PointsRules.rewardProblem("x".repeat(PointsRules.MAX_REWARD_NAME + 1), "", 5, null));
+    }
 }

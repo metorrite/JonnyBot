@@ -9,6 +9,7 @@ import com.younglings.bot.points.PointsRepository.Submission;
 import com.younglings.bot.points.PointsRules;
 import com.younglings.bot.points.PointsRules.Category;
 import com.younglings.bot.points.PointsService;
+import com.younglings.bot.points.RewardsRepository;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
@@ -31,10 +32,12 @@ public class PointsAdminApi implements AdminRouteExtension {
 
     private final PointsRepository repository;
     private final PointsService service;
+    private final RewardsRepository rewards;
 
-    public PointsAdminApi(PointsRepository repository, PointsService service) {
+    public PointsAdminApi(PointsRepository repository, PointsService service, RewardsRepository rewards) {
         this.repository = repository;
         this.service = service;
+        this.rewards = rewards;
     }
 
     @Override
@@ -44,6 +47,15 @@ public class PointsAdminApi implements AdminRouteExtension {
             if (method.equals("GET")) return overview(guild);
             AdminRouteExtension.requireMethod(method, "PUT");
             return saveSettings(guild, actor, body.get());
+        }
+        if (parts.length >= 2 && parts[1].equals("rewards")) return rewardsRoute(guild, actor, method, parts, body);
+        if (parts.length == 2 && parts[1].equals("redemptions")) {
+            AdminRouteExtension.requireMethod(method, "GET");
+            return redemptions(guild);
+        }
+        if (parts.length == 4 && parts[1].equals("redemptions") && (parts[3].equals("fulfil") || parts[3].equals("cancel"))) {
+            AdminRouteExtension.requireMethod(method, "POST");
+            return handleRedemption(guild, actor, parts[2], parts[3].equals("fulfil"));
         }
         if (parts.length == 2 && parts[1].equals("submissions")) {
             AdminRouteExtension.requireMethod(method, "GET");
@@ -183,6 +195,88 @@ public class PointsAdminApi implements AdminRouteExtension {
                 : "Your submission in **" + guild.getName() + "** wasn't approved." + (s.decisionNote() == null ? "" : " Staff said: " + s.decisionNote());
         guild.getJDA().retrieveUserById(s.userId()).flatMap(user -> user.openPrivateChannel()).flatMap(channel -> channel.sendMessage(text))
                 .queue(ok -> { }, error -> { });
+    }
+
+    // ---------- rewards ----------
+
+    private DataObject rewardsRoute(Guild guild, Member actor, String method, String[] parts, Supplier<DataObject> body) {
+        if (parts.length == 2) {
+            if (method.equals("GET")) return rewardList(guild);
+            AdminRouteExtension.requireMethod(method, "POST");
+            return saveReward(guild, actor, null, body.get());
+        }
+        if (parts.length == 3) {
+            AdminRouteExtension.requireMethod(method, "PUT");
+            if (!parts[2].matches("\\d{1,18}")) throw new ApiError(400, "That isn't a valid reward.");
+            return saveReward(guild, actor, Long.parseLong(parts[2]), body.get());
+        }
+        return null;
+    }
+
+    DataObject rewardList(Guild guild) {
+        DataArray list = DataArray.empty();
+        for (var r : rewards.rewards(guild.getIdLong(), false)) {
+            list.add(DataObject.empty().put("id", Long.toString(r.id())).put("name", r.name()).put("description", r.description()).put("cost", r.cost())
+                    .put("stock", r.stock()).put("active", r.active()));
+        }
+        return DataObject.empty().put("rewards", list).put("maxRewards", PointsRules.MAX_REWARDS).put("maxPerEntry", PointsRules.MAX_PER_ENTRY);
+    }
+
+    DataObject saveReward(Guild guild, Member actor, Long id, DataObject body) {
+        String name = body.getString("name", "").strip();
+        String description = body.isNull("description") ? "" : body.getString("description", "").strip();
+        long cost;
+        Long stock = null;
+        try {
+            cost = body.getLong("cost", 0);
+            if (!body.isNull("stock") && body.hasKey("stock")) stock = body.getLong("stock");
+        } catch (RuntimeException e) {
+            throw new ApiError(400, "The cost and stock must be whole numbers.");
+        }
+        boolean active = body.getBoolean("active", true);
+        String problem = PointsRules.rewardProblem(name, description, cost, stock);
+        if (problem != null) throw new ApiError(400, problem);
+        if (id == null) {
+            if (rewards.activeCount(guild.getIdLong()) >= PointsRules.MAX_REWARDS) throw new ApiError(400, "A server can have " + PointsRules.MAX_REWARDS + " active rewards. Archive one first.");
+            rewards.addReward(guild.getIdLong(), name, description, cost, stock);
+        } else if (!rewards.updateReward(guild.getIdLong(), id, name, description, cost, stock, active)) {
+            throw new ApiError(404, "That reward doesn't exist.");
+        }
+        log.info("Dashboard: {} saved a points reward", actor.getId());
+        return rewardList(guild);
+    }
+
+    DataObject redemptions(Guild guild) {
+        long guildId = guild.getIdLong();
+        DataArray pending = DataArray.empty();
+        for (var r : rewards.pendingRedemptions(guildId, 50)) pending.add(redemptionJson(guild, r));
+        DataArray handled = DataArray.empty();
+        for (var r : rewards.handledRedemptions(guildId, 25)) handled.add(redemptionJson(guild, r));
+        return DataObject.empty().put("pending", pending).put("handled", handled);
+    }
+
+    private DataObject redemptionJson(Guild guild, RewardsRepository.Redemption r) {
+        return DataObject.empty().put("id", Long.toString(r.id())).put("rewardName", r.rewardName()).put("userId", Long.toString(r.userId()))
+                .put("userName", name(guild, r.userId())).put("cost", r.cost()).put("status", r.status().name())
+                .put("handledByName", r.handledBy() == null ? null : name(guild, r.handledBy())).put("createdAt", r.createdAt().toString())
+                .put("handledAt", r.handledAt() == null ? null : r.handledAt().toString());
+    }
+
+    DataObject handleRedemption(Guild guild, Member actor, String rawId, boolean fulfil) {
+        if (rawId == null || !rawId.matches("\\d{1,18}")) throw new ApiError(400, "That isn't a valid redemption.");
+        var result = service.handle(guild.getIdLong(), Long.parseLong(rawId), fulfil, actor.getIdLong());
+        switch (result.outcome()) {
+            case NOT_FOUND -> throw new ApiError(404, result.message());
+            case ALREADY_HANDLED -> throw new ApiError(409, result.message());
+            default -> { }
+        }
+        log.info("Dashboard: {} {} redemption {}", actor.getId(), fulfil ? "fulfilled" : "cancelled", rawId);
+        String unit = repository.settings(guild.getIdLong()).unit();
+        var r = result.redemption();
+        String text = fulfil ? "Your reward **" + r.rewardName() + "** in **" + guild.getName() + "** has been handed over."
+                : "Your reward **" + r.rewardName() + "** in **" + guild.getName() + "** was cancelled and " + PointsRules.format(r.cost(), unit) + " refunded.";
+        guild.getJDA().retrieveUserById(r.userId()).flatMap(user -> user.openPrivateChannel()).flatMap(channel -> channel.sendMessage(text)).queue(ok -> { }, error -> { });
+        return redemptions(guild);
     }
 
     private static String name(Guild guild, long userId) {
