@@ -236,7 +236,7 @@ public class InternalApiServer {
                 sendJson(exchange, 401, DataObject.empty().put("error", "Unauthorized"));
                 return;
             }
-            directoryApi.handle(exchange);
+            directoryApi.handle(exchange, jda);
         } catch (Exception e) {
             log.error("Internal API directory request failed", e);
             sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));

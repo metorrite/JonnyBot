@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ProfileRulesTest {
     private static ClanProfile profile(Visibility visibility, String verifiedFor, Instant suspended) {
         return new ClanProfile(1, visibility, "younglings", "Younglings", "", "", null, null, null, EnumSet.noneOf(ClanProfile.Focus.class),
-                ClanProfile.Recruiting.CLOSED, "", null, verifiedFor, verifiedFor == null ? null : Instant.EPOCH, null, suspended, suspended == null ? null : "spam", null);
+                ClanProfile.Recruiting.CLOSED, "", null, false, verifiedFor, verifiedFor == null ? null : Instant.EPOCH, null, suspended, suspended == null ? null : "spam", null);
     }
 
     @Test

@@ -64,6 +64,7 @@ public class ClanProfileAdminApi implements AdminRouteExtension {
                 .put("visibility", p.visibility().name()).put("slug", p.slug()).put("displayName", p.displayName()).put("tagline", p.tagline())
                 .put("description", p.description()).put("logoUrl", p.logoUrl()).put("colour", p.colour()).put("timezone", p.timezone())
                 .put("focus", focus).put("recruiting", p.recruiting().name()).put("requirements", p.requirements()).put("applyUrl", p.applyUrl())
+                .put("leaderboardOptIn", p.leaderboardOptIn())
                 .put("currentClanName", clan).put("verified", ProfileRules.verified(p, clan)).put("verifiedClanName", p.verifiedClanName())
                 .put("listing", ProfileRules.listing(p, clan).name()).put("suspended", p.suspended()).put("suspendedReason", p.suspendedReason())
                 .put("memberCount", clan == null ? 0 : service.memberCount(guild.getIdLong()))
@@ -129,6 +130,8 @@ public class ClanProfileAdminApi implements AdminRouteExtension {
             focus.addAll(current.focus());
         }
 
+        boolean leaderboardOptIn = body.hasKey("leaderboardOptIn") ? body.getBoolean("leaderboardOptIn", false) : current.leaderboardOptIn();
+
         String slug = current.slug();
         if (body.hasKey("slug") && !body.isNull("slug") && !body.getString("slug", "").isBlank()) {
             slug = body.getString("slug").strip().toLowerCase(Locale.ROOT);
@@ -148,7 +151,7 @@ public class ClanProfileAdminApi implements AdminRouteExtension {
         if (!problems.isEmpty()) throw new ApiError(400, "The clan profile can't be saved yet.", problems.stream().filter(p -> p != null).distinct().toList());
 
         repository.saveContent(new ClanProfile(guildId, visibility, slug, name.strip(), tagline.strip(), description.strip(), blank(logoUrl), colour, blank(timezone),
-                focus, recruiting, requirements.strip(), blank(applyUrl), null, null, null, null, null, null));
+                focus, recruiting, requirements.strip(), blank(applyUrl), leaderboardOptIn, null, null, null, null, null, null));
         log.info("Dashboard: {} saved the clan profile ({})", actor.getId(), visibility);
         return get(guild);
     }

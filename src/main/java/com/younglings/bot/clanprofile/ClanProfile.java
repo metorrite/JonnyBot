@@ -11,7 +11,7 @@ import java.util.Set;
  */
 public record ClanProfile(long guildId, Visibility visibility, String slug, String displayName, String tagline, String description, String logoUrl,
                           Integer colour, String timezone, Set<Focus> focus, Recruiting recruiting, String requirements, String applyUrl,
-                          String verifiedClanName, Instant verifiedAt, Long verifiedBy, Instant suspendedAt, String suspendedReason, Instant updatedAt) {
+                          boolean leaderboardOptIn, String verifiedClanName, Instant verifiedAt, Long verifiedBy, Instant suspendedAt, String suspendedReason, Instant updatedAt) {
 
     /** Who can see the profile: nobody outside the server, anyone holding the link, or everyone in the directory. */
     public enum Visibility {
@@ -59,7 +59,7 @@ public record ClanProfile(long guildId, Visibility visibility, String slug, Stri
 
     public static ClanProfile empty(long guildId) {
         return new ClanProfile(guildId, Visibility.PRIVATE, null, "", "", "", null, null, null, EnumSet.noneOf(Focus.class), Recruiting.CLOSED, "", null,
-                null, null, null, null, null, null);
+                false, null, null, null, null, null, null);
     }
 
     public boolean suspended() {
