@@ -107,7 +107,7 @@ public class MemberApi {
     }
 
     /** Whether the bot may safely add/remove {@code role} for members: an ordinary role, below the bot's own, with nothing powerful in it. */
-    static boolean safeToAssign(Guild guild, Role role) {
+    public static boolean safeToAssign(Guild guild, Role role) {
         return !role.isPublicRole() && !role.isManaged() && guild.getSelfMember().canInteract(role) && dangerousIn(role.getPermissions()).isEmpty();
     }
 
