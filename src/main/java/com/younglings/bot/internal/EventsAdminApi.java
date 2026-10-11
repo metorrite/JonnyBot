@@ -246,7 +246,7 @@ public class EventsAdminApi implements AdminRouteExtension {
         if (userId == null) throw new ApiError(400, "Pick a player.");
         Member member = guild.getMemberById(userId);
         if (member == null || member.getUser().isBot()) throw new ApiError(400, "That player isn't a member of this server.");
-        service.join(guild.getIdLong(), id, guild.getIdLong(), userId, optionalId(body, "teamId"));
+        service.join(guild.getIdLong(), id, guild.getIdLong(), userId, optionalId(body, "teamId"), true, null);
         log.info("Dashboard: {} added player {} to event {}", actor.getId(), userId, id);
         return detail(guild, id);
     }

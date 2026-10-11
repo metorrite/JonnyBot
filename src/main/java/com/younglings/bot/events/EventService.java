@@ -11,6 +11,14 @@ import com.younglings.bot.events.EventRules.Source;
 import com.younglings.bot.events.EventRules.Status;
 import com.younglings.bot.events.EventScoring.Entry;
 import com.younglings.bot.events.EventScoring.Standing;
+import com.younglings.bot.events.EventRepository.AwardRow;
+import com.younglings.bot.events.PrizePlan.Place;
+import com.younglings.bot.events.PrizeRules.AwardStatus;
+import com.younglings.bot.events.PrizeRules.BuyInStatus;
+import com.younglings.bot.events.PrizeRules.PrizeKind;
+import com.younglings.bot.events.TeamRules.Kind;
+import com.younglings.bot.points.PointsRules;
+import com.younglings.bot.points.PointsService;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.utils.data.DataObject;
 import org.slf4j.Logger;
@@ -20,6 +28,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.OptionalLong;
 
@@ -42,12 +51,19 @@ public class EventService {
 
     public record Recorded(long progressId, long total, int completions) {}
 
+    /** Where a join ended up: in a place, or on the waitlist at {@code position} (1 is next). */
+    public record Joined(boolean waiting, int position) {}
+
     private final EventRepository repository;
     private final EventTemplates templates;
+    private final EventKinds kinds;
+    private final PointsService points;
 
-    public EventService(EventRepository repository, EventTemplates templates) {
+    public EventService(EventRepository repository, EventTemplates templates, EventKinds kinds, PointsService points) {
         this.repository = repository;
         this.templates = templates;
+        this.kinds = kinds;
+        this.points = points;
     }
 
     // ---------- events ----------
@@ -57,6 +73,7 @@ public class EventService {
         DataObject config = in.config() == null ? DataObject.empty() : in.config();
         List<String> problems = new ArrayList<>(EventRules.eventProblems(in.name(), in.description(), in.maxParticipants(), in.startsAt(), in.endsAt()));
         problems.addAll(template.configProblems(config));
+        problems.addAll(EventSettings.problems(config));
         if (!problems.isEmpty()) throw new EventProblem(400, "The event can't be created yet.", problems);
         if (repository.countOpen(guildId) >= MAX_OPEN_EVENTS) throw new EventProblem(409, "A server can have " + MAX_OPEN_EVENTS + " unfinished events. Finish or cancel one first.");
         long id = repository.createEvent(guildId, template.key(), in.name().strip(), clean(in.description()), in.scope(), in.scoringMode(), in.startsAt(), in.endsAt(),
@@ -84,6 +101,7 @@ public class EventService {
         DataObject config = in.config() == null ? DataObject.fromJson(existing.config()) : in.config();
         List<String> problems = new ArrayList<>(EventRules.eventProblems(in.name(), in.description(), in.maxParticipants(), in.startsAt(), in.endsAt()));
         problems.addAll(template.configProblems(config));
+        problems.addAll(EventSettings.problems(config));
         if (!problems.isEmpty()) throw new EventProblem(400, "The event can't be saved yet.", problems);
         if (!repository.updateEvent(guildId, id, in.name().strip(), clean(in.description()), in.scope(), in.scoringMode(), in.startsAt(), in.endsAt(), in.maxParticipants(), config.toString())) {
             throw new EventProblem(409, "The event moved on while you were editing it.");
@@ -142,29 +160,178 @@ public class EventService {
         if (!repository.removeTeam(id, teamId)) throw new EventProblem(404, "That team doesn't exist.");
     }
 
-    /** Adds a player. {@code userGuildId} is the server they play from (the host's own server for now). */
-    public void join(long guildId, long id, long userGuildId, long userId, Long teamId) {
-        Event event = event(guildId, id);
-        if (!EventRules.acceptsJoins(event.status())) throw new EventProblem(409, "This event isn't taking signups.");
-        if (teamId != null && repository.teams(id).stream().noneMatch(t -> t.id() == teamId)) throw new EventProblem(404, "That team doesn't exist.");
-        if (event.scoringMode() == ScoringMode.TEAM && teamId == null && event.status() == Status.RUNNING) {
-            throw new EventProblem(400, "Pick a team: this event is scored by team and it has already started.");
-        }
-        if (!repository.join(id, userId, userGuildId, teamId, event.maxParticipants())) {
-            throw new EventProblem(409, repository.participant(id, userId).isPresent() ? "That player is already in the event." : "The event is full.");
+    private EventSettings settingsOf(Event event) {
+        try {
+            return EventSettings.parse(DataObject.fromJson(event.config()));
+        } catch (RuntimeException e) {
+            return EventSettings.defaults();
         }
     }
 
+    /**
+     * Adds a player. {@code staff} is true when an organiser adds them (late entries, past the signup deadline) rather than the player. The player's
+     * kind comes from {@code kindOverride} or is worked out; the event's team policy decides whether they may join and share a team. A full event
+     * puts them on the waitlist, ordered by the host's queue policy.
+     */
+    public Joined join(long guildId, long id, long userGuildId, long userId, Long teamId, boolean staff, Kind kindOverride) {
+        Event event = event(guildId, id);
+        if (!EventRules.acceptsJoins(event.status())) throw new EventProblem(409, "This event isn't taking signups.");
+        EventSettings settings = settingsOf(event);
+        if (!staff && !settings.selfSignupOpen(Instant.now())) throw new EventProblem(409, "Signups have closed. Ask an organiser to add you.");
+        Kind kind = kindOverride != null ? kindOverride : kinds.kindOf(guildId, userGuildId, userId);
+        if (!TeamRules.mayJoin(settings.teamPolicy(), kind)) throw new EventProblem(409, "This event isn't open to " + describe(kind) + ".");
+        if (teamId != null) checkTeam(id, settings, teamId, kind, userId);
+        if (event.scoringMode() == ScoringMode.TEAM && teamId == null && event.status() == Status.RUNNING) {
+            throw new EventProblem(400, "Pick a team: this event is scored by team and it has already started.");
+        }
+        var waiting = repository.join(id, userId, userGuildId, teamId, kind, settings.buyIn().enabled() ? BuyInStatus.DUE : BuyInStatus.NONE, event.maxParticipants());
+        if (waiting.isEmpty()) throw new EventProblem(409, "That player is already in the event.");
+        if (!waiting.get()) return new Joined(false, 0);
+        return new Joined(true, QueueRules.position(settings.queue(), queueEntries(id), userId));
+    }
+
+    private List<QueueRules.Entry> queueEntries(long id) {
+        return repository.participants(id).stream().filter(EventRepository.Participant::waiting)
+                .map(p -> new QueueRules.Entry(p.userId(), p.kind(), p.joinedAt())).toList();
+    }
+
+    private void checkTeam(long id, EventSettings settings, long teamId, Kind kind, long userId) {
+        if (repository.teams(id).stream().noneMatch(t -> t.id() == teamId)) throw new EventProblem(404, "That team doesn't exist.");
+        List<Kind> mates = repository.participants(id).stream().filter(p -> p.userId() != userId && p.teamId() != null && p.teamId() == teamId).map(EventRepository.Participant::kind).toList();
+        if (!TeamRules.mayShareTeam(settings.teamPolicy(), kind, mates)) throw new EventProblem(409, "This event doesn't let " + describe(kind) + " share a team with that team's players.");
+    }
+
+    private static String describe(Kind kind) {
+        return switch (kind) {
+            case HOME_CLAN -> "clan members";
+            case HOME_OTHER -> "players who aren't in the clan";
+            case PARTNER -> "players from other servers";
+        };
+    }
+
+    /** Removes a player and gives their place to the next person waiting. A player who has paid a buy-in must be refunded first, so nothing is lost. */
     public void leave(long guildId, long id, long userId) {
-        event(guildId, id);
+        Event event = event(guildId, id);
+        var player = repository.participant(id, userId).orElseThrow(() -> new EventProblem(404, "That player isn't in the event."));
+        if (player.buyIn() == BuyInStatus.PAID) throw new EventProblem(409, "They have paid a buy-in. Refund it first, then remove them.");
         if (!repository.leave(id, userId)) throw new EventProblem(404, "That player isn't in the event.");
+        if (!player.waiting() && event.maxParticipants() > 0) {
+            QueueRules.Entry next = QueueRules.next(settingsOf(event).queue(), queueEntries(id));
+            if (next != null) repository.promote(id, next.userId(), event.maxParticipants());
+        }
     }
 
     public void setTeam(long guildId, long id, long userId, Long teamId) {
         Event event = event(guildId, id);
         if (event.status() == Status.DONE || event.status() == Status.CANCELLED) throw new EventProblem(409, "This event is over.");
-        if (teamId != null && repository.teams(id).stream().noneMatch(t -> t.id() == teamId)) throw new EventProblem(404, "That team doesn't exist.");
+        var player = repository.participant(id, userId).orElseThrow(() -> new EventProblem(404, "That player isn't in the event."));
+        if (teamId != null) checkTeam(id, settingsOf(event), teamId, player.kind(), userId);
         if (!repository.setTeam(id, userId, teamId)) throw new EventProblem(404, "That player isn't in the event.");
+    }
+
+    // ---------- buy-ins and the pot ----------
+
+    /** Moves a player's buy-in along: due, paid, refunded. Only allowed moves; the same change twice is refused. */
+    public void setBuyIn(long guildId, long id, long userId, BuyInStatus to) {
+        Event event = event(guildId, id);
+        if (!settingsOf(event).buyIn().enabled()) throw new EventProblem(409, "This event has no buy-in.");
+        var player = repository.participant(id, userId).orElseThrow(() -> new EventProblem(404, "That player isn't in the event."));
+        if (!PrizeRules.canMoveBuyIn(player.buyIn(), to)) throw new EventProblem(409, "A buy-in can't go from " + player.buyIn().name().toLowerCase(Locale.ROOT) + " to " + to.name().toLowerCase(Locale.ROOT) + ".");
+        if (!repository.moveBuyIn(id, userId, player.buyIn(), to)) throw new EventProblem(409, "Someone else already changed that buy-in.");
+    }
+
+    /** The pot so far: paid buy-ins less refunds. Zero when the event has no buy-in. */
+    public long pot(long guildId, long id) {
+        Event event = event(guildId, id);
+        return PrizeRules.pot(settingsOf(event).buyIn(), repository.participants(id).stream().map(EventRepository.Participant::buyIn).toList());
+    }
+
+    // ---------- prizes and awards ----------
+
+    public List<PrizePlan.Prize> prizes(long id) {
+        return repository.prizes(id);
+    }
+
+    /** Replaces the event's prizes. Allowed until awards have been worked out, so an award is never left pointing at a prize that changed. */
+    public void setPrizes(long guildId, long id, List<PrizePlan.Prize> prizes) {
+        Event event = event(guildId, id);
+        if (event.status() == Status.DONE || event.status() == Status.CANCELLED || !repository.awards(id).isEmpty()) {
+            throw new EventProblem(409, "Prizes can't be changed once awards have been worked out or the event is over.");
+        }
+        List<String> problems = new ArrayList<>();
+        for (PrizePlan.Prize p : prizes) problems.addAll(PrizePlan.problems(p));
+        problems.addAll(PrizePlan.setProblems(prizes));
+        boolean usesPot = prizes.stream().anyMatch(p -> p.percentOfPot() > 0);
+        if (usesPot && !settingsOf(event).buyIn().enabled()) problems.add("A prize can only be a share of the pot when the event has a buy-in.");
+        if (!problems.isEmpty()) throw new EventProblem(400, "The prizes can't be saved yet.", problems.stream().distinct().toList());
+        repository.replacePrizes(id, prizes);
+    }
+
+    /**
+     * Works out who is owed what from the final standings, the prizes and the pot, and records it. Only once the event is in scoring or done, and
+     * safe to repeat: an award that already exists is left alone.
+     */
+    public List<AwardRow> generateAwards(long guildId, long id) {
+        Event event = event(guildId, id);
+        if (event.status() != Status.SCORING && event.status() != Status.DONE) throw new EventProblem(409, "Awards are worked out once the event is in scoring or done.");
+        List<PrizePlan.Prize> prizes = repository.prizes(id);
+        if (prizes.isEmpty()) throw new EventProblem(409, "This event has no prizes yet.");
+        var participants = repository.participants(id);
+        List<Place> places = new ArrayList<>();
+        for (Standing s : standings(guildId, id)) {
+            long subject = Long.parseLong(s.subject().substring(2));
+            if (s.subject().startsWith("t:")) {
+                var team = repository.teams(id).stream().filter(t -> t.id() == subject).findFirst();
+                List<Long> members = new ArrayList<>();
+                team.map(EventRepository.Team::captainId).ifPresent(c -> {
+                    if (c != null && participants.stream().anyMatch(p -> p.userId() == c && !p.waiting())) members.add(c);
+                });
+                participants.stream().filter(p -> p.teamId() != null && p.teamId() == subject && !p.waiting() && !members.contains(p.userId())).map(EventRepository.Participant::userId).forEach(members::add);
+                places.add(new Place(s.subject(), members));
+            } else {
+                places.add(new Place(s.subject(), List.of(subject)));
+            }
+        }
+        long pot = PrizeRules.pot(settingsOf(event).buyIn(), participants.stream().map(EventRepository.Participant::buyIn).toList());
+        for (PrizePlan.Award a : PrizePlan.plan(prizes, places, pot)) repository.addAward(id, a);
+        return repository.awards(id);
+    }
+
+    public List<AwardRow> awards(long guildId, long id) {
+        event(guildId, id);
+        return repository.awards(id);
+    }
+
+    /**
+     * Moves an award along (pending, paid, revoked, refunded) and records who did it. A clan points award pays out through the points ledger when it is
+     * marked paid and takes the points back when it is revoked or refunded after being paid, under idempotency keys so a repeat can't pay twice.
+     */
+    public void moveAward(long guildId, long id, long awardId, AwardStatus to, long actorId, String note) {
+        Event event = event(guildId, id);
+        AwardRow award = repository.award(id, awardId).orElseThrow(() -> new EventProblem(404, "That award doesn't exist."));
+        if (!PrizeRules.canMoveAward(award.status(), to)) throw new EventProblem(409, "An award can't go from " + award.status().name().toLowerCase(Locale.ROOT) + " to " + to.name().toLowerCase(Locale.ROOT) + ".");
+        String cleanNote = clean(note);
+        if (cleanNote.length() > EventRules.MAX_NOTE) throw new EventProblem(400, "Keep the note to " + EventRules.MAX_NOTE + " characters or fewer.");
+        if (award.kind() == PrizeKind.CLAN_POINTS && award.amount() > 0) {
+            String reason = "Event prize: " + event.name();
+            PointsService.Result result;
+            if (to == AwardStatus.PAID) {
+                result = points.apply(guildId, award.userId(), award.amount(), reason, PointsRules.Category.EVENT, "event-award:" + awardId, actorId);
+            } else if (award.status() == AwardStatus.PAID) {
+                result = points.apply(guildId, award.userId(), -award.amount(), "Event prize taken back: " + event.name(), PointsRules.Category.ADJUSTMENT, "event-award-reversal:" + awardId, actorId);
+            } else {
+                result = null;
+            }
+            if (result != null && result.outcome() == PointsService.Outcome.INSUFFICIENT) throw new EventProblem(409, "They have already spent those points, so they can't be taken back.");
+            if (result != null && result.outcome() == PointsService.Outcome.INVALID) throw new EventProblem(400, result.message());
+        }
+        if (!repository.moveAward(id, awardId, award.status(), to, actorId, cleanNote)) throw new EventProblem(409, "Someone else already changed that award.");
+    }
+
+    public List<EventRepository.AwardStep> awardHistory(long guildId, long id, long awardId) {
+        event(guildId, id);
+        repository.award(id, awardId).orElseThrow(() -> new EventProblem(404, "That award doesn't exist."));
+        return repository.awardHistory(awardId);
     }
 
     // ---------- progress ----------
@@ -186,6 +353,7 @@ public class EventService {
         ObjectiveSpec objective = objectives.stream().filter(o -> o.key().equals(objectiveKey)).findFirst().orElseThrow(() -> new EventProblem(404, "That objective doesn't exist."));
         if (!EventRules.evidenceAllows(objective.evidence(), source)) throw new EventProblem(409, "\"" + objective.label() + "\" doesn't accept progress that way.");
         Participant player = repository.participant(id, userId).orElseThrow(() -> new EventProblem(404, "That player isn't in the event."));
+        if (player.waiting()) throw new EventProblem(409, "That player is on the waitlist, so progress doesn't count yet.");
 
         boolean byTeam = event.scoringMode() == ScoringMode.TEAM;
         if (byTeam && player.teamId() == null) throw new EventProblem(409, "Put that player in a team first: this event is scored by team.");

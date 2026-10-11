@@ -7,6 +7,11 @@ import com.younglings.bot.events.EventRules.Scope;
 import com.younglings.bot.events.EventRules.ScoringMode;
 import com.younglings.bot.events.EventRules.Source;
 import com.younglings.bot.events.EventRules.Status;
+import com.younglings.bot.events.PrizePlan.Split;
+import com.younglings.bot.events.PrizeRules.AwardStatus;
+import com.younglings.bot.events.PrizeRules.BuyInStatus;
+import com.younglings.bot.events.PrizeRules.PrizeKind;
+import com.younglings.bot.events.TeamRules.Kind;
 import io.github.freya022.botcommands.api.core.db.ConnectionSupplier;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import org.slf4j.Logger;
@@ -39,7 +44,15 @@ public class EventRepository {
 
     public record Team(long id, long eventId, String name, Long captainId) {}
 
-    public record Participant(long eventId, long userId, long guildId, Long teamId, Instant joinedAt) {}
+    /** {@code waiting} is true while the player is on the waitlist of a full event; {@code buyIn} is their buy-in stage. */
+    public record Participant(long eventId, long userId, long guildId, Long teamId, Kind kind, boolean waiting, BuyInStatus buyIn, Instant joinedAt) {}
+
+    /** What one person is owed for one prize at one place, and where that stands. */
+    public record AwardRow(long id, long eventId, long prizeId, int place, long userId, PrizeKind kind, String description, long amount, AwardStatus status,
+                           Instant createdAt, Instant updatedAt) {}
+
+    /** One step in an award's history: who moved it from one stage to another, and when. */
+    public record AwardStep(long id, long awardId, AwardStatus from, AwardStatus to, Long by, String note, Instant at) {}
 
     public record Progress(long id, long eventId, String objectiveKey, long userId, Long teamId, long amount, Source source, String sourceKey,
                            Long recordedBy, String note, Instant createdAt) {}
@@ -145,7 +158,50 @@ public class EventRepository {
                     decided_at TIMESTAMPTZ NULL
                 );
                 """,
-                "CREATE INDEX IF NOT EXISTS event_claim_event ON younglings.event_claim (event_id, status, id);"));
+                "CREATE INDEX IF NOT EXISTS event_claim_event ON younglings.event_claim (event_id, status, id);",
+                "ALTER TABLE younglings.event_participant ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'HOME_CLAN';",
+                "ALTER TABLE younglings.event_participant ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'ACTIVE';",
+                "ALTER TABLE younglings.event_participant ADD COLUMN IF NOT EXISTS buy_in_status TEXT NOT NULL DEFAULT 'NONE';",
+                """
+                CREATE TABLE IF NOT EXISTS younglings.event_prize (
+                    id BIGSERIAL PRIMARY KEY,
+                    event_id BIGINT NOT NULL REFERENCES younglings.event (id) ON DELETE CASCADE,
+                    place INT NOT NULL,
+                    place_to INT NOT NULL,
+                    kind TEXT NOT NULL,
+                    description TEXT NOT NULL DEFAULT '',
+                    amount BIGINT NOT NULL DEFAULT 0,
+                    percent_of_pot INT NOT NULL DEFAULT 0,
+                    split TEXT NOT NULL DEFAULT 'EQUAL'
+                );
+                """,
+                """
+                CREATE TABLE IF NOT EXISTS younglings.event_award (
+                    id BIGSERIAL PRIMARY KEY,
+                    event_id BIGINT NOT NULL REFERENCES younglings.event (id) ON DELETE CASCADE,
+                    prize_id BIGINT NOT NULL,
+                    place INT NOT NULL,
+                    user_id BIGINT NOT NULL,
+                    kind TEXT NOT NULL,
+                    description TEXT NOT NULL DEFAULT '',
+                    amount BIGINT NOT NULL DEFAULT 0,
+                    status TEXT NOT NULL DEFAULT 'PENDING',
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    UNIQUE (event_id, prize_id, place, user_id)
+                );
+                """,
+                """
+                CREATE TABLE IF NOT EXISTS younglings.event_award_log (
+                    id BIGSERIAL PRIMARY KEY,
+                    award_id BIGINT NOT NULL REFERENCES younglings.event_award (id) ON DELETE CASCADE,
+                    from_status TEXT NOT NULL,
+                    to_status TEXT NOT NULL,
+                    by_user BIGINT NULL,
+                    note TEXT NOT NULL DEFAULT '',
+                    at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+                """));
     }
 
     // ---------- events ----------
@@ -372,25 +428,209 @@ public class EventRepository {
         }
     }
 
-    /** Adds a player. False when they are already in or the event is full (checked in the same statement). {@code maxParticipants} 0 means no limit. */
-    public boolean join(long eventId, long userId, long guildId, Long teamId, int maxParticipants) {
+    /**
+     * Adds a player, with a place when the event has room and on the waitlist when it doesn't (decided in the same statement, so two people
+     * taking the last place can't both get it). Empty when they were already in. {@code maxParticipants} 0 means no limit.
+     */
+    public Optional<Boolean> join(long eventId, long userId, long guildId, Long teamId, Kind kind, BuyInStatus buyIn, int maxParticipants) {
         String sql = """
-                INSERT INTO younglings.event_participant (event_id, user_id, guild_id, team_id)
-                SELECT ?, ?, ?, ? WHERE ? = 0 OR (SELECT COUNT(*) FROM younglings.event_participant WHERE event_id = ?) < ?
-                ON CONFLICT DO NOTHING
+                INSERT INTO younglings.event_participant (event_id, user_id, guild_id, team_id, kind, status, buy_in_status)
+                SELECT ?, ?, ?, ?, ?,
+                       CASE WHEN ? = 0 OR (SELECT COUNT(*) FROM younglings.event_participant WHERE event_id = ? AND status = 'ACTIVE') < ? THEN 'ACTIVE' ELSE 'WAITING' END, ?
+                ON CONFLICT DO NOTHING RETURNING status
                 """;
         try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
             s.setLong(1, eventId);
             s.setLong(2, userId);
             s.setLong(3, guildId);
             if (teamId == null) s.setNull(4, Types.BIGINT); else s.setLong(4, teamId);
-            s.setInt(5, maxParticipants);
-            s.setLong(6, eventId);
-            s.setInt(7, maxParticipants);
-            return s.executeUpdate() == 1;
+            s.setString(5, kind.name());
+            s.setInt(6, maxParticipants);
+            s.setLong(7, eventId);
+            s.setInt(8, maxParticipants);
+            s.setString(9, buyIn.name());
+            try (ResultSet rs = s.executeQuery()) {
+                return rs.next() ? Optional.of(rs.getString(1).equals("WAITING")) : Optional.empty();
+            }
         } catch (SQLException e) {
             throw new RuntimeException("Failed to add the player", e);
         }
+    }
+
+    /** Moves a waiting player into a place, if there is one free. False when they weren't waiting or the event filled up first. */
+    public boolean promote(long eventId, long userId, int maxParticipants) {
+        String sql = """
+                UPDATE younglings.event_participant SET status = 'ACTIVE'
+                WHERE event_id = ? AND user_id = ? AND status = 'WAITING'
+                  AND (? = 0 OR (SELECT COUNT(*) FROM younglings.event_participant WHERE event_id = ? AND status = 'ACTIVE') < ?)
+                """;
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
+            s.setLong(1, eventId);
+            s.setLong(2, userId);
+            s.setInt(3, maxParticipants);
+            s.setLong(4, eventId);
+            s.setInt(5, maxParticipants);
+            return s.executeUpdate() == 1;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to promote the player", e);
+        }
+    }
+
+    /** Changes a player's buy-in stage. False when they weren't in {@code from}, so only one change wins. */
+    public boolean moveBuyIn(long eventId, long userId, BuyInStatus from, BuyInStatus to) {
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("UPDATE younglings.event_participant SET buy_in_status = ? WHERE event_id = ? AND user_id = ? AND buy_in_status = ?")) {
+            s.setString(1, to.name());
+            s.setLong(2, eventId);
+            s.setLong(3, userId);
+            s.setString(4, from.name());
+            return s.executeUpdate() == 1;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to change the buy-in", e);
+        }
+    }
+
+    // ---------- prizes and awards ----------
+
+    public void replacePrizes(long eventId, List<PrizePlan.Prize> prizes) {
+        try (Connection c = connectionSupplier.getConnection()) {
+            c.setAutoCommit(false);
+            try (PreparedStatement d = c.prepareStatement("DELETE FROM younglings.event_prize WHERE event_id = ?");
+                 PreparedStatement i = c.prepareStatement("INSERT INTO younglings.event_prize (event_id, place, place_to, kind, description, amount, percent_of_pot, split) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")) {
+                d.setLong(1, eventId);
+                d.executeUpdate();
+                for (PrizePlan.Prize p : prizes) {
+                    i.setLong(1, eventId);
+                    i.setInt(2, p.place());
+                    i.setInt(3, p.placeTo());
+                    i.setString(4, p.kind().name());
+                    i.setString(5, p.description());
+                    i.setLong(6, p.amount());
+                    i.setInt(7, p.percentOfPot());
+                    i.setString(8, p.split().name());
+                    i.addBatch();
+                }
+                i.executeBatch();
+                c.commit();
+            } catch (SQLException e) {
+                c.rollback();
+                throw e;
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to save the prizes", e);
+        }
+    }
+
+    public List<PrizePlan.Prize> prizes(long eventId) {
+        List<PrizePlan.Prize> list = new ArrayList<>();
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("SELECT * FROM younglings.event_prize WHERE event_id = ? ORDER BY place, id")) {
+            s.setLong(1, eventId);
+            try (ResultSet rs = s.executeQuery()) {
+                while (rs.next()) {
+                    list.add(new PrizePlan.Prize(rs.getLong("id"), rs.getInt("place"), rs.getInt("place_to"), PrizeKind.valueOf(rs.getString("kind")), rs.getString("description"),
+                            rs.getLong("amount"), rs.getInt("percent_of_pot"), Split.valueOf(rs.getString("split"))));
+                }
+            }
+            return list;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read the prizes", e);
+        }
+    }
+
+    /** Records what someone is owed. Empty when that exact award already exists, so working the awards out twice is harmless. */
+    public OptionalLong addAward(long eventId, PrizePlan.Award a) {
+        String sql = "INSERT INTO younglings.event_award (event_id, prize_id, place, user_id, kind, description, amount) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING RETURNING id";
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
+            s.setLong(1, eventId);
+            s.setLong(2, a.prizeId());
+            s.setInt(3, a.place());
+            s.setLong(4, a.userId());
+            s.setString(5, a.kind().name());
+            s.setString(6, a.description());
+            s.setLong(7, a.amount());
+            try (ResultSet rs = s.executeQuery()) {
+                return rs.next() ? OptionalLong.of(rs.getLong(1)) : OptionalLong.empty();
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to record the award", e);
+        }
+    }
+
+    public List<AwardRow> awards(long eventId) {
+        List<AwardRow> list = new ArrayList<>();
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("SELECT * FROM younglings.event_award WHERE event_id = ? ORDER BY place, id")) {
+            s.setLong(1, eventId);
+            try (ResultSet rs = s.executeQuery()) {
+                while (rs.next()) list.add(mapAward(rs));
+            }
+            return list;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read the awards", e);
+        }
+    }
+
+    public Optional<AwardRow> award(long eventId, long id) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("SELECT * FROM younglings.event_award WHERE event_id = ? AND id = ?")) {
+            s.setLong(1, eventId);
+            s.setLong(2, id);
+            try (ResultSet rs = s.executeQuery()) {
+                return rs.next() ? Optional.of(mapAward(rs)) : Optional.empty();
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read the award", e);
+        }
+    }
+
+    /** Moves an award from one stage to another and writes the step to its history, together. False when it wasn't in {@code from} any more. */
+    public boolean moveAward(long eventId, long id, AwardStatus from, AwardStatus to, Long by, String note) {
+        try (Connection c = connectionSupplier.getConnection()) {
+            c.setAutoCommit(false);
+            try (PreparedStatement u = c.prepareStatement("UPDATE younglings.event_award SET status = ?, updated_at = NOW() WHERE event_id = ? AND id = ? AND status = ?");
+                 PreparedStatement l = c.prepareStatement("INSERT INTO younglings.event_award_log (award_id, from_status, to_status, by_user, note) VALUES (?, ?, ?, ?, ?)")) {
+                u.setString(1, to.name());
+                u.setLong(2, eventId);
+                u.setLong(3, id);
+                u.setString(4, from.name());
+                if (u.executeUpdate() != 1) {
+                    c.rollback();
+                    return false;
+                }
+                l.setLong(1, id);
+                l.setString(2, from.name());
+                l.setString(3, to.name());
+                if (by == null) l.setNull(4, Types.BIGINT); else l.setLong(4, by);
+                l.setString(5, note == null ? "" : note);
+                l.executeUpdate();
+                c.commit();
+                return true;
+            } catch (SQLException e) {
+                c.rollback();
+                throw e;
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to move the award", e);
+        }
+    }
+
+    public List<AwardStep> awardHistory(long awardId) {
+        List<AwardStep> list = new ArrayList<>();
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("SELECT * FROM younglings.event_award_log WHERE award_id = ? ORDER BY id")) {
+            s.setLong(1, awardId);
+            try (ResultSet rs = s.executeQuery()) {
+                while (rs.next()) {
+                    list.add(new AwardStep(rs.getLong("id"), awardId, AwardStatus.valueOf(rs.getString("from_status")), AwardStatus.valueOf(rs.getString("to_status")),
+                            nullableLong(rs, "by_user"), rs.getString("note"), rs.getTimestamp("at").toInstant()));
+                }
+            }
+            return list;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read the award history", e);
+        }
+    }
+
+    private static AwardRow mapAward(ResultSet rs) throws SQLException {
+        return new AwardRow(rs.getLong("id"), rs.getLong("event_id"), rs.getLong("prize_id"), rs.getInt("place"), rs.getLong("user_id"), PrizeKind.valueOf(rs.getString("kind")),
+                rs.getString("description"), rs.getLong("amount"), AwardStatus.valueOf(rs.getString("status")), rs.getTimestamp("created_at").toInstant(), rs.getTimestamp("updated_at").toInstant());
     }
 
     public boolean leave(long eventId, long userId) {
@@ -590,7 +830,8 @@ public class EventRepository {
             if (userId != null) s.setLong(2, userId);
             try (ResultSet rs = s.executeQuery()) {
                 while (rs.next()) {
-                    list.add(new Participant(eventId, rs.getLong("user_id"), rs.getLong("guild_id"), nullableLong(rs, "team_id"), rs.getTimestamp("joined_at").toInstant()));
+                    list.add(new Participant(eventId, rs.getLong("user_id"), rs.getLong("guild_id"), nullableLong(rs, "team_id"), Kind.valueOf(rs.getString("kind")),
+                            rs.getString("status").equals("WAITING"), BuyInStatus.valueOf(rs.getString("buy_in_status")), rs.getTimestamp("joined_at").toInstant()));
                 }
             }
             return list;
