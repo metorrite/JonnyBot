@@ -41,6 +41,9 @@ public class RuneScapeApiClient {
     // HTTP redirect rather than the resource directly (verified live), and HttpClient's default
     // policy when unset is Redirect.NEVER — without this, every avatar fetch silently "failed"
     // with a bare 302 and no body, never actually reaching the image.
+    /** Clan rosters fetched in the last 90 seconds, by lower-cased clan name; only successful, non-empty fetches are kept. */
+    private final com.younglings.bot.util.TtlCache<String, List<ClanMember>> clanRosterCache = new com.younglings.bot.util.TtlCache<>(Duration.ofSeconds(90));
+
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .followRedirects(HttpClient.Redirect.NORMAL)
@@ -268,6 +271,17 @@ public class RuneScapeApiClient {
      * Empty if the clan doesn't exist or the request failed — not something to crash a sync over.
      */
     public List<ClanMember> fetchClanRoster(String clanName) {
+        // Two servers tracking the same clan hit this within moments of each other at the daily sync (and a self-refresh can follow
+        // it), so a roster fetched in the last minute and a half is reused instead of asking Jagex again.
+        String key = clanName.strip().toLowerCase(java.util.Locale.ROOT);
+        var cached = clanRosterCache.get(key);
+        if (cached.isPresent()) return cached.get();
+        List<ClanMember> roster = fetchClanRosterUncached(clanName);
+        if (!roster.isEmpty()) clanRosterCache.put(key, roster);
+        return roster;
+    }
+
+    private List<ClanMember> fetchClanRosterUncached(String clanName) {
         try {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(CLAN_HISCORES_URL.formatted(encode(clanName))))
