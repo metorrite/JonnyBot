@@ -12,6 +12,13 @@ import com.younglings.bot.events.EventRules.ScoringMode;
 import com.younglings.bot.events.EventRules.Source;
 import com.younglings.bot.events.EventRules.Status;
 import com.younglings.bot.events.EventScoring.Standing;
+import com.younglings.bot.events.EventSettings;
+import com.younglings.bot.events.PrizePlan;
+import com.younglings.bot.events.PrizeRules;
+import com.younglings.bot.events.PrizeRules.AwardStatus;
+import com.younglings.bot.events.PrizeRules.BuyInStatus;
+import com.younglings.bot.events.PrizeRules.PrizeKind;
+import com.younglings.bot.events.TeamRules;
 import com.younglings.bot.events.EventService;
 import com.younglings.bot.events.EventService.EventInput;
 import com.younglings.bot.events.EventTemplates;
@@ -105,6 +112,17 @@ public class EventsAdminApi implements AdminRouteExtension {
                     AdminRouteExtension.requireMethod(method, "POST");
                     return progress(guild, actor, id, body.get());
                 }
+                case "prizes" -> {
+                    AdminRouteExtension.requireMethod(method, "PUT");
+                    return setPrizes(guild, actor, id, body.get());
+                }
+                case "awards" -> {
+                    if (method.equals("GET")) return awards(guild, id);
+                    AdminRouteExtension.requireMethod(method, "POST");
+                    service.generateAwards(guild.getIdLong(), id);
+                    log.info("Dashboard: {} worked out the awards for event {}", actor.getId(), id);
+                    return awards(guild, id);
+                }
                 case "standings" -> {
                     AdminRouteExtension.requireMethod(method, "GET");
                     return standings(guild, id);
@@ -134,6 +152,31 @@ public class EventsAdminApi implements AdminRouteExtension {
             AdminRouteExtension.requireMethod(method, "PUT");
             service.setTeam(guild.getIdLong(), id, userId, optionalId(body.get(), "teamId"));
             return detail(guild, id);
+        }
+        if (parts.length == 5 && what.equals("participants") && parts[4].equals("buyin")) {
+            AdminRouteExtension.requireMethod(method, "PUT");
+            BuyInStatus to;
+            try {
+                to = BuyInStatus.valueOf(text(body.get(), "status").toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                throw new ApiError(400, "Choose a buy-in stage: due, paid or refunded.");
+            }
+            service.setBuyIn(guild.getIdLong(), id, idOf(parts[3], "player"), to);
+            log.info("Dashboard: {} set a buy-in to {} in event {}", actor.getId(), to, id);
+            return detail(guild, id);
+        }
+        if (parts.length == 5 && what.equals("awards") && parts[4].equals("status")) {
+            AdminRouteExtension.requireMethod(method, "POST");
+            DataObject b = body.get();
+            AwardStatus to;
+            try {
+                to = AwardStatus.valueOf(text(b, "status").toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                throw new ApiError(400, "Choose an award stage: paid, revoked or refunded.");
+            }
+            service.moveAward(guild.getIdLong(), id, idOf(parts[3], "award"), to, actor.getIdLong(), text(b, "note"));
+            log.info("Dashboard: {} moved an award to {} in event {}", actor.getId(), to, id);
+            return awards(guild, id);
         }
         if (parts.length == 5 && what.equals("claims") && (parts[4].equals("approve") || parts[4].equals("deny"))) {
             AdminRouteExtension.requireMethod(method, "POST");
@@ -199,10 +242,16 @@ public class EventsAdminApi implements AdminRouteExtension {
         repository.teams(id).forEach(t -> teams.add(DataObject.empty().put("id", Long.toString(t.id())).put("name", t.name()).put("captainId", t.captainId() == null ? null : Long.toString(t.captainId()))));
         DataArray players = DataArray.empty();
         repository.participants(id).forEach(p -> players.add(DataObject.empty().put("userId", Long.toString(p.userId())).put("userName", name(guild, p.userId()))
-                .put("guildId", Long.toString(p.guildId())).put("teamId", p.teamId() == null ? null : Long.toString(p.teamId())).put("joinedAt", p.joinedAt().toString())));
+                .put("guildId", Long.toString(p.guildId())).put("teamId", p.teamId() == null ? null : Long.toString(p.teamId())).put("joinedAt", p.joinedAt().toString())
+                .put("kind", p.kind().name()).put("waiting", p.waiting()).put("buyIn", p.buyIn().name())));
         DataArray next = DataArray.empty();
         EventRules.next(e.status()).stream().sorted().forEach(s -> next.add(s.name()));
-        return DataObject.empty().put("event", eventJson(e)).put("objectives", objectives).put("teams", teams).put("participants", players).put("nextStages", next)
+        EventSettings settings = EventSettings.parse(eventJson(e).getObject("config"));
+        DataArray prizes = DataArray.empty();
+        service.prizes(id).forEach(p -> prizes.add(DataObject.empty().put("id", Long.toString(p.id())).put("place", p.place()).put("placeTo", p.placeTo()).put("kind", p.kind().name())
+                .put("description", p.description()).put("amount", p.amount()).put("percentOfPot", p.percentOfPot()).put("split", p.split().name())));
+        return DataObject.empty().put("event", eventJson(e)).put("prizes", prizes).put("pot", service.pot(guild.getIdLong(), id)).put("potVisible", PrizeRules.potVisible(settings.buyIn()))
+                .put("buyInEnabled", settings.buyIn().enabled()).put("objectives", objectives).put("teams", teams).put("participants", players).put("nextStages", next)
                 .put("editable", EventRules.editable(e.status()));
     }
 
@@ -246,7 +295,16 @@ public class EventsAdminApi implements AdminRouteExtension {
         if (userId == null) throw new ApiError(400, "Pick a player.");
         Member member = guild.getMemberById(userId);
         if (member == null || member.getUser().isBot()) throw new ApiError(400, "That player isn't a member of this server.");
-        service.join(guild.getIdLong(), id, guild.getIdLong(), userId, optionalId(body, "teamId"), true, null);
+        TeamRules.Kind kind = null;
+        if (!text(body, "kind").isEmpty()) {
+            try {
+                kind = TeamRules.Kind.valueOf(text(body, "kind").toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                throw new ApiError(400, "Choose the kind of player: home_clan, home_other or partner.");
+            }
+        }
+        var joined = service.join(guild.getIdLong(), id, guild.getIdLong(), userId, optionalId(body, "teamId"), true, kind);
+        if (joined.waiting()) log.info("Dashboard: {} put player {} on the waitlist of event {} at {}", actor.getId(), userId, id, joined.position());
         log.info("Dashboard: {} added player {} to event {}", actor.getId(), userId, id);
         return detail(guild, id);
     }
@@ -296,6 +354,41 @@ public class EventsAdminApi implements AdminRouteExtension {
         long claimId = service.submitClaim(guild.getIdLong(), id, text(body, "objective"), userId, number(body, "amount", 1), text(body, "note"), text(body, "proofUrl"));
         log.info("Dashboard: {} filed claim {} in event {}", actor.getId(), claimId, id);
         return claims(guild, id);
+    }
+
+    // ---------- prizes and awards ----------
+
+    DataObject setPrizes(Guild guild, Member actor, long id, DataObject body) {
+        List<PrizePlan.Prize> prizes = new ArrayList<>();
+        DataArray array = body.hasKey("prizes") && !body.isNull("prizes") ? body.getArray("prizes") : DataArray.empty();
+        for (int i = 0; i < array.length(); i++) {
+            DataObject p = array.getObject(i);
+            PrizeKind kind;
+            PrizePlan.Split split;
+            try {
+                kind = PrizeKind.valueOf(text(p, "kind").isEmpty() ? "IN_GAME" : text(p, "kind").toUpperCase(Locale.ROOT));
+                split = PrizePlan.Split.valueOf(text(p, "split").isEmpty() ? "EQUAL" : text(p, "split").toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                throw new ApiError(400, "Choose the prize kind (in game, clan points or other) and how a team shares it (equal, each or captain).");
+            }
+            int place = (int) number(p, "place", 1);
+            prizes.add(new PrizePlan.Prize(0, place, (int) number(p, "placeTo", place), kind, text(p, "description"), number(p, "amount", 0), (int) number(p, "percentOfPot", 0), split));
+        }
+        service.setPrizes(guild.getIdLong(), id, prizes);
+        log.info("Dashboard: {} saved {} prizes for event {}", actor.getId(), prizes.size(), id);
+        return detail(guild, id);
+    }
+
+    DataObject awards(Guild guild, long id) {
+        DataArray array = DataArray.empty();
+        for (EventRepository.AwardRow a : service.awards(guild.getIdLong(), id)) {
+            DataArray history = DataArray.empty();
+            service.awardHistory(guild.getIdLong(), id, a.id()).forEach(h -> history.add(DataObject.empty().put("from", h.from().name()).put("to", h.to().name())
+                    .put("byName", h.by() == null ? null : name(guild, h.by())).put("note", h.note()).put("at", h.at().toString())));
+            array.add(DataObject.empty().put("id", Long.toString(a.id())).put("place", a.place()).put("userId", Long.toString(a.userId())).put("userName", name(guild, a.userId()))
+                    .put("kind", a.kind().name()).put("description", a.description()).put("amount", a.amount()).put("status", a.status().name()).put("history", history));
+        }
+        return DataObject.empty().put("awards", array);
     }
 
     // ---------- json ----------
