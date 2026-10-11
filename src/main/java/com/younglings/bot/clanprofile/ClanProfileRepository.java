@@ -85,7 +85,9 @@ public class ClanProfileRepository {
                     shared_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     PRIMARY KEY (guild_id, event_id)
                 );
-                """));
+                """,
+                // Who may see a shared event: PUBLIC (everyone, in the directory feeds) or ALLIANCE (only servers in an alliance with this one).
+                "ALTER TABLE younglings.shared_event ADD COLUMN IF NOT EXISTS scope TEXT NOT NULL DEFAULT 'PUBLIC';"));
     }
 
     // ---------- profiles ----------
@@ -216,28 +218,46 @@ public class ClanProfileRepository {
 
     // ---------- shared events ----------
 
-    /** The ids of this server's events that it has chosen to show publicly. */
+    /** The ids of this server's events that it has chosen to show publicly (the public feeds use only these). */
     public java.util.Set<Long> sharedEvents(long guildId) {
         java.util.Set<Long> ids = new java.util.HashSet<>();
-        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("SELECT event_id FROM younglings.shared_event WHERE guild_id = ?")) {
+        eventScopes(guildId).forEach((id, scope) -> {
+            if (scope.equals("PUBLIC")) ids.add(id);
+        });
+        return ids;
+    }
+
+    /** Every event this server shares, with who may see it: PUBLIC or ALLIANCE. */
+    public java.util.Map<Long, String> eventScopes(long guildId) {
+        java.util.Map<Long, String> scopes = new java.util.HashMap<>();
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("SELECT event_id, scope FROM younglings.shared_event WHERE guild_id = ?")) {
             s.setLong(1, guildId);
             try (ResultSet rs = s.executeQuery()) {
-                while (rs.next()) ids.add(rs.getLong(1));
+                while (rs.next()) scopes.put(rs.getLong(1), rs.getString(2));
             }
-            return ids;
+            return scopes;
         } catch (SQLException e) {
             throw new RuntimeException("Failed to read the shared events", e);
         }
     }
 
     public void setEventShared(long guildId, long eventId, boolean shared, long by) {
-        String sql = shared
-                ? "INSERT INTO younglings.shared_event (guild_id, event_id, shared_by) VALUES (?, ?, ?) ON CONFLICT (guild_id, event_id) DO NOTHING"
+        if (shared) setEventScope(guildId, eventId, "PUBLIC", by);
+        else setEventScope(guildId, eventId, null, by);
+    }
+
+    /** Shares an event with {@code scope} ("PUBLIC" or "ALLIANCE"), changing who may see it if already shared; null stops sharing it. */
+    public void setEventScope(long guildId, long eventId, String scope, long by) {
+        String sql = scope != null
+                ? "INSERT INTO younglings.shared_event (guild_id, event_id, shared_by, scope) VALUES (?, ?, ?, ?) ON CONFLICT (guild_id, event_id) DO UPDATE SET scope = EXCLUDED.scope"
                 : "DELETE FROM younglings.shared_event WHERE guild_id = ? AND event_id = ?";
         try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
             s.setLong(1, guildId);
             s.setLong(2, eventId);
-            if (shared) s.setLong(3, by);
+            if (scope != null) {
+                s.setLong(3, by);
+                s.setString(4, scope);
+            }
             s.executeUpdate();
         } catch (SQLException e) {
             throw new RuntimeException("Failed to change whether the event is shared", e);
@@ -246,7 +266,7 @@ public class ClanProfileRepository {
 
     /** Forgets shared events that no longer exist on Discord (finished and deleted), so the table doesn't collect them. */
     public int forgetSharedExcept(long guildId, java.util.Set<Long> existing) {
-        java.util.Set<Long> gone = sharedEvents(guildId);
+        java.util.Set<Long> gone = new java.util.HashSet<>(eventScopes(guildId).keySet());
         gone.removeAll(existing);
         for (long id : gone) setEventShared(guildId, id, false, 0);
         return gone.size();
