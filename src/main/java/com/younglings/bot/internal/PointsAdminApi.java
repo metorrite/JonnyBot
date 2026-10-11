@@ -5,6 +5,7 @@ import com.younglings.bot.points.PointsRepository;
 import com.younglings.bot.points.PointsRepository.Balance;
 import com.younglings.bot.points.PointsRepository.Entry;
 import com.younglings.bot.points.PointsRepository.Settings;
+import com.younglings.bot.points.PointsRepository.Submission;
 import com.younglings.bot.points.PointsRules;
 import com.younglings.bot.points.PointsRules.Category;
 import com.younglings.bot.points.PointsService;
@@ -44,6 +45,14 @@ public class PointsAdminApi implements AdminRouteExtension {
             AdminRouteExtension.requireMethod(method, "PUT");
             return saveSettings(guild, actor, body.get());
         }
+        if (parts.length == 2 && parts[1].equals("submissions")) {
+            AdminRouteExtension.requireMethod(method, "GET");
+            return submissions(guild);
+        }
+        if (parts.length == 4 && parts[1].equals("submissions") && (parts[3].equals("approve") || parts[3].equals("deny"))) {
+            AdminRouteExtension.requireMethod(method, "POST");
+            return decide(guild, actor, parts[2], parts[3].equals("approve"), body.get());
+        }
         if (parts.length == 2 && parts[1].equals("award")) {
             AdminRouteExtension.requireMethod(method, "POST");
             return award(guild, actor, body.get());
@@ -67,6 +76,7 @@ public class PointsAdminApi implements AdminRouteExtension {
         }
         PointsRepository.Totals totals = repository.totals(guildId);
         return DataObject.empty().put("enabled", settings.enabled()).put("unit", settings.unit())
+                .put("reviewChannelId", settings.reviewChannelId() == null ? null : Long.toString(settings.reviewChannelId()))
                 .put("top", top).put("recent", recent)
                 .put("totals", DataObject.empty().put("members", totals.members()).put("outstanding", totals.outstanding()).put("awarded", totals.awarded()).put("spent", totals.spent()))
                 .put("maxPerEntry", PointsRules.MAX_PER_ENTRY);
@@ -74,9 +84,22 @@ public class PointsAdminApi implements AdminRouteExtension {
 
     DataObject saveSettings(Guild guild, Member actor, DataObject body) {
         String unit = body.getString("unit", "points").strip();
-        var problems = PointsRules.settingsProblems(unit);
+        var problems = new java.util.ArrayList<>(PointsRules.settingsProblems(unit));
+        Long reviewChannel = null;
+        String rawChannel = body.isNull("reviewChannelId") ? "" : body.getString("reviewChannelId", "").strip();
+        if (!rawChannel.isEmpty()) {
+            if (!rawChannel.matches("\\d{1,20}") || guild.getTextChannelById(rawChannel) == null) {
+                problems.add("Pick a text channel in this server for submissions.");
+            } else {
+                var channel = guild.getTextChannelById(rawChannel);
+                if (!guild.getSelfMember().hasPermission(channel, net.dv8tion.jda.api.Permission.VIEW_CHANNEL, net.dv8tion.jda.api.Permission.MESSAGE_SEND, net.dv8tion.jda.api.Permission.MESSAGE_ATTACH_FILES)) {
+                    problems.add("JonnyBot needs to see, send messages and attach files in #" + channel.getName() + ".");
+                }
+                reviewChannel = Long.parseLong(rawChannel);
+            }
+        }
         if (!problems.isEmpty()) throw new ApiError(400, "The points settings can't be saved yet.", problems);
-        repository.saveSettings(new Settings(guild.getIdLong(), body.getBoolean("enabled", false), unit));
+        repository.saveSettings(new Settings(guild.getIdLong(), body.getBoolean("enabled", false), unit, reviewChannel));
         log.info("Dashboard: {} saved the points settings", actor.getId());
         return overview(guild);
     }
@@ -98,6 +121,68 @@ public class PointsAdminApi implements AdminRouteExtension {
         if (result.outcome() != PointsService.Outcome.DONE) throw new ApiError(400, result.message());
         log.info("Dashboard: {} gave {} point(s) to {}", actor.getId(), points, userId);
         return overview(guild);
+    }
+
+    /** Waiting submissions (oldest first) and the latest decided ones. Proof links are re-read from the review post, since Discord's expire. */
+    DataObject submissions(Guild guild) {
+        long guildId = guild.getIdLong();
+        DataArray pending = DataArray.empty();
+        for (Submission s : repository.pending(guildId, 25)) pending.add(submissionJson(guild, s, true));
+        DataArray decided = DataArray.empty();
+        for (Submission s : repository.decided(guildId, 25)) decided.add(submissionJson(guild, s, false));
+        return DataObject.empty().put("pending", pending).put("decided", decided).put("maxPerEntry", PointsRules.MAX_PER_ENTRY);
+    }
+
+    private DataObject submissionJson(Guild guild, Submission s, boolean freshProof) {
+        String proof = s.proofUrl();
+        if (freshProof && s.reviewChannelId() != null && s.reviewMessageId() != null) {
+            var channel = guild.getTextChannelById(s.reviewChannelId());
+            if (channel != null) {
+                try {
+                    var message = channel.retrieveMessageById(s.reviewMessageId()).complete();
+                    if (!message.getAttachments().isEmpty()) proof = message.getAttachments().get(0).getUrl();
+                } catch (RuntimeException e) {
+                    // the review post was deleted or unreadable: fall back to the stored link, which may have expired
+                }
+            }
+        }
+        return DataObject.empty().put("id", Long.toString(s.id())).put("userId", Long.toString(s.userId())).put("userName", name(guild, s.userId()))
+                .put("description", s.description()).put("proofUrl", proof).put("status", s.status().name())
+                .put("decidedByName", s.decidedBy() == null ? null : name(guild, s.decidedBy())).put("decisionNote", s.decisionNote())
+                .put("pointsAwarded", s.pointsAwarded()).put("createdAt", s.createdAt().toString())
+                .put("decidedAt", s.decidedAt() == null ? null : s.decidedAt().toString());
+    }
+
+    DataObject decide(Guild guild, Member actor, String rawId, boolean approve, DataObject body) {
+        if (rawId == null || !rawId.matches("\\d{1,18}")) throw new ApiError(400, "That isn't a valid submission.");
+        long points = 0;
+        if (approve) {
+            try {
+                points = body.getLong("points", 0);
+            } catch (RuntimeException e) {
+                throw new ApiError(400, "The amount must be a whole number.");
+            }
+        }
+        String note = body.isNull("note") ? "" : body.getString("note", "");
+        var result = service.decide(guild.getIdLong(), Long.parseLong(rawId), approve ? PointsRules.Status.APPROVED : PointsRules.Status.DENIED, points, note, actor.getIdLong());
+        switch (result.outcome()) {
+            case NOT_FOUND -> throw new ApiError(404, result.message());
+            case ALREADY_DECIDED -> throw new ApiError(409, result.message());
+            case INVALID -> throw new ApiError(400, result.message());
+            default -> { }
+        }
+        log.info("Dashboard: {} {} submission {}", actor.getId(), approve ? "approved" : "denied", rawId);
+        notifyMember(guild, result.submission(), approve);
+        return submissions(guild);
+    }
+
+    private void notifyMember(Guild guild, Submission s, boolean approve) {
+        String unit = repository.settings(guild.getIdLong()).unit();
+        String text = approve
+                ? "Your submission in **" + guild.getName() + "** was approved: you got " + PointsRules.format(s.pointsAwarded() == null ? 0 : s.pointsAwarded(), unit) + "."
+                : "Your submission in **" + guild.getName() + "** wasn't approved." + (s.decisionNote() == null ? "" : " Staff said: " + s.decisionNote());
+        guild.getJDA().retrieveUserById(s.userId()).flatMap(user -> user.openPrivateChannel()).flatMap(channel -> channel.sendMessage(text))
+                .queue(ok -> { }, error -> { });
     }
 
     private static String name(Guild guild, long userId) {

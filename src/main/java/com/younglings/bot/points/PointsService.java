@@ -38,6 +38,38 @@ public class PointsService {
         return new Result(Outcome.DUPLICATE, "That has already been paid out.", balance, 0);
     }
 
+    /** What happened to an attempt to decide a submission. */
+    public enum DecisionOutcome { DONE, INVALID, NOT_FOUND, ALREADY_DECIDED }
+
+    public record Decision(DecisionOutcome outcome, String message, PointsRepository.Submission submission, long balance) {}
+
+    /**
+     * Approves a pending submission, paying {@code points} to the member exactly once, or denies it with a note. The decision is claimed
+     * first with a single conditional update (so two staff clicking at once can't both win) and the payout carries the key
+     * {@code submission:<id>}, so even a repeat after a crash can't pay twice.
+     */
+    public Decision decide(long guildId, long submissionId, PointsRules.Status status, long points, String note, long actorId) {
+        var found = repository.submission(guildId, submissionId);
+        if (found.isEmpty()) return new Decision(DecisionOutcome.NOT_FOUND, "That submission doesn't exist.", null, 0);
+        String problem = PointsRules.decisionProblem(status, points, note);
+        if (problem != null) return new Decision(DecisionOutcome.INVALID, problem, found.get(), 0);
+        String trimmed = note == null || note.isBlank() ? null : note.strip();
+        boolean approve = status == PointsRules.Status.APPROVED;
+        if (!repository.decide(guildId, submissionId, status, actorId, trimmed, approve ? points : null)) {
+            return new Decision(DecisionOutcome.ALREADY_DECIDED, "Someone has already decided that one.", found.get(), 0);
+        }
+        long userId = found.get().userId();
+        if (approve) {
+            repository.add(guildId, userId, points, "Approved submission: " + shorten(found.get().description()), Category.SUBMISSION, "submission:" + submissionId, actorId);
+        }
+        return new Decision(DecisionOutcome.DONE, null, repository.submission(guildId, submissionId).orElse(found.get()), repository.balance(guildId, userId));
+    }
+
+    private static String shorten(String s) {
+        String t = s.strip();
+        return t.length() > 120 ? t.substring(0, 120) + "…" : t;
+    }
+
     public Settings settings(long guildId) {
         return repository.settings(guildId);
     }
