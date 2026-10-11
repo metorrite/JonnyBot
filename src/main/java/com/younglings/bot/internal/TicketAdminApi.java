@@ -1,5 +1,7 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.beta.BetaAccessService;
+
 import com.sun.net.httpserver.HttpExchange;
 import com.younglings.bot.commands.ticket.HelpOnboarding;
 import com.younglings.bot.commands.ticket.HelpPanels;
@@ -75,9 +77,13 @@ public class TicketAdminApi {
     private final HubAdminApi hubAdmin;
     private final OverviewAdminApi overviewAdmin;
     private final ImageAdminApi imageAdmin;
+    private final BetaAdminApi betaAdmin;
+    private final BetaAccessService betaAccess;
 
     public TicketAdminApi(DashboardAccess access, TicketRepository repository, TicketService service, ClanAdminApi clanAdmin, CommunityAdminApi communityAdmin, AdminOpsApi ops, AdminToolsStore auditStore,
-                          HelpOnboarding onboarding, HelpPanels helpPanels, WelcomeAdminApi welcomeAdmin, ServerSetupAdminApi serverSetup, PermissionsAdminApi permissions, HubAdminApi hubAdmin, OverviewAdminApi overviewAdmin, ImageAdminApi imageAdmin) {
+                          HelpOnboarding onboarding, HelpPanels helpPanels, WelcomeAdminApi welcomeAdmin, ServerSetupAdminApi serverSetup, PermissionsAdminApi permissions, HubAdminApi hubAdmin, OverviewAdminApi overviewAdmin, ImageAdminApi imageAdmin, BetaAdminApi betaAdmin, BetaAccessService betaAccess) {
+        this.betaAdmin = betaAdmin;
+        this.betaAccess = betaAccess;
         this.imageAdmin = imageAdmin;
         this.overviewAdmin = overviewAdmin;
         this.welcomeAdmin = welcomeAdmin;
@@ -127,6 +133,10 @@ public class TicketAdminApi {
                 requireMethod(method, "GET");
                 DataObject who = whoami(guild, actor, tier);
                 if (actor != null && tier != Tier.NONE) who.put("isOwner", overviewAdmin.isOwner(guild, actor.getIdLong()));
+                // Whether this person may use JonnyBot's website while it is closed: the clan's own admins, or admins of a trusted beta server.
+                // Worked out from the asker's id alone, because a beta tester usually isn't a member of the clan's server.
+                long askerId = actorIdOf(exchange);
+                who.put("beta", tier != Tier.NONE || (askerId != 0 && betaAccess.managesAnyBetaGuild(guild.getJDA(), askerId)));
                 InternalApiServer.sendJson(exchange, 200, who);
                 return;
             }
@@ -298,6 +308,18 @@ public class TicketAdminApi {
             if (method.equals("PUT")) return imageAdmin.upload(guild, actor, parts[1], parts[2], body(exchange));
             requireMethod(method, "DELETE");
             return imageAdmin.remove(guild, actor, parts[1], parts[2]);
+        }
+        if (parts.length >= 1 && parts[0].equals("beta-guilds")) {
+            if (parts.length == 1) {
+                requireMethod(method, "GET");
+                return betaAdmin.list(guild, actor);
+            }
+            if (parts.length == 2) {
+                if (method.equals("PUT")) return betaAdmin.save(guild, actor, parts[1], body(exchange));
+                requireMethod(method, "DELETE");
+                return betaAdmin.remove(guild, actor, parts[1]);
+            }
+            return null;
         }
         if (parts.length == 1 && parts[0].equals("overview")) {
             requireMethod(method, "GET");
