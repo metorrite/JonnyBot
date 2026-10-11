@@ -1,0 +1,86 @@
+package com.younglings.bot.internal;
+
+import com.younglings.bot.internal.TicketAdminApi.ApiError;
+import com.younglings.bot.starboard.StarboardConfig;
+import com.younglings.bot.starboard.StarboardRepository;
+import io.github.freya022.botcommands.api.core.service.annotations.BService;
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel;
+import net.dv8tion.jda.api.entities.emoji.Emoji;
+import net.dv8tion.jda.api.utils.data.DataObject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Supplier;
+
+/**
+ * A server's starboard for the website. A save is checked whole before anything is stored. Reached only through
+ * {@link TicketAdminApi}, which has already checked the asker may use the dashboard in this server and audit-logs every change.
+ */
+@BService
+public class StarboardAdminApi implements AdminRouteExtension {
+    private static final Logger log = LoggerFactory.getLogger(StarboardAdminApi.class);
+
+    private final StarboardRepository repository;
+
+    public StarboardAdminApi(StarboardRepository repository) {
+        this.repository = repository;
+    }
+
+    @Override
+    public DataObject route(Guild guild, Member actor, String method, String[] parts, Supplier<DataObject> body) {
+        if (parts.length != 1 || !parts[0].equals("starboard")) return null;
+        if (method.equals("GET")) return get(guild);
+        AdminRouteExtension.requireMethod(method, "PUT");
+        return save(guild, actor, body.get());
+    }
+
+    DataObject get(Guild guild) {
+        StarboardConfig c = repository.get(guild.getIdLong());
+        return DataObject.empty().put("enabled", c.enabled()).put("channelId", c.channelId() == null ? null : Long.toString(c.channelId()))
+                .put("emoji", c.emoji()).put("threshold", c.threshold()).put("selfStar", c.selfStar()).put("maxThreshold", StarboardConfig.MAX_THRESHOLD);
+    }
+
+    DataObject save(Guild guild, Member actor, DataObject body) {
+        StarboardConfig current = repository.get(guild.getIdLong());
+        List<String> problems = new ArrayList<>();
+
+        boolean enabled = body.hasKey("enabled") ? body.getBoolean("enabled", false) : current.enabled();
+        boolean selfStar = body.hasKey("selfStar") ? body.getBoolean("selfStar", false) : current.selfStar();
+        int threshold = body.hasKey("threshold") ? body.getInt("threshold", -1) : current.threshold();
+        if (threshold < 1 || threshold > StarboardConfig.MAX_THRESHOLD) problems.add("The number of reactions needed must be between 1 and " + StarboardConfig.MAX_THRESHOLD + ".");
+
+        String emoji = body.hasKey("emoji") ? body.getString("emoji", "").strip() : current.emoji();
+        if (emoji.isEmpty()) emoji = StarboardConfig.DEFAULT_EMOJI;
+        try {
+            Emoji.fromFormatted(emoji);
+        } catch (RuntimeException e) {
+            problems.add("That isn't an emoji Discord can use as a reaction.");
+        }
+
+        Long channelId = current.channelId();
+        if (body.hasKey("channelId")) {
+            String raw = body.isNull("channelId") ? "" : body.getString("channelId", "").strip();
+            if (raw.isEmpty()) {
+                channelId = null;
+            } else if (!raw.matches("\\d{1,20}")) {
+                problems.add("That channel isn't valid.");
+            } else {
+                channelId = Long.parseLong(raw);
+                GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, channelId);
+                if (channel == null) problems.add("That channel doesn't exist in this server.");
+                else if (!channel.canTalk()) problems.add("JonnyBot can't post in #" + channel.getName() + ". It needs permission to view the channel and send messages there.");
+            }
+        }
+        if (enabled && channelId == null) problems.add("Choose the starboard channel before switching it on.");
+
+        if (!problems.isEmpty()) throw new ApiError(400, "That starboard can't be saved yet.", problems);
+
+        repository.save(new StarboardConfig(guild.getIdLong(), enabled, channelId, emoji, threshold, selfStar));
+        log.info("Dashboard: {} saved the starboard ({}, {} x {})", actor.getId(), enabled ? "on" : "off", threshold, emoji);
+        return get(guild);
+    }
+}
