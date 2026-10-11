@@ -51,6 +51,7 @@ public class ClanProfileRepository {
                     recruiting TEXT NOT NULL DEFAULT 'CLOSED',
                     requirements TEXT NOT NULL DEFAULT '',
                     apply_url TEXT NULL,
+                    leaderboard_opt_in BOOLEAN NOT NULL DEFAULT FALSE,
                     verified_clan_name TEXT NULL,
                     verified_at TIMESTAMPTZ NULL,
                     verified_by BIGINT NULL,
@@ -59,6 +60,7 @@ public class ClanProfileRepository {
                     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 );
                 """,
+                "ALTER TABLE younglings.clan_profile ADD COLUMN IF NOT EXISTS leaderboard_opt_in BOOLEAN NOT NULL DEFAULT FALSE;",
                 "CREATE UNIQUE INDEX IF NOT EXISTS clan_profile_slug ON younglings.clan_profile (slug) WHERE slug IS NOT NULL;",
                 "CREATE INDEX IF NOT EXISTS clan_profile_verified_name ON younglings.clan_profile (LOWER(verified_clan_name)) WHERE verified_clan_name IS NOT NULL;",
                 """
@@ -73,7 +75,17 @@ public class ClanProfileRepository {
                     resolved_at TIMESTAMPTZ NULL
                 );
                 """,
-                "CREATE INDEX IF NOT EXISTS clan_report_status ON younglings.clan_report (status, id DESC);"));
+                "CREATE INDEX IF NOT EXISTS clan_report_status ON younglings.clan_report (status, id DESC);",
+                // Discord events a clan chose to show publicly. Absent means private; later this can grow a visibility column for "partners".
+                """
+                CREATE TABLE IF NOT EXISTS younglings.shared_event (
+                    guild_id BIGINT NOT NULL,
+                    event_id BIGINT NOT NULL,
+                    shared_by BIGINT NULL,
+                    shared_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    PRIMARY KEY (guild_id, event_id)
+                );
+                """));
     }
 
     // ---------- profiles ----------
@@ -141,12 +153,12 @@ public class ClanProfileRepository {
     /** Saves what the server edits. Verification and suspension are kept as they are: they have their own methods. */
     public void saveContent(ClanProfile p) {
         String sql = """
-                INSERT INTO younglings.clan_profile (guild_id, visibility, slug, display_name, tagline, description, logo_url, colour, timezone, focus, recruiting, requirements, apply_url, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                INSERT INTO younglings.clan_profile (guild_id, visibility, slug, display_name, tagline, description, logo_url, colour, timezone, focus, recruiting, requirements, apply_url, leaderboard_opt_in, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
                 ON CONFLICT (guild_id) DO UPDATE SET visibility = EXCLUDED.visibility, slug = EXCLUDED.slug, display_name = EXCLUDED.display_name,
                     tagline = EXCLUDED.tagline, description = EXCLUDED.description, logo_url = EXCLUDED.logo_url, colour = EXCLUDED.colour,
                     timezone = EXCLUDED.timezone, focus = EXCLUDED.focus, recruiting = EXCLUDED.recruiting, requirements = EXCLUDED.requirements,
-                    apply_url = EXCLUDED.apply_url, updated_at = NOW()
+                    apply_url = EXCLUDED.apply_url, leaderboard_opt_in = EXCLUDED.leaderboard_opt_in, updated_at = NOW()
                 """;
         try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
             s.setLong(1, p.guildId());
@@ -162,6 +174,7 @@ public class ClanProfileRepository {
             s.setString(11, p.recruiting().name());
             s.setString(12, p.requirements());
             nullable(s, 13, p.applyUrl());
+            s.setBoolean(14, p.leaderboardOptIn());
             s.executeUpdate();
         } catch (SQLException e) {
             throw new RuntimeException("Failed to save the clan profile", e);
@@ -199,6 +212,44 @@ public class ClanProfileRepository {
         } catch (SQLException e) {
             throw new RuntimeException("Failed to change the suspension", e);
         }
+    }
+
+    // ---------- shared events ----------
+
+    /** The ids of this server's events that it has chosen to show publicly. */
+    public java.util.Set<Long> sharedEvents(long guildId) {
+        java.util.Set<Long> ids = new java.util.HashSet<>();
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("SELECT event_id FROM younglings.shared_event WHERE guild_id = ?")) {
+            s.setLong(1, guildId);
+            try (ResultSet rs = s.executeQuery()) {
+                while (rs.next()) ids.add(rs.getLong(1));
+            }
+            return ids;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read the shared events", e);
+        }
+    }
+
+    public void setEventShared(long guildId, long eventId, boolean shared, long by) {
+        String sql = shared
+                ? "INSERT INTO younglings.shared_event (guild_id, event_id, shared_by) VALUES (?, ?, ?) ON CONFLICT (guild_id, event_id) DO NOTHING"
+                : "DELETE FROM younglings.shared_event WHERE guild_id = ? AND event_id = ?";
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
+            s.setLong(1, guildId);
+            s.setLong(2, eventId);
+            if (shared) s.setLong(3, by);
+            s.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to change whether the event is shared", e);
+        }
+    }
+
+    /** Forgets shared events that no longer exist on Discord (finished and deleted), so the table doesn't collect them. */
+    public int forgetSharedExcept(long guildId, java.util.Set<Long> existing) {
+        java.util.Set<Long> gone = sharedEvents(guildId);
+        gone.removeAll(existing);
+        for (long id : gone) setEventShared(guildId, id, false, 0);
+        return gone.size();
     }
 
     // ---------- reports ----------
@@ -305,7 +356,7 @@ public class ClanProfileRepository {
         return new ClanProfile(rs.getLong("guild_id"), Visibility.valueOf(rs.getString("visibility")), rs.getString("slug"), rs.getString("display_name"),
                 rs.getString("tagline"), rs.getString("description"), rs.getString("logo_url"), noColour ? null : colour, rs.getString("timezone"),
                 parseFocus(rs.getString("focus")), Recruiting.valueOf(rs.getString("recruiting")), rs.getString("requirements"), rs.getString("apply_url"),
-                rs.getString("verified_clan_name"), instant(rs, "verified_at"), noBy ? null : by, instant(rs, "suspended_at"), rs.getString("suspended_reason"),
+                rs.getBoolean("leaderboard_opt_in"), rs.getString("verified_clan_name"), instant(rs, "verified_at"), noBy ? null : by, instant(rs, "suspended_at"), rs.getString("suspended_reason"),
                 instant(rs, "updated_at"));
     }
 }
