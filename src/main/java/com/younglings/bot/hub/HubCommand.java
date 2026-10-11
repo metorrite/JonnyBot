@@ -31,7 +31,9 @@ public enum HubCommand {
     SUGGEST("suggest", "Suggestions", "suggest", "Members post ideas in the suggestions channel for everyone to vote on; staff reply from the dashboard.",
             "Everyone", false),
     WARN("warn", "Warnings", "warn", "Warn members and keep a record of it: add, list and remove warnings. Members are told by DM.",
-            "Admins only", true);
+            "Admins only", true),
+    POINTS("points", "Points", "points", "A server's points ledger: check your balance, see the top members, and staff award points with a reason on record.",
+            "Everyone (awarding needs Manage Server)", false);
 
     private final String key;
     private final String title;
