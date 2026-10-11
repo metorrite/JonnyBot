@@ -25,6 +25,8 @@ public enum HubCommand {
     REMINDERS("remindme", "Reminders", "remindme", "Personal reminders: be pinged by DM after a length of time you choose, with a list and cancel.",
             "Everyone", false),
     AFK("afk", "Away status", "afk", "Mark yourself away: people who mention you are told, and it clears when you next speak.",
+            "Everyone", false),
+    SPLIT("split", "Loot split", "split", "Divide a drop between a group, with an optional fee, and show each person's share.",
             "Everyone", false);
 
     private final String key;
