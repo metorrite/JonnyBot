@@ -27,6 +27,8 @@ public enum HubCommand {
     AFK("afk", "Away status", "afk", "Mark yourself away: people who mention you are told, and it clears when you next speak.",
             "Everyone", false),
     SPLIT("split", "Loot split", "split", "Divide a drop between a group, with an optional fee, and show each person's share.",
+            "Everyone", false),
+    SUGGEST("suggest", "Suggestions", "suggest", "Members post ideas in the suggestions channel for everyone to vote on; staff reply from the dashboard.",
             "Everyone", false);
 
     private final String key;
