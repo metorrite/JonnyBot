@@ -8,6 +8,7 @@ import io.github.freya022.botcommands.api.commands.annotations.Command;
 import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.JDASlashCommand;
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.SlashOption;
+import io.github.freya022.botcommands.api.commands.application.slash.annotations.TopLevelSlashCommandData;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -27,6 +28,7 @@ public class RemindMeCommand {
         this.repository = repository;
     }
 
+    @TopLevelSlashCommandData(description = "Personal reminders: set one, list yours, or cancel one")
     @JDASlashCommand(name = "remindme", subcommand = "add", description = "Be reminded of something later")
     public void onAdd(GuildSlashEvent event,
                       @SlashOption(description = "How long from now, like 10m, 2h30m, 1d or 3 days") String when,
