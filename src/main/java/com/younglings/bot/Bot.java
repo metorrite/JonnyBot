@@ -38,6 +38,7 @@ import net.dv8tion.jda.api.utils.MemberCachePolicy;
 import net.dv8tion.jda.api.utils.cache.CacheFlag;
 import org.jspecify.annotations.NullMarked;
 
+import java.util.List;
 import java.util.Set;
 
 @BService
@@ -72,6 +73,8 @@ public class Bot extends JDAService {
     private final HelpTicketFlow helpTicketFlow;
     private final PvmHelpConfigureListener pvmHelpConfigureListener;
     private final WelcomeListener welcomeListener;
+    /** Listeners that register themselves by implementing {@link BotListener}. */
+    private final List<BotListener> featureListeners;
     private final GuildLifecycleListener guildLifecycleListener;
 
     public Bot(BotConfig botConfig, SignupInteractionListener signupInteractionListener,
@@ -98,7 +101,9 @@ public class Bot extends JDAService {
                PostActionListener postActionListener,
                DevEmbedListener devEmbedListener,
                TicketListener ticketListener, HelpListener helpListener, HelpTicketFlow helpTicketFlow, PvmHelpConfigureListener pvmHelpConfigureListener,
-               WelcomeListener welcomeListener, GuildLifecycleListener guildLifecycleListener) {
+               WelcomeListener welcomeListener, GuildLifecycleListener guildLifecycleListener,
+               List<BotListener> featureListeners) {
+        this.featureListeners = featureListeners;
         this.welcomeListener = welcomeListener;
         this.guildLifecycleListener = guildLifecycleListener;
         this.botConfig = botConfig;
@@ -175,6 +180,7 @@ public class Bot extends JDAService {
                         announcementInteractionListener, weeklyDigestInteractionListener,
                         commandChannelListener, commandChannelConfigInteractionListener, ephemeralLifecycle,
                         postActionListener, devEmbedListener, ticketListener, helpListener, helpTicketFlow, pvmHelpConfigureListener, welcomeListener, guildLifecycleListener)
+                .addEventListeners(featureListeners.toArray())
                 .build();
     }
 }

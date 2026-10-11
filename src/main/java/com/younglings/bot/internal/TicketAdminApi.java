@@ -77,12 +77,14 @@ public class TicketAdminApi {
     private final HubAdminApi hubAdmin;
     private final OverviewAdminApi overviewAdmin;
     private final ImageAdminApi imageAdmin;
-    private final BetaAdminApi betaAdmin;
+    private final List<AdminRouteExtension> extensions;
     private final BetaAccessService betaAccess;
 
     public TicketAdminApi(DashboardAccess access, TicketRepository repository, TicketService service, ClanAdminApi clanAdmin, CommunityAdminApi communityAdmin, AdminOpsApi ops, AdminToolsStore auditStore,
-                          HelpOnboarding onboarding, HelpPanels helpPanels, WelcomeAdminApi welcomeAdmin, ServerSetupAdminApi serverSetup, PermissionsAdminApi permissions, HubAdminApi hubAdmin, OverviewAdminApi overviewAdmin, ImageAdminApi imageAdmin, BetaAdminApi betaAdmin, BetaAccessService betaAccess) {
-        this.betaAdmin = betaAdmin;
+                          HelpOnboarding onboarding, HelpPanels helpPanels, WelcomeAdminApi welcomeAdmin, ServerSetupAdminApi serverSetup, PermissionsAdminApi permissions, HubAdminApi hubAdmin, OverviewAdminApi overviewAdmin, ImageAdminApi imageAdmin, BetaAccessService betaAccess,
+                          List<AdminRouteExtension> extensions) {
+        this.extensions = extensions;
+        log.info("Admin API ready with {} route extension(s): {}", extensions.size(), extensions.stream().map(e -> e.getClass().getSimpleName()).toList());
         this.betaAccess = betaAccess;
         this.imageAdmin = imageAdmin;
         this.overviewAdmin = overviewAdmin;
@@ -250,6 +252,12 @@ public class TicketAdminApi {
         DataObject opsResult = opsRoute(exchange, guild, actor, method, parts);
         if (opsResult != null) return opsResult;
 
+        // features that bring their own routes (see AdminRouteExtension), so adding one never means editing this class
+        for (AdminRouteExtension extension : extensions) {
+            DataObject answer = extension.route(guild, actor, method, parts, () -> body(exchange));
+            if (answer != null) return answer;
+        }
+
         if (parts.length >= 1 && (parts[0].equals("polls") || parts[0].equals("signups"))) return communityRoute(exchange, guild, actor, method, parts);
         if (parts.length == 1 && parts[0].equals("selfroles")) {
             if (method.equals("GET")) return clanAdmin.selfRoles(guild);
@@ -308,18 +316,6 @@ public class TicketAdminApi {
             if (method.equals("PUT")) return imageAdmin.upload(guild, actor, parts[1], parts[2], body(exchange));
             requireMethod(method, "DELETE");
             return imageAdmin.remove(guild, actor, parts[1], parts[2]);
-        }
-        if (parts.length >= 1 && parts[0].equals("beta-guilds")) {
-            if (parts.length == 1) {
-                requireMethod(method, "GET");
-                return betaAdmin.list(guild, actor);
-            }
-            if (parts.length == 2) {
-                if (method.equals("PUT")) return betaAdmin.save(guild, actor, parts[1], body(exchange));
-                requireMethod(method, "DELETE");
-                return betaAdmin.remove(guild, actor, parts[1]);
-            }
-            return null;
         }
         if (parts.length == 1 && parts[0].equals("overview")) {
             requireMethod(method, "GET");
