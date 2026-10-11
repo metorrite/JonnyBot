@@ -51,4 +51,25 @@ class PointsRulesTest {
         assertNotNull(PointsRules.unitProblem("a".repeat(PointsRules.MAX_UNIT + 1)));
         assertTrue(PointsRules.settingsProblems("tickets").isEmpty());
     }
+
+    @Test
+    void aSubmissionNeedsAnImageAndADescriptionAndRoomInTheQueue() {
+        assertNull(PointsRules.submissionProblem("Got the Zuk cape", "image/png", "zuk.png", 2_000_000, 0));
+        assertNull(PointsRules.submissionProblem("Got the Zuk cape", null, "ZUK.JPG", 2_000_000, 4));
+        assertNotNull(PointsRules.submissionProblem("", "image/png", "a.png", 10, 0));
+        assertNotNull(PointsRules.submissionProblem("Got the Zuk cape", "application/pdf", "a.pdf", 10, 0));
+        assertNotNull(PointsRules.submissionProblem("Got the Zuk cape", "image/png", "a.png", PointsRules.MAX_PROOF_BYTES + 1, 0));
+        assertNotNull(PointsRules.submissionProblem("Got the Zuk cape", "image/png", "a.png", 10, PointsRules.MAX_PENDING_PER_MEMBER));
+    }
+
+    @Test
+    void approvingNeedsPointsAndDenyingNeedsAReason() {
+        assertNull(PointsRules.decisionProblem(PointsRules.Status.APPROVED, 25, null));
+        assertNotNull(PointsRules.decisionProblem(PointsRules.Status.APPROVED, 0, null));
+        assertNotNull(PointsRules.decisionProblem(PointsRules.Status.APPROVED, -5, null));
+        assertNotNull(PointsRules.decisionProblem(PointsRules.Status.APPROVED, PointsRules.MAX_PER_ENTRY + 1, null));
+        assertNull(PointsRules.decisionProblem(PointsRules.Status.DENIED, 0, "Screenshot is cropped"));
+        assertNotNull(PointsRules.decisionProblem(PointsRules.Status.DENIED, 0, "  "));
+        assertNotNull(PointsRules.decisionProblem(PointsRules.Status.PENDING, 5, "x"));
+    }
 }

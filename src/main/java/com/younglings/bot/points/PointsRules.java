@@ -18,7 +18,44 @@ public final class PointsRules {
     /** Where an entry came from, so a server can tell a manual award from an approved submission or a spent reward. */
     public enum Category { MANUAL, EVENT, SUBMISSION, DONATION, REDEMPTION, ADJUSTMENT }
 
+    /** Where a submission stands. */
+    public enum Status { PENDING, APPROVED, DENIED }
+
+    public static final int MIN_DESCRIPTION = 3;
+    public static final int MAX_DESCRIPTION = 300;
+    public static final int MAX_NOTE = 200;
+    /** A member can have this many submissions waiting at once. */
+    public static final int MAX_PENDING_PER_MEMBER = 5;
+    /** Proof is re-posted for staff, so it has to fit under the smallest upload limit a server has. */
+    public static final long MAX_PROOF_BYTES = 8L * 1024 * 1024;
+
     private PointsRules() {}
+
+    /** What is wrong with a submission, or null. Proof must be an image the bot can re-post for staff. */
+    public static String submissionProblem(String description, String contentType, String fileName, long size, int pendingAlready) {
+        String d = description == null ? "" : description.strip();
+        if (d.length() < MIN_DESCRIPTION) return "Say what the screenshot shows, so staff know what to check.";
+        if (d.length() > MAX_DESCRIPTION) return "Keep the description to " + MAX_DESCRIPTION + " characters or fewer.";
+        boolean image = contentType != null ? contentType.toLowerCase(Locale.ROOT).startsWith("image/")
+                : fileName != null && fileName.toLowerCase(Locale.ROOT).matches(".*\\.(png|jpe?g|gif|webp)$");
+        if (!image) return "The proof has to be an image (a screenshot).";
+        if (size > MAX_PROOF_BYTES) return "That image is too big. Keep it under 8 MB.";
+        if (pendingAlready >= MAX_PENDING_PER_MEMBER) return "You already have " + MAX_PENDING_PER_MEMBER + " submissions waiting. Wait for staff to look at them first.";
+        return null;
+    }
+
+    /** What is wrong with a decision, or null. Approving needs a positive amount; denying needs a reason the member will be told. */
+    public static String decisionProblem(Status status, long points, String note) {
+        String n = note == null ? "" : note.strip();
+        if (n.length() > MAX_NOTE) return "Keep the note to " + MAX_NOTE + " characters or fewer.";
+        if (status == Status.APPROVED) {
+            if (points <= 0) return "Approving needs a number of points above zero.";
+            if (points > MAX_PER_ENTRY) return "One entry can move at most " + format(MAX_PER_ENTRY, "points") + ".";
+            return null;
+        }
+        if (status == Status.DENIED) return n.isEmpty() ? "Say why it was denied, so the member can fix it next time." : null;
+        return "A submission can only be approved or denied.";
+    }
 
     /** What is wrong with an award of {@code points} for {@code reason}, in words, or null when it is fine. */
     public static String awardProblem(long points, String reason) {

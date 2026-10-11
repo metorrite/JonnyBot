@@ -14,6 +14,9 @@ import io.github.freya022.botcommands.api.commands.application.slash.annotations
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.TopLevelSlashCommandData;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.Message;
+import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
+import net.dv8tion.jda.api.utils.FileUpload;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -90,6 +93,43 @@ public class PointsCommand {
         Containers.replyEphemeral(event, Containers.SUCCESS,
                 verb + PointsRules.format(Math.abs(amount), settings.unit()) + (amount > 0 ? " to " : " from ") + member.getAsMention() + ".",
                 "-# They now have " + PointsRules.format(result.balance(), settings.unit()) + ".");
+    }
+
+    @JDASlashCommand(name = "points", subcommand = "submit", description = "Send a screenshot to staff to earn points")
+    public void onSubmit(GuildSlashEvent event,
+                         @SlashOption(description = "A screenshot showing what you did") Message.Attachment proof,
+                         @SlashOption(description = "What it shows, e.g. the drop or the kill count") String description) {
+        long guildId = event.getGuild().getIdLong();
+        Settings settings = repository.settings(guildId);
+        if (!enabled(event, settings)) return;
+        TextChannel review = settings.reviewChannelId() == null ? null : event.getGuild().getTextChannelById(settings.reviewChannelId());
+        if (review == null) {
+            Containers.replyEphemeral(event, Containers.INFO, "Submissions aren't set up in this server yet. An admin picks the review channel on the dashboard's Points page.");
+            return;
+        }
+        String problem = PointsRules.submissionProblem(description, proof.getContentType(), proof.getFileName(), proof.getSize(), repository.pendingFor(guildId, event.getUser().getIdLong()));
+        if (problem != null) {
+            Containers.replyEphemeral(event, Containers.WARNING, problem);
+            return;
+        }
+        event.deferReply(true).queue();
+        long id = repository.addSubmission(guildId, event.getUser().getIdLong(), description.strip(), proof.getFileName(), proof.getUrl());
+        proof.getProxy().download().thenCompose(stream -> review.sendMessage("**Points submission #" + id + "** from " + event.getUser().getAsMention() + "\n" + trimDescription(description))
+                        .setAllowedMentions(java.util.List.of())
+                        .addFiles(FileUpload.fromData(stream, proof.getFileName())).submit())
+                .whenComplete((message, error) -> {
+                    if (error != null) {
+                        repository.deleteSubmission(id);
+                        event.getHook().editOriginal("I couldn't pass your screenshot to staff. Try again in a moment.").queue();
+                        return;
+                    }
+                    repository.setReviewMessage(id, review.getIdLong(), message.getIdLong(), message.getAttachments().isEmpty() ? proof.getUrl() : message.getAttachments().get(0).getUrl());
+                    event.getHook().editOriginal("Sent to staff as submission #" + id + ". You'll get a DM when they decide.").queue();
+                });
+    }
+
+    private static String trimDescription(String description) {
+        return description.strip().replaceAll("[\\r\\n]+", " ");
     }
 
     private static boolean enabled(GuildSlashEvent event, Settings settings) {
