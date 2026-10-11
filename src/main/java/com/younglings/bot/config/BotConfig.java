@@ -371,6 +371,35 @@ public class BotConfig {
         return minutes > 0 ? minutes : fallback;
     }
 
+    /**
+     * How many days after the bot is removed from a server its saved data is deleted for good (it is kept until then, so adding the bot
+     * back picks up where it left off). Defaults to 30; set {@code GUILD_DATA_RETENTION_DAYS} to change it, or to 0 to keep data forever.
+     */
+    public long getGuildDataRetentionDays() {
+        String raw = envOrDotenv("GUILD_DATA_RETENTION_DAYS");
+        if (raw == null) return 30;
+        try {
+            return Math.max(0, Long.parseLong(raw.trim()));
+        } catch (NumberFormatException e) {
+            return 30;
+        }
+    }
+
+    /**
+     * Whether the data-retention sweep only reports what it would delete. On by default, so nothing is ever removed until the
+     * operator has seen what a sweep would do and sets {@code GUILD_DATA_RETENTION_DRY_RUN=false}.
+     */
+    public boolean getGuildDataRetentionDryRun() {
+        String raw = envOrDotenv("GUILD_DATA_RETENTION_DRY_RUN");
+        return raw == null || !raw.trim().equalsIgnoreCase("false");
+    }
+
+    private String envOrDotenv(String name) {
+        String raw = System.getenv(name);
+        if (raw == null || raw.isBlank()) raw = dotenv.get(name);
+        return raw == null || raw.isBlank() ? null : raw;
+    }
+
     public List<Long> getOwnerIds() {
         String rawOwnerIds = System.getenv("OWNER_IDS");
 
