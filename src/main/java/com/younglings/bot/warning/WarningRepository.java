@@ -38,7 +38,16 @@ public class WarningRepository {
                 );
                 """,
                 "CREATE INDEX IF NOT EXISTS member_warning_user ON younglings.member_warning (guild_id, user_id, id DESC);",
-                "CREATE INDEX IF NOT EXISTS member_warning_guild ON younglings.member_warning (guild_id, id DESC);"));
+                "CREATE INDEX IF NOT EXISTS member_warning_guild ON younglings.member_warning (guild_id, id DESC);",
+                """
+                CREATE TABLE IF NOT EXISTS younglings.autopunish_rule (
+                    guild_id BIGINT NOT NULL,
+                    threshold INTEGER NOT NULL,
+                    action TEXT NOT NULL,
+                    timeout_minutes INTEGER NOT NULL DEFAULT 0,
+                    PRIMARY KEY (guild_id, threshold)
+                );
+                """));
     }
 
     public long add(long guildId, long userId, long moderatorId, String reason) {
@@ -86,6 +95,51 @@ public class WarningRepository {
             return s.executeUpdate() > 0;
         } catch (SQLException e) {
             throw new RuntimeException("Failed to remove the warning", e);
+        }
+    }
+
+    // ---- autopunish ----
+
+    public List<Autopunish.Rule> autopunishRules(long guildId) {
+        List<Autopunish.Rule> rules = new ArrayList<>();
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("SELECT threshold, action, timeout_minutes FROM younglings.autopunish_rule WHERE guild_id = ? ORDER BY threshold")) {
+            s.setLong(1, guildId);
+            try (ResultSet rs = s.executeQuery()) {
+                while (rs.next()) rules.add(new Autopunish.Rule(rs.getInt("threshold"), Autopunish.Action.valueOf(rs.getString("action")), rs.getInt("timeout_minutes")));
+            }
+            return rules;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read the autopunish rules", e);
+        }
+    }
+
+    /** Replaces the server's whole rule set in one go. */
+    public void saveAutopunishRules(long guildId, List<Autopunish.Rule> rules) {
+        try (Connection c = connectionSupplier.getConnection()) {
+            c.setAutoCommit(false);
+            try {
+                try (PreparedStatement s = c.prepareStatement("DELETE FROM younglings.autopunish_rule WHERE guild_id = ?")) {
+                    s.setLong(1, guildId);
+                    s.executeUpdate();
+                }
+                try (PreparedStatement s = c.prepareStatement("INSERT INTO younglings.autopunish_rule (guild_id, threshold, action, timeout_minutes) VALUES (?, ?, ?, ?)")) {
+                    for (Autopunish.Rule rule : rules) {
+                        s.setLong(1, guildId);
+                        s.setInt(2, rule.threshold());
+                        s.setString(3, rule.action().name());
+                        s.setInt(4, rule.action() == Autopunish.Action.TIMEOUT ? rule.timeoutMinutes() : 0);
+                        s.addBatch();
+                    }
+                    s.executeBatch();
+                }
+                c.commit();
+            } catch (SQLException e) {
+                c.rollback();
+                throw e;
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to save the autopunish rules", e);
         }
     }
 

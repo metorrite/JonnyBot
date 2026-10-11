@@ -1,9 +1,11 @@
 package com.younglings.bot.internal;
 
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
+import com.younglings.bot.warning.Autopunish;
 import com.younglings.bot.warning.WarningRepository;
 import com.younglings.bot.warning.WarningRepository.Warning;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
+import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.utils.data.DataArray;
@@ -11,6 +13,8 @@ import net.dv8tion.jda.api.utils.data.DataObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Supplier;
 
 /**
@@ -36,6 +40,11 @@ public class WarningAdminApi implements AdminRouteExtension {
             AdminRouteExtension.requireMethod(method, "GET");
             return list(guild);
         }
+        if (parts.length == 2 && parts[1].equals("autopunish")) {
+            if (method.equals("GET")) return autopunish(guild);
+            AdminRouteExtension.requireMethod(method, "PUT");
+            return saveAutopunish(guild, actor, body.get());
+        }
         if (parts.length == 2) {
             AdminRouteExtension.requireMethod(method, "DELETE");
             return delete(guild, actor, parts[1]);
@@ -51,6 +60,49 @@ public class WarningAdminApi implements AdminRouteExtension {
                     .put("reason", w.reason()).put("createdAt", w.createdAt().toString()));
         }
         return DataObject.empty().put("warnings", warnings).put("limit", LIMIT);
+    }
+
+    DataObject autopunish(Guild guild) {
+        DataArray rules = DataArray.empty();
+        for (Autopunish.Rule r : repository.autopunishRules(guild.getIdLong())) {
+            rules.add(DataObject.empty().put("threshold", r.threshold()).put("action", r.action().name()).put("timeoutMinutes", r.timeoutMinutes()));
+        }
+        Member self = guild.getSelfMember();
+        return DataObject.empty().put("rules", rules).put("maxRules", Autopunish.MAX_RULES).put("maxThreshold", Autopunish.MAX_THRESHOLD)
+                .put("maxTimeoutMinutes", Autopunish.MAX_TIMEOUT_MINUTES)
+                .put("canTimeout", self.hasPermission(Permission.MODERATE_MEMBERS)).put("canKick", self.hasPermission(Permission.KICK_MEMBERS))
+                .put("canBan", self.hasPermission(Permission.BAN_MEMBERS));
+    }
+
+    DataObject saveAutopunish(Guild guild, Member actor, DataObject body) {
+        List<Autopunish.Rule> rules = new ArrayList<>();
+        List<String> problems = new ArrayList<>();
+        DataArray raw = body.hasKey("rules") && !body.isNull("rules") ? body.getArray("rules") : DataArray.empty();
+        for (int i = 0; i < raw.length(); i++) {
+            DataObject item = raw.getObject(i);
+            Autopunish.Action action;
+            try {
+                action = Autopunish.Action.valueOf(item.getString("action", "").strip().toUpperCase(java.util.Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                problems.add("Choose timeout, kick or ban for every rule.");
+                continue;
+            }
+            rules.add(new Autopunish.Rule(item.getInt("threshold", 0), action, item.getInt("timeoutMinutes", 0)));
+        }
+        problems.addAll(Autopunish.problems(rules));
+        Member self = guild.getSelfMember();
+        for (Autopunish.Rule r : rules) {
+            Permission needed = switch (r.action()) {
+                case TIMEOUT -> Permission.MODERATE_MEMBERS;
+                case KICK -> Permission.KICK_MEMBERS;
+                case BAN -> Permission.BAN_MEMBERS;
+            };
+            if (!self.hasPermission(needed)) problems.add("JonnyBot needs the " + needed.getName() + " permission to " + r.action().name().toLowerCase(java.util.Locale.ROOT) + " members.");
+        }
+        if (!problems.isEmpty()) throw new ApiError(400, "The autopunish rules can't be saved yet.", problems.stream().distinct().toList());
+        repository.saveAutopunishRules(guild.getIdLong(), rules.stream().sorted(java.util.Comparator.comparingInt(Autopunish.Rule::threshold)).toList());
+        log.info("Dashboard: {} saved {} autopunish rule(s)", actor.getId(), rules.size());
+        return autopunish(guild);
     }
 
     private static String name(Guild guild, long userId) {

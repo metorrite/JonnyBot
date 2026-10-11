@@ -1,6 +1,7 @@
 package com.younglings.bot.commands.warn;
 
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.warning.AutopunishService;
 import com.younglings.bot.warning.WarnPolicy;
 import com.younglings.bot.warning.WarningRepository;
 import com.younglings.bot.warning.WarningRepository.Warning;
@@ -21,9 +22,11 @@ import java.util.List;
 @Command
 public class WarnCommand {
     private final WarningRepository repository;
+    private final AutopunishService autopunish;
 
-    public WarnCommand(WarningRepository repository) {
+    public WarnCommand(WarningRepository repository, AutopunishService autopunish) {
         this.repository = repository;
+        this.autopunish = autopunish;
     }
 
     @TopLevelSlashCommandData(description = "Warn members and keep a record of it")
@@ -45,8 +48,12 @@ public class WarnCommand {
         member.getUser().openPrivateChannel()
                 .flatMap(channel -> channel.sendMessage("You have been warned in **" + event.getGuild().getName() + "**: " + text))
                 .queue(ok -> {}, error -> {});
-        Containers.replyEphemeral(event, Containers.SUCCESS, "Warned " + member.getAsMention() + " (warning #" + id + ").",
-                "-# They now have " + WarnPolicy.count(total) + ". They were told by DM if their DMs are open.");
+        String punished = autopunish.applyFor(event.getGuild(), member, total);
+        var lines = new java.util.ArrayList<String>();
+        lines.add("Warned " + member.getAsMention() + " (warning #" + id + ").");
+        lines.add("-# They now have " + WarnPolicy.count(total) + ". They were told by DM if their DMs are open.");
+        if (punished != null) lines.add(punished);
+        Containers.replyEphemeral(event, Containers.SUCCESS, lines.toArray(String[]::new));
     }
 
     @JDASlashCommand(name = "warn", subcommand = "list", description = "See a member's warnings")
