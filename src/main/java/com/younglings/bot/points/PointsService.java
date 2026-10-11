@@ -15,9 +15,11 @@ public class PointsService {
     public record Result(Outcome outcome, String message, long balance, long entryId) {}
 
     private final PointsRepository repository;
+    private final RewardsRepository rewards;
 
-    public PointsService(PointsRepository repository) {
+    public PointsService(PointsRepository repository, RewardsRepository rewards) {
         this.repository = repository;
+        this.rewards = rewards;
     }
 
     /**
@@ -63,6 +65,48 @@ public class PointsService {
             repository.add(guildId, userId, points, "Approved submission: " + shorten(found.get().description()), Category.SUBMISSION, "submission:" + submissionId, actorId);
         }
         return new Decision(DecisionOutcome.DONE, null, repository.submission(guildId, submissionId).orElse(found.get()), repository.balance(guildId, userId));
+    }
+
+    /** What happened to an attempt to redeem or handle a redemption. */
+    public enum RedeemOutcome { DONE, NOT_FOUND, SOLD_OUT, INSUFFICIENT, ALREADY_HANDLED }
+
+    public record Redeemed(RedeemOutcome outcome, String message, RewardsRepository.Redemption redemption, long balance) {}
+
+    /**
+     * Spends a member's points on a reward. Stock is claimed first (one conditional update), the redemption recorded, then the points taken
+     * as a negative ledger entry keyed {@code redemption:<id>}, which the ledger refuses if it would overdraw. If any step after the stock
+     * claim fails, the earlier steps are undone, so nobody loses points or stock for a redemption that did not happen.
+     */
+    public Redeemed redeem(long guildId, long userId, long rewardId) {
+        var reward = rewards.reward(guildId, rewardId);
+        if (reward.isEmpty() || !reward.get().active()) return new Redeemed(RedeemOutcome.NOT_FOUND, "There's no such reward.", null, repository.balance(guildId, userId));
+        String unit = repository.settings(guildId).unit();
+        if (repository.balance(guildId, userId) < reward.get().cost()) {
+            return new Redeemed(RedeemOutcome.INSUFFICIENT, "That costs " + PointsRules.format(reward.get().cost(), unit) + " and you have " + PointsRules.format(repository.balance(guildId, userId), unit) + ".", null, repository.balance(guildId, userId));
+        }
+        var cost = rewards.claimStock(guildId, rewardId);
+        if (cost.isEmpty()) return new Redeemed(RedeemOutcome.SOLD_OUT, "That reward is sold out.", null, repository.balance(guildId, userId));
+        long id = rewards.addRedemption(guildId, reward.get(), userId, cost.getAsLong());
+        var paid = repository.add(guildId, userId, -cost.getAsLong(), "Reward: " + reward.get().name(), Category.REDEMPTION, "redemption:" + id, null);
+        if (paid.isEmpty()) {
+            rewards.deleteRedemption(id);
+            rewards.returnStock(guildId, rewardId);
+            return new Redeemed(RedeemOutcome.INSUFFICIENT, "You don't have enough " + unit + " for that.", null, repository.balance(guildId, userId));
+        }
+        return new Redeemed(RedeemOutcome.DONE, null, rewards.redemption(guildId, id).orElse(null), repository.balance(guildId, userId));
+    }
+
+    /** Marks a redemption handed over, or cancels it, which refunds the points (once, keyed {@code redemption-refund:<id>}) and returns the stock. */
+    public Redeemed handle(long guildId, long redemptionId, boolean fulfil, long actorId) {
+        var found = rewards.redemption(guildId, redemptionId);
+        if (found.isEmpty()) return new Redeemed(RedeemOutcome.NOT_FOUND, "That redemption doesn't exist.", null, 0);
+        var status = fulfil ? PointsRules.Fulfilment.FULFILLED : PointsRules.Fulfilment.CANCELLED;
+        if (!rewards.handle(guildId, redemptionId, status, actorId)) return new Redeemed(RedeemOutcome.ALREADY_HANDLED, "Someone has already handled that one.", found.get(), 0);
+        if (!fulfil) {
+            repository.add(guildId, found.get().userId(), found.get().cost(), "Refund: " + found.get().rewardName(), Category.ADJUSTMENT, "redemption-refund:" + redemptionId, actorId);
+            rewards.returnStock(guildId, found.get().rewardId());
+        }
+        return new Redeemed(RedeemOutcome.DONE, null, rewards.redemption(guildId, redemptionId).orElse(found.get()), repository.balance(guildId, found.get().userId()));
     }
 
     private static String shorten(String s) {

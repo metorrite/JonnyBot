@@ -7,6 +7,7 @@ import com.younglings.bot.points.PointsRepository.Settings;
 import com.younglings.bot.points.PointsRules;
 import com.younglings.bot.points.PointsRules.Category;
 import com.younglings.bot.points.PointsService;
+import com.younglings.bot.points.RewardsRepository;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
 import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.JDASlashCommand;
@@ -30,10 +31,12 @@ import java.util.List;
 public class PointsCommand {
     private final PointsRepository repository;
     private final PointsService service;
+    private final RewardsRepository rewards;
 
-    public PointsCommand(PointsRepository repository, PointsService service) {
+    public PointsCommand(PointsRepository repository, PointsService service, RewardsRepository rewards) {
         this.repository = repository;
         this.service = service;
+        this.rewards = rewards;
     }
 
     @TopLevelSlashCommandData(description = "Your points in this server")
@@ -93,6 +96,41 @@ public class PointsCommand {
         Containers.replyEphemeral(event, Containers.SUCCESS,
                 verb + PointsRules.format(Math.abs(amount), settings.unit()) + (amount > 0 ? " to " : " from ") + member.getAsMention() + ".",
                 "-# They now have " + PointsRules.format(result.balance(), settings.unit()) + ".");
+    }
+
+    @JDASlashCommand(name = "points", subcommand = "rewards", description = "See what you can spend your points on")
+    public void onRewards(GuildSlashEvent event) {
+        long guildId = event.getGuild().getIdLong();
+        Settings settings = repository.settings(guildId);
+        if (!enabled(event, settings)) return;
+        var list = rewards.rewards(guildId, true);
+        if (list.isEmpty()) {
+            Containers.replyEphemeral(event, Containers.INFO, "There are no rewards to spend " + settings.unit() + " on yet.");
+            return;
+        }
+        List<String> lines = new ArrayList<>();
+        lines.add("### Rewards (you have " + PointsRules.format(repository.balance(guildId, event.getUser().getIdLong()), settings.unit()) + ")");
+        for (var r : list) {
+            String left = r.stock() == null ? "" : r.stock() == 0 ? " · sold out" : " · " + r.stock() + " left";
+            lines.add("`#" + r.id() + "` **" + r.name() + "** · " + PointsRules.format(r.cost(), settings.unit()) + left + (r.description().isBlank() ? "" : "\n-# " + r.description()));
+        }
+        lines.add("-# Spend with /points redeem and the reward's number.");
+        Containers.replyEphemeral(event, Containers.INFO, lines.toArray(String[]::new));
+    }
+
+    @JDASlashCommand(name = "points", subcommand = "redeem", description = "Spend points on a reward")
+    public void onRedeem(GuildSlashEvent event, @SlashOption(description = "The reward's number, from /points rewards") long reward) {
+        long guildId = event.getGuild().getIdLong();
+        Settings settings = repository.settings(guildId);
+        if (!enabled(event, settings)) return;
+        var result = service.redeem(guildId, event.getUser().getIdLong(), reward);
+        if (result.outcome() != PointsService.RedeemOutcome.DONE) {
+            Containers.replyEphemeral(event, Containers.WARNING, result.message());
+            return;
+        }
+        Containers.replyEphemeral(event, Containers.SUCCESS,
+                "You got **" + result.redemption().rewardName() + "** for " + PointsRules.format(result.redemption().cost(), settings.unit()) + ".",
+                "-# Staff will hand it over. You have " + PointsRules.format(result.balance(), settings.unit()) + " left.");
     }
 
     @JDASlashCommand(name = "points", subcommand = "submit", description = "Send a screenshot to staff to earn points")
