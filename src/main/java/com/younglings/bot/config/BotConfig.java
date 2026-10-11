@@ -344,6 +344,14 @@ public class BotConfig {
         return positiveMinutes("RUNESCAPE_LINKED_POLL_WINDOW_MINUTES", 480);
     }
 
+    /**
+     * The window for the premium tier: clans on the faster plan, whose players are polled more often than a standard clan's.
+     * Defaults to 60 minutes; set {@code RUNESCAPE_PREMIUM_POLL_WINDOW_MINUTES} to tune it.
+     */
+    public long getRunescapePremiumPollWindowMinutes() {
+        return positiveMinutes("RUNESCAPE_PREMIUM_POLL_WINDOW_MINUTES", 60);
+    }
+
     private long positiveMinutes(String name, long fallback) {
         return positiveNumber(name, fallback);
     }
