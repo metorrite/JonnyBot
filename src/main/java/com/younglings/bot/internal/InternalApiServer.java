@@ -71,15 +71,19 @@ public class InternalApiServer {
     private final BotConfig botConfig;
     private final TicketAdminApi ticketAdminApi;
     private final SiteApi siteApi;
+    private final DirectoryApi directoryApi;
+    private final PluginApi pluginApi;
     private final MemberApi memberApi;
     private final ImageUploadService imageUploads;
     private JDA jda;
 
-    public InternalApiServer(BotConfig botConfig, TicketAdminApi ticketAdminApi, SiteApi siteApi, MemberApi memberApi, ImageUploadService imageUploads) {
+    public InternalApiServer(BotConfig botConfig, TicketAdminApi ticketAdminApi, SiteApi siteApi, DirectoryApi directoryApi, PluginApi pluginApi, MemberApi memberApi, ImageUploadService imageUploads) {
         this.imageUploads = imageUploads;
         this.botConfig = botConfig;
         this.ticketAdminApi = ticketAdminApi;
         this.siteApi = siteApi;
+        this.directoryApi = directoryApi;
+        this.pluginApi = pluginApi;
         this.memberApi = memberApi;
     }
 
@@ -114,6 +118,8 @@ public class InternalApiServer {
 
             server.createContext("/internal/admin/", exchange -> handleAdmin(exchange, secret, guildId));
             server.createContext("/internal/site/", exchange -> handleSite(exchange, secret, guildId));
+            server.createContext("/internal/directory/", exchange -> handleDirectory(exchange, secret));
+            server.createContext("/internal/plugin/", exchange -> handlePlugin(exchange, secret));
             server.createContext("/internal/me/", exchange -> handleMe(exchange, secret, guildId));
             server.createContext("/internal/image/", exchange -> handleImage(exchange, secret));
 
@@ -225,6 +231,36 @@ public class InternalApiServer {
     }
 
     /** The website's public clan data (roster, stats, profiles, who's online, events) — secret and guild checked here, the rest in {@link SiteApi}. */
+    /** The plugin API (events from the in-game plugin, and a player's tokens and consent): the secret is checked here, the rest in {@link PluginApi}. */
+    private void handlePlugin(HttpExchange exchange, String secret) throws IOException {
+        try {
+            String provided = exchange.getRequestHeaders().getFirst(SECRET_HEADER);
+            if (provided == null || !constantTimeEquals(provided, secret)) {
+                sendJson(exchange, 401, DataObject.empty().put("error", "Unauthorized"));
+                return;
+            }
+            pluginApi.handle(exchange);
+        } catch (Exception e) {
+            log.error("Internal API plugin request failed", e);
+            sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));
+        }
+    }
+
+    /** The public clan directory: not about any one server, so only the secret is checked here; {@link DirectoryApi} does the rest. */
+    private void handleDirectory(HttpExchange exchange, String secret) throws IOException {
+        try {
+            String provided = exchange.getRequestHeaders().getFirst(SECRET_HEADER);
+            if (provided == null || !constantTimeEquals(provided, secret)) {
+                sendJson(exchange, 401, DataObject.empty().put("error", "Unauthorized"));
+                return;
+            }
+            directoryApi.handle(exchange, jda);
+        } catch (Exception e) {
+            log.error("Internal API directory request failed", e);
+            sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));
+        }
+    }
+
     private void handleSite(HttpExchange exchange, String secret, long guildId) throws IOException {
         try {
             Guild guild = authorize(exchange, secret, guildId, "GET");

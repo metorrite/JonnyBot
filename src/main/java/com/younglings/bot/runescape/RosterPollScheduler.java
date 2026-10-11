@@ -1,6 +1,7 @@
 package com.younglings.bot.runescape;
 
 import com.younglings.bot.config.BotConfig;
+import com.younglings.bot.premium.PremiumGuildRepository;
 import com.younglings.bot.runescape.polling.PollCoordinator;
 import com.younglings.bot.runescape.polling.PollJob;
 import com.younglings.bot.runescape.polling.PollPriority;
@@ -60,9 +61,11 @@ public class RosterPollScheduler {
     private final PlayerLinkService linkService;
     private final PollCoordinator pollCoordinator;
     private final BotConfig botConfig;
+    private final PremiumGuildRepository premiumGuilds;
 
     public RosterPollScheduler(ClanMemberRepository clanMemberRepository, ClanSyncService clanSyncService, PlayerLinkService linkService,
-                                PollCoordinator pollCoordinator, BotConfig botConfig) {
+                                PollCoordinator pollCoordinator, BotConfig botConfig, PremiumGuildRepository premiumGuilds) {
+        this.premiumGuilds = premiumGuilds;
         this.clanMemberRepository = clanMemberRepository;
         this.clanSyncService = clanSyncService;
         this.linkService = linkService;
@@ -87,9 +90,14 @@ public class RosterPollScheduler {
         Duration clanWindow = Duration.ofMinutes(botConfig.getRunescapeClanPollWindowMinutes());
         Duration linkedWindow = Duration.ofMinutes(botConfig.getRunescapeLinkedPollWindowMinutes());
 
+        Duration premiumWindow = Duration.ofMinutes(botConfig.getRunescapePremiumPollWindowMinutes());
+        Duration firstRun = CLAN_INITIAL_DELAY.compareTo(GUILD_DISCOVERY_DELAY) > 0 ? CLAN_INITIAL_DELAY : GUILD_DISCOVERY_DELAY;
+
+        // the faster plan: clans of servers the bot's owner has put on it, ahead of every ordinary clan in the queue
+        pollCoordinator.schedule(new PollJob("premium clan players", PollPriority.PREMIUM_CLAN, premiumWindow,
+                firstRun, premiumWindow, premiumWindow.dividedBy(2), () -> premiumClanPlayers(jda)));
         pollCoordinator.schedule(new PollJob("clan players", PollPriority.CLAN, clanWindow,
-                CLAN_INITIAL_DELAY.compareTo(GUILD_DISCOVERY_DELAY) > 0 ? CLAN_INITIAL_DELAY : GUILD_DISCOVERY_DELAY,
-                clanWindow, clanWindow.dividedBy(2), () -> clanPlayers(jda)));
+                firstRun, clanWindow, clanWindow.dividedBy(2), () -> standardClanPlayers(clanPlayers(jda), premiumClanPlayers(jda))));
         pollCoordinator.schedule(new PollJob("other linked players", PollPriority.LINKED, linkedWindow,
                 durationUntilNextUtc(LINKED_ANCHOR_UTC), linkedWindow, linkedWindow.dividedBy(2),
                 () -> otherLinkedPlayers(linkService.getAllAccountRsns(), clanPlayers(jda))));
@@ -110,6 +118,19 @@ public class RosterPollScheduler {
 
     private List<String> clanPlayers(JDA jda) {
         return clanMemberRepository.activeRsnsInGuilds(clanGuildIds(jda));
+    }
+
+    /** Players in the clan of a server on the premium plan (and that server has a clan set up). */
+    private List<String> premiumClanPlayers(JDA jda) {
+        Set<Long> premium = new HashSet<>();
+        for (var guild : premiumGuilds.all()) premium.add(guild.guildId());
+        List<Long> ids = clanGuildIds(jda).stream().filter(premium::contains).toList();
+        return ids.isEmpty() ? List.of() : clanMemberRepository.activeRsnsInGuilds(ids);
+    }
+
+    /** The ordinary clan tier: every clan player except those a premium server already has on the faster plan, so nobody is polled in both. */
+    static List<String> standardClanPlayers(List<String> clanPlayers, List<String> premiumPlayers) {
+        return otherLinkedPlayers(clanPlayers, premiumPlayers);
     }
 
     /** The second tier: registered accounts that aren't already in the first (names compared ignoring case, as RuneScape treats them). */

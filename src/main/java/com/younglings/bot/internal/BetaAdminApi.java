@@ -12,13 +12,15 @@ import net.dv8tion.jda.api.utils.data.DataObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.function.Supplier;
+
 /**
  * The list of trusted servers whose admin team may use JonnyBot's website while it is closed to the public. Anyone who may open
  * the clan's dashboard can read it; changing it is for the bot's owner, because it decides who gets in. Reached only through
  * {@link TicketAdminApi}, which has already checked the asker and audit-logs every change.
  */
 @BService
-public class BetaAdminApi {
+public class BetaAdminApi implements AdminRouteExtension {
     private static final Logger log = LoggerFactory.getLogger(BetaAdminApi.class);
     private static final int MAX_LABEL = 60;
 
@@ -30,6 +32,21 @@ public class BetaAdminApi {
         this.repository = repository;
         this.access = access;
         this.owners = owners;
+    }
+
+    @Override
+    public DataObject route(Guild guild, Member actor, String method, String[] parts, Supplier<DataObject> body) {
+        if (parts.length < 1 || !parts[0].equals("beta-guilds")) return null;
+        if (parts.length == 1) {
+            AdminRouteExtension.requireMethod(method, "GET");
+            return list(guild, actor);
+        }
+        if (parts.length == 2) {
+            if (method.equals("PUT")) return save(guild, actor, parts[1], body.get());
+            AdminRouteExtension.requireMethod(method, "DELETE");
+            return remove(guild, actor, parts[1]);
+        }
+        return null;
     }
 
     DataObject list(Guild guild, Member actor) {

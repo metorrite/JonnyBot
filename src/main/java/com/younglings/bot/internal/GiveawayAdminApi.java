@@ -1,0 +1,137 @@
+package com.younglings.bot.internal;
+
+import com.younglings.bot.giveaway.Giveaway;
+import com.younglings.bot.giveaway.GiveawayRepository;
+import com.younglings.bot.giveaway.GiveawayService;
+import com.younglings.bot.internal.TicketAdminApi.ApiError;
+import io.github.freya022.botcommands.api.core.service.annotations.BService;
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.Role;
+import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel;
+import net.dv8tion.jda.api.utils.data.DataArray;
+import net.dv8tion.jda.api.utils.data.DataObject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Supplier;
+
+/**
+ * A server's giveaways for the website: list, start, end now, reroll, delete. A start is checked whole before anything is posted.
+ * Reached only through {@link TicketAdminApi}, which has already checked the asker may use the dashboard in this server and audit-logs
+ * every change.
+ */
+@BService
+public class GiveawayAdminApi implements AdminRouteExtension {
+    private static final Logger log = LoggerFactory.getLogger(GiveawayAdminApi.class);
+    private static final Duration MIN = Duration.ofMinutes(1);
+    private static final Duration MAX = Duration.ofDays(60);
+
+    private final GiveawayRepository repository;
+    private final GiveawayService service;
+
+    public GiveawayAdminApi(GiveawayRepository repository, GiveawayService service) {
+        this.repository = repository;
+        this.service = service;
+    }
+
+    @Override
+    public DataObject route(Guild guild, Member actor, String method, String[] parts, Supplier<DataObject> body) {
+        if (parts.length < 1 || !parts[0].equals("giveaways")) return null;
+        if (parts.length == 1) {
+            if (method.equals("GET")) return list(guild);
+            AdminRouteExtension.requireMethod(method, "POST");
+            return start(guild, actor, body.get());
+        }
+        if (parts.length == 2) {
+            AdminRouteExtension.requireMethod(method, "DELETE");
+            return delete(guild, actor, parts[1]);
+        }
+        if (parts.length == 3 && parts[2].equals("end")) {
+            AdminRouteExtension.requireMethod(method, "POST");
+            return act(guild, actor, parts[1], true);
+        }
+        if (parts.length == 3 && parts[2].equals("reroll")) {
+            AdminRouteExtension.requireMethod(method, "POST");
+            return act(guild, actor, parts[1], false);
+        }
+        return null;
+    }
+
+    DataObject list(Guild guild) {
+        DataArray giveaways = DataArray.empty();
+        for (Giveaway g : repository.recent(guild.getIdLong(), 50)) {
+            GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, g.channelId());
+            giveaways.add(DataObject.empty().put("id", Long.toString(g.id())).put("prize", g.prize()).put("status", g.status().name())
+                    .put("channelId", Long.toString(g.channelId())).put("channelName", channel == null ? null : channel.getName())
+                    .put("winnerCount", g.winnerCount()).put("endsAt", g.endsAt().toString()).put("entries", repository.entryCount(g.id()))
+                    .put("requiredRoleId", g.requiredRoleId() == null ? null : Long.toString(g.requiredRoleId()))
+                    .put("winners", DataArray.fromCollection(g.winners().stream().map(String::valueOf).toList())));
+        }
+        return DataObject.empty().put("giveaways", giveaways).put("maxWinners", Giveaway.MAX_WINNERS).put("maxPrize", Giveaway.MAX_PRIZE);
+    }
+
+    DataObject start(Guild guild, Member actor, DataObject body) {
+        List<String> problems = new ArrayList<>();
+        String prize = body.getString("prize", "").strip();
+        if (prize.isEmpty() || prize.length() > Giveaway.MAX_PRIZE) problems.add("Say what is being given away, in at most " + Giveaway.MAX_PRIZE + " characters.");
+        int winners = body.getInt("winners", 1);
+        if (winners < 1 || winners > Giveaway.MAX_WINNERS) problems.add("Choose between 1 and " + Giveaway.MAX_WINNERS + " winners.");
+        long minutes = body.getLong("durationMinutes", 0);
+        Duration duration = Duration.ofMinutes(Math.max(0, minutes));
+        if (duration.compareTo(MIN) < 0 || duration.compareTo(MAX) > 0) problems.add("It must run for between 1 minute and 60 days.");
+        String channelText = body.getString("channelId", "").strip();
+        if (!channelText.matches("\\d{1,20}")) problems.add("Choose a channel to post it in.");
+        Long roleId = null;
+        if (body.hasKey("requiredRoleId") && !body.isNull("requiredRoleId") && !body.getString("requiredRoleId", "").isBlank()) {
+            String raw = body.getString("requiredRoleId").strip();
+            if (!raw.matches("\\d{1,20}")) {
+                problems.add("That role isn't valid.");
+            } else {
+                roleId = Long.parseLong(raw);
+                Role role = guild.getRoleById(roleId);
+                if (role == null) problems.add("That role doesn't exist in this server.");
+            }
+        }
+        if (!problems.isEmpty()) throw new ApiError(400, "That giveaway can't be started yet.", problems);
+
+        try {
+            Giveaway g = service.start(guild, Long.parseLong(channelText), prize, actor.getIdLong(), winners, Instant.now().plus(duration), roleId);
+            log.info("Dashboard: {} started giveaway {} ({}) in channel {}", actor.getId(), g.id(), prize, channelText);
+            return list(guild);
+        } catch (GiveawayService.GiveawayException e) {
+            throw new ApiError(400, e.getMessage());
+        }
+    }
+
+    private DataObject act(Guild guild, Member actor, String rawId, boolean end) {
+        Giveaway g = find(guild, rawId);
+        try {
+            if (end) service.end(guild, g); else service.reroll(guild, g);
+            log.info("Dashboard: {} {} giveaway {}", actor.getId(), end ? "ended" : "rerolled", g.id());
+            return list(guild);
+        } catch (GiveawayService.GiveawayException e) {
+            throw new ApiError(400, e.getMessage());
+        }
+    }
+
+    DataObject delete(Guild guild, Member actor, String rawId) {
+        Giveaway g = find(guild, rawId);
+        if (g.messageId() != null) {
+            GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, g.channelId());
+            if (channel != null) channel.deleteMessageById(g.messageId()).queue(ok -> {}, error -> {});
+        }
+        repository.delete(guild.getIdLong(), g.id());
+        log.info("Dashboard: {} deleted giveaway {}", actor.getId(), g.id());
+        return list(guild);
+    }
+
+    private Giveaway find(Guild guild, String rawId) {
+        if (rawId == null || !rawId.strip().matches("\\d{1,18}")) throw new ApiError(400, "That isn't a valid giveaway.");
+        return repository.get(guild.getIdLong(), Long.parseLong(rawId.strip())).orElseThrow(() -> new ApiError(404, "That giveaway doesn't exist."));
+    }
+}
