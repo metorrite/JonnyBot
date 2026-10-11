@@ -27,4 +27,16 @@ class RosterPollSchedulerTest {
     void clanPlayersWhoNeverLinkedAreNotAddedToTheSecondTier() {
         assertEquals(List.of(), RosterPollScheduler.otherLinkedPlayers(List.of(), List.of("Someone Unlinked")));
     }
+
+    @Test
+    void aPremiumPlayerIsLeftOutOfTheOrdinaryClanTierSoNobodyIsPolledTwice() {
+        List<String> standard = RosterPollScheduler.standardClanPlayers(List.of("A", "B", "C"), List.of("b"));
+
+        assertEquals(List.of("A", "C"), standard);
+    }
+
+    @Test
+    void withNoPremiumServersEveryClanPlayerStaysInTheOrdinaryTier() {
+        assertEquals(List.of("A", "B"), RosterPollScheduler.standardClanPlayers(List.of("A", "B"), List.of()));
+    }
 }
