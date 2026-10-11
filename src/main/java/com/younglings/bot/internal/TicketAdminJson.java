@@ -206,7 +206,8 @@ final class TicketAdminJson {
         return new Settings(current.guildId(), idOrNull(json, "logChannelId"), current.nextNumber(),
                 json.getBoolean("transcriptDm", current.transcriptDm()),
                 intOr(json, "closeDelaySeconds", current.closeDelaySeconds()),
-                intOrNull(json, "transcriptRetentionDays"));
+                intOrNull(json, "transcriptRetentionDays"),
+                json.hasKey("autoCloseDays") ? intOrNull(json, "autoCloseDays") : current.autoCloseDays());
     }
 
     // ---------- writing ----------
@@ -227,7 +228,8 @@ final class TicketAdminJson {
                 .put("nextNumber", settings.nextNumber())
                 .put("transcriptDm", settings.transcriptDm())
                 .put("closeDelaySeconds", settings.closeDelaySeconds())
-                .put("transcriptRetentionDays", settings.transcriptRetentionDays());
+                .put("transcriptRetentionDays", settings.transcriptRetentionDays())
+                .put("autoCloseDays", settings.autoCloseDays());
     }
 
     // ---------- PvM Help settings ----------

@@ -11,7 +11,9 @@ import com.younglings.bot.ticket.TicketModels.FieldKind;
 import com.younglings.bot.ticket.TicketModels.Option;
 import com.younglings.bot.ticket.TicketModels.Panel;
 import com.younglings.bot.ticket.TicketModels.PanelRoles;
+import com.younglings.bot.ticket.TicketInactivity;
 import com.younglings.bot.ticket.TicketModels.Settings;
+import com.younglings.bot.ticket.TicketModels.Status;
 import com.younglings.bot.ticket.TicketModels.Ticket;
 import com.younglings.bot.ticket.TicketRepository;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -38,6 +40,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -417,6 +420,40 @@ public class TicketService {
                 channel.delete().queue(success -> repository.markChannelDeleted(ticket.id()),
                         new ErrorHandler().handle(ErrorResponse.UNKNOWN_CHANNEL, e -> repository.markChannelDeleted(ticket.id()))
                                 .handle(Throwable.class, e -> log.warn("Couldn't delete closed ticket {}'s channel", ticket.id(), e)));
+            }
+        }
+    }
+
+    /**
+     * Warns, then closes, open tickets that have been quiet for the server's {@code autoCloseDays}. Only tickets old enough to be due
+     * are looked at, and the last message is read from Discord (a ticket's messages are not kept in the database while it is open).
+     */
+    public void closeInactive(JDA jda) {
+        for (Guild guild : jda.getGuilds()) {
+            Integer days = repository.getSettings(guild.getIdLong()).autoCloseDays();
+            if (days == null) continue;
+            OffsetDateTime mayBeDueBefore = OffsetDateTime.now().minusHours(12);
+            for (Ticket ticket : repository.listTickets(guild.getIdLong(), Status.OPEN, null, 200, 0)) {
+                if (ticket.channelId() == null || ticket.createdAt().isAfter(mayBeDueBefore)) continue;
+                GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, ticket.channelId());
+                if (channel == null) continue;
+                try {
+                    List<Message> latest = channel.getHistory().retrievePast(1).complete();
+                    Instant lastAt = latest.isEmpty() ? ticket.createdAt().toInstant() : latest.get(0).getTimeCreated().toInstant();
+                    boolean lastIsWarning = !latest.isEmpty() && latest.get(0).getAuthor().getIdLong() == guild.getSelfMember().getIdLong()
+                            && latest.get(0).getContentRaw().startsWith(TicketInactivity.WARNING_MARKER);
+                    switch (TicketInactivity.decide(lastAt, lastIsWarning, Instant.now(), days)) {
+                        case WARN -> channel.sendMessage(TicketInactivity.warningText(Instant.now().plus(TicketInactivity.GRACE)))
+                                .setAllowedMentions(EnumSet.noneOf(Message.MentionType.class)).queue(null, error -> log.warn("Couldn't post the inactivity warning for ticket {}", ticket.id(), error));
+                        case CLOSE -> {
+                            log.info("Closing ticket {} in guild {} after {} days without a message", ticket.id(), guild.getId(), days);
+                            closeTicket(guild, ticket, guild.getSelfMember().getIdLong(), TicketInactivity.closeReason(days));
+                        }
+                        case NOTHING -> { }
+                    }
+                } catch (Exception e) {
+                    log.warn("Inactivity check failed for ticket {}", ticket.id(), e);
+                }
             }
         }
     }

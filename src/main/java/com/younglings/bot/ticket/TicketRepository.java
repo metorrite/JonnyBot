@@ -51,13 +51,14 @@ public class TicketRepository {
     // ================= settings =================
 
     public Settings getSettings(long guildId) {
-        String sql = "SELECT guild_id, log_channel_id, next_number, transcript_dm, close_delay_seconds, transcript_retention_days FROM younglings.ticket_settings WHERE guild_id = ?";
+        String sql = "SELECT guild_id, log_channel_id, next_number, transcript_dm, close_delay_seconds, transcript_retention_days, auto_close_days FROM younglings.ticket_settings WHERE guild_id = ?";
         try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
             s.setLong(1, guildId);
             try (ResultSet rs = s.executeQuery()) {
                 if (!rs.next()) return Settings.defaults(guildId);
                 return new Settings(rs.getLong("guild_id"), (Long) rs.getObject("log_channel_id"), rs.getInt("next_number"),
-                        rs.getBoolean("transcript_dm"), rs.getInt("close_delay_seconds"), (Integer) rs.getObject("transcript_retention_days"));
+                        rs.getBoolean("transcript_dm"), rs.getInt("close_delay_seconds"), (Integer) rs.getObject("transcript_retention_days"),
+                        (Integer) rs.getObject("auto_close_days"));
             }
         } catch (SQLException e) {
             throw fail("read ticket settings", e);
@@ -67,13 +68,14 @@ public class TicketRepository {
     /** Saves everything except the running ticket counter, which only ever moves forward when a ticket is created. */
     public void saveSettings(Settings settings) {
         String sql = """
-                INSERT INTO younglings.ticket_settings (guild_id, log_channel_id, transcript_dm, close_delay_seconds, transcript_retention_days)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO younglings.ticket_settings (guild_id, log_channel_id, transcript_dm, close_delay_seconds, transcript_retention_days, auto_close_days)
+                VALUES (?, ?, ?, ?, ?, ?)
                 ON CONFLICT (guild_id) DO UPDATE SET
                     log_channel_id = EXCLUDED.log_channel_id,
                     transcript_dm = EXCLUDED.transcript_dm,
                     close_delay_seconds = EXCLUDED.close_delay_seconds,
-                    transcript_retention_days = EXCLUDED.transcript_retention_days
+                    transcript_retention_days = EXCLUDED.transcript_retention_days,
+                    auto_close_days = EXCLUDED.auto_close_days
                 """;
         try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
             s.setLong(1, settings.guildId());
@@ -81,6 +83,7 @@ public class TicketRepository {
             s.setBoolean(3, settings.transcriptDm());
             s.setInt(4, settings.closeDelaySeconds());
             setInt(s, 5, settings.transcriptRetentionDays());
+            setInt(s, 6, settings.autoCloseDays());
             s.executeUpdate();
         } catch (SQLException e) {
             throw fail("save ticket settings", e);

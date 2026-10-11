@@ -139,7 +139,7 @@ class TicketAdminJsonTest {
 
     @Test
     void idsTravelAsStringsSoTheWebsiteCannotRoundThem() {
-        Settings settings = new Settings(1, BIG_ID, 5, true, 10, null);
+        Settings settings = new Settings(1, BIG_ID, 5, true, 10, null, null);
         DataObject json = DataObject.fromJson(TicketAdminJson.settingsJson(settings).toJson());
         assertEquals(Long.toString(BIG_ID), json.getString("logChannelId"));
         assertEquals(BIG_ID, TicketAdminJson.readSettings(settings, json).logChannelId());
@@ -197,7 +197,7 @@ class TicketAdminJsonTest {
 
     @Test
     void settingsKeepTheCounterTheClientCannotChange() {
-        Settings current = new Settings(1, null, 42, true, 10, null);
+        Settings current = new Settings(1, null, 42, true, 10, null, null);
         Settings updated = TicketAdminJson.readSettings(current, DataObject.fromJson("{\"nextNumber\":1,\"transcriptDm\":false,\"closeDelaySeconds\":30,\"transcriptRetentionDays\":90}"));
         assertEquals(42, updated.nextNumber());
         assertFalse(updated.transcriptDm());

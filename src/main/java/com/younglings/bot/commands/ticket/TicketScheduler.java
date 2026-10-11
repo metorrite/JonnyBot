@@ -22,6 +22,7 @@ import java.util.concurrent.TimeUnit;
 public class TicketScheduler {
     private static final Logger log = LoggerFactory.getLogger(TicketScheduler.class);
     private static final int TICKS_PER_PURGE = 60; // transcript retention only needs checking about hourly
+    private static final int TICKS_PER_INACTIVITY_CHECK = 10; // quiet tickets only need looking at every ten minutes
 
     private final TicketService ticketService;
     private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(
@@ -47,6 +48,7 @@ public class TicketScheduler {
         try {
             ticketService.escalateDue(jda);
             ticketService.sweepClosed(jda);
+            if (ticks % TICKS_PER_INACTIVITY_CHECK == 0) ticketService.closeInactive(jda);
             if (ticks++ % TICKS_PER_PURGE == 0) ticketService.purgeOldTranscripts(jda);
         } catch (Exception e) {
             log.error("Ticket background check failed", e); // never let one bad run stop the schedule
