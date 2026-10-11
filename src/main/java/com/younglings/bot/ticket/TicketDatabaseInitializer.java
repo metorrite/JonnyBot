@@ -34,6 +34,8 @@ public class TicketDatabaseInitializer {
                 );
                 """,
 
+                "ALTER TABLE younglings.ticket_settings ADD COLUMN IF NOT EXISTS auto_close_days INTEGER NULL;",
+
                 // A panel is one kind of ticket someone can open (e.g. "Combat Achievement help").
                 """
                 CREATE TABLE IF NOT EXISTS younglings.ticket_panel (

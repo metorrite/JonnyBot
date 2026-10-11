@@ -22,9 +22,11 @@ public final class TicketModels {
      */
     public enum FieldPurpose { NONE, BOSS, TIER, ACHIEVEMENT, ATTEMPTS }
 
-    public record Settings(long guildId, Long logChannelId, int nextNumber, boolean transcriptDm, int closeDelaySeconds, Integer transcriptRetentionDays) {
+    /** {@code autoCloseDays}: close a ticket this many days after its last message (null = never). */
+    public record Settings(long guildId, Long logChannelId, int nextNumber, boolean transcriptDm, int closeDelaySeconds, Integer transcriptRetentionDays,
+                           Integer autoCloseDays) {
         public static Settings defaults(long guildId) {
-            return new Settings(guildId, null, 1, true, 10, null);
+            return new Settings(guildId, null, 1, true, 10, null, null);
         }
     }
 
