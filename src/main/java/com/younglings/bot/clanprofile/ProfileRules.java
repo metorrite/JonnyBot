@@ -27,7 +27,7 @@ public final class ProfileRules {
             "about", "www", "login", "logout", "dashboard", "settings", "docs", "faq", "install", "privacy", "terms", "clans", "directory", "jonnybot");
 
     /** Clan ranks that may speak for the clan and so may verify it. */
-    private static final Set<String> LEADERSHIP_RANKS = Set.of("owner", "deputy owner", "overseer");
+    private static final Set<String> LEADERSHIP_RANKS = Set.of("owner", "deputy owner");
 
     /** Whether a profile is shown in the directory ({@code LISTED}), reachable only by its link ({@code UNLISTED}) or not shown at all. */
     public enum Listing { HIDDEN, UNLISTED, LISTED }
@@ -94,7 +94,7 @@ public final class ProfileRules {
 
     // ---------- verification ----------
 
-    /** Whether a rank in the clan roster may speak for the clan ("Owner", "Deputy Owner", "Overseer"). */
+    /** Whether a rank in the clan roster may speak for the clan ("Owner" or "Deputy Owner"). */
     public static boolean isLeadership(String clanRank) {
         return clanRank != null && LEADERSHIP_RANKS.contains(clanRank.strip().toLowerCase(Locale.ROOT).replace('_', ' '));
     }
@@ -115,7 +115,7 @@ public final class ProfileRules {
         if (linkedNames == 0) return "Link your RuneScape name in this server first (with /rs), so JonnyBot can see your rank in the clan.";
         if (ranksOnRoster.isEmpty()) return "None of the RuneScape names you linked here is on the \"" + clanName + "\" roster.";
         if (ranksOnRoster.stream().noneMatch(ProfileRules::isLeadership)) {
-            return "Only a clan Owner, Deputy Owner or Overseer can verify a clan. Your rank is " + String.join(" / ", ranksOnRoster) + ".";
+            return "Only a clan Owner or Deputy Owner can verify a clan. Your rank is " + String.join(" / ", ranksOnRoster) + ".";
         }
         return null;
     }
@@ -144,7 +144,7 @@ public final class ProfileRules {
     public static String visibilityProblem(ClanProfile profile, String currentClanName, Visibility wanted) {
         if (wanted == Visibility.PRIVATE) return null;
         if (profile.suspended()) return "This listing has been suspended by the bot's owner" + (profile.suspendedReason() == null || profile.suspendedReason().isBlank() ? "." : ": " + profile.suspendedReason());
-        if (wanted == Visibility.PUBLIC && !verified(profile, currentClanName)) return "Verify the clan first: a public listing needs a clan Owner, Deputy Owner or Overseer to verify it.";
+        if (wanted == Visibility.PUBLIC && !verified(profile, currentClanName)) return "Verify the clan first: a public listing needs a clan Owner or Deputy Owner to verify it.";
         return null;
     }
 }

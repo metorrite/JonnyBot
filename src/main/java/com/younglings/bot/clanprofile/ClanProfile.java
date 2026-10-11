@@ -58,7 +58,7 @@ public record ClanProfile(long guildId, Visibility visibility, String slug, Stri
     }
 
     public static ClanProfile empty(long guildId) {
-        return new ClanProfile(guildId, Visibility.PRIVATE, null, "", "", "", null, null, null, EnumSet.noneOf(Focus.class), Recruiting.CLOSED, "", null,
+        return new ClanProfile(guildId, Visibility.UNLISTED, null, "", "", "", null, null, null, EnumSet.noneOf(Focus.class), Recruiting.CLOSED, "", null,
                 false, null, null, null, null, null, null);
     }
 

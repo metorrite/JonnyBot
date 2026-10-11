@@ -79,7 +79,7 @@ class ProfileRulesTest {
     void onlyClanLeadershipMayVerify() {
         assertTrue(ProfileRules.isLeadership("Owner"));
         assertTrue(ProfileRules.isLeadership("Deputy Owner"));
-        assertTrue(ProfileRules.isLeadership(" overseer "));
+        assertFalse(ProfileRules.isLeadership(" overseer "));
         assertTrue(ProfileRules.isLeadership("DEPUTY_OWNER"));
         assertFalse(ProfileRules.isLeadership("Coordinator"));
         assertFalse(ProfileRules.isLeadership("General"));
@@ -94,7 +94,7 @@ class ProfileRulesTest {
         assertTrue(ProfileRules.verificationProblem("Younglings", 60, true, 1, List.of("Owner")).contains("another server"));
         assertTrue(ProfileRules.verificationProblem("Younglings", 60, false, 0, List.of()).contains("/rs"));
         assertTrue(ProfileRules.verificationProblem("Younglings", 60, false, 2, List.of()).contains("roster"));
-        assertTrue(ProfileRules.verificationProblem("Younglings", 60, false, 1, List.of("General")).contains("Owner, Deputy Owner or Overseer"));
+        assertTrue(ProfileRules.verificationProblem("Younglings", 60, false, 1, List.of("General")).contains("Owner or Deputy Owner"));
         assertNull(ProfileRules.verificationProblem("Younglings", 60, false, 1, List.of("General", "Deputy Owner")));
     }
 

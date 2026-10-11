@@ -50,8 +50,8 @@ public class ClanProfileService {
 
     /**
      * Checks that {@code actorId} is a leader of the server's clan, as far as JonnyBot can tell: the clan exists with a roster, no other
-     * server has verified it, and one of the RuneScape names the person linked in this server is on the roster as an Owner, Deputy Owner or
-     * Overseer. On success the verification is stored against the clan name, so renaming the clan later un-verifies it.
+     * server has verified it, and one of the RuneScape names the person linked in this server is on the roster as an Owner or
+     * Deputy Owner. On success the verification is stored against the clan name, so renaming the clan later un-verifies it.
      */
     public Verification verify(long guildId, long actorId) {
         String clan = clanNameOf(guildId);
