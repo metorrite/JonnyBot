@@ -1,0 +1,389 @@
+package com.younglings.bot.internal;
+
+import com.younglings.bot.events.EventProblem;
+import com.younglings.bot.events.EventRepository;
+import com.younglings.bot.events.EventRepository.Claim;
+import com.younglings.bot.events.EventRepository.Event;
+import com.younglings.bot.events.EventRules;
+import com.younglings.bot.events.EventRules.Evidence;
+import com.younglings.bot.events.EventRules.ObjectiveSpec;
+import com.younglings.bot.events.EventRules.Scope;
+import com.younglings.bot.events.EventRules.ScoringMode;
+import com.younglings.bot.events.EventRules.Source;
+import com.younglings.bot.events.EventRules.Status;
+import com.younglings.bot.events.EventScoring.Standing;
+import com.younglings.bot.events.EventService;
+import com.younglings.bot.events.EventService.EventInput;
+import com.younglings.bot.events.EventTemplates;
+import com.younglings.bot.internal.TicketAdminApi.ApiError;
+import io.github.freya022.botcommands.api.core.service.annotations.BService;
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.utils.data.DataArray;
+import net.dv8tion.jda.api.utils.data.DataObject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.function.Supplier;
+
+/**
+ * The event engine for the website. Events: {@code GET/POST events}, {@code GET events/templates}, {@code GET/PUT/DELETE events/{id}},
+ * {@code POST events/{id}/status}. Inside an event: {@code PUT .../objectives} (the whole list), {@code POST .../teams},
+ * {@code DELETE .../teams/{teamId}}, {@code POST .../participants}, {@code PUT/DELETE .../participants/{userId}}, {@code POST .../progress},
+ * {@code GET .../standings}, {@code GET/POST .../claims} and {@code POST .../claims/{claimId}/approve|deny}. Everything is checked by
+ * {@link EventService}. Reached only through {@link TicketAdminApi}, which has already checked the asker may use the dashboard in this server
+ * and audit-logs every change.
+ */
+@BService
+public class EventsAdminApi implements AdminRouteExtension {
+    private static final Logger log = LoggerFactory.getLogger(EventsAdminApi.class);
+
+    private final EventService service;
+    private final EventRepository repository;
+    private final EventTemplates templates;
+
+    public EventsAdminApi(EventService service, EventRepository repository, EventTemplates templates) {
+        this.service = service;
+        this.repository = repository;
+        this.templates = templates;
+    }
+
+    @Override
+    public DataObject route(Guild guild, Member actor, String method, String[] parts, Supplier<DataObject> body) {
+        if (parts.length < 1 || !parts[0].equals("events")) return null;
+        try {
+            return dispatch(guild, actor, method, parts, body);
+        } catch (EventProblem e) {
+            throw new ApiError(e.status() == 500 ? 500 : e.status(), e.getMessage(), e.problems());
+        }
+    }
+
+    private DataObject dispatch(Guild guild, Member actor, String method, String[] parts, Supplier<DataObject> body) {
+        if (parts.length == 1) {
+            if (method.equals("GET")) return list(guild);
+            AdminRouteExtension.requireMethod(method, "POST");
+            return create(guild, actor, body.get());
+        }
+        if (parts.length == 2 && parts[1].equals("templates")) {
+            AdminRouteExtension.requireMethod(method, "GET");
+            return templateList();
+        }
+        long id = idOf(parts[1], "event");
+        if (parts.length == 2) {
+            return switch (method) {
+                case "GET" -> detail(guild, id);
+                case "PUT" -> update(guild, actor, id, body.get());
+                case "DELETE" -> delete(guild, actor, id);
+                default -> throw new ApiError(405, "Method not allowed");
+            };
+        }
+        String what = parts[2];
+        if (parts.length == 3) {
+            switch (what) {
+                case "status" -> {
+                    AdminRouteExtension.requireMethod(method, "POST");
+                    return moveStage(guild, actor, id, body.get());
+                }
+                case "objectives" -> {
+                    AdminRouteExtension.requireMethod(method, "PUT");
+                    return setObjectives(guild, actor, id, body.get());
+                }
+                case "teams" -> {
+                    AdminRouteExtension.requireMethod(method, "POST");
+                    return addTeam(guild, actor, id, body.get());
+                }
+                case "participants" -> {
+                    AdminRouteExtension.requireMethod(method, "POST");
+                    return addParticipant(guild, actor, id, body.get());
+                }
+                case "progress" -> {
+                    AdminRouteExtension.requireMethod(method, "POST");
+                    return progress(guild, actor, id, body.get());
+                }
+                case "standings" -> {
+                    AdminRouteExtension.requireMethod(method, "GET");
+                    return standings(guild, id);
+                }
+                case "claims" -> {
+                    if (method.equals("GET")) return claims(guild, id);
+                    AdminRouteExtension.requireMethod(method, "POST");
+                    return submitClaim(guild, actor, id, body.get());
+                }
+                default -> {
+                    return null;
+                }
+            }
+        }
+        if (parts.length == 4 && what.equals("teams")) {
+            AdminRouteExtension.requireMethod(method, "DELETE");
+            service.removeTeam(guild.getIdLong(), id, idOf(parts[3], "team"));
+            log.info("Dashboard: {} removed a team from event {}", actor.getId(), id);
+            return detail(guild, id);
+        }
+        if (parts.length == 4 && what.equals("participants")) {
+            long userId = idOf(parts[3], "player");
+            if (method.equals("DELETE")) {
+                service.leave(guild.getIdLong(), id, userId);
+                return detail(guild, id);
+            }
+            AdminRouteExtension.requireMethod(method, "PUT");
+            service.setTeam(guild.getIdLong(), id, userId, optionalId(body.get(), "teamId"));
+            return detail(guild, id);
+        }
+        if (parts.length == 5 && what.equals("claims") && (parts[4].equals("approve") || parts[4].equals("deny"))) {
+            AdminRouteExtension.requireMethod(method, "POST");
+            boolean approve = parts[4].equals("approve");
+            DataObject b = body.get();
+            service.decideClaim(guild.getIdLong(), id, idOf(parts[3], "claim"), approve, text(b, "note"), actor.getIdLong());
+            log.info("Dashboard: {} {} a claim in event {}", actor.getId(), approve ? "approved" : "denied", id);
+            return claims(guild, id);
+        }
+        return null;
+    }
+
+    // ---------- events ----------
+
+    DataObject list(Guild guild) {
+        DataArray events = DataArray.empty();
+        for (Event e : repository.events(guild.getIdLong(), List.of(), 100)) events.add(eventJson(e));
+        return DataObject.empty().put("events", events).put("maxOpen", EventService.MAX_OPEN_EVENTS);
+    }
+
+    DataObject templateList() {
+        DataArray array = DataArray.empty();
+        templates.all().forEach(t -> array.add(DataObject.empty().put("key", t.key()).put("label", t.label()).put("description", t.description())));
+        return DataObject.empty().put("templates", array);
+    }
+
+    DataObject create(Guild guild, Member actor, DataObject body) {
+        long id = service.createEvent(guild.getIdLong(), actor.getIdLong(), input(body, null));
+        log.info("Dashboard: {} created event {}", actor.getId(), id);
+        return detail(guild, id);
+    }
+
+    DataObject update(Guild guild, Member actor, long id, DataObject body) {
+        Event existing = service.event(guild.getIdLong(), id);
+        service.updateEvent(guild.getIdLong(), id, input(body, existing));
+        log.info("Dashboard: {} changed event {}", actor.getId(), id);
+        return detail(guild, id);
+    }
+
+    DataObject delete(Guild guild, Member actor, long id) {
+        service.deleteDraft(guild.getIdLong(), id);
+        log.info("Dashboard: {} deleted draft event {}", actor.getId(), id);
+        return list(guild);
+    }
+
+    DataObject moveStage(Guild guild, Member actor, long id, DataObject body) {
+        Status to;
+        try {
+            to = Status.valueOf(text(body, "status").toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new ApiError(400, "Choose a stage: draft, signups, running, scoring, done or cancelled.");
+        }
+        service.moveStage(guild.getIdLong(), id, to);
+        log.info("Dashboard: {} moved event {} to {}", actor.getId(), id, to);
+        return detail(guild, id);
+    }
+
+    DataObject detail(Guild guild, long id) {
+        Event e = service.event(guild.getIdLong(), id);
+        DataArray objectives = DataArray.empty();
+        for (ObjectiveSpec o : service.objectives(id)) objectives.add(objectiveJson(o));
+        DataArray teams = DataArray.empty();
+        repository.teams(id).forEach(t -> teams.add(DataObject.empty().put("id", Long.toString(t.id())).put("name", t.name()).put("captainId", t.captainId() == null ? null : Long.toString(t.captainId()))));
+        DataArray players = DataArray.empty();
+        repository.participants(id).forEach(p -> players.add(DataObject.empty().put("userId", Long.toString(p.userId())).put("userName", name(guild, p.userId()))
+                .put("guildId", Long.toString(p.guildId())).put("teamId", p.teamId() == null ? null : Long.toString(p.teamId())).put("joinedAt", p.joinedAt().toString())));
+        DataArray next = DataArray.empty();
+        EventRules.next(e.status()).stream().sorted().forEach(s -> next.add(s.name()));
+        return DataObject.empty().put("event", eventJson(e)).put("objectives", objectives).put("teams", teams).put("participants", players).put("nextStages", next)
+                .put("editable", EventRules.editable(e.status()));
+    }
+
+    // ---------- objectives, teams, players ----------
+
+    DataObject setObjectives(Guild guild, Member actor, long id, DataObject body) {
+        List<ObjectiveSpec> specs = new ArrayList<>();
+        DataArray array = body.hasKey("objectives") && !body.isNull("objectives") ? body.getArray("objectives") : DataArray.empty();
+        for (int i = 0; i < array.length(); i++) {
+            DataObject o = array.getObject(i);
+            String label = text(o, "label");
+            String key = text(o, "key");
+            Evidence evidence;
+            try {
+                evidence = Evidence.valueOf(text(o, "evidence").isEmpty() ? "EITHER" : text(o, "evidence").toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                throw new ApiError(400, "\"" + label + "\": choose how progress is recorded (auto, proof, either or organiser).");
+            }
+            List<String> prerequisites = new ArrayList<>();
+            if (o.hasKey("prerequisites") && !o.isNull("prerequisites")) {
+                DataArray p = o.getArray("prerequisites");
+                for (int j = 0; j < p.length(); j++) prerequisites.add(p.getString(j));
+            }
+            specs.add(new ObjectiveSpec(key.isEmpty() ? EventRules.keyFrom(label) : key, label, text(o, "description"), number(o, "points", 0), evidence,
+                    number(o, "target", 1), (int) number(o, "repeatLimit", 1), prerequisites));
+        }
+        service.setObjectives(guild.getIdLong(), id, specs);
+        log.info("Dashboard: {} saved {} objectives for event {}", actor.getId(), specs.size(), id);
+        return detail(guild, id);
+    }
+
+    DataObject addTeam(Guild guild, Member actor, long id, DataObject body) {
+        Long captain = optionalId(body, "captainId");
+        service.addTeam(guild.getIdLong(), id, text(body, "name"), captain);
+        log.info("Dashboard: {} added a team to event {}", actor.getId(), id);
+        return detail(guild, id);
+    }
+
+    DataObject addParticipant(Guild guild, Member actor, long id, DataObject body) {
+        Long userId = optionalId(body, "userId");
+        if (userId == null) throw new ApiError(400, "Pick a player.");
+        Member member = guild.getMemberById(userId);
+        if (member == null || member.getUser().isBot()) throw new ApiError(400, "That player isn't a member of this server.");
+        service.join(guild.getIdLong(), id, guild.getIdLong(), userId, optionalId(body, "teamId"));
+        log.info("Dashboard: {} added player {} to event {}", actor.getId(), userId, id);
+        return detail(guild, id);
+    }
+
+    // ---------- progress, claims, standings ----------
+
+    DataObject progress(Guild guild, Member actor, long id, DataObject body) {
+        Long userId = optionalId(body, "userId");
+        if (userId == null) throw new ApiError(400, "Pick a player.");
+        var recorded = service.recordProgress(guild.getIdLong(), id, text(body, "objective"), userId, number(body, "amount", 1), Source.MANUAL,
+                text(body, "sourceKey").isEmpty() ? null : "manual:" + text(body, "sourceKey"), actor.getIdLong(), text(body, "note"));
+        log.info("Dashboard: {} recorded progress in event {}", actor.getId(), id);
+        return DataObject.empty().put("progressId", Long.toString(recorded.progressId())).put("total", recorded.total()).put("completions", recorded.completions())
+                .put("standings", standings(guild, id).getArray("standings"));
+    }
+
+    DataObject standings(Guild guild, long id) {
+        Event event = service.event(guild.getIdLong(), id);
+        var teams = repository.teams(id);
+        DataArray array = DataArray.empty();
+        int rank = 1;
+        for (Standing s : service.standings(guild.getIdLong(), id)) {
+            boolean team = s.subject().startsWith("t:");
+            long subjectId = Long.parseLong(s.subject().substring(2));
+            String label = team ? teams.stream().filter(t -> t.id() == subjectId).map(EventRepository.Team::name).findFirst().orElse("A removed team") : name(guild, subjectId);
+            DataObject completions = DataObject.empty();
+            s.completions().forEach(completions::put);
+            array.add(DataObject.empty().put("rank", rank++).put("subject", s.subject()).put("kind", team ? "TEAM" : "PLAYER").put("label", label).put("points", s.points())
+                    .put("objectivesCompleted", s.objectivesCompleted()).put("completions", completions)
+                    .put("lastCompletedAt", s.lastCompletedAt() == null ? null : s.lastCompletedAt().toString()));
+        }
+        return DataObject.empty().put("scoringMode", event.scoringMode().name()).put("standings", array);
+    }
+
+    DataObject claims(Guild guild, long id) {
+        service.event(guild.getIdLong(), id);
+        DataArray pending = DataArray.empty();
+        repository.pendingClaims(id, 100).forEach(c -> pending.add(claimJson(guild, c)));
+        DataArray decided = DataArray.empty();
+        repository.decidedClaims(id, 50).forEach(c -> decided.add(claimJson(guild, c)));
+        return DataObject.empty().put("pending", pending).put("decided", decided);
+    }
+
+    DataObject submitClaim(Guild guild, Member actor, long id, DataObject body) {
+        Long userId = optionalId(body, "userId");
+        if (userId == null) throw new ApiError(400, "Pick a player.");
+        long claimId = service.submitClaim(guild.getIdLong(), id, text(body, "objective"), userId, number(body, "amount", 1), text(body, "note"), text(body, "proofUrl"));
+        log.info("Dashboard: {} filed claim {} in event {}", actor.getId(), claimId, id);
+        return claims(guild, id);
+    }
+
+    // ---------- json ----------
+
+    private EventInput input(DataObject body, Event existing) {
+        Scope scope;
+        ScoringMode mode;
+        try {
+            scope = body.hasKey("scope") ? Scope.valueOf(text(body, "scope").toUpperCase(Locale.ROOT)) : existing != null ? existing.scope() : Scope.PRIVATE;
+            mode = body.hasKey("scoringMode") ? ScoringMode.valueOf(text(body, "scoringMode").toUpperCase(Locale.ROOT)) : existing != null ? existing.scoringMode() : ScoringMode.INDIVIDUAL;
+        } catch (IllegalArgumentException e) {
+            throw new ApiError(400, "Choose who may see the event (private, alliance or public) and how it is scored (individual or team).");
+        }
+        DataObject config = body.hasKey("config") && !body.isNull("config") ? body.getObject("config") : null;
+        return new EventInput(body.hasKey("name") ? text(body, "name") : existing == null ? "" : existing.name(),
+                body.hasKey("description") ? text(body, "description") : existing == null ? "" : existing.description(),
+                existing != null ? existing.template() : text(body, "template").isEmpty() ? "custom" : text(body, "template"), scope, mode,
+                instant(body, "startsAt", existing == null ? null : existing.startsAt()), instant(body, "endsAt", existing == null ? null : existing.endsAt()),
+                body.hasKey("maxParticipants") ? (int) number(body, "maxParticipants", 0) : existing == null ? 0 : existing.maxParticipants(), config);
+    }
+
+    private DataObject eventJson(Event e) {
+        DataObject config;
+        try {
+            config = DataObject.fromJson(e.config());
+        } catch (RuntimeException ex) {
+            config = DataObject.empty();
+        }
+        return DataObject.empty().put("id", Long.toString(e.id())).put("name", e.name()).put("description", e.description()).put("template", e.template())
+                .put("status", e.status().name()).put("scope", e.scope().name()).put("scoringMode", e.scoringMode().name())
+                .put("startsAt", e.startsAt() == null ? null : e.startsAt().toString()).put("endsAt", e.endsAt() == null ? null : e.endsAt().toString())
+                .put("maxParticipants", e.maxParticipants()).put("config", config).put("createdAt", e.createdAt().toString());
+    }
+
+    private static DataObject objectiveJson(ObjectiveSpec o) {
+        DataArray prerequisites = DataArray.empty();
+        o.prerequisites().forEach(prerequisites::add);
+        return DataObject.empty().put("key", o.key()).put("label", o.label()).put("description", o.description()).put("points", o.points())
+                .put("evidence", o.evidence().name()).put("target", o.target()).put("repeatLimit", o.repeatLimit()).put("prerequisites", prerequisites);
+    }
+
+    private DataObject claimJson(Guild guild, Claim c) {
+        return DataObject.empty().put("id", Long.toString(c.id())).put("objective", c.objectiveKey()).put("userId", Long.toString(c.userId())).put("userName", name(guild, c.userId()))
+                .put("amount", c.amount()).put("note", c.note()).put("proofUrl", c.proofUrl()).put("status", c.status().name())
+                .put("decidedByName", c.decidedBy() == null ? null : name(guild, c.decidedBy())).put("decisionNote", c.decisionNote())
+                .put("createdAt", c.createdAt().toString()).put("decidedAt", c.decidedAt() == null ? null : c.decidedAt().toString());
+    }
+
+    // ---------- small helpers ----------
+
+    private static long idOf(String raw, String what) {
+        if (raw == null || !raw.matches("\\d{1,18}")) throw new ApiError(400, "That isn't a valid " + what + ".");
+        return Long.parseLong(raw);
+    }
+
+    private static Long optionalId(DataObject body, String key) {
+        if (!body.hasKey(key) || body.isNull(key)) return null;
+        String raw = body.getString(key, "").strip();
+        if (raw.isEmpty()) return null;
+        if (!raw.matches("\\d{1,20}")) throw new ApiError(400, "That isn't a valid id.");
+        return Long.parseLong(raw);
+    }
+
+    private static String text(DataObject body, String key) {
+        return body.hasKey(key) && !body.isNull(key) ? body.getString(key, "").strip() : "";
+    }
+
+    private static long number(DataObject body, String key, long fallback) {
+        if (!body.hasKey(key) || body.isNull(key)) return fallback;
+        try {
+            return body.getLong(key);
+        } catch (RuntimeException e) {
+            throw new ApiError(400, "\"" + key + "\" must be a whole number.");
+        }
+    }
+
+    private static Instant instant(DataObject body, String key, Instant fallback) {
+        if (!body.hasKey(key)) return fallback;
+        if (body.isNull(key) || body.getString(key, "").isBlank()) return null;
+        try {
+            return Instant.parse(body.getString(key).strip());
+        } catch (DateTimeParseException e) {
+            throw new ApiError(400, "\"" + key + "\" must be a date and time like 2026-10-20T19:00:00Z.");
+        }
+    }
+
+    private static String name(Guild guild, long userId) {
+        Member member = guild.getMemberById(userId);
+        return member == null ? null : member.getEffectiveName();
+    }
+}

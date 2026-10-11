@@ -347,8 +347,7 @@ public class EventRepository {
             s.setLong(1, eventId);
             try (ResultSet rs = s.executeQuery()) {
                 while (rs.next()) {
-                    long captain = rs.getLong("captain_id");
-                    list.add(new Team(rs.getLong("id"), eventId, rs.getString("name"), rs.wasNull() ? null : captain));
+                    list.add(new Team(rs.getLong("id"), eventId, rs.getString("name"), nullableLong(rs, "captain_id")));
                 }
             }
             return list;
@@ -591,8 +590,7 @@ public class EventRepository {
             if (userId != null) s.setLong(2, userId);
             try (ResultSet rs = s.executeQuery()) {
                 while (rs.next()) {
-                    long team = rs.getLong("team_id");
-                    list.add(new Participant(eventId, rs.getLong("user_id"), rs.getLong("guild_id"), rs.wasNull() ? null : team, rs.getTimestamp("joined_at").toInstant()));
+                    list.add(new Participant(eventId, rs.getLong("user_id"), rs.getLong("guild_id"), nullableLong(rs, "team_id"), rs.getTimestamp("joined_at").toInstant()));
                 }
             }
             return list;
@@ -624,6 +622,12 @@ public class EventRepository {
         } catch (SQLException e) {
             throw new RuntimeException("Failed to read the claims", e);
         }
+    }
+
+    /** A nullable BIGINT column, read so that SQL NULL stays null (wasNull() only speaks for the column read just before it). */
+    private static Long nullableLong(ResultSet rs, String column) throws SQLException {
+        long value = rs.getLong(column);
+        return rs.wasNull() ? null : value;
     }
 
     private static void setInstant(PreparedStatement s, int index, Instant value) throws SQLException {
