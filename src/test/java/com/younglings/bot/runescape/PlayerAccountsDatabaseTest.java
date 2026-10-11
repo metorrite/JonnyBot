@@ -70,6 +70,17 @@ class PlayerAccountsDatabaseTest {
     }
 
     @Test
+    void aSelfPollInOneServerStartsTheCooldownInEveryServerTheNameIsLinkedIn() {
+        repository.createLink(HOME, ALICE, "Jonny Young", PlayerLinkService.METHOD_ADMIN_MANUAL);
+        repository.createLink(OTHER, ALICE, "Jonny Young", PlayerLinkService.METHOD_ADMIN_MANUAL);
+        assertNull(repository.getLinkForRsn(OTHER, "Jonny Young").lastSelfPollAt());
+
+        repository.recordSelfPoll(repository.getLinkForRsn(HOME, "Jonny Young").linkId());
+
+        assertNotNull(repository.getLinkForRsn(OTHER, "Jonny Young").lastSelfPollAt());
+    }
+
+    @Test
     void linkingInOneServerRegistersTheAccountWithJonnyBotAndThatServer() {
         repository.createLink(HOME, ALICE, "Jonny Young", PlayerLinkService.METHOD_ADMIN_MANUAL);
 

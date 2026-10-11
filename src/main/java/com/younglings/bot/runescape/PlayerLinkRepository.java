@@ -636,9 +636,13 @@ public class PlayerLinkRepository {
         }
     }
 
-    /** Stamps {@code last_self_poll_at} to now — called only from the member's own "Poll Now" click under {@code /rs}, never from an admin or auto poll. */
+    /**
+     * Stamps {@code last_self_poll_at} to now — called only from the member's own "Poll Now" click under {@code /rs}, never from an admin
+     * or auto poll. The stamp goes on every server's link to the same RS name, because a player's stats are global: polling from a second
+     * server straight after the first would only spend another request on data that was just refreshed.
+     */
     public void recordSelfPoll(long linkId) {
-        String sql = "UPDATE younglings.player_link SET last_self_poll_at = NOW() WHERE link_id = ?";
+        String sql = "UPDATE younglings.player_link SET last_self_poll_at = NOW() WHERE LOWER(rsn) = (SELECT LOWER(rsn) FROM younglings.player_link WHERE link_id = ?)";
 
         try (Connection connection = connectionSupplier.getConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
