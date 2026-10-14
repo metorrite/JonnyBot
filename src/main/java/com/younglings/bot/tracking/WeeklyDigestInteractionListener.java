@@ -2,6 +2,7 @@ package com.younglings.bot.tracking;
 
 import com.younglings.bot.discord.Containers;
 import com.younglings.bot.permission.AdminRoleFilter;
+import com.younglings.bot.wheel.WheelEligibility;
 import com.younglings.bot.wheel.WheelEntries;
 import com.younglings.bot.wheel.WheelSpin;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -45,7 +46,7 @@ public class WeeklyDigestInteractionListener extends ListenerAdapter {
     private static final String COPY_PREFIX = "weekly_copy_names:";
     private static final int REVEAL_AFTER_SECONDS = 6;
 
-    private final WeeklyDigestService weeklyDigestService;
+    private final CitadelWheelEntries wheelEntries;
     private final AdminRoleFilter adminRoleFilter;
     private final ExecutorService worker = Executors.newFixedThreadPool(2, (ThreadFactory) runnable -> {
         Thread thread = new Thread(runnable, "citadel-wheel");
@@ -53,8 +54,8 @@ public class WeeklyDigestInteractionListener extends ListenerAdapter {
         return thread;
     });
 
-    public WeeklyDigestInteractionListener(WeeklyDigestService weeklyDigestService, AdminRoleFilter adminRoleFilter) {
-        this.weeklyDigestService = weeklyDigestService;
+    public WeeklyDigestInteractionListener(CitadelWheelEntries wheelEntries, AdminRoleFilter adminRoleFilter) {
+        this.wheelEntries = wheelEntries;
         this.adminRoleFilter = adminRoleFilter;
     }
 
@@ -97,9 +98,10 @@ public class WeeklyDigestInteractionListener extends ListenerAdapter {
     }
 
     private void copyNames(ButtonInteractionEvent event, Guild guild, OffsetDateTime[] window) {
-        List<String> capped = weeklyDigestService.getCappedRsns(guild.getIdLong(), window[0], window[1]);
+        WheelEligibility.Result eligible = wheelEntries.forWeek(guild, window[0], window[1]);
+        List<String> capped = eligible.names();
         if (capped.isEmpty()) {
-            Containers.replyEphemeral(event, Containers.WARNING, "Nobody capped that week.");
+            Containers.replyEphemeral(event, Containers.WARNING, "Nobody is on the wheel for that week" + (eligible.leftOut().isEmpty() ? " (nobody capped)." : " (everyone who capped is staff)."));
             return;
         }
         StringBuilder list = new StringBuilder();
@@ -110,7 +112,7 @@ public class WeeklyDigestInteractionListener extends ListenerAdapter {
             shown++;
         }
         String more = shown < capped.size() ? "\n-# " + (capped.size() - shown) + " more didn't fit." : "";
-        event.reply("**Capped that week (" + capped.size() + ")**, one per line to paste into a wheel website:\n```\n" + list.toString().stripTrailing() + "\n```" + more)
+        event.reply("**On the wheel for that week (" + capped.size() + ")**, one per person, to paste into a wheel website:\n```\n" + list.toString().stripTrailing() + "\n```" + more + notes(eligible))
                 .setEphemeral(true).queue();
     }
 
@@ -129,11 +131,12 @@ public class WeeklyDigestInteractionListener extends ListenerAdapter {
             var extrasValue = event.getValue("extras");
             WheelEntries.Parsed extras = WheelEntries.parseExtras(extrasValue == null ? "" : extrasValue.getAsString());
 
-            List<String> capped = weeklyDigestService.getCappedRsns(guild.getIdLong(), window[0], window[1]);
+            WheelEligibility.Result eligible = wheelEntries.forWeek(guild, window[0], window[1]);
+            List<String> capped = eligible.names();
             List<String> entries = new ArrayList<>(capped);
             entries.addAll(extras.names());
             if (entries.isEmpty()) {
-                Containers.replyEphemeral(event, Containers.WARNING, "Nobody capped that week and no extra entries were given, so there's nothing to spin.");
+                Containers.replyEphemeral(event, Containers.WARNING, "Nobody is on the wheel for that week" + (eligible.leftOut().isEmpty() ? "" : " (everyone who capped is staff)") + " and no extra entries were given, so there's nothing to spin.");
                 return;
             }
             if (entries.size() > WheelEntries.MAX_ENTRIES) {
@@ -142,20 +145,40 @@ public class WeeklyDigestInteractionListener extends ListenerAdapter {
             }
 
             event.deferReply().queue();
-            worker.execute(() -> spin(event, entries, capped.size(), extras));
+            worker.execute(() -> spin(event, entries, capped.size(), extras, notes(eligible)));
         } catch (Exception e) {
             log.error("Unhandled exception in weekly digest spin modal '{}'", id, e);
             Containers.replyError(event);
         }
     }
 
-    private void spin(ModalInteractionEvent event, List<String> entries, int cappedCount, WheelEntries.Parsed extras) {
+    /** A line or two saying who was left off the wheel and why, and who was merged into one entry, so nobody wonders. */
+    static String notes(WheelEligibility.Result eligible) {
+        StringBuilder out = new StringBuilder();
+        if (!eligible.leftOut().isEmpty()) {
+            out.append("\n-# Left off (staff): ");
+            int shown = 0;
+            for (var left : eligible.leftOut()) {
+                if (shown == 6) break;
+                if (shown++ > 0) out.append(", ");
+                out.append(left.name()).append(" (").append(left.reason()).append(')');
+            }
+            if (eligible.leftOut().size() > shown) out.append(" and ").append(eligible.leftOut().size() - shown).append(" more");
+        }
+        if (!eligible.merged().isEmpty()) {
+            out.append("\n-# One entry per person: ");
+            out.append(String.join(", ", eligible.merged().stream().map(m -> String.join(" + ", m.accounts())).limit(6).toList()));
+        }
+        return out.toString();
+    }
+
+    private void spin(ModalInteractionEvent event, List<String> entries, int cappedCount, WheelEntries.Parsed extras, String notes) {
         try {
             List<String> drawn = WheelEntries.spread(entries);
             WheelSpin.Result result = WheelSpin.spin(drawn, drawn.size() > 40 ? 640 : 560);
             String summary = cappedCount + " capped" + (extras.names().isEmpty() ? "" : " + " + extras.names().size() + " extra " + (extras.names().size() == 1 ? "entry" : "entries"))
                     + " · " + drawn.size() + " on the wheel";
-            String skipped = extras.problems().isEmpty() ? "" : "\n-# Skipped: " + String.join(" ", extras.problems());
+            String skipped = (extras.problems().isEmpty() ? "" : "\n-# Skipped: " + String.join(" ", extras.problems())) + notes;
             event.getHook().editOriginal("🎡 Spinning the wheel... (" + summary + ")" + skipped)
                     .setAttachments(FileUpload.fromData(result.gif(), "citadel-wheel.gif")).queue();
             // the winner is named once the wheel has stopped, not before the animation has finished

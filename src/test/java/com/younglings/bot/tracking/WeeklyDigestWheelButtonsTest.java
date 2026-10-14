@@ -1,6 +1,7 @@
 package com.younglings.bot.tracking;
 
 import com.younglings.bot.permission.AdminRoleFilter;
+import com.younglings.bot.wheel.WheelEligibility;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
@@ -28,14 +29,14 @@ import static org.mockito.Mockito.when;
 
 class WeeklyDigestWheelButtonsTest {
     private static final long GUILD = 123L;
-    private WeeklyDigestService service;
+    private CitadelWheelEntries service;
     private AdminRoleFilter adminFilter;
     private WeeklyDigestInteractionListener listener;
     private Guild guild;
 
     @BeforeEach
     void setUp() {
-        service = mock(WeeklyDigestService.class);
+        service = mock(CitadelWheelEntries.class);
         adminFilter = mock(AdminRoleFilter.class);
         listener = new WeeklyDigestInteractionListener(service, adminFilter);
         guild = mock(Guild.class);
@@ -58,7 +59,7 @@ class WeeklyDigestWheelButtonsTest {
 
     @Test
     void copyNamesGivesEveryoneWhoCappedOnePerLineInACodeBlock() {
-        when(service.getCappedRsns(eq(GUILD), any(OffsetDateTime.class), any(OffsetDateTime.class))).thenReturn(List.of("Axley", "Berserker87", "G i f f"));
+        when(service.forWeek(eq(guild), any(OffsetDateTime.class), any(OffsetDateTime.class))).thenReturn(new WheelEligibility.Result(List.of("Axley", "Berserker87", "G i f f"), List.of(new WheelEligibility.Left("Metorrite", "clan rank Admin")), List.of()));
         ButtonInteractionEvent event = click("weekly_copy_names:2026-10-14", member(false));
 
         listener.onButtonInteraction(event);
@@ -67,16 +68,17 @@ class WeeklyDigestWheelButtonsTest {
         verify(event).reply(reply.capture());
         assertTrue(reply.getValue().contains("```\nAxley\nBerserker87\nG i f f\n```"), reply.getValue());
         assertTrue(reply.getValue().contains("(3)"), "the count is shown");
+        assertTrue(reply.getValue().contains("Left off (staff): Metorrite (clan rank Admin)"), "who was left off, and why: " + reply.getValue());
     }
 
     @Test
     void copyNamesAsksForTheWeekTheReportCovers() {
-        when(service.getCappedRsns(anyLong(), any(), any())).thenReturn(List.of("Axley"));
+        when(service.forWeek(any(), any(), any())).thenReturn(new WheelEligibility.Result(List.of("Axley"), List.of(), List.of()));
         listener.onButtonInteraction(click("weekly_copy_names:2026-10-14", member(false)));
 
         ArgumentCaptor<OffsetDateTime> start = ArgumentCaptor.forClass(OffsetDateTime.class);
         ArgumentCaptor<OffsetDateTime> end = ArgumentCaptor.forClass(OffsetDateTime.class);
-        verify(service).getCappedRsns(eq(GUILD), start.capture(), end.capture());
+        verify(service).forWeek(eq(guild), start.capture(), end.capture());
         assertEquals(OffsetDateTime.parse("2026-10-07T00:10:00Z"), start.getValue());
         assertEquals(OffsetDateTime.parse("2026-10-14T00:10:00Z"), end.getValue());
     }

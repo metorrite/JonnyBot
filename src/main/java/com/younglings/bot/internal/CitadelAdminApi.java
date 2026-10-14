@@ -2,7 +2,7 @@ package com.younglings.bot.internal;
 
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.tracking.CitadelWeek;
-import com.younglings.bot.tracking.WeeklyDigestService;
+import com.younglings.bot.tracking.CitadelWheelEntries;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 /**
- * Who capped at the Clan Citadel in a given week, for the dashboard's wheel page: {@code GET citadel/cappers} is the week that just finished and
+ * Who is on the Citadel wheel for a given week (one entry per person who capped, staff left off; see {@link CitadelWheelEntries}), for the dashboard's wheel page: {@code GET citadel/cappers} is the week that just finished and
  * {@code GET citadel/cappers/<date>} is the week that ended at the reset on that Wednesday. Also lists the last few weeks to pick from. Reached only
  * through {@link TicketAdminApi}, which has already checked the asker may use the dashboard in this server.
  */
@@ -25,10 +25,10 @@ import java.util.function.Supplier;
 public class CitadelAdminApi implements AdminRouteExtension {
     private static final int WEEKS_LISTED = 8;
 
-    private final WeeklyDigestService digest;
+    private final CitadelWheelEntries entries;
 
-    public CitadelAdminApi(WeeklyDigestService digest) {
-        this.digest = digest;
+    public CitadelAdminApi(CitadelWheelEntries entries) {
+        this.entries = entries;
     }
 
     @Override
@@ -52,9 +52,17 @@ public class CitadelAdminApi implements AdminRouteExtension {
             }
             if (window[1].isAfter(now.plusDays(7))) throw new ApiError(400, "That week hasn't happened yet.");
         }
-        List<String> cappers = digest.getCappedRsns(guild.getIdLong(), window[0], window[1]);
+        var eligible = entries.forWeek(guild, window[0], window[1]);
         DataArray names = DataArray.empty();
-        cappers.forEach(names::add);
+        eligible.names().forEach(names::add);
+        DataArray leftOut = DataArray.empty();
+        eligible.leftOut().forEach(l -> leftOut.add(DataObject.empty().put("name", l.name()).put("reason", l.reason())));
+        DataArray merged = DataArray.empty();
+        eligible.merged().forEach(m -> {
+            DataArray accounts = DataArray.empty();
+            m.accounts().forEach(accounts::add);
+            merged.add(DataObject.empty().put("name", m.name()).put("accounts", accounts));
+        });
 
         DataArray weeks = DataArray.empty();
         OffsetDateTime[] latest = CitadelWeek.lastCompleted(now);
@@ -63,6 +71,6 @@ public class CitadelAdminApi implements AdminRouteExtension {
             weeks.add(DataObject.empty().put("end", end.toString()).put("start", end.minusDays(7).toString()));
         }
         return DataObject.empty().put("end", window[1].toLocalDate().toString()).put("start", window[0].toLocalDate().toString())
-                .put("from", window[0].toString()).put("to", window[1].toString()).put("cappers", names).put("weeks", weeks);
+                .put("from", window[0].toString()).put("to", window[1].toString()).put("cappers", names).put("leftOut", leftOut).put("merged", merged).put("weeks", weeks);
     }
 }

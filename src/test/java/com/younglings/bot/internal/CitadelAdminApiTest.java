@@ -1,7 +1,8 @@
 package com.younglings.bot.internal;
 
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
-import com.younglings.bot.tracking.WeeklyDigestService;
+import com.younglings.bot.tracking.CitadelWheelEntries;
+import com.younglings.bot.wheel.WheelEligibility;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.utils.data.DataObject;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,14 +21,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class CitadelAdminApiTest {
-    private WeeklyDigestService digest;
+    private CitadelWheelEntries digest;
     private CitadelAdminApi api;
     private Guild guild;
     private static final OffsetDateTime NOW = OffsetDateTime.parse("2026-10-14T12:30:00Z");
 
     @BeforeEach
     void setUp() {
-        digest = mock(WeeklyDigestService.class);
+        digest = mock(CitadelWheelEntries.class);
         api = new CitadelAdminApi(digest);
         guild = mock(Guild.class);
         when(guild.getIdLong()).thenReturn(7L);
@@ -35,22 +36,25 @@ class CitadelAdminApiTest {
 
     @Test
     void withNoDateItAnswersForTheWeekThatJustFinished() {
-        when(digest.getCappedRsns(eq(7L), any(), any())).thenReturn(List.of("Axley", "Giff"));
+        when(digest.forWeek(eq(guild), any(), any())).thenReturn(new WheelEligibility.Result(List.of("Axley", "Giff"), List.of(new WheelEligibility.Left("Metorrite", "clan rank Admin")), List.of(new WheelEligibility.Person("Jonny Yong", List.of("Jonny Yong", "Jonny Young")))));
         DataObject answer = api.cappers(guild, null, NOW);
         assertEquals("2026-10-14", answer.getString("end"));
         assertEquals("2026-10-07", answer.getString("start"));
         assertEquals(2, answer.getArray("cappers").length());
+        assertEquals("Metorrite", answer.getArray("leftOut").getObject(0).getString("name"));
+        assertEquals("clan rank Admin", answer.getArray("leftOut").getObject(0).getString("reason"));
+        assertEquals(2, answer.getArray("merged").getObject(0).getArray("accounts").length());
         assertEquals(8, answer.getArray("weeks").length());
         assertEquals("2026-10-14", answer.getArray("weeks").getObject(0).getString("end"));
         assertEquals("2026-08-26", answer.getArray("weeks").getObject(7).getString("end"));
-        verify(digest).getCappedRsns(7L, OffsetDateTime.parse("2026-10-07T00:10:00Z"), OffsetDateTime.parse("2026-10-14T00:10:00Z"));
+        verify(digest).forWeek(guild, OffsetDateTime.parse("2026-10-07T00:10:00Z"), OffsetDateTime.parse("2026-10-14T00:10:00Z"));
     }
 
     @Test
     void aGivenWednesdayPicksThatWeek() {
-        when(digest.getCappedRsns(eq(7L), any(), any())).thenReturn(List.of());
+        when(digest.forWeek(eq(guild), any(), any())).thenReturn(new WheelEligibility.Result(List.of(), List.of(), List.of()));
         api.cappers(guild, "2026-09-30", NOW);
-        verify(digest).getCappedRsns(7L, OffsetDateTime.parse("2026-09-23T00:10:00Z"), OffsetDateTime.parse("2026-09-30T00:10:00Z"));
+        verify(digest).forWeek(guild, OffsetDateTime.parse("2026-09-23T00:10:00Z"), OffsetDateTime.parse("2026-09-30T00:10:00Z"));
     }
 
     @Test
