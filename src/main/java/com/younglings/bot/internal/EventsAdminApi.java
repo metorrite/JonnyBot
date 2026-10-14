@@ -12,6 +12,7 @@ import com.younglings.bot.events.EventRules.ScoringMode;
 import com.younglings.bot.events.EventRules.Source;
 import com.younglings.bot.events.EventRules.Status;
 import com.younglings.bot.events.EventScoring.Standing;
+import com.younglings.bot.events.EventSignups;
 import com.younglings.bot.events.EventSettings;
 import com.younglings.bot.events.PrizePlan;
 import com.younglings.bot.events.PrizeRules;
@@ -53,11 +54,13 @@ public class EventsAdminApi implements AdminRouteExtension {
     private final EventService service;
     private final EventRepository repository;
     private final EventTemplates templates;
+    private final EventSignups signups;
 
-    public EventsAdminApi(EventService service, EventRepository repository, EventTemplates templates) {
+    public EventsAdminApi(EventService service, EventRepository repository, EventTemplates templates, EventSignups signups) {
         this.service = service;
         this.repository = repository;
         this.templates = templates;
+        this.signups = signups;
     }
 
     @Override
@@ -112,6 +115,12 @@ public class EventsAdminApi implements AdminRouteExtension {
                     AdminRouteExtension.requireMethod(method, "POST");
                     return progress(guild, actor, id, body.get());
                 }
+                case "signup" -> {
+                    AdminRouteExtension.requireMethod(method, "POST");
+                    signups.open(guild, id, actor.getIdLong());
+                    log.info("Dashboard: {} opened the signup of event {}", actor.getId(), id);
+                    return detail(guild, id);
+                }
                 case "prizes" -> {
                     AdminRouteExtension.requireMethod(method, "PUT");
                     return setPrizes(guild, actor, id, body.get());
@@ -136,6 +145,12 @@ public class EventsAdminApi implements AdminRouteExtension {
                     return null;
                 }
             }
+        }
+        if (parts.length == 4 && what.equals("signup") && parts[3].equals("sync")) {
+            AdminRouteExtension.requireMethod(method, "POST");
+            int added = signups.sync(guild, id);
+            log.info("Dashboard: {} synced the signup of event {} ({} added)", actor.getId(), id, added);
+            return detail(guild, id).put("synced", added);
         }
         if (parts.length == 4 && what.equals("teams")) {
             AdminRouteExtension.requireMethod(method, "DELETE");
@@ -231,7 +246,17 @@ public class EventsAdminApi implements AdminRouteExtension {
         }
         service.moveStage(guild.getIdLong(), id, to);
         log.info("Dashboard: {} moved event {} to {}", actor.getId(), id, to);
-        return detail(guild, id);
+        String warning = null;
+        try {
+            // opening signups posts the event's signup when channels were chosen; starting or ending the event closes it
+            if (to == Status.SIGNUPS && signups.stateOf(service.event(guild.getIdLong(), id)).channelsChosen() && !signups.stateOf(service.event(guild.getIdLong(), id)).attached()) signups.open(guild, id, actor.getIdLong());
+            signups.onStage(guild, id, to);
+        } catch (EventProblem e) {
+            warning = e.getMessage();
+            log.warn("Event {} moved to {} but its signup wasn't updated: {}", id, to, e.getMessage());
+        }
+        DataObject detail = detail(guild, id);
+        return warning == null ? detail : detail.put("signupWarning", warning);
     }
 
     DataObject detail(Guild guild, long id) {
@@ -250,7 +275,9 @@ public class EventsAdminApi implements AdminRouteExtension {
         DataArray prizes = DataArray.empty();
         service.prizes(id).forEach(p -> prizes.add(DataObject.empty().put("id", Long.toString(p.id())).put("place", p.place()).put("placeTo", p.placeTo()).put("kind", p.kind().name())
                 .put("description", p.description()).put("amount", p.amount()).put("percentOfPot", p.percentOfPot()).put("split", p.split().name())));
-        return DataObject.empty().put("event", eventJson(e)).put("prizes", prizes).put("pot", service.pot(guild.getIdLong(), id)).put("potVisible", PrizeRules.potVisible(settings.buyIn()))
+        var signup = signups.stateOf(e);
+        return DataObject.empty().put("event", eventJson(e)).put("signup", DataObject.empty().put("attached", signup.attached()).put("active", signup.active())
+                        .put("entries", signup.entries()).put("channelsChosen", signup.channelsChosen())).put("prizes", prizes).put("pot", service.pot(guild.getIdLong(), id)).put("potVisible", PrizeRules.potVisible(settings.buyIn()))
                 .put("buyInEnabled", settings.buyIn().enabled()).put("objectives", objectives).put("teams", teams).put("participants", players).put("nextStages", next)
                 .put("editable", EventRules.editable(e.status()));
     }

@@ -130,4 +130,15 @@ class EventSettingsAndPrizePlanTest {
         assertFalse(PrizePlan.problems(new Prize(1, 1, 1, PrizeKind.IN_GAME, "x", 0, 0, null)).isEmpty());
         assertEquals(Kind.HOME_CLAN, Kind.valueOf("HOME_CLAN"));
     }
+
+    @Test
+    void anEventsSignupNeedsBothChannelsOrNeither() {
+        assertTrue(EventSettings.problems(DataObject.fromJson("{\"signupChannelId\":\"123\",\"signupAdminChannelId\":\"456\"}")).isEmpty());
+        assertFalse(EventSettings.problems(DataObject.fromJson("{\"signupChannelId\":\"123\"}")).isEmpty(), "needs the staff channel too");
+        assertFalse(EventSettings.problems(DataObject.fromJson("{\"signupChannelId\":\"nope\",\"signupAdminChannelId\":\"456\"}")).isEmpty());
+        var s = EventSettings.parse(DataObject.fromJson("{\"signupChannelId\":\"123\",\"signupAdminChannelId\":\"456\"}"));
+        assertEquals(123L, s.signupChannelId());
+        assertEquals(456L, s.signupAdminChannelId());
+        assertEquals(null, EventSettings.defaults().signupChannelId());
+    }
 }
