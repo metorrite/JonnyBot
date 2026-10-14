@@ -71,13 +71,15 @@ public class MemberApi {
     private final CommunitySettings community;
     private final SiteStatsRepository stats;
     private final RsInteractionListener rsLinks;
+    private final MemberEventsApi events;
     // Per member: a handful of quick clicks is normal, a sustained flood is not. Reads are far cheaper than writes.
     private final RateLimiter writes = new RateLimiter(8, 1_500);
     private final RateLimiter reads = new RateLimiter(40, 500);
 
     public MemberApi(MemberProfileRepository repository, PlayerLinkRepository links, PollService pollService, SignupService signupService, MemberAccess memberAccess,
-                     Debouncer debouncer, SiteCache cache, CommunitySettings community, SiteStatsRepository stats, RsInteractionListener rsLinks) {
+                     Debouncer debouncer, SiteCache cache, CommunitySettings community, SiteStatsRepository stats, RsInteractionListener rsLinks, MemberEventsApi events) {
         this.rsLinks = rsLinks;
+        this.events = events;
         this.community = community;
         this.stats = stats;
         this.debouncer = debouncer;
@@ -135,6 +137,7 @@ public class MemberApi {
                 case "roles" -> method.equals("GET") ? roles(guild, userId) : method.equals("POST") ? toggleRole(guild, userId, body) : null;
                 case "polls" -> method.equals("GET") ? myPolls(guild, userId) : method.equals("POST") ? createPoll(guild, userId, body) : null;
                 case "coffer" -> method.equals("GET") ? myCoffer(guild, userId) : null;
+                case "events" -> method.equals("GET") ? events.mine(guild, userId) : null;
                 case "link" -> switch (method) {
                     case "GET" -> linkStatus(guild, userId);
                     case "POST" -> submitLink(guild, userId, body);

@@ -343,6 +343,24 @@ public class EventRepository {
         }
     }
 
+    /** Events hosted in {@code guildId} that {@code userId} is a player of (waiting or not), newest first. Drafts are never shown to players. */
+    public List<Event> eventsForUser(long guildId, long userId, int limit) {
+        List<Event> list = new ArrayList<>();
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("""
+                SELECT e.* FROM younglings.event e JOIN younglings.event_participant p ON p.event_id = e.id
+                WHERE e.guild_id = ? AND p.user_id = ? AND e.status <> 'DRAFT' ORDER BY e.id DESC LIMIT ?""")) {
+            s.setLong(1, guildId);
+            s.setLong(2, userId);
+            s.setInt(3, limit);
+            try (ResultSet rs = s.executeQuery()) {
+                while (rs.next()) list.add(mapEvent(rs));
+            }
+            return list;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read a player's events", e);
+        }
+    }
+
     /** Running events of one template in every server, for the sweep that feeds tracked progress into them. */
     public List<Event> runningEvents(String template) {
         List<Event> list = new ArrayList<>();
