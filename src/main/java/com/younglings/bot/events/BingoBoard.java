@@ -101,6 +101,46 @@ public final class BingoBoard {
         return bonuses;
     }
 
+    public static final String POOL_DROPS = "drops";
+    public static final String POOL_CLASSIC = "classic";
+
+    /** The tile pools an organiser can start a board from. */
+    public static List<String> poolIds() {
+        return List.of(POOL_DROPS, POOL_CLASSIC);
+    }
+
+    public static List<TileSpec> pool(String id) {
+        return POOL_CLASSIC.equals(id) ? defaultPool() : dropsPool();
+    }
+
+    /**
+     * Boss drops: "Boss: item" tiles, the kind a drop bingo uses. The items are ones RuneMetrics announces (see {@code DropItemCatalog}); the
+     * point values are a rough guess at rarity in three tiers, for organisers to edit.
+     */
+    public static List<TileSpec> dropsPool() {
+        List<TileSpec> pool = new ArrayList<>();
+        String[][] drops = {
+                {"Kree'arra", "Armadyl helmet", "50"}, {"Kree'arra", "Armadyl chestplate", "50"}, {"Kree'arra", "Armadyl chainskirt", "50"}, {"Kree'arra", "Armadyl hilt", "100"},
+                {"General Graardor", "Bandos chestplate", "50"}, {"General Graardor", "Bandos tassets", "50"}, {"General Graardor", "Bandos helmet", "50"},
+                {"General Graardor", "Bandos boots", "25"}, {"General Graardor", "Bandos gloves", "25"}, {"General Graardor", "Bandos warshield", "50"}, {"General Graardor", "Bandos hilt", "100"},
+                {"Commander Zilyana", "Saradomin sword", "100"}, {"Commander Zilyana", "Saradomin hilt", "100"},
+                {"K'ril Tsutsaroth", "Zamorak hilt", "100"},
+                {"Araxxor", "Araxxi's web", "25"}, {"Araxxor", "Araxxi's fang", "50"}, {"Araxxor", "Araxxi's eye", "50"},
+                {"Kalphite King", "Drygore longsword", "100"}, {"Kalphite King", "Drygore mace", "100"}, {"Kalphite King", "Drygore rapier", "100"},
+                {"Kalphite King", "Off-hand drygore longsword", "100"}, {"Kalphite King", "Off-hand drygore mace", "100"}, {"Kalphite King", "Off-hand drygore rapier", "100"},
+                {"Nex", "Torva full helm", "100"}, {"Nex", "Torva platebody", "100"}, {"Nex", "Torva platelegs", "100"}, {"Nex", "Torva boots", "50"}, {"Nex", "Torva gloves", "50"},
+                {"Nex", "Virtus mask", "100"}, {"Nex", "Virtus robe top", "100"}, {"Nex", "Virtus robe legs", "100"}, {"Nex", "Virtus boots", "50"}, {"Nex", "Virtus gloves", "50"},
+                {"Nex", "Virtus wand", "100"}, {"Nex", "Virtus book", "100"},
+                {"Nex", "Pernix cowl", "100"}, {"Nex", "Pernix body", "100"}, {"Nex", "Pernix chaps", "100"}, {"Nex", "Pernix boots", "50"}, {"Nex", "Pernix gloves", "50"},
+                {"Vorago", "Ascension grips", "100"},
+                {"Telos", "Dormant anima core helm", "100"}, {"Telos", "Dormant anima core body", "100"}, {"Telos", "Dormant anima core legs", "100"},
+                {"Godwars Dungeon", "Godsword shard 1", "25"}, {"Godwars Dungeon", "Godsword shard 2", "25"}, {"Godwars Dungeon", "Godsword shard 3", "25"},
+                {"Abyssal demon", "Abyssal whip", "25"}, {"Dark beast", "Dark bow", "50"},
+        };
+        for (String[] d : drops) pool.add(new TileSpec(d[0] + ": " + d[1], Long.parseLong(d[2]), 1));
+        return pool;
+    }
+
     /** Placeholder tiles to start from: RuneScape 3 bosses and goals in three difficulty tiers. Organisers edit, lock and swap them; real clans' own tile lists replace this. */
     public static List<TileSpec> defaultPool() {
         List<TileSpec> pool = new ArrayList<>();
