@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -39,6 +39,7 @@ class WeeklyDigestWheelButtonsTest {
         service = mock(CitadelWheelEntries.class);
         adminFilter = mock(AdminRoleFilter.class);
         listener = new WeeklyDigestInteractionListener(service, adminFilter);
+        listener.useExecutor(Runnable::run);
         guild = mock(Guild.class);
         when(guild.getIdLong()).thenReturn(GUILD);
     }
@@ -64,8 +65,9 @@ class WeeklyDigestWheelButtonsTest {
 
         listener.onButtonInteraction(event);
 
+        verify(event).deferReply(true);
         ArgumentCaptor<String> reply = ArgumentCaptor.forClass(String.class);
-        verify(event).reply(reply.capture());
+        verify(event.getHook()).editOriginal(reply.capture());
         assertTrue(reply.getValue().contains("```\nAxley\nBerserker87\nG i f f\n```"), reply.getValue());
         assertTrue(reply.getValue().contains("(3)"), "the count is shown");
         assertTrue(reply.getValue().contains("Left off (staff): Metorrite (clan rank Admin)"), "who was left off, and why: " + reply.getValue());
@@ -112,6 +114,6 @@ class WeeklyDigestWheelButtonsTest {
         ButtonInteractionEvent event = click("something_else:1", member(true));
         listener.onButtonInteraction(event);
         verify(event, never()).replyModal(any(Modal.class));
-        verify(event, never()).reply(anyString());
+        verify(event, never()).deferReply(anyBoolean());
     }
 }

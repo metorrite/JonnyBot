@@ -24,7 +24,7 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
@@ -48,11 +48,16 @@ public class WeeklyDigestInteractionListener extends ListenerAdapter {
 
     private final CitadelWheelEntries wheelEntries;
     private final AdminRoleFilter adminRoleFilter;
-    private final ExecutorService worker = Executors.newFixedThreadPool(2, (ThreadFactory) runnable -> {
+    private Executor worker = Executors.newFixedThreadPool(2, (ThreadFactory) runnable -> {
         Thread thread = new Thread(runnable, "citadel-wheel");
         thread.setDaemon(true);
         return thread;
     });
+
+    /** For tests: run the follow-up work on the calling thread. */
+    void useExecutor(Executor executor) {
+        this.worker = executor;
+    }
 
     public WeeklyDigestInteractionListener(CitadelWheelEntries wheelEntries, AdminRoleFilter adminRoleFilter) {
         this.wheelEntries = wheelEntries;
@@ -97,23 +102,35 @@ public class WeeklyDigestInteractionListener extends ListenerAdapter {
         }
     }
 
+    /**
+     * Working out who is on the wheel reads the database and looks up Discord members, which can take longer than the three seconds Discord gives a
+     * button to be answered. So the click is acknowledged straight away and the list is filled in afterwards.
+     */
     private void copyNames(ButtonInteractionEvent event, Guild guild, OffsetDateTime[] window) {
-        WheelEligibility.Result eligible = wheelEntries.forWeek(guild, window[0], window[1]);
-        List<String> capped = eligible.names();
-        if (capped.isEmpty()) {
-            Containers.replyEphemeral(event, Containers.WARNING, "Nobody is on the wheel for that week" + (eligible.leftOut().isEmpty() ? " (nobody capped)." : " (everyone who capped is staff)."));
-            return;
-        }
-        StringBuilder list = new StringBuilder();
-        int shown = 0;
-        for (String name : capped) {
-            if (list.length() + name.length() + 1 > 1700) break;
-            list.append(name).append('\n');
-            shown++;
-        }
-        String more = shown < capped.size() ? "\n-# " + (capped.size() - shown) + " more didn't fit." : "";
-        event.reply("**On the wheel for that week (" + capped.size() + ")**, one per person, to paste into a wheel website:\n```\n" + list.toString().stripTrailing() + "\n```" + more + notes(eligible))
-                .setEphemeral(true).queue();
+        event.deferReply(true).queue();
+        worker.execute(() -> {
+            try {
+                WheelEligibility.Result eligible = wheelEntries.forWeek(guild, window[0], window[1]);
+                List<String> capped = eligible.names();
+                if (capped.isEmpty()) {
+                    event.getHook().editOriginal("Nobody is on the wheel for that week" + (eligible.leftOut().isEmpty() ? " (nobody capped)." : " (everyone who capped is staff).")).queue();
+                    return;
+                }
+                StringBuilder list = new StringBuilder();
+                int shown = 0;
+                for (String name : capped) {
+                    if (list.length() + name.length() + 1 > 1700) break;
+                    list.append(name).append('\n');
+                    shown++;
+                }
+                String more = shown < capped.size() ? "\n-# " + (capped.size() - shown) + " more didn't fit." : "";
+                event.getHook().editOriginal("**On the wheel for that week (" + capped.size() + ")**, one per person, to paste into a wheel website:\n```\n"
+                        + list.toString().stripTrailing() + "\n```" + more + notes(eligible)).queue();
+            } catch (Exception e) {
+                log.error("Could not build the Copy names list", e);
+                event.getHook().editOriginal("I couldn't get the list just now. Try again in a moment.").queue();
+            }
+        });
     }
 
     @Override
@@ -131,25 +148,35 @@ public class WeeklyDigestInteractionListener extends ListenerAdapter {
             var extrasValue = event.getValue("extras");
             WheelEntries.Parsed extras = WheelEntries.parseExtras(extrasValue == null ? "" : extrasValue.getAsString());
 
-            WheelEligibility.Result eligible = wheelEntries.forWeek(guild, window[0], window[1]);
-            List<String> capped = eligible.names();
-            List<String> entries = new ArrayList<>(capped);
-            entries.addAll(extras.names());
-            if (entries.isEmpty()) {
-                Containers.replyEphemeral(event, Containers.WARNING, "Nobody is on the wheel for that week" + (eligible.leftOut().isEmpty() ? "" : " (everyone who capped is staff)") + " and no extra entries were given, so there's nothing to spin.");
-                return;
-            }
-            if (entries.size() > WheelEntries.MAX_ENTRIES) {
-                Containers.replyEphemeral(event, Containers.WARNING, "That's " + entries.size() + " entries; the wheel holds up to " + WheelEntries.MAX_ENTRIES + ".");
-                return;
-            }
-
+            // acknowledge first: finding who is on the wheel can take longer than the three seconds Discord allows
             event.deferReply().queue();
-            worker.execute(() -> spin(event, entries, capped.size(), extras, notes(eligible)));
+            worker.execute(() -> {
+                try {
+                    WheelEligibility.Result eligible = wheelEntries.forWeek(guild, window[0], window[1]);
+                    List<String> capped = eligible.names();
+                    List<String> entries = new ArrayList<>(capped);
+                    entries.addAll(extras.names());
+                    if (entries.isEmpty()) {
+                        refuse(event, "Nobody is on the wheel for that week" + (eligible.leftOut().isEmpty() ? "" : " (everyone who capped is staff)") + " and no extra entries were given, so there's nothing to spin.");
+                    } else if (entries.size() > WheelEntries.MAX_ENTRIES) {
+                        refuse(event, "That's " + entries.size() + " entries; the wheel holds up to " + WheelEntries.MAX_ENTRIES + ".");
+                    } else {
+                        spin(event, entries, capped.size(), extras, notes(eligible));
+                    }
+                } catch (Exception e) {
+                    log.error("Could not set up the citadel wheel", e);
+                    refuse(event, "I couldn't set up the wheel just now. Try again in a moment.");
+                }
+            });
         } catch (Exception e) {
             log.error("Unhandled exception in weekly digest spin modal '{}'", id, e);
             Containers.replyError(event);
         }
+    }
+
+    /** The spin was already acknowledged in public, so take that message down and tell only the person who asked. */
+    private static void refuse(ModalInteractionEvent event, String message) {
+        event.getHook().deleteOriginal().queue(ok -> event.getHook().sendMessage(message).setEphemeral(true).queue(), error -> event.getHook().sendMessage(message).setEphemeral(true).queue());
     }
 
     /** A line or two saying who was left off the wheel and why, and who was merged into one entry, so nobody wonders. */
