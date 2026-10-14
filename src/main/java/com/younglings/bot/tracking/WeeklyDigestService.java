@@ -109,13 +109,12 @@ public class WeeklyDigestService {
         // Names go in a fixed-width monospace span, padded to the longest one shown, so the Visited and Capped
         // marks land in the same two columns on every row (the same approach as the /rs Skills output).
         int nameWidth = entries.stream().mapToInt(e -> e.rsn.length()).max().orElse(0);
-        StringBuilder sb = new StringBuilder();
+        List<String> rows = new ArrayList<>();
         for (CitadelEntry e : entries) {
-            sb.append('`').append(String.format("%-" + nameWidth + "s", e.rsn)).append("` ")
-                    .append(e.visited ? "✅ Visited" : "⬜ Visited").append("  ")
-                    .append(e.capped ? "✅ Capped" : "⬜ Capped").append("\n");
+            rows.add("`" + String.format("%-" + nameWidth + "s", e.rsn) + "` "
+                    + (e.visited ? "✅ Visited" : "⬜ Visited") + "  " + (e.capped ? "✅ Capped" : "⬜ Capped"));
         }
-        children.add(TextDisplay.of(sb.toString().trim()));
+        children.add(TextDisplay.of(layoutRows(rows)));
 
         String weekKey = windowEnd.toLocalDate().toString();
         children.add(ActionRow.of(Button.primary("weekly_spin_wheel:" + weekKey, "🎡 Spin Wheel")));
@@ -124,7 +123,31 @@ public class WeeklyDigestService {
         return true;
     }
 
-    private static final DateTimeFormatter SHORT_DATE = DateTimeFormatter.ofPattern("MMM d", Locale.ENGLISH);
+    /** A message in Discord's component layout holds about 4000 characters of text in total; the title, totals line and buttons need some of it. */
+    static final int ROWS_BUDGET = 3600;
+    /** The smallest line Discord can draw (a "subtext" line holding an invisible character): a slight gap between two rows. */
+    static final String SPACER = "-# ​";
+
+    /**
+     * The report's rows, one per line, with a small spacer line between them when they all fit in the message. A clan too big for even the plain list
+     * is cut at the limit with a count of how many were left off, rather than the whole report failing to send.
+     */
+    static String layoutRows(List<String> rows) {
+        int plain = rows.stream().mapToInt(r -> r.length() + 1).sum();
+        int spaced = plain + Math.max(0, rows.size() - 1) * (SPACER.length() + 1);
+        if (spaced <= ROWS_BUDGET) return String.join("\n" + SPACER + "\n", rows);
+        if (plain <= ROWS_BUDGET) return String.join("\n", rows);
+        StringBuilder out = new StringBuilder();
+        int shown = 0;
+        for (String row : rows) {
+            if (out.length() + row.length() + 1 > ROWS_BUDGET - 40) break;
+            out.append(row).append('\n');
+            shown++;
+        }
+        return out.toString().stripTrailing() + "\n-# …and " + (rows.size() - shown) + " more";
+    }
+
+    private static final DateTimeFormatter SHORT_DATE =DateTimeFormatter.ofPattern("MMM d", Locale.ENGLISH);
 
     /** The Citadel viewer shows at most this many weeks at once — each one is a query and a line of text. */
     public static final int MAX_VIEW_WEEKS = 26;
