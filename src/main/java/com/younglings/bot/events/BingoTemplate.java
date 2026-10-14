@@ -34,6 +34,11 @@ public class BingoTemplate implements EventTemplate {
     }
 
     @Override
+    public java.util.Set<String> fixedSettings() {
+        return java.util.Set.of("board", "bonuses", "lineBonus", "blackoutBonus");
+    }
+
+    @Override
     public String label() {
         return "Bingo";
     }

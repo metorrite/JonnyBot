@@ -210,7 +210,7 @@ public class EventRepository {
                     event_id BIGINT NOT NULL REFERENCES younglings.event (id) ON DELETE CASCADE,
                     user_id BIGINT NOT NULL,
                     baseline_xp BIGINT NOT NULL,
-                    counted_xp BIGINT NOT NULL DEFAULT 0,
+                    counted_xp BIGINT NOT NULL DEFAULT 0, -- no longer used: what is counted is read from the progress log
                     taken_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     PRIMARY KEY (event_id, user_id)
                 );
@@ -375,15 +375,13 @@ public class EventRepository {
         }
     }
 
-    /** Where a player's tracked stat stood at the start ({@code xp}) and how much of the gain since has already been added to the event ({@code counted}). */
-    public record Baseline(long xp, long counted) {}
-
-    public Optional<Baseline> baseline(long eventId, long userId) {
-        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("SELECT baseline_xp, counted_xp FROM younglings.event_tracking_baseline WHERE event_id = ? AND user_id = ?")) {
+    /** Where a player's tracked stat stood when the competition began for them. */
+    public OptionalLong baseline(long eventId, long userId) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("SELECT baseline_xp FROM younglings.event_tracking_baseline WHERE event_id = ? AND user_id = ?")) {
             s.setLong(1, eventId);
             s.setLong(2, userId);
             try (ResultSet rs = s.executeQuery()) {
-                return rs.next() ? Optional.of(new Baseline(rs.getLong(1), rs.getLong(2))) : Optional.empty();
+                return rs.next() ? OptionalLong.of(rs.getLong(1)) : OptionalLong.empty();
             }
         } catch (SQLException e) {
             throw new RuntimeException("Failed to read a tracking baseline", e);
@@ -400,18 +398,6 @@ public class EventRepository {
             s.executeUpdate();
         } catch (SQLException e) {
             throw new RuntimeException("Failed to save a tracking baseline", e);
-        }
-    }
-
-    public void setCounted(long eventId, long userId, long counted) {
-        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(
-                "UPDATE younglings.event_tracking_baseline SET counted_xp = ? WHERE event_id = ? AND user_id = ?")) {
-            s.setLong(1, counted);
-            s.setLong(2, eventId);
-            s.setLong(3, userId);
-            s.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("Failed to save how much has been counted", e);
         }
     }
 

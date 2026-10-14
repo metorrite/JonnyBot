@@ -28,6 +28,11 @@ public class BossNightTemplate implements EventTemplate {
     }
 
     @Override
+    public java.util.Set<String> fixedSettings() {
+        return java.util.Set.of("boss", "kills", "pointsPerKill");
+    }
+
+    @Override
     public String label() {
         return "Boss night";
     }

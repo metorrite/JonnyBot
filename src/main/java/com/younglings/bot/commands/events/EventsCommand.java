@@ -108,7 +108,11 @@ public class EventsCommand {
     public void onLeave(GuildSlashEvent event, @SlashOption(description = "The event's number, from /events mine") long id) {
         long guildId = event.getGuild().getIdLong();
         try {
-            service.event(guildId, id);
+            Event existing = service.event(guildId, id);
+            if (existing.status() != Status.SIGNUPS) {
+                Containers.replyEphemeral(event, Containers.WARNING, "You can only leave while an event is taking signups. Ask an organiser if you need out of one that has started.");
+                return;
+            }
             service.leave(guildId, id, event.getUser().getIdLong());
             Containers.replyEphemeral(event, Containers.SUCCESS, "You've left event #" + id + ".");
         } catch (EventProblem p) {

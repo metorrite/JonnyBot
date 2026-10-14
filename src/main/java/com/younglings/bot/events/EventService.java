@@ -84,17 +84,14 @@ public class EventService {
         List<String> bonusProblems = EventBonuses.problems(config, starterObjectives.stream().map(ObjectiveSpec::key).collect(java.util.stream.Collectors.toSet()));
         if (!bonusProblems.isEmpty()) throw new EventProblem(400, "The event can't be created yet.", bonusProblems);
         if (repository.countOpen(guildId) >= MAX_OPEN_EVENTS) throw new EventProblem(409, "A server can have " + MAX_OPEN_EVENTS + " unfinished events. Finish or cancel one first.");
+        List<String> starterProblems = checkObjectives(starterObjectives);
+        if (!starterProblems.isEmpty()) {
+            log.error("Template {} produced invalid starter objectives: {}", template.key(), starterProblems);
+            throw new EventProblem(500, "That template couldn't set itself up.");
+        }
         long id = repository.createEvent(guildId, template.key(), in.name().strip(), clean(in.description()), in.scope(), in.scoringMode(), in.startsAt(), in.endsAt(),
                 in.maxParticipants(), config.toString(), actorId);
-        List<ObjectiveSpec> starters = starterObjectives;
-        if (!starters.isEmpty()) {
-            List<String> starterProblems = checkObjectives(starters);
-            if (!starterProblems.isEmpty()) {
-                log.error("Template {} produced invalid starter objectives: {}", template.key(), starterProblems);
-                throw new EventProblem(500, "That template couldn't set itself up.");
-            }
-            repository.replaceObjectives(id, starters);
-        }
+        if (!starterObjectives.isEmpty()) repository.replaceObjectives(id, starterObjectives);
         return id;
     }
 
@@ -106,7 +103,14 @@ public class EventService {
         Event existing = event(guildId, id);
         if (!EventRules.editable(existing.status())) throw new EventProblem(409, "An event can only be changed while it is a draft or taking signups.");
         EventTemplate template = templates.byKey(existing.template()).orElseThrow(() -> new EventProblem(409, "This event's template no longer exists."));
-        DataObject config = in.config() == null ? DataObject.fromJson(existing.config()) : in.config();
+        DataObject config = in.config() == null ? DataObject.fromJson(existing.config()) : DataObject.fromJson(in.config().toString());
+        if (in.config() != null) {
+            DataObject kept = DataObject.fromJson(existing.config());
+            for (String key : template.fixedSettings()) {
+                if (kept.hasKey(key)) config.put(key, kept.get(key));
+                else config.remove(key);
+            }
+        }
         List<String> problems = new ArrayList<>(EventRules.eventProblems(in.name(), in.description(), in.maxParticipants(), in.startsAt(), in.endsAt()));
         problems.addAll(template.configProblems(config));
         problems.addAll(EventSettings.problems(config));
@@ -139,8 +143,9 @@ public class EventService {
     public void setObjectives(long guildId, long id, List<ObjectiveSpec> objectives) {
         Event event = event(guildId, id);
         if (!EventRules.editable(event.status())) throw new EventProblem(409, "Objectives can only be changed while the event is a draft or taking signups.");
-        List<String> problems = checkObjectives(objectives);
-        if (!problems.isEmpty()) throw new EventProblem(400, "The objectives can't be saved yet.", problems);
+        List<String> problems = new ArrayList<>(checkObjectives(objectives));
+        problems.addAll(EventBonuses.problems(DataObject.fromJson(event.config()), objectives.stream().map(ObjectiveSpec::key).collect(java.util.stream.Collectors.toSet())));
+        if (!problems.isEmpty()) throw new EventProblem(400, "The objectives can't be saved yet. A bonus (like a bingo line) needs every objective it lists, so keep those or re-roll the board.", problems.stream().distinct().toList());
         repository.replaceObjectives(id, objectives);
     }
 
@@ -427,6 +432,8 @@ public class EventService {
         String cleanNote = clean(note);
         if (cleanNote.length() > EventRules.MAX_NOTE) throw new EventProblem(400, "Keep the note to " + EventRules.MAX_NOTE + " characters or fewer.");
         if (cleanNote.length() < 3 && (proofUrl == null || proofUrl.isBlank())) throw new EventProblem(400, "Say what you did, or attach proof.");
+        String linkProblem = EventRules.proofUrlProblem(proofUrl);
+        if (linkProblem != null) throw new EventProblem(400, linkProblem);
         if (repository.pendingClaimsFor(id, userId) >= MAX_PENDING_CLAIMS_PER_PLAYER) {
             throw new EventProblem(409, "You already have " + MAX_PENDING_CLAIMS_PER_PLAYER + " claims waiting. Wait for the organisers to look at them first.");
         }

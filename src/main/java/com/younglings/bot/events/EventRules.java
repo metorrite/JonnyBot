@@ -113,6 +113,15 @@ public final class EventRules {
         return k.length() > 40 ? k.substring(0, 40).replaceAll("-+$", "") : k;
     }
 
+    /** Why a proof link can't be used, or null. A link is shown to organisers as a clickable address, so only web links are allowed. */
+    public static String proofUrlProblem(String url) {
+        if (url == null || url.isBlank()) return null;
+        String link = url.strip();
+        if (link.length() > 500) return "Keep the proof link to 500 characters or fewer.";
+        if (!link.matches("(?i)https?://[^\\s<>\"]+")) return "The proof link has to be a web address starting with http:// or https://.";
+        return null;
+    }
+
     public static boolean validKey(String key) {
         return key != null && key.matches("[a-z0-9]+(-[a-z0-9]+)*") && key.length() <= 40;
     }
