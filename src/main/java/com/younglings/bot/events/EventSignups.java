@@ -108,9 +108,18 @@ public class EventSignups {
                 added++;
             } catch (EventProblem e) {
                 log.debug("Signup entry {} wasn't added to event {}: {}", entry.userId(), eventId, e.getMessage());
+                // remember why, so staff can see it on the dashboard, and tell the player once
+                if (repository.recordRefusal(eventId, entry.userId(), e.getMessage())) tellRefused(guild, event, entry.userId(), e.getMessage());
             }
         }
         return added;
+    }
+
+    /** DMs a player whose signup was turned away, with the reason. A closed DM is fine: the dashboard still shows it to staff. */
+    private void tellRefused(Guild guild, Event event, long userId, String reason) {
+        String message = "You signed up for **" + event.name() + "** but couldn't be added: " + reason + " If that looks wrong, ask an organiser to add you.";
+        guild.getJDA().retrieveUserById(userId).flatMap(user -> user.openPrivateChannel()).flatMap(dm -> dm.sendMessage(message))
+                .queue(ok -> { }, error -> log.debug("Could not DM {} about a refused signup: {}", userId, error.getMessage()));
     }
 
     /** Called when an event changes stage: starting it closes the signup, finishing or cancelling it removes the signup. */

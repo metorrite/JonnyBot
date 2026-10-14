@@ -228,6 +228,7 @@ public class EventService {
         }
         var waiting = repository.join(id, userId, userGuildId, teamId, kind, settings.buyIn().enabled() ? BuyInStatus.DUE : BuyInStatus.NONE, event.maxParticipants());
         if (waiting.isEmpty()) throw new EventProblem(409, "That player is already in the event.");
+        repository.clearRefusal(id, userId);
         if (!waiting.get()) return new Joined(false, 0);
         return new Joined(true, QueueRules.position(settings.queue(), queueEntries(id), userId));
     }

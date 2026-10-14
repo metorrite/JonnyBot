@@ -144,6 +144,48 @@ public class BingoTemplate implements EventTemplate {
         return new Rerolled(withBoard(config, generated, pool), objectives);
     }
 
+    /**
+     * Swaps one tile for another of the organiser's choosing: the tile at {@code number} (1 is the top left, reading across) gets a new title and
+     * points and keeps its place. Its key follows the new title, the board's line and blackout bonuses are rebuilt to match, and the tile keeps
+     * its evidence mode, target and description. Fails when the title is already a tile on this board.
+     */
+    public Rerolled replaceTile(DataObject config, List<ObjectiveSpec> current, int number, String label, long points) {
+        DataObject board = config.hasKey("board") && !config.isNull("board") ? config.getObject("board") : DataObject.empty();
+        List<String> keys = new ArrayList<>(BingoBoardView.boardKeys(config));
+        if (keys.isEmpty()) throw new IllegalArgumentException("This event doesn't have a board yet.");
+        if (number < 1 || number > keys.size()) throw new IllegalArgumentException("There's no tile " + number + ". The board has " + keys.size() + ".");
+        String title = label == null ? "" : label.strip();
+        String newKey = EventRules.keyFrom(title);
+        if (title.isEmpty() || newKey.isEmpty()) throw new IllegalArgumentException("Give the tile a title.");
+        String oldKey = keys.get(number - 1);
+        if (!newKey.equals(oldKey) && current.stream().anyMatch(o -> o.key().equals(newKey))) {
+            throw new IllegalArgumentException("There's already a tile or objective called \"" + title + "\". Pick a different title.");
+        }
+        Map<String, ObjectiveSpec> byKey = current.stream().collect(Collectors.toMap(ObjectiveSpec::key, Function.identity(), (a, b) -> a));
+        ObjectiveSpec old = byKey.get(oldKey);
+        List<ObjectiveSpec> objectives = new ArrayList<>();
+        for (ObjectiveSpec o : current) {
+            if (o.key().equals(oldKey)) {
+                objectives.add(new ObjectiveSpec(newKey, title, o.description(), points, o.evidence(), o.target(), o.repeatLimit(), o.prerequisites()));
+            } else {
+                objectives.add(new ObjectiveSpec(o.key(), o.label(), o.description(), o.points(), o.evidence(), o.target(), o.repeatLimit(),
+                        o.prerequisites().stream().map(p -> p.equals(oldKey) ? newKey : p).toList()));
+            }
+        }
+        if (old == null) objectives.add(new ObjectiveSpec(newKey, title, "", points, Evidence.EITHER, 1, 1, List.of()));
+        keys.set(number - 1, newKey);
+        Map<String, ObjectiveSpec> after = objectives.stream().collect(Collectors.toMap(ObjectiveSpec::key, Function.identity(), (a, b) -> a));
+        List<Tile> tiles = new ArrayList<>();
+        for (String key : keys) {
+            ObjectiveSpec o = after.get(key);
+            tiles.add(new Tile(key, o == null ? key : o.label(), o == null ? 0 : o.points(), o == null ? 1 : o.target()));
+        }
+        int size = board.getInt("size", DEFAULT_SIZE);
+        Board rebuilt = new Board(size, board.getLong("seed", 0), tiles,
+                BingoBoard.bonuses(size, tiles, number(config, "lineBonus", DEFAULT_LINE_BONUS), number(config, "blackoutBonus", DEFAULT_BLACKOUT_BONUS)));
+        return new Rerolled(withBoard(config, rebuilt, poolOf(config)), objectives);
+    }
+
     private static ObjectiveSpec objective(Tile tile) {
         return new ObjectiveSpec(tile.key(), tile.label(), "", tile.points(), Evidence.EITHER, tile.target(), 1, List.of());
     }
