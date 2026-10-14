@@ -148,7 +148,7 @@ public class BossStatsService {
 
     private DataObject eventJson(DropEvent e) {
         return DataObject.empty().put("rsn", e.rsn()).put("item", e.itemName()).put("key", e.itemKey()).put("icon", iconFor(e.itemKey()))
-                .put("boss", bossJson(e.boss())).put("date", e.date()).put("recordedAt", e.at().toString());
+                .put("boss", bossJson(e.boss())).put("date", e.date()).put("occurredAt", SiteApi.occurredAt(e.date())).put("recordedAt", e.at().toString());
     }
 
     private DataArray eventsJson(List<DropEvent> events) {

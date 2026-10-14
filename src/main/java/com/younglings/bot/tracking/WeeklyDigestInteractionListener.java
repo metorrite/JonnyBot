@@ -44,8 +44,9 @@ public class WeeklyDigestInteractionListener extends ListenerAdapter {
             // are always built from the same Wed-to-Wed window, so re-deriving it here (rather than
             // encoding the full range) keeps the id short and avoids two sources of truth for it.
             LocalDate windowEndDate = LocalDate.parse(id.substring(PREFIX.length()));
-            OffsetDateTime windowEnd = windowEndDate.atTime(LocalTime.MIDNIGHT).atOffset(ZoneOffset.UTC);
-            OffsetDateTime windowStart = windowEnd.minusDays(7).plusMinutes(1);
+            OffsetDateTime[] window = CitadelWeek.windowEndingOn(windowEndDate);
+            OffsetDateTime windowStart = window[0];
+            OffsetDateTime windowEnd = window[1];
 
             List<String> eligible = weeklyDigestService.getVisitedAndCappedRsns(guild.getIdLong(), windowStart, windowEnd);
             if (eligible.isEmpty()) {

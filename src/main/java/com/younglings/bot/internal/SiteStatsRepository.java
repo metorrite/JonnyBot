@@ -181,10 +181,10 @@ public class SiteStatsRepository {
     /** Members ranked by Citadel weeks capped inside {@code [from, to)}. */
     public List<Capper> cappersBetween(long guildId, OffsetDateTime from, OffsetDateTime to, int limit) {
         return query("cappers in window", """
-                SELECT m.rsn, COUNT(DISTINCT (date_trunc('week', (a.recorded_at AT TIME ZONE 'UTC') - INTERVAL '2 days'))) AS weeks_capped, COUNT(*) AS total_caps
+                SELECT m.rsn, COUNT(DISTINCT (date_trunc('week', (COALESCE(a.occurred_at, a.recorded_at) AT TIME ZONE 'UTC') - INTERVAL '2 days 10 minutes'))) AS weeks_capped, COUNT(*) AS total_caps
                 FROM younglings.player_activity a
                 JOIN younglings.clan_member m ON LOWER(m.rsn) = LOWER(a.rsn) AND m.active
-                WHERE m.guild_id = ? AND a.activity_text LIKE 'Capped at my Clan Citadel%' AND a.recorded_at >= ? AND a.recorded_at < ?
+                WHERE m.guild_id = ? AND a.activity_text LIKE 'Capped at my Clan Citadel%' AND COALESCE(a.occurred_at, a.recorded_at) >= ? AND COALESCE(a.occurred_at, a.recorded_at) < ?
                 GROUP BY m.rsn ORDER BY weeks_capped DESC, total_caps DESC, m.rsn LIMIT ?
                 """, rs -> new Capper(rs.getString("rsn"), rs.getInt("weeks_capped"), rs.getInt("total_caps")), guildId, from, to, limit);
     }
@@ -357,12 +357,12 @@ public class SiteStatsRepository {
     /** Which Citadel weeks (Wednesday starts) each active member visited or capped in the last {@code weeks} weeks. */
     public List<CapWeek> citadelGrid(long guildId, int weeks) {
         return query("citadel grid", """
-                SELECT m.rsn, (date_trunc('week', (a.recorded_at AT TIME ZONE 'UTC') - INTERVAL '2 days') + INTERVAL '2 days')::date AS week_start,
+                SELECT m.rsn, (date_trunc('week', (COALESCE(a.occurred_at, a.recorded_at) AT TIME ZONE 'UTC') - INTERVAL '2 days 10 minutes') + INTERVAL '2 days')::date AS week_start,
                        BOOL_OR(a.activity_text LIKE 'Capped at my Clan Citadel%') AS capped
                 FROM younglings.player_activity a
                 JOIN younglings.clan_member m ON LOWER(m.rsn) = LOWER(a.rsn) AND m.active
                 WHERE m.guild_id = ? AND (a.activity_text LIKE 'Visited my Clan Citadel%' OR a.activity_text LIKE 'Capped at my Clan Citadel%')
-                  AND a.recorded_at >= NOW() - (? * INTERVAL '7 days')
+                  AND COALESCE(a.occurred_at, a.recorded_at) >= NOW() - (? * INTERVAL '7 days')
                 GROUP BY m.rsn, week_start
                 """, rs -> new CapWeek(rs.getString("rsn"), rs.getObject("week_start", LocalDate.class), rs.getBoolean("capped")), guildId, weeks + 1);
     }
@@ -370,7 +370,7 @@ public class SiteStatsRepository {
     /** Every Citadel week (as a week start) in which a member capped — the streak calculator's input. */
     public List<CapWeek> allCapWeeks(long guildId) {
         return query("all cap weeks", """
-                SELECT DISTINCT m.rsn, (date_trunc('week', (a.recorded_at AT TIME ZONE 'UTC') - INTERVAL '2 days') + INTERVAL '2 days')::date AS week_start
+                SELECT DISTINCT m.rsn, (date_trunc('week', (COALESCE(a.occurred_at, a.recorded_at) AT TIME ZONE 'UTC') - INTERVAL '2 days 10 minutes') + INTERVAL '2 days')::date AS week_start
                 FROM younglings.player_activity a
                 JOIN younglings.clan_member m ON LOWER(m.rsn) = LOWER(a.rsn) AND m.active
                 WHERE m.guild_id = ? AND a.activity_text LIKE 'Capped at my Clan Citadel%'
@@ -477,12 +477,12 @@ public class SiteStatsRepository {
         return query("citadel weeks", """
                 WITH acts AS (
                     SELECT LOWER(a.rsn) AS k,
-                           (date_trunc('week', (a.recorded_at AT TIME ZONE 'UTC') - INTERVAL '2 days') + INTERVAL '2 days')::date AS week_start,
+                           (date_trunc('week', (COALESCE(a.occurred_at, a.recorded_at) AT TIME ZONE 'UTC') - INTERVAL '2 days 10 minutes') + INTERVAL '2 days')::date AS week_start,
                            (a.activity_text LIKE 'Capped at my Clan Citadel%') AS capped
                     FROM younglings.player_activity a
                     JOIN younglings.clan_member m ON LOWER(m.rsn) = LOWER(a.rsn) AND m.active
                     WHERE m.guild_id = ? AND (a.activity_text LIKE 'Visited my Clan Citadel%' OR a.activity_text LIKE 'Capped at my Clan Citadel%')
-                      AND a.recorded_at >= NOW() - (? * INTERVAL '7 days'))
+                      AND COALESCE(a.occurred_at, a.recorded_at) >= NOW() - (? * INTERVAL '7 days'))
                 SELECT week_start, COUNT(DISTINCT k) FILTER (WHERE capped) AS capped, COUNT(DISTINCT k) AS visited
                 FROM acts GROUP BY week_start ORDER BY week_start
                 """, rs -> new WeekCount(rs.getObject("week_start", LocalDate.class), rs.getInt("capped"), rs.getInt("visited")), guildId, weeks + 1);
@@ -491,7 +491,7 @@ public class SiteStatsRepository {
     /** The members who have capped the most Citadel weeks. */
     public List<Capper> topCappers(long guildId, int limit) {
         return query("top cappers", """
-                SELECT m.rsn, COUNT(DISTINCT (date_trunc('week', (a.recorded_at AT TIME ZONE 'UTC') - INTERVAL '2 days'))) AS weeks_capped, COUNT(*) AS total_caps
+                SELECT m.rsn, COUNT(DISTINCT (date_trunc('week', (COALESCE(a.occurred_at, a.recorded_at) AT TIME ZONE 'UTC') - INTERVAL '2 days 10 minutes'))) AS weeks_capped, COUNT(*) AS total_caps
                 FROM younglings.player_activity a
                 JOIN younglings.clan_member m ON LOWER(m.rsn) = LOWER(a.rsn) AND m.active
                 WHERE m.guild_id = ? AND a.activity_text LIKE 'Capped at my Clan Citadel%'
@@ -540,7 +540,7 @@ public class SiteStatsRepository {
         record Row(boolean capped, LocalDate week) {}
         List<Row> rows = query("citadel totals", """
                 SELECT (activity_text LIKE 'Capped at my Clan Citadel%') AS capped,
-                       (date_trunc('week', (recorded_at AT TIME ZONE 'UTC') - INTERVAL '2 days') + INTERVAL '2 days')::date AS week_start
+                       (date_trunc('week', (COALESCE(occurred_at, recorded_at) AT TIME ZONE 'UTC') - INTERVAL '2 days 10 minutes') + INTERVAL '2 days')::date AS week_start
                 FROM younglings.player_activity
                 WHERE LOWER(rsn) = LOWER(?) AND (activity_text LIKE 'Visited my Clan Citadel%' OR activity_text LIKE 'Capped at my Clan Citadel%')
                 """, rs -> new Row(rs.getBoolean("capped"), rs.getObject("week_start", LocalDate.class)), rsn);

@@ -65,6 +65,12 @@ public class SiteApi {
     private static final int HISTORY_DAYS = 90;
     private static final int CHART_WEEKS = 12;
 
+    /** When an activity really happened, as an ISO instant (RuneMetrics writes UK local time, see RuneMetricsDates), or null if its date can't be read. */
+    static String occurredAt(String rawDate) {
+        java.time.Instant at = com.younglings.bot.runescape.RuneMetricsDates.toInstant(rawDate);
+        return at == null ? null : at.toString();
+    }
+
     private final SiteStatsRepository stats;
     private final PlayerLinkRepository links;
     private final ClanPointsRepository points;
@@ -507,7 +513,7 @@ public class SiteApi {
         // Adventure log.
         DataArray activities = DataArray.empty();
         for (PlayerActivity activity : hideLog ? List.<PlayerActivity>of() : links.getRecentActivities(row.rsn(), 30)) {
-            activities.add(DataObject.empty().put("date", activity.date()).put("text", activity.text()).put("details", activity.details()));
+            activities.add(DataObject.empty().put("date", activity.date()).put("occurredAt", occurredAt(activity.date())).put("text", activity.text()).put("details", activity.details()));
         }
         json.put("activities", activities);
 
@@ -541,7 +547,7 @@ public class SiteApi {
             if (kind == ActivityKinds.Kind.OTHER || kind == ActivityKinds.Kind.CITADEL_VISIT) continue;
             if (wanted != null && kind != wanted) continue;
             items.add(DataObject.empty().put("rsn", row.rsn()).put("kind", kind.name()).put("text", row.text()).put("details", row.details())
-                    .put("date", row.date()).put("recordedAt", row.recordedAt().toString()));
+                    .put("date", row.date()).put("occurredAt", occurredAt(row.date())).put("recordedAt", row.recordedAt().toString()));
             if (items.length() >= limit) break;
         }
         return DataObject.empty().put("items", items);
@@ -773,7 +779,7 @@ public class SiteApi {
             var item = ActivityKinds.dropOf(row.text());
             if (item.isEmpty()) continue;
             tally.merge(item.get(), 1, Integer::sum);
-            if (recent.length() < 60) recent.add(DataObject.empty().put("rsn", row.rsn()).put("item", item.get()).put("date", row.date()).put("recordedAt", row.recordedAt().toString()));
+            if (recent.length() < 60) recent.add(DataObject.empty().put("rsn", row.rsn()).put("item", item.get()).put("date", row.date()).put("occurredAt", occurredAt(row.date())).put("recordedAt", row.recordedAt().toString()));
         }
         DataArray top = DataArray.empty();
         tally.entrySet().stream().sorted(Map.Entry.<String, Integer>comparingByValue().reversed()).limit(12)

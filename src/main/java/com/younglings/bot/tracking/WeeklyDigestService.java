@@ -13,6 +13,7 @@ import net.dv8tion.jda.api.components.textdisplay.TextDisplay;
 import net.dv8tion.jda.api.entities.Guild;
 
 import java.time.DayOfWeek;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -56,15 +57,11 @@ public class WeeklyDigestService {
     }
 
     /**
-     * The same Wed-00:01-to-Wed-00:00 UTC window {@code WeeklyDigestScheduler} computes for its real
-     * weekly run — "this week's report" for an on-demand send always means the week that most recently
-     * completed.
+     * The window {@code WeeklyDigestScheduler} reports on in its real weekly run, from one Citadel reset (Wednesday 00:10 UTC, see {@link CitadelWeek})
+     * to the next: "this week's report" for an on-demand send always means the week that most recently completed.
      */
     public static OffsetDateTime[] lastCompletedWindow() {
-        OffsetDateTime windowEnd = OffsetDateTime.now(ZoneOffset.UTC)
-                .with(TemporalAdjusters.previousOrSame(DayOfWeek.WEDNESDAY))
-                .toLocalDate().atStartOfDay(ZoneOffset.UTC).toOffsetDateTime();
-        return new OffsetDateTime[]{windowEnd.minusDays(7).plusMinutes(1), windowEnd};
+        return CitadelWeek.lastCompleted(OffsetDateTime.now(ZoneOffset.UTC));
     }
 
     /** Just the joins/leaves half — the Tracking panel's "Send Now" calls this or {@link #sendCitadelReport} individually rather than always sending both. Returns {@code false} if the window had nothing to report (so nothing was built). */
@@ -154,8 +151,8 @@ public class WeeklyDigestService {
 
     /** One Citadel week's window — the same Wednesday 00:01 to next Wednesday 00:00 UTC the weekly report uses, cut off at {@code now} while it's still running. */
     private static OffsetDateTime[] weekWindow(LocalDate weekStart, OffsetDateTime now) {
-        OffsetDateTime start = weekStart.atStartOfDay(ZoneOffset.UTC).toOffsetDateTime().plusMinutes(1);
-        OffsetDateTime end = weekStart.plusWeeks(1).atStartOfDay(ZoneOffset.UTC).toOffsetDateTime();
+        OffsetDateTime start = CitadelWeek.resetOn(weekStart);
+        OffsetDateTime end = start.plusDays(7);
         return new OffsetDateTime[]{start, end.isAfter(now) ? now : end};
     }
 
@@ -271,7 +268,7 @@ public class WeeklyDigestService {
                 .toList();
     }
 
-    private record CitadelEntry(String rsn, boolean visited, boolean capped, LocalDateTime sortTime) {}
+    private record CitadelEntry(String rsn, boolean visited, boolean capped, Instant sortTime) {}
 
     /**
      * One entry per *current* active clan member (so someone who left mid-week still shows their
@@ -283,10 +280,10 @@ public class WeeklyDigestService {
         List<WeeklyDigestRepository.CitadelActivityRow> rows = repository.getCitadelActivityInWindow(guildId, windowStart, windowEnd);
         List<ClanMemberRepository.ClanMemberRow> roster = clanMemberRepository.getAll(guildId, true);
 
-        Map<String, LocalDateTime> visitedAt = new HashMap<>();
-        Map<String, LocalDateTime> cappedAt = new HashMap<>();
+        Map<String, Instant> visitedAt = new HashMap<>();
+        Map<String, Instant> cappedAt = new HashMap<>();
         for (var row : rows) {
-            LocalDateTime parsed = RuneMetricsDates.parse(row.activityDate());
+            Instant parsed = row.occurredAt() != null ? row.occurredAt() : Instant.MIN;
             String lower = row.rsn().toLowerCase(Locale.ROOT);
             if (row.activityText().startsWith("Visited")) {
                 visitedAt.merge(lower, parsed, (a, b) -> a.isAfter(b) ? a : b);
@@ -300,13 +297,13 @@ public class WeeklyDigestService {
             String lower = member.rsn().toLowerCase(Locale.ROOT);
             boolean visited = visitedAt.containsKey(lower);
             boolean capped = cappedAt.containsKey(lower);
-            LocalDateTime sortTime = capped ? cappedAt.get(lower) : visitedAt.get(lower);
+            Instant sortTime = capped ? cappedAt.get(lower) : visitedAt.get(lower);
             entries.add(new CitadelEntry(member.rsn(), visited, capped, sortTime));
         }
 
         entries.sort(Comparator
                 .comparingInt(WeeklyDigestService::participationRank)
-                .thenComparing(e -> e.sortTime != null ? e.sortTime : LocalDateTime.MIN)
+                .thenComparing(e -> e.sortTime != null ? e.sortTime : Instant.MIN)
                 .thenComparing(e -> e.rsn, String.CASE_INSENSITIVE_ORDER));
         return entries;
     }
