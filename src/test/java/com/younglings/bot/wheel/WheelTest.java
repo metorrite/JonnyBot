@@ -91,7 +91,7 @@ class WheelTest {
     @Test
     void theAnimationIsAGifThatEndsOnTheWinnerAndStaysUnderDiscordsLimit() throws Exception {
         var entries = WheelEntries.spread(names(70));
-        var result = WheelSpin.spin(entries, 560, new Random(7));
+        var result = WheelSpin.spin(entries, 720, new Random(7));
         byte[] gif = result.gif();
         assertEquals('G', gif[0]);
         assertEquals('I', gif[1]);
@@ -99,10 +99,12 @@ class WheelTest {
         try (ImageInputStream in = ImageIO.createImageInputStream(new ByteArrayInputStream(gif))) {
             ImageReader reader = ImageIO.getImageReadersByFormatName("gif").next();
             reader.setInput(in);
-            assertEquals(61, reader.getNumImages(true), "60 frames of turning and one that holds on the winner");
-            var last = reader.read(60);
-            assertEquals(WheelImage.width(560), last.getWidth());
-            assertEquals(WheelImage.height(560), last.getHeight());
+            int frames = reader.getNumImages(true);
+            assertTrue(frames < 250, "not so many frames that the file gets huge: " + frames);
+            assertTrue(frames > 40, "smooth enough: " + frames + " frames");
+            var last = reader.read(frames - 1);
+            assertTrue(last.getWidth() <= WheelImage.width(720));
+            assertTrue(last.getHeight() <= WheelImage.height(720));
         }
         System.out.println("70-name wheel GIF: " + gif.length / 1024 + " KiB");
         assertTrue(gif.length < 9 * 1024 * 1024, "Discord accepts up to about 10 MB; this is " + gif.length / 1024 + " KiB");
@@ -118,6 +120,36 @@ class WheelTest {
         var out = new java.io.ByteArrayOutputStream();
         ImageIO.write(image, "png", out);
         return out.toByteArray();
+    }
+
+    @Test
+    void aChosenWinnerIsWhereTheWheelStops() throws Exception {
+        var entries = WheelEntries.spread(names(24));
+        for (int pick : new int[]{0, 7, 23}) {
+            var result = WheelSpin.spinTo(entries, pick, 480, new Random(pick));
+            assertEquals(pick, result.winnerIndex());
+            assertEquals(entries.get(pick), result.winner());
+        }
+        try {
+            WheelSpin.spinTo(entries, 24, 480, new Random(1));
+            assertFalse(true, "should have thrown");
+        } catch (IllegalArgumentException expected) {
+            // a winner who isn't on the wheel is refused
+        }
+    }
+
+    @Test
+    void theWheelMovesInSmallSteps() {
+        var times = WheelSpin.times(-40, 0);
+        double previous = WheelSpin.angleAt(-40, 0, times.get(0));
+        double biggest = 0;
+        for (int i = 1; i < times.size(); i++) {
+            double now = WheelSpin.angleAt(-40, 0, times.get(i));
+            biggest = Math.max(biggest, Math.abs(now - previous));
+            previous = now;
+        }
+        assertTrue(biggest < 0.5, "no frame turns the wheel more than about a quarter radian: " + biggest);
+        assertEquals(0, WheelSpin.angleAt(-40, 0, 99), 1e-9, "it ends exactly on the end angle");
     }
 
     @Test

@@ -26,10 +26,17 @@ public final class WheelSpin {
     /** The animation and who won. */
     public record Result(String winner, int winnerIndex, byte[] gif, List<String> labels) {}
 
-    private static final int FRAMES = 60;
-    private static final int FRAME_MS = 70;
+    /** A GIF over this size won't upload to Discord (about 10 MB for most servers), so a bigger spin is redrawn smaller. */
+    static final int GIF_LIMIT_BYTES = 9 * 1024 * 1024;
     private static final int HOLD_MS = 8000;
-    private static final double TURNS = 5;
+    private static final double TURNS = 4;
+    private static final double SPIN_SECONDS = 6;
+    /** The slow-down curve: the wheel starts fast and the speed falls away to nothing as it settles on the winner. */
+    private static final double EASE_POWER = 2.4;
+    /** The most the wheel may turn between two frames, so fast turning still reads as turning. */
+    private static final double MAX_STEP_RADIANS = 0.26;
+    private static final int MIN_FRAME_MS = 30;
+    private static final int MAX_FRAME_MS = 110;
 
     private WheelSpin() {}
 
@@ -40,8 +47,14 @@ public final class WheelSpin {
 
     public static Result spin(List<String> entries, int size, Random random) throws IOException {
         if (entries.isEmpty()) throw new IllegalArgumentException("There's nobody on the wheel.");
+        return spinTo(entries, random.nextInt(entries.size()), size, random);
+    }
+
+    /** Spins and stops on a winner that has already been chosen (by the dashboard, say), so the picture matches. */
+    public static Result spinTo(List<String> entries, int winner, int size, Random random) throws IOException {
+        if (entries.isEmpty()) throw new IllegalArgumentException("There's nobody on the wheel.");
+        if (winner < 0 || winner >= entries.size()) throw new IllegalArgumentException("That winner isn't on the wheel.");
         int n = entries.size();
-        int winner = random.nextInt(n);
         double slice = 2 * Math.PI / n;
         // where inside the winning slice the pointer comes to rest: not the very edge
         double inside = 0.15 + random.nextDouble() * 0.7;
@@ -49,18 +62,51 @@ public final class WheelSpin {
         double endAngle = -(winner + inside) * slice;
         double startAngle = endAngle - TURNS * 2 * Math.PI;
 
-        List<BufferedImage> frames = new ArrayList<>();
-        List<Integer> delays = new ArrayList<>();
-        for (int f = 0; f < FRAMES; f++) {
-            double t = (double) f / (FRAMES - 1);
-            double eased = 1 - Math.pow(1 - t, 3.2);
-            frames.add(WheelImage.frame(entries, startAngle + (endAngle - startAngle) * eased, size, -1, "Spinning..."));
-            delays.add(FRAME_MS);
+        // the smoothest GIF that still fits: if it is too big for Discord, draw the same spin smaller
+        byte[] gif = null;
+        for (int attempt = 0; attempt < 3; attempt++) {
+            int drawSize = attempt == 0 ? size : attempt == 1 ? size * 5 / 6 : size * 2 / 3;
+            gif = gif(frames(entries, winner, startAngle, endAngle, drawSize), delays(startAngle, endAngle));
+            if (gif.length <= GIF_LIMIT_BYTES) break;
         }
+        return new Result(entries.get(winner), winner, gif, entries);
+    }
+
+    /** When each frame of the spin is shown: close together while the wheel is fast, further apart as it slows, so it is smooth where it matters. */
+    static List<Double> times(double startAngle, double endAngle) {
+        double distance = endAngle - startAngle;
+        List<Double> times = new ArrayList<>();
+        double t = 0;
+        while (t < SPIN_SECONDS) {
+            times.add(t);
+            double speed = distance * EASE_POWER / SPIN_SECONDS * Math.pow(1 - t / SPIN_SECONDS, EASE_POWER - 1);
+            double dt = Math.abs(speed) < 1e-9 ? MAX_FRAME_MS / 1000.0 : MAX_STEP_RADIANS / Math.abs(speed);
+            t += Math.min(MAX_FRAME_MS / 1000.0, Math.max(MIN_FRAME_MS / 1000.0, dt));
+        }
+        times.add(SPIN_SECONDS);
+        return times;
+    }
+
+    static double angleAt(double startAngle, double endAngle, double seconds) {
+        double progress = Math.min(1, seconds / SPIN_SECONDS);
+        return startAngle + (endAngle - startAngle) * (1 - Math.pow(1 - progress, EASE_POWER));
+    }
+
+    private static List<BufferedImage> frames(List<String> entries, int winner, double startAngle, double endAngle, int size) {
+        List<BufferedImage> frames = new ArrayList<>();
+        for (double t : times(startAngle, endAngle)) frames.add(WheelImage.frame(entries, angleAt(startAngle, endAngle, t), size, -1, "Spinning..."));
         // the last frame holds so it can be read, with the winner lit and named
         frames.add(WheelImage.frame(entries, endAngle, size, winner, entries.get(winner)));
+        return frames;
+    }
+
+    private static List<Integer> delays(double startAngle, double endAngle) {
+        List<Double> times = times(startAngle, endAngle);
+        List<Integer> delays = new ArrayList<>();
+        for (int i = 0; i + 1 < times.size(); i++) delays.add((int) Math.round((times.get(i + 1) - times.get(i)) * 1000));
+        delays.add(MIN_FRAME_MS); // the last turning frame, then the one that holds
         delays.add(HOLD_MS);
-        return new Result(entries.get(winner), winner, gif(frames, delays), entries);
+        return delays;
     }
 
     /** Which slice the pointer is on when the wheel has turned to {@code angle}. Used to check a spin lands where it says. */

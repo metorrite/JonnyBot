@@ -5,6 +5,7 @@ import com.younglings.bot.wheel.WheelEligibility;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.modals.Modal;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,19 +18,23 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class WeeklyDigestWheelButtonsTest {
     private static final long GUILD = 123L;
     private CitadelWheelEntries service;
+    private CitadelWheelPoster poster;
     private AdminRoleFilter adminFilter;
     private WeeklyDigestInteractionListener listener;
     private Guild guild;
@@ -37,8 +42,9 @@ class WeeklyDigestWheelButtonsTest {
     @BeforeEach
     void setUp() {
         service = mock(CitadelWheelEntries.class);
+        poster = mock(CitadelWheelPoster.class);
         adminFilter = mock(AdminRoleFilter.class);
-        listener = new WeeklyDigestInteractionListener(service, adminFilter);
+        listener = new WeeklyDigestInteractionListener(service, poster, adminFilter);
         listener.useExecutor(Runnable::run);
         guild = mock(Guild.class);
         when(guild.getIdLong()).thenReturn(GUILD);
@@ -115,5 +121,56 @@ class WeeklyDigestWheelButtonsTest {
         listener.onButtonInteraction(event);
         verify(event, never()).replyModal(any(Modal.class));
         verify(event, never()).deferReply(anyBoolean());
+    }
+
+    private static String postIdFor(String winner) {
+        return WeeklyDigestInteractionListener.postId("2026-10-14", 12, winner);
+    }
+
+    @Test
+    void thePostWinnerIdCarriesTheWeekTheEntryCountAndTheWinnerWhateverTheirName() {
+        String id = postIdFor("G i f f é");
+        assertTrue(id.startsWith("weekly_post_winner:2026-10-14:12:"), id);
+        assertTrue(id.length() <= 100);
+        assertNull(WeeklyDigestInteractionListener.postId("2026-10-14", 12, "x".repeat(80)), "too long to fit in a button id");
+    }
+
+    @Test
+    void aMemberCannotPostTheWinner() {
+        ButtonInteractionEvent event = click(postIdFor("Axley"), member(false));
+        listener.onButtonInteraction(event);
+        verify(poster, never()).postWinner(any(), any(), any(), anyInt(), any());
+        verify(event, never()).deferReply(anyBoolean());
+    }
+
+    @Test
+    void staffPostTheWinnerOnceWithTheWeekAndTheSpunGif() {
+        GuildMessageChannel channel = mock(GuildMessageChannel.class);
+        when(channel.getAsMention()).thenReturn("<#9>");
+        when(poster.postWinner(eq(guild), any(), eq("G i f f é"), eq(12), any())).thenReturn(channel);
+        ButtonInteractionEvent event = click(postIdFor("G i f f é"), member(true));
+        when(event.getMessageIdLong()).thenReturn(555L);
+        when(event.getMessage().getAttachments()).thenReturn(List.of());
+
+        listener.onButtonInteraction(event);
+        listener.onButtonInteraction(event); // a second click on the same spin
+
+        ArgumentCaptor<OffsetDateTime[]> window = ArgumentCaptor.forClass(OffsetDateTime[].class);
+        verify(poster, times(1)).postWinner(eq(guild), window.capture(), eq("G i f f é"), eq(12), any());
+        assertEquals(OffsetDateTime.parse("2026-10-07T00:10:00Z"), window.getValue()[0]);
+        assertEquals(OffsetDateTime.parse("2026-10-14T00:10:00Z"), window.getValue()[1]);
+    }
+
+    @Test
+    void whenThePostCannotBeMadeTheStaffMemberIsToldAndMayTryAgain() {
+        when(poster.postWinner(any(), any(), any(), anyInt(), any())).thenThrow(new CitadelWheelPoster.CannotPost("Choose the channel first."));
+        ButtonInteractionEvent event = click(postIdFor("Axley"), member(true));
+        when(event.getMessageIdLong()).thenReturn(556L);
+        when(event.getMessage().getAttachments()).thenReturn(List.of());
+
+        listener.onButtonInteraction(event);
+        listener.onButtonInteraction(event);
+
+        verify(event.getHook(), times(2)).editOriginal("Choose the channel first.");
     }
 }

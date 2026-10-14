@@ -46,16 +46,18 @@ public class TrackingSendNowService {
     private final ClanPointsRepository clanPointsRepository;
     private final TrackingEventRouter router;
     private final TrackingService trackingService;
+    private final CitadelWheelPoster wheelPoster;
 
     public TrackingSendNowService(ClanSyncService clanSyncService, WeeklyDigestService weeklyDigestService,
                                    ClanPointsService clanPointsService, ClanPointsRepository clanPointsRepository,
-                                   TrackingEventRouter router, TrackingService trackingService) {
+                                   TrackingEventRouter router, TrackingService trackingService, CitadelWheelPoster wheelPoster) {
         this.clanSyncService = clanSyncService;
         this.weeklyDigestService = weeklyDigestService;
         this.clanPointsService = clanPointsService;
         this.clanPointsRepository = clanPointsRepository;
         this.router = router;
         this.trackingService = trackingService;
+        this.wheelPoster = wheelPoster;
     }
 
     /** Every section except the Discord Admin Log, whose entries are real-time events with nothing to refresh. */
@@ -202,6 +204,8 @@ public class TrackingSendNowService {
             return;
         }
         lines.add(deliveryLine(guild.getIdLong(), TrackingGroup.WEEKLY_CITADEL_REPORT));
+        // when the server has auto-posting on, the wheel's winner is announced with the list, just as in the weekly run
+        wheelPoster.autoPost(guild, window);
     }
 
     /** For a report that was built: either where it went, or why it went nowhere. */
