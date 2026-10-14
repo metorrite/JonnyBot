@@ -33,6 +33,11 @@ public final class EventScoring {
 
     /** Standings for every subject that has any progress, best first (most points, then who finished earlier, then the subject key for a stable order). */
     public static List<Standing> standings(List<ObjectiveSpec> objectives, List<Entry> log) {
+        return standings(objectives, log, List.of());
+    }
+
+    /** The same, with a bonus added for every group of objectives a subject has completed in full. */
+    public static List<Standing> standings(List<ObjectiveSpec> objectives, List<Entry> log, List<EventBonuses.Bonus> bonuses) {
         Map<String, ObjectiveSpec> byKey = new HashMap<>();
         for (ObjectiveSpec o : objectives) byKey.put(o.key(), o);
 
@@ -63,6 +68,7 @@ public final class EventScoring {
                 points += o.points() * times;
                 completed++;
             }
+            for (EventBonuses.Bonus bonus : EventBonuses.earned(bonuses, completions)) points += bonus.points();
             standings.add(new Standing(entry.getKey(), points, completed, completions, lastAt.get(entry.getKey())));
         }
         standings.sort(Comparator.comparingLong(Standing::points).reversed()

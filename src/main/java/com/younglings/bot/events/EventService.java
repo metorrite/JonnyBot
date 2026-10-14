@@ -75,10 +75,18 @@ public class EventService {
         problems.addAll(template.configProblems(config));
         problems.addAll(EventSettings.problems(config));
         if (!problems.isEmpty()) throw new EventProblem(400, "The event can't be created yet.", problems);
+        try {
+            config = template.prepare(config);
+        } catch (IllegalArgumentException e) {
+            throw new EventProblem(400, "The event can't be created yet.", List.of(e.getMessage()));
+        }
+        List<ObjectiveSpec> starterObjectives = template.starterObjectives(config);
+        List<String> bonusProblems = EventBonuses.problems(config, starterObjectives.stream().map(ObjectiveSpec::key).collect(java.util.stream.Collectors.toSet()));
+        if (!bonusProblems.isEmpty()) throw new EventProblem(400, "The event can't be created yet.", bonusProblems);
         if (repository.countOpen(guildId) >= MAX_OPEN_EVENTS) throw new EventProblem(409, "A server can have " + MAX_OPEN_EVENTS + " unfinished events. Finish or cancel one first.");
         long id = repository.createEvent(guildId, template.key(), in.name().strip(), clean(in.description()), in.scope(), in.scoringMode(), in.startsAt(), in.endsAt(),
                 in.maxParticipants(), config.toString(), actorId);
-        List<ObjectiveSpec> starters = template.starterObjectives(config);
+        List<ObjectiveSpec> starters = starterObjectives;
         if (!starters.isEmpty()) {
             List<String> starterProblems = checkObjectives(starters);
             if (!starterProblems.isEmpty()) {
@@ -158,6 +166,29 @@ public class EventService {
         Event event = event(guildId, id);
         if (!EventRules.editable(event.status())) throw new EventProblem(409, "Teams can only be changed while the event is a draft or taking signups.");
         if (!repository.removeTeam(id, teamId)) throw new EventProblem(404, "That team doesn't exist.");
+    }
+
+    /** The bonuses in the event's settings. */
+    public List<EventBonuses.Bonus> bonusesOf(Event event) {
+        try {
+            return EventBonuses.parse(DataObject.fromJson(event.config()));
+        } catch (RuntimeException e) {
+            return List.of();
+        }
+    }
+
+    /** Replaces an event's settings and objectives together (used when a template regenerates what it built, like a bingo board). Only while the event is being built. */
+    public void reconfigure(long guildId, long id, DataObject config, List<ObjectiveSpec> objectives) {
+        Event event = event(guildId, id);
+        if (!EventRules.editable(event.status())) throw new EventProblem(409, "This can only be changed while the event is a draft or taking signups.");
+        List<String> problems = new ArrayList<>(checkObjectives(objectives));
+        problems.addAll(EventSettings.problems(config));
+        problems.addAll(EventBonuses.problems(config, objectives.stream().map(ObjectiveSpec::key).collect(java.util.stream.Collectors.toSet())));
+        if (!problems.isEmpty()) throw new EventProblem(400, "That can't be saved yet.", problems.stream().distinct().toList());
+        if (!repository.updateEvent(guildId, id, event.name(), event.description(), event.scope(), event.scoringMode(), event.startsAt(), event.endsAt(), event.maxParticipants(), config.toString())) {
+            throw new EventProblem(409, "The event moved on while you were editing it.");
+        }
+        repository.replaceObjectives(id, objectives);
     }
 
     private EventSettings settingsOf(Event event) {
@@ -441,7 +472,7 @@ public class EventService {
             if (byTeam && p.teamId() == null) continue;
             log.add(new Entry(byTeam ? "t:" + p.teamId() : "u:" + p.userId(), p.objectiveKey(), p.amount(), p.createdAt()));
         }
-        return EventScoring.standings(repository.objectives(id), log);
+        return EventScoring.standings(repository.objectives(id), log, bonusesOf(event));
     }
 
     private static String clean(String text) {
