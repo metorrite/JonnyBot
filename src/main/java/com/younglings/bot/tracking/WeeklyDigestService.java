@@ -125,17 +125,13 @@ public class WeeklyDigestService {
 
     /** A message in Discord's component layout holds about 4000 characters of text in total; the title, totals line and buttons need some of it. */
     static final int ROWS_BUDGET = 3600;
-    /** The smallest line Discord can draw (a "subtext" line holding an invisible character): a slight gap between two rows. */
-    static final String SPACER = "-# ​";
 
     /**
-     * The report's rows, one per line, with a small spacer line between them when they all fit in the message. A clan too big for even the plain list
-     * is cut at the limit with a count of how many were left off, rather than the whole report failing to send.
+     * The report's rows, one per line, tight together. A clan too big to fit in the message is cut at the limit with a count of how many were left off,
+     * rather than the whole report failing to send.
      */
     static String layoutRows(List<String> rows) {
         int plain = rows.stream().mapToInt(r -> r.length() + 1).sum();
-        int spaced = plain + Math.max(0, rows.size() - 1) * (SPACER.length() + 1);
-        if (spaced <= ROWS_BUDGET) return String.join("\n" + SPACER + "\n", rows);
         if (plain <= ROWS_BUDGET) return String.join("\n", rows);
         StringBuilder out = new StringBuilder();
         int shown = 0;
@@ -147,7 +143,7 @@ public class WeeklyDigestService {
         return out.toString().stripTrailing() + "\n-# …and " + (rows.size() - shown) + " more";
     }
 
-    private static final DateTimeFormatter SHORT_DATE =DateTimeFormatter.ofPattern("MMM d", Locale.ENGLISH);
+    private static final DateTimeFormatter SHORT_DATE = DateTimeFormatter.ofPattern("MMM d", Locale.ENGLISH);
 
     /** The Citadel viewer shows at most this many weeks at once — each one is a query and a line of text. */
     public static final int MAX_VIEW_WEEKS = 26;
