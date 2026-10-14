@@ -106,9 +106,12 @@ public class WeeklyDigestService {
 
         children.add(TextDisplay.of(totalsLine(entries)));
 
+        // Names go in a fixed-width monospace span, padded to the longest one shown, so the Visited and Capped
+        // marks land in the same two columns on every row (the same approach as the /rs Skills output).
+        int nameWidth = entries.stream().mapToInt(e -> e.rsn.length()).max().orElse(0);
         StringBuilder sb = new StringBuilder();
         for (CitadelEntry e : entries) {
-            sb.append("**").append(e.rsn).append("** — ")
+            sb.append('`').append(String.format("%-" + nameWidth + "s", e.rsn)).append("` ")
                     .append(e.visited ? "✅ Visited" : "⬜ Visited").append("  ")
                     .append(e.capped ? "✅ Capped" : "⬜ Capped").append("\n");
         }

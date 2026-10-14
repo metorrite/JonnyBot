@@ -2,8 +2,11 @@ package com.younglings.bot.tracking;
 
 import com.younglings.bot.runescape.ClanMemberRepository;
 import com.younglings.bot.runescape.WeeklyDigestRepository;
+import net.dv8tion.jda.api.components.container.Container;
 import net.dv8tion.jda.api.components.container.ContainerChildComponent;
 import net.dv8tion.jda.api.components.textdisplay.TextDisplay;
+import net.dv8tion.jda.api.entities.Guild;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -154,5 +157,27 @@ class WeeklyDigestServiceTest {
     void aRangeOverTheLimitIsRefusedWithoutQueryingAnything() {
         String text = text(service.citadelSection(GUILD, LocalDate.of(2025, 1, 1), LocalDate.of(2026, 10, 5)));
         assertTrue(text.contains("at most " + WeeklyDigestService.MAX_VIEW_WEEKS), text);
+    }
+
+    @Test
+    void theWeeklyReportPadsEveryNameSoTheMarksLineUp() {
+        TrackingEventRouter router = mock(TrackingEventRouter.class);
+        ClanMemberRepository clanMembers = mock(ClanMemberRepository.class);
+        when(clanMembers.getAll(eq(GUILD), eq(true))).thenReturn(List.of(member("Axley"), member("Berserker87"), member("Idle Ian")));
+        when(repository.getCitadelActivityInWindow(eq(GUILD), any(), any())).thenReturn(List.of(visit("Axley"), cap("Axley"), visit("Berserker87")));
+        WeeklyDigestService withRouter = new WeeklyDigestService(repository, clanMembers, router);
+        Guild guild = mock(Guild.class);
+        when(guild.getIdLong()).thenReturn(GUILD);
+
+        OffsetDateTime[] window = WeeklyDigestService.lastCompletedWindow();
+        assertTrue(withRouter.sendCitadelReport(guild, window[0], window[1]));
+
+        ArgumentCaptor<Container> sent = ArgumentCaptor.forClass(Container.class);
+        org.mockito.Mockito.verify(router).dispatchContainer(eq(guild), eq(TrackingGroup.WEEKLY_CITADEL_REPORT), sent.capture());
+        String rows = text(sent.getValue().getComponents().stream().filter(c -> c instanceof ContainerChildComponent).map(c -> (ContainerChildComponent) c).toList());
+        // every name sits in a monospace span padded to the longest name (Berserker87, 11 characters), so the marks start in the same column
+        assertTrue(rows.contains("`Axley      ` ✅ Visited  ✅ Capped"), rows);
+        assertTrue(rows.contains("`Berserker87` ✅ Visited  ⬜ Capped"), rows);
+        assertTrue(rows.contains("`Idle Ian   ` ⬜ Visited  ⬜ Capped") || !rows.contains("Idle Ian"), rows);
     }
 }
