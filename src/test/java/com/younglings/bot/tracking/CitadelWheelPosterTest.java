@@ -5,6 +5,7 @@ import com.younglings.bot.runescape.PlayerLinkRepository;
 import com.younglings.bot.wheel.WheelEligibility;
 import com.younglings.bot.wheel.WheelMessage;
 import com.younglings.bot.wheel.WheelSettingsRepository;
+import com.younglings.bot.wheel.WheelWinnerRepository;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel;
@@ -35,6 +36,7 @@ class CitadelWheelPosterTest {
     private WheelSettingsRepository settings;
     private PlayerLinkRepository links;
     private TrackingPostingToggle toggle;
+    private CitadelWinners winners;
     private CitadelWheelPoster poster;
     private Guild guild;
     private GuildMessageChannel channel;
@@ -49,7 +51,8 @@ class CitadelWheelPosterTest {
         links = mock(PlayerLinkRepository.class);
         toggle = mock(TrackingPostingToggle.class);
         when(toggle.isEnabled()).thenReturn(true);
-        poster = new CitadelWheelPoster(entries, settings, links, toggle);
+        winners = mock(CitadelWinners.class);
+        poster = new CitadelWheelPoster(entries, settings, links, toggle, winners);
 
         guild = mock(Guild.class);
         when(guild.getIdLong()).thenReturn(GUILD);
@@ -175,5 +178,63 @@ class CitadelWheelPosterTest {
         poster.postFromDashboard(guild, WINDOW, "giff", List.of("Axley", "Giff"));
         assertEquals("Winner: **Giff**", sent.get(0).toString());
         assertTrue(calls.contains("addFiles"));
+    }
+
+    // ---------- locked weeks ----------
+
+    private static final java.time.LocalDate WEEK_END = java.time.LocalDate.parse("2026-10-14");
+
+    private WheelWinnerRepository.Winner locked(String winner, boolean hasGif) {
+        return new WheelWinnerRepository.Winner(GUILD, WEEK_END, winner, List.of("Axley", "Giff"), WheelWinnerRepository.Method.SPUN, 1L, java.time.Instant.now(), hasGif,
+                hasGif ? WheelWinnerRepository.GifSource.WEBSITE : null, "token");
+    }
+
+    @Test
+    void theAnnouncementTextCanBeFetchedWithoutPostingAnything() {
+        settings(false, CHANNEL, "Well done {mention}! ({week}, {entries})");
+        Member member = mock(Member.class);
+        when(guild.getMemberById(77L)).thenReturn(member);
+        when(links.getAllLinks(GUILD)).thenReturn(List.of(new PlayerLink(1, GUILD, 77L, "Axley", "x", null, null)));
+        assertEquals("Well done <@77>! (7 Oct to 13 Oct, 2)", poster.messageFor(guild, WINDOW, "Axley", 2));
+        assertTrue(sent.isEmpty());
+    }
+
+    @Test
+    void autoPostLeavesAWeekThatAlreadyHasALockedWinnerAlone() {
+        settings(true, CHANNEL, WheelMessage.DEFAULT);
+        when(winners.get(GUILD, WEEK_END)).thenReturn(java.util.Optional.of(locked("Axley", true)));
+        poster.autoPost(guild, WINDOW);
+        verify(entries, never()).forWeek(any(), any(), any());
+        assertTrue(sent.isEmpty());
+    }
+
+    @Test
+    void autoPostLocksTheWinnerBeforeItAnnouncesThem() {
+        settings(true, CHANNEL, "Winner: {winner}");
+        when(winners.get(GUILD, WEEK_END)).thenReturn(java.util.Optional.empty());
+        when(entries.forWeek(guild, WINDOW[0], WINDOW[1])).thenReturn(new WheelEligibility.Result(List.of("Axley", "Giff"), List.of(), List.of()));
+        poster.autoPost(guild, WINDOW);
+        org.mockito.ArgumentCaptor<String> winner = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(winners).lock(org.mockito.ArgumentMatchers.eq(GUILD), org.mockito.ArgumentMatchers.eq(WEEK_END), winner.capture(), any(), org.mockito.ArgumentMatchers.eq(WheelWinnerRepository.Method.AUTO),
+                org.mockito.ArgumentMatchers.isNull(), any(), org.mockito.ArgumentMatchers.eq(WheelWinnerRepository.GifSource.BOT));
+        assertTrue(sent.get(0).toString().contains(winner.getValue()), "the announced winner is the locked one");
+    }
+
+    @Test
+    void aLockedWeekIsAnnouncedWithItsSavedPicture() {
+        settings(false, CHANNEL, "Winner: {winner}");
+        when(winners.get(GUILD, WEEK_END)).thenReturn(java.util.Optional.of(locked("Giff", true)));
+        when(winners.gif(GUILD, WEEK_END)).thenReturn(java.util.Optional.of("GIF89a-bytes-here".getBytes()));
+        when(links.getAllLinks(GUILD)).thenReturn(List.of());
+        poster.postLocked(guild, WEEK_END);
+        assertEquals("Winner: **Giff**", sent.get(0).toString());
+        assertTrue(calls.contains("addFiles"), "the saved picture is attached: " + calls);
+    }
+
+    @Test
+    void anUnlockedWeekCannotBePostedAsALockedOne() {
+        settings(false, CHANNEL, WheelMessage.DEFAULT);
+        when(winners.get(GUILD, WEEK_END)).thenReturn(java.util.Optional.empty());
+        assertThrows(CitadelWheelPoster.CannotPost.class, () -> poster.postLocked(guild, WEEK_END));
     }
 }

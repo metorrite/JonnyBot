@@ -3,6 +3,7 @@ package com.younglings.bot.internal;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import com.younglings.bot.config.BotConfig;
+import com.younglings.bot.tracking.CitadelWinners;
 import com.younglings.bot.upload.ImageUploadService;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
@@ -75,9 +76,12 @@ public class InternalApiServer {
     private final PluginApi pluginApi;
     private final MemberApi memberApi;
     private final ImageUploadService imageUploads;
+    private final CitadelWinners citadelWinners;
     private JDA jda;
 
-    public InternalApiServer(BotConfig botConfig, TicketAdminApi ticketAdminApi, SiteApi siteApi, DirectoryApi directoryApi, PluginApi pluginApi, MemberApi memberApi, ImageUploadService imageUploads) {
+    public InternalApiServer(BotConfig botConfig, TicketAdminApi ticketAdminApi, SiteApi siteApi, DirectoryApi directoryApi, PluginApi pluginApi, MemberApi memberApi, ImageUploadService imageUploads,
+                             CitadelWinners citadelWinners) {
+        this.citadelWinners = citadelWinners;
         this.imageUploads = imageUploads;
         this.botConfig = botConfig;
         this.ticketAdminApi = ticketAdminApi;
@@ -122,6 +126,7 @@ public class InternalApiServer {
             server.createContext("/internal/plugin/", exchange -> handlePlugin(exchange, secret));
             server.createContext("/internal/me/", exchange -> handleMe(exchange, secret, guildId));
             server.createContext("/internal/image/", exchange -> handleImage(exchange, secret));
+            server.createContext("/internal/wheel-gif/", exchange -> handleWheelGif(exchange, secret));
 
             // A fixed crew with a bounded queue. When it's full the accepting thread runs the work itself, which slows
             // new connections down (back-pressure) instead of letting an unbounded backlog build up behind a flood.
@@ -530,6 +535,39 @@ public class InternalApiServer {
             }
         } catch (Exception e) {
             log.error("Internal API image request failed", e);
+            sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));
+        }
+    }
+
+    /**
+     * A locked Citadel wheel winner's GIF by its unguessable token, for the website's public GIF address (which is what makes the picture show inside a
+     * Discord message). The secret is checked here, so only the website can ask; the token is what keeps one week's picture from being guessed.
+     */
+    private void handleWheelGif(HttpExchange exchange, String secret) throws IOException {
+        try {
+            String provided = exchange.getRequestHeaders().getFirst(SECRET_HEADER);
+            if (provided == null || !constantTimeEquals(provided, secret)) {
+                sendJson(exchange, 401, DataObject.empty().put("error", "Unauthorized"));
+                return;
+            }
+            if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+                sendJson(exchange, 405, DataObject.empty().put("error", "Method not allowed"));
+                return;
+            }
+            String token = exchange.getRequestURI().getPath().substring("/internal/wheel-gif/".length());
+            var gif = citadelWinners.gifByToken(token);
+            if (gif.isEmpty()) {
+                sendJson(exchange, 404, DataObject.empty().put("error", "Not found"));
+                return;
+            }
+            byte[] data = gif.get();
+            exchange.getResponseHeaders().set("Content-Type", "image/gif");
+            exchange.sendResponseHeaders(200, data.length);
+            try (OutputStream responseBody = exchange.getResponseBody()) {
+                responseBody.write(data);
+            }
+        } catch (Exception e) {
+            log.error("Internal API wheel GIF request failed", e);
             sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));
         }
     }

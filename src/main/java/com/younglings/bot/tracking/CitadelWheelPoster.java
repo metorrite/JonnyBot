@@ -6,6 +6,7 @@ import com.younglings.bot.wheel.WheelEntries;
 import com.younglings.bot.wheel.WheelMessage;
 import com.younglings.bot.wheel.WheelSettingsRepository;
 import com.younglings.bot.wheel.WheelSpin;
+import com.younglings.bot.wheel.WheelWinnerRepository;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel;
@@ -14,6 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -41,15 +43,18 @@ public class CitadelWheelPoster {
     private final WheelSettingsRepository settings;
     private final PlayerLinkRepository links;
     private final TrackingPostingToggle postingToggle;
+    private final CitadelWinners winners;
 
-    public CitadelWheelPoster(CitadelWheelEntries entries, WheelSettingsRepository settings, PlayerLinkRepository links, TrackingPostingToggle postingToggle) {
+    public CitadelWheelPoster(CitadelWheelEntries entries, WheelSettingsRepository settings, PlayerLinkRepository links, TrackingPostingToggle postingToggle,
+                              CitadelWinners winners) {
+        this.winners = winners;
         this.entries = entries;
         this.settings = settings;
         this.links = links;
         this.postingToggle = postingToggle;
     }
 
-    static String weekLabel(OffsetDateTime[] window) {
+    public static String weekLabel(OffsetDateTime[] window) {
         return window[0].withOffsetSameInstant(ZoneOffset.UTC).format(DAY) + " to " + window[1].withOffsetSameInstant(ZoneOffset.UTC).minusDays(1).format(DAY);
     }
 
@@ -63,13 +68,27 @@ public class CitadelWheelPoster {
         return channel;
     }
 
+    /**
+     * The announcement text for a winner: the server's message with the winner, their Discord mention (when their RuneScape account is linked to a
+     * member), the week and the number of entries filled in. This is what is posted, and what the dashboard offers to copy.
+     */
+    public String messageFor(Guild guild, OffsetDateTime[] window, String winner, int entryCount) {
+        Long user = linkedUser(guild, winner);
+        return WheelMessage.render(settings.get(guild.getIdLong()).message(), winner, user == null ? null : "<@" + user + ">", weekLabel(window), entryCount);
+    }
+
+    /** Posts a locked week's announcement with the picture saved for it, in the channel the server chose. */
+    public GuildMessageChannel postLocked(Guild guild, LocalDate weekEnd) {
+        var row = winners.get(guild.getIdLong(), weekEnd).orElseThrow(() -> new CannotPost("That week isn't locked."));
+        byte[] gif = winners.gif(guild.getIdLong(), weekEnd).orElse(null);
+        return postWinner(guild, CitadelWeek.windowEndingOn(weekEnd), row.winner(), row.entries().size(), gif);
+    }
+
     /** Posts the configured message with {@code gif}. Returns the channel it went to. */
     public GuildMessageChannel postWinner(Guild guild, OffsetDateTime[] window, String winner, int entryCount, byte[] gif) {
         GuildMessageChannel channel = channelFor(guild);
-        WheelSettingsRepository.Settings current = settings.get(guild.getIdLong());
         Long user = linkedUser(guild, winner);
-        String mention = user == null ? null : "<@" + user + ">";
-        String text = WheelMessage.render(current.message(), winner, mention, weekLabel(window), entryCount);
+        String text = messageFor(guild, window, winner, entryCount);
         var action = channel.sendMessage(text).setAllowedMentions(List.of());
         if (user != null) action = action.mentionUsers(user);
         if (gif != null) action = action.addFiles(FileUpload.fromData(gif, "citadel-wheel.gif"));
@@ -101,10 +120,17 @@ public class CitadelWheelPoster {
                 log.info("Wheel auto-post for guild {} skipped: posting is switched off on this instance.", guild.getIdLong());
                 return;
             }
+            LocalDate weekEnd = window[1].withOffsetSameInstant(ZoneOffset.UTC).toLocalDate();
+            if (winners.get(guild.getIdLong(), weekEnd).isPresent()) {
+                log.info("Wheel auto-post for guild {} skipped: the week ending {} already has a locked winner.", guild.getIdLong(), weekEnd);
+                return;
+            }
             WheelEligibility.Result eligible = entries.forWeek(guild, window[0], window[1]);
             if (eligible.names().isEmpty()) return;
             List<String> slices = WheelEntries.spread(eligible.names());
             var spin = WheelSpin.spin(slices, WeeklyDigestInteractionListener.WHEEL_SIZE);
+            // the winner is locked in first, so the week has exactly one winner and its picture can be fetched again later
+            winners.lock(guild.getIdLong(), weekEnd, spin.winner(), slices, WheelWinnerRepository.Method.AUTO, null, spin.gif(), WheelWinnerRepository.GifSource.BOT);
             postWinner(guild, window, spin.winner(), slices.size(), spin.gif());
             log.info("Posted the Citadel wheel winner for guild {} ({} entries).", guild.getIdLong(), slices.size());
         } catch (CannotPost e) {

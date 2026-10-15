@@ -3,6 +3,8 @@ package com.younglings.bot.internal;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.tracking.CitadelWheelEntries;
 import com.younglings.bot.tracking.CitadelWheelPoster;
+import com.younglings.bot.tracking.CitadelWinners;
+import com.younglings.bot.wheel.WheelWinnerRepository;
 import com.younglings.bot.wheel.WheelMessage;
 import com.younglings.bot.wheel.WheelSettingsRepository;
 import net.dv8tion.jda.api.entities.Member;
@@ -20,6 +22,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -32,6 +35,7 @@ class CitadelAdminApiTest {
     private CitadelWheelEntries digest;
     private WheelSettingsRepository settings;
     private CitadelWheelPoster poster;
+    private CitadelWinners winners;
     private CitadelAdminApi api;
     private Guild guild;
     private static final OffsetDateTime NOW = OffsetDateTime.parse("2026-10-14T12:30:00Z");
@@ -41,7 +45,8 @@ class CitadelAdminApiTest {
         digest = mock(CitadelWheelEntries.class);
         settings = mock(WheelSettingsRepository.class);
         poster = mock(CitadelWheelPoster.class);
-        api = new CitadelAdminApi(digest, settings, poster);
+        winners = mock(CitadelWinners.class);
+        api = new CitadelAdminApi(digest, settings, poster, winners);
         api.useExecutor(Runnable::run);
         guild = mock(Guild.class);
         when(guild.getIdLong()).thenReturn(7L);
@@ -152,5 +157,95 @@ class CitadelAdminApiTest {
         assertEquals(400, assertThrows(ApiError.class, () -> api.post(guild, actor(), postBody("Somebody Else"))).status);
         when(poster.channelFor(guild)).thenThrow(new CitadelWheelPoster.CannotPost("Choose the channel first."));
         assertEquals(409, assertThrows(ApiError.class, () -> api.post(guild, actor(), postBody("Axley"))).status);
+    }
+
+    // ---------- locking a winner ----------
+
+    private static final java.time.LocalDate WEEK_END = java.time.LocalDate.parse("2026-10-14");
+
+    private WheelWinnerRepository.Winner locked(String winner, boolean hasGif) {
+        return new WheelWinnerRepository.Winner(7L, WEEK_END, winner, List.of("Axley", "Giff"), WheelWinnerRepository.Method.SPUN, 1L, java.time.Instant.parse("2026-10-14T12:00:00Z"), hasGif,
+                hasGif ? WheelWinnerRepository.GifSource.WEBSITE : null, "tok-abc");
+    }
+
+    @Test
+    void lockingSendsTheWeeksWinnerWithTheWebsitesPictureAndAnswersWithTheMessage() {
+        byte[] gif = "GIF89a-test-picture".getBytes();
+        when(winners.lock(eq(7L), eq(WEEK_END), eq("Giff"), eq(List.of("Axley", "Giff", "Giff")), eq(WheelWinnerRepository.Method.SPUN), eq(1L), any(), eq(WheelWinnerRepository.GifSource.WEBSITE)))
+                .thenReturn(locked("Giff", true));
+        when(poster.messageFor(eq(guild), any(), eq("Giff"), eq(2))).thenReturn("Well done **Giff**!");
+        DataObject body = DataObject.empty().put("end", "2026-10-14").put("winner", "Giff").put("entries", DataArray.fromCollection(List.of("Axley", "Giff", "Giff")))
+                .put("gif", java.util.Base64.getEncoder().encodeToString(gif));
+        DataObject answer = api.route(guild, actor(), "POST", new String[]{"citadel", "lock"}, () -> body);
+        assertEquals("Giff", answer.getString("winner"));
+        assertEquals("Well done **Giff**!", answer.getString("message"));
+        assertEquals("tok-abc", answer.getString("gifToken"));
+        org.mockito.ArgumentCaptor<byte[]> sent = org.mockito.ArgumentCaptor.forClass(byte[].class);
+        verify(winners).lock(eq(7L), eq(WEEK_END), eq("Giff"), any(), any(), eq(1L), sent.capture(), any());
+        assertEquals(new String(gif), new String(sent.getValue()));
+    }
+
+    @Test
+    void aHandTypedPastWeekIsLockedAsManualWithoutAPicture() {
+        when(winners.lock(eq(7L), eq(WEEK_END), eq("Axley"), any(), eq(WheelWinnerRepository.Method.MANUAL), eq(1L), org.mockito.ArgumentMatchers.isNull(), any())).thenReturn(locked("Axley", false));
+        DataObject body = DataObject.empty().put("end", "2026-10-14").put("winner", "Axley").put("manual", true).put("entries", DataArray.fromCollection(List.of("Axley")));
+        assertEquals(false, api.route(guild, actor(), "POST", new String[]{"citadel", "lock"}, () -> body).getBoolean("hasGif"));
+    }
+
+    @Test
+    void aLockThatCannotBeMadeIsRefusedWithTheServicesReason() {
+        when(winners.lock(anyLong(), any(), any(), any(), any(), any(), any(), any())).thenThrow(new CitadelWinners.CannotLock(409, "This week is already locked."));
+        DataObject body = DataObject.empty().put("end", "2026-10-14").put("winner", "Giff");
+        ApiError refused = assertThrows(ApiError.class, () -> api.route(guild, actor(), "POST", new String[]{"citadel", "lock"}, () -> body));
+        assertEquals(409, refused.status);
+        assertEquals(400, assertThrows(ApiError.class, () -> api.route(guild, actor(), "POST", new String[]{"citadel", "lock"}, () -> DataObject.empty().put("end", "soon").put("winner", "x"))).status);
+        assertEquals(400, assertThrows(ApiError.class, () -> api.route(guild, actor(), "POST", new String[]{"citadel", "lock"}, () -> DataObject.empty().put("end", "2026-10-14").put("winner", "x").put("gif", "%%%not base64"))).status);
+    }
+
+    @Test
+    void aLockedWeekCanBeReadBackWithItsMessageAndUnlocked() {
+        when(winners.get(7L, WEEK_END)).thenReturn(java.util.Optional.of(locked("Giff", true)));
+        when(poster.messageFor(eq(guild), any(), eq("Giff"), eq(2))).thenReturn("Well done **Giff**!");
+        DataObject answer = api.route(guild, actor(), "GET", new String[]{"citadel", "winners", "2026-10-14"}, DataObject::empty);
+        assertEquals("Well done **Giff**!", answer.getString("message"));
+        assertEquals(2, answer.getArray("entries").length());
+
+        when(winners.get(7L, java.time.LocalDate.parse("2026-10-07"))).thenReturn(java.util.Optional.empty());
+        assertEquals(404, assertThrows(ApiError.class, () -> api.route(guild, actor(), "GET", new String[]{"citadel", "winners", "2026-10-07"}, DataObject::empty)).status);
+
+        api.route(guild, actor(), "POST", new String[]{"citadel", "unlock"}, () -> DataObject.empty().put("end", "2026-10-14"));
+        verify(winners).unlock(7L, WEEK_END);
+    }
+
+    @Test
+    void theWeekListShowsWhoWonAndTheCappersAnswerCarriesTheLockedWinner() {
+        when(digest.forWeek(eq(guild), any(), any())).thenReturn(new WheelEligibility.Result(List.of("Axley", "Giff"), List.of(), List.of()));
+        when(winners.list(7L, 100)).thenReturn(List.of(locked("Giff", true)));
+        when(poster.messageFor(eq(guild), any(), any(), org.mockito.ArgumentMatchers.anyInt())).thenReturn("text");
+        DataObject answer = api.cappers(guild, null, NOW);
+        assertEquals("Giff", answer.getObject("winner").getString("winner"));
+        assertEquals("Giff", answer.getArray("weeks").getObject(0).getString("winner"));
+        assertTrue(answer.getArray("weeks").getObject(1).isNull("winner"), "weeks nobody has locked have no winner");
+    }
+
+    @Test
+    void aLockedWeekIsPostedWithItsOwnPictureAndAnotherWinnerIsRefused() throws Exception {
+        GuildMessageChannel channel = channel(true);
+        when(poster.channelFor(guild)).thenReturn(channel);
+        when(winners.get(7L, WEEK_END)).thenReturn(java.util.Optional.of(locked("Giff", true)));
+        api.post(guild, actor(), DataObject.empty().put("winner", "Giff").put("end", "2026-10-14").put("entries", DataArray.fromCollection(List.of("Axley", "Giff"))));
+        verify(poster).postLocked(guild, WEEK_END);
+        verify(poster, org.mockito.Mockito.never()).postFromDashboard(any(), any(), any(), any());
+        assertEquals(409, assertThrows(ApiError.class, () -> api.post(guild, actor(), DataObject.empty().put("winner", "Axley").put("end", "2026-10-14")
+                .put("entries", DataArray.fromCollection(List.of("Axley", "Giff"))))).status);
+    }
+
+    @Test
+    void postingALockedWeekFromTheRecordsListNeedsAChannelAndALockedWeek() {
+        when(winners.get(7L, WEEK_END)).thenReturn(java.util.Optional.of(locked("Giff", true)));
+        when(poster.channelFor(guild)).thenThrow(new CitadelWheelPoster.CannotPost("Choose the channel first."));
+        assertEquals(409, assertThrows(ApiError.class, () -> api.route(guild, actor(), "POST", new String[]{"citadel", "winners", "2026-10-14", "post"}, DataObject::empty)).status);
+        when(winners.get(7L, java.time.LocalDate.parse("2026-10-07"))).thenReturn(java.util.Optional.empty());
+        assertEquals(404, assertThrows(ApiError.class, () -> api.route(guild, actor(), "POST", new String[]{"citadel", "winners", "2026-10-07", "post"}, DataObject::empty)).status);
     }
 }
