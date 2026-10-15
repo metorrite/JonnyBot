@@ -41,13 +41,13 @@ public class PluginService {
 
     private final PluginRepository repository;
     private final PlayerLinkRepository links;
-    private final PluginEventSink sink;
+    private final List<PluginEventSink> sinks;
     private final SecureRandom random = new SecureRandom();
 
-    public PluginService(PluginRepository repository, PlayerLinkRepository links, PluginEventSink sink) {
+    public PluginService(PluginRepository repository, PlayerLinkRepository links, List<PluginEventSink> sinks) {
         this.repository = repository;
         this.links = links;
-        this.sink = sink;
+        this.sinks = List.copyOf(sinks);
     }
 
     // ---------- tokens ----------
@@ -130,11 +130,13 @@ public class PluginService {
             }
         }
         if (!stored.isEmpty()) {
-            try {
-                sink.accepted(userId, account.rsn(), stored);
-            } catch (RuntimeException e) {
-                // what is done with the events never decides whether the upload worked
-                log.warn("A consumer of plugin events failed for user {}", userId, e);
+            for (PluginEventSink sink : sinks) {
+                try {
+                    sink.accepted(userId, account.rsn(), stored);
+                } catch (RuntimeException e) {
+                    // what is done with the events never decides whether the upload worked, nor whether the next consumer hears of them
+                    log.warn("A consumer of plugin events failed for user {}", userId, e);
+                }
             }
         }
         return new IngestResult(accepted, duplicates, rejected, consented, null);
