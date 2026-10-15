@@ -58,12 +58,14 @@ public class EventService {
     private final EventTemplates templates;
     private final EventKinds kinds;
     private final PointsService points;
+    private final EventChanges changes;
 
-    public EventService(EventRepository repository, EventTemplates templates, EventKinds kinds, PointsService points) {
+    public EventService(EventRepository repository, EventTemplates templates, EventKinds kinds, PointsService points, EventChanges changes) {
         this.repository = repository;
         this.templates = templates;
         this.kinds = kinds;
         this.points = points;
+        this.changes = changes;
     }
 
     // ---------- events ----------
@@ -118,6 +120,7 @@ public class EventService {
         if (!repository.updateEvent(guildId, id, in.name().strip(), clean(in.description()), in.scope(), in.scoringMode(), in.startsAt(), in.endsAt(), in.maxParticipants(), config.toString())) {
             throw new EventProblem(409, "The event moved on while you were editing it.");
         }
+        changes.publish(EventChanges.Kind.SETUP, guildId, id);
     }
 
     public void moveStage(long guildId, long id, Status to) {
@@ -127,6 +130,7 @@ public class EventService {
         }
         if (to == Status.RUNNING && repository.objectives(id).isEmpty()) throw new EventProblem(409, "Add at least one objective before the event starts.");
         if (!repository.moveStage(guildId, id, event.status(), to)) throw new EventProblem(409, "Someone else already moved this event.");
+        changes.publish(EventChanges.Kind.STAGE, guildId, id);
     }
 
     public void deleteDraft(long guildId, long id) {
@@ -147,6 +151,7 @@ public class EventService {
         problems.addAll(EventBonuses.problems(DataObject.fromJson(event.config()), objectives.stream().map(ObjectiveSpec::key).collect(java.util.stream.Collectors.toSet())));
         if (!problems.isEmpty()) throw new EventProblem(400, "The objectives can't be saved yet. A bonus (like a bingo line) needs every objective it lists, so keep those or re-roll the board.", problems.stream().distinct().toList());
         repository.replaceObjectives(id, objectives);
+        changes.publish(EventChanges.Kind.SETUP, guildId, id);
     }
 
     /** Problems with each objective and with the set as a whole. */
@@ -194,6 +199,7 @@ public class EventService {
             throw new EventProblem(409, "The event moved on while you were editing it.");
         }
         repository.replaceObjectives(id, objectives);
+        changes.publish(EventChanges.Kind.SETUP, guildId, id);
     }
 
     private EventSettings settingsOf(Event event) {
@@ -415,6 +421,7 @@ public class EventService {
         OptionalLong row = repository.addProgress(id, objectiveKey, userId, player.teamId(), effective, source, sourceKey, actorId, cleanNote);
         if (row.isEmpty()) throw new EventProblem(409, "That has already been counted.");
         long after = Math.max(0, total + effective);
+        changes.publish(EventChanges.Kind.PROGRESS, guildId, id);
         return new Recorded(row.getAsLong(), after, EventScoring.completions(objective, after));
     }
 
@@ -465,6 +472,7 @@ public class EventService {
                 log.warn("Approved claim {} of event {} couldn't be counted: {}", claimId, id, e.getMessage());
             }
         }
+        changes.publish(new EventChanges.Change(EventChanges.Kind.CLAIM_DECIDED, guildId, id, claimId, claim.userId(), approve, cleanNote));
         return repository.claim(id, claimId).orElse(claim);
     }
 

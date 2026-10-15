@@ -1,20 +1,31 @@
 package com.younglings.bot.commands.events;
 
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.events.BingoBoardImage;
+import com.younglings.bot.events.BingoBoardView;
+import com.younglings.bot.events.BingoTemplate;
+import com.younglings.bot.events.EventBoardPanels;
 import com.younglings.bot.events.EventProblem;
 import com.younglings.bot.events.EventRepository;
+import com.younglings.bot.events.EventRepository.ClaimStatus;
 import com.younglings.bot.events.EventRepository.Event;
 import com.younglings.bot.events.EventRules.Status;
 import com.younglings.bot.events.EventService;
+import com.younglings.bot.events.EventSettings;
 import com.younglings.bot.internal.MemberEventsApi;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
 import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.JDASlashCommand;
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.SlashOption;
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.TopLevelSlashCommandData;
+import net.dv8tion.jda.api.entities.Message;
+import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
+import net.dv8tion.jda.api.utils.FileUpload;
 import net.dv8tion.jda.api.utils.data.DataArray;
 import net.dv8tion.jda.api.utils.data.DataObject;
+import org.jetbrains.annotations.Nullable;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -28,11 +39,13 @@ public class EventsCommand {
     private final EventService service;
     private final EventRepository repository;
     private final MemberEventsApi view;
+    private final EventBoardPanels panels;
 
-    public EventsCommand(EventService service, EventRepository repository, MemberEventsApi view) {
+    public EventsCommand(EventService service, EventRepository repository, MemberEventsApi view, EventBoardPanels panels) {
         this.service = service;
         this.repository = repository;
         this.view = view;
+        this.panels = panels;
     }
 
     private static String gp(long amount) {
@@ -118,6 +131,101 @@ public class EventsCommand {
         } catch (EventProblem p) {
             Containers.replyEphemeral(event, Containers.WARNING, p.getMessage());
         }
+    }
+
+    @JDASlashCommand(name = "events", subcommand = "board", description = "See your bingo board")
+    public void onBoard(GuildSlashEvent event, @SlashOption(name = "event", description = "The event's number (your latest running bingo by default)") @Nullable Long eventId) {
+        long guildId = event.getGuild().getIdLong();
+        long userId = event.getUser().getIdLong();
+        Event target;
+        try {
+            target = eventId != null ? service.event(guildId, eventId) : repository.eventsForUser(guildId, userId, 30).stream()
+                    .filter(e -> BingoTemplate.KEY.equals(e.template()) && (e.status() == Status.RUNNING || e.status() == Status.SCORING)).findFirst().orElse(null);
+        } catch (EventProblem p) {
+            Containers.replyEphemeral(event, Containers.WARNING, p.getMessage());
+            return;
+        }
+        if (target == null) {
+            Containers.replyEphemeral(event, Containers.INFO, "You aren't in a running bingo. See `/events mine`.");
+            return;
+        }
+        if (!BingoTemplate.KEY.equals(target.template())) {
+            Containers.replyEphemeral(event, Containers.INFO, "That event doesn't have a board.");
+            return;
+        }
+        if (repository.participant(target.id(), userId).isEmpty()) {
+            Containers.replyEphemeral(event, Containers.INFO, "You aren't in **" + target.name() + "**.");
+            return;
+        }
+        event.deferReply(true).queue();
+        try {
+            DataObject config = DataObject.fromJson(target.config());
+            var tiles = panels.personalTiles(target, userId);
+            int done = (int) tiles.stream().filter(BingoBoardImage.TileView::done).count();
+            byte[] png = BingoBoardImage.render(target.name(), "Your board", BingoBoardView.boardSize(config), tiles,
+                    done + " of " + tiles.size() + " tiles done · submit proof with /events submit event:" + target.id());
+            event.getHook().sendFiles(FileUpload.fromData(png, "my-bingo-board.png")).queue();
+        } catch (IOException | RuntimeException e) {
+            event.getHook().sendMessage("I couldn't draw the board right now.").queue();
+        }
+    }
+
+    @JDASlashCommand(name = "events", subcommand = "submit", description = "Send a screenshot as proof for a tile or objective")
+    public void onSubmit(GuildSlashEvent event,
+                         @SlashOption(name = "event", description = "The event's number, from /events mine") long eventId,
+                         @SlashOption(description = "The tile's number on the board") long tile,
+                         @SlashOption(description = "A screenshot of the drop or the kill") Message.Attachment screenshot,
+                         @SlashOption(description = "Anything staff should know") @Nullable String note) {
+        long guildId = event.getGuild().getIdLong();
+        long userId = event.getUser().getIdLong();
+        Event target;
+        String key;
+        try {
+            target = service.event(guildId, eventId);
+            key = BingoBoardView.keyForNumber(DataObject.fromJson(target.config()), service.objectives(eventId), (int) tile);
+        } catch (EventProblem p) {
+            Containers.replyEphemeral(event, Containers.WARNING, p.getMessage());
+            return;
+        }
+        if (key == null) {
+            Containers.replyEphemeral(event, Containers.WARNING, "There's no tile " + tile + ". Use the number drawn on the tile.");
+            return;
+        }
+        EventSettings settings = EventSettings.parse(DataObject.fromJson(target.config()));
+        TextChannel review = settings.reviewChannelId() == null ? null : event.getGuild().getTextChannelById(settings.reviewChannelId());
+        if (review == null) {
+            Containers.replyEphemeral(event, Containers.INFO, "This event doesn't have a review channel yet, so screenshots can't be sent. Ask an organiser.");
+            return;
+        }
+        String type = screenshot.getContentType();
+        if (type == null || !type.startsWith("image/") || screenshot.getSize() > 8 * 1024 * 1024) {
+            Containers.replyEphemeral(event, Containers.WARNING, "Attach a screenshot (an image, up to 8 MB).");
+            return;
+        }
+        long claimId;
+        String label;
+        try {
+            label = service.objectives(eventId).stream().filter(o -> o.key().equals(key)).map(o -> o.label()).findFirst().orElse(key);
+            claimId = service.submitClaim(guildId, eventId, key, userId, 1, note == null ? "" : note, screenshot.getUrl());
+        } catch (EventProblem p) {
+            Containers.replyEphemeral(event, Containers.WARNING, p.getMessage());
+            return;
+        }
+        event.deferReply(true).queue();
+        String extra = note == null || note.isBlank() ? "" : "\n" + note.strip().replaceAll("[\\r\\n]+", " ");
+        String text = "**" + target.name() + " · submission #" + claimId + "** from " + event.getUser().getAsMention()
+                + "\nTile " + tile + ": " + label + extra + "\n-# Approve or deny it on the dashboard: Event manager, Progress and proof.";
+        screenshot.getProxy().download().thenCompose(stream -> review.sendMessage(text).setAllowedMentions(List.of())
+                        .addFiles(FileUpload.fromData(stream, screenshot.getFileName())).submit())
+                .whenComplete((message, error) -> {
+                    if (error != null) {
+                        repository.decideClaim(eventId, claimId, ClaimStatus.DENIED, event.getJDA().getSelfUser().getIdLong(), "Couldn't be sent to the review channel");
+                        event.getHook().editOriginal("I couldn't pass your screenshot to staff. Try again in a moment.").queue();
+                        return;
+                    }
+                    repository.setClaimProof(eventId, claimId, message.getJumpUrl());
+                    event.getHook().editOriginal("Sent to staff as submission #" + claimId + " for **" + label + "**. You'll get a DM when they decide.").queue();
+                });
     }
 
     private static String trim(String text) {

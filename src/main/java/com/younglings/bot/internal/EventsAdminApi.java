@@ -12,6 +12,7 @@ import com.younglings.bot.events.EventRules.ScoringMode;
 import com.younglings.bot.events.EventRules.Source;
 import com.younglings.bot.events.EventRules.Status;
 import com.younglings.bot.events.BingoTemplate;
+import com.younglings.bot.events.EventBoardPanels;
 import com.younglings.bot.events.EventBonuses;
 import com.younglings.bot.events.EventScoring.Standing;
 import com.younglings.bot.events.EventSignups;
@@ -60,13 +61,15 @@ public class EventsAdminApi implements AdminRouteExtension {
     private final EventTemplates templates;
     private final EventSignups signups;
     private final BingoTemplate bingo;
+    private final EventBoardPanels panels;
 
-    public EventsAdminApi(EventService service, EventRepository repository, EventTemplates templates, EventSignups signups, BingoTemplate bingo) {
+    public EventsAdminApi(EventService service, EventRepository repository, EventTemplates templates, EventSignups signups, BingoTemplate bingo, EventBoardPanels panels) {
         this.service = service;
         this.repository = repository;
         this.templates = templates;
         this.signups = signups;
         this.bingo = bingo;
+        this.panels = panels;
     }
 
     @Override
@@ -124,6 +127,11 @@ public class EventsAdminApi implements AdminRouteExtension {
                 case "bingo" -> {
                     AdminRouteExtension.requireMethod(method, "POST");
                     return rerollBingo(guild, actor, id, body.get());
+                }
+                case "board" -> {
+                    AdminRouteExtension.requireMethod(method, "POST");
+                    service.event(guild.getIdLong(), id);
+                    return DataObject.empty().put("message", panels.refresh(guild.getIdLong(), id));
                 }
                 case "signup" -> {
                     AdminRouteExtension.requireMethod(method, "POST");

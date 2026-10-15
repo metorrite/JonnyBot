@@ -16,14 +16,17 @@ import java.util.Locale;
  * {@code buyIn: {enabled, kind, amount, showPot}} (the buy-in is in-game gp unless a kind is given),
  * {@code teamPolicy: "everyone" | "home" | "clanVsOutsiders" | "separate"} (who may join and who may share a team),
  * {@code queue: "FIRST_COME" | "CLAN_FIRST"} (who gets a place when the event is full), and
- * {@code signupClosesAt}: an ISO date and time after which players can no longer join themselves (staff still can).
+ * {@code signupClosesAt}: an ISO date and time after which players can no longer join themselves (staff still can),
+ * {@code boardChannelId}: where a bingo's live board image is posted and kept up to date, and {@code reviewChannelId}: where players' screenshots
+ * go for staff to look at.
  * Pure, so it can be tested.
  */
-public record EventSettings(BuyIn buyIn, Policy teamPolicy, QueueRules.Policy queue, Instant signupClosesAt, Long signupChannelId, Long signupAdminChannelId) {
+public record EventSettings(BuyIn buyIn, Policy teamPolicy, QueueRules.Policy queue, Instant signupClosesAt, Long signupChannelId, Long signupAdminChannelId,
+                            Long boardChannelId, Long reviewChannelId) {
     public static final String DEFAULT_POLICY = "everyone";
 
     public static EventSettings defaults() {
-        return new EventSettings(new BuyIn(false, PrizeKind.IN_GAME, 0, false), TeamRules.everyoneTogether(), QueueRules.Policy.FIRST_COME, null, null, null);
+        return new EventSettings(new BuyIn(false, PrizeKind.IN_GAME, 0, false), TeamRules.everyoneTogether(), QueueRules.Policy.FIRST_COME, null, null, null, null, null);
     }
 
     /** Reads the settings, filling anything missing with the defaults. A value that can't be read is left at its default; {@link #problems} reports it. */
@@ -44,7 +47,8 @@ public record EventSettings(BuyIn buyIn, Policy teamPolicy, QueueRules.Policy qu
         } catch (DateTimeParseException | ClassCastException ignored) {
             // reported by problems()
         }
-        return new EventSettings(buyIn, policy == null ? d.teamPolicy() : policy, queue == null ? d.queue() : queue, closes, id(config, "signupChannelId"), id(config, "signupAdminChannelId"));
+        return new EventSettings(buyIn, policy == null ? d.teamPolicy() : policy, queue == null ? d.queue() : queue, closes, id(config, "signupChannelId"), id(config, "signupAdminChannelId"),
+                id(config, "boardChannelId"), id(config, "reviewChannelId"));
     }
 
     /** What is wrong with the settings in {@code config}, in words, or an empty list. */
@@ -64,7 +68,7 @@ public record EventSettings(BuyIn buyIn, Policy teamPolicy, QueueRules.Policy qu
         } catch (DateTimeParseException | ClassCastException e) {
             problems.add("The signup deadline has to be a date and time like 2026-10-20T19:00:00Z.");
         }
-        for (String key : new String[]{"signupChannelId", "signupAdminChannelId"}) {
+        for (String key : new String[]{"signupChannelId", "signupAdminChannelId", "boardChannelId", "reviewChannelId"}) {
             if (config.hasKey(key) && !config.isNull(key) && !config.getString(key, "").isBlank() && id(config, key) == null) problems.add("Choose a channel for the signup (the channel id looks wrong).");
         }
         boolean one = config.hasKey("signupChannelId") && id(config, "signupChannelId") != null;

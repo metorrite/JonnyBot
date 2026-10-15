@@ -204,6 +204,14 @@ public class EventRepository {
                     at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 );
                 """,
+                // the live board message the bot keeps up to date for an event
+                """
+                CREATE TABLE IF NOT EXISTS younglings.event_panel (
+                    event_id BIGINT PRIMARY KEY REFERENCES younglings.event (id) ON DELETE CASCADE,
+                    channel_id BIGINT NOT NULL,
+                    message_id BIGINT NOT NULL
+                );
+                """,
                 // where a player's tracked stat stood when a competition began (or when they joined it), so gains are counted from there
                 """
                 CREATE TABLE IF NOT EXISTS younglings.event_tracking_baseline (
@@ -358,6 +366,45 @@ public class EventRepository {
             return list;
         } catch (SQLException e) {
             throw new RuntimeException("Failed to read a player's events", e);
+        }
+    }
+
+    /** The message an event's live board is kept in. */
+    public record Panel(long channelId, long messageId) {}
+
+    public Optional<Panel> panel(long eventId) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("SELECT channel_id, message_id FROM younglings.event_panel WHERE event_id = ?")) {
+            s.setLong(1, eventId);
+            try (ResultSet rs = s.executeQuery()) {
+                return rs.next() ? Optional.of(new Panel(rs.getLong(1), rs.getLong(2))) : Optional.empty();
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read an event's board message", e);
+        }
+    }
+
+    public void setPanel(long eventId, long channelId, long messageId) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("""
+                INSERT INTO younglings.event_panel (event_id, channel_id, message_id) VALUES (?, ?, ?)
+                ON CONFLICT (event_id) DO UPDATE SET channel_id = EXCLUDED.channel_id, message_id = EXCLUDED.message_id""")) {
+            s.setLong(1, eventId);
+            s.setLong(2, channelId);
+            s.setLong(3, messageId);
+            s.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to save an event's board message", e);
+        }
+    }
+
+    /** Points a claim's proof at a different address (the review message, which outlives Discord's expiring attachment links). */
+    public void setClaimProof(long eventId, long claimId, String url) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("UPDATE younglings.event_claim SET proof_url = ? WHERE event_id = ? AND id = ?")) {
+            s.setString(1, url);
+            s.setLong(2, eventId);
+            s.setLong(3, claimId);
+            s.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to update a claim's proof", e);
         }
     }
 
