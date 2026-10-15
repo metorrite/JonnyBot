@@ -513,6 +513,26 @@ public class EventRepository {
         }
     }
 
+    /** The running events a player has joined, in every server, for feeding what the plugin reports into them. Waitlisted players are filtered later by the engine. */
+    public List<Event> runningEventsForUser(long userId) {
+        List<Event> list = new ArrayList<>();
+        String sql = """
+                SELECT e.* FROM younglings.event e
+                JOIN younglings.event_participant p ON p.event_id = e.id
+                WHERE p.user_id = ? AND e.status = 'RUNNING' AND NOT e.archived
+                ORDER BY e.id
+                """;
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
+            s.setLong(1, userId);
+            try (ResultSet rs = s.executeQuery()) {
+                while (rs.next()) list.add(mapEvent(rs));
+            }
+            return list;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read the player's running events", e);
+        }
+    }
+
     /** Where a player's tracked stat stood when the competition began for them. */
     public OptionalLong baseline(long eventId, long userId) {
         try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("SELECT baseline_xp FROM younglings.event_tracking_baseline WHERE event_id = ? AND user_id = ?")) {
