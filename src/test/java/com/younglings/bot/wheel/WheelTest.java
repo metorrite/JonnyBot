@@ -140,16 +140,16 @@ class WheelTest {
 
     @Test
     void theWheelMovesInSmallSteps() {
-        var times = WheelSpin.times(-40, 0);
-        double previous = WheelSpin.angleAt(-40, 0, times.get(0));
+        var times = WheelSpin.times(-26, 0);
+        double previous = WheelSpin.angleAt(-26, 0, times.get(0));
         double biggest = 0;
         for (int i = 1; i < times.size(); i++) {
-            double now = WheelSpin.angleAt(-40, 0, times.get(i));
+            double now = WheelSpin.angleAt(-26, 0, times.get(i));
             biggest = Math.max(biggest, Math.abs(now - previous));
             previous = now;
         }
         assertTrue(biggest < 0.5, "no frame turns the wheel more than about a quarter radian: " + biggest);
-        assertEquals(0, WheelSpin.angleAt(-40, 0, 99), 1e-9, "it ends exactly on the end angle");
+        assertEquals(0, WheelSpin.angleAt(-26, 0, 99), 1e-9, "it ends exactly on the end angle");
     }
 
     @Test

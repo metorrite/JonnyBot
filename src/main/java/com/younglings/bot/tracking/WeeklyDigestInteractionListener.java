@@ -47,7 +47,7 @@ public class WeeklyDigestInteractionListener extends ListenerAdapter {
     private static final String MODAL_PREFIX = "weekly_spin_modal:";
     private static final String COPY_PREFIX = "weekly_copy_names:";
     private static final String POST_PREFIX = "weekly_post_winner:";
-    private static final int REVEAL_AFTER_SECONDS = 8;
+    private static final int REVEAL_AFTER_SECONDS = 6;
     /** The wheel is drawn this many pixels across; a GIF that would be too big for Discord is redrawn smaller automatically. */
     static final int WHEEL_SIZE = 720;
 

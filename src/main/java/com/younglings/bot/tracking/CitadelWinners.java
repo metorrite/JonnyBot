@@ -5,6 +5,7 @@ import com.younglings.bot.wheel.WheelSpin;
 import com.younglings.bot.wheel.WheelWinnerRepository;
 import com.younglings.bot.wheel.WheelWinnerRepository.GifSource;
 import com.younglings.bot.wheel.WheelWinnerRepository.Method;
+import com.younglings.bot.wheel.WheelWinnerRepository.PrizeStatus;
 import com.younglings.bot.wheel.WheelWinnerRepository.Winner;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import org.slf4j.Logger;
@@ -24,9 +25,10 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
 /**
- * Locking in the Citadel wheel's winner for a week, so it can't change and can be announced again at any time. A locked week always has a wheel GIF
- * that lands on its winner: one the website drew and sent along, or, when none came, the bot draws its own in the background (the bot works without
- * the website). The week is never replaced; unlocking it is a separate, deliberate step.
+ * Locking in the Citadel wheel's winners for a week, so they can't change and can be announced again at any time. A week can have several winners
+ * (first place, second place, ...), locked one after the other. Every locked winner has a wheel GIF that lands on them: one the website drew and sent
+ * along, or, when none came, the bot draws its own in the background (the bot works without the website). A place is never replaced; unlocking the
+ * week is a separate, deliberate step, and not possible once a prize has been recorded as given.
  */
 @BService
 public class CitadelWinners {
@@ -34,6 +36,8 @@ public class CitadelWinners {
     private static final SecureRandom RANDOM = new SecureRandom();
     /** Discord's upload limit is about 10 MB; a picture bigger than this could never be attached. */
     public static final int MAX_GIF_BYTES = 9 * 1024 * 1024;
+    /** The most winners one week can have. */
+    public static final int MAX_WINNERS = 10;
 
     /** Why a week can't be locked (or unlocked), in words. */
     public static final class CannotLock extends RuntimeException {
@@ -73,8 +77,9 @@ public class CitadelWinners {
     }
 
     /**
-     * Locks {@code winner} as the week's winner. {@code entries} is the wheel they were picked from; a winner who isn't on it (a past week typed in by
-     * hand) is added. {@code gif} is a picture that lands on the winner and {@code gifSource} where it came from, or null to have the bot draw one.
+     * Locks {@code winner} as the next place of the week (first place for the first one). {@code entries} is the wheel they were picked from; a winner who
+     * isn't on it (a past week typed in by hand) is added. {@code gif} is a picture that lands on the winner and {@code gifSource} where it came from, or
+     * null to have the bot draw one. The same person can't win twice in one week.
      */
     public Winner lock(long guildId, LocalDate weekEnd, String winner, List<String> entries, Method method, Long lockedBy, byte[] gif, GifSource gifSource) {
         checkWeek(weekEnd, OffsetDateTime.now(ZoneOffset.UTC));
@@ -96,50 +101,67 @@ public class CitadelWinners {
             exact = name;
         }
         if (gif != null && (gif.length == 0 || gif.length > MAX_GIF_BYTES || !isGif(gif))) throw new CannotLock(400, "That picture isn't a GIF Discord can take (up to 9 MB).");
-        String token = newToken();
-        Winner row = new Winner(guildId, weekEnd, exact, slices, method, lockedBy, Instant.now(), gif != null, gif == null ? null : gifSource, token);
-        if (!repository.insert(row, gif)) {
-            Winner existing = repository.get(guildId, weekEnd).orElse(null);
-            throw new CannotLock(409, "This week is already locked" + (existing == null ? "." : " with " + existing.winner() + " as the winner. Unlock it first to change it."));
+
+        List<Winner> existing = repository.forWeek(guildId, weekEnd);
+        if (existing.size() >= MAX_WINNERS) throw new CannotLock(409, "A week can have up to " + MAX_WINNERS + " winners.");
+        for (Winner w : existing) {
+            if (w.winner().equalsIgnoreCase(exact)) throw new CannotLock(409, exact + " is already a winner this week (place " + w.place() + ").");
         }
-        log.info("Locked the Citadel wheel winner of guild {} for the week ending {} ({}).", guildId, weekEnd, method);
-        if (gif == null) drawBotGif(guildId, weekEnd);
-        return repository.get(guildId, weekEnd).orElse(row);
+        int place = repository.nextPlace(guildId, weekEnd);
+        Winner row = new Winner(guildId, weekEnd, place, exact, slices, method, lockedBy, Instant.now(), gif != null, gif == null ? null : gifSource, newToken(), WheelWinnerRepository.Prize.pending());
+        if (!repository.insert(row, gif)) throw new CannotLock(409, "Someone else locked a winner for this week at the same moment. Reload and check the week.");
+        log.info("Locked the Citadel wheel winner (place {}) of guild {} for the week ending {} ({}).", place, guildId, weekEnd, method);
+        if (gif == null) drawBotGif(guildId, weekEnd, place);
+        return repository.get(guildId, weekEnd, place).orElse(row);
     }
 
-    /** Takes the lock off a week (its winner and picture are removed). */
-    public void unlock(long guildId, LocalDate weekEnd) {
-        if (!repository.delete(guildId, weekEnd)) throw new CannotLock(404, "That week isn't locked.");
-        log.info("Unlocked the Citadel wheel winner of guild {} for the week ending {}.", guildId, weekEnd);
+    /**
+     * Takes the lock off a whole week (every winner and picture is removed). Refused when a prize has been recorded as given, because that money has
+     * already moved and the record of it must stay.
+     */
+    public void unlockWeek(long guildId, LocalDate weekEnd) {
+        List<Winner> rows = repository.forWeek(guildId, weekEnd);
+        if (rows.isEmpty()) throw new CannotLock(404, "That week isn't locked.");
+        for (Winner w : rows) {
+            if (w.prize().status() == PrizeStatus.GIVEN) throw new CannotLock(409, "A prize for " + w.winner() + " has been recorded as given, so this week can't be unlocked.");
+        }
+        repository.deleteWeek(guildId, weekEnd);
+        log.info("Unlocked the Citadel wheel winners of guild {} for the week ending {}.", guildId, weekEnd);
     }
 
-    public Optional<Winner> get(long guildId, LocalDate weekEnd) {
-        return repository.get(guildId, weekEnd);
+    public Optional<Winner> get(long guildId, LocalDate weekEnd, int place) {
+        return repository.get(guildId, weekEnd, place);
     }
 
+    /** A week's winners in order of place. */
+    public List<Winner> forWeek(long guildId, LocalDate weekEnd) {
+        return repository.forWeek(guildId, weekEnd);
+    }
+
+    /** Locked winners, newest week first. */
     public List<Winner> list(long guildId, int limit) {
         return repository.list(guildId, limit);
     }
 
-    public Optional<byte[]> gif(long guildId, LocalDate weekEnd) {
-        return repository.gif(guildId, weekEnd);
+    public Optional<byte[]> gif(long guildId, LocalDate weekEnd, int place) {
+        return repository.gif(guildId, weekEnd, place);
     }
 
     public Optional<byte[]> gifByToken(String token) {
         return token == null || !token.matches("[A-Za-z0-9_-]{20,64}") ? Optional.empty() : repository.gifByToken(token);
     }
 
-    /** Replaces a locked week's picture, for example with a better one the website drew. */
-    public void replaceGif(long guildId, LocalDate weekEnd, byte[] gif) {
+    /** Replaces a locked winner's picture, for example with a better one the website drew. */
+    public void replaceGif(long guildId, LocalDate weekEnd, int place, byte[] gif) {
         if (gif == null || gif.length == 0 || gif.length > MAX_GIF_BYTES || !isGif(gif)) throw new CannotLock(400, "That picture isn't a GIF Discord can take (up to 9 MB).");
-        if (!repository.setGif(guildId, weekEnd, gif, GifSource.WEBSITE, false)) throw new CannotLock(404, "That week isn't locked.");
+        if (!repository.setGif(guildId, weekEnd, place, gif, GifSource.WEBSITE, false)) throw new CannotLock(404, "That winner isn't locked.");
     }
 
-    /** Draws the bot's own wheel GIF for a week that has none, in the background, without ever replacing one that arrives first. */
-    void drawBotGif(long guildId, LocalDate weekEnd) {
+    /** Draws the bot's own wheel GIF for a winner that has none, in the background, without ever replacing one that arrives first. */
+    void drawBotGif(long guildId, LocalDate weekEnd, int place) {
         worker.execute(() -> {
             try {
-                Winner row = repository.get(guildId, weekEnd).orElse(null);
+                Winner row = repository.get(guildId, weekEnd, place).orElse(null);
                 if (row == null || row.hasGif()) return;
                 List<String> slices = WheelEntries.spread(row.entries());
                 int at = -1;
@@ -151,10 +173,10 @@ public class CitadelWinners {
                 }
                 if (at < 0) return;
                 byte[] gif = WheelSpin.spinTo(slices, at, WeeklyDigestInteractionListener.WHEEL_SIZE, RANDOM).gif();
-                repository.setGif(guildId, weekEnd, gif, GifSource.BOT, true);
-                log.info("Drew the bot's wheel GIF for the week ending {} in guild {}.", weekEnd, guildId);
+                repository.setGif(guildId, weekEnd, place, gif, GifSource.BOT, true);
+                log.info("Drew the bot's wheel GIF for place {} of the week ending {} in guild {}.", place, weekEnd, guildId);
             } catch (Exception e) {
-                log.error("Could not draw the wheel GIF for the week ending {} in guild {}", weekEnd, guildId, e);
+                log.error("Could not draw the wheel GIF for place {} of the week ending {} in guild {}", place, weekEnd, guildId, e);
             }
         });
     }

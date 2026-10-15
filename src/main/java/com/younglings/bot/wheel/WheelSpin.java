@@ -28,14 +28,14 @@ public final class WheelSpin {
 
     /** A GIF over this size won't upload to Discord (about 10 MB for most servers), so a bigger spin is redrawn smaller. */
     static final int GIF_LIMIT_BYTES = 9 * 1024 * 1024;
-    private static final int HOLD_MS = 8000;
-    private static final double TURNS = 4;
-    private static final double SPIN_SECONDS = 6;
+    private static final int HOLD_MS = 4000;
+    private static final double TURNS = 3;
+    private static final double SPIN_SECONDS = 4.5;
     /** The slow-down curve: the wheel starts fast and the speed falls away to nothing as it settles on the winner. */
     private static final double EASE_POWER = 2.4;
     /** The most the wheel may turn between two frames, so fast turning still reads as turning. */
-    private static final double MAX_STEP_RADIANS = 0.26;
-    private static final int MIN_FRAME_MS = 30;
+    private static final double MAX_STEP_RADIANS = 0.2;
+    private static final int MIN_FRAME_MS = 20;
     private static final int MAX_FRAME_MS = 110;
 
     private WheelSpin() {}

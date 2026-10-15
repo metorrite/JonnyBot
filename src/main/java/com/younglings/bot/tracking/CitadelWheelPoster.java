@@ -73,15 +73,58 @@ public class CitadelWheelPoster {
      * member), the week and the number of entries filled in. This is what is posted, and what the dashboard offers to copy.
      */
     public String messageFor(Guild guild, OffsetDateTime[] window, String winner, int entryCount) {
-        Long user = linkedUser(guild, winner);
-        return WheelMessage.render(settings.get(guild.getIdLong()).message(), winner, user == null ? null : "<@" + user + ">", weekLabel(window), entryCount);
+        return messageFor(guild, window, List.of(winner), entryCount);
     }
 
-    /** Posts a locked week's announcement with the picture saved for it, in the channel the server chose. */
+    /** As above for a week with several winners (in order of place): the message lists all of them. */
+    public String messageFor(Guild guild, OffsetDateTime[] window, List<String> winnerNames, int entryCount) {
+        List<String> mentions = new java.util.ArrayList<>();
+        for (String name : winnerNames) {
+            Long user = linkedUser(guild, name);
+            mentions.add(user == null ? null : "<@" + user + ">");
+        }
+        return WheelMessage.renderMany(settings.get(guild.getIdLong()).message(), winnerNames, mentions, weekLabel(window), entryCount);
+    }
+
+    private static String placeLabel(int place) {
+        return switch (place) {
+            case 1 -> "1st";
+            case 2 -> "2nd";
+            case 3 -> "3rd";
+            default -> place + "th";
+        };
+    }
+
+    /**
+     * Posts a locked week's announcement in the channel the server chose: the message with the first winner's saved picture, then, for a week with
+     * more winners, one short message each with their own picture.
+     */
     public GuildMessageChannel postLocked(Guild guild, LocalDate weekEnd) {
-        var row = winners.get(guild.getIdLong(), weekEnd).orElseThrow(() -> new CannotPost("That week isn't locked."));
-        byte[] gif = winners.gif(guild.getIdLong(), weekEnd).orElse(null);
-        return postWinner(guild, CitadelWeek.windowEndingOn(weekEnd), row.winner(), row.entries().size(), gif);
+        var rows = winners.forWeek(guild.getIdLong(), weekEnd);
+        if (rows.isEmpty()) throw new CannotPost("That week isn't locked.");
+        OffsetDateTime[] window = CitadelWeek.windowEndingOn(weekEnd);
+        GuildMessageChannel channel = channelFor(guild);
+        String text = messageFor(guild, window, rows.stream().map(WheelWinnerRepository.Winner::winner).toList(), rows.get(0).entries().size());
+        List<Long> everyone = new java.util.ArrayList<>();
+        for (var row : rows) {
+            Long user = linkedUser(guild, row.winner());
+            if (user != null) everyone.add(user);
+        }
+        sendWithGif(guild, channel, text, everyone, winners.gif(guild.getIdLong(), weekEnd, rows.get(0).place()).orElse(null));
+        for (int i = 1; i < rows.size(); i++) {
+            var row = rows.get(i);
+            Long user = linkedUser(guild, row.winner());
+            String caption = "**" + placeLabel(row.place()) + " place:** " + (user == null ? "**" + row.winner() + "**" : "<@" + user + ">");
+            sendWithGif(guild, channel, caption, user == null ? List.of() : List.of(user), winners.gif(guild.getIdLong(), weekEnd, row.place()).orElse(null));
+        }
+        return channel;
+    }
+
+    private void sendWithGif(Guild guild, GuildMessageChannel channel, String text, List<Long> usersToPing, byte[] gif) {
+        var action = channel.sendMessage(text).setAllowedMentions(List.of());
+        if (!usersToPing.isEmpty()) action = action.mentionUsers(usersToPing.stream().mapToLong(Long::longValue).toArray());
+        if (gif != null) action = action.addFiles(FileUpload.fromData(gif, "citadel-wheel.gif"));
+        action.queue(ok -> { }, error -> log.warn("Could not post the Citadel wheel winner in guild {}", guild.getIdLong(), error));
     }
 
     /** Posts the configured message with {@code gif}. Returns the channel it went to. */
@@ -121,7 +164,7 @@ public class CitadelWheelPoster {
                 return;
             }
             LocalDate weekEnd = window[1].withOffsetSameInstant(ZoneOffset.UTC).toLocalDate();
-            if (winners.get(guild.getIdLong(), weekEnd).isPresent()) {
+            if (!winners.forWeek(guild.getIdLong(), weekEnd).isEmpty()) {
                 log.info("Wheel auto-post for guild {} skipped: the week ending {} already has a locked winner.", guild.getIdLong(), weekEnd);
                 return;
             }

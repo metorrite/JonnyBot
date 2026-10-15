@@ -3,6 +3,8 @@ package com.younglings.bot.wheel;
 import com.younglings.bot.testsupport.LocalDatabase;
 import com.younglings.bot.wheel.WheelWinnerRepository.GifSource;
 import com.younglings.bot.wheel.WheelWinnerRepository.Method;
+import com.younglings.bot.wheel.WheelWinnerRepository.Prize;
+import com.younglings.bot.wheel.WheelWinnerRepository.PrizeStatus;
 import com.younglings.bot.wheel.WheelWinnerRepository.Winner;
 import io.github.freya022.botcommands.api.core.db.ConnectionSupplier;
 import org.junit.jupiter.api.AfterEach;
@@ -47,52 +49,90 @@ class WheelWinnerRepositoryDatabaseTest {
         }
     }
 
-    private static Winner winner(LocalDate end, String name, String token, boolean gif) {
-        return new Winner(GUILD, end, name, List.of("Axley", "Giff", "Giff"), Method.SPUN, 5L, Instant.now(), gif, gif ? GifSource.WEBSITE : null, token);
+    private static Winner winner(LocalDate end, int place, String name, String token, boolean gif) {
+        return new Winner(GUILD, end, place, name, List.of("Axley", "Giff", "Giff"), Method.SPUN, 5L, Instant.now(), gif, gif ? GifSource.WEBSITE : null, token, Prize.pending());
     }
 
     @Test
-    void aLockedWeekComesBackWithItsEntriesAndPictureOnlyWhenAsked() {
+    void aLockedWinnerComesBackWithItsEntriesPlaceAndPictureOnlyWhenAsked() {
         byte[] gif = "GIF89a-fake-picture".getBytes();
-        assertTrue(repository.insert(winner(WEEK, "Giff", "token-one-aaaaaaaaaaaaaaaaaaaaaaaaaa", true), gif));
-        Winner read = repository.get(GUILD, WEEK).orElseThrow();
+        assertTrue(repository.insert(winner(WEEK, 1, "Giff", "token-one-aaaaaaaaaaaaaaaaaaaaaaaaaa", true), gif));
+        Winner read = repository.get(GUILD, WEEK, 1).orElseThrow();
         assertEquals("Giff", read.winner());
+        assertEquals(1, read.place());
         assertEquals(List.of("Axley", "Giff", "Giff"), read.entries());
         assertEquals(Method.SPUN, read.method());
         assertEquals(5L, read.lockedBy());
         assertTrue(read.hasGif());
         assertEquals(GifSource.WEBSITE, read.gifSource());
-        assertArrayEquals(gif, repository.gif(GUILD, WEEK).orElseThrow());
+        assertEquals(PrizeStatus.PENDING, read.prize().status());
+        assertArrayEquals(gif, repository.gif(GUILD, WEEK, 1).orElseThrow());
         assertArrayEquals(gif, repository.gifByToken("token-one-aaaaaaaaaaaaaaaaaaaaaaaaaa").orElseThrow());
     }
 
     @Test
-    void aWeekIsNeverReplacedAndCanBeUnlocked() {
-        assertTrue(repository.insert(winner(WEEK, "Giff", "token-two-aaaaaaaaaaaaaaaaaaaaaaaaaa", false), null));
-        assertFalse(repository.insert(winner(WEEK, "Axley", "token-three-aaaaaaaaaaaaaaaaaaaaaaaaa", false), null));
-        assertEquals("Giff", repository.get(GUILD, WEEK).orElseThrow().winner());
-        assertTrue(repository.delete(GUILD, WEEK));
-        assertFalse(repository.delete(GUILD, WEEK));
-        assertTrue(repository.get(GUILD, WEEK).isEmpty());
+    void aWeekCanHaveSeveralWinnersInOrderOfPlace() {
+        assertEquals(1, repository.nextPlace(GUILD, WEEK));
+        assertTrue(repository.insert(winner(WEEK, 1, "Giff", "token-two-aaaaaaaaaaaaaaaaaaaaaaaaaa", false), null));
+        assertEquals(2, repository.nextPlace(GUILD, WEEK));
+        assertTrue(repository.insert(winner(WEEK, 2, "Axley", "token-three-aaaaaaaaaaaaaaaaaaaaaaaaa", false), null));
+        assertEquals(List.of("Giff", "Axley"), repository.forWeek(GUILD, WEEK).stream().map(Winner::winner).toList());
+        assertEquals(3, repository.nextPlace(GUILD, WEEK));
+    }
+
+    @Test
+    void aPlaceIsNeverReplacedAndAWeekCanBeUnlockedAsAWhole() {
+        assertTrue(repository.insert(winner(WEEK, 1, "Giff", "token-four-aaaaaaaaaaaaaaaaaaaaaaaaa", false), null));
+        assertTrue(repository.insert(winner(WEEK, 2, "Axley", "token-five-aaaaaaaaaaaaaaaaaaaaaaaaa", false), null));
+        assertFalse(repository.insert(winner(WEEK, 1, "Someone", "token-six-aaaaaaaaaaaaaaaaaaaaaaaaaaa", false), null));
+        assertEquals("Giff", repository.get(GUILD, WEEK, 1).orElseThrow().winner());
+        assertEquals(2, repository.deleteWeek(GUILD, WEEK));
+        assertEquals(0, repository.deleteWeek(GUILD, WEEK));
+        assertTrue(repository.forWeek(GUILD, WEEK).isEmpty());
     }
 
     @Test
     void aMissingPictureCanBeFilledInButALateOneNeverReplacesTheFirst() {
-        repository.insert(winner(WEEK, "Giff", "token-four-aaaaaaaaaaaaaaaaaaaaaaaaa", false), null);
-        assertFalse(repository.get(GUILD, WEEK).orElseThrow().hasGif());
-        assertNull(repository.get(GUILD, WEEK).orElseThrow().gifSource());
-        assertTrue(repository.setGif(GUILD, WEEK, "first".getBytes(), GifSource.BOT, true));
-        assertFalse(repository.setGif(GUILD, WEEK, "late".getBytes(), GifSource.BOT, true), "kept the first");
-        assertArrayEquals("first".getBytes(), repository.gif(GUILD, WEEK).orElseThrow());
-        assertTrue(repository.setGif(GUILD, WEEK, "better".getBytes(), GifSource.WEBSITE, false), "an explicit replacement wins");
-        assertEquals(GifSource.WEBSITE, repository.get(GUILD, WEEK).orElseThrow().gifSource());
+        repository.insert(winner(WEEK, 1, "Giff", "token-seven-aaaaaaaaaaaaaaaaaaaaaaaaa", false), null);
+        assertFalse(repository.get(GUILD, WEEK, 1).orElseThrow().hasGif());
+        assertNull(repository.get(GUILD, WEEK, 1).orElseThrow().gifSource());
+        assertTrue(repository.setGif(GUILD, WEEK, 1, "first".getBytes(), GifSource.BOT, true));
+        assertFalse(repository.setGif(GUILD, WEEK, 1, "late".getBytes(), GifSource.BOT, true), "kept the first");
+        assertArrayEquals("first".getBytes(), repository.gif(GUILD, WEEK, 1).orElseThrow());
+        assertTrue(repository.setGif(GUILD, WEEK, 1, "better".getBytes(), GifSource.WEBSITE, false), "an explicit replacement wins");
+        assertEquals(GifSource.WEBSITE, repository.get(GUILD, WEEK, 1).orElseThrow().gifSource());
     }
 
     @Test
-    void theListIsNewestFirstAndLimited() {
-        repository.insert(winner(LocalDate.parse("2026-09-30"), "Old", "token-five-aaaaaaaaaaaaaaaaaaaaaaaaa", false), null);
-        repository.insert(winner(WEEK, "New", "token-six-aaaaaaaaaaaaaaaaaaaaaaaaaaa", false), null);
-        assertEquals(List.of("New", "Old"), repository.list(GUILD, 10).stream().map(Winner::winner).toList());
+    void aPrizeIsRecordedOnceWithWhoPaidAndCanBeClearedAgain() {
+        repository.insert(winner(WEEK, 1, "Giff", "token-eight-aaaaaaaaaaaaaaaaaaaaaaaaa", false), null);
+        Prize given = new Prize(PrizeStatus.GIVEN, 5_000_000L, 55L, 700L, 9L, Instant.parse("2026-10-15T12:00:00Z"), "Well played", true);
+        assertTrue(repository.setPrize(GUILD, WEEK, 1, given, true));
+        assertFalse(repository.setPrize(GUILD, WEEK, 1, given, true), "recording again while it is already given is refused");
+        Prize read = repository.get(GUILD, WEEK, 1).orElseThrow().prize();
+        assertEquals(PrizeStatus.GIVEN, read.status());
+        assertEquals(5_000_000L, read.amount());
+        assertEquals(55L, read.paidBy());
+        assertEquals(700L, read.recipient());
+        assertEquals(9L, read.givenBy());
+        assertEquals("Well played", read.note());
+        assertEquals(Instant.parse("2026-10-15T12:00:00Z"), read.givenAt());
+        assertTrue(read.inCoffer());
+
+        assertTrue(repository.setPrize(GUILD, WEEK, 1, Prize.pending(), false));
+        Prize cleared = repository.get(GUILD, WEEK, 1).orElseThrow().prize();
+        assertEquals(PrizeStatus.PENDING, cleared.status());
+        assertNull(cleared.amount());
+        assertNull(cleared.paidBy());
+        assertFalse(cleared.inCoffer());
+    }
+
+    @Test
+    void theListIsNewestWeekFirstAndByPlaceWithinAWeek() {
+        repository.insert(winner(LocalDate.parse("2026-09-30"), 1, "Old", "token-nine-aaaaaaaaaaaaaaaaaaaaaaaaaa", false), null);
+        repository.insert(winner(WEEK, 2, "Second", "token-ten-aaaaaaaaaaaaaaaaaaaaaaaaaaa", false), null);
+        repository.insert(winner(WEEK, 1, "First", "token-eleven-aaaaaaaaaaaaaaaaaaaaaaaa", false), null);
+        assertEquals(List.of("First", "Second", "Old"), repository.list(GUILD, 10).stream().map(Winner::winner).toList());
         assertEquals(1, repository.list(GUILD, 1).size());
     }
 }

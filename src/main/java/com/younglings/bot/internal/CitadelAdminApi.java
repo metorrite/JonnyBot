@@ -4,7 +4,10 @@ import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.tracking.CitadelWeek;
 import com.younglings.bot.tracking.CitadelWheelEntries;
 import com.younglings.bot.tracking.CitadelWheelPoster;
+import com.younglings.bot.tracking.CitadelPrizes;
 import com.younglings.bot.tracking.CitadelWinners;
+import com.younglings.bot.wheel.WheelWinnerRepository.Prize;
+import com.younglings.bot.wheel.WheelWinnerRepository.PrizeStatus;
 import com.younglings.bot.wheel.WheelWinnerRepository.GifSource;
 import com.younglings.bot.wheel.WheelWinnerRepository.Method;
 import com.younglings.bot.wheel.WheelWinnerRepository.Winner;
@@ -41,8 +44,10 @@ import java.util.function.Supplier;
  *   <li>{@code GET|PUT citadel/wheel}: the settings for announcing a winner: auto-post on or off, the channel and the message.</li>
  *   <li>{@code POST citadel/post}: announce a winner the dashboard's wheel picked, with a GIF that stops on them.</li>
  *   <li>{@code GET citadel/winners[/date]}, {@code POST citadel/lock}, {@code POST citadel/unlock}, {@code POST citadel/gif} and
- *   {@code POST citadel/winners/date/post}: locking in a week's winner with the wheel GIF that goes with them, getting it back at any time with the
- *   announcement text ready to copy, and posting it.</li>
+ *   {@code POST citadel/winners/date/post}: locking in a week's winners (one or several, each with the wheel GIF that goes with them), getting them
+ *   back at any time with the announcement text ready to copy, and posting it.</li>
+ *   <li>{@code GET citadel/prize/holders}, {@code POST citadel/prize} and {@code POST citadel/prize/coffer}: whether each winner has been given their prize,
+ *   and recording it in the clan coffer.</li>
  * </ul>
  * Reached only through {@link TicketAdminApi}, which has already checked the asker may use the dashboard in this server.
  */
@@ -55,13 +60,15 @@ public class CitadelAdminApi implements AdminRouteExtension {
     private final WheelSettingsRepository settings;
     private final CitadelWheelPoster poster;
     private final CitadelWinners winners;
+    private final CitadelPrizes prizes;
     private Executor worker = Executors.newFixedThreadPool(1, runnable -> {
         Thread thread = new Thread(runnable, "citadel-wheel-post");
         thread.setDaemon(true);
         return thread;
     });
 
-    public CitadelAdminApi(CitadelWheelEntries entries, WheelSettingsRepository settings, CitadelWheelPoster poster, CitadelWinners winners) {
+    public CitadelAdminApi(CitadelWheelEntries entries, WheelSettingsRepository settings, CitadelWheelPoster poster, CitadelWinners winners, CitadelPrizes prizes) {
+        this.prizes = prizes;
         this.winners = winners;
         this.entries = entries;
         this.settings = settings;
@@ -97,7 +104,23 @@ public class CitadelAdminApi implements AdminRouteExtension {
                     return postLocked(guild, actor, end);
                 }
                 AdminRouteExtension.requireMethod(method, "GET");
-                return winnerJson(guild, winners.get(guild.getIdLong(), end).orElseThrow(() -> new ApiError(404, "That week hasn't been locked.")), true);
+                if (winners.forWeek(guild.getIdLong(), end).isEmpty()) throw new ApiError(404, "That week hasn't been locked.");
+                return weekJson(guild, end, true);
+            }
+            case "prize" -> {
+                if (parts.length == 3 && parts[2].equals("holders")) {
+                    AdminRouteExtension.requireMethod(method, "GET");
+                    return holders(guild);
+                }
+                if (parts.length == 2) {
+                    AdminRouteExtension.requireMethod(method, "POST");
+                    return prize(guild, actor, body.get());
+                }
+                if (parts.length == 3 && parts[2].equals("coffer")) {
+                    AdminRouteExtension.requireMethod(method, "POST");
+                    return prizeInCoffer(guild, actor, body.get());
+                }
+                return null;
             }
             case "lock" -> {
                 if (parts.length != 2) return null;
@@ -108,8 +131,8 @@ public class CitadelAdminApi implements AdminRouteExtension {
                 if (parts.length != 2) return null;
                 AdminRouteExtension.requireMethod(method, "POST");
                 LocalDate end = weekEndOf(body.get().getString("end", ""));
-                winners.unlock(guild.getIdLong(), end);
-                log.info("Dashboard: {} unlocked the Citadel wheel winner for the week ending {}", actor.getId(), end);
+                winners.unlockWeek(guild.getIdLong(), end);
+                log.info("Dashboard: {} unlocked the Citadel wheel winners for the week ending {}", actor.getId(), end);
                 return winnerList(guild);
             }
             case "gif" -> {
@@ -117,8 +140,8 @@ public class CitadelAdminApi implements AdminRouteExtension {
                 AdminRouteExtension.requireMethod(method, "POST");
                 DataObject b = body.get();
                 LocalDate end = weekEndOf(b.getString("end", ""));
-                winners.replaceGif(guild.getIdLong(), end, decode(b.getString("gif", "")));
-                return winnerJson(guild, winners.get(guild.getIdLong(), end).orElseThrow(() -> new ApiError(404, "That week hasn't been locked.")), true);
+                winners.replaceGif(guild.getIdLong(), end, b.getInt("place", 1), decode(b.getString("gif", "")));
+                return weekJson(guild, end, true);
             }
             default -> { }
         }
@@ -160,8 +183,8 @@ public class CitadelAdminApi implements AdminRouteExtension {
             if (window[1].isAfter(now.plusDays(7))) throw new ApiError(400, "That week hasn't happened yet.");
         }
         var eligible = entries.forWeek(guild, window[0], window[1]);
-        Map<LocalDate, Winner> locked = new HashMap<>();
-        winners.list(guild.getIdLong(), 100).forEach(w -> locked.put(w.weekEnd(), w));
+        Map<LocalDate, List<Winner>> locked = new HashMap<>();
+        winners.list(guild.getIdLong(), 300).forEach(w -> locked.computeIfAbsent(w.weekEnd(), k -> new ArrayList<>()).add(w));
         DataArray names = DataArray.empty();
         eligible.names().forEach(names::add);
         DataArray leftOut = DataArray.empty();
@@ -177,11 +200,13 @@ public class CitadelAdminApi implements AdminRouteExtension {
         OffsetDateTime[] latest = CitadelWeek.lastCompleted(now);
         for (int i = 0; i < WEEKS_LISTED; i++) {
             LocalDate end = latest[1].toLocalDate().minusWeeks(i);
-            Winner w = locked.get(end);
-            weeks.add(DataObject.empty().put("end", end.toString()).put("start", end.minusDays(7).toString()).put("winner", w == null ? null : w.winner()));
+            DataArray names2 = DataArray.empty();
+            locked.getOrDefault(end, List.of()).forEach(w -> names2.add(w.winner()));
+            weeks.add(DataObject.empty().put("end", end.toString()).put("start", end.minusDays(7).toString()).put("winners", names2));
         }
-        Winner thisWeek = locked.get(window[1].withOffsetSameInstant(ZoneOffset.UTC).toLocalDate());
-        return DataObject.empty().put("winner", thisWeek == null ? null : winnerJson(guild, thisWeek, true)).put("end", window[1].toLocalDate().toString()).put("start", window[0].toLocalDate().toString())
+        LocalDate thisEnd = window[1].withOffsetSameInstant(ZoneOffset.UTC).toLocalDate();
+        DataObject lockedWeek = locked.containsKey(thisEnd) ? weekJson(guild, thisEnd, true) : null;
+        return DataObject.empty().put("locked", lockedWeek).put("end", window[1].toLocalDate().toString()).put("start", window[0].toLocalDate().toString())
                 .put("from", window[0].toString()).put("to", window[1].toString()).put("cappers", names).put("leftOut", leftOut).put("merged", merged).put("weeks", weeks);
     }
 
@@ -251,15 +276,9 @@ public class CitadelAdminApi implements AdminRouteExtension {
             throw new ApiError(409, e.getMessage());
         }
         LocalDate weekEnd = window[1].withOffsetSameInstant(ZoneOffset.UTC).toLocalDate();
-        Winner lockedWinner = winners.get(guild.getIdLong(), weekEnd).orElse(null);
-        if (lockedWinner != null && !lockedWinner.winner().equalsIgnoreCase(winner)) throw new ApiError(409, "This week is locked with " + lockedWinner.winner() + " as the winner.");
+        if (!winners.forWeek(guild.getIdLong(), weekEnd).isEmpty()) throw new ApiError(409, "This week is locked. Post it from the locked winners.");
         worker.execute(() -> {
             try {
-                if (lockedWinner != null && lockedWinner.hasGif()) {
-                    poster.postLocked(guild, weekEnd);
-                    log.info("Dashboard: {} announced the locked Citadel wheel winner {}", actor.getId(), winner);
-                    return;
-                }
                 poster.postFromDashboard(guild, window, winner, drawn);
                 log.info("Dashboard: {} announced the Citadel wheel winner {}", actor.getId(), winner);
             } catch (Exception e) {
@@ -287,27 +306,56 @@ public class CitadelAdminApi implements AdminRouteExtension {
         }
     }
 
-    /** One locked week. {@code withMessage} adds the announcement text, ready to copy (it looks the winner up, so a list leaves it out). */
-    private DataObject winnerJson(Guild guild, Winner w, boolean withMessage) {
-        OffsetDateTime[] window = CitadelWeek.windowEndingOn(w.weekEnd());
+    private static String nameOf(Guild guild, Long userId) {
+        if (userId == null) return null;
+        Member member = guild.getMemberById(userId);
+        return member == null ? null : member.getEffectiveName();
+    }
+
+    private static String idText(Long id) {
+        return id == null ? null : Long.toString(id);
+    }
+
+    /** One locked winner with their prize. */
+    private DataObject winnerJson(Guild guild, Winner w, Long linked) {
         DataArray entryNames = DataArray.empty();
         w.entries().forEach(entryNames::add);
-        Member by = w.lockedBy() == null ? null : guild.getMemberById(w.lockedBy());
-        DataObject json = DataObject.empty().put("end", w.weekEnd().toString()).put("start", w.weekEnd().minusDays(7).toString()).put("winner", w.winner())
-                .put("method", w.method().name()).put("lockedAt", w.lockedAt().toString()).put("lockedBy", w.lockedBy() == null ? null : Long.toString(w.lockedBy()))
-                .put("lockedByName", by == null ? null : by.getEffectiveName()).put("entries", entryNames).put("entryCount", w.entries().size())
-                .put("hasGif", w.hasGif()).put("gifSource", w.gifSource() == null ? null : w.gifSource().name()).put("gifToken", w.gifToken());
-        if (withMessage) json.put("message", poster.messageFor(guild, window, w.winner(), w.entries().size()));
+        Prize prize = w.prize();
+        DataObject prizeJson = DataObject.empty().put("status", prize.status().name()).put("amount", prize.amount()).put("paidBy", idText(prize.paidBy()))
+                .put("paidByName", nameOf(guild, prize.paidBy())).put("recipient", idText(prize.recipient())).put("recipientName", nameOf(guild, prize.recipient()))
+                .put("givenBy", idText(prize.givenBy())).put("givenByName", nameOf(guild, prize.givenBy())).put("givenAt", prize.givenAt() == null ? null : prize.givenAt().toString())
+                .put("note", prize.note()).put("inCoffer", prize.inCoffer());
+        return DataObject.empty().put("end", w.weekEnd().toString()).put("start", w.weekEnd().minusDays(7).toString()).put("place", w.place()).put("winner", w.winner())
+                .put("method", w.method().name()).put("lockedAt", w.lockedAt().toString()).put("lockedBy", idText(w.lockedBy())).put("lockedByName", nameOf(guild, w.lockedBy()))
+                .put("entries", entryNames).put("entryCount", w.entries().size()).put("hasGif", w.hasGif()).put("gifSource", w.gifSource() == null ? null : w.gifSource().name())
+                .put("gifToken", w.gifToken()).put("prize", prizeJson).put("linkedUser", idText(linked)).put("linkedUserName", nameOf(guild, linked));
+    }
+
+    /** One locked week: its winners in order of place, and (when asked) the announcement text ready to copy. */
+    private DataObject weekJson(Guild guild, LocalDate end, boolean withMessage) {
+        List<Winner> rows = winners.forWeek(guild.getIdLong(), end);
+        DataArray array = DataArray.empty();
+        for (Winner w : rows) array.add(winnerJson(guild, w, prizes.linkedUser(guild, w.winner())));
+        DataObject json = DataObject.empty().put("end", end.toString()).put("start", end.minusDays(7).toString()).put("winners", array);
+        if (withMessage && !rows.isEmpty()) {
+            json.put("message", poster.messageFor(guild, CitadelWeek.windowEndingOn(end), rows.stream().map(Winner::winner).toList(), rows.get(0).entries().size()));
+        }
         return json;
     }
 
     private DataObject winnerList(Guild guild) {
-        DataArray list = DataArray.empty();
-        winners.list(guild.getIdLong(), 100).forEach(w -> list.add(winnerJson(guild, w, false)));
-        return DataObject.empty().put("winners", list);
+        Map<LocalDate, List<Winner>> byWeek = new java.util.LinkedHashMap<>();
+        winners.list(guild.getIdLong(), 300).forEach(w -> byWeek.computeIfAbsent(w.weekEnd(), k -> new ArrayList<>()).add(w));
+        DataArray weeks = DataArray.empty();
+        for (var entry : byWeek.entrySet()) {
+            DataArray array = DataArray.empty();
+            for (Winner w : entry.getValue()) array.add(winnerJson(guild, w, prizes.linkedUser(guild, w.winner())));
+            weeks.add(DataObject.empty().put("end", entry.getKey().toString()).put("start", entry.getKey().minusDays(7).toString()).put("winners", array));
+        }
+        return DataObject.empty().put("weeks", weeks);
     }
 
-    /** {@code {end, winner, entries[], manual, gif (base64, optional)}}: locks the week's winner. Without a picture the bot draws its own. */
+    /** {@code {end, winner, entries[], manual, gif (base64, optional)}}: locks the next place of the week. Without a picture the bot draws its own. */
     private DataObject lock(Guild guild, Member actor, DataObject body) {
         LocalDate end = weekEndOf(body.getString("end", ""));
         String winner = body.getString("winner", "");
@@ -319,12 +367,12 @@ public class CitadelAdminApi implements AdminRouteExtension {
         byte[] gif = body.hasKey("gif") && !body.isNull("gif") && !body.getString("gif", "").isBlank() ? decode(body.getString("gif")) : null;
         Method method = body.getBoolean("manual", false) ? Method.MANUAL : Method.SPUN;
         Winner locked = winners.lock(guild.getIdLong(), end, winner, slices, method, actor.getIdLong(), gif, GifSource.WEBSITE);
-        log.info("Dashboard: {} locked {} as the Citadel wheel winner for the week ending {} ({}, {})", actor.getId(), locked.winner(), end, method, gif == null ? "bot picture" : "website picture");
-        return winnerJson(guild, locked, true);
+        log.info("Dashboard: {} locked {} as place {} of the Citadel wheel for the week ending {} ({}, {})", actor.getId(), locked.winner(), locked.place(), end, method, gif == null ? "bot picture" : "website picture");
+        return weekJson(guild, end, true);
     }
 
     private DataObject postLocked(Guild guild, Member actor, LocalDate end) {
-        winners.get(guild.getIdLong(), end).orElseThrow(() -> new ApiError(404, "That week hasn't been locked."));
+        if (winners.forWeek(guild.getIdLong(), end).isEmpty()) throw new ApiError(404, "That week hasn't been locked.");
         GuildMessageChannel channel;
         try {
             channel = poster.channelFor(guild);
@@ -334,11 +382,69 @@ public class CitadelAdminApi implements AdminRouteExtension {
         worker.execute(() -> {
             try {
                 poster.postLocked(guild, end);
-                log.info("Dashboard: {} announced the locked Citadel wheel winner for the week ending {}", actor.getId(), end);
+                log.info("Dashboard: {} announced the locked Citadel wheel winners for the week ending {}", actor.getId(), end);
             } catch (Exception e) {
-                log.error("Could not announce the locked Citadel wheel winner", e);
+                log.error("Could not announce the locked Citadel wheel winners", e);
             }
         });
         return DataObject.empty().put("queued", true).put("channel", channel.getName());
+    }
+
+    // ---------- prizes ----------
+
+    /** Who holds gp in the clan coffer (and how much), for choosing who paid a prize. */
+    private DataObject holders(Guild guild) {
+        DataArray array = DataArray.empty();
+        prizes.holders(guild.getIdLong()).forEach(h -> array.add(DataObject.empty().put("userId", Long.toString(h.discordUserId()))
+                .put("name", nameOf(guild, h.discordUserId())).put("balance", h.amount())));
+        return DataObject.empty().put("holders", array);
+    }
+
+    private static int placeOf(DataObject body) {
+        int place = body.getInt("place", 1);
+        if (place < 1 || place > CitadelWinners.MAX_WINNERS) throw new ApiError(400, "That isn't a place on the wheel.");
+        return place;
+    }
+
+    private static Long optionalId(DataObject body, String key) {
+        if (!body.hasKey(key) || body.isNull(key)) return null;
+        String raw = body.getString(key, "").strip();
+        if (raw.isEmpty()) return null;
+        if (!raw.matches("\\d{1,20}")) throw new ApiError(400, "That isn't a Discord user.");
+        return Long.parseLong(raw);
+    }
+
+    /** {@code {end, place, action: "given" | "pending", amount?, note?}}: marks a prize handed over (without the coffer) or puts it back to not given. */
+    private DataObject prize(Guild guild, Member actor, DataObject body) {
+        LocalDate end = weekEndOf(body.getString("end", ""));
+        int place = placeOf(body);
+        String action = body.getString("action", "");
+        if (action.equals("given")) {
+            Long amount = null;
+            if (body.hasKey("amount") && !body.isNull("amount") && !body.getString("amount", "").isBlank()) {
+                try {
+                    amount = com.younglings.bot.commands.coffer.GpAmountParser.parse(body.getString("amount"));
+                } catch (IllegalArgumentException e) {
+                    throw new ApiError(400, e.getMessage());
+                }
+            }
+            prizes.markGiven(guild.getIdLong(), end, place, amount, body.getString("note", ""), actor.getIdLong());
+        } else if (action.equals("pending")) {
+            prizes.markPending(guild.getIdLong(), end, place);
+        } else {
+            throw new ApiError(400, "Say whether the prize was given or not.");
+        }
+        return weekJson(guild, end, false);
+    }
+
+    /** {@code {end, place, amount, paidBy, recipient?, note?}}: records the prize in the clan coffer as a giveaway from the person who paid it. */
+    private DataObject prizeInCoffer(Guild guild, Member actor, DataObject body) {
+        LocalDate end = weekEndOf(body.getString("end", ""));
+        int place = placeOf(body);
+        Long paidBy = optionalId(body, "paidBy");
+        if (paidBy == null) throw new ApiError(400, "Choose who paid the prize.");
+        prizes.recordInCoffer(guild, end, place, body.getString("amount", ""), paidBy, optionalId(body, "recipient"), body.getString("note", ""), actor.getIdLong());
+        log.info("Dashboard: {} recorded the Citadel wheel prize for place {} of the week ending {} in the coffer", actor.getId(), place, end);
+        return weekJson(guild, end, false);
     }
 }

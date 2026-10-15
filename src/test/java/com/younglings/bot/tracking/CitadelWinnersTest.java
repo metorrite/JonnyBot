@@ -3,11 +3,14 @@ package com.younglings.bot.tracking;
 import com.younglings.bot.wheel.WheelWinnerRepository;
 import com.younglings.bot.wheel.WheelWinnerRepository.GifSource;
 import com.younglings.bot.wheel.WheelWinnerRepository.Method;
+import com.younglings.bot.wheel.WheelWinnerRepository.Prize;
+import com.younglings.bot.wheel.WheelWinnerRepository.PrizeStatus;
 import com.younglings.bot.wheel.WheelWinnerRepository.Winner;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -18,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -39,11 +43,14 @@ class CitadelWinnersTest {
         winners = new CitadelWinners(repository);
         winners.useExecutor(Runnable::run);
         when(repository.insert(any(), any())).thenReturn(true);
-        when(repository.get(anyLong(), any())).thenAnswer(i -> Optional.empty());
+        when(repository.forWeek(anyLong(), any())).thenReturn(List.of());
+        when(repository.nextPlace(anyLong(), any())).thenReturn(1);
+        when(repository.get(anyLong(), any(), anyInt())).thenAnswer(i -> Optional.empty());
     }
 
-    private Winner row(String name, boolean hasGif) {
-        return new Winner(GUILD, WEEK, name, List.of("Axley", "Giff"), Method.SPUN, 1L, java.time.Instant.now(), hasGif, hasGif ? GifSource.WEBSITE : null, "token");
+    private Winner row(int place, String name, boolean hasGif, PrizeStatus prize) {
+        return new Winner(GUILD, WEEK, place, name, List.of("Axley", "Giff"), Method.SPUN, 1L, Instant.now(), hasGif, hasGif ? GifSource.WEBSITE : null, "token" + place,
+                new Prize(prize, null, null, null, null, null, null, false));
     }
 
     private CitadelWinners.CannotLock refused(Runnable action) {
@@ -51,14 +58,40 @@ class CitadelWinnersTest {
     }
 
     @Test
-    void aWinnerIsLockedWithTheWebsitesPictureAndAnUnguessableToken() {
+    void aWinnerIsLockedAsFirstPlaceWithTheWebsitesPictureAndAnUnguessableToken() {
         winners.lock(GUILD, WEEK, "  Giff ", List.of("Axley", "Giff", "Giff"), Method.SPUN, 1L, GIF, GifSource.WEBSITE);
         ArgumentCaptor<Winner> saved = ArgumentCaptor.forClass(Winner.class);
         verify(repository).insert(saved.capture(), eq(GIF));
         assertEquals("Giff", saved.getValue().winner());
+        assertEquals(1, saved.getValue().place());
         assertEquals(List.of("Axley", "Giff", "Giff"), saved.getValue().entries());
         assertEquals(GifSource.WEBSITE, saved.getValue().gifSource());
+        assertEquals(PrizeStatus.PENDING, saved.getValue().prize().status());
         assertTrue(saved.getValue().gifToken().length() >= 30 && saved.getValue().gifToken().matches("[A-Za-z0-9_-]+"), saved.getValue().gifToken());
+    }
+
+    @Test
+    void theNextWinnerOfAWeekTakesTheNextPlace() {
+        when(repository.forWeek(GUILD, WEEK)).thenReturn(List.of(row(1, "Giff", true, PrizeStatus.PENDING)));
+        when(repository.nextPlace(GUILD, WEEK)).thenReturn(2);
+        winners.lock(GUILD, WEEK, "Axley", List.of("Axley"), Method.SPUN, 1L, GIF, GifSource.WEBSITE);
+        ArgumentCaptor<Winner> saved = ArgumentCaptor.forClass(Winner.class);
+        verify(repository).insert(saved.capture(), any());
+        assertEquals(2, saved.getValue().place());
+    }
+
+    @Test
+    void thePersonWhoWonCannotWinAgainTheSameWeekAndAWeekHasAnUpperLimit() {
+        when(repository.forWeek(GUILD, WEEK)).thenReturn(List.of(row(1, "Giff", true, PrizeStatus.PENDING)));
+        var problem = refused(() -> winners.lock(GUILD, WEEK, "giff", List.of("Giff"), Method.SPUN, 1L, GIF, GifSource.WEBSITE));
+        assertEquals(409, problem.status());
+        assertTrue(problem.getMessage().contains("place 1"), problem.getMessage());
+
+        List<Winner> full = new java.util.ArrayList<>();
+        for (int i = 1; i <= CitadelWinners.MAX_WINNERS; i++) full.add(row(i, "Player" + i, true, PrizeStatus.PENDING));
+        when(repository.forWeek(GUILD, WEEK)).thenReturn(full);
+        assertEquals(409, refused(() -> winners.lock(GUILD, WEEK, "Newcomer", List.of("Newcomer"), Method.SPUN, 1L, GIF, GifSource.WEBSITE)).status());
+        verify(repository, never()).insert(any(), any());
     }
 
     @Test
@@ -79,12 +112,9 @@ class CitadelWinnersTest {
     }
 
     @Test
-    void aWeekThatIsAlreadyLockedIsNeverReplaced() {
+    void aPlaceTakenAtTheSameMomentIsReportedNotOverwritten() {
         when(repository.insert(any(), any())).thenReturn(false);
-        when(repository.get(GUILD, WEEK)).thenReturn(Optional.of(row("Axley", true)));
-        var problem = refused(() -> winners.lock(GUILD, WEEK, "Giff", List.of("Giff"), Method.SPUN, 1L, GIF, GifSource.WEBSITE));
-        assertEquals(409, problem.status());
-        assertTrue(problem.getMessage().contains("Axley") && problem.getMessage().contains("Unlock"), problem.getMessage());
+        assertEquals(409, refused(() -> winners.lock(GUILD, WEEK, "Giff", List.of("Giff"), Method.SPUN, 1L, GIF, GifSource.WEBSITE)).status());
     }
 
     @Test
@@ -110,27 +140,34 @@ class CitadelWinnersTest {
     }
 
     @Test
-    void withoutAPictureTheBotDrawsItsOwnAndNeverReplacesOneThatArrivedFirst() {
-        when(repository.get(GUILD, WEEK)).thenReturn(Optional.of(row("Giff", false)));
+    void withoutAPictureTheBotDrawsItsOwnForThatPlaceAndNeverReplacesOneThatArrivedFirst() {
+        when(repository.get(GUILD, WEEK, 1)).thenReturn(Optional.of(row(1, "Giff", false, PrizeStatus.PENDING)));
         winners.lock(GUILD, WEEK, "Giff", List.of("Axley", "Giff"), Method.SPUN, 1L, null, null);
         ArgumentCaptor<byte[]> drawn = ArgumentCaptor.forClass(byte[].class);
-        verify(repository).setGif(eq(GUILD), eq(WEEK), drawn.capture(), eq(GifSource.BOT), eq(true));
+        verify(repository).setGif(eq(GUILD), eq(WEEK), eq(1), drawn.capture(), eq(GifSource.BOT), eq(true));
         assertTrue(CitadelWinners.isGif(drawn.getValue()), "a real GIF was drawn");
     }
 
     @Test
     void theBotSkipsDrawingWhenAPictureIsAlreadyThere() {
-        when(repository.get(GUILD, WEEK)).thenReturn(Optional.of(row("Giff", true)));
-        winners.drawBotGif(GUILD, WEEK);
-        verify(repository, never()).setGif(anyLong(), any(), any(), any(), anyBoolean());
+        when(repository.get(GUILD, WEEK, 1)).thenReturn(Optional.of(row(1, "Giff", true, PrizeStatus.PENDING)));
+        winners.drawBotGif(GUILD, WEEK, 1);
+        verify(repository, never()).setGif(anyLong(), any(), anyInt(), any(), any(), anyBoolean());
     }
 
     @Test
-    void unlockingNeedsALockedWeek() {
-        when(repository.delete(GUILD, WEEK)).thenReturn(true);
-        winners.unlock(GUILD, WEEK);
-        when(repository.delete(GUILD, WEEK)).thenReturn(false);
-        assertEquals(404, refused(() -> winners.unlock(GUILD, WEEK)).status());
+    void aWeekCanBeUnlockedAsAWholeUnlessAPrizeWasGiven() {
+        when(repository.forWeek(GUILD, WEEK)).thenReturn(List.of(row(1, "Giff", true, PrizeStatus.PENDING), row(2, "Axley", true, PrizeStatus.PENDING)));
+        winners.unlockWeek(GUILD, WEEK);
+        verify(repository).deleteWeek(GUILD, WEEK);
+
+        when(repository.forWeek(GUILD, WEEK)).thenReturn(List.of(row(1, "Giff", true, PrizeStatus.PENDING), row(2, "Axley", true, PrizeStatus.GIVEN)));
+        var problem = refused(() -> winners.unlockWeek(GUILD, WEEK));
+        assertEquals(409, problem.status());
+        assertTrue(problem.getMessage().contains("Axley"), problem.getMessage());
+
+        when(repository.forWeek(GUILD, WEEK)).thenReturn(List.of());
+        assertEquals(404, refused(() -> winners.unlockWeek(GUILD, WEEK)).status());
     }
 
     @Test
@@ -143,11 +180,11 @@ class CitadelWinnersTest {
     }
 
     @Test
-    void replacingThePictureNeedsAGifAndALockedWeek() {
-        when(repository.setGif(GUILD, WEEK, GIF, GifSource.WEBSITE, false)).thenReturn(true);
-        winners.replaceGif(GUILD, WEEK, GIF);
-        assertEquals(400, refused(() -> winners.replaceGif(GUILD, WEEK, "nope".getBytes())).status());
-        when(repository.setGif(GUILD, WEEK, GIF, GifSource.WEBSITE, false)).thenReturn(false);
-        assertEquals(404, refused(() -> winners.replaceGif(GUILD, WEEK, GIF)).status());
+    void replacingThePictureNeedsAGifAndALockedWinner() {
+        when(repository.setGif(GUILD, WEEK, 2, GIF, GifSource.WEBSITE, false)).thenReturn(true);
+        winners.replaceGif(GUILD, WEEK, 2, GIF);
+        assertEquals(400, refused(() -> winners.replaceGif(GUILD, WEEK, 2, "nope".getBytes())).status());
+        when(repository.setGif(GUILD, WEEK, 2, GIF, GifSource.WEBSITE, false)).thenReturn(false);
+        assertEquals(404, refused(() -> winners.replaceGif(GUILD, WEEK, 2, GIF)).status());
     }
 }
