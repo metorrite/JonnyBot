@@ -41,11 +41,13 @@ public class PluginService {
 
     private final PluginRepository repository;
     private final PlayerLinkRepository links;
+    private final List<PluginEventSink> sinks;
     private final SecureRandom random = new SecureRandom();
 
-    public PluginService(PluginRepository repository, PlayerLinkRepository links) {
+    public PluginService(PluginRepository repository, PlayerLinkRepository links, List<PluginEventSink> sinks) {
         this.repository = repository;
         this.links = links;
+        this.sinks = List.copyOf(sinks);
     }
 
     // ---------- tokens ----------
@@ -115,14 +117,26 @@ public class PluginService {
         Set<PluginCategory> consented = repository.consent(userId);
         int accepted = 0;
         int duplicates = 0;
+        List<PluginPayload.Event> stored = new ArrayList<>();
         List<Reject> rejected = new ArrayList<>(batch.rejects());
         for (PluginPayload.Event event : batch.events()) {
             if (!consented.contains(event.type().category())) {
                 rejected.add(new Reject(event.key(), "not_consented: the player has not allowed " + event.type().category().name()));
             } else if (repository.insertEvent(userId, account.rsn(), event, batch.client())) {
                 accepted++;
+                stored.add(event);
             } else {
                 duplicates++;
+            }
+        }
+        if (!stored.isEmpty()) {
+            for (PluginEventSink sink : sinks) {
+                try {
+                    sink.accepted(userId, account.rsn(), stored);
+                } catch (RuntimeException e) {
+                    // what is done with the events never decides whether the upload worked, nor whether the next consumer hears of them
+                    log.warn("A consumer of plugin events failed for user {}", userId, e);
+                }
             }
         }
         return new IngestResult(accepted, duplicates, rejected, consented, null);
