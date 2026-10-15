@@ -74,21 +74,24 @@ public class WeeklyDigestRepository {
         }
     }
 
-    public record CitadelActivityRow(String rsn, String activityText, String activityDate) {}
+    /** {@code occurredAt} is when it really happened (the activity's own time), or null if that couldn't be read. */
+    public record CitadelActivityRow(String rsn, String activityText, String activityDate, java.time.Instant occurredAt) {
+        public CitadelActivityRow(String rsn, String activityText, String activityDate) {
+            this(rsn, activityText, activityDate, RuneMetricsDates.toInstant(activityDate));
+        }
+    }
 
     /**
-     * Every "Visited"/"Capped at my Clan Citadel" activity recorded (by {@code recorded_at}, when we
-     * actually polled it — reliable) in the window, regardless of who's still a current clan member;
-     * the caller cross-references against the live roster. {@code activityDate} is RuneMetrics' own raw
-     * string, kept for the caller to parse for *relative* ordering within this one report — see
-     * {@code RuneScapeDatabaseInitializer}'s player_activity comment for why it's never parsed into an
-     * absolute timestamp anywhere else in this codebase (unknown timezone).
+     * Every "Visited"/"Capped at my Clan Citadel" activity that <i>happened</i> in the window (by {@code occurred_at}, the activity's own
+     * time, so it doesn't matter when we polled it: a cap at 23:55 that we only saw at 03:00 still counts for the week it was made in, and one
+     * made just after the reset doesn't leak back), regardless of who's still a current clan member; the caller cross-references against the
+     * live roster. An activity whose time couldn't be read falls back to when we first saw it.
      */
     public List<CitadelActivityRow> getCitadelActivityInWindow(long guildId, OffsetDateTime from, OffsetDateTime to) {
         String sql = """
-                SELECT a.rsn, a.activity_text, a.activity_date FROM younglings.player_activity a
+                SELECT a.rsn, a.activity_text, a.activity_date, a.occurred_at FROM younglings.player_activity a
                 WHERE EXISTS (SELECT 1 FROM younglings.clan_member m WHERE m.guild_id = ? AND LOWER(m.rsn) = LOWER(a.rsn))
-                  AND a.recorded_at >= ? AND a.recorded_at < ?
+                  AND COALESCE(a.occurred_at, a.recorded_at) >= ? AND COALESCE(a.occurred_at, a.recorded_at) < ?
                   AND (a.activity_text LIKE 'Visited my Clan Citadel%' OR a.activity_text LIKE 'Capped at my Clan Citadel%')
                 """;
 
@@ -102,7 +105,8 @@ public class WeeklyDigestRepository {
 
             try (ResultSet rs = statement.executeQuery()) {
                 while (rs.next()) {
-                    results.add(new CitadelActivityRow(rs.getString("rsn"), rs.getString("activity_text"), rs.getString("activity_date")));
+                    java.sql.Timestamp occurred = rs.getTimestamp("occurred_at");
+                    results.add(new CitadelActivityRow(rs.getString("rsn"), rs.getString("activity_text"), rs.getString("activity_date"), occurred == null ? null : occurred.toInstant()));
                 }
             }
             return results;

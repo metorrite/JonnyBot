@@ -1,6 +1,11 @@
 package com.younglings.bot.runescape;
 
 import com.younglings.bot.config.BotConfig;
+import com.younglings.bot.runescape.polling.PollCoordinator;
+import com.younglings.bot.runescape.polling.PollPriority;
+import com.younglings.bot.runescape.polling.PollRequest;
+import com.younglings.bot.tracking.CitadelWeek;
+import com.younglings.bot.tracking.CitadelWheelPoster;
 import com.younglings.bot.tracking.WeeklyDigestService;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
@@ -16,29 +21,37 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.TemporalAdjusters;
+import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Every Wednesday at 01:00 UTC — one hour after the Clan Citadel's own weekly reset — sends the weekly
- * joins/leaves and Citadel visits/caps digests (see {@link WeeklyDigestService}) for every guild with a
- * clan configured, covering the window from the *previous* Wednesday 00:01 UTC up to that same day's
- * 00:00 UTC (i.e. the week that just finished, right before the reset that starts the next one).
+ * Every Wednesday at 12:00 UTC sends the weekly joins/leaves and Citadel visits/caps digests (see {@link WeeklyDigestService}) for every guild with a
+ * clan configured, covering the Citadel week that just finished: from the previous Wednesday 00:10 UTC to this Wednesday's 00:10 UTC reset (see
+ * {@link CitadelWeek}).
  * <p>
- * Same JDA-ready + {@code scheduleAtFixedRate} pattern as {@link ClanSyncScheduler}, and same
- * {@link BotConfig#getRunescapeAutoPollEnabled()} gate as every other scheduler here.
+ * Twelve hours after the reset is deliberate. The regular polls (every few hours) have by then seen everybody's adventure log after the week turned
+ * over, so a cap made in the last minutes of the week is in the data, and the report groups caps by when they happened rather than when they were
+ * noticed. Just before sending, anyone whose latest profile is older than the reset is polled again so nothing rests on luck.
+ * <p>
+ * Same JDA-ready + {@code scheduleAtFixedRate} pattern as {@link ClanSyncScheduler}, and same {@link BotConfig#getRunescapeAutoPollEnabled()} gate as
+ * every other scheduler here.
  */
 @BService
 public class WeeklyDigestScheduler {
     private static final Logger log = LoggerFactory.getLogger(WeeklyDigestScheduler.class);
 
-    private static final LocalTime RUN_TIME_UTC = LocalTime.of(1, 0);
+    private static final LocalTime RUN_TIME_UTC = LocalTime.of(12, 0);
     private static final Duration INTERVAL = Duration.ofDays(7);
+    private static final Duration REFRESH_WAIT = Duration.ofMinutes(10);
 
     private final WeeklyDigestService weeklyDigestService;
     private final ClanSyncService clanSyncService;
+    private final ClanMemberRepository clanMembers;
+    private final PollCoordinator polls;
+    private final CitadelWheelPoster wheelPoster;
     private final BotConfig botConfig;
     private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(
             (ThreadFactory) runnable -> {
@@ -47,9 +60,13 @@ public class WeeklyDigestScheduler {
                 return thread;
             });
 
-    public WeeklyDigestScheduler(WeeklyDigestService weeklyDigestService, ClanSyncService clanSyncService, BotConfig botConfig) {
+    public WeeklyDigestScheduler(WeeklyDigestService weeklyDigestService, ClanSyncService clanSyncService, ClanMemberRepository clanMembers,
+                                 PollCoordinator polls, CitadelWheelPoster wheelPoster, BotConfig botConfig) {
         this.weeklyDigestService = weeklyDigestService;
         this.clanSyncService = clanSyncService;
+        this.clanMembers = clanMembers;
+        this.polls = polls;
+        this.wheelPoster = wheelPoster;
         this.botConfig = botConfig;
     }
 
@@ -61,34 +78,51 @@ public class WeeklyDigestScheduler {
         }
 
         JDA jda = event.getJda();
-        Duration initialDelay = durationUntilNextWednesday0100Utc();
+        Duration initialDelay = durationUntilNextWednesdayNoonUtc(OffsetDateTime.now(ZoneOffset.UTC));
         log.info("Weekly digest scheduler starting: first run in {}, then every {}.", initialDelay, INTERVAL);
         executor.scheduleAtFixedRate(() -> runForAllGuilds(jda), initialDelay.toSeconds(), INTERVAL.toSeconds(), TimeUnit.SECONDS);
     }
 
-    private static Duration durationUntilNextWednesday0100Utc() {
-        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+    /** How long from {@code now} until the next Wednesday 12:00 UTC. */
+    static Duration durationUntilNextWednesdayNoonUtc(OffsetDateTime now) {
         OffsetDateTime candidate = now.with(TemporalAdjusters.nextOrSame(DayOfWeek.WEDNESDAY)).with(RUN_TIME_UTC);
         if (!candidate.isAfter(now)) candidate = candidate.plusWeeks(1);
         return Duration.between(now, candidate);
     }
 
     private void runForAllGuilds(JDA jda) {
-        // windowEnd is "today" at 00:00 UTC — this job always runs at 01:00 UTC on the Wednesday the
-        // window ends, so deriving it from "now" rather than hardcoding Wednesday keeps this correct
-        // even if a run fires a little late.
-        OffsetDateTime windowEnd = OffsetDateTime.now(ZoneOffset.UTC).toLocalDate().atStartOfDay(ZoneOffset.UTC).toOffsetDateTime();
-        OffsetDateTime windowStart = windowEnd.minusDays(7).plusMinutes(1);
+        // The week that most recently finished, worked out from "now" rather than hardcoded, so a run that fires a little late still reports the right week.
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        OffsetDateTime[] window = CitadelWeek.lastCompleted(now);
+        OffsetDateTime windowStart = window[0];
+        OffsetDateTime windowEnd = window[1];
 
         for (Guild guild : jda.getGuilds()) {
             if (clanSyncService.getClanName(guild.getIdLong()) == null) continue; // nothing configured to report on
 
             try {
+                refreshStaleProfiles(guild, windowEnd, now);
                 weeklyDigestService.sendWeeklyDigests(guild, windowStart, windowEnd);
+                wheelPoster.autoPost(guild, window); // if the server turned it on, the wheel's winner is announced with the list
                 log.info("Weekly digest sent for guild {} covering {} to {}.", guild.getIdLong(), windowStart, windowEnd);
             } catch (Exception e) {
                 log.error("Weekly digest failed for guild {}", guild.getIdLong(), e);
             }
         }
+    }
+
+    /**
+     * Polls every clan member whose latest profile is older than {@code reset}: a profile fetched since the reset has the whole finished week in its
+     * adventure log, one fetched before it may not. A recent enough profile is reused without a request, so on a normal week this does very little.
+     */
+    private void refreshStaleProfiles(Guild guild, OffsetDateTime reset, OffsetDateTime now) {
+        Duration maxAge = Duration.between(reset, now);
+        List<PollRequest> requests = clanMembers.getAll(guild.getIdLong(), true).stream()
+                .map(member -> PollRequest.background(member.rsn(), PollPriority.CLAN, maxAge, "weekly report"))
+                .toList();
+        if (requests.isEmpty()) return;
+        var outcomes = polls.awaitAll(polls.submitAll(requests), REFRESH_WAIT);
+        long fresh = outcomes.stream().filter(o -> o.hasFreshData()).count();
+        log.info("Weekly report refresh for guild {}: {} of {} profiles are current.", guild.getIdLong(), fresh, requests.size());
     }
 }

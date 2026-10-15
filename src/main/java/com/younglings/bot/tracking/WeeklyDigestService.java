@@ -13,6 +13,7 @@ import net.dv8tion.jda.api.components.textdisplay.TextDisplay;
 import net.dv8tion.jda.api.entities.Guild;
 
 import java.time.DayOfWeek;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -56,15 +57,11 @@ public class WeeklyDigestService {
     }
 
     /**
-     * The same Wed-00:01-to-Wed-00:00 UTC window {@code WeeklyDigestScheduler} computes for its real
-     * weekly run — "this week's report" for an on-demand send always means the week that most recently
-     * completed.
+     * The window {@code WeeklyDigestScheduler} reports on in its real weekly run, from one Citadel reset (Wednesday 00:10 UTC, see {@link CitadelWeek})
+     * to the next: "this week's report" for an on-demand send always means the week that most recently completed.
      */
     public static OffsetDateTime[] lastCompletedWindow() {
-        OffsetDateTime windowEnd = OffsetDateTime.now(ZoneOffset.UTC)
-                .with(TemporalAdjusters.previousOrSame(DayOfWeek.WEDNESDAY))
-                .toLocalDate().atStartOfDay(ZoneOffset.UTC).toOffsetDateTime();
-        return new OffsetDateTime[]{windowEnd.minusDays(7).plusMinutes(1), windowEnd};
+        return CitadelWeek.lastCompleted(OffsetDateTime.now(ZoneOffset.UTC));
     }
 
     /** Just the joins/leaves half — the Tracking panel's "Send Now" calls this or {@link #sendCitadelReport} individually rather than always sending both. Returns {@code false} if the window had nothing to report (so nothing was built). */
@@ -106,19 +103,41 @@ public class WeeklyDigestService {
 
         children.add(TextDisplay.of(totalsLine(entries)));
 
-        StringBuilder sb = new StringBuilder();
+        // Names go in a fixed-width monospace span, padded to the longest one shown, so the Visited and Capped
+        // marks land in the same two columns on every row (the same approach as the /rs Skills output).
+        int nameWidth = entries.stream().mapToInt(e -> e.rsn.length()).max().orElse(0);
+        List<String> rows = new ArrayList<>();
         for (CitadelEntry e : entries) {
-            sb.append("**").append(e.rsn).append("** — ")
-                    .append(e.visited ? "✅ Visited" : "⬜ Visited").append("  ")
-                    .append(e.capped ? "✅ Capped" : "⬜ Capped").append("\n");
+            rows.add("`" + String.format("%-" + nameWidth + "s", e.rsn) + "` "
+                    + (e.visited ? "✅ Visited" : "⬜ Visited") + "  " + (e.capped ? "✅ Capped" : "⬜ Capped"));
         }
-        children.add(TextDisplay.of(sb.toString().trim()));
+        children.add(TextDisplay.of(layoutRows(rows)));
 
         String weekKey = windowEnd.toLocalDate().toString();
-        children.add(ActionRow.of(Button.primary("weekly_spin_wheel:" + weekKey, "🎡 Spin Wheel")));
+        children.add(ActionRow.of(Button.primary("weekly_spin_wheel:" + weekKey, "🎡 Spin Wheel"), Button.secondary("weekly_copy_names:" + weekKey, "📋 Copy names")));
 
         router.dispatchContainer(guild, TrackingGroup.WEEKLY_CITADEL_REPORT, Containers.card(Containers.PRIMARY, children));
         return true;
+    }
+
+    /** A message in Discord's component layout holds about 4000 characters of text in total; the title, totals line and buttons need some of it. */
+    static final int ROWS_BUDGET = 3600;
+
+    /**
+     * The report's rows, one per line, tight together. A clan too big to fit in the message is cut at the limit with a count of how many were left off,
+     * rather than the whole report failing to send.
+     */
+    static String layoutRows(List<String> rows) {
+        int plain = rows.stream().mapToInt(r -> r.length() + 1).sum();
+        if (plain <= ROWS_BUDGET) return String.join("\n", rows);
+        StringBuilder out = new StringBuilder();
+        int shown = 0;
+        for (String row : rows) {
+            if (out.length() + row.length() + 1 > ROWS_BUDGET - 40) break;
+            out.append(row).append('\n');
+            shown++;
+        }
+        return out.toString().stripTrailing() + "\n-# …and " + (rows.size() - shown) + " more";
     }
 
     private static final DateTimeFormatter SHORT_DATE = DateTimeFormatter.ofPattern("MMM d", Locale.ENGLISH);
@@ -151,8 +170,8 @@ public class WeeklyDigestService {
 
     /** One Citadel week's window — the same Wednesday 00:01 to next Wednesday 00:00 UTC the weekly report uses, cut off at {@code now} while it's still running. */
     private static OffsetDateTime[] weekWindow(LocalDate weekStart, OffsetDateTime now) {
-        OffsetDateTime start = weekStart.atStartOfDay(ZoneOffset.UTC).toOffsetDateTime().plusMinutes(1);
-        OffsetDateTime end = weekStart.plusWeeks(1).atStartOfDay(ZoneOffset.UTC).toOffsetDateTime();
+        OffsetDateTime start = CitadelWeek.resetOn(weekStart);
+        OffsetDateTime end = start.plusDays(7);
         return new OffsetDateTime[]{start, end.isAfter(now) ? now : end};
     }
 
@@ -260,7 +279,12 @@ public class WeeklyDigestService {
         return "**🏰 " + capped + " capped** · **" + visited + " visited** · of " + entries.size() + " clan members";
     }
 
-    /** Every player who both visited and capped in the window — what the "Spin Wheel" button picks from. */
+    /** Everyone who capped in the window, in the order the report lists them — what the wheel is made from and what "Copy names" gives. */
+    public List<String> getCappedRsns(long guildId, OffsetDateTime windowStart, OffsetDateTime windowEnd) {
+        return computeCitadelEntries(guildId, windowStart, windowEnd).stream().filter(e -> e.capped).map(e -> e.rsn).toList();
+    }
+
+    /** Every player who both visited and capped in the window. */
     public List<String> getVisitedAndCappedRsns(long guildId, OffsetDateTime windowStart, OffsetDateTime windowEnd) {
         return computeCitadelEntries(guildId, windowStart, windowEnd).stream()
                 .filter(e -> e.visited && e.capped)
@@ -268,7 +292,7 @@ public class WeeklyDigestService {
                 .toList();
     }
 
-    private record CitadelEntry(String rsn, boolean visited, boolean capped, LocalDateTime sortTime) {}
+    private record CitadelEntry(String rsn, boolean visited, boolean capped, Instant sortTime) {}
 
     /**
      * One entry per *current* active clan member (so someone who left mid-week still shows their
@@ -280,10 +304,10 @@ public class WeeklyDigestService {
         List<WeeklyDigestRepository.CitadelActivityRow> rows = repository.getCitadelActivityInWindow(guildId, windowStart, windowEnd);
         List<ClanMemberRepository.ClanMemberRow> roster = clanMemberRepository.getAll(guildId, true);
 
-        Map<String, LocalDateTime> visitedAt = new HashMap<>();
-        Map<String, LocalDateTime> cappedAt = new HashMap<>();
+        Map<String, Instant> visitedAt = new HashMap<>();
+        Map<String, Instant> cappedAt = new HashMap<>();
         for (var row : rows) {
-            LocalDateTime parsed = RuneMetricsDates.parse(row.activityDate());
+            Instant parsed = row.occurredAt() != null ? row.occurredAt() : Instant.MIN;
             String lower = row.rsn().toLowerCase(Locale.ROOT);
             if (row.activityText().startsWith("Visited")) {
                 visitedAt.merge(lower, parsed, (a, b) -> a.isAfter(b) ? a : b);
@@ -297,13 +321,13 @@ public class WeeklyDigestService {
             String lower = member.rsn().toLowerCase(Locale.ROOT);
             boolean visited = visitedAt.containsKey(lower);
             boolean capped = cappedAt.containsKey(lower);
-            LocalDateTime sortTime = capped ? cappedAt.get(lower) : visitedAt.get(lower);
+            Instant sortTime = capped ? cappedAt.get(lower) : visitedAt.get(lower);
             entries.add(new CitadelEntry(member.rsn(), visited, capped, sortTime));
         }
 
         entries.sort(Comparator
                 .comparingInt(WeeklyDigestService::participationRank)
-                .thenComparing(e -> e.sortTime != null ? e.sortTime : LocalDateTime.MIN)
+                .thenComparing(e -> e.sortTime != null ? e.sortTime : Instant.MIN)
                 .thenComparing(e -> e.rsn, String.CASE_INSENSITIVE_ORDER));
         return entries;
     }

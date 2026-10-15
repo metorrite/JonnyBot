@@ -1046,7 +1046,9 @@ public class RsInteractionListener extends ListenerAdapter {
     }
 
     private String activityLine(PlayerActivity activity) {
-        return "`" + activity.date() + "` — " + XpText.shorten(activity.text()) + "\n";
+        java.time.Instant at = com.younglings.bot.runescape.RuneMetricsDates.toInstant(activity.date());
+        String when = at == null ? "`" + activity.date() + "`" : "<t:" + at.getEpochSecond() + ":f>";
+        return when + " — " + XpText.shorten(activity.text()) + "\n";
     }
 
     /**

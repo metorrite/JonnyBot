@@ -81,7 +81,16 @@ public class TrackingEventClassifier {
      */
     public Optional<ClassifiedEntry> classify(String rsn, PlayerActivity activity, int count) {
         return classifyActivity(rsn, activity, count)
-                .map(e -> new ClassifiedEntry(e.group(), e.line() + " (" + activity.date() + ")"));
+                .map(e -> new ClassifiedEntry(e.group(), e.line() + " (" + when(activity) + ")"));
+    }
+
+    /**
+     * When it happened, as a Discord timestamp so everyone sees it in their own time zone. RuneMetrics writes the time as UK local time (see
+     * {@link com.younglings.bot.runescape.RuneMetricsDates}); if it can't be read the raw text is shown as it came.
+     */
+    static String when(PlayerActivity activity) {
+        java.time.Instant at = com.younglings.bot.runescape.RuneMetricsDates.toInstant(activity.date());
+        return at == null ? activity.date() : "<t:" + at.getEpochSecond() + ":f>";
     }
 
     private Optional<ClassifiedEntry> classifyActivity(String rsn, PlayerActivity activity, int count) {

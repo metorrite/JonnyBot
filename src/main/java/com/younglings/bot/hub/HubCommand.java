@@ -33,7 +33,9 @@ public enum HubCommand {
     WARN("warn", "Warnings", "warn", "Warn members and keep a record of it: add, list and remove warnings. Members are told by DM.",
             "Admins only", true),
     POINTS("points", "Points", "points", "A server's points ledger: check your balance, see the top members, and staff award points with a reason on record.",
-            "Everyone (awarding needs Manage Server)", false);
+            "Everyone (awarding needs Manage Server)", false),
+    EVENTS("events", "Events", "events", "See the events you are in (place, points, buy-in, prizes), browse the ones open for signup, and join or leave them. Events are made and run from the dashboard's Event manager.",
+            "Everyone", false);
 
     private final String key;
     private final String title;
