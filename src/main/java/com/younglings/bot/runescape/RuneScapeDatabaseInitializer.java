@@ -462,7 +462,27 @@ public class RuneScapeDatabaseInitializer {
                             ON younglings.player_activity (LOWER(rsn), activity_date, activity_text);
                     END IF;
                 END $$;
+                """,
+
+                // The moment an activity really happened. activity_date is UK local wall-clock time as RuneMetrics writes it (see RuneMetricsDates),
+                // which can't be compared with anything else until it is turned into an instant; this column is that, set when the activity is saved.
+                // recorded_at stays what it always was: when we first saw it.
                 """
+                ALTER TABLE younglings.player_activity ADD COLUMN IF NOT EXISTS occurred_at TIMESTAMPTZ NULL;
+                """,
+
+                """
+                CREATE INDEX IF NOT EXISTS player_activity_occurred_idx
+                ON younglings.player_activity (occurred_at);
+                """,
+
+                // Fill in the rows saved before the column existed (and any left empty): read the written clock time in the RuneMetrics zone.
+                // To recompute everything after changing the zone, set occurred_at to NULL and restart.
+                """
+                UPDATE younglings.player_activity
+                SET occurred_at = to_timestamp(activity_date, 'DD-Mon-YYYY HH24:MI')::timestamp AT TIME ZONE '%s'
+                WHERE occurred_at IS NULL AND activity_date ~ '^[0-9]{2}-[A-Za-z]{3}-[0-9]{4} [0-9]{2}:[0-9]{2}$';
+                """.formatted(RuneMetricsDates.zone().getId().replace("'", ""))
         ));
     }
 }

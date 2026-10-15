@@ -1025,8 +1025,8 @@ public class PlayerLinkRepository {
         if (activities.isEmpty()) return List.of();
 
         String sql = """
-                INSERT INTO younglings.player_activity (rsn, activity_date, activity_text, activity_details)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO younglings.player_activity (rsn, activity_date, activity_text, activity_details, occurred_at)
+                VALUES (?, ?, ?, ?, ?)
                 ON CONFLICT (LOWER(rsn), activity_date, activity_text) DO NOTHING
                 """;
 
@@ -1038,6 +1038,9 @@ public class PlayerLinkRepository {
                 statement.setString(2, activity.date());
                 statement.setString(3, activity.text());
                 statement.setString(4, activity.details());
+                java.time.Instant occurred = RuneMetricsDates.toInstant(activity.date());
+                if (occurred == null) statement.setNull(5, java.sql.Types.TIMESTAMP_WITH_TIMEZONE);
+                else statement.setTimestamp(5, java.sql.Timestamp.from(occurred));
                 statement.addBatch();
             }
             int[] results = statement.executeBatch();

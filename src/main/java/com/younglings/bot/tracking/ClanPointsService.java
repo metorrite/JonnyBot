@@ -227,8 +227,8 @@ public class ClanPointsService {
     }
 
     /**
-     * The current, still-in-progress Citadel week: from the last Wednesday 00:01 UTC reset through
-     * the *next* Wednesday 00:00 UTC — unlike {@code WeeklyDigestScheduler}'s window (the most
+     * The current, still-in-progress Citadel week: from the last reset (Wednesday 00:10 UTC, see {@link CitadelWeek}) through
+     * the next one — unlike {@code WeeklyDigestScheduler}'s window (the most
      * recently *completed* week), this one's end date stays fixed for all 7 days of the week it
      * covers, which is exactly what makes it a stable idempotency key for {@link #awardCitadelPoints}:
      * every run during the same week resolves to the same {@code weekKey}, so a member awarded points
@@ -236,9 +236,6 @@ public class ClanPointsService {
      * that same visit inside the window.
      */
     private static OffsetDateTime[] currentWeeklyWindow() {
-        OffsetDateTime windowEnd = OffsetDateTime.now(ZoneOffset.UTC)
-                .with(TemporalAdjusters.nextOrSame(DayOfWeek.WEDNESDAY))
-                .toLocalDate().atStartOfDay(ZoneOffset.UTC).toOffsetDateTime();
-        return new OffsetDateTime[]{windowEnd.minusDays(7).plusMinutes(1), windowEnd};
+        return CitadelWeek.current(OffsetDateTime.now(ZoneOffset.UTC));
     }
 }
