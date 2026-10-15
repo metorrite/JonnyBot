@@ -30,6 +30,11 @@ public class ScavengerHuntTemplate implements EventTemplate {
     }
 
     @Override
+    public java.util.Set<String> fixedSettings() {
+        return java.util.Set.of("steps", "stepPoints", "ordered", "finishBonus", "bonuses");
+    }
+
+    @Override
     public String label() {
         return "Scavenger hunt";
     }

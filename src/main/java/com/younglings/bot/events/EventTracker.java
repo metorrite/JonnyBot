@@ -1,7 +1,6 @@
 package com.younglings.bot.events;
 
 import com.younglings.bot.config.BotConfig;
-import com.younglings.bot.events.EventRepository.Baseline;
 import com.younglings.bot.events.EventRepository.Event;
 import com.younglings.bot.events.EventRepository.Participant;
 import com.younglings.bot.events.EventRules.Source;
@@ -104,26 +103,30 @@ public class EventTracker {
         var futures = polls.submitAll(players.values().stream().map(rsn -> PollRequest.background(rsn, PollPriority.CLAN, REUSE_WINDOW, "event " + event.id())).toList());
         polls.awaitAll(futures, POLL_WAIT);
 
+        // what has already been added from tracking, per player, read from the progress log so there is nothing separate to fall out of step
+        Map<Long, Long> counted = new java.util.HashMap<>();
+        for (EventRepository.Progress p : repository.progress(event.id())) {
+            if (p.source() == Source.IMPORT && p.objectiveKey().equals(CompetitionTemplate.OBJECTIVE_KEY)) counted.merge(p.userId(), p.amount(), Long::sum);
+        }
         int updated = 0;
         for (Map.Entry<Participant, String> entry : players.entrySet()) {
-            if (feedPlayer(event, skill, entry.getKey(), entry.getValue())) updated++;
+            if (feedPlayer(event, skill, entry.getKey(), entry.getValue(), counted.getOrDefault(entry.getKey().userId(), 0L))) updated++;
         }
         return updated;
     }
 
-    private boolean feedPlayer(Event event, int skill, Participant player, String rsn) {
+    private boolean feedPlayer(Event event, int skill, Participant player, String rsn, long alreadyCounted) {
         var snapshot = stats.getLatestSnapshot(rsn);
         if (snapshot == null) return false;
         OptionalLong xp = CompetitionTracking.xpOf(skill, snapshot.totalXp(), stats.getSkillsForSnapshot(snapshot.snapshotId()));
         if (xp.isEmpty()) return false;
 
-        Baseline baseline = repository.baseline(event.id(), player.userId()).orElse(null);
-        if (baseline == null) {
+        OptionalLong baseline = repository.baseline(event.id(), player.userId());
+        if (baseline.isEmpty()) {
             repository.setBaseline(event.id(), player.userId(), xp.getAsLong());
             return false;
         }
-        long gain = Math.max(0, xp.getAsLong() - baseline.xp());
-        long add = CompetitionTracking.toRecord(baseline.xp(), xp.getAsLong(), baseline.counted());
+        long add = CompetitionTracking.toRecord(baseline.getAsLong(), xp.getAsLong(), alreadyCounted);
         if (add == 0) return false;
         try {
             service.recordProgress(event.guildId(), event.id(), CompetitionTemplate.OBJECTIVE_KEY, player.userId(), add, Source.IMPORT,
@@ -133,7 +136,6 @@ public class EventTracker {
             if (e.status() != 409) log.warn("Competition {}: could not add progress for {}: {}", event.id(), player.userId(), e.getMessage());
             return false;
         }
-        repository.setCounted(event.id(), player.userId(), gain);
         return true;
     }
 }

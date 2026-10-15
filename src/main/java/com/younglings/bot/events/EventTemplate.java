@@ -5,6 +5,7 @@ import io.github.freya022.botcommands.api.core.service.annotations.InterfacedSer
 import net.dv8tion.jda.api.utils.data.DataObject;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * A recipe for one kind of event (bingo, competition, ...): the settings it understands, the objectives a new event of this kind starts
@@ -28,6 +29,14 @@ public interface EventTemplate {
      */
     default DataObject prepare(DataObject config) {
         return config;
+    }
+
+    /**
+     * The settings this template builds the event's objectives from. They are chosen when the event is created and kept as they are when the
+     * event's other settings are saved later, so a save that leaves one out can't strip a bingo board or leave the objectives out of step.
+     */
+    default Set<String> fixedSettings() {
+        return Set.of();
     }
 
     /** What is wrong with these template settings, in words, or an empty list. {@code config} is never null. */

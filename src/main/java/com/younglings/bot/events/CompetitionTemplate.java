@@ -28,6 +28,11 @@ public class CompetitionTemplate implements EventTemplate {
     }
 
     @Override
+    public java.util.Set<String> fixedSettings() {
+        return java.util.Set.of("skillId", "xpPerPoint");
+    }
+
+    @Override
     public String label() {
         return "Competition";
     }
