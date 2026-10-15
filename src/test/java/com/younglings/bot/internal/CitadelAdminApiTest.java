@@ -101,6 +101,7 @@ class CitadelAdminApiTest {
     private static Member actor() {
         Member member = mock(Member.class);
         when(member.getId()).thenReturn("1");
+        when(member.getIdLong()).thenReturn(1L);
         return member;
     }
 
@@ -247,5 +248,20 @@ class CitadelAdminApiTest {
         assertEquals(409, assertThrows(ApiError.class, () -> api.route(guild, actor(), "POST", new String[]{"citadel", "winners", "2026-10-14", "post"}, DataObject::empty)).status);
         when(winners.get(7L, java.time.LocalDate.parse("2026-10-07"))).thenReturn(java.util.Optional.empty());
         assertEquals(404, assertThrows(ApiError.class, () -> api.route(guild, actor(), "POST", new String[]{"citadel", "winners", "2026-10-07", "post"}, DataObject::empty)).status);
+    }
+
+    @Test
+    void aPictureNearTheSizeLimitSurvivesTheJourneyAsJson() {
+        byte[] big = new byte[CitadelWinners.MAX_GIF_BYTES - 10];
+        System.arraycopy("GIF89a".getBytes(), 0, big, 0, 6);
+        // what the website sends, parsed the way the internal server parses a request body
+        String json = DataObject.empty().put("end", "2026-10-14").put("winner", "Giff").put("entries", DataArray.fromCollection(List.of("Giff")))
+                .put("gif", java.util.Base64.getEncoder().encodeToString(big)).toString();
+        DataObject body = DataObject.fromJson(new java.io.ByteArrayInputStream(json.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        when(winners.lock(anyLong(), any(), any(), any(), any(), any(), any(), any())).thenReturn(locked("Giff", true));
+        api.route(guild, actor(), "POST", new String[]{"citadel", "lock"}, () -> body);
+        org.mockito.ArgumentCaptor<byte[]> sent = org.mockito.ArgumentCaptor.forClass(byte[].class);
+        verify(winners).lock(anyLong(), any(), any(), any(), any(), any(), sent.capture(), any());
+        assertEquals(big.length, sent.getValue().length);
     }
 }
