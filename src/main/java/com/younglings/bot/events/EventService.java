@@ -112,6 +112,7 @@ public class EventService {
                 if (kept.hasKey(key)) config.put(key, kept.get(key));
                 else config.remove(key);
             }
+            keepOrganisers(kept, config); // organisers are changed with their own call, so a settings save can't wipe them
         }
         List<String> problems = new ArrayList<>(EventRules.eventProblems(in.name(), in.description(), in.maxParticipants(), in.startsAt(), in.endsAt()));
         problems.addAll(template.configProblems(config));
@@ -133,9 +134,20 @@ public class EventService {
         changes.publish(EventChanges.Kind.STAGE, guildId, id);
     }
 
-    public void deleteDraft(long guildId, long id) {
+    /** Deletes an event and everything in it. Only a draft or an event that is over: cancel or finish one that is running first. */
+    public void deleteEvent(long guildId, long id) {
         event(guildId, id);
-        if (!repository.deleteEvent(guildId, id)) throw new EventProblem(409, "Only a draft can be deleted. Cancel an event that has started.");
+        if (!repository.deleteEvent(guildId, id)) throw new EventProblem(409, "Cancel or finish the event before deleting it.");
+    }
+
+    /** Hides a finished event from the dashboard's list ({@code archived} true) or brings it back. */
+    public void archive(long guildId, long id, boolean archived) {
+        event(guildId, id);
+        if (!repository.setArchived(guildId, id, archived)) throw new EventProblem(409, "Only a finished or cancelled event can be archived.");
+    }
+
+    public int archiveFinished(long guildId) {
+        return repository.archiveFinished(guildId);
     }
 
     // ---------- objectives, teams, players ----------
@@ -191,6 +203,7 @@ public class EventService {
     public void reconfigure(long guildId, long id, DataObject config, List<ObjectiveSpec> objectives) {
         Event event = event(guildId, id);
         if (!EventRules.editable(event.status())) throw new EventProblem(409, "This can only be changed while the event is a draft or taking signups.");
+        keepOrganisers(DataObject.fromJson(event.config()), config);
         List<String> problems = new ArrayList<>(checkObjectives(objectives));
         problems.addAll(EventSettings.problems(config));
         problems.addAll(EventBonuses.problems(config, objectives.stream().map(ObjectiveSpec::key).collect(java.util.stream.Collectors.toSet())));
@@ -200,6 +213,45 @@ public class EventService {
         }
         repository.replaceObjectives(id, objectives);
         changes.publish(EventChanges.Kind.SETUP, guildId, id);
+    }
+
+    private static void keepOrganisers(DataObject from, DataObject into) {
+        if (from.hasKey("organisers") && !from.isNull("organisers")) into.put("organisers", from.get("organisers"));
+        else into.remove("organisers");
+    }
+
+    // ---------- organisers ----------
+
+    /** Whether this person may run the event from Discord: staff always, otherwise only someone named an organiser of it. */
+    public boolean mayOrganise(Event event, long userId, boolean staff) {
+        return staff || settingsOf(event).isOrganiser(userId);
+    }
+
+    public List<Long> organisers(long guildId, long id) {
+        return new ArrayList<>(settingsOf(event(guildId, id)).organisers());
+    }
+
+    /**
+     * Names or removes organisers of one event, at any stage until it is finished. Removing someone who isn't one, or adding someone who already is,
+     * is fine. Returns the organisers after the change.
+     */
+    public List<Long> changeOrganisers(long guildId, long id, java.util.Collection<Long> add, java.util.Collection<Long> remove) {
+        Event event = event(guildId, id);
+        if (event.status() == Status.DONE || event.status() == Status.CANCELLED) throw new EventProblem(409, "This event is over, so its organisers can't change.");
+        java.util.Set<Long> ids = new java.util.LinkedHashSet<>(settingsOf(event).organisers());
+        ids.addAll(add);
+        ids.removeAll(remove);
+        if (ids.size() > EventSettings.MAX_ORGANISERS) throw new EventProblem(400, "An event can have up to " + EventSettings.MAX_ORGANISERS + " organisers.");
+        DataObject config = DataObject.fromJson(event.config());
+        if (ids.isEmpty()) {
+            config.remove("organisers");
+        } else {
+            net.dv8tion.jda.api.utils.data.DataArray array = net.dv8tion.jda.api.utils.data.DataArray.empty();
+            ids.forEach(i -> array.add(Long.toString(i)));
+            config.put("organisers", array);
+        }
+        if (!repository.setConfig(guildId, id, config.toString())) throw new EventProblem(404, "That event doesn't exist in this server.");
+        return new ArrayList<>(ids);
     }
 
     private EventSettings settingsOf(Event event) {

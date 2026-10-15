@@ -5,7 +5,9 @@ import com.younglings.bot.events.BingoBoardImage;
 import com.younglings.bot.events.BingoBoardView;
 import com.younglings.bot.events.BingoTemplate;
 import com.younglings.bot.events.EventBoardPanels;
+import com.younglings.bot.events.EventClaimListener;
 import com.younglings.bot.events.EventProblem;
+import com.younglings.bot.events.EventQuickCreate;
 import com.younglings.bot.events.EventRepository;
 import com.younglings.bot.events.EventRepository.ClaimStatus;
 import com.younglings.bot.events.EventRepository.Event;
@@ -13,11 +15,16 @@ import com.younglings.bot.events.EventRules.Status;
 import com.younglings.bot.events.EventService;
 import com.younglings.bot.events.EventSettings;
 import com.younglings.bot.internal.MemberEventsApi;
+import com.younglings.bot.permission.AdminRoleFilter;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
 import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.JDASlashCommand;
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.SlashOption;
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.TopLevelSlashCommandData;
+import net.dv8tion.jda.api.Permission;
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.utils.FileUpload;
@@ -26,13 +33,15 @@ import net.dv8tion.jda.api.utils.data.DataObject;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * {@code /events}: what a member can do with the server's events from Discord. {@code mine} shows their place, points, buy-in and prizes,
  * {@code open} lists events taking signups, and {@code join} / {@code leave} sign up or step out. Everything is the same engine and rules as the
- * website, so the team policy, deadline, waitlist and buy-in all apply. Creating and running an event stays on the website.
+ * website, so the team policy, deadline, waitlist and buy-in all apply. Staff can also start an event from here ({@code create}, {@code start},
+ * {@code finish}) with the template's usual settings, and name organisers for one event ({@code add-organiser}, {@code remove-organiser}); prizes, teams and fine-tuning are on the website.
  */
 @Command
 public class EventsCommand {
@@ -40,8 +49,10 @@ public class EventsCommand {
     private final EventRepository repository;
     private final MemberEventsApi view;
     private final EventBoardPanels panels;
+    private final AdminRoleFilter adminRoleFilter;
 
-    public EventsCommand(EventService service, EventRepository repository, MemberEventsApi view, EventBoardPanels panels) {
+    public EventsCommand(EventService service, EventRepository repository, MemberEventsApi view, EventBoardPanels panels, AdminRoleFilter adminRoleFilter) {
+        this.adminRoleFilter = adminRoleFilter;
         this.service = service;
         this.repository = repository;
         this.view = view;
@@ -214,9 +225,9 @@ public class EventsCommand {
         event.deferReply(true).queue();
         String extra = note == null || note.isBlank() ? "" : "\n" + note.strip().replaceAll("[\\r\\n]+", " ");
         String text = "**" + target.name() + " · submission #" + claimId + "** from " + event.getUser().getAsMention()
-                + "\nTile " + tile + ": " + label + extra + "\n-# Approve or deny it on the dashboard: Event manager, Progress and proof.";
+                + "\nTile " + tile + ": " + label + extra + "\n-# Approve or deny it with the buttons, or on the dashboard (Event manager, Progress and proof).";
         screenshot.getProxy().download().thenCompose(stream -> review.sendMessage(text).setAllowedMentions(List.of())
-                        .addFiles(FileUpload.fromData(stream, screenshot.getFileName())).submit())
+                        .addFiles(FileUpload.fromData(stream, screenshot.getFileName())).setComponents(EventClaimListener.buttons(eventId, claimId)).submit())
                 .whenComplete((message, error) -> {
                     if (error != null) {
                         repository.decideClaim(eventId, claimId, ClaimStatus.DENIED, event.getJDA().getSelfUser().getIdLong(), "Couldn't be sent to the review channel");
@@ -226,6 +237,98 @@ public class EventsCommand {
                     repository.setClaimProof(eventId, claimId, message.getJumpUrl());
                     event.getHook().editOriginal("Sent to staff as submission #" + claimId + " for **" + label + "**. You'll get a DM when they decide.").queue();
                 });
+    }
+
+    private boolean isStaff(Guild guild, Member member) {
+        return member != null && (member.hasPermission(Permission.MANAGE_SERVER) || adminRoleFilter.isAuthorized(guild, member));
+    }
+
+    private static String refusal(EventProblem p) {
+        return p.problems().isEmpty() ? p.getMessage() : p.getMessage() + "\n- " + String.join("\n- ", p.problems());
+    }
+
+    @JDASlashCommand(name = "events", subcommand = "create", description = "Staff: start a new event with the usual settings")
+    public void onCreate(GuildSlashEvent event,
+                         @SlashOption(description = "The kind of event", usePredefinedChoices = true) EventQuickCreate.Kind kind,
+                         @SlashOption(description = "The event's name") String name,
+                         @SlashOption(description = "How many days it runs (default 7)") @Nullable Integer days,
+                         @SlashOption(name = "starts_in_hours", description = "Hours until it starts (default 24)") @Nullable Integer startsInHours,
+                         @SlashOption(description = "Bingo: board size. Competition: skill. Boss night: the boss. Scavenger hunt: item count") @Nullable String detail) {
+        Guild guild = event.getGuild();
+        if (!isStaff(guild, event.getMember())) {
+            Containers.replyEphemeral(event, Containers.WARNING, "Only staff can create events.");
+            return;
+        }
+        long guildId = guild.getIdLong();
+        try {
+            EventQuickCreate.Plan plan = EventQuickCreate.plan(kind, name, days == null ? 7 : days, startsInHours == null ? 24 : startsInHours, detail, Instant.now());
+            long id = service.createEvent(guildId, event.getUser().getIdLong(), plan.input());
+            service.moveStage(guildId, id, Status.SIGNUPS);
+            Containers.reply(event, Containers.SUCCESS, false,
+                    "### 🎉 New event: " + plan.input().name(),
+                    plan.summary(),
+                    "Sign up with `/events join id:" + id + "`. See everything open with `/events open`.",
+                    "-# Staff: teams, prizes and buy-ins are on the dashboard's Event manager, and `/events start id:" + id + "` begins it.");
+        } catch (IllegalArgumentException e) {
+            Containers.replyEphemeral(event, Containers.WARNING, e.getMessage());
+        } catch (EventProblem p) {
+            Containers.replyEphemeral(event, Containers.WARNING, refusal(p));
+        }
+    }
+
+    @JDASlashCommand(name = "events", subcommand = "start", description = "Staff: start an event")
+    public void onStart(GuildSlashEvent event, @SlashOption(description = "The event's number, from /events open") long id) {
+        moveEvent(event, id, Status.RUNNING, "is on", "Players can now earn points.");
+    }
+
+    @JDASlashCommand(name = "events", subcommand = "finish", description = "Staff: stop an event taking progress so prizes can be sorted")
+    public void onFinish(GuildSlashEvent event, @SlashOption(description = "The event's number") long id) {
+        moveEvent(event, id, Status.SCORING, "has finished", "Standings are final once you've checked the proof. Close it out and pay prizes on the dashboard.");
+    }
+
+    private void moveEvent(GuildSlashEvent event, long id, Status to, String what, String hint) {
+        long guildId = event.getGuild().getIdLong();
+        try {
+            Event e = service.event(guildId, id);
+            if (!service.mayOrganise(e, event.getUser().getIdLong(), isStaff(event.getGuild(), event.getMember()))) {
+                Containers.replyEphemeral(event, Containers.WARNING, "Only staff and this event's organisers can do that.");
+                return;
+            }
+            service.moveStage(guildId, id, to);
+            Containers.reply(event, Containers.SUCCESS, false, "**" + e.name() + "** " + what + ".", "-# " + hint);
+        } catch (EventProblem p) {
+            Containers.replyEphemeral(event, Containers.WARNING, refusal(p));
+        }
+    }
+
+    @JDASlashCommand(name = "events", subcommand = "add-organiser", description = "Staff: let someone run one event (start it, finish it, decide proof)")
+    public void onAddOrganiser(GuildSlashEvent event, @SlashOption(description = "The event's number") long id, @SlashOption(description = "The person to make an organiser") User user) {
+        changeOrganiser(event, id, user, true);
+    }
+
+    @JDASlashCommand(name = "events", subcommand = "remove-organiser", description = "Staff: take someone off an event's organisers")
+    public void onRemoveOrganiser(GuildSlashEvent event, @SlashOption(description = "The event's number") long id, @SlashOption(description = "The organiser to remove") User user) {
+        changeOrganiser(event, id, user, false);
+    }
+
+    private void changeOrganiser(GuildSlashEvent event, long id, User user, boolean add) {
+        if (!isStaff(event.getGuild(), event.getMember())) {
+            Containers.replyEphemeral(event, Containers.WARNING, "Only staff can change who organises an event.");
+            return;
+        }
+        if (user.isBot()) {
+            Containers.replyEphemeral(event, Containers.WARNING, "Choose a person, not a bot.");
+            return;
+        }
+        long guildId = event.getGuild().getIdLong();
+        try {
+            Event e = service.event(guildId, id);
+            var after = service.changeOrganisers(guildId, id, add ? List.of(user.getIdLong()) : List.of(), add ? List.of() : List.of(user.getIdLong()));
+            Containers.replyEphemeral(event, Containers.SUCCESS, (add ? user.getAsMention() + " can now run **" + e.name() + "**: start and finish it, and approve or deny proof."
+                    : user.getAsMention() + " is no longer an organiser of **" + e.name() + "**."), "-# " + after.size() + " organiser" + (after.size() == 1 ? "" : "s") + " on this event.");
+        } catch (EventProblem p) {
+            Containers.replyEphemeral(event, Containers.WARNING, refusal(p));
+        }
     }
 
     private static String trim(String text) {

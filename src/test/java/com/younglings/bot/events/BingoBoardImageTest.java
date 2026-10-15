@@ -22,10 +22,12 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BingoBoardImageTest {
+    private static final BingoTiles ICONS = new BingoTiles(new com.younglings.bot.internal.WikiCatalog());
+
     private static List<TileView> tiles(int size, int doneEvery) {
         List<TileView> tiles = new ArrayList<>();
         var pool = BingoBoard.dropsPool();
-        for (int i = 0; i < size * size; i++) tiles.add(new TileView(i + 1, pool.get(i).label(), pool.get(i).points(), i % doneEvery == 0, i % doneEvery == 0 ? 2 : 0, 5));
+        for (int i = 0; i < size * size; i++) tiles.add(new TileView(i + 1, pool.get(i).label(), pool.get(i).points(), i % doneEvery == 0, i % doneEvery == 0 ? 2 : 0, 5, ICONS.iconKeyFor(pool.get(i).label())));
         return tiles;
     }
 

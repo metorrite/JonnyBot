@@ -40,7 +40,7 @@ public class EventRepository {
     private static final Logger log = LoggerFactory.getLogger(EventRepository.class);
 
     public record Event(long id, long guildId, String template, String name, String description, Status status, Scope scope, ScoringMode scoringMode,
-                        Instant startsAt, Instant endsAt, int maxParticipants, String config, long createdBy, Instant createdAt, Long signupId) {}
+                        Instant startsAt, Instant endsAt, int maxParticipants, String config, long createdBy, Instant createdAt, Long signupId, boolean archived) {}
 
     public record Team(long id, long eventId, String name, Long captainId) {}
 
@@ -161,6 +161,7 @@ public class EventRepository {
                 "CREATE INDEX IF NOT EXISTS event_claim_event ON younglings.event_claim (event_id, status, id);",
                 // the dedicated signup attached to the event (a signup panel in Discord), until it is closed
                 "ALTER TABLE younglings.event ADD COLUMN IF NOT EXISTS signup_id BIGINT NULL;",
+                "ALTER TABLE younglings.event ADD COLUMN IF NOT EXISTS archived BOOLEAN NOT NULL DEFAULT FALSE;",
                 "ALTER TABLE younglings.event_participant ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'HOME_CLAN';",
                 "ALTER TABLE younglings.event_participant ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'ACTIVE';",
                 "ALTER TABLE younglings.event_participant ADD COLUMN IF NOT EXISTS buy_in_status TEXT NOT NULL DEFAULT 'NONE';",
@@ -321,6 +322,43 @@ public class EventRepository {
             return s.executeUpdate() == 1;
         } catch (SQLException e) {
             throw new RuntimeException("Failed to update the event", e);
+        }
+    }
+
+    /** Hides or shows a finished event in the dashboard's list. False when it isn't finished (done or cancelled) or doesn't exist. */
+    public boolean setArchived(long guildId, long id, boolean archived) {
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("UPDATE younglings.event SET archived = ? WHERE guild_id = ? AND id = ? AND status IN ('DONE', 'CANCELLED')")) {
+            s.setBoolean(1, archived);
+            s.setLong(2, guildId);
+            s.setLong(3, id);
+            return s.executeUpdate() == 1;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to archive the event", e);
+        }
+    }
+
+    /** Archives every finished event of a server that isn't archived yet. Returns how many. */
+    public int archiveFinished(long guildId) {
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("UPDATE younglings.event SET archived = TRUE WHERE guild_id = ? AND archived = FALSE AND status IN ('DONE', 'CANCELLED')")) {
+            s.setLong(1, guildId);
+            return s.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to archive the finished events", e);
+        }
+    }
+
+    /** Replaces just the settings of an event, at any stage (organisers can change while it runs). False when the event doesn't exist. */
+    public boolean setConfig(long guildId, long id, String config) {
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("UPDATE younglings.event SET config = ?, updated_at = NOW() WHERE guild_id = ? AND id = ?")) {
+            s.setString(1, config);
+            s.setLong(2, guildId);
+            s.setLong(3, id);
+            return s.executeUpdate() == 1;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to save the event's settings", e);
         }
     }
 
@@ -501,9 +539,10 @@ public class EventRepository {
         }
     }
 
+    /** Deletes an event with everything that belongs to it, but only a draft or one that is over (done or cancelled). */
     public boolean deleteEvent(long guildId, long id) {
         try (Connection c = connectionSupplier.getConnection();
-             PreparedStatement s = c.prepareStatement("DELETE FROM younglings.event WHERE guild_id = ? AND id = ? AND status = 'DRAFT'")) {
+             PreparedStatement s = c.prepareStatement("DELETE FROM younglings.event WHERE guild_id = ? AND id = ? AND status IN ('DRAFT', 'DONE', 'CANCELLED')")) {
             s.setLong(1, guildId);
             s.setLong(2, id);
             return s.executeUpdate() == 1;
@@ -1054,7 +1093,7 @@ public class EventRepository {
         return new Event(rs.getLong("id"), rs.getLong("guild_id"), rs.getString("template"), rs.getString("name"), rs.getString("description"),
                 Status.valueOf(rs.getString("status")), Scope.valueOf(rs.getString("scope")), ScoringMode.valueOf(rs.getString("scoring_mode")),
                 starts == null ? null : starts.toInstant(), ends == null ? null : ends.toInstant(), rs.getInt("max_participants"), rs.getString("config"),
-                rs.getLong("created_by"), rs.getTimestamp("created_at").toInstant(), nullableLong(rs, "signup_id"));
+                rs.getLong("created_by"), rs.getTimestamp("created_at").toInstant(), nullableLong(rs, "signup_id"), rs.getBoolean("archived"));
     }
 
     private List<Participant> participants(String sql, long eventId, Long userId) {

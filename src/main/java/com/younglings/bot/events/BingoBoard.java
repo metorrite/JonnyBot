@@ -125,7 +125,7 @@ public final class BingoBoard {
                 {"General Graardor", "Bandos boots", "25"}, {"General Graardor", "Bandos gloves", "25"}, {"General Graardor", "Bandos warshield", "50"}, {"General Graardor", "Bandos hilt", "100"},
                 {"Commander Zilyana", "Saradomin sword", "100"}, {"Commander Zilyana", "Saradomin hilt", "100"},
                 {"K'ril Tsutsaroth", "Zamorak hilt", "100"},
-                {"Araxxor", "Araxxi's web", "25"}, {"Araxxor", "Araxxi's fang", "50"}, {"Araxxor", "Araxxi's eye", "50"},
+                {"Araxxi", "Araxxi's web", "25"}, {"Araxxi", "Araxxi's fang", "50"}, {"Araxxi", "Araxxi's eye", "50"},
                 {"Kalphite King", "Drygore longsword", "100"}, {"Kalphite King", "Drygore mace", "100"}, {"Kalphite King", "Drygore rapier", "100"},
                 {"Kalphite King", "Off-hand drygore longsword", "100"}, {"Kalphite King", "Off-hand drygore mace", "100"}, {"Kalphite King", "Off-hand drygore rapier", "100"},
                 {"Nex", "Torva full helm", "100"}, {"Nex", "Torva platebody", "100"}, {"Nex", "Torva platelegs", "100"}, {"Nex", "Torva boots", "50"}, {"Nex", "Torva gloves", "50"},

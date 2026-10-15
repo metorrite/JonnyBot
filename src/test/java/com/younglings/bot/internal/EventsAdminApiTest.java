@@ -61,6 +61,7 @@ class EventsAdminApiTest {
     private EventRepository repository;
     private EventService service;
     private EventsAdminApi api;
+    private com.younglings.bot.runescape.PlayerLinkRepository links;
     private Guild guild;
     private Member actor;
 
@@ -85,7 +86,8 @@ class EventsAdminApiTest {
         Mockito.when(signups.stateOf(ArgumentMatchers.any())).thenReturn(new EventSignups.State(false, false, 0, false));
         EventBoardPanels panels = Mockito.mock(EventBoardPanels.class);
         Mockito.when(panels.refresh(ArgumentMatchers.anyLong(), ArgumentMatchers.anyLong())).thenReturn("Posted the board.");
-        api = new EventsAdminApi(service, repository, templates, signups, new BingoTemplate(), panels);
+        links = Mockito.mock(com.younglings.bot.runescape.PlayerLinkRepository.class);
+        api = new EventsAdminApi(service, repository, templates, signups, new BingoTemplate(), panels, links, new com.younglings.bot.events.BingoTiles(new com.younglings.bot.internal.WikiCatalog()));
 
         guild = Mockito.mock(Guild.class);
         Mockito.when(guild.getIdLong()).thenReturn(G);
@@ -408,5 +410,129 @@ class EventsAdminApiTest {
         call("POST", "events/" + id + "/status", "{\"status\":\"signups\"}");
         call("POST", "events/" + id + "/participants", "{\"userId\":\"401\"}");
         assertEquals(0, count(call("GET", "events/" + id, null).getArray("refused")));
+    }
+
+    // ---------- organisers ----------
+
+    private static final String PERSON = "123456789012345678";
+
+    @Test
+    void organisersAreNamedByIdOrLinkedRsnListedAndRemoved() {
+        String id = create("{\"name\":\"Run by others\"}");
+        Mockito.when(links.getAllLinks(G)).thenReturn(List.of(new com.younglings.bot.runescape.PlayerLink(1, G, 555_000_000_000_000_001L, "Axley", "x", null, null)));
+
+        var added = call("POST", "events/" + id + "/organisers", "{\"add\":[\"" + PERSON + "\",\"axley\"]}").getArray("organisers");
+        assertEquals(2, count(added));
+        assertEquals(PERSON, added.getObject(0).getString("userId"));
+        assertEquals("555000000000000001", added.getObject(1).getString("userId"));
+
+        var left = call("POST", "events/" + id + "/organisers", "{\"remove\":[\"" + PERSON + "\"]}").getArray("organisers");
+        assertEquals(1, count(left));
+        assertEquals(List.of(555_000_000_000_000_001L), service.organisers(G, Long.parseLong(id)));
+    }
+
+    @Test
+    void aSettingsSaveDoesNotWipeTheOrganisers() {
+        String id = create("{\"name\":\"Keep my organisers\"}");
+        call("POST", "events/" + id + "/organisers", "{\"add\":[\"" + PERSON + "\"]}");
+        call("PUT", "events/" + id, "{\"name\":\"Renamed\",\"config\":{\"queue\":\"CLAN_FIRST\"}}");
+        call("PUT", "events/" + id, "{\"config\":{\"organisers\":[\"999999999999999999\"]}}");
+        assertEquals(List.of(Long.parseLong(PERSON)), service.organisers(G, Long.parseLong(id)), "organisers only change through their own call");
+    }
+
+    @Test
+    void anUnknownNameOrTooManyOrganisersAreRefused() {
+        String id = create("{\"name\":\"Limits\"}");
+        Mockito.when(links.getAllLinks(G)).thenReturn(List.of());
+        assertEquals(400, failure("POST", "events/" + id + "/organisers", "{\"add\":[\"nobody\"]}").status);
+        StringBuilder many = new StringBuilder("{\"add\":[");
+        for (int i = 0; i < 11; i++) many.append(i == 0 ? "" : ",").append("\"").append(100_000_000_000_000_000L + i).append("\"");
+        assertEquals(400, failure("POST", "events/" + id + "/organisers", many + "]}").status);
+        assertEquals(0, service.organisers(G, Long.parseLong(id)).size(), "a refused change changes nothing");
+    }
+
+    @Test
+    void onlyAnOrganiserOrStaffMayRunTheEvent() {
+        String id = create("{\"name\":\"Who may run it\"}");
+        call("POST", "events/" + id + "/organisers", "{\"add\":[\"" + PERSON + "\"]}");
+        var event = service.event(G, Long.parseLong(id));
+        assertTrue(service.mayOrganise(event, Long.parseLong(PERSON), false));
+        assertFalse(service.mayOrganise(event, 42L, false));
+        assertTrue(service.mayOrganise(event, 42L, true), "staff may run any event");
+    }
+
+    // ---------- tiles, archive and delete ----------
+
+    private String finishedEvent(String name) {
+        String id = create("{\"name\":\"" + name + "\"}");
+        call("PUT", "events/" + id + "/objectives", "{\"objectives\":[{\"label\":\"Anything\",\"points\":1}]}");
+        call("POST", "events/" + id + "/status", "{\"status\":\"running\"}");
+        call("POST", "events/" + id + "/status", "{\"status\":\"scoring\"}");
+        call("POST", "events/" + id + "/status", "{\"status\":\"done\"}");
+        return id;
+    }
+
+    private static boolean listed(DataObject list, String id, boolean archived) {
+        var events = list.getArray("events");
+        for (int i = 0; i < events.length(); i++) {
+            if (events.getObject(i).getString("id").equals(id)) return events.getObject(i).getBoolean("archived") == archived;
+        }
+        return false;
+    }
+
+    @Test
+    void aBingoDetailNamesTheBossItemAndPictureOfEveryTile() {
+        String id = create("{\"name\":\"Pictured bingo\",\"template\":\"bingo\",\"config\":{\"board\":{\"size\":3}}}");
+        var tiles = call("GET", "events/" + id, null).getArray("tiles");
+        assertEquals(9, count(tiles));
+        for (int i = 0; i < tiles.length(); i++) assertFalse(tiles.getObject(i).getString("item").isEmpty());
+        assertEquals(0, count(call("GET", "events/" + create("{\"name\":\"Plain\"}"), null).getArray("tiles")), "only a bingo has tiles");
+    }
+
+    @Test
+    void theBingoCatalogListsBossesWithTheirLoot() {
+        var bosses = call("GET", "events/bingo-catalog", null).getArray("bosses");
+        assertTrue(bosses.length() > 30);
+        assertTrue(bosses.getObject(0).getArray("items").length() > 0);
+    }
+
+    @Test
+    void aFinishedEventCanBeArchivedAndBroughtBack() {
+        String id = finishedEvent("Archive me");
+        assertTrue(listed(call("GET", "events", null), id, false));
+        assertTrue(listed(call("POST", "events/" + id + "/archive", "{\"archived\":true}"), id, true));
+        assertTrue(listed(call("POST", "events/" + id + "/archive", "{\"archived\":false}"), id, false));
+    }
+
+    @Test
+    void anEventThatIsStillGoingCannotBeArchivedOrDeleted() {
+        String id = create("{\"name\":\"Still going\"}");
+        call("PUT", "events/" + id + "/objectives", "{\"objectives\":[{\"label\":\"Anything\",\"points\":1}]}");
+        call("POST", "events/" + id + "/status", "{\"status\":\"running\"}");
+        assertEquals(409, failure("POST", "events/" + id + "/archive", "{\"archived\":true}").status);
+        assertEquals(409, failure("DELETE", "events/" + id, null).status);
+        call("POST", "events/" + id + "/status", "{\"status\":\"cancelled\"}");
+        call("DELETE", "events/" + id, null);
+        assertEquals(404, failure("GET", "events/" + id, null).status);
+    }
+
+    @Test
+    void aFinishedEventAndEverythingInItCanBeDeleted() {
+        String id = finishedEvent("Delete me");
+        call("DELETE", "events/" + id, null);
+        assertEquals(404, failure("GET", "events/" + id, null).status);
+        assertEquals(0, call("GET", "events", null).getArray("events").length());
+    }
+
+    @Test
+    void archivingAllFinishedEventsLeavesTheOthersAlone() {
+        String one = finishedEvent("Done one");
+        String two = finishedEvent("Done two");
+        String open = create("{\"name\":\"Open one\"}");
+        var after = call("POST", "events/archive-finished", null);
+        assertEquals(2, after.getInt("archivedCount"));
+        assertTrue(listed(after, one, true) && listed(after, two, true));
+        assertTrue(listed(after, open, false));
+        assertEquals(0, call("POST", "events/archive-finished", null).getInt("archivedCount"));
     }
 }
