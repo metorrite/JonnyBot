@@ -82,6 +82,13 @@ public class SignupService {
     public void createQueueSession(Guild guild, TextChannel signupChannel, TextChannel adminChannel,
                                     String title, String notificationMessage, Integer maxSignups,
                                     long createdByUserId) {
+        createQueueSignup(guild, signupChannel, adminChannel, title, notificationMessage, maxSignups, createdByUserId);
+    }
+
+    /** Creates a queue signup and posts its panels, returning its id (used by events, which attach a signup to themselves). */
+    public long createQueueSignup(Guild guild, TextChannel signupChannel, TextChannel adminChannel,
+                                  String title, String notificationMessage, Integer maxSignups,
+                                  long createdByUserId) {
         long signupId = signupRepository.createSignup(
                 guild.getIdLong(), title, SignupType.QUEUE,
                 notificationMessage, null, maxSignups, createdByUserId, null
@@ -95,6 +102,7 @@ public class SignupService {
         activeSignupsById.put(signupId, session);
         postNewPanels(guild, signupChannel, adminChannel, session);
         log.info("Created QUEUE signup {} '{}' in guild {}", signupId, title, guild.getIdLong());
+        return signupId;
     }
 
     public void createGroupSession(Guild guild, TextChannel signupChannel, TextChannel adminChannel,

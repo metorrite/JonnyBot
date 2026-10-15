@@ -19,11 +19,11 @@ import java.util.Locale;
  * {@code signupClosesAt}: an ISO date and time after which players can no longer join themselves (staff still can).
  * Pure, so it can be tested.
  */
-public record EventSettings(BuyIn buyIn, Policy teamPolicy, QueueRules.Policy queue, Instant signupClosesAt) {
+public record EventSettings(BuyIn buyIn, Policy teamPolicy, QueueRules.Policy queue, Instant signupClosesAt, Long signupChannelId, Long signupAdminChannelId) {
     public static final String DEFAULT_POLICY = "everyone";
 
     public static EventSettings defaults() {
-        return new EventSettings(new BuyIn(false, PrizeKind.IN_GAME, 0, false), TeamRules.everyoneTogether(), QueueRules.Policy.FIRST_COME, null);
+        return new EventSettings(new BuyIn(false, PrizeKind.IN_GAME, 0, false), TeamRules.everyoneTogether(), QueueRules.Policy.FIRST_COME, null, null, null);
     }
 
     /** Reads the settings, filling anything missing with the defaults. A value that can't be read is left at its default; {@link #problems} reports it. */
@@ -44,7 +44,7 @@ public record EventSettings(BuyIn buyIn, Policy teamPolicy, QueueRules.Policy qu
         } catch (DateTimeParseException | ClassCastException ignored) {
             // reported by problems()
         }
-        return new EventSettings(buyIn, policy == null ? d.teamPolicy() : policy, queue == null ? d.queue() : queue, closes);
+        return new EventSettings(buyIn, policy == null ? d.teamPolicy() : policy, queue == null ? d.queue() : queue, closes, id(config, "signupChannelId"), id(config, "signupAdminChannelId"));
     }
 
     /** What is wrong with the settings in {@code config}, in words, or an empty list. */
@@ -64,7 +64,23 @@ public record EventSettings(BuyIn buyIn, Policy teamPolicy, QueueRules.Policy qu
         } catch (DateTimeParseException | ClassCastException e) {
             problems.add("The signup deadline has to be a date and time like 2026-10-20T19:00:00Z.");
         }
+        for (String key : new String[]{"signupChannelId", "signupAdminChannelId"}) {
+            if (config.hasKey(key) && !config.isNull(key) && !config.getString(key, "").isBlank() && id(config, key) == null) problems.add("Choose a channel for the signup (the channel id looks wrong).");
+        }
+        boolean one = config.hasKey("signupChannelId") && id(config, "signupChannelId") != null;
+        boolean other = config.hasKey("signupAdminChannelId") && id(config, "signupAdminChannelId") != null;
+        if (one != other) problems.add("A signup needs both a public channel and a staff channel, or neither.");
         return problems;
+    }
+
+    private static Long id(DataObject config, String key) {
+        try {
+            if (!config.hasKey(key) || config.isNull(key)) return null;
+            String raw = config.getString(key).strip();
+            return raw.matches("\\d{1,20}") ? Long.parseLong(raw) : null;
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
     /** Whether players can still join themselves at {@code now}; staff may always add late entries. */

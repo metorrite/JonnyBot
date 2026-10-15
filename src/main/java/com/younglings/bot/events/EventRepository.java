@@ -40,7 +40,7 @@ public class EventRepository {
     private static final Logger log = LoggerFactory.getLogger(EventRepository.class);
 
     public record Event(long id, long guildId, String template, String name, String description, Status status, Scope scope, ScoringMode scoringMode,
-                        Instant startsAt, Instant endsAt, int maxParticipants, String config, long createdBy, Instant createdAt) {}
+                        Instant startsAt, Instant endsAt, int maxParticipants, String config, long createdBy, Instant createdAt, Long signupId) {}
 
     public record Team(long id, long eventId, String name, Long captainId) {}
 
@@ -159,6 +159,8 @@ public class EventRepository {
                 );
                 """,
                 "CREATE INDEX IF NOT EXISTS event_claim_event ON younglings.event_claim (event_id, status, id);",
+                // the dedicated signup attached to the event (a signup panel in Discord), until it is closed
+                "ALTER TABLE younglings.event ADD COLUMN IF NOT EXISTS signup_id BIGINT NULL;",
                 "ALTER TABLE younglings.event_participant ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'HOME_CLAN';",
                 "ALTER TABLE younglings.event_participant ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'ACTIVE';",
                 "ALTER TABLE younglings.event_participant ADD COLUMN IF NOT EXISTS buy_in_status TEXT NOT NULL DEFAULT 'NONE';",
@@ -304,6 +306,29 @@ public class EventRepository {
             return s.executeUpdate() == 1;
         } catch (SQLException e) {
             throw new RuntimeException("Failed to move the event", e);
+        }
+    }
+
+    /** Attaches a signup to an event, or detaches it when {@code signupId} is null. */
+    public void setSignup(long eventId, Long signupId) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("UPDATE younglings.event SET signup_id = ? WHERE id = ?")) {
+            if (signupId == null) s.setNull(1, Types.BIGINT); else s.setLong(1, signupId);
+            s.setLong(2, eventId);
+            s.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to attach the signup", e);
+        }
+    }
+
+    /** Events (in every server) that still have a signup attached, for the sweep that syncs and closes them. */
+    public List<Event> eventsWithSignup() {
+        List<Event> list = new ArrayList<>();
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("SELECT * FROM younglings.event WHERE signup_id IS NOT NULL ORDER BY id");
+             ResultSet rs = s.executeQuery()) {
+            while (rs.next()) list.add(mapEvent(rs));
+            return list;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read the events with signups", e);
         }
     }
 
@@ -820,7 +845,7 @@ public class EventRepository {
         return new Event(rs.getLong("id"), rs.getLong("guild_id"), rs.getString("template"), rs.getString("name"), rs.getString("description"),
                 Status.valueOf(rs.getString("status")), Scope.valueOf(rs.getString("scope")), ScoringMode.valueOf(rs.getString("scoring_mode")),
                 starts == null ? null : starts.toInstant(), ends == null ? null : ends.toInstant(), rs.getInt("max_participants"), rs.getString("config"),
-                rs.getLong("created_by"), rs.getTimestamp("created_at").toInstant());
+                rs.getLong("created_by"), rs.getTimestamp("created_at").toInstant(), nullableLong(rs, "signup_id"));
     }
 
     private List<Participant> participants(String sql, long eventId, Long userId) {
