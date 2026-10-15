@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 /** Turns an event's board, objectives and standings into the tiles to draw. Pure. */
 public final class BingoBoardView {
@@ -49,25 +50,36 @@ public final class BingoBoardView {
 
     /** The shared board: each tile counts how many of the event's {@code subjects} have completed it. */
     public static List<TileView> shared(List<String> keys, List<ObjectiveSpec> objectives, List<Standing> standings, int subjects) {
+        return shared(keys, objectives, standings, subjects, label -> null);
+    }
+
+    /** As {@link #shared(List, List, List, int)}, with a picture for tiles whose label {@code iconOf} knows (it may return null). */
+    public static List<TileView> shared(List<String> keys, List<ObjectiveSpec> objectives, List<Standing> standings, int subjects, Function<String, String> iconOf) {
         Map<String, ObjectiveSpec> byKey = byKey(objectives);
         List<TileView> tiles = new ArrayList<>();
         for (int i = 0; i < keys.size(); i++) {
             String key = keys.get(i);
             ObjectiveSpec o = byKey.get(key);
             int count = (int) standings.stream().filter(s -> s.completions().getOrDefault(key, 0) > 0).count();
-            tiles.add(new TileView(i + 1, o == null ? key : o.label(), o == null ? 0 : o.points(), count > 0, count, Math.max(subjects, count)));
+            String label = o == null ? key : o.label();
+            tiles.add(new TileView(i + 1, label, o == null ? 0 : o.points(), count > 0, count, Math.max(subjects, count), iconOf.apply(label)));
         }
         return tiles;
     }
 
     /** One player's or team's board: a tile is done when they have completed it. {@code mine} may be null for someone with no progress. */
     public static List<TileView> personal(List<String> keys, List<ObjectiveSpec> objectives, Standing mine) {
+        return personal(keys, objectives, mine, label -> null);
+    }
+
+    public static List<TileView> personal(List<String> keys, List<ObjectiveSpec> objectives, Standing mine, Function<String, String> iconOf) {
         Map<String, ObjectiveSpec> byKey = byKey(objectives);
         Map<String, Integer> done = mine == null ? Map.of() : mine.completions();
         List<TileView> tiles = new ArrayList<>();
         for (int i = 0; i < keys.size(); i++) {
             ObjectiveSpec o = byKey.get(keys.get(i));
-            tiles.add(new TileView(i + 1, o == null ? keys.get(i) : o.label(), o == null ? 0 : o.points(), done.getOrDefault(keys.get(i), 0) > 0, 0, 0));
+            String label = o == null ? keys.get(i) : o.label();
+            tiles.add(new TileView(i + 1, label, o == null ? 0 : o.points(), done.getOrDefault(keys.get(i), 0) > 0, 0, 0, iconOf.apply(label)));
         }
         return tiles;
     }

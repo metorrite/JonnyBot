@@ -134,9 +134,20 @@ public class EventService {
         changes.publish(EventChanges.Kind.STAGE, guildId, id);
     }
 
-    public void deleteDraft(long guildId, long id) {
+    /** Deletes an event and everything in it. Only a draft or an event that is over: cancel or finish one that is running first. */
+    public void deleteEvent(long guildId, long id) {
         event(guildId, id);
-        if (!repository.deleteEvent(guildId, id)) throw new EventProblem(409, "Only a draft can be deleted. Cancel an event that has started.");
+        if (!repository.deleteEvent(guildId, id)) throw new EventProblem(409, "Cancel or finish the event before deleting it.");
+    }
+
+    /** Hides a finished event from the dashboard's list ({@code archived} true) or brings it back. */
+    public void archive(long guildId, long id, boolean archived) {
+        event(guildId, id);
+        if (!repository.setArchived(guildId, id, archived)) throw new EventProblem(409, "Only a finished or cancelled event can be archived.");
+    }
+
+    public int archiveFinished(long guildId) {
+        return repository.archiveFinished(guildId);
     }
 
     // ---------- objectives, teams, players ----------

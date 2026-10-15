@@ -41,6 +41,7 @@ public class EventBoardPanels {
 
     private final EventRepository repository;
     private final EventService service;
+    private final BingoTiles tiles;
     private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor((ThreadFactory) runnable -> {
         Thread thread = new Thread(runnable, "event-board-panels");
         thread.setDaemon(true);
@@ -49,9 +50,10 @@ public class EventBoardPanels {
     private final Map<Long, ScheduledFuture<?>> pending = new ConcurrentHashMap<>();
     private volatile JDA jda;
 
-    public EventBoardPanels(EventRepository repository, EventService service, EventChanges changes) {
+    public EventBoardPanels(EventRepository repository, EventService service, EventChanges changes, BingoTiles tiles) {
         this.repository = repository;
         this.service = service;
+        this.tiles = tiles;
         changes.subscribe(this::onChange);
     }
 
@@ -108,10 +110,10 @@ public class EventBoardPanels {
             List<ObjectiveSpec> objectives = service.objectives(eventId);
             List<Standing> standings = service.standings(guildId, eventId);
             int subjects = subjectCount(event, standings);
-            var tiles = BingoBoardView.shared(BingoBoardView.boardKeys(config), objectives, standings, subjects);
+            var tileViews = BingoBoardView.shared(BingoBoardView.boardKeys(config), objectives, standings, subjects, tiles::iconKeyFor);
             int size = BingoBoardView.boardSize(config);
             png = BingoBoardImage.render(event.name(), stageText(event.status()) + " · tiles show how many " + (event.scoringMode() == EventRules.ScoringMode.TEAM ? "teams" : "players") + " have them",
-                    size, tiles, "Submit proof with /events submit event:" + eventId + " and the tile's number");
+                    size, tileViews, "Submit proof with /events submit event:" + eventId + " and the tile's number");
             text = panelText(guild, event, standings);
         } catch (IOException | RuntimeException e) {
             log.warn("Could not draw the board of event {}", eventId, e);
@@ -206,12 +208,24 @@ public class EventBoardPanels {
         }
     }
 
+    /** Takes a deleted event's live board out of Discord, if it had one and the message is still there. */
+    public void removeMessage(EventRepository.Panel panel) {
+        JDA client = jda;
+        if (client == null || panel == null) return;
+        try {
+            TextChannel channel = client.getTextChannelById(panel.channelId());
+            if (channel != null) channel.deleteMessageById(panel.messageId()).queue(ok -> { }, error -> log.debug("Could not remove an event's board message: {}", error.getMessage()));
+        } catch (RuntimeException e) {
+            log.debug("Could not remove an event's board message", e);
+        }
+    }
+
     /** The tiles to draw for one player or team, for {@code /events board}. */
     public List<BingoBoardImage.TileView> personalTiles(Event event, long userId) {
         DataObject config = DataObject.fromJson(event.config());
         var player = repository.participant(event.id(), userId).orElse(null);
         String subject = player == null ? null : event.scoringMode() == EventRules.ScoringMode.TEAM ? (player.teamId() == null ? null : "t:" + player.teamId()) : "u:" + userId;
         Standing mine = subject == null ? null : service.standings(event.guildId(), event.id()).stream().filter(s -> s.subject().equals(subject)).findFirst().orElse(null);
-        return BingoBoardView.personal(BingoBoardView.boardKeys(config), service.objectives(event.id()), mine);
+        return BingoBoardView.personal(BingoBoardView.boardKeys(config), service.objectives(event.id()), mine, tiles::iconKeyFor);
     }
 }

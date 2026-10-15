@@ -12,6 +12,7 @@ import com.younglings.bot.events.EventRules.ScoringMode;
 import com.younglings.bot.events.EventRules.Source;
 import com.younglings.bot.events.EventRules.Status;
 import com.younglings.bot.events.BingoTemplate;
+import com.younglings.bot.events.BingoTiles;
 import com.younglings.bot.events.EventBoardPanels;
 import com.younglings.bot.events.EventBonuses;
 import com.younglings.bot.events.EventScoring.Standing;
@@ -63,10 +64,12 @@ public class EventsAdminApi implements AdminRouteExtension {
     private final BingoTemplate bingo;
     private final EventBoardPanels panels;
     private final com.younglings.bot.runescape.PlayerLinkRepository links;
+    private final BingoTiles tiles;
 
     public EventsAdminApi(EventService service, EventRepository repository, EventTemplates templates, EventSignups signups, BingoTemplate bingo, EventBoardPanels panels,
-                          com.younglings.bot.runescape.PlayerLinkRepository links) {
+                          com.younglings.bot.runescape.PlayerLinkRepository links, BingoTiles tiles) {
         this.links = links;
+        this.tiles = tiles;
         this.service = service;
         this.repository = repository;
         this.templates = templates;
@@ -94,6 +97,16 @@ public class EventsAdminApi implements AdminRouteExtension {
         if (parts.length == 2 && parts[1].equals("templates")) {
             AdminRouteExtension.requireMethod(method, "GET");
             return templateList();
+        }
+        if (parts.length == 2 && parts[1].equals("bingo-catalog")) {
+            AdminRouteExtension.requireMethod(method, "GET");
+            return tiles.choices();
+        }
+        if (parts.length == 2 && parts[1].equals("archive-finished")) {
+            AdminRouteExtension.requireMethod(method, "POST");
+            int count = service.archiveFinished(guild.getIdLong());
+            log.info("Dashboard: {} archived {} finished events", actor.getId(), count);
+            return list(guild).put("archivedCount", count);
         }
         long id = idOf(parts[1], "event");
         if (parts.length == 2) {
@@ -135,6 +148,13 @@ public class EventsAdminApi implements AdminRouteExtension {
                     AdminRouteExtension.requireMethod(method, "POST");
                     service.event(guild.getIdLong(), id);
                     return DataObject.empty().put("message", panels.refresh(guild.getIdLong(), id));
+                }
+                case "archive" -> {
+                    AdminRouteExtension.requireMethod(method, "POST");
+                    boolean archived = !body.get().hasKey("archived") || body.get().getBoolean("archived", true);
+                    service.archive(guild.getIdLong(), id, archived);
+                    log.info("Dashboard: {} {} event {}", actor.getId(), archived ? "archived" : "unarchived", id);
+                    return list(guild);
                 }
                 case "organisers" -> {
                     AdminRouteExtension.requireMethod(method, "POST");
@@ -257,8 +277,10 @@ public class EventsAdminApi implements AdminRouteExtension {
     }
 
     DataObject delete(Guild guild, Member actor, long id) {
-        service.deleteDraft(guild.getIdLong(), id);
-        log.info("Dashboard: {} deleted draft event {}", actor.getId(), id);
+        var board = repository.panel(id).orElse(null);
+        service.deleteEvent(guild.getIdLong(), id);
+        panels.removeMessage(board);
+        log.info("Dashboard: {} deleted event {}", actor.getId(), id);
         return list(guild);
     }
 
@@ -304,9 +326,16 @@ public class EventsAdminApi implements AdminRouteExtension {
         DataArray refused = DataArray.empty();
         repository.refusals(id).forEach(r -> refused.add(DataObject.empty().put("userId", Long.toString(r.userId())).put("userName", name(guild, r.userId()))
                 .put("reason", r.reason()).put("at", r.at().toString())));
+        DataArray tileInfo = DataArray.empty();
+        if (e.template().equals(BingoTemplate.KEY)) {
+            for (ObjectiveSpec o : service.objectives(id)) {
+                BingoTiles.Ref ref = tiles.resolve(o.label());
+                tileInfo.add(DataObject.empty().put("key", o.key()).put("boss", ref.boss()).put("item", ref.item()).put("icon", ref.iconKey()));
+            }
+        }
         DataArray organisers = DataArray.empty();
         settings.organisers().forEach(o -> organisers.add(DataObject.empty().put("userId", Long.toString(o)).put("userName", name(guild, o))));
-        return DataObject.empty().put("organisers", organisers).put("refused", refused).put("event", eventJson(e)).put("signup", DataObject.empty().put("attached", signup.attached()).put("active", signup.active())
+        return DataObject.empty().put("tiles", tileInfo).put("organisers", organisers).put("refused", refused).put("event", eventJson(e)).put("signup", DataObject.empty().put("attached", signup.attached()).put("active", signup.active())
                         .put("entries", signup.entries()).put("channelsChosen", signup.channelsChosen())).put("prizes", prizes).put("pot", service.pot(guild.getIdLong(), id)).put("potVisible", PrizeRules.potVisible(settings.buyIn()))
                 .put("buyInEnabled", settings.buyIn().enabled()).put("objectives", objectives).put("teams", teams).put("participants", players).put("nextStages", next)
                 .put("editable", EventRules.editable(e.status()));
@@ -555,7 +584,7 @@ public class EventsAdminApi implements AdminRouteExtension {
         return DataObject.empty().put("id", Long.toString(e.id())).put("name", e.name()).put("description", e.description()).put("template", e.template())
                 .put("status", e.status().name()).put("scope", e.scope().name()).put("scoringMode", e.scoringMode().name())
                 .put("startsAt", e.startsAt() == null ? null : e.startsAt().toString()).put("endsAt", e.endsAt() == null ? null : e.endsAt().toString())
-                .put("maxParticipants", e.maxParticipants()).put("config", config).put("createdAt", e.createdAt().toString());
+                .put("maxParticipants", e.maxParticipants()).put("config", config).put("createdAt", e.createdAt().toString()).put("archived", e.archived());
     }
 
     private static DataObject objectiveJson(ObjectiveSpec o) {

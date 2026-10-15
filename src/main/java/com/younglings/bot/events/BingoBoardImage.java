@@ -28,8 +28,15 @@ public final class BingoBoardImage {
     private static final Color TEXT = new Color(0xeceff4);
     private static final Color MUTED = new Color(0x9aa3b2);
 
-    /** One tile as drawn. {@code count} of {@code of} have completed it on a shared board; {@code of} 0 means a personal board with no counts. */
-    public record TileView(int number, String label, long points, boolean done, int count, int of) {}
+    /**
+     * One tile as drawn. {@code count} of {@code of} have completed it on a shared board; {@code of} 0 means a personal board with no counts.
+     * {@code iconKey} names the item picture to draw above the text (see {@link BingoTiles}), or is null for a tile without one.
+     */
+    public record TileView(int number, String label, long points, boolean done, int count, int of, String iconKey) {
+        public TileView(int number, String label, long points, boolean done, int count, int of) {
+            this(number, label, points, done, count, of, null);
+        }
+    }
 
     private BingoBoardImage() {}
 
@@ -123,12 +130,25 @@ public final class BingoBoardImage {
         Font mainFont = new Font(Font.SANS_SERIF, Font.BOLD, fontSize);
         Font topFont = new Font(Font.SANS_SERIF, Font.PLAIN, Math.max(10, fontSize - 3));
         g.setFont(mainFont);
-        List<String> lines = wrap(g.getFontMetrics(), main, inner, top == null ? 5 : 4);
+        BufferedImage icon = BingoTiles.icon(t.iconKey()).orElse(null);
+        int iconBox = icon == null ? 0 : Math.round(tile * 0.4f);
+        List<String> lines = wrap(g.getFontMetrics(), main, inner, (top == null ? 5 : 4) - (icon == null ? 0 : 2));
         FontMetrics mm = g.getFontMetrics(mainFont);
         FontMetrics tm = g.getFontMetrics(topFont);
         int lineHeight = mm.getHeight();
-        int blockHeight = lines.size() * lineHeight + (top == null ? 0 : tm.getHeight() + 2);
+        int blockHeight = lines.size() * lineHeight + (top == null ? 0 : tm.getHeight() + 2) + (icon == null ? 0 : iconBox + 6);
         int cy = y + (tile - blockHeight) / 2 + 4;
+        if (icon != null) {
+            // the wiki's inventory icons are about 30 pixels: whole-number scaling with no smoothing keeps them crisp
+            int scale = Math.max(1, Math.min(iconBox / Math.max(1, icon.getWidth()), iconBox / Math.max(1, icon.getHeight())));
+            int w = icon.getWidth() * scale;
+            int h = icon.getHeight() * scale;
+            Object previous = g.getRenderingHint(RenderingHints.KEY_INTERPOLATION);
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+            g.drawImage(icon, x + (tile - w) / 2, cy + (iconBox - h) / 2, w, h, null);
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, previous == null ? RenderingHints.VALUE_INTERPOLATION_BILINEAR : previous);
+            cy += iconBox + 6;
+        }
         if (top != null) {
             g.setFont(topFont);
             g.setColor(MUTED);
