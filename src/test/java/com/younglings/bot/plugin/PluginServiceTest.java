@@ -33,7 +33,8 @@ class PluginServiceTest {
     private static final long USER = 7L;
     private final PluginRepository repository = mock(PluginRepository.class);
     private final PlayerLinkRepository links = mock(PlayerLinkRepository.class);
-    private final PluginService service = new PluginService(repository, links);
+    private final PluginEventSink sink = mock(PluginEventSink.class);
+    private final PluginService service = new PluginService(repository, links, sink);
 
     private static Event drop(String key) {
         return new Event(key, PluginEventType.DROP, Instant.now(), "NPC", "Telos", null, "{\"itemName\":\"X\"}");
@@ -107,6 +108,30 @@ class PluginServiceTest {
         assertEquals(1, result.accepted());
         assertEquals(1, result.duplicates());
         assertTrue(result.rejected().isEmpty());
+    }
+
+    @Test
+    void onlyNewlyStoredEventsAreHandedToTheConsumersAndTheirFailureDoesNotFailTheUpload() {
+        ownedBy(USER);
+        when(repository.consent(USER)).thenReturn(EnumSet.of(PluginCategory.DROPS));
+        when(repository.insertEvent(anyLong(), anyString(), any(), anyString())).thenReturn(true, false);
+        org.mockito.Mockito.doThrow(new IllegalStateException("boom")).when(sink).accepted(anyLong(), anyString(), any());
+
+        var result = service.ingest(USER, batch(drop("drop-0000-1"), drop("drop-0000-2")));
+
+        assertEquals(1, result.accepted());
+        verify(sink).accepted(eq(USER), eq("Jonny Young"), org.mockito.ArgumentMatchers.argThat(list -> list.size() == 1 && list.get(0).key().equals("drop-0000-1")));
+    }
+
+    @Test
+    void nothingIsHandedOnWhenNothingWasStored() {
+        ownedBy(USER);
+        when(repository.consent(USER)).thenReturn(EnumSet.of(PluginCategory.DROPS));
+        when(repository.insertEvent(anyLong(), anyString(), any(), anyString())).thenReturn(false);
+
+        service.ingest(USER, batch(drop("drop-0000-1")));
+
+        verify(sink, never()).accepted(anyLong(), anyString(), any());
     }
 
     @Test
