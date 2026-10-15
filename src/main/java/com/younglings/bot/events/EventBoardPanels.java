@@ -12,7 +12,7 @@ import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
-import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
+import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel;
 import net.dv8tion.jda.api.utils.FileUpload;
 import net.dv8tion.jda.api.utils.data.DataObject;
 import org.slf4j.Logger;
@@ -60,6 +60,7 @@ public class EventBoardPanels {
     @BEventListener
     public void onJdaReady(InjectedJDAEvent event) {
         this.jda = event.getJda();
+        log.info("Event boards are ready: they will be posted to Discord when a bingo starts.");
     }
 
     private void onChange(EventChanges.Change change) {
@@ -74,7 +75,8 @@ public class EventBoardPanels {
         ScheduledFuture<?> old = pending.put(eventId, executor.schedule(() -> {
             pending.remove(eventId);
             try {
-                refresh(guildId, eventId);
+                // always logged, so a board that didn't appear can be explained from the logs (the reason is also what the dashboard's button shows)
+                log.info("Board of event {}: {}", eventId, refresh(guildId, eventId));
             } catch (RuntimeException e) {
                 log.warn("Could not refresh the board of event {}", eventId, e);
             }
@@ -97,8 +99,8 @@ public class EventBoardPanels {
         EventSettings settings = settingsOf(event);
         if (settings.boardChannelId() == null) return "Choose a board channel in the event's settings first.";
         if (!shown(event.status())) return "The board is posted once the event starts.";
-        TextChannel channel = guild.getTextChannelById(settings.boardChannelId());
-        if (channel == null) return "The board channel no longer exists.";
+        GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, settings.boardChannelId());
+        if (channel == null) return "The board channel isn't a channel JonnyBot can post in (it may have been deleted, or it is a forum or category).";
         if (!guild.getSelfMember().hasPermission(channel, Permission.VIEW_CHANNEL, Permission.MESSAGE_SEND, Permission.MESSAGE_ATTACH_FILES)) {
             return "JonnyBot needs to see, send messages and attach files in #" + channel.getName() + ".";
         }
@@ -135,7 +137,7 @@ public class EventBoardPanels {
         return "Posted the board in #" + channel.getName() + ".";
     }
 
-    private void post(TextChannel channel, long eventId, String text, FileUpload file) {
+    private void post(GuildMessageChannel channel, long eventId, String text, FileUpload file) {
         channel.sendMessage(text).setAllowedMentions(List.of()).addFiles(file).queue(
                 message -> repository.setPanel(eventId, channel.getIdLong(), message.getIdLong()),
                 error -> log.warn("Could not post the board of event {}", eventId, error));
@@ -213,7 +215,7 @@ public class EventBoardPanels {
         JDA client = jda;
         if (client == null || panel == null) return;
         try {
-            TextChannel channel = client.getTextChannelById(panel.channelId());
+            GuildMessageChannel channel = client.getChannelById(GuildMessageChannel.class, panel.channelId());
             if (channel != null) channel.deleteMessageById(panel.messageId()).queue(ok -> { }, error -> log.debug("Could not remove an event's board message: {}", error.getMessage()));
         } catch (RuntimeException e) {
             log.debug("Could not remove an event's board message", e);
