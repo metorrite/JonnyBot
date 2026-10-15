@@ -294,7 +294,10 @@ public class EventsAdminApi implements AdminRouteExtension {
         service.prizes(id).forEach(p -> prizes.add(DataObject.empty().put("id", Long.toString(p.id())).put("place", p.place()).put("placeTo", p.placeTo()).put("kind", p.kind().name())
                 .put("description", p.description()).put("amount", p.amount()).put("percentOfPot", p.percentOfPot()).put("split", p.split().name())));
         var signup = signups.stateOf(e);
-        return DataObject.empty().put("event", eventJson(e)).put("signup", DataObject.empty().put("attached", signup.attached()).put("active", signup.active())
+        DataArray refused = DataArray.empty();
+        repository.refusals(id).forEach(r -> refused.add(DataObject.empty().put("userId", Long.toString(r.userId())).put("userName", name(guild, r.userId()))
+                .put("reason", r.reason()).put("at", r.at().toString())));
+        return DataObject.empty().put("refused", refused).put("event", eventJson(e)).put("signup", DataObject.empty().put("attached", signup.attached()).put("active", signup.active())
                         .put("entries", signup.entries()).put("channelsChosen", signup.channelsChosen())).put("prizes", prizes).put("pot", service.pot(guild.getIdLong(), id)).put("potVisible", PrizeRules.potVisible(settings.buyIn()))
                 .put("buyInEnabled", settings.buyIn().enabled()).put("objectives", objectives).put("teams", teams).put("participants", players).put("nextStages", next)
                 .put("editable", EventRules.editable(e.status()));
@@ -416,6 +419,13 @@ public class EventsAdminApi implements AdminRouteExtension {
         Integer size = body.hasKey("size") && !body.isNull("size") ? (int) number(body, "size", 0) : null;
         Long seed = body.hasKey("seed") && !body.isNull("seed") && !text(body, "seed").isEmpty() ? number(body, "seed", 0) : null;
         try {
+            if (body.hasKey("replace") && !body.isNull("replace")) {
+                DataObject r = body.getObject("replace");
+                var replaced = bingo.replaceTile(DataObject.fromJson(event.config()), service.objectives(id), (int) number(r, "number", 0), text(r, "label"), number(r, "points", 0));
+                service.reconfigure(guild.getIdLong(), id, replaced.config(), replaced.objectives());
+                log.info("Dashboard: {} replaced tile {} of the bingo board of event {}", actor.getId(), number(r, "number", 0), id);
+                return detail(guild, id);
+            }
             var rerolled = bingo.reroll(DataObject.fromJson(event.config()), service.objectives(id), size, seed, locked);
             service.reconfigure(guild.getIdLong(), id, rerolled.config(), rerolled.objectives());
         } catch (IllegalArgumentException e) {

@@ -204,6 +204,16 @@ public class EventRepository {
                     at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 );
                 """,
+                // Discord signups the event's rules turned away, and why, so staff can see them and the player is told once
+                """
+                CREATE TABLE IF NOT EXISTS younglings.event_signup_refusal (
+                    event_id BIGINT NOT NULL REFERENCES younglings.event (id) ON DELETE CASCADE,
+                    user_id BIGINT NOT NULL,
+                    reason TEXT NOT NULL,
+                    at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    PRIMARY KEY (event_id, user_id)
+                );
+                """,
                 // the live board message the bot keeps up to date for an event
                 """
                 CREATE TABLE IF NOT EXISTS younglings.event_panel (
@@ -366,6 +376,49 @@ public class EventRepository {
             return list;
         } catch (SQLException e) {
             throw new RuntimeException("Failed to read a player's events", e);
+        }
+    }
+
+    /** A signup that was turned away, and the reason in words. */
+    public record Refusal(long userId, String reason, Instant at) {}
+
+    /** Remembers why a signup was turned away. True when this is new (first time, or the reason changed), so the player is only told once. */
+    public boolean recordRefusal(long eventId, long userId, String reason) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("""
+                INSERT INTO younglings.event_signup_refusal (event_id, user_id, reason) VALUES (?, ?, ?)
+                ON CONFLICT (event_id, user_id) DO UPDATE SET reason = EXCLUDED.reason, at = NOW() WHERE younglings.event_signup_refusal.reason <> EXCLUDED.reason
+                RETURNING 1""")) {
+            s.setLong(1, eventId);
+            s.setLong(2, userId);
+            s.setString(3, reason);
+            try (ResultSet rs = s.executeQuery()) {
+                return rs.next();
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to record a refused signup", e);
+        }
+    }
+
+    public List<Refusal> refusals(long eventId) {
+        List<Refusal> list = new ArrayList<>();
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("SELECT user_id, reason, at FROM younglings.event_signup_refusal WHERE event_id = ? ORDER BY at")) {
+            s.setLong(1, eventId);
+            try (ResultSet rs = s.executeQuery()) {
+                while (rs.next()) list.add(new Refusal(rs.getLong(1), rs.getString(2), rs.getTimestamp(3).toInstant()));
+            }
+            return list;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read the refused signups", e);
+        }
+    }
+
+    public void clearRefusal(long eventId, long userId) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("DELETE FROM younglings.event_signup_refusal WHERE event_id = ? AND user_id = ?")) {
+            s.setLong(1, eventId);
+            s.setLong(2, userId);
+            s.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to clear a refused signup", e);
         }
     }
 
@@ -573,6 +626,11 @@ public class EventRepository {
      * Adds a player, with a place when the event has room and on the waitlist when it doesn't (decided in the same statement, so two people
      * taking the last place can't both get it). Empty when they were already in. {@code maxParticipants} 0 means no limit.
      */
+    /**
+     * Adds a player, or reports they are already in. Returns whether they were put on the waitlist (true) or given a place (false), or empty when
+     * they were already in the event. The place count and the insert happen under a lock on the event, so two people joining the last place at the
+     * same moment can't both get it.
+     */
     public Optional<Boolean> join(long eventId, long userId, long guildId, Long teamId, Kind kind, BuyInStatus buyIn, int maxParticipants) {
         String sql = """
                 INSERT INTO younglings.event_participant (event_id, user_id, guild_id, team_id, kind, status, buy_in_status)
@@ -580,21 +638,43 @@ public class EventRepository {
                        CASE WHEN ? = 0 OR (SELECT COUNT(*) FROM younglings.event_participant WHERE event_id = ? AND status = 'ACTIVE') < ? THEN 'ACTIVE' ELSE 'WAITING' END, ?
                 ON CONFLICT DO NOTHING RETURNING status
                 """;
-        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
-            s.setLong(1, eventId);
-            s.setLong(2, userId);
-            s.setLong(3, guildId);
-            if (teamId == null) s.setNull(4, Types.BIGINT); else s.setLong(4, teamId);
-            s.setString(5, kind.name());
-            s.setInt(6, maxParticipants);
-            s.setLong(7, eventId);
-            s.setInt(8, maxParticipants);
-            s.setString(9, buyIn.name());
-            try (ResultSet rs = s.executeQuery()) {
-                return rs.next() ? Optional.of(rs.getString(1).equals("WAITING")) : Optional.empty();
+        try (Connection c = connectionSupplier.getConnection()) {
+            c.setAutoCommit(false);
+            try {
+                lockParticipants(c, eventId);
+                try (PreparedStatement s = c.prepareStatement(sql)) {
+                    s.setLong(1, eventId);
+                    s.setLong(2, userId);
+                    s.setLong(3, guildId);
+                    if (teamId == null) s.setNull(4, Types.BIGINT); else s.setLong(4, teamId);
+                    s.setString(5, kind.name());
+                    s.setInt(6, maxParticipants);
+                    s.setLong(7, eventId);
+                    s.setInt(8, maxParticipants);
+                    s.setString(9, buyIn.name());
+                    Optional<Boolean> result;
+                    try (ResultSet rs = s.executeQuery()) {
+                        result = rs.next() ? Optional.of(rs.getString(1).equals("WAITING")) : Optional.empty();
+                    }
+                    c.commit();
+                    return result;
+                }
+            } catch (SQLException | RuntimeException e) {
+                c.rollback();
+                throw e;
+            } finally {
+                c.setAutoCommit(true);
             }
         } catch (SQLException e) {
             throw new RuntimeException("Failed to add the player", e);
+        }
+    }
+
+    /** Takes a lock on an event's player list until the transaction ends, so joins and promotions for one event happen one at a time. */
+    private static void lockParticipants(Connection c, long eventId) throws SQLException {
+        try (PreparedStatement lock = c.prepareStatement("SELECT pg_advisory_xact_lock(hashtextextended(?, 0))")) {
+            lock.setString(1, "event-participants:" + eventId);
+            lock.execute();
         }
     }
 
@@ -605,13 +685,26 @@ public class EventRepository {
                 WHERE event_id = ? AND user_id = ? AND status = 'WAITING'
                   AND (? = 0 OR (SELECT COUNT(*) FROM younglings.event_participant WHERE event_id = ? AND status = 'ACTIVE') < ?)
                 """;
-        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
-            s.setLong(1, eventId);
-            s.setLong(2, userId);
-            s.setInt(3, maxParticipants);
-            s.setLong(4, eventId);
-            s.setInt(5, maxParticipants);
-            return s.executeUpdate() == 1;
+        try (Connection c = connectionSupplier.getConnection()) {
+            c.setAutoCommit(false);
+            try {
+                lockParticipants(c, eventId);
+                try (PreparedStatement s = c.prepareStatement(sql)) {
+                    s.setLong(1, eventId);
+                    s.setLong(2, userId);
+                    s.setInt(3, maxParticipants);
+                    s.setLong(4, eventId);
+                    s.setInt(5, maxParticipants);
+                    boolean moved = s.executeUpdate() == 1;
+                    c.commit();
+                    return moved;
+                }
+            } catch (SQLException | RuntimeException e) {
+                c.rollback();
+                throw e;
+            } finally {
+                c.setAutoCommit(true);
+            }
         } catch (SQLException e) {
             throw new RuntimeException("Failed to promote the player", e);
         }
