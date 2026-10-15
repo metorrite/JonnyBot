@@ -52,12 +52,21 @@ public class CitadelPrizes {
     public Long linkedUser(Guild guild, String rsn) {
         try {
             for (var link : links.getAllLinks(guild.getIdLong())) {
-                if (link.rsn().equalsIgnoreCase(rsn)) return link.discordUserId();
+                if (sameName(link.rsn(), rsn)) return link.discordUserId();
             }
         } catch (RuntimeException e) {
             log.debug("Couldn't look up the winner's Discord account", e);
         }
         return null;
+    }
+
+    /** Whether two RuneScape names are the same player: case, underscores, non-breaking spaces and repeated spaces don't matter. */
+    public static boolean sameName(String a, String b) {
+        return a != null && b != null && simple(a).equals(simple(b));
+    }
+
+    private static String simple(String name) {
+        return name.replace('_', ' ').replace('\u00a0', ' ').strip().replaceAll("\\s+", " ").toLowerCase(java.util.Locale.ROOT);
     }
 
     private static String clean(String note) {

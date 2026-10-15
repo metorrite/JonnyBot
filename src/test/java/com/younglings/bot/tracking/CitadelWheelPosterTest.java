@@ -200,6 +200,14 @@ class CitadelWheelPosterTest {
     }
 
     @Test
+    void aMentionIsMadeEvenWhenTheMemberIsNotCachedAndTheNameIsSpelledDifferently() {
+        settings(false, CHANNEL, "Well done {mention}!");
+        // the guild's member cache is empty (getMemberById answers null) and the link is stored as Atrum_Dies
+        when(links.getAllLinks(GUILD)).thenReturn(List.of(new PlayerLink(1, GUILD, 77L, "Atrum_Dies", "x", null, null)));
+        assertEquals("Well done <@77>!", poster.messageFor(guild, WINDOW, "atrum  dies", 2));
+    }
+
+    @Test
     void aWeekWithSeveralWinnersNamesThemAllInOneMessage() {
         settings(false, CHANNEL, "Congratulations {winners}!");
         Member member = mock(Member.class);

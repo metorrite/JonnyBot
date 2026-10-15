@@ -187,7 +187,8 @@ public class CitadelWheelPoster {
     private Long linkedUser(Guild guild, String winner) {
         try {
             for (var link : links.getAllLinks(guild.getIdLong())) {
-                if (link.rsn().equalsIgnoreCase(winner) && guild.getMemberById(link.discordUserId()) != null) return link.discordUserId();
+                // no check that the member is cached: JDA may not hold every member, and a mention by id works for anyone in the server
+                if (CitadelPrizes.sameName(link.rsn(), winner)) return link.discordUserId();
             }
         } catch (RuntimeException e) {
             log.debug("Couldn't look up the winner's Discord account", e);
