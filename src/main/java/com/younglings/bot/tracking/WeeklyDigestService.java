@@ -114,7 +114,7 @@ public class WeeklyDigestService {
         children.add(TextDisplay.of(layoutRows(rows)));
 
         String weekKey = windowEnd.toLocalDate().toString();
-        children.add(ActionRow.of(Button.primary("weekly_spin_wheel:" + weekKey, "🎡 Spin Wheel")));
+        children.add(ActionRow.of(Button.primary("weekly_spin_wheel:" + weekKey, "🎡 Spin Wheel"), Button.secondary("weekly_copy_names:" + weekKey, "📋 Copy names")));
 
         router.dispatchContainer(guild, TrackingGroup.WEEKLY_CITADEL_REPORT, Containers.card(Containers.PRIMARY, children));
         return true;
@@ -279,7 +279,12 @@ public class WeeklyDigestService {
         return "**🏰 " + capped + " capped** · **" + visited + " visited** · of " + entries.size() + " clan members";
     }
 
-    /** Every player who both visited and capped in the window — what the "Spin Wheel" button picks from. */
+    /** Everyone who capped in the window, in the order the report lists them — what the wheel is made from and what "Copy names" gives. */
+    public List<String> getCappedRsns(long guildId, OffsetDateTime windowStart, OffsetDateTime windowEnd) {
+        return computeCitadelEntries(guildId, windowStart, windowEnd).stream().filter(e -> e.capped).map(e -> e.rsn).toList();
+    }
+
+    /** Every player who both visited and capped in the window. */
     public List<String> getVisitedAndCappedRsns(long guildId, OffsetDateTime windowStart, OffsetDateTime windowEnd) {
         return computeCitadelEntries(guildId, windowStart, windowEnd).stream()
                 .filter(e -> e.visited && e.capped)

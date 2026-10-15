@@ -5,6 +5,7 @@ import com.younglings.bot.runescape.polling.PollCoordinator;
 import com.younglings.bot.runescape.polling.PollPriority;
 import com.younglings.bot.runescape.polling.PollRequest;
 import com.younglings.bot.tracking.CitadelWeek;
+import com.younglings.bot.tracking.CitadelWheelPoster;
 import com.younglings.bot.tracking.WeeklyDigestService;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
@@ -50,6 +51,7 @@ public class WeeklyDigestScheduler {
     private final ClanSyncService clanSyncService;
     private final ClanMemberRepository clanMembers;
     private final PollCoordinator polls;
+    private final CitadelWheelPoster wheelPoster;
     private final BotConfig botConfig;
     private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(
             (ThreadFactory) runnable -> {
@@ -59,11 +61,12 @@ public class WeeklyDigestScheduler {
             });
 
     public WeeklyDigestScheduler(WeeklyDigestService weeklyDigestService, ClanSyncService clanSyncService, ClanMemberRepository clanMembers,
-                                 PollCoordinator polls, BotConfig botConfig) {
+                                 PollCoordinator polls, CitadelWheelPoster wheelPoster, BotConfig botConfig) {
         this.weeklyDigestService = weeklyDigestService;
         this.clanSyncService = clanSyncService;
         this.clanMembers = clanMembers;
         this.polls = polls;
+        this.wheelPoster = wheelPoster;
         this.botConfig = botConfig;
     }
 
@@ -100,6 +103,7 @@ public class WeeklyDigestScheduler {
             try {
                 refreshStaleProfiles(guild, windowEnd, now);
                 weeklyDigestService.sendWeeklyDigests(guild, windowStart, windowEnd);
+                wheelPoster.autoPost(guild, window); // if the server turned it on, the wheel's winner is announced with the list
                 log.info("Weekly digest sent for guild {} covering {} to {}.", guild.getIdLong(), windowStart, windowEnd);
             } catch (Exception e) {
                 log.error("Weekly digest failed for guild {}", guild.getIdLong(), e);
