@@ -60,6 +60,23 @@ public class CitadelPrizes {
         return null;
     }
 
+    /** As {@link #linkedUser} for several names at once with a single read of the links. Keyed by the names as given; unlinked names are left out. */
+    public java.util.Map<String, Long> linkedUsers(Guild guild, java.util.Collection<String> names) {
+        java.util.Map<String, Long> result = new java.util.HashMap<>();
+        if (names.isEmpty()) return result;
+        try {
+            java.util.Map<String, Long> byName = new java.util.HashMap<>();
+            for (var link : links.getAllLinks(guild.getIdLong())) byName.putIfAbsent(simple(link.rsn()), link.discordUserId());
+            for (String name : names) {
+                Long user = name == null ? null : byName.get(simple(name));
+                if (user != null) result.put(name, user);
+            }
+        } catch (RuntimeException e) {
+            log.debug("Couldn't look up the winners' Discord accounts", e);
+        }
+        return result;
+    }
+
     /** Whether two RuneScape names are the same player: case, underscores, non-breaking spaces and repeated spaces don't matter. */
     public static boolean sameName(String a, String b) {
         return a != null && b != null && simple(a).equals(simple(b));

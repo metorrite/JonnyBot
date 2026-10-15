@@ -335,7 +335,8 @@ public class CitadelAdminApi implements AdminRouteExtension {
     private DataObject weekJson(Guild guild, LocalDate end, boolean withMessage) {
         List<Winner> rows = winners.forWeek(guild.getIdLong(), end);
         DataArray array = DataArray.empty();
-        for (Winner w : rows) array.add(winnerJson(guild, w, prizes.linkedUser(guild, w.winner())));
+        var linked = prizes.linkedUsers(guild, rows.stream().map(Winner::winner).toList());
+        for (Winner w : rows) array.add(winnerJson(guild, w, linked.get(w.winner())));
         DataObject json = DataObject.empty().put("end", end.toString()).put("start", end.minusDays(7).toString()).put("winners", array);
         if (withMessage && !rows.isEmpty()) {
             json.put("message", poster.messageFor(guild, CitadelWeek.windowEndingOn(end), rows.stream().map(Winner::winner).toList(), rows.get(0).entries().size()));
@@ -345,11 +346,13 @@ public class CitadelAdminApi implements AdminRouteExtension {
 
     private DataObject winnerList(Guild guild) {
         Map<LocalDate, List<Winner>> byWeek = new java.util.LinkedHashMap<>();
-        winners.list(guild.getIdLong(), 300).forEach(w -> byWeek.computeIfAbsent(w.weekEnd(), k -> new ArrayList<>()).add(w));
+        var all = winners.list(guild.getIdLong(), 300);
+        all.forEach(w -> byWeek.computeIfAbsent(w.weekEnd(), k -> new ArrayList<>()).add(w));
+        var linked = prizes.linkedUsers(guild, all.stream().map(Winner::winner).toList());
         DataArray weeks = DataArray.empty();
         for (var entry : byWeek.entrySet()) {
             DataArray array = DataArray.empty();
-            for (Winner w : entry.getValue()) array.add(winnerJson(guild, w, prizes.linkedUser(guild, w.winner())));
+            for (Winner w : entry.getValue()) array.add(winnerJson(guild, w, linked.get(w.winner())));
             weeks.add(DataObject.empty().put("end", entry.getKey().toString()).put("start", entry.getKey().minusDays(7).toString()).put("winners", array));
         }
         return DataObject.empty().put("weeks", weeks);
