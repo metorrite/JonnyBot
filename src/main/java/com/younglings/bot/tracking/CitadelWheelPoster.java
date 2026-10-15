@@ -121,7 +121,7 @@ public class CitadelWheelPoster {
     }
 
     private void sendWithGif(Guild guild, GuildMessageChannel channel, String text, List<Long> usersToPing, byte[] gif) {
-        var action = channel.sendMessage(text).setAllowedMentions(List.of());
+        var action = channel.sendMessage(WheelMessage.withoutWheel(text)).setAllowedMentions(List.of());
         if (!usersToPing.isEmpty()) action = action.mentionUsers(usersToPing.stream().mapToLong(Long::longValue).toArray());
         if (gif != null) action = action.addFiles(FileUpload.fromData(gif, "citadel-wheel.gif"));
         action.queue(ok -> { }, error -> log.warn("Could not post the Citadel wheel winner in guild {}", guild.getIdLong(), error));
@@ -132,7 +132,7 @@ public class CitadelWheelPoster {
         GuildMessageChannel channel = channelFor(guild);
         Long user = linkedUser(guild, winner);
         String text = messageFor(guild, window, winner, entryCount);
-        var action = channel.sendMessage(text).setAllowedMentions(List.of());
+        var action = channel.sendMessage(WheelMessage.withoutWheel(text)).setAllowedMentions(List.of());
         if (user != null) action = action.mentionUsers(user);
         if (gif != null) action = action.addFiles(FileUpload.fromData(gif, "citadel-wheel.gif"));
         action.queue(ok -> { }, error -> log.warn("Could not post the Citadel wheel winner in guild {}", guild.getIdLong(), error));

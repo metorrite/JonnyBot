@@ -8,11 +8,14 @@ import java.util.Objects;
  * The message posted with the wheel GIF when a winner is announced, from a template a server writes. Placeholders: {@code {winner}} (the winning name),
  * {@code {mention}} (a Discord mention of the winner when their account is linked, otherwise just the name), {@code {week}} (like "7 Oct to 14 Oct") and
  * {@code {entries}} (how many entries were on the wheel). When a week has several winners, {@code {winner}} (or {@code {winners}}) and {@code {mention}} list all of
- * them: "A, B and C". Pure, so it can be tested.
+ * them: "A, B and C". {@code {wheel}} is left as it is: it marks where the wheel's GIF address goes when the message is copied from the website, and
+ * {@link #withoutWheel} removes it when the bot posts the GIF itself as an attachment. Pure, so it can be tested.
  */
 public final class WheelMessage {
     public static final String DEFAULT = "🎡 This week's Clan Citadel cap winner is {mention}! Well done, and thanks to everyone who capped. ({week})";
     public static final int MAX_LENGTH = 1500;
+    /** Where the wheel's GIF address goes in a copied message. */
+    public static final String WHEEL = "{wheel}";
 
     private WheelMessage() {}
 
@@ -48,6 +51,12 @@ public final class WheelMessage {
                 .replace("{winner}", join(names))
                 .replace("{week}", week == null ? "" : week)
                 .replace("{entries}", Integer.toString(entries));
+    }
+
+    /** The message without its {@code {wheel}} tag (the bot attaches the GIF itself), without leaving the blank line the tag sat on. */
+    public static String withoutWheel(String text) {
+        if (text == null || !text.contains(WHEEL)) return text;
+        return text.replaceAll("[ \\t]*\\{wheel}[ \\t]*\\n?", "").stripTrailing();
     }
 
     /** "A", "A and B", "A, B and C". */

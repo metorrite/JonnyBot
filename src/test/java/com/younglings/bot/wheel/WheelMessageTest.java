@@ -49,6 +49,16 @@ class WheelMessageTest {
     }
 
     @Test
+    void theWheelTagIsLeftForTheCopyAndRemovedWhenTheBotAttachesTheGif() {
+        String template = "Well done {winner}!\n{wheel}\n({week})";
+        assertEquals("Well done **A**!\n{wheel}\n(7 Oct)", WheelMessage.renderMany(template, List.of("A"), java.util.Arrays.asList((String) null), "7 Oct", 3));
+        assertEquals("Well done **A**!\n(7 Oct)", WheelMessage.withoutWheel("Well done **A**!\n{wheel}\n(7 Oct)"));
+        assertEquals("Well done **A**!", WheelMessage.withoutWheel("Well done **A**!\n{wheel}"));
+        assertEquals("Well done **A**!", WheelMessage.withoutWheel("Well done **A**!"));
+        assertTrue(WheelMessage.problems(template).isEmpty());
+    }
+
+    @Test
     void theWinnersPlaceholderCountsAsSayingWhoWon() {
         assertTrue(WheelMessage.problems("Congratulations {winners}").isEmpty());
     }
