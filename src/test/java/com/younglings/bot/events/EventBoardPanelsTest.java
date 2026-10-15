@@ -1,0 +1,126 @@
+package com.younglings.bot.events;
+
+import com.younglings.bot.events.EventRepository.Event;
+import com.younglings.bot.events.EventRules.Evidence;
+import com.younglings.bot.events.EventRules.ObjectiveSpec;
+import com.younglings.bot.events.EventRules.Scope;
+import com.younglings.bot.events.EventRules.ScoringMode;
+import com.younglings.bot.events.EventRules.Status;
+import net.dv8tion.jda.api.JDA;
+import net.dv8tion.jda.api.Permission;
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel;
+import net.dv8tion.jda.api.entities.channel.middleman.GuildChannel;
+import net.dv8tion.jda.api.requests.restaction.MessageCreateAction;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import java.lang.reflect.Field;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+class EventBoardPanelsTest {
+    private static final long GUILD = 5L;
+    private static final long EVENT = 11L;
+    private static final long CHANNEL = 777L;
+
+    private EventRepository repository;
+    private EventService service;
+    private EventBoardPanels panels;
+    private Guild guild;
+    private GuildMessageChannel channel;
+    private final List<String> calls = new ArrayList<>();
+
+    @BeforeEach
+    void setUp() throws Exception {
+        repository = mock(EventRepository.class);
+        service = mock(EventService.class);
+        BingoTiles tiles = mock(BingoTiles.class);
+        panels = new EventBoardPanels(repository, service, new EventChanges(), tiles);
+
+        JDA jda = mock(JDA.class);
+        guild = mock(Guild.class);
+        when(jda.getGuildById(GUILD)).thenReturn(guild);
+        Field field = EventBoardPanels.class.getDeclaredField("jda");
+        field.setAccessible(true);
+        field.set(panels, jda);
+
+        channel = mock(GuildMessageChannel.class);
+        when(channel.getIdLong()).thenReturn(CHANNEL);
+        when(channel.getName()).thenReturn("bingo");
+        when(guild.getChannelById(GuildMessageChannel.class, CHANNEL)).thenReturn(channel);
+        net.dv8tion.jda.api.entities.SelfMember self = mock(net.dv8tion.jda.api.entities.SelfMember.class);
+        when(self.hasPermission(any(GuildChannel.class), any(Permission[].class))).thenReturn(true);
+        when(guild.getSelfMember()).thenReturn(self);
+
+        MessageCreateAction action = mock(MessageCreateAction.class, invocation -> {
+            calls.add(invocation.getMethod().getName());
+            return invocation.getMethod().getReturnType().isInstance(invocation.getMock()) ? invocation.getMock() : null;
+        });
+        when(channel.sendMessage(any(CharSequence.class))).thenReturn(action);
+
+        when(service.objectives(EVENT)).thenReturn(List.of(new ObjectiveSpec("t1", "Nex: Torva boots", "", 5, Evidence.EITHER, 1, 1, List.of()),
+                new ObjectiveSpec("t2", "Araxxor: Noxious blade", "", 5, Evidence.EITHER, 1, 1, List.of())));
+        when(service.standings(GUILD, EVENT)).thenReturn(List.of());
+        when(repository.participants(EVENT)).thenReturn(List.of());
+        when(repository.panel(EVENT)).thenReturn(Optional.empty());
+    }
+
+    private void event(String template, Status status, String config) {
+        when(repository.event(GUILD, EVENT)).thenReturn(Optional.of(new Event(EVENT, GUILD, template, "Bingo night", "", status, Scope.PRIVATE, ScoringMode.INDIVIDUAL, null, null, 50, config,
+                1L, Instant.now(), null, false)));
+    }
+
+    private static final String BOARD = "\"board\":{\"keys\":[\"t1\",\"t2\",\"t3\",\"t4\",\"t5\",\"t6\",\"t7\",\"t8\",\"t9\"],\"size\":3}";
+
+    @Test
+    void aRunningBingoWithABoardChannelPostsItsBoardAsAPicture() {
+        event(BingoTemplate.KEY, Status.RUNNING, "{\"boardChannelId\":\"" + CHANNEL + "\"," + BOARD + "}");
+
+        String result = panels.refresh(GUILD, EVENT);
+
+        assertEquals("Posted the board in #bingo.", result);
+        verify(channel).sendMessage(any(CharSequence.class));
+        assertTrue(calls.contains("addFiles"), "the board picture is attached: " + calls);
+    }
+
+    @Test
+    void everyReasonNothingIsPostedIsSaidInWords() {
+        event(BingoTemplate.KEY, Status.RUNNING, "{" + BOARD + "}");
+        assertEquals("Choose a board channel in the event's settings first.", panels.refresh(GUILD, EVENT));
+
+        event(BingoTemplate.KEY, Status.SIGNUPS, "{\"boardChannelId\":\"" + CHANNEL + "\"," + BOARD + "}");
+        assertEquals("The board is posted once the event starts.", panels.refresh(GUILD, EVENT));
+
+        event("boss-night", Status.RUNNING, "{\"boardChannelId\":\"" + CHANNEL + "\"}");
+        assertEquals("Only bingo events have a board.", panels.refresh(GUILD, EVENT));
+
+        event(BingoTemplate.KEY, Status.RUNNING, "{\"boardChannelId\":\"999\"," + BOARD + "}");
+        assertTrue(panels.refresh(GUILD, EVENT).startsWith("The board channel isn't a channel JonnyBot can post in"));
+
+        verify(channel, never()).sendMessage(any(CharSequence.class));
+        verify(repository, never()).setPanel(anyLong(), anyLong(), eq(0L));
+    }
+
+    @Test
+    void withoutPermissionItSaysSoInsteadOfPostingNothing() {
+        event(BingoTemplate.KEY, Status.RUNNING, "{\"boardChannelId\":\"" + CHANNEL + "\"," + BOARD + "}");
+        net.dv8tion.jda.api.entities.SelfMember self = mock(net.dv8tion.jda.api.entities.SelfMember.class);
+        when(self.hasPermission(any(GuildChannel.class), any(Permission[].class))).thenReturn(false);
+        when(guild.getSelfMember()).thenReturn(self);
+
+        assertEquals("JonnyBot needs to see, send messages and attach files in #bingo.", panels.refresh(GUILD, EVENT));
+    }
+}
