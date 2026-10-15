@@ -324,6 +324,19 @@ public class EventRepository {
         }
     }
 
+    /** Replaces just the settings of an event, at any stage (organisers can change while it runs). False when the event doesn't exist. */
+    public boolean setConfig(long guildId, long id, String config) {
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("UPDATE younglings.event SET config = ?, updated_at = NOW() WHERE guild_id = ? AND id = ?")) {
+            s.setString(1, config);
+            s.setLong(2, guildId);
+            s.setLong(3, id);
+            return s.executeUpdate() == 1;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to save the event's settings", e);
+        }
+    }
+
     /** Moves an event from one stage to another. False when it wasn't in {@code from} any more, so two clicks can't both move it. */
     public boolean moveStage(long guildId, long id, Status from, Status to) {
         try (Connection c = connectionSupplier.getConnection();

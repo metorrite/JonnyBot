@@ -62,8 +62,11 @@ public class EventsAdminApi implements AdminRouteExtension {
     private final EventSignups signups;
     private final BingoTemplate bingo;
     private final EventBoardPanels panels;
+    private final com.younglings.bot.runescape.PlayerLinkRepository links;
 
-    public EventsAdminApi(EventService service, EventRepository repository, EventTemplates templates, EventSignups signups, BingoTemplate bingo, EventBoardPanels panels) {
+    public EventsAdminApi(EventService service, EventRepository repository, EventTemplates templates, EventSignups signups, BingoTemplate bingo, EventBoardPanels panels,
+                          com.younglings.bot.runescape.PlayerLinkRepository links) {
+        this.links = links;
         this.service = service;
         this.repository = repository;
         this.templates = templates;
@@ -132,6 +135,10 @@ public class EventsAdminApi implements AdminRouteExtension {
                     AdminRouteExtension.requireMethod(method, "POST");
                     service.event(guild.getIdLong(), id);
                     return DataObject.empty().put("message", panels.refresh(guild.getIdLong(), id));
+                }
+                case "organisers" -> {
+                    AdminRouteExtension.requireMethod(method, "POST");
+                    return changeOrganisers(guild, actor, id, body.get());
                 }
                 case "signup" -> {
                     AdminRouteExtension.requireMethod(method, "POST");
@@ -297,10 +304,59 @@ public class EventsAdminApi implements AdminRouteExtension {
         DataArray refused = DataArray.empty();
         repository.refusals(id).forEach(r -> refused.add(DataObject.empty().put("userId", Long.toString(r.userId())).put("userName", name(guild, r.userId()))
                 .put("reason", r.reason()).put("at", r.at().toString())));
-        return DataObject.empty().put("refused", refused).put("event", eventJson(e)).put("signup", DataObject.empty().put("attached", signup.attached()).put("active", signup.active())
+        DataArray organisers = DataArray.empty();
+        settings.organisers().forEach(o -> organisers.add(DataObject.empty().put("userId", Long.toString(o)).put("userName", name(guild, o))));
+        return DataObject.empty().put("organisers", organisers).put("refused", refused).put("event", eventJson(e)).put("signup", DataObject.empty().put("attached", signup.attached()).put("active", signup.active())
                         .put("entries", signup.entries()).put("channelsChosen", signup.channelsChosen())).put("prizes", prizes).put("pot", service.pot(guild.getIdLong(), id)).put("potVisible", PrizeRules.potVisible(settings.buyIn()))
                 .put("buyInEnabled", settings.buyIn().enabled()).put("objectives", objectives).put("teams", teams).put("participants", players).put("nextStages", next)
                 .put("editable", EventRules.editable(e.status()));
+    }
+
+    // ---------- organisers ----------
+
+    /** A person from what the dashboard sent: a Discord user id, or a RuneScape name linked to a member of this server. */
+    private long personFrom(Guild guild, String raw) {
+        String text = raw == null ? "" : raw.strip();
+        Long userId = null;
+        if (text.matches("\\d{15,20}")) {
+            userId = Long.parseLong(text);
+        } else if (!text.isEmpty()) {
+            for (var link : links.getAllLinks(guild.getIdLong())) {
+                if (link.rsn().equalsIgnoreCase(text)) userId = link.discordUserId();
+            }
+        }
+        if (userId == null) throw new ApiError(400, "I couldn't find \"" + text + "\". Use a Discord user id, or a RuneScape name linked with /rs.");
+        Member member = guild.getMemberById(userId);
+        if (member == null) {
+            try {
+                member = guild.retrieveMemberById(userId).complete();
+            } catch (RuntimeException e) {
+                member = null;
+            }
+        }
+        if (member == null || member.getUser().isBot()) throw new ApiError(400, "\"" + text + "\" isn't a member of this server.");
+        return userId;
+    }
+
+    /** {@code {add: ["Name or user id", ...], remove: ["user id", ...]}}: names or removes organisers of one event. */
+    DataObject changeOrganisers(Guild guild, Member actor, long id, DataObject body) {
+        List<Long> add = new ArrayList<>();
+        if (body.hasKey("add") && !body.isNull("add")) {
+            DataArray array = body.getArray("add");
+            for (int i = 0; i < array.length() && i < 20; i++) add.add(personFrom(guild, array.getString(i)));
+        }
+        List<Long> remove = new ArrayList<>();
+        if (body.hasKey("remove") && !body.isNull("remove")) {
+            DataArray array = body.getArray("remove");
+            for (int i = 0; i < array.length() && i < 20; i++) {
+                String raw = array.getString(i).strip();
+                if (!raw.matches("\\d{1,20}")) throw new ApiError(400, "That isn't an organiser.");
+                remove.add(Long.parseLong(raw));
+            }
+        }
+        service.changeOrganisers(guild.getIdLong(), id, add, remove);
+        log.info("Dashboard: {} changed the organisers of event {} (+{} -{})", actor.getId(), id, add.size(), remove.size());
+        return detail(guild, id);
     }
 
     // ---------- objectives, teams, players ----------

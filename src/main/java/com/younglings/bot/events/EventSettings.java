@@ -8,8 +8,10 @@ import net.dv8tion.jda.api.utils.data.DataObject;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 /**
  * The settings every event has, whatever its template, read from the event's stored settings. Keys (all optional):
@@ -18,15 +20,26 @@ import java.util.Locale;
  * {@code queue: "FIRST_COME" | "CLAN_FIRST"} (who gets a place when the event is full), and
  * {@code signupClosesAt}: an ISO date and time after which players can no longer join themselves (staff still can),
  * {@code boardChannelId}: where a bingo's live board image is posted and kept up to date, and {@code reviewChannelId}: where players' screenshots
- * go for staff to look at.
+ * go for staff to look at, and {@code organisers}: Discord user ids (up to {@link #MAX_ORGANISERS}) who may run this one event from Discord (start and
+ * finish it, decide proof) without being staff.
  * Pure, so it can be tested.
  */
 public record EventSettings(BuyIn buyIn, Policy teamPolicy, QueueRules.Policy queue, Instant signupClosesAt, Long signupChannelId, Long signupAdminChannelId,
-                            Long boardChannelId, Long reviewChannelId) {
+                            Long boardChannelId, Long reviewChannelId, Set<Long> organisers) {
     public static final String DEFAULT_POLICY = "everyone";
+    public static final int MAX_ORGANISERS = 10;
+
+    public EventSettings {
+        organisers = organisers == null ? Set.of() : java.util.Collections.unmodifiableSet(new LinkedHashSet<>(organisers));
+    }
+
+    /** Whether {@code userId} was named an organiser of this event. Staff are not listed here; they may run every event. */
+    public boolean isOrganiser(long userId) {
+        return organisers.contains(userId);
+    }
 
     public static EventSettings defaults() {
-        return new EventSettings(new BuyIn(false, PrizeKind.IN_GAME, 0, false), TeamRules.everyoneTogether(), QueueRules.Policy.FIRST_COME, null, null, null, null, null);
+        return new EventSettings(new BuyIn(false, PrizeKind.IN_GAME, 0, false), TeamRules.everyoneTogether(), QueueRules.Policy.FIRST_COME, null, null, null, null, null, Set.of());
     }
 
     /** Reads the settings, filling anything missing with the defaults. A value that can't be read is left at its default; {@link #problems} reports it. */
@@ -48,7 +61,23 @@ public record EventSettings(BuyIn buyIn, Policy teamPolicy, QueueRules.Policy qu
             // reported by problems()
         }
         return new EventSettings(buyIn, policy == null ? d.teamPolicy() : policy, queue == null ? d.queue() : queue, closes, id(config, "signupChannelId"), id(config, "signupAdminChannelId"),
-                id(config, "boardChannelId"), id(config, "reviewChannelId"));
+                id(config, "boardChannelId"), id(config, "reviewChannelId"), organisersOf(config));
+    }
+
+    /** The organiser ids in the settings; entries that aren't ids are skipped here and reported by {@link #problems}. */
+    public static Set<Long> organisersOf(DataObject config) {
+        Set<Long> ids = new LinkedHashSet<>();
+        try {
+            if (config == null || !config.hasKey("organisers") || config.isNull("organisers")) return ids;
+            var array = config.getArray("organisers");
+            for (Object value : array.toList()) {
+                String raw = value == null ? "" : String.valueOf(value).strip();
+                if (raw.matches("\\d{1,20}")) ids.add(Long.parseLong(raw));
+            }
+        } catch (RuntimeException ignored) {
+            // reported by problems()
+        }
+        return ids;
     }
 
     /** What is wrong with the settings in {@code config}, in words, or an empty list. */
@@ -70,6 +99,15 @@ public record EventSettings(BuyIn buyIn, Policy teamPolicy, QueueRules.Policy qu
         }
         for (String key : new String[]{"signupChannelId", "signupAdminChannelId", "boardChannelId", "reviewChannelId"}) {
             if (config.hasKey(key) && !config.isNull(key) && !config.getString(key, "").isBlank() && id(config, key) == null) problems.add("Choose a channel for the signup (the channel id looks wrong).");
+        }
+        if (config.hasKey("organisers") && !config.isNull("organisers")) {
+            try {
+                var array = config.getArray("organisers");
+                if (array.length() > MAX_ORGANISERS) problems.add("An event can have up to " + MAX_ORGANISERS + " organisers.");
+                if (organisersOf(config).size() != array.length()) problems.add("Each organiser has to be a Discord user (and listed once).");
+            } catch (RuntimeException e) {
+                problems.add("The organisers have to be a list of Discord users.");
+            }
         }
         boolean one = config.hasKey("signupChannelId") && id(config, "signupChannelId") != null;
         boolean other = config.hasKey("signupAdminChannelId") && id(config, "signupAdminChannelId") != null;
