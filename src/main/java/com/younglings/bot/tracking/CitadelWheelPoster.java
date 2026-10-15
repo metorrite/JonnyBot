@@ -120,22 +120,28 @@ public class CitadelWheelPoster {
         return channel;
     }
 
+    /**
+     * Sends {@code text} with {@code gif}. Normally the picture is attached to the message. When the message has the {@code {wheel}} tag the text goes
+     * first (without the tag) and the picture follows in a message of its own: Discord hides a link or picture's name only when it is alone, and always
+     * draws it under a message.
+     */
     private void sendWithGif(Guild guild, GuildMessageChannel channel, String text, List<Long> usersToPing, byte[] gif) {
+        boolean separate = gif != null && text != null && text.contains(WheelMessage.WHEEL);
         var action = channel.sendMessage(WheelMessage.withoutWheel(text)).setAllowedMentions(List.of());
         if (!usersToPing.isEmpty()) action = action.mentionUsers(usersToPing.stream().mapToLong(Long::longValue).toArray());
-        if (gif != null) action = action.addFiles(FileUpload.fromData(gif, "citadel-wheel.gif"));
+        if (gif != null && !separate) action = action.addFiles(FileUpload.fromData(gif, "citadel-wheel.gif"));
         action.queue(ok -> { }, error -> log.warn("Could not post the Citadel wheel winner in guild {}", guild.getIdLong(), error));
+        if (separate) {
+            channel.sendFiles(FileUpload.fromData(gif, "citadel-wheel.gif"))
+                    .queue(ok -> { }, error -> log.warn("Could not post the Citadel wheel GIF in guild {}", guild.getIdLong(), error));
+        }
     }
 
     /** Posts the configured message with {@code gif}. Returns the channel it went to. */
     public GuildMessageChannel postWinner(Guild guild, OffsetDateTime[] window, String winner, int entryCount, byte[] gif) {
         GuildMessageChannel channel = channelFor(guild);
         Long user = linkedUser(guild, winner);
-        String text = messageFor(guild, window, winner, entryCount);
-        var action = channel.sendMessage(WheelMessage.withoutWheel(text)).setAllowedMentions(List.of());
-        if (user != null) action = action.mentionUsers(user);
-        if (gif != null) action = action.addFiles(FileUpload.fromData(gif, "citadel-wheel.gif"));
-        action.queue(ok -> { }, error -> log.warn("Could not post the Citadel wheel winner in guild {}", guild.getIdLong(), error));
+        sendWithGif(guild, channel, messageFor(guild, window, winner, entryCount), user == null ? List.of() : List.of(user), gif);
         return channel;
     }
 

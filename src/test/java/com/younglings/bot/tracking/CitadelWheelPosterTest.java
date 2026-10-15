@@ -200,6 +200,27 @@ class CitadelWheelPosterTest {
     }
 
     @Test
+    void aMessageWithTheWheelTagSendsTheTextFirstAndTheGifAloneAfterIt() {
+        settings(false, CHANNEL, "Well done {winner}!\n{wheel}");
+        MessageCreateAction second = mock(MessageCreateAction.class, invocation -> invocation.getMethod().getReturnType().isInstance(invocation.getMock()) ? invocation.getMock() : null);
+        when(channel.sendFiles(any(net.dv8tion.jda.api.utils.FileUpload.class))).thenReturn(second);
+
+        poster.postWinner(guild, WINDOW, "Axley", 2, new byte[] {1, 2, 3});
+
+        assertEquals(List.of("Well done **Axley**!"), sent.stream().map(CharSequence::toString).toList());
+        assertFalse(calls.contains("addFiles"), "the picture is not attached to the text message: " + calls);
+        verify(channel).sendFiles(any(net.dv8tion.jda.api.utils.FileUpload.class));
+    }
+
+    @Test
+    void aMessageWithoutTheWheelTagKeepsTheGifOnTheMessage() {
+        settings(false, CHANNEL, "Well done {winner}!");
+        poster.postWinner(guild, WINDOW, "Axley", 2, new byte[] {1, 2, 3});
+        assertTrue(calls.contains("addFiles"));
+        verify(channel, never()).sendFiles(any(net.dv8tion.jda.api.utils.FileUpload.class));
+    }
+
+    @Test
     void aMentionIsMadeEvenWhenTheMemberIsNotCachedAndTheNameIsSpelledDifferently() {
         settings(false, CHANNEL, "Well done {mention}!");
         // the guild's member cache is empty (getMemberById answers null) and the link is stored as Atrum_Dies
