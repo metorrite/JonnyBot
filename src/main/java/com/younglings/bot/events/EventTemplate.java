@@ -22,6 +22,14 @@ public interface EventTemplate {
     /** One or two sentences on what this kind of event is. */
     String description();
 
+    /**
+     * Gives a new event its settings before they are checked and stored: a template can add what it generates (a bingo board and its bonuses).
+     * The default changes nothing.
+     */
+    default DataObject prepare(DataObject config) {
+        return config;
+    }
+
     /** What is wrong with these template settings, in words, or an empty list. {@code config} is never null. */
     List<String> configProblems(DataObject config);
 

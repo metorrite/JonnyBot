@@ -11,6 +11,8 @@ import com.younglings.bot.events.EventRules.Scope;
 import com.younglings.bot.events.EventRules.ScoringMode;
 import com.younglings.bot.events.EventRules.Source;
 import com.younglings.bot.events.EventRules.Status;
+import com.younglings.bot.events.BingoTemplate;
+import com.younglings.bot.events.EventBonuses;
 import com.younglings.bot.events.EventScoring.Standing;
 import com.younglings.bot.events.EventSignups;
 import com.younglings.bot.events.EventSettings;
@@ -35,7 +37,9 @@ import org.slf4j.LoggerFactory;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.Locale;
 import java.util.function.Supplier;
 
@@ -55,12 +59,14 @@ public class EventsAdminApi implements AdminRouteExtension {
     private final EventRepository repository;
     private final EventTemplates templates;
     private final EventSignups signups;
+    private final BingoTemplate bingo;
 
-    public EventsAdminApi(EventService service, EventRepository repository, EventTemplates templates, EventSignups signups) {
+    public EventsAdminApi(EventService service, EventRepository repository, EventTemplates templates, EventSignups signups, BingoTemplate bingo) {
         this.service = service;
         this.repository = repository;
         this.templates = templates;
         this.signups = signups;
+        this.bingo = bingo;
     }
 
     @Override
@@ -114,6 +120,10 @@ public class EventsAdminApi implements AdminRouteExtension {
                 case "progress" -> {
                     AdminRouteExtension.requireMethod(method, "POST");
                     return progress(guild, actor, id, body.get());
+                }
+                case "bingo" -> {
+                    AdminRouteExtension.requireMethod(method, "POST");
+                    return rerollBingo(guild, actor, id, body.get());
                 }
                 case "signup" -> {
                     AdminRouteExtension.requireMethod(method, "POST");
@@ -359,7 +369,9 @@ public class EventsAdminApi implements AdminRouteExtension {
             String label = team ? teams.stream().filter(t -> t.id() == subjectId).map(EventRepository.Team::name).findFirst().orElse("A removed team") : name(guild, subjectId);
             DataObject completions = DataObject.empty();
             s.completions().forEach(completions::put);
-            array.add(DataObject.empty().put("rank", rank++).put("subject", s.subject()).put("kind", team ? "TEAM" : "PLAYER").put("label", label).put("points", s.points())
+            DataArray earned = DataArray.empty();
+            EventBonuses.earned(service.bonusesOf(event), s.completions()).forEach(b -> earned.add(b.name()));
+            array.add(DataObject.empty().put("rank", rank++).put("subject", s.subject()).put("kind", team ? "TEAM" : "PLAYER").put("label", label).put("points", s.points()).put("bonuses", earned)
                     .put("objectivesCompleted", s.objectivesCompleted()).put("completions", completions)
                     .put("lastCompletedAt", s.lastCompletedAt() == null ? null : s.lastCompletedAt().toString()));
         }
@@ -381,6 +393,28 @@ public class EventsAdminApi implements AdminRouteExtension {
         long claimId = service.submitClaim(guild.getIdLong(), id, text(body, "objective"), userId, number(body, "amount", 1), text(body, "note"), text(body, "proofUrl"));
         log.info("Dashboard: {} filed claim {} in event {}", actor.getId(), claimId, id);
         return claims(guild, id);
+    }
+
+    // ---------- bingo ----------
+
+    DataObject rerollBingo(Guild guild, Member actor, long id, DataObject body) {
+        Event event = service.event(guild.getIdLong(), id);
+        if (!BingoTemplate.KEY.equals(event.template())) throw new ApiError(409, "This event isn't a bingo.");
+        Set<String> locked = new HashSet<>();
+        if (body.hasKey("lockedKeys") && !body.isNull("lockedKeys")) {
+            DataArray keys = body.getArray("lockedKeys");
+            for (int i = 0; i < keys.length(); i++) locked.add(keys.getString(i));
+        }
+        Integer size = body.hasKey("size") && !body.isNull("size") ? (int) number(body, "size", 0) : null;
+        Long seed = body.hasKey("seed") && !body.isNull("seed") && !text(body, "seed").isEmpty() ? number(body, "seed", 0) : null;
+        try {
+            var rerolled = bingo.reroll(DataObject.fromJson(event.config()), service.objectives(id), size, seed, locked);
+            service.reconfigure(guild.getIdLong(), id, rerolled.config(), rerolled.objectives());
+        } catch (IllegalArgumentException e) {
+            throw new ApiError(400, e.getMessage());
+        }
+        log.info("Dashboard: {} re-rolled the bingo board of event {}", actor.getId(), id);
+        return detail(guild, id);
     }
 
     // ---------- prizes and awards ----------
