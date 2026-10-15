@@ -1,5 +1,0 @@
-# The bot draws pictures (event boards, XP charts, the clan overview, recaps, poll bars) with Java's own text drawing, which needs a font
-# configuration and at least one font on the server. A slim container has neither, so every picture failed with
-# "Fontconfig head is null". Install them. (railpack.json says the same for Railway's newer builder.)
-[phases.setup]
-aptPkgs = ['...', 'fontconfig', 'fonts-dejavu-core']
