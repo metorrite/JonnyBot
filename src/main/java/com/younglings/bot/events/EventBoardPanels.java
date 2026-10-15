@@ -105,40 +105,70 @@ public class EventBoardPanels {
             return "JonnyBot needs to see, send messages and attach files in #" + channel.getName() + ".";
         }
 
-        byte[] png;
+        byte[] png = null;
         String text;
+        List<BingoBoardImage.TileView> tileViews;
+        DataObject config;
+        List<Standing> standings;
         try {
-            DataObject config = DataObject.fromJson(event.config());
+            config = DataObject.fromJson(event.config());
             List<ObjectiveSpec> objectives = service.objectives(eventId);
-            List<Standing> standings = service.standings(guildId, eventId);
+            standings = service.standings(guildId, eventId);
             int subjects = subjectCount(event, standings);
-            var tileViews = BingoBoardView.shared(BingoBoardView.boardKeys(config), objectives, standings, subjects, tiles::iconKeyFor);
-            int size = BingoBoardView.boardSize(config);
-            png = BingoBoardImage.render(event.name(), stageText(event.status()) + " · tiles show how many " + (event.scoringMode() == EventRules.ScoringMode.TEAM ? "teams" : "players") + " have them",
-                    size, tileViews, "Submit proof with /events submit event:" + eventId + " and the tile's number");
+            tileViews = BingoBoardView.shared(BingoBoardView.boardKeys(config), objectives, standings, subjects, tiles::iconKeyFor);
             text = panelText(guild, event, standings);
-        } catch (IOException | RuntimeException e) {
-            log.warn("Could not draw the board of event {}", eventId, e);
-            return "The board couldn't be drawn: " + e.getMessage();
+        } catch (RuntimeException e) {
+            log.warn("Could not build the board of event {}", eventId, e);
+            return "The board couldn't be built: " + e.getMessage();
+        }
+        try {
+            png = BingoBoardImage.render(event.name(), stageText(event.status()) + " · tiles show how many " + (event.scoringMode() == EventRules.ScoringMode.TEAM ? "teams" : "players") + " have them",
+                    BingoBoardView.boardSize(config), tileViews, "Submit proof with /events submit event:" + eventId + " and the tile's number");
+        } catch (IOException | RuntimeException | LinkageError e) {
+            // a server with no usable fonts can't draw text onto a picture (LinkageError: the font system failed to start once and stays unusable);
+            // the board is then posted as text so it still works
+            log.warn("Could not draw the board picture of event {}; posting it as text", eventId, e);
+            text = withTiles(text, tileViews);
         }
 
-        FileUpload file = FileUpload.fromData(png, "bingo-board.png");
+        FileUpload file = png == null ? null : FileUpload.fromData(png, "bingo-board.png");
+        String message = text;
+        byte[] picture = png;
+        String how = png == null ? " (as text: the picture couldn't be drawn on this server)" : "";
         Optional<Panel> existing = repository.panel(eventId);
         if (existing.isPresent() && existing.get().channelId() == channel.getIdLong()) {
-            channel.editMessageById(existing.get().messageId(), text).setAttachments(file).queue(
+            var edit = channel.editMessageById(existing.get().messageId(), message);
+            edit = file == null ? edit.setAttachments(java.util.Collections.emptyList()) : edit.setAttachments(file);
+            edit.queue(
                     ok -> { },
                     error -> {
                         log.info("The board message of event {} couldn't be edited ({}); posting a new one", eventId, error.getMessage());
-                        post(channel, eventId, text, FileUpload.fromData(png, "bingo-board.png"));
+                        post(channel, eventId, message, picture == null ? null : FileUpload.fromData(picture, "bingo-board.png"));
                     });
-            return "Updated the board in #" + channel.getName() + ".";
+            return "Updated the board in #" + channel.getName() + "." + how;
         }
-        post(channel, eventId, text, file);
-        return "Posted the board in #" + channel.getName() + ".";
+        post(channel, eventId, message, file);
+        return "Posted the board in #" + channel.getName() + "." + how;
+    }
+
+    /** The panel text with the tiles listed under it, for when the picture can't be drawn. Kept inside Discord's message length. */
+    static String withTiles(String text, List<BingoBoardImage.TileView> tileViews) {
+        StringBuilder out = new StringBuilder(text).append("\n");
+        for (BingoBoardImage.TileView tile : tileViews) {
+            String line = "\n" + (tile.done() ? "✅" : "⬜") + " **" + tile.number() + ".** " + tile.label() + " · " + tile.count() + "/" + tile.of();
+            if (out.length() + line.length() > 1900) {
+                out.append("\n…");
+                break;
+            }
+            out.append(line);
+        }
+        return out.toString();
     }
 
     private void post(GuildMessageChannel channel, long eventId, String text, FileUpload file) {
-        channel.sendMessage(text).setAllowedMentions(List.of()).addFiles(file).queue(
+        var send = channel.sendMessage(text).setAllowedMentions(List.of());
+        if (file != null) send = send.addFiles(file);
+        send.queue(
                 message -> repository.setPanel(eventId, channel.getIdLong(), message.getIdLong()),
                 error -> log.warn("Could not post the board of event {}", eventId, error));
     }

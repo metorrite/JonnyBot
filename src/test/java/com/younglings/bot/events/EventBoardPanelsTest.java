@@ -97,6 +97,33 @@ class EventBoardPanelsTest {
     }
 
     @Test
+    void aServerThatCannotDrawTextOnAPictureStillGetsItsBoardAsText() {
+        event(BingoTemplate.KEY, Status.RUNNING, "{\"boardChannelId\":\"" + CHANNEL + "\"," + BOARD + "}");
+        List<String> sent = new ArrayList<>();
+        when(channel.sendMessage(any(CharSequence.class))).thenAnswer(invocation -> {
+            sent.add(invocation.getArgument(0).toString());
+            return mock(MessageCreateAction.class, inner -> {
+                calls.add(inner.getMethod().getName());
+                return inner.getMethod().getReturnType().isInstance(inner.getMock()) ? inner.getMock() : null;
+            });
+        });
+
+        try (var drawing = org.mockito.Mockito.mockStatic(BingoBoardImage.class)) {
+            drawing.when(() -> BingoBoardImage.render(any(), any(), org.mockito.ArgumentMatchers.anyInt(), any(), any()))
+                    .thenThrow(new RuntimeException("Fontconfig head is null, check your fonts or fonts configuration"));
+
+            String result = panels.refresh(GUILD, EVENT);
+
+            assertTrue(result.startsWith("Posted the board in #bingo."), result);
+            assertTrue(result.contains("as text"), result);
+        }
+        assertEquals(1, sent.size());
+        assertTrue(sent.get(0).contains("Bingo night"), "the event's name is there");
+        assertTrue(sent.get(0).contains("⬜ **1.**"), "the tiles are listed: " + sent.get(0));
+        assertTrue(!calls.contains("addFiles"), "no picture is attached: " + calls);
+    }
+
+    @Test
     void everyReasonNothingIsPostedIsSaidInWords() {
         event(BingoTemplate.KEY, Status.RUNNING, "{" + BOARD + "}");
         assertEquals("Choose a board channel in the event's settings first.", panels.refresh(GUILD, EVENT));
