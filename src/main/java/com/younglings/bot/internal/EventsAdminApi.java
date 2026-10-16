@@ -70,9 +70,11 @@ public class EventsAdminApi implements AdminRouteExtension {
     private final EventBoardPanels panels;
     private final com.younglings.bot.runescape.PlayerLinkRepository links;
     private final BingoTiles tiles;
+    private final EventSetupApi setupApi;
 
     public EventsAdminApi(EventService service, EventRepository repository, EventTemplates templates, EventSignups signups, BingoTemplate bingo, EventBoardPanels panels,
-                          com.younglings.bot.runescape.PlayerLinkRepository links, BingoTiles tiles) {
+                          com.younglings.bot.runescape.PlayerLinkRepository links, BingoTiles tiles, EventSetupApi setupApi) {
+        this.setupApi = setupApi;
         this.links = links;
         this.tiles = tiles;
         this.service = service;
@@ -98,6 +100,11 @@ public class EventsAdminApi implements AdminRouteExtension {
             if (method.equals("GET")) return list(guild);
             AdminRouteExtension.requireMethod(method, "POST");
             return create(guild, actor, body.get());
+        }
+        if (parts.length >= 2 && EventSetupApi.handles(parts[1])) {
+            DataObject answer = setupApi.route(guild, actor, method, parts, body);
+            if (answer == null) throw new ApiError(404, "That isn't something the event setup can do.");
+            return answer;
         }
         if (parts.length == 2 && parts[1].equals("templates")) {
             AdminRouteExtension.requireMethod(method, "GET");

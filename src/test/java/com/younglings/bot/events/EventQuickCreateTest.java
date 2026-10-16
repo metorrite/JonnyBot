@@ -69,6 +69,26 @@ class EventQuickCreateTest {
     }
 
     @Test
+    void aQuickEventIsTheStandardOneWithTheSetupStepsOff() {
+        for (Kind kind : new Kind[]{Kind.SCAVENGER_HUNT, Kind.COMPETITION}) {
+            EventInput quick = plan(kind, kind == Kind.COMPETITION ? "overall" : null);
+            EventTemplate template = kind == Kind.COMPETITION ? new CompetitionTemplate() : new ScavengerHuntTemplate();
+            EventInput standard = EventOptions.toInput(EventOptions.normalize(EventOptions.standard(template, NOW)));
+            assertEquals(standard.scope(), quick.scope(), kind.name());
+            assertEquals(standard.scoringMode(), quick.scoringMode());
+            assertEquals(standard.maxParticipants(), quick.maxParticipants());
+            assertEquals(standard.startsAt(), quick.startsAt());
+            assertEquals(standard.endsAt(), quick.endsAt());
+            assertEquals("STANDARD", EventSettings.setupModeOf(standard.config()).name(), "the dashboard's standard setup follows the steps");
+            assertEquals("OFF", EventSettings.setupModeOf(quick.config()).name(), "an event made from one Discord command doesn't");
+            for (String key : standard.config().keys()) {
+                if (key.equals("setup")) continue;
+                assertEquals(standard.config().get(key), quick.config().get(key), kind + ": " + key);
+            }
+        }
+    }
+
+    @Test
     void aCompetitionIsOverallUnlessASkillIsNamed() {
         assertEquals(CompetitionTemplate.OVERALL, plan(Kind.COMPETITION, null).config().getInt("skillId"));
         assertEquals(CompetitionTemplate.OVERALL, plan(Kind.COMPETITION, "Overall").config().getInt("skillId"));
