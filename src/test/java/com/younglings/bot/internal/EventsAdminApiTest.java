@@ -345,6 +345,89 @@ class EventsAdminApiTest {
     }
 
     @Test
+    void aShapedBingoListsItsShapeEnforcesItsOrderAndCanChangeShape() {
+        var shapes = call("GET", "events/bingo-layouts", null).getArray("layouts");
+        var ids = new ArrayList<String>();
+        for (int i = 0; i < shapes.length(); i++) ids.add(shapes.getObject(i).getString("id"));
+        assertEquals(List.of("path", "pyramid", "convergence", "tree"), ids);
+        var pyramid = shapes.getObject(1);
+        assertEquals(15, pyramid.getInt("tiles"));
+        assertEquals(5, pyramid.getArray("rows").length());
+        assertEquals(2, pyramid.getObject("requires").getArray("1").length());
+
+        // a pyramid of classic tasks opens in order: the apex needs the two tiles beneath it
+        String id = create("{\"name\":\"Pyramid night\",\"template\":\"bingo\",\"config\":{\"board\":{\"layout\":\"pyramid\",\"pool\":\"classic\",\"seed\":3}}}");
+        var detail = call("GET", "events/" + id, null);
+        assertEquals("pyramid", detail.getObject("layout").getString("id"));
+        assertEquals("locked", detail.getObject("layout").getString("unlock"));
+        assertEquals(15, count(detail.getArray("objectives")));
+        var keys = detail.getObject("event").getObject("config").getObject("board").getArray("keys");
+        assertEquals(15, keys.length());
+        assertEquals(5, detail.getObject("event").getObject("config").getArray("bonuses").length(), "four tiers and the blackout");
+        var apex = detail.getArray("objectives").getObject(0);
+        assertEquals(2, apex.getArray("prerequisites").length());
+        assertEquals(keys.getString(1), apex.getArray("prerequisites").getString(0));
+        assertEquals(0, detail.getArray("objectives").getObject(14).getArray("prerequisites").length(), "the base needs nothing");
+
+        // the engine itself refuses progress on a tile that isn't open yet
+        call("POST", "events/" + id + "/status", "{\"status\":\"signups\"}");
+        call("POST", "events/" + id + "/participants", "{\"userId\":\"" + ACTOR + "\"}");
+        call("POST", "events/" + id + "/status", "{\"status\":\"running\"}");
+        assertEquals(409, failure("POST", "events/" + id + "/progress", "{\"userId\":\"" + ACTOR + "\",\"objective\":\"" + keys.getString(0) + "\",\"amount\":1}").status);
+        call("POST", "events/" + id + "/progress", "{\"userId\":\"" + ACTOR + "\",\"objective\":\"" + keys.getString(14) + "\",\"amount\":1}");
+
+        // a draft can re-roll within its shape and switch to another, which leaves no tiles of the old board behind
+        String draft = create("{\"name\":\"Switching\",\"template\":\"bingo\",\"config\":{\"board\":{\"layout\":\"pyramid\",\"pool\":\"classic\",\"seed\":1}}}");
+        var tree = call("POST", "events/" + draft + "/bingo", "{\"layout\":\"tree\",\"seed\":7}");
+        assertEquals("tree", tree.getObject("layout").getString("id"));
+        assertEquals(16, count(tree.getArray("objectives")));
+        var grid = call("POST", "events/" + draft + "/bingo", "{\"layout\":\"grid\",\"size\":4,\"seed\":7}");
+        assertTrue(grid.isNull("layout"));
+        assertEquals(16, count(grid.getArray("objectives")));
+        assertEquals(400, failure("POST", "events/" + draft + "/bingo", "{\"layout\":\"spiral\"}").status);
+    }
+
+    @Test
+    void aBingosLookIsChosenAtCreationKeptThroughARerollAndChangedUntilTheEventIsOver() {
+        var looks = call("GET", "events/bingo-layouts", null).getArray("looks");
+        assertEquals(2, looks.length());
+        assertEquals("classic", looks.getObject(0).getString("id"));
+        assertEquals("runescape", looks.getObject(1).getString("id"));
+        assertFalse(looks.getObject(1).getString("label").isEmpty());
+
+        String id = create("{\"name\":\"Look night\",\"template\":\"bingo\",\"config\":{\"board\":{\"size\":3,\"seed\":4,\"look\":\"runescape\"}}}");
+        assertEquals("runescape", lookOf(call("GET", "events/" + id, null)));
+
+        var changed = call("POST", "events/" + id + "/look", "{\"look\":\"classic\"}");
+        assertEquals("classic", lookOf(changed));
+        assertEquals(9, count(changed.getArray("objectives")), "only the picture changed");
+        assertEquals("classic", lookOf(call("POST", "events/" + id + "/bingo", "{\"seed\":8}")), "a re-roll keeps the look");
+
+        assertEquals(400, failure("POST", "events/" + id + "/look", "{\"look\":\"neon\"}").status);
+        assertEquals("classic", lookOf(call("GET", "events/" + id, null)), "a refused change leaves it alone");
+        assertEquals(400, failure("POST", "events", "{\"name\":\"Bad look\",\"template\":\"bingo\",\"config\":{\"board\":{\"size\":3,\"look\":\"neon\"}}}").status);
+        assertNull(lookOf(call("POST", "events/" + id + "/look", "{\"look\":\"\"}")), "an empty look goes back to how the board was first drawn");
+
+        // it is only a picture, so it may change while the event runs, but not once the event is over
+        call("POST", "events/" + id + "/look", "{\"look\":\"runescape\"}");
+        call("POST", "events/" + id + "/status", "{\"status\":\"signups\"}");
+        call("POST", "events/" + id + "/status", "{\"status\":\"running\"}");
+        assertEquals("classic", lookOf(call("POST", "events/" + id + "/look", "{\"look\":\"classic\"}")));
+        call("POST", "events/" + id + "/status", "{\"status\":\"scoring\"}");
+        call("POST", "events/" + id + "/status", "{\"status\":\"done\"}");
+        assertEquals(409, failure("POST", "events/" + id + "/look", "{\"look\":\"runescape\"}").status);
+
+        String notBingo = create("{\"name\":\"Not a bingo\"}");
+        assertEquals(409, failure("POST", "events/" + notBingo + "/look", "{\"look\":\"classic\"}").status);
+    }
+
+    /** The look in an event's settings, or null when it has none. */
+    private static String lookOf(DataObject detail) {
+        var board = detail.getObject("event").getObject("config").getObject("board");
+        return board.hasKey("look") && !board.isNull("look") ? board.getString("look") : null;
+    }
+
+    @Test
     void theBingoRoutesRefuseAnEventThatIsntABingo() {
         String id = create("{\"name\":\"Not a bingo\"}");
         assertEquals(409, failure("POST", "events/" + id + "/bingo", "{\"seed\":1}").status);

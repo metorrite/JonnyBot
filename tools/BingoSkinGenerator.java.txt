@@ -1,0 +1,833 @@
+package com.younglings.bot.events;
+
+import com.younglings.bot.events.BingoBoardImage.TileView;
+import com.younglings.bot.events.BingoLayout.Slot;
+import org.junit.jupiter.api.Test;
+
+import javax.imageio.ImageIO;
+import java.awt.AlphaComposite;
+import java.awt.BasicStroke;
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.GradientPaint;
+import java.awt.Graphics2D;
+import java.awt.LinearGradientPaint;
+import java.awt.RadialGradientPaint;
+import java.awt.RenderingHints;
+import java.awt.Shape;
+import java.awt.geom.AffineTransform;
+import java.awt.geom.Ellipse2D;
+import java.awt.geom.GeneralPath;
+import java.awt.geom.Line2D;
+import java.awt.geom.Path2D;
+import java.awt.geom.QuadCurve2D;
+import java.awt.geom.RoundRectangle2D;
+import java.awt.image.BufferedImage;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+
+/** Throwaway: paints RuneScape-flavoured backgrounds for the four board shapes in code, then draws sample boards on them to look at. Not committed. */
+class BingoSkinScratchTest {
+    private static final Path OUT = Path.of("C:/Users/drake/AppData/Local/Temp/claude/C--Users-drake-Documents-Github-Repositories-JonnyBot/37797ab7-e4bc-4097-8007-571e5bb594a6/scratchpad/skins");
+    private static final int W = 1600;
+    private static final int H = 1000;
+
+    // ---------- helpers ----------
+
+    private static Color c(int rgb, int alpha) {
+        return new Color((rgb >> 16) & 255, (rgb >> 8) & 255, rgb & 255, alpha);
+    }
+
+    private static Color mix(Color a, Color b, float t) {
+        return new Color(Math.round(a.getRed() + (b.getRed() - a.getRed()) * t), Math.round(a.getGreen() + (b.getGreen() - a.getGreen()) * t), Math.round(a.getBlue() + (b.getBlue() - a.getBlue()) * t));
+    }
+
+    private static Graphics2D open(BufferedImage image) {
+        Graphics2D g = image.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
+        return g;
+    }
+
+    /** Adds grain: every pixel's brightness moves by up to {@code amount}. */
+    private static void grain(BufferedImage image, int amount, long seed) {
+        Random r = new Random(seed);
+        for (int y = 0; y < image.getHeight(); y++) {
+            for (int x = 0; x < image.getWidth(); x++) {
+                int rgb = image.getRGB(x, y);
+                int d = r.nextInt(amount * 2 + 1) - amount;
+                int rr = Math.max(0, Math.min(255, ((rgb >> 16) & 255) + d));
+                int gg = Math.max(0, Math.min(255, ((rgb >> 8) & 255) + d));
+                int bb = Math.max(0, Math.min(255, (rgb & 255) + d));
+                image.setRGB(x, y, (rr << 16) | (gg << 8) | bb);
+            }
+        }
+    }
+
+    private static void tracked(Graphics2D g, String text, double cx, double y, float tracking) {
+        FontMetrics fm = g.getFontMetrics();
+        double total = 0;
+        for (char ch : text.toCharArray()) total += fm.charWidth(ch) + tracking;
+        total -= tracking;
+        double x = cx - total / 2;
+        for (char ch : text.toCharArray()) {
+            g.drawString(String.valueOf(ch), (float) x, (float) y);
+            x += fm.charWidth(ch) + tracking;
+        }
+    }
+
+    private static void title(Graphics2D g, String title, String subtitle, Color main, Color sub, Color shadow) {
+        g.setFont(new Font("Serif", Font.BOLD, 56));
+        g.setColor(shadow);
+        tracked(g, title, 802, 100, 9);
+        g.setColor(main);
+        tracked(g, title, 800, 98, 9);
+        g.setFont(new Font("SansSerif", Font.PLAIN, 18));
+        g.setColor(sub);
+        tracked(g, subtitle, 800, 134, 5);
+    }
+
+    private static void goldFrame(Graphics2D g, Color a, Color b, Color inner) {
+        g.setPaint(new LinearGradientPaint(0, 0, W, H, new float[]{0f, 0.5f, 1f}, new Color[]{a, b, a}));
+        g.setStroke(new BasicStroke(6f));
+        g.draw(new RoundRectangle2D.Float(22, 22, W - 44, H - 44, 22, 22));
+        g.setColor(inner);
+        g.setStroke(new BasicStroke(2f));
+        g.draw(new RoundRectangle2D.Float(34, 34, W - 68, H - 68, 17, 17));
+        // studs in the corners
+        g.setPaint(new LinearGradientPaint(0, 0, 30, 30, new float[]{0f, 1f}, new Color[]{a, b}));
+        for (int[] p : new int[][]{{48, 48}, {W - 48, 48}, {48, H - 48}, {W - 48, H - 48}}) g.fill(new Ellipse2D.Float(p[0] - 7, p[1] - 7, 14, 14));
+    }
+
+    /** The frame of one tile place, drawn as the template draws it: a panel, a dark inset for the picture, an inset for the name and a numbered badge. */
+    private static void tileFrame(Graphics2D g, Slot s, Color border, Color panel, Color inset, Color nameInset, Color badge, Color badgeText) {
+        int[] b = s.bounds();
+        int[] ib = s.icon();
+        int[] nb = s.name();
+        if (s.round()) return;
+        RoundRectangle2D frame = new RoundRectangle2D.Float(b[0], b[1], b[2], b[3], 15, 15);
+        g.setColor(new Color(0, 0, 0, 90));
+        g.fill(new RoundRectangle2D.Float(b[0] + 2, b[1] + 4, b[2], b[3], 15, 15));
+        g.setColor(panel);
+        g.fill(frame);
+        g.setColor(border);
+        g.setStroke(new BasicStroke(3.2f));
+        g.draw(frame);
+        g.setColor(new Color(255, 255, 255, 40));
+        g.setStroke(new BasicStroke(1f));
+        g.draw(new RoundRectangle2D.Float(b[0] + 3, b[1] + 3, b[2] - 6, b[3] - 6, 12, 12));
+        g.setColor(inset);
+        g.fill(new RoundRectangle2D.Float(ib[0] - 3, ib[1] - 3, ib[2] + 6, ib[3] + 6, 8, 8));
+        g.setColor(new Color(255, 255, 255, 25));
+        g.draw(new RoundRectangle2D.Float(ib[0] - 3, ib[1] - 3, ib[2] + 6, ib[3] + 6, 8, 8));
+        g.setColor(nameInset);
+        g.fill(new RoundRectangle2D.Float(nb[0] - 1, nb[1] - 1, nb[2] + 2, nb[3] + 2, 6, 6));
+        g.setColor(new Color(255, 255, 255, 40));
+        g.draw(new RoundRectangle2D.Float(nb[0] - 1, nb[1] - 1, nb[2] + 2, nb[3] + 2, 6, 6));
+        badge(g, b[0] + 9, b[1] + 9, s.number(), badge, badgeText);
+    }
+
+    private static void badge(Graphics2D g, int cx, int cy, int number, Color fill, Color text) {
+        g.setColor(new Color(0, 0, 0, 100));
+        g.fill(new Ellipse2D.Float(cx - 12, cy - 11, 25, 25));
+        g.setColor(fill);
+        g.fill(new Ellipse2D.Float(cx - 13, cy - 13, 26, 26));
+        g.setColor(new Color(255, 255, 255, 90));
+        g.setStroke(new BasicStroke(1.2f));
+        g.draw(new Ellipse2D.Float(cx - 11, cy - 11, 22, 22));
+        g.setFont(new Font("SansSerif", Font.BOLD, 12));
+        g.setColor(text);
+        String n = Integer.toString(number);
+        FontMetrics fm = g.getFontMetrics();
+        g.drawString(n, cx - fm.stringWidth(n) / 2f, cy + (fm.getAscent() - fm.getDescent()) / 2f);
+    }
+
+    private static Slot slot(BingoLayout l, int n) {
+        return l.slots().get(n - 1);
+    }
+
+    private static double[] centre(Slot s) {
+        return new double[]{s.bounds()[0] + s.bounds()[2] / 2.0, s.bounds()[1] + s.bounds()[3] / 2.0};
+    }
+
+    // ---------- 1. the pyramid: a desert night, sandstone and gold ----------
+
+    static BufferedImage pyramid() {
+        BingoLayout l = BingoLayout.find("pyramid").orElseThrow();
+        BufferedImage img = new BufferedImage(W, H, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = open(img);
+        Random r = new Random(11);
+        g.setPaint(new LinearGradientPaint(0, 0, 0, H, new float[]{0f, 0.55f, 0.88f, 1f}, new Color[]{c(0x070a20, 255), c(0x1c1a44, 255), c(0x6e3a2c, 255), c(0x2a1710, 255)}));
+        g.fillRect(0, 0, W, H);
+        // stars
+        for (int i = 0; i < 260; i++) {
+            float a = 0.25f + r.nextFloat() * 0.7f;
+            g.setColor(new Color(1f, 0.95f, 0.8f, a));
+            double s = r.nextFloat() < 0.1 ? 2.6 : 1.4;
+            g.fill(new Ellipse2D.Double(r.nextInt(W), r.nextInt(620), s, s));
+        }
+        // moon with a halo
+        g.setPaint(new RadialGradientPaint(1330, 240, 150, new float[]{0f, 0.35f, 1f}, new Color[]{c(0xffe9b0, 120), c(0xffd989, 40), c(0xffd989, 0)}));
+        g.fill(new Ellipse2D.Float(1180, 90, 300, 300));
+        g.setColor(c(0xf6e2a8, 255));
+        g.fill(new Ellipse2D.Float(1296, 206, 68, 68));
+        g.setColor(c(0x1c1a44, 90));
+        g.fill(new Ellipse2D.Float(1312, 200, 62, 62));
+        // far dunes
+        for (int layer = 0; layer < 2; layer++) {
+            GeneralPath dune = new GeneralPath();
+            dune.moveTo(0, H);
+            double base = 820 + layer * 46;
+            for (int x = 0; x <= W; x += 20) dune.lineTo(x, base + Math.sin(x / (180.0 + layer * 70) + layer * 2) * 24 + Math.sin(x / 61.0) * 6);
+            dune.lineTo(W, H);
+            dune.closePath();
+            g.setColor(layer == 0 ? c(0x4a2d2c, 255) : c(0x2c1b1b, 255));
+            g.fill(dune);
+        }
+        // the pyramid
+        GeneralPath tri = new GeneralPath();
+        tri.moveTo(800, 180);
+        tri.lineTo(1490, 872);
+        tri.lineTo(110, 872);
+        tri.closePath();
+        g.setPaint(new LinearGradientPaint(0, 180, 0, 872, new float[]{0f, 1f}, new Color[]{c(0xcfa766, 255), c(0x8a6637, 255)}));
+        g.fill(tri);
+        Shape old = g.getClip();
+        g.setClip(tri);
+        // courses of blocks, each a little different
+        int[] tiers = {180, 310, 460, 610, 760, 872};
+        for (int t = 0; t < tiers.length - 1; t++) {
+            Color tierTint = mix(c(0xd8b070, 255), c(0x8a6637, 255), t / 5f);
+            for (int y = tiers[t]; y < tiers[t + 1]; y += 26) {
+                int offset = ((y / 26) % 2) * 28;
+                for (int x = -60 + offset; x < W; x += 56) {
+                    float v = 0.82f + r.nextFloat() * 0.3f;
+                    g.setColor(new Color(Math.min(255, Math.round(tierTint.getRed() * v)), Math.min(255, Math.round(tierTint.getGreen() * v)), Math.min(255, Math.round(tierTint.getBlue() * v))));
+                    g.fillRect(x, y, 55, Math.min(25, tiers[t + 1] - y));
+                    g.setColor(c(0x3d2a12, 70));
+                    g.drawRect(x, y, 55, 25);
+                }
+            }
+            if (t > 0) {
+                g.setColor(c(0x2a1a0a, 120));
+                g.setStroke(new BasicStroke(3f));
+                g.drawLine(0, tiers[t], W, tiers[t]);
+            }
+        }
+        // shaded right face and a warm lit left face
+        GeneralPath shade = new GeneralPath();
+        shade.moveTo(800, 180);
+        shade.lineTo(1490, 872);
+        shade.lineTo(800, 872);
+        shade.closePath();
+        g.setColor(new Color(0, 0, 0, 78));
+        g.fill(shade);
+        g.setPaint(new LinearGradientPaint(110, 0, 800, 0, new float[]{0f, 1f}, new Color[]{c(0xffd58a, 55), c(0xffd58a, 0)}));
+        g.fill(tri);
+        g.setClip(old);
+        // gold edges and tier lines, as the template
+        g.setColor(c(0xe2bc6a, 255));
+        g.setStroke(new BasicStroke(6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g.draw(tri);
+        g.setColor(c(0xf8e4a4, 220));
+        g.setStroke(new BasicStroke(2f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10f, new float[]{12, 8}, 0));
+        g.draw(tri);
+        g.setStroke(new BasicStroke(3f));
+        for (int i = 1; i < 5; i++) {
+            double half = (tiers[i] - 180) * (690.0 / 692.0);
+            g.setColor(c(0xe2bc6a, 110));
+            g.draw(new Line2D.Double(800 - half, tiers[i], 800 + half, tiers[i]));
+        }
+        // the ground and a frieze of simple glyphs
+        g.setPaint(new LinearGradientPaint(0, 872, 0, 970, new float[]{0f, 1f}, new Color[]{c(0x3b261a, 255), c(0x1d110c, 255)}));
+        g.fillRect(40, 872, W - 80, 98);
+        g.setColor(c(0xd7b062, 150));
+        g.setStroke(new BasicStroke(2.2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        for (int i = 0; i < 24; i++) {
+            double x = 90 + i * 62;
+            double y = 925;
+            switch (i % 4) {
+                case 0 -> { // ankh
+                    g.draw(new Ellipse2D.Double(x - 7, y - 20, 14, 16));
+                    g.draw(new Line2D.Double(x, y - 4, x, y + 18));
+                    g.draw(new Line2D.Double(x - 10, y + 4, x + 10, y + 4));
+                }
+                case 1 -> { // eye
+                    g.draw(new QuadCurve2D.Double(x - 16, y, x, y - 16, x + 16, y));
+                    g.draw(new QuadCurve2D.Double(x - 16, y, x, y + 14, x + 16, y));
+                    g.fill(new Ellipse2D.Double(x - 4, y - 4, 8, 8));
+                    g.draw(new QuadCurve2D.Double(x + 4, y + 8, x + 8, y + 20, x + 16, y + 20));
+                }
+                case 2 -> { // water
+                    for (int k = 0; k < 3; k++) {
+                        Path2D z = new Path2D.Double();
+                        z.moveTo(x - 16, y - 8 + k * 9);
+                        for (int q = 0; q < 4; q++) z.lineTo(x - 16 + q * 8 + 4, y - 8 + k * 9 + (q % 2 == 0 ? -4 : 4));
+                        g.draw(z);
+                    }
+                }
+                default -> { // sun disk
+                    g.draw(new Ellipse2D.Double(x - 8, y - 8, 16, 16));
+                    for (int k = 0; k < 8; k++) {
+                        double a = k * Math.PI / 4;
+                        g.draw(new Line2D.Double(x + Math.cos(a) * 12, y + Math.sin(a) * 12, x + Math.cos(a) * 19, y + Math.sin(a) * 19));
+                    }
+                }
+            }
+        }
+        grain(img, 2, 3);
+        g = open(img);
+        goldFrame(g, c(0xf5db93, 255), c(0x9f783b, 255), c(0xd9b66b, 90));
+        title(g, "PYRAMID OF THE PHARAOHS", "ASCEND THE TIERS  \u00b7  UNLOCK THE APEX", c(0xf6e3ad, 255), c(0xd6c6a0, 255), c(0x000000, 140));
+        for (Slot s : l.slots()) tileFrame(g, s, c(0xe0b95a, 255), c(0x241a22, 244), c(0x0b0b14, 255), c(0x1b1626, 255), c(0xe0b95a, 255), c(0x241a10, 255));
+        g.dispose();
+        return img;
+    }
+
+    // ---------- 2. the path: a treasure map on parchment ----------
+
+    static BufferedImage path() {
+        BingoLayout l = BingoLayout.find("path").orElseThrow();
+        BufferedImage img = new BufferedImage(W, H, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = open(img);
+        Random r = new Random(23);
+        g.setPaint(new RadialGradientPaint(800, 500, 900, new float[]{0f, 0.6f, 1f}, new Color[]{c(0xe6d6a8, 255), c(0xcdb98a, 255), c(0x8d7144, 255)}));
+        g.fillRect(0, 0, W, H);
+        // stains and fibres
+        for (int i = 0; i < 14; i++) {
+            float x = r.nextInt(W);
+            float y = r.nextInt(H);
+            float rad = 80 + r.nextInt(220);
+            g.setPaint(new RadialGradientPaint(x, y, rad, new float[]{0f, 1f}, new Color[]{c(0x7a5a2c, 34), c(0x7a5a2c, 0)}));
+            g.fill(new Ellipse2D.Float(x - rad, y - rad, rad * 2, rad * 2));
+        }
+        g.setStroke(new BasicStroke(1f));
+        for (int i = 0; i < 700; i++) {
+            g.setColor(c(0x6b4e26, 12 + r.nextInt(14)));
+            double x = r.nextInt(W);
+            double y = r.nextInt(H);
+            g.draw(new Line2D.Double(x, y, x + r.nextInt(60) - 30, y + r.nextInt(14) - 7));
+        }
+        // faint grid, like a surveyor's chart
+        g.setColor(c(0x6b4e26, 26));
+        for (int x = 80; x < W; x += 160) g.drawLine(x, 150, x, 960);
+        for (int y = 150; y < H; y += 160) g.drawLine(60, y, W - 60, y);
+        Color ink = c(0x4f3820, 150);
+        g.setColor(ink);
+        // mountains, trees and water in the gaps between the rows
+        int[][] hills = {{210, 395}, {560, 400}, {1010, 392}, {1380, 398}, {330, 650}, {760, 648}, {1180, 655}, {1450, 640}, {160, 860}, {960, 870}};
+        for (int[] h : hills) {
+            for (int k = -1; k <= 1; k++) {
+                double bx = h[0] + k * 46;
+                double hh = 40 + (k == 0 ? 20 : 0) + r.nextInt(10);
+                Path2D m = new Path2D.Double();
+                m.moveTo(bx - 34, h[1]);
+                m.lineTo(bx, h[1] - hh);
+                m.lineTo(bx + 34, h[1]);
+                g.setColor(c(0xcdb98a, 120));
+                g.fill(m);
+                g.setColor(ink);
+                g.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g.draw(m);
+                g.draw(new Line2D.Double(bx, h[1] - hh, bx + 10, h[1] - hh * 0.35));
+            }
+        }
+        int[][] trees = {{110, 385}, {420, 395}, {690, 390}, {880, 388}, {1250, 392}, {70, 640}, {540, 655}, {980, 650}, {1330, 650}, {330, 860}, {700, 880}, {1100, 880}};
+        for (int[] t : trees) {
+            for (int k = 0; k < 3; k++) {
+                double tx = t[0] + k * 22 - 22;
+                double ty = t[1] + (k == 1 ? -8 : 0);
+                g.setColor(c(0x5a7a46, 150));
+                Path2D pine = new Path2D.Double();
+                pine.moveTo(tx - 11, ty);
+                pine.lineTo(tx, ty - 34);
+                pine.lineTo(tx + 11, ty);
+                pine.closePath();
+                g.fill(pine);
+                g.setColor(ink);
+                g.setStroke(new BasicStroke(1.6f));
+                g.draw(pine);
+                g.draw(new Line2D.Double(tx, ty, tx, ty + 8));
+            }
+        }
+        // a winding river across the middle band
+        g.setColor(c(0x5b86a6, 130));
+        g.setStroke(new BasicStroke(10f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        Path2D river = new Path2D.Double();
+        river.moveTo(60, 372);
+        for (int x = 60; x <= 1540; x += 40) river.lineTo(x, 372 + Math.sin(x / 70.0) * 12 + (x > 700 ? 6 : 0));
+        g.draw(river);
+        g.setColor(c(0x4f3820, 90));
+        g.setStroke(new BasicStroke(1.4f));
+        g.draw(river);
+        // the trail through every tile, in order
+        Path2D trail = new Path2D.Double();
+        for (int n = 1; n <= l.tiles(); n++) {
+            double[] p = centre(slot(l, n));
+            if (n == 1) trail.moveTo(p[0], p[1]);
+            else trail.lineTo(p[0], p[1]);
+        }
+        g.setColor(new Color(0, 0, 0, 50));
+        g.setStroke(new BasicStroke(26f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g.translate(2, 4);
+        g.draw(trail);
+        g.translate(-2, -4);
+        g.setColor(c(0x8b6234, 255));
+        g.setStroke(new BasicStroke(22f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g.draw(trail);
+        g.setColor(c(0xb88a4e, 255));
+        g.setStroke(new BasicStroke(16f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g.draw(trail);
+        g.setColor(c(0xf0e0b4, 230));
+        g.setStroke(new BasicStroke(2.6f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_ROUND, 10f, new float[]{12, 9}, 0));
+        g.draw(trail);
+        // compass rose
+        double cx = 800;
+        double cy = 902;
+        g.setColor(ink);
+        g.setStroke(new BasicStroke(1.8f));
+        g.draw(new Ellipse2D.Double(cx - 46, cy - 46, 92, 92));
+        g.draw(new Ellipse2D.Double(cx - 38, cy - 38, 76, 76));
+        for (int k = 0; k < 8; k++) {
+            double a = k * Math.PI / 4;
+            double len = k % 2 == 0 ? 60 : 36;
+            Path2D needle = new Path2D.Double();
+            needle.moveTo(cx + Math.cos(a) * len, cy + Math.sin(a) * len);
+            needle.lineTo(cx + Math.cos(a + 0.28) * 10, cy + Math.sin(a + 0.28) * 10);
+            needle.lineTo(cx, cy);
+            needle.lineTo(cx + Math.cos(a - 0.28) * 10, cy + Math.sin(a - 0.28) * 10);
+            needle.closePath();
+            g.setColor(k % 2 == 0 ? c(0x8c2a22, 190) : c(0x4f3820, 120));
+            g.fill(needle);
+            g.setColor(ink);
+            g.draw(needle);
+        }
+        g.setFont(new Font("Serif", Font.BOLD, 20));
+        g.setColor(c(0x4f3820, 230));
+        g.drawString("N", (float) cx - 7, (float) cy - 66);
+        // start flag and treasure chest
+        g.setColor(c(0x4f3820, 230));
+        g.setStroke(new BasicStroke(3f));
+        g.draw(new Line2D.Double(92, 880, 92, 930));
+        Path2D flag = new Path2D.Double();
+        flag.moveTo(92, 880);
+        flag.lineTo(122, 891);
+        flag.lineTo(92, 902);
+        flag.closePath();
+        g.setColor(c(0xa8322a, 255));
+        g.fill(flag);
+        g.setFont(new Font("Serif", Font.BOLD, 34));
+        g.setColor(c(0x3a2615, 255));
+        g.drawString("START", 138, 915);
+        g.drawString("TREASURE CHEST", 1190, 915);
+        // the chest itself
+        g.setColor(c(0x6b3f1a, 255));
+        g.fill(new RoundRectangle2D.Float(1525, 885, 46, 34, 8, 8));
+        g.setColor(c(0x8a5524, 255));
+        g.fill(new RoundRectangle2D.Float(1525, 870, 46, 22, 14, 14));
+        g.setColor(c(0xd9b04a, 255));
+        g.setStroke(new BasicStroke(3f));
+        g.draw(new Line2D.Double(1525, 892, 1571, 892));
+        g.fill(new RoundRectangle2D.Float(1542, 886, 12, 14, 4, 4));
+        grain(img, 3, 5);
+        g = open(img);
+        // a worn wooden frame with brass corners
+        g.setColor(c(0x4a3220, 255));
+        g.setStroke(new BasicStroke(14f));
+        g.draw(new RoundRectangle2D.Float(16, 16, W - 32, H - 32, 18, 18));
+        g.setColor(c(0xc29a4c, 255));
+        g.setStroke(new BasicStroke(3f));
+        g.draw(new RoundRectangle2D.Float(26, 26, W - 52, H - 52, 12, 12));
+        g.setColor(c(0xe6c878, 255));
+        for (int[] p : new int[][]{{40, 40}, {W - 40, 40}, {40, H - 40}, {W - 40, H - 40}}) {
+            g.fill(new Ellipse2D.Float(p[0] - 9, p[1] - 9, 18, 18));
+            g.setColor(c(0x8a6a2a, 255));
+            g.fill(new Ellipse2D.Float(p[0] - 4, p[1] - 4, 8, 8));
+            g.setColor(c(0xe6c878, 255));
+        }
+        title(g, "THE ADVENTURER'S PATH", "FOLLOW THE TRAIL  \u00b7  CLAIM THE DROPS  \u00b7  REACH THE CHEST", c(0x3a2615, 255), c(0x5b432a, 255), c(0xf5e8c4, 140));
+        for (Slot s : l.slots()) tileFrame(g, s, c(0xc29a4c, 255), c(0x3a2a1a, 246), c(0x120d08, 255), c(0x241a10, 255), c(0xe6c878, 255), c(0x2a1a08, 255));
+        g.dispose();
+        return img;
+    }
+
+    // ---------- 3. the convergence: an ember-lit obsidian ritual circle ----------
+
+    static BufferedImage convergence() {
+        BingoLayout l = BingoLayout.find("convergence").orElseThrow();
+        BufferedImage img = new BufferedImage(W, H, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = open(img);
+        Random r = new Random(37);
+        double cx = 800;
+        double cy = 545;
+        g.setPaint(new RadialGradientPaint((float) cx, (float) cy, 820, new float[]{0f, 0.35f, 1f}, new Color[]{c(0x4a1215, 255), c(0x1a0b0d, 255), c(0x050304, 255)}));
+        g.fillRect(0, 0, W, H);
+        // cracks in the stone, glowing from within (kept to the board area, off the title)
+        g.setClip(new java.awt.Rectangle(52, 160, W - 104, H - 215));
+        for (int i = 0; i < 30; i++) {
+            double a = r.nextDouble() * Math.PI * 2;
+            double x = cx + Math.cos(a) * (60 + r.nextInt(80));
+            double y = cy + Math.sin(a) * (60 + r.nextInt(80));
+            Path2D crack = new Path2D.Double();
+            crack.moveTo(x, y);
+            double len = 250 + r.nextInt(520);
+            for (double d = 0; d < len; d += 22 + r.nextInt(20)) {
+                a += (r.nextDouble() - 0.5) * 0.7;
+                x += Math.cos(a) * 24;
+                y += Math.sin(a) * 24;
+                crack.lineTo(x, y);
+            }
+            g.setColor(c(0xff5a28, 26));
+            g.setStroke(new BasicStroke(6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g.draw(crack);
+            g.setColor(c(0xff8a3c, 70));
+            g.setStroke(new BasicStroke(1.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g.draw(crack);
+        }
+        g.setClip(null);
+        // the ritual circle: rings, spokes and rune ticks
+        g.setColor(c(0x2b1114, 255));
+        g.setStroke(new BasicStroke(34f));
+        g.draw(new Ellipse2D.Double(cx - 345, cy - 345, 690, 690));
+        g.setColor(c(0x8a2f2f, 190));
+        g.setStroke(new BasicStroke(3f));
+        g.draw(new Ellipse2D.Double(cx - 362, cy - 362, 724, 724));
+        g.draw(new Ellipse2D.Double(cx - 328, cy - 328, 656, 656));
+        g.setColor(c(0x8a2f2f, 150));
+        g.setStroke(new BasicStroke(2f));
+        g.draw(new Ellipse2D.Double(cx - 195, cy - 195, 390, 390));
+        g.setColor(c(0xe8b64a, 200));
+        g.setStroke(new BasicStroke(2.2f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10f, new float[]{8, 10}, 0));
+        g.draw(new Ellipse2D.Double(cx - 290, cy - 290, 580, 580));
+        g.setStroke(new BasicStroke(2f));
+        g.setColor(c(0x7a2d2f, 150));
+        for (int k = 0; k < 12; k++) {
+            double a = k * Math.PI / 6;
+            g.draw(new Line2D.Double(cx + Math.cos(a) * 60, cy + Math.sin(a) * 60, cx + Math.cos(a) * 345, cy + Math.sin(a) * 345));
+        }
+        for (int k = 0; k < 96; k++) {
+            double a = k * Math.PI / 48;
+            double inner = k % 8 == 0 ? 318 : 332;
+            g.setColor(c(0xe8b64a, k % 8 == 0 ? 190 : 100));
+            g.draw(new Line2D.Double(cx + Math.cos(a) * inner, cy + Math.sin(a) * inner, cx + Math.cos(a) * 344, cy + Math.sin(a) * 344));
+        }
+        // diamond glyphs between the outer tiles
+        g.setColor(c(0xe8b64a, 170));
+        for (int k = 0; k < 12; k++) {
+            double a = (k + 0.5) * Math.PI / 6;
+            double gx = cx + Math.cos(a) * 292;
+            double gy = cy + Math.sin(a) * 292;
+            Path2D d = new Path2D.Double();
+            d.moveTo(gx, gy - 9);
+            d.lineTo(gx + 6, gy);
+            d.lineTo(gx, gy + 9);
+            d.lineTo(gx - 6, gy);
+            d.closePath();
+            g.fill(d);
+        }
+        // the heart of the circle
+        g.setPaint(new RadialGradientPaint((float) cx, (float) cy, 150, new float[]{0f, 0.45f, 1f}, new Color[]{c(0xff7a2c, 210), c(0xc23a22, 90), c(0xc23a22, 0)}));
+        g.fill(new Ellipse2D.Double(cx - 150, cy - 150, 300, 300));
+        g.setColor(c(0xe8b64a, 190));
+        g.setStroke(new BasicStroke(2f));
+        g.draw(new Ellipse2D.Double(cx - 92, cy - 92, 184, 184));
+        for (int k = 0; k < 8; k++) {
+            double a = k * Math.PI / 4 + Math.PI / 8;
+            Path2D tri = new Path2D.Double();
+            tri.moveTo(cx + Math.cos(a) * 92, cy + Math.sin(a) * 92);
+            tri.lineTo(cx + Math.cos(a - 0.1) * 80, cy + Math.sin(a - 0.1) * 80);
+            tri.lineTo(cx + Math.cos(a + 0.1) * 80, cy + Math.sin(a + 0.1) * 80);
+            tri.closePath();
+            g.fill(tri);
+        }
+        // rising embers
+        for (int i = 0; i < 220; i++) {
+            double a = r.nextDouble() * Math.PI * 2;
+            double d = Math.pow(r.nextDouble(), 0.7) * 520;
+            double x = cx + Math.cos(a) * d * 1.5;
+            double y = cy + Math.sin(a) * d * 0.95 - r.nextInt(80);
+            if (x < 50 || x > W - 50 || y < 150 || y > H - 50) continue;
+            double s = 1 + r.nextDouble() * 2.6;
+            g.setColor(new Color(1f, 0.45f + r.nextFloat() * 0.3f, 0.12f, 0.2f + r.nextFloat() * 0.6f));
+            g.fill(new Ellipse2D.Double(x, y, s, s));
+        }
+        grain(img, 2, 9);
+        g = open(img);
+        // the final boss's seat
+        g.setPaint(new RadialGradientPaint((float) cx, (float) cy, 60, new float[]{0f, 1f}, new Color[]{c(0x6a2a3a, 255), c(0x2a1018, 255)}));
+        g.fill(new Ellipse2D.Double(cx - 59, cy - 59, 118, 118));
+        g.setColor(c(0xe0b95a, 255));
+        g.setStroke(new BasicStroke(5f));
+        g.draw(new Ellipse2D.Double(cx - 58, cy - 58, 116, 116));
+        g.setColor(c(0xf8e4a4, 120));
+        g.setStroke(new BasicStroke(1.4f));
+        g.draw(new Ellipse2D.Double(cx - 53, cy - 53, 106, 106));
+        goldFrame(g, c(0xf0c878, 255), c(0x8a4a2a, 255), c(0xd9a05a, 90));
+        title(g, "THE BOSS CONVERGENCE", "COMPLETE THE ENCOUNTERS  \u00b7  CONQUER THE CENTER", c(0xf4dcae, 255), c(0xcaa9a0, 255), c(0x000000, 160));
+        for (Slot s : l.slots()) tileFrame(g, s, c(0xd9606a, 255), c(0x241216, 246), c(0x0b0709, 255), c(0x1a0d10, 255), c(0xe0b95a, 255), c(0x2a1208, 255));
+        g.dispose();
+        return img;
+    }
+
+    // ---------- 4. the tree: an ancient grove, bark and glowing leaves ----------
+
+    static BufferedImage tree() {
+        BingoLayout l = BingoLayout.find("tree").orElseThrow();
+        BufferedImage img = new BufferedImage(W, H, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = open(img);
+        Random r = new Random(41);
+        g.setPaint(new LinearGradientPaint(0, 0, 0, H, new float[]{0f, 0.5f, 1f}, new Color[]{c(0x0b2a22, 255), c(0x0a1f1a, 255), c(0x040d0a, 255)}));
+        g.fillRect(0, 0, W, H);
+        // light falling through the canopy
+        g.setPaint(new RadialGradientPaint(800, 230, 620, new float[]{0f, 0.5f, 1f}, new Color[]{c(0x4aa06a, 95), c(0x2a7a4a, 40), c(0x2a7a4a, 0)}));
+        g.fill(new Ellipse2D.Double(180, -390, 1240, 1240));
+        for (int i = 0; i < 7; i++) {
+            double x = 200 + i * 190 + r.nextInt(60);
+            Path2D beam = new Path2D.Double();
+            beam.moveTo(x, 0);
+            beam.lineTo(x + 60, 0);
+            beam.lineTo(x + 260 + r.nextInt(60), H);
+            beam.lineTo(x + 120 + r.nextInt(40), H);
+            beam.closePath();
+            g.setColor(new Color(0.7f, 1f, 0.8f, 0.03f));
+            g.fill(beam);
+        }
+        // the mossy floor first, so the trunk and roots stand on it
+        g.setPaint(new LinearGradientPaint(0, 900, 0, 975, new float[]{0f, 1f}, new Color[]{c(0x1d4a2c, 220), c(0x07150d, 255)}));
+        g.fillRect(40, 905, W - 80, 65);
+        g.setColor(c(0x4aa06a, 150));
+        g.setStroke(new BasicStroke(1.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        for (int i = 0; i < 160; i++) {
+            double x = 50 + r.nextInt(W - 100);
+            double h = 8 + r.nextInt(14);
+            g.draw(new QuadCurve2D.Double(x, 970, x + r.nextInt(8) - 4, 970 - h / 2, x + r.nextInt(14) - 7, 970 - h));
+        }
+
+        // the trunk, roots and a mossy floor
+        GeneralPath trunk = new GeneralPath();
+        trunk.moveTo(640, 985);
+        trunk.curveTo(700, 930, 700, 860, 720, 760);
+        trunk.curveTo(740, 620, 745, 480, 752, 240);
+        trunk.lineTo(848, 240);
+        trunk.curveTo(855, 480, 860, 620, 880, 760);
+        trunk.curveTo(900, 860, 900, 930, 960, 985);
+        trunk.closePath();
+        g.setPaint(new LinearGradientPaint(640, 0, 960, 0, new float[]{0f, 0.45f, 1f}, new Color[]{c(0x2b1d12, 255), c(0x5a4128, 255), c(0x2b1d12, 255)}));
+        g.fill(trunk);
+        Shape old = g.getClip();
+        g.setClip(trunk);
+        for (int i = 0; i < 90; i++) {
+            double x = 650 + r.nextInt(300);
+            g.setColor(new Color(0.12f, 0.08f, 0.04f, 0.25f + r.nextFloat() * 0.3f));
+            g.setStroke(new BasicStroke(1f + r.nextFloat() * 2.4f));
+            double y = 240 + r.nextInt(660);
+            g.draw(new Line2D.Double(x, y, x + r.nextInt(14) - 7, y + 40 + r.nextInt(120)));
+        }
+        g.setClip(old);
+        // roots spreading under the bottom row
+        g.setStroke(new BasicStroke(1f));
+        double[] rootX = {260, 440, 620, 800, 980, 1160, 1340};
+        for (int i = 0; i < rootX.length; i++) {
+            Path2D root = new Path2D.Double();
+            double sx = 800 + (i - 3) * 22;
+            root.moveTo(sx, 905);
+            root.curveTo(sx + (rootX[i] - 800) * 0.2, 940, rootX[i] - (rootX[i] - 800) * 0.25, 905, rootX[i], 880 + (i % 2) * 24);
+            g.setColor(c(0x24170e, 255));
+            g.setStroke(new BasicStroke(18f - Math.abs(i - 3) * 2.2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g.draw(root);
+            g.setColor(c(0x6b4c2c, 255));
+            g.setStroke(new BasicStroke(6f - Math.abs(i - 3) * 0.7f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g.draw(root);
+        }
+        // the branches: one from every tile to each tile it feeds, as the shape's rules say
+        for (var e : l.requires().entrySet()) {
+            double[] to = centre(slot(l, e.getKey()));
+            for (int from : e.getValue()) {
+                double[] a = centre(slot(l, from));
+                double sx = a[0];
+                double sy = a[1] - slot(l, from).bounds()[3] / 2.0 + 6;
+                double ex = to[0];
+                double ey = to[1] + slot(l, e.getKey()).bounds()[3] / 2.0 - 6;
+                QuadCurve2D branch = new QuadCurve2D.Double(sx, sy, (sx + ex) / 2 + (ex - sx) * 0.12, (sy + ey) / 2 - 18, ex, ey);
+                g.setColor(c(0x1c130b, 255));
+                g.setStroke(new BasicStroke(17f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g.draw(branch);
+                g.setColor(c(0x5a4128, 255));
+                g.setStroke(new BasicStroke(12f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g.draw(branch);
+                g.setColor(c(0x9a7a4a, 200));
+                g.setStroke(new BasicStroke(2.4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g.draw(branch);
+                // a couple of leaves along every branch
+                for (int k = 1; k <= 3; k++) {
+                    double t = k / 4.0 + (r.nextDouble() - 0.5) * 0.1;
+                    double bx = (1 - t) * (1 - t) * sx + 2 * (1 - t) * t * ((sx + ex) / 2 + (ex - sx) * 0.12) + t * t * ex;
+                    double by = (1 - t) * (1 - t) * sy + 2 * (1 - t) * t * ((sy + ey) / 2 - 18) + t * t * ey;
+                    leaf(g, bx, by, r.nextDouble() * Math.PI * 2, 9 + r.nextInt(6), r);
+                }
+            }
+        }
+        // leaves drifting about the canopy
+        for (int i = 0; i < 190; i++) {
+            double x = 60 + r.nextInt(W - 120);
+            double y = 150 + Math.pow(r.nextDouble(), 1.4) * 780;
+            leaf(g, x, y, r.nextDouble() * Math.PI * 2, 6 + r.nextInt(8), r);
+        }
+        // fireflies
+        for (int i = 0; i < 70; i++) {
+            double x = 60 + r.nextInt(W - 120);
+            double y = 160 + r.nextInt(780);
+            g.setPaint(new RadialGradientPaint((float) x, (float) y, 11, new float[]{0f, 1f}, new Color[]{new Color(0.8f, 1f, 0.5f, 0.55f), new Color(0.8f, 1f, 0.5f, 0f)}));
+            g.fill(new Ellipse2D.Double(x - 11, y - 11, 22, 22));
+            g.setColor(new Color(0.95f, 1f, 0.7f, 0.9f));
+            g.fill(new Ellipse2D.Double(x - 1.4, y - 1.4, 2.8, 2.8));
+        }
+        grain(img, 2, 13);
+        g = open(img);
+        goldFrame(g, c(0xe6d48a, 255), c(0x6a8a3a, 255), c(0x8ac89a, 90));
+        // vines in the top corners
+        g.setColor(c(0x3a7a4a, 200));
+        g.setStroke(new BasicStroke(3f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        for (int side = 0; side < 2; side++) {
+            double sx = side == 0 ? 40 : W - 40;
+            double dir = side == 0 ? 1 : -1;
+            Path2D vine = new Path2D.Double();
+            vine.moveTo(sx, 46);
+            vine.curveTo(sx + dir * 90, 80, sx + dir * 40, 160, sx + dir * 120, 230);
+            g.draw(vine);
+            for (int k = 0; k < 7; k++) leaf(g, sx + dir * (20 + k * 17), 70 + k * 24 + (k % 2) * 8, dir * (0.6 + k * 0.4), 9, r);
+        }
+        title(g, "THE WORLD TREE", "BRANCHING OBJECTIVES  \u00b7  ROOTS TO CROWN", c(0xf0e4a4, 255), c(0xa8c8b0, 255), c(0x000000, 160));
+        for (Slot s : l.slots()) tileFrame(g, s, c(0x7ad0a8, 255), c(0x0f2019, 246), c(0x050e0a, 255), c(0x0b1a13, 255), c(0xe0c868, 255), c(0x1a2a0a, 255));
+        g.dispose();
+        return img;
+    }
+
+    private static void leaf(Graphics2D g, double x, double y, double angle, double size, Random r) {
+        AffineTransform old = g.getTransform();
+        g.translate(x, y);
+        g.rotate(angle);
+        float tone = r.nextFloat();
+        Color body = mix(c(0x1f6a3a, 255), c(0x6fbf5a, 255), tone);
+        g.setColor(new Color(body.getRed(), body.getGreen(), body.getBlue(), 120 + r.nextInt(100)));
+        Path2D shape = new Path2D.Double();
+        shape.moveTo(0, 0);
+        shape.curveTo(size * 0.5, -size * 0.6, size * 1.3, -size * 0.3, size * 1.6, 0);
+        shape.curveTo(size * 1.3, size * 0.3, size * 0.5, size * 0.6, 0, 0);
+        g.fill(shape);
+        g.setColor(new Color(0.8f, 1f, 0.8f, 0.25f));
+        g.setStroke(new BasicStroke(0.8f));
+        g.draw(new Line2D.Double(0, 0, size * 1.5, 0));
+        g.setTransform(old);
+    }
+
+    // ---------- the preview ----------
+
+    /** Draws a made-up grid event in every look and size, to look at. */
+    @Test
+    void gridPreview() throws Exception {
+        Files.createDirectories(OUT);
+        BingoTemplate template = new BingoTemplate();
+        BingoTiles icons = new BingoTiles(new com.younglings.bot.internal.WikiCatalog());
+        for (int size : new int[]{3, 5, 7}) {
+            var sample = BingoSampleEvent.buildGrid(template, size, icons::iconKeyFor, 20261016L);
+            for (String look : new String[]{BingoLooks.CLASSIC, BingoLooks.RUNESCAPE}) {
+                byte[] png = BingoBoardImage.render("Christmas Bingo", "Running · tiles show how many players have them", size, sample.tiles(),
+                        "Submit proof with /events submit event:12 and the tile's number", look);
+                Files.write(OUT.resolve("grid-" + size + "-" + look + ".png"), png);
+            }
+            Files.write(OUT.resolve("grid-" + size + "-plain.png"), BingoBoardImage.render("Christmas Bingo", "Running · tiles show how many players have them", size, sample.tiles(), "footer"));
+        }
+        // a long name must be fitted, not overflow
+        var big = BingoSampleEvent.buildGrid(template, 5, icons::iconKeyFor, 7L);
+        Files.write(OUT.resolve("grid-5-long-runescape.png"), BingoBoardImage.render("The Younglings Annual Winter Solstice Community Bingo Extravaganza 2026", "Signups open · starts in 3 days", 5, big.tiles(), null, BingoLooks.RUNESCAPE));
+        Files.write(OUT.resolve("grid-5-long-classic.png"), BingoBoardImage.render("The Younglings Annual Winter Solstice Community Bingo Extravaganza 2026", "Signups open · starts in 3 days", 5, big.tiles(), null, BingoLooks.CLASSIC));
+    }
+
+    /** Writes the small pictures the website shows when someone picks a look: every shape and the grid, in each look, from a made-up event. */
+    @Test
+    void lookPreviews() throws Exception {
+        Path out = Path.of("C:/Users/drake/Documents/Github/Repositories/yw-wheel-wt/public/bingo-looks");
+        Files.createDirectories(out);
+        BingoTemplate template = new BingoTemplate();
+        BingoTiles icons = new BingoTiles(new com.younglings.bot.internal.WikiCatalog());
+        for (BingoLayout l : BingoLayout.all()) {
+            var sample = BingoSampleEvent.build(template, l, icons::iconKeyFor, 20261016L);
+            for (String look : BingoLooks.ids()) {
+                writePreview(ImageIO.read(new java.io.ByteArrayInputStream(BingoBoardImage.render(l, look, sample.tiles()))), out.resolve(l.id() + "-" + look + ".jpg"));
+            }
+        }
+        var grid = BingoSampleEvent.buildGrid(template, 5, icons::iconKeyFor, 20261016L);
+        String subtitle = "Running \u00b7 tiles show how many players have them";
+        String footer = "Submit proof with /events submit event:12 and the tile's number";
+        for (String look : BingoLooks.ids()) {
+            writePreview(ImageIO.read(new java.io.ByteArrayInputStream(BingoBoardImage.render("Christmas Bingo", subtitle, 5, grid.tiles(), footer, look))), out.resolve("grid-" + look + ".jpg"));
+        }
+        writePreview(ImageIO.read(new java.io.ByteArrayInputStream(BingoBoardImage.render("Christmas Bingo", subtitle, 5, grid.tiles(), footer))), out.resolve("grid-plain.jpg"));
+    }
+
+    /** A 640 by 400 picture: a shape's whole board scaled down, or the top of a taller grid board. */
+    private static void writePreview(BufferedImage source, Path file) throws Exception {
+        int w = 640;
+        int h = (int) Math.round(source.getHeight() * (w / (double) source.getWidth()));
+        BufferedImage scaled = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = scaled.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+        g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+        g.drawImage(source, 0, 0, w, h, null);
+        g.dispose();
+        BufferedImage cut = scaled.getSubimage(0, 0, w, Math.min(h, 400));
+        var writer = ImageIO.getImageWritersByFormatName("jpg").next();
+        var params = writer.getDefaultWriteParam();
+        params.setCompressionMode(javax.imageio.ImageWriteParam.MODE_EXPLICIT);
+        params.setCompressionQuality(0.8f);
+        try (var os = ImageIO.createImageOutputStream(file.toFile())) {
+            writer.setOutput(os);
+            writer.write(null, new javax.imageio.IIOImage(cut, null, null), params);
+        }
+        writer.dispose();
+    }
+
+    @Test
+    void paintAndPreview() throws Exception {
+        Files.createDirectories(OUT);
+        Map<String, BufferedImage> skins = Map.of("pyramid", pyramid(), "path", path(), "convergence", convergence(), "tree", tree());
+        String[][] sample = {
+                {"Nex: Torva boots", "torva_boots"}, {"Araxxi: Araxxi's web", "araxxis_web"}, {"Kalphite King: Drygore longsword", "drygore_longsword"},
+                {"Vorago: Ascension grips", "ascension_grips"}, {"Abyssal demon: Abyssal whip", "abyssal_whip"}, {"Dark beast: Dark bow", "dark_bow"},
+                {"General Graardor: Bandos chestplate", "bandos_chestplate"}, {"Kree'arra: Armadyl helmet", "armadyl_helmet"},
+                {"Kill Telos", null}, {"Complete a Slayer task", null}, {"Get a pet drop", null}, {"Reach a new 99", null},
+        };
+        for (var entry : skins.entrySet()) {
+            BingoLayout l = BingoLayout.find(entry.getKey()).orElseThrow();
+            ImageIO.write(entry.getValue(), "png", OUT.resolve(entry.getKey() + "-empty.png").toFile());
+            // the clean backgrounds are the resources the bot draws on
+            Path resources = Path.of("src/main/resources/bingo/runescape");
+            Files.createDirectories(resources);
+            Files.deleteIfExists(resources.resolve(entry.getKey() + ".png"));
+            var writer = ImageIO.getImageWritersByFormatName("jpg").next();
+            var params = writer.getDefaultWriteParam();
+            params.setCompressionMode(javax.imageio.ImageWriteParam.MODE_EXPLICIT);
+            params.setCompressionQuality(0.93f);
+            try (var out = ImageIO.createImageOutputStream(resources.resolve(entry.getKey() + ".jpg").toFile())) {
+                writer.setOutput(out);
+                writer.write(null, new javax.imageio.IIOImage(entry.getValue(), null, null), params);
+            }
+            writer.dispose();
+            List<TileView> tiles = new ArrayList<>();
+            for (int i = 0; i < l.tiles(); i++) {
+                String[] s = sample[i % sample.length];
+                boolean done = i % 4 == 0;
+                boolean locked = !done && i % 3 == 1;
+                tiles.add(new TileView(i + 1, s[0], 25 + (i % 5) * 25, done, done ? 1 + i % 3 : 0, 6, s[1], done ? (i % 2 == 0 ? "Metorrite" : "Atrum Dies") : null, locked));
+            }
+            Files.write(OUT.resolve(entry.getKey() + ".png"), BingoBoardImage.render(ImageIO.read(resources.resolve(entry.getKey() + ".jpg").toFile()), l, tiles, false));
+        }
+    }
+}

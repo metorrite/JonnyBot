@@ -215,6 +215,24 @@ public class EventService {
         changes.publish(EventChanges.Kind.SETUP, guildId, id);
     }
 
+    /**
+     * Changes what a bingo board is drawn on ({@link BingoLooks}); {@code null} goes back to how the board was first drawn. Only the picture changes, never the
+     * tiles or rules, so it is allowed at any stage until the event is over, and the live board is redrawn straight away.
+     */
+    public void changeLook(long guildId, long id, String look) {
+        Event event = event(guildId, id);
+        if (!BingoTemplate.KEY.equals(event.template())) throw new EventProblem(409, "Only a bingo has a board to change the look of.");
+        if (event.status() == Status.DONE || event.status() == Status.CANCELLED) throw new EventProblem(409, "This event is over, so its board can't change.");
+        if (look != null && !BingoLooks.valid(look)) throw new EventProblem(400, "Choose a board look from the list.");
+        DataObject config = DataObject.fromJson(event.config());
+        DataObject board = DataObject.fromJson((config.hasKey("board") && !config.isNull("board") ? config.getObject("board") : DataObject.empty()).toString());
+        if (look == null) board.remove("look");
+        else board.put("look", look);
+        config.put("board", board);
+        if (!repository.setConfig(guildId, id, config.toString())) throw new EventProblem(404, "That event doesn't exist in this server.");
+        changes.publish(EventChanges.Kind.SETUP, guildId, id);
+    }
+
     private static void keepOrganisers(DataObject from, DataObject into) {
         if (from.hasKey("organisers") && !from.isNull("organisers")) into.put("organisers", from.get("organisers"));
         else into.remove("organisers");
