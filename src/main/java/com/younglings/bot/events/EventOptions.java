@@ -409,7 +409,7 @@ public final class EventOptions {
         Object max = get(normalized, "maxParticipants");
         int maxParticipants;
         try {
-            maxParticipants = max == null ? 0 : max instanceof Number n ? n.intValue() : Integer.parseInt(String.valueOf(max).strip());
+            maxParticipants = max == null || String.valueOf(max).isBlank() ? 0 : max instanceof Number n ? n.intValue() : Integer.parseInt(String.valueOf(max).strip());
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("The most players has to be a number.");
         }

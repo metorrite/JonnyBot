@@ -220,6 +220,7 @@ class EventOptionsTest {
         assertEquals("The start has to be a date and time.", assertThrows(IllegalArgumentException.class, () -> EventOptions.toInput(EventOptions.normalize(bad))).getMessage());
         assertThrows(IllegalArgumentException.class, () -> EventOptions.toInput(DataObject.fromJson("{\"scope\":\"EVERYONE\"}")));
         assertThrows(IllegalArgumentException.class, () -> EventOptions.toInput(DataObject.fromJson("{\"maxParticipants\":\"lots\"}")));
+        assertEquals(0, EventOptions.toInput(DataObject.fromJson("{\"maxParticipants\":\"\"}")).maxParticipants(), "a blank limit means no limit");
     }
 
     @Test
