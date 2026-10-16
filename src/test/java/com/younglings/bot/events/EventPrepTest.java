@@ -11,6 +11,8 @@ import com.younglings.bot.events.EventRoster.Tally;
 import com.younglings.bot.events.EventRules.Status;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -105,6 +107,67 @@ class EventPrepTest {
         assertEquals(1, atTeams.warnings().size());
         assertTrue(atTeams.warnings().get(0).contains("2 players aren't verified"), atTeams.warnings().toString());
         assertFalse(step(atTeams, "verification").required());
+    }
+
+    private static Facts withTeams(Status status, Mode mode, boolean confirmed, TeamBuilder.Facts teams, boolean finalised) {
+        return new Facts(status, mode, true, confirmed, confirmed, 6, 0, EventRoster.notRequired(), NOBODY, new EventPrep.TeamFacts(teams, finalised));
+    }
+
+    @Test
+    void aSoloEventHasNoTeamsStep() {
+        Prep solo = EventPrep.of(facts(Status.SIGNUPS, Mode.STANDARD, true, true, 6, 0, EventRoster.notRequired(), NOBODY));
+        assertTrue(solo.steps().stream().noneMatch(s -> s.key().equals("teams")));
+    }
+
+    @Test
+    void aTeamEventInAStandardSetupNeedsTheRosterThenEveryoneOnATeamThenTheWordThatTheyAreFinal() {
+        Prep waiting = EventPrep.of(withTeams(Status.SIGNUPS, Mode.STANDARD, false, new TeamBuilder.Facts(2, 6, 6, List.of(), 0), false));
+        assertEquals(State.WAITING, step(waiting, "teams").state(), "the teams are made from the confirmed roster");
+        assertTrue(step(waiting, "teams").required());
+        assertTrue(step(waiting, "teams").detail().contains("Confirm the roster first"), step(waiting, "teams").detail());
+        assertFalse(waiting.blockers().stream().anyMatch(b -> b.contains("team")), "the roster blocker already says what is next: " + waiting.blockers());
+
+        Prep open = EventPrep.of(withTeams(Status.SIGNUPS, Mode.STANDARD, true, new TeamBuilder.Facts(2, 6, 2, List.of(), 0), false));
+        assertEquals(State.ACTIVE, step(open, "teams").state());
+        assertFalse(open.ready());
+        assertEquals(List.of("2 players still need a team."), open.blockers());
+        assertTrue(step(open, "teams").detail().startsWith("2 teams, 4 of 6 players placed."), step(open, "teams").detail());
+
+        Prep empty = EventPrep.of(withTeams(Status.SIGNUPS, Mode.STANDARD, true, new TeamBuilder.Facts(2, 6, 0, List.of("Blue"), 0), false));
+        assertEquals(List.of("Team Blue has no players: add some or remove it."), empty.blockers());
+
+        Prep unfinished = EventPrep.of(withTeams(Status.SIGNUPS, Mode.STANDARD, true, new TeamBuilder.Facts(2, 6, 0, List.of(), 0), false));
+        assertEquals(List.of("Finalise the teams."), unfinished.blockers());
+        assertEquals(State.ACTIVE, step(unfinished, "teams").state());
+        assertTrue(step(unfinished, "teams").detail().endsWith("Check them, then finalise."), step(unfinished, "teams").detail());
+
+        Prep done = EventPrep.of(withTeams(Status.SIGNUPS, Mode.STANDARD, true, new TeamBuilder.Facts(2, 6, 0, List.of(), 0), true));
+        assertTrue(done.ready());
+        assertEquals(State.DONE, step(done, "teams").state());
+
+        Prep changed = EventPrep.of(withTeams(Status.SIGNUPS, Mode.STANDARD, true, new TeamBuilder.Facts(2, 7, 1, List.of(), 0), true));
+        assertFalse(changed.ready(), "a late player without a team undoes 'ready' even though the teams were called final");
+        assertEquals(List.of("1 player still needs a team."), changed.blockers());
+    }
+
+    @Test
+    void aTeamEventNotFollowingTheSetupOnlyAdvisesAboutItsTeams() {
+        Prep off = EventPrep.of(withTeams(Status.SIGNUPS, Mode.OFF, false, new TeamBuilder.Facts(2, 6, 3, List.of(), 0), false));
+        assertTrue(off.ready(), "nothing is required");
+        assertFalse(step(off, "teams").required());
+        assertEquals(1, off.warnings().size());
+        assertTrue(off.warnings().get(0).startsWith("3 players still need a team."), off.warnings().toString());
+        Prep fine = EventPrep.of(withTeams(Status.SIGNUPS, Mode.OFF, false, new TeamBuilder.Facts(2, 6, 0, List.of(), 0), false));
+        assertEquals(State.DONE, step(fine, "teams").state(), "nothing left to do, and finalising is optional");
+        assertTrue(fine.warnings().isEmpty());
+    }
+
+    @Test
+    void theTeamsStepIsDoneOnceTheEventRunsAndSkippedIfItWasCancelled() {
+        Prep running = EventPrep.of(withTeams(Status.RUNNING, Mode.STANDARD, true, new TeamBuilder.Facts(2, 6, 1, List.of(), 0), true));
+        assertEquals(State.DONE, step(running, "teams").state());
+        assertTrue(step(running, "teams").detail().startsWith("Final: "), step(running, "teams").detail());
+        assertEquals(State.SKIPPED, step(EventPrep.of(withTeams(Status.CANCELLED, Mode.STANDARD, false, new TeamBuilder.Facts(0, 0, 0, List.of(), 0), false)), "teams").state());
     }
 
     @Test

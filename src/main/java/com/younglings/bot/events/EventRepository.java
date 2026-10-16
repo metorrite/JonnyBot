@@ -27,6 +27,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
 
@@ -49,11 +50,14 @@ public class EventRepository {
      * stored (PENDING until someone decides); how it reads depends on whether the event asks for verification, see {@link EventRoster#effective}.
      */
     public record Participant(long eventId, long userId, long guildId, Long teamId, Kind kind, boolean waiting, BuyInStatus buyIn, Instant joinedAt,
-                              EventRoster.Verification verification, Long verifiedBy, Instant verifiedAt, String verificationNote) {}
+                              EventRoster.Verification verification, Long verifiedBy, Instant verifiedAt, String verificationNote, Integer rating) {}
 
-    /** Where an event is in its setup: when signups were closed and the roster confirmed, and by whom. Nothing set until an organiser does it. */
-    public record Setup(Instant signupsClosedAt, Long signupsClosedBy, Instant rosterConfirmedAt, Long rosterConfirmedBy) {
-        public static final Setup NONE = new Setup(null, null, null, null);
+    /**
+     * Where an event is in its setup: when signups were closed, the roster confirmed and the teams called final, and by whom. Nothing set until an organiser
+     * does it.
+     */
+    public record Setup(Instant signupsClosedAt, Long signupsClosedBy, Instant rosterConfirmedAt, Long rosterConfirmedBy, Instant teamsFinalisedAt, Long teamsFinalisedBy) {
+        public static final Setup NONE = new Setup(null, null, null, null, null, null);
 
         public boolean signupsClosed() {
             return signupsClosedAt != null;
@@ -61,6 +65,10 @@ public class EventRepository {
 
         public boolean rosterConfirmed() {
             return rosterConfirmedAt != null;
+        }
+
+        public boolean teamsFinalised() {
+            return teamsFinalisedAt != null;
         }
     }
 
@@ -237,6 +245,11 @@ public class EventRepository {
                 "ALTER TABLE younglings.event_participant ADD COLUMN IF NOT EXISTS verified_by BIGINT NULL;",
                 "ALTER TABLE younglings.event_participant ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ NULL;",
                 "ALTER TABLE younglings.event_participant ADD COLUMN IF NOT EXISTS verification_note TEXT NOT NULL DEFAULT '';",
+                // what an organiser thinks of a player's strength (1 to 5), for balancing teams; null = not rated
+                "ALTER TABLE younglings.event_participant ADD COLUMN IF NOT EXISTS rating SMALLINT NULL;",
+                // when the teams were called final, and by whom
+                "ALTER TABLE younglings.event_setup ADD COLUMN IF NOT EXISTS teams_finalised_at TIMESTAMPTZ NULL;",
+                "ALTER TABLE younglings.event_setup ADD COLUMN IF NOT EXISTS teams_finalised_by BIGINT NULL;",
                 // Discord signups the event's rules turned away, and why, so staff can see them and the player is told once
                 """
                 CREATE TABLE IF NOT EXISTS younglings.event_signup_refusal (
@@ -449,14 +462,15 @@ public class EventRepository {
 
     public Setup setup(long eventId) {
         try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(
-                "SELECT signups_closed_at, signups_closed_by, roster_confirmed_at, roster_confirmed_by FROM younglings.event_setup WHERE event_id = ?")) {
+                "SELECT signups_closed_at, signups_closed_by, roster_confirmed_at, roster_confirmed_by, teams_finalised_at, teams_finalised_by FROM younglings.event_setup WHERE event_id = ?")) {
             s.setLong(1, eventId);
             try (ResultSet rs = s.executeQuery()) {
                 if (!rs.next()) return Setup.NONE;
                 Timestamp closed = rs.getTimestamp("signups_closed_at");
                 Timestamp confirmed = rs.getTimestamp("roster_confirmed_at");
+                Timestamp finalised = rs.getTimestamp("teams_finalised_at");
                 return new Setup(closed == null ? null : closed.toInstant(), nullableLong(rs, "signups_closed_by"), confirmed == null ? null : confirmed.toInstant(),
-                        nullableLong(rs, "roster_confirmed_by"));
+                        nullableLong(rs, "roster_confirmed_by"), finalised == null ? null : finalised.toInstant(), nullableLong(rs, "teams_finalised_by"));
             }
         } catch (SQLException e) {
             throw new RuntimeException("Failed to read the event's setup", e);
@@ -479,10 +493,11 @@ public class EventRepository {
         }
     }
 
-    /** Opens signups again, which also takes back a confirmed roster (it has to be checked again). False when they weren't closed. */
+    /** Opens signups again, which also takes back a confirmed roster and final teams (both were made from a roster that is about to change). False when they weren't closed. */
     public boolean reopenSignups(long eventId) {
         String sql = """
-                UPDATE younglings.event_setup SET signups_closed_at = NULL, signups_closed_by = NULL, roster_confirmed_at = NULL, roster_confirmed_by = NULL
+                UPDATE younglings.event_setup SET signups_closed_at = NULL, signups_closed_by = NULL, roster_confirmed_at = NULL, roster_confirmed_by = NULL,
+                       teams_finalised_at = NULL, teams_finalised_by = NULL
                 WHERE event_id = ? AND signups_closed_at IS NOT NULL
                 """;
         try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
@@ -1054,25 +1069,163 @@ public class EventRepository {
     }
 
     public boolean leave(long eventId, long userId) {
-        try (Connection c = connectionSupplier.getConnection();
-             PreparedStatement s = c.prepareStatement("DELETE FROM younglings.event_participant WHERE event_id = ? AND user_id = ?")) {
-            s.setLong(1, eventId);
-            s.setLong(2, userId);
-            return s.executeUpdate() == 1;
+        try (Connection c = connectionSupplier.getConnection()) {
+            c.setAutoCommit(false);
+            try (PreparedStatement s = c.prepareStatement("DELETE FROM younglings.event_participant WHERE event_id = ? AND user_id = ?")) {
+                s.setLong(1, eventId);
+                s.setLong(2, userId);
+                boolean removed = s.executeUpdate() == 1;
+                clearStrayCaptains(c, eventId);
+                c.commit();
+                return removed;
+            } catch (SQLException | RuntimeException e) {
+                c.rollback();
+                throw e;
+            } finally {
+                c.setAutoCommit(true);
+            }
         } catch (SQLException e) {
             throw new RuntimeException("Failed to remove the player", e);
         }
     }
 
+    /** A team's captain has to be on it: whoever isn't any more (moved, taken off, or gone from the event) stops being captain. */
+    private static void clearStrayCaptains(Connection c, long eventId) throws SQLException {
+        try (PreparedStatement s = c.prepareStatement("""
+                UPDATE younglings.event_team t SET captain_id = NULL
+                WHERE t.event_id = ? AND t.captain_id IS NOT NULL
+                  AND NOT EXISTS (SELECT 1 FROM younglings.event_participant p WHERE p.event_id = t.event_id AND p.user_id = t.captain_id AND p.team_id = t.id)""")) {
+            s.setLong(1, eventId);
+            s.executeUpdate();
+        }
+    }
+
     public boolean setTeam(long eventId, long userId, Long teamId) {
-        try (Connection c = connectionSupplier.getConnection();
-             PreparedStatement s = c.prepareStatement("UPDATE younglings.event_participant SET team_id = ? WHERE event_id = ? AND user_id = ?")) {
-            if (teamId == null) s.setNull(1, Types.BIGINT); else s.setLong(1, teamId);
+        try (Connection c = connectionSupplier.getConnection()) {
+            c.setAutoCommit(false);
+            try (PreparedStatement s = c.prepareStatement("UPDATE younglings.event_participant SET team_id = ? WHERE event_id = ? AND user_id = ?")) {
+                if (teamId == null) s.setNull(1, Types.BIGINT); else s.setLong(1, teamId);
+                s.setLong(2, eventId);
+                s.setLong(3, userId);
+                boolean changed = s.executeUpdate() == 1;
+                clearStrayCaptains(c, eventId);
+                c.commit();
+                return changed;
+            } catch (SQLException | RuntimeException e) {
+                c.rollback();
+                throw e;
+            } finally {
+                c.setAutoCommit(true);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to change the team", e);
+        }
+    }
+
+    /**
+     * Puts many players on teams (or takes them off, a null team) in one go: all of it or none of it. Returns how many players were changed; a player who isn't
+     * in the event, or a team that doesn't exist for it, fails the whole change.
+     */
+    public int setTeams(long eventId, Map<Long, Long> teamOf) {
+        try (Connection c = connectionSupplier.getConnection()) {
+            c.setAutoCommit(false);
+            try {
+                lockParticipants(c, eventId);
+                int changed = 0;
+                try (PreparedStatement s = c.prepareStatement("UPDATE younglings.event_participant SET team_id = ? WHERE event_id = ? AND user_id = ?")) {
+                    for (Map.Entry<Long, Long> e : teamOf.entrySet()) {
+                        if (e.getValue() == null) s.setNull(1, Types.BIGINT); else s.setLong(1, e.getValue());
+                        s.setLong(2, eventId);
+                        s.setLong(3, e.getKey());
+                        changed += s.executeUpdate();
+                    }
+                }
+                if (changed != teamOf.size()) throw new SQLException("A player in the change isn't in the event");
+                clearStrayCaptains(c, eventId);
+                c.commit();
+                return changed;
+            } catch (SQLException | RuntimeException e) {
+                c.rollback();
+                throw e;
+            } finally {
+                c.setAutoCommit(true);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to change the teams", e);
+        }
+    }
+
+    /** Renames a team: 1 when done, 0 when the event has no such team, -1 when another team of the event already has that name. */
+    public int renameTeam(long eventId, long teamId, String name) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("UPDATE younglings.event_team SET name = ? WHERE event_id = ? AND id = ?")) {
+            s.setString(1, name);
+            s.setLong(2, eventId);
+            s.setLong(3, teamId);
+            return s.executeUpdate();
+        } catch (SQLException e) {
+            if ("23505".equals(e.getSQLState())) return -1;
+            throw new RuntimeException("Failed to rename the team", e);
+        }
+    }
+
+    /** Names a team's captain, who has to be an active player on that team (null for none). False when the team isn't there or the player isn't on it. */
+    public boolean setCaptain(long eventId, long teamId, Long captainId) {
+        String sql = """
+                UPDATE younglings.event_team SET captain_id = ?
+                WHERE event_id = ? AND id = ?
+                  AND (?::BIGINT IS NULL OR EXISTS (SELECT 1 FROM younglings.event_participant p WHERE p.event_id = ? AND p.user_id = ? AND p.team_id = ? AND p.status = 'ACTIVE'))
+                """;
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
+            // the captain is wanted three times (to set, to see whether there is one, and to find them on the team); the event and the team twice
+            for (int index : new int[]{1, 4, 6}) {
+                if (captainId == null) s.setNull(index, Types.BIGINT); else s.setLong(index, captainId);
+            }
+            s.setLong(2, eventId);
+            s.setLong(3, teamId);
+            s.setLong(5, eventId);
+            s.setLong(7, teamId);
+            return s.executeUpdate() == 1;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to set the captain", e);
+        }
+    }
+
+    /** Records how strong an organiser thinks a player is (1 to 5), or clears it with null. False when the player isn't in the event. */
+    public boolean setRating(long eventId, long userId, Integer rating) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("UPDATE younglings.event_participant SET rating = ? WHERE event_id = ? AND user_id = ?")) {
+            if (rating == null) s.setNull(1, Types.SMALLINT); else s.setInt(1, rating);
             s.setLong(2, eventId);
             s.setLong(3, userId);
             return s.executeUpdate() == 1;
         } catch (SQLException e) {
-            throw new RuntimeException("Failed to change the team", e);
+            throw new RuntimeException("Failed to save the rating", e);
+        }
+    }
+
+    /** Calls the teams final. False when they already were (so doing it twice can't say it worked). */
+    public boolean finaliseTeams(long eventId, long by) {
+        String sql = """
+                INSERT INTO younglings.event_setup (event_id, teams_finalised_at, teams_finalised_by) VALUES (?, NOW(), ?)
+                ON CONFLICT (event_id) DO UPDATE SET teams_finalised_at = NOW(), teams_finalised_by = EXCLUDED.teams_finalised_by
+                WHERE younglings.event_setup.teams_finalised_at IS NULL
+                """;
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
+            s.setLong(1, eventId);
+            s.setLong(2, by);
+            return s.executeUpdate() == 1;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to finalise the teams", e);
+        }
+    }
+
+    /** Takes back "the teams are final". False when they weren't. */
+    public boolean reopenTeams(long eventId) {
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("UPDATE younglings.event_setup SET teams_finalised_at = NULL, teams_finalised_by = NULL WHERE event_id = ? AND teams_finalised_at IS NOT NULL")) {
+            s.setLong(1, eventId);
+            return s.executeUpdate() == 1;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to reopen the teams", e);
         }
     }
 
@@ -1254,7 +1407,7 @@ public class EventRepository {
                     list.add(new Participant(eventId, rs.getLong("user_id"), rs.getLong("guild_id"), nullableLong(rs, "team_id"), Kind.valueOf(rs.getString("kind")),
                             rs.getString("status").equals("WAITING"), BuyInStatus.valueOf(rs.getString("buy_in_status")), rs.getTimestamp("joined_at").toInstant(),
                             EventRoster.Verification.valueOf(rs.getString("verification")), nullableLong(rs, "verified_by"), verifiedAt == null ? null : verifiedAt.toInstant(),
-                            rs.getString("verification_note")));
+                            rs.getString("verification_note"), nullableInt(rs, "rating")));
                 }
             }
             return list;
@@ -1291,6 +1444,11 @@ public class EventRepository {
     /** A nullable BIGINT column, read so that SQL NULL stays null (wasNull() only speaks for the column read just before it). */
     private static Long nullableLong(ResultSet rs, String column) throws SQLException {
         long value = rs.getLong(column);
+        return rs.wasNull() ? null : value;
+    }
+
+    private static Integer nullableInt(ResultSet rs, String column) throws SQLException {
+        int value = rs.getInt(column);
         return rs.wasNull() ? null : value;
     }
 

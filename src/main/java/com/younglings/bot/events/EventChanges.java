@@ -27,7 +27,9 @@ public class EventChanges {
         /** A player's proof was approved or denied. */
         CLAIM_DECIDED,
         /** The roster changed: someone joined or left, signups were closed or reopened, the roster was confirmed, or a player's verification was decided. */
-        ROSTER
+        ROSTER,
+        /** The teams changed: one was added, renamed or removed, a player was moved, a captain was named, or the teams were made final or taken back. */
+        TEAMS
     }
 
     /** {@code claimId}, {@code userId}, {@code approved} and {@code note} only mean something for {@link Kind#CLAIM_DECIDED}. */

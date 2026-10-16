@@ -183,13 +183,24 @@ public class EventService {
         return problems.stream().distinct().toList();
     }
 
+    /** Adds a team. A captain, if one is named, is put on the team and made its captain (they have to be a player who may be on a team). */
     public long addTeam(long guildId, long id, String name, Long captainId) {
         Event event = event(guildId, id);
         if (!EventRules.editable(event.status())) throw new EventProblem(409, "Teams can only be changed while the event is a draft or taking signups.");
         String problem = EventRules.teamNameProblem(name);
         if (problem != null) throw new EventProblem(400, problem);
-        OptionalLong team = repository.addTeam(id, name.strip(), captainId, EventRules.MAX_TEAMS);
+        OptionalLong team = repository.addTeam(id, name.strip(), null, EventRules.MAX_TEAMS);
         if (team.isEmpty()) throw new EventProblem(409, "There is already a team with that name, or the event has the most teams allowed (" + EventRules.MAX_TEAMS + ").");
+        if (captainId != null) {
+            try {
+                setTeam(guildId, id, captainId, team.getAsLong());
+                setCaptain(guildId, id, team.getAsLong(), captainId);
+            } catch (EventProblem e) {
+                repository.removeTeam(id, team.getAsLong());
+                throw e;
+            }
+        }
+        changes.publish(EventChanges.Kind.TEAMS, guildId, id);
         return team.getAsLong();
     }
 
@@ -197,6 +208,27 @@ public class EventService {
         Event event = event(guildId, id);
         if (!EventRules.editable(event.status())) throw new EventProblem(409, "Teams can only be changed while the event is a draft or taking signups.");
         if (!repository.removeTeam(id, teamId)) throw new EventProblem(404, "That team doesn't exist.");
+        changes.publish(EventChanges.Kind.TEAMS, guildId, id);
+    }
+
+    public void renameTeam(long guildId, long id, long teamId, String name) {
+        Event event = event(guildId, id);
+        if (!EventRules.editable(event.status())) throw new EventProblem(409, "Teams can only be changed while the event is a draft or taking signups.");
+        String problem = EventRules.teamNameProblem(name);
+        if (problem != null) throw new EventProblem(400, problem);
+        int renamed = repository.renameTeam(id, teamId, name.strip());
+        if (renamed < 0) throw new EventProblem(409, "There is already a team with that name.");
+        if (renamed == 0) throw new EventProblem(404, "That team doesn't exist.");
+        changes.publish(EventChanges.Kind.TEAMS, guildId, id);
+    }
+
+    /** Names a team's captain, who has to be a player on that team; null for none. */
+    public void setCaptain(long guildId, long id, long teamId, Long captainId) {
+        Event event = event(guildId, id);
+        if (event.status() == Status.DONE || event.status() == Status.CANCELLED) throw new EventProblem(409, "This event is over.");
+        if (repository.teams(id).stream().noneMatch(t -> t.id() == teamId)) throw new EventProblem(404, "That team doesn't exist.");
+        if (!repository.setCaptain(id, teamId, captainId)) throw new EventProblem(409, "A captain has to be a player on that team.");
+        changes.publish(EventChanges.Kind.TEAMS, guildId, id);
     }
 
     /** The bonuses in the event's settings. */
@@ -289,6 +321,11 @@ public class EventService {
         }
     }
 
+    /** The event's settings as the engine reads them. */
+    public EventSettings settings(Event event) {
+        return settingsOf(event);
+    }
+
     /**
      * Adds a player. {@code staff} is true when an organiser adds them (late entries, past the signup deadline) rather than the player. The player's
      * kind comes from {@code kindOverride} or is worked out; the event's team policy decides whether they may join and share a team. A full event
@@ -357,8 +394,151 @@ public class EventService {
         EventRepository.Setup setup = repository.setup(event.id());
         List<Participant> players = repository.participants(event.id());
         List<EventRoster.Verification> held = players.stream().filter(p -> !p.waiting()).map(Participant::verification).toList();
+        EventPrep.TeamFacts teams = event.scoringMode() == ScoringMode.TEAM ? teamFactsOf(event, settings, players, setup) : null;
         return EventPrep.of(new EventPrep.Facts(event.status(), settings.setupMode(), !repository.objectives(event.id()).isEmpty(), setup.signupsClosed(), setup.rosterConfirmed(),
-                held.size(), players.size() - held.size(), settings.verification(), EventRoster.tally(held, settings.verification())));
+                held.size(), players.size() - held.size(), settings.verification(), EventRoster.tally(held, settings.verification()), teams));
+    }
+
+    /** The teams as the setup checklist and "finalise" look at them. */
+    private EventPrep.TeamFacts teamFactsOf(Event event, EventSettings settings, List<Participant> players, EventRepository.Setup setup) {
+        List<EventRepository.Team> teams = repository.teams(event.id());
+        java.util.Set<Long> teamIds = new java.util.HashSet<>();
+        teams.forEach(t -> teamIds.add(t.id()));
+        EventRoster.Gate moment = teamMoment(event);
+        java.util.Map<Long, Integer> members = new HashMap<>();
+        int pool = 0;
+        int unassigned = 0;
+        int excludedOnTeams = 0;
+        for (Participant p : players) {
+            if (p.waiting()) continue;
+            boolean onTeam = p.teamId() != null && teamIds.contains(p.teamId());
+            if (onTeam) members.merge(p.teamId(), 1, Integer::sum);
+            if (EventRoster.counts(p.verification(), settings.verification(), moment)) {
+                pool++;
+                if (!onTeam) unassigned++;
+            } else if (onTeam) {
+                excludedOnTeams++;
+            }
+        }
+        List<String> empty = teams.stream().filter(t -> members.getOrDefault(t.id(), 0) == 0).map(EventRepository.Team::name).toList();
+        return new EventPrep.TeamFacts(new TeamBuilder.Facts(teams.size(), pool, unassigned, empty, excludedOnTeams), setup.teamsFinalised());
+    }
+
+    // ---------- building the teams ----------
+
+    /** The moment players are counted at when teams are built: when teams are made, or, once the event runs, when it started. */
+    private static EventRoster.Gate teamMoment(Event event) {
+        return event.status() == Status.RUNNING || event.status() == Status.SCORING || event.status() == Status.DONE ? EventRoster.Gate.START : EventRoster.Gate.TEAMS;
+    }
+
+    /**
+     * Why a player can't be put on a team right now, in words, or null when they can: they hold a place in the event and, when the event asks for verification,
+     * have passed it by now (verified, or let through by an organiser).
+     */
+    public String teamBlock(Event event, Participant player) {
+        return teamBlock(event, player, "That player");
+    }
+
+    /** {@link #teamBlock(Event, Participant)} with the player called {@code who} in the sentence (a name, for a list of reasons). */
+    public String teamBlock(Event event, Participant player, String who) {
+        if (player.waiting()) return who + " is on the waitlist, so they can't be put on a team yet.";
+        EventRoster.Setting verification = settingsOf(event).verification();
+        if (EventRoster.counts(player.verification(), verification, teamMoment(event))) return null;
+        return switch (EventRoster.effective(player.verification(), verification)) {
+            case REJECTED -> who + (who.endsWith("s") ? "'" : "'s") + " verification was turned down, so they can't be put on a team. Verify or waive them first.";
+            default -> who + " hasn't been verified, which this event needs before teams are made. Verify or waive them first.";
+        };
+    }
+
+    /**
+     * Puts many players on teams, or takes them off (a null team), all or nothing: every move is checked first, against the teams as they will be once all of
+     * them are made, and nothing changes if any of them can't be. {@code names} turns a player's id into what to call them in the reasons. Returns how many
+     * players were changed.
+     */
+    public int assignTeams(long guildId, long id, Map<Long, Long> assignments, java.util.function.LongFunction<String> names) {
+        Event event = event(guildId, id);
+        if (event.status() == Status.DONE || event.status() == Status.CANCELLED) throw new EventProblem(409, "This event is over.");
+        if (assignments.isEmpty()) return 0;
+        EventSettings settings = settingsOf(event);
+        Map<Long, Participant> players = new HashMap<>();
+        repository.participants(id).forEach(p -> players.put(p.userId(), p));
+        java.util.Set<Long> teamIds = new java.util.HashSet<>();
+        repository.teams(id).forEach(t -> teamIds.add(t.id()));
+        List<String> problems = new ArrayList<>();
+        Map<Long, Long> teamAfter = new HashMap<>();
+        players.values().forEach(p -> teamAfter.put(p.userId(), p.teamId()));
+        for (Map.Entry<Long, Long> move : assignments.entrySet()) {
+            Participant p = players.get(move.getKey());
+            String who = names.apply(move.getKey());
+            if (p == null) {
+                problems.add(who + " isn't in the event.");
+                continue;
+            }
+            if (move.getValue() != null) {
+                if (!teamIds.contains(move.getValue())) {
+                    problems.add("The team " + who + " was moved to doesn't exist.");
+                    continue;
+                }
+                String block = teamBlock(event, p, who);
+                if (block != null) {
+                    problems.add(block);
+                    continue;
+                }
+            }
+            teamAfter.put(move.getKey(), move.getValue());
+        }
+        // the teams as they will be: everyone on a team must be allowed to share it with the others
+        Map<Long, List<Participant>> membersAfter = new HashMap<>();
+        for (Participant p : players.values()) {
+            Long team = teamAfter.get(p.userId());
+            if (team != null && teamIds.contains(team)) membersAfter.computeIfAbsent(team, k -> new ArrayList<>()).add(p);
+        }
+        for (List<Participant> members : membersAfter.values()) {
+            for (Participant p : members) {
+                List<Kind> mates = members.stream().filter(o -> o.userId() != p.userId()).map(Participant::kind).toList();
+                if (!TeamRules.mayShareTeam(settings.teamPolicy(), p.kind(), mates)) {
+                    problems.add(names.apply(p.userId()) + ": this event doesn't let " + describe(p.kind()) + " share a team with some of the players on that team.");
+                }
+            }
+        }
+        if (!problems.isEmpty()) throw new EventProblem(400, "Those teams can't be set yet.", problems.stream().distinct().toList());
+        int changed = repository.setTeams(id, assignments);
+        changes.publish(EventChanges.Kind.TEAMS, guildId, id);
+        return changed;
+    }
+
+    /** Records how strong an organiser thinks a player is, 1 (weakest) to 5 (strongest), or clears it with null. */
+    public void setRating(long guildId, long id, long userId, Integer rating) {
+        Event event = event(guildId, id);
+        if (event.status() == Status.DONE || event.status() == Status.CANCELLED) throw new EventProblem(409, "This event is over.");
+        if (rating != null && !TeamBuilder.validRating(rating)) throw new EventProblem(400, "A rating is from " + TeamBuilder.MIN_RATING + " (weakest) to " + TeamBuilder.MAX_RATING + " (strongest).");
+        if (!repository.setRating(id, userId, rating)) throw new EventProblem(404, "That player isn't in the event.");
+    }
+
+    /**
+     * Calls the teams final: the event is scored by team, every player who may be on a team is on one, no team is empty and nobody who hasn't passed
+     * verification is on a team. A managed event also needs its roster confirmed first, so the teams are made from the final list. Players can still be moved
+     * afterwards (the checklist says so if that leaves someone without a team).
+     */
+    public void finaliseTeams(long guildId, long id, long actorId) {
+        Event event = event(guildId, id);
+        if (event.scoringMode() != ScoringMode.TEAM) throw new EventProblem(409, "This event is scored by player, so it has no teams to finalise.");
+        if (!EventRules.editable(event.status())) throw new EventProblem(409, "Teams can only be finalised while the event is a draft or taking signups.");
+        EventSettings settings = settingsOf(event);
+        EventRepository.Setup setup = repository.setup(id);
+        if (settings.setupMode() != EventPrep.Mode.OFF && !setup.rosterConfirmed()) throw new EventProblem(409, "Confirm the roster first, so the teams are made from the final list of players.");
+        List<String> problems = TeamBuilder.problems(teamFactsOf(event, settings, repository.participants(id), setup).teams());
+        if (!problems.isEmpty()) throw new EventProblem(409, "The teams can't be final yet.", problems);
+        if (!repository.finaliseTeams(id, actorId)) throw new EventProblem(409, "The teams are already final.");
+        changes.publish(EventChanges.Kind.TEAMS, guildId, id);
+    }
+
+    /** Takes back "the teams are final", so they can be reworked. */
+    public void reopenTeams(long guildId, long id) {
+        Event event = event(guildId, id);
+        if (!EventRules.editable(event.status())) throw new EventProblem(409, "Teams can only be reopened while the event is a draft or taking signups.");
+        if (!repository.reopenTeams(id)) throw new EventProblem(409, "The teams aren't final.");
+        changes.publish(EventChanges.Kind.TEAMS, guildId, id);
     }
 
     /**
@@ -410,12 +590,18 @@ public class EventService {
         return EventRoster.counts(player.verification(), settingsOf(event).verification(), EventRoster.Gate.START);
     }
 
+    /** Puts a player on a team, or takes them off it (null). A player who holds no place, or hasn't passed the verification the event needs, can't be put on one. */
     public void setTeam(long guildId, long id, long userId, Long teamId) {
         Event event = event(guildId, id);
         if (event.status() == Status.DONE || event.status() == Status.CANCELLED) throw new EventProblem(409, "This event is over.");
         var player = repository.participant(id, userId).orElseThrow(() -> new EventProblem(404, "That player isn't in the event."));
-        if (teamId != null) checkTeam(id, settingsOf(event), teamId, player.kind(), userId);
+        if (teamId != null) {
+            String block = teamBlock(event, player);
+            if (block != null) throw new EventProblem(409, block);
+            checkTeam(id, settingsOf(event), teamId, player.kind(), userId);
+        }
         if (!repository.setTeam(id, userId, teamId)) throw new EventProblem(404, "That player isn't in the event.");
+        changes.publish(EventChanges.Kind.TEAMS, guildId, id);
     }
 
     // ---------- buy-ins and the pot ----------
