@@ -750,6 +750,50 @@ class BingoSkinScratchTest {
         Files.write(OUT.resolve("grid-5-long-classic.png"), BingoBoardImage.render("The Younglings Annual Winter Solstice Community Bingo Extravaganza 2026", "Signups open · starts in 3 days", 5, big.tiles(), null, BingoLooks.CLASSIC));
     }
 
+    /** Writes the small pictures the website shows when someone picks a look: every shape and the grid, in each look, from a made-up event. */
+    @Test
+    void lookPreviews() throws Exception {
+        Path out = Path.of("C:/Users/drake/Documents/Github/Repositories/yw-wheel-wt/public/bingo-looks");
+        Files.createDirectories(out);
+        BingoTemplate template = new BingoTemplate();
+        BingoTiles icons = new BingoTiles(new com.younglings.bot.internal.WikiCatalog());
+        for (BingoLayout l : BingoLayout.all()) {
+            var sample = BingoSampleEvent.build(template, l, icons::iconKeyFor, 20261016L);
+            for (String look : BingoLooks.ids()) {
+                writePreview(ImageIO.read(new java.io.ByteArrayInputStream(BingoBoardImage.render(l, look, sample.tiles()))), out.resolve(l.id() + "-" + look + ".jpg"));
+            }
+        }
+        var grid = BingoSampleEvent.buildGrid(template, 5, icons::iconKeyFor, 20261016L);
+        String subtitle = "Running \u00b7 tiles show how many players have them";
+        String footer = "Submit proof with /events submit event:12 and the tile's number";
+        for (String look : BingoLooks.ids()) {
+            writePreview(ImageIO.read(new java.io.ByteArrayInputStream(BingoBoardImage.render("Christmas Bingo", subtitle, 5, grid.tiles(), footer, look))), out.resolve("grid-" + look + ".jpg"));
+        }
+        writePreview(ImageIO.read(new java.io.ByteArrayInputStream(BingoBoardImage.render("Christmas Bingo", subtitle, 5, grid.tiles(), footer))), out.resolve("grid-plain.jpg"));
+    }
+
+    /** A 640 by 400 picture: a shape's whole board scaled down, or the top of a taller grid board. */
+    private static void writePreview(BufferedImage source, Path file) throws Exception {
+        int w = 640;
+        int h = (int) Math.round(source.getHeight() * (w / (double) source.getWidth()));
+        BufferedImage scaled = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = scaled.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+        g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+        g.drawImage(source, 0, 0, w, h, null);
+        g.dispose();
+        BufferedImage cut = scaled.getSubimage(0, 0, w, Math.min(h, 400));
+        var writer = ImageIO.getImageWritersByFormatName("jpg").next();
+        var params = writer.getDefaultWriteParam();
+        params.setCompressionMode(javax.imageio.ImageWriteParam.MODE_EXPLICIT);
+        params.setCompressionQuality(0.8f);
+        try (var os = ImageIO.createImageOutputStream(file.toFile())) {
+            writer.setOutput(os);
+            writer.write(null, new javax.imageio.IIOImage(cut, null, null), params);
+        }
+        writer.dispose();
+    }
+
     @Test
     void paintAndPreview() throws Exception {
         Files.createDirectories(OUT);
