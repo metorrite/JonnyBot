@@ -138,6 +138,8 @@ public class MemberApi {
                 case "polls" -> method.equals("GET") ? myPolls(guild, userId) : method.equals("POST") ? createPoll(guild, userId, body) : null;
                 case "coffer" -> method.equals("GET") ? myCoffer(guild, userId) : null;
                 case "events" -> method.equals("GET") ? events.mine(guild, userId) : null;
+                case "events/join" -> method.equals("POST") ? events.join(guild, userId, body) : null;
+                case "events/leave" -> method.equals("POST") ? events.leave(guild, userId, body) : null;
                 case "link" -> switch (method) {
                     case "GET" -> linkStatus(guild, userId);
                     case "POST" -> submitLink(guild, userId, body);
@@ -158,6 +160,9 @@ public class MemberApi {
             }
         } catch (Rejected e) {
             InternalApiServer.sendJson(exchange, e.status, DataObject.empty().put("error", e.getMessage()));
+        } catch (com.younglings.bot.events.EventProblem e) {
+            // the event engine's own refusals already say why in words a member can read
+            InternalApiServer.sendJson(exchange, e.status(), DataObject.empty().put("error", e.getMessage()));
         } catch (Exception e) {
             log.error("Member API request {} failed", exchange.getRequestURI().getPath(), e);
             InternalApiServer.sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));

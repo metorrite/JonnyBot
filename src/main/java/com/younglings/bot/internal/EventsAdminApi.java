@@ -15,6 +15,8 @@ import com.younglings.bot.events.BingoTemplate;
 import com.younglings.bot.events.BingoTiles;
 import com.younglings.bot.events.EventBoardPanels;
 import com.younglings.bot.events.EventBonuses;
+import com.younglings.bot.events.EventPrep;
+import com.younglings.bot.events.EventRoster;
 import com.younglings.bot.events.EventScoring.Standing;
 import com.younglings.bot.events.EventSignups;
 import com.younglings.bot.events.EventSettings;
@@ -49,7 +51,8 @@ import java.util.function.Supplier;
  * The event engine for the website. Events: {@code GET/POST events}, {@code GET events/templates}, {@code GET/PUT/DELETE events/{id}},
  * {@code POST events/{id}/status}. Inside an event: {@code PUT .../objectives} (the whole list), {@code POST .../teams},
  * {@code DELETE .../teams/{teamId}}, {@code POST .../participants}, {@code PUT/DELETE .../participants/{userId}}, {@code POST .../progress},
- * {@code GET .../standings}, {@code GET/POST .../claims} and {@code POST .../claims/{claimId}/approve|deny}. Everything is checked by
+ * {@code GET .../standings}, {@code GET/POST .../claims}, {@code POST .../claims/{claimId}/approve|deny}, {@code POST .../signup/close|reopen},
+ * {@code POST .../roster/confirm} and {@code PUT .../participants/{userId}/verification}. Everything is checked by
  * {@link EventService}. Reached only through {@link TicketAdminApi}, which has already checked the asker may use the dashboard in this server
  * and audit-logs every change.
  */
@@ -197,6 +200,38 @@ public class EventsAdminApi implements AdminRouteExtension {
             log.info("Dashboard: {} synced the signup of event {} ({} added)", actor.getId(), id, added);
             return detail(guild, id).put("synced", added);
         }
+        if (parts.length == 4 && what.equals("signup") && (parts[3].equals("close") || parts[3].equals("reopen"))) {
+            AdminRouteExtension.requireMethod(method, "POST");
+            if (parts[3].equals("reopen")) {
+                signups.reopenSignups(guild, id);
+                log.info("Dashboard: {} reopened the signups of event {}", actor.getId(), id);
+                return detail(guild, id);
+            }
+            EventSignups.Closed closed = signups.closeSignups(guild, id, actor.getIdLong());
+            log.info("Dashboard: {} closed the signups of event {} ({} added by the last sync, {} on the roster)", actor.getId(), id, closed.added(), closed.active());
+            DataArray refused = DataArray.empty();
+            closed.refused().forEach(r -> refused.add(DataObject.empty().put("userId", Long.toString(r.userId())).put("userName", name(guild, r.userId())).put("reason", r.reason())));
+            return detail(guild, id).put("closed", DataObject.empty().put("added", closed.added()).put("active", closed.active()).put("waiting", closed.waiting()).put("refused", refused));
+        }
+        if (parts.length == 4 && what.equals("roster") && parts[3].equals("confirm")) {
+            AdminRouteExtension.requireMethod(method, "POST");
+            service.confirmRoster(guild.getIdLong(), id, actor.getIdLong());
+            log.info("Dashboard: {} confirmed the roster of event {}", actor.getId(), id);
+            return detail(guild, id);
+        }
+        if (parts.length == 5 && what.equals("participants") && parts[4].equals("verification")) {
+            AdminRouteExtension.requireMethod(method, "PUT");
+            DataObject b = body.get();
+            EventRoster.Verification to;
+            try {
+                to = EventRoster.Verification.valueOf(text(b, "state").toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                throw new ApiError(400, "Choose verified, waived, rejected or pending.");
+            }
+            service.setVerification(guild.getIdLong(), id, idOf(parts[3], "player"), to, actor.getIdLong(), text(b, "note"));
+            log.info("Dashboard: {} set a player's verification to {} in event {}", actor.getId(), to, id);
+            return detail(guild, id);
+        }
         if (parts.length == 4 && what.equals("teams")) {
             AdminRouteExtension.requireMethod(method, "DELETE");
             service.removeTeam(guild.getIdLong(), id, idOf(parts[3], "team"));
@@ -312,13 +347,16 @@ public class EventsAdminApi implements AdminRouteExtension {
         for (ObjectiveSpec o : service.objectives(id)) objectives.add(objectiveJson(o));
         DataArray teams = DataArray.empty();
         repository.teams(id).forEach(t -> teams.add(DataObject.empty().put("id", Long.toString(t.id())).put("name", t.name()).put("captainId", t.captainId() == null ? null : Long.toString(t.captainId()))));
+        EventSettings settings = EventSettings.parse(eventJson(e).getObject("config"));
         DataArray players = DataArray.empty();
         repository.participants(id).forEach(p -> players.add(DataObject.empty().put("userId", Long.toString(p.userId())).put("userName", name(guild, p.userId()))
                 .put("guildId", Long.toString(p.guildId())).put("teamId", p.teamId() == null ? null : Long.toString(p.teamId())).put("joinedAt", p.joinedAt().toString())
-                .put("kind", p.kind().name()).put("waiting", p.waiting()).put("buyIn", p.buyIn().name())));
+                .put("kind", p.kind().name()).put("waiting", p.waiting()).put("buyIn", p.buyIn().name())
+                .put("verification", EventRoster.effective(p.verification(), settings.verification()).name())
+                .put("verifiedBy", p.verifiedBy() == null ? null : name(guild, p.verifiedBy())).put("verifiedAt", p.verifiedAt() == null ? null : p.verifiedAt().toString())
+                .put("verificationNote", p.verificationNote())));
         DataArray next = DataArray.empty();
         EventRules.next(e.status()).stream().sorted().forEach(s -> next.add(s.name()));
-        EventSettings settings = EventSettings.parse(eventJson(e).getObject("config"));
         DataArray prizes = DataArray.empty();
         service.prizes(id).forEach(p -> prizes.add(DataObject.empty().put("id", Long.toString(p.id())).put("place", p.place()).put("placeTo", p.placeTo()).put("kind", p.kind().name())
                 .put("description", p.description()).put("amount", p.amount()).put("percentOfPot", p.percentOfPot()).put("split", p.split().name())));
@@ -338,7 +376,38 @@ public class EventsAdminApi implements AdminRouteExtension {
         return DataObject.empty().put("tiles", tileInfo).put("organisers", organisers).put("refused", refused).put("event", eventJson(e)).put("signup", DataObject.empty().put("attached", signup.attached()).put("active", signup.active())
                         .put("entries", signup.entries()).put("channelsChosen", signup.channelsChosen())).put("prizes", prizes).put("pot", service.pot(guild.getIdLong(), id)).put("potVisible", PrizeRules.potVisible(settings.buyIn()))
                 .put("buyInEnabled", settings.buyIn().enabled()).put("objectives", objectives).put("teams", teams).put("participants", players).put("nextStages", next)
+                .put("prep", prepJson(service.prepOf(e))).put("setup", setupJson(service.setupOf(id), guild)).put("verification", verificationJson(e, settings))
                 .put("editable", EventRules.editable(e.status()));
+    }
+
+    /** The setup checklist as the dashboard shows it. */
+    static DataObject prepJson(EventPrep.Prep prep) {
+        DataArray steps = DataArray.empty();
+        prep.steps().forEach(s -> {
+            DataArray blockers = DataArray.empty();
+            s.blockers().forEach(blockers::add);
+            steps.add(DataObject.empty().put("key", s.key()).put("label", s.label()).put("state", s.state().name()).put("required", s.required()).put("detail", s.detail()).put("blockers", blockers));
+        });
+        DataArray blockers = DataArray.empty();
+        prep.blockers().forEach(blockers::add);
+        DataArray warnings = DataArray.empty();
+        prep.warnings().forEach(warnings::add);
+        return DataObject.empty().put("steps", steps).put("blockers", blockers).put("warnings", warnings).put("ready", prep.ready());
+    }
+
+    private static DataObject setupJson(EventRepository.Setup setup, Guild guild) {
+        return DataObject.empty().put("signupsClosedAt", setup.signupsClosedAt() == null ? null : setup.signupsClosedAt().toString())
+                .put("signupsClosedBy", setup.signupsClosedBy() == null ? null : name(guild, setup.signupsClosedBy()))
+                .put("rosterConfirmedAt", setup.rosterConfirmedAt() == null ? null : setup.rosterConfirmedAt().toString())
+                .put("rosterConfirmedBy", setup.rosterConfirmedBy() == null ? null : name(guild, setup.rosterConfirmedBy()));
+    }
+
+    /** The event's verification settings and how many players are in each state (players on the waitlist aren't counted). */
+    private DataObject verificationJson(Event e, EventSettings settings) {
+        var tally = EventRoster.tally(repository.participants(e.id()).stream().filter(p -> !p.waiting()).map(EventRepository.Participant::verification).toList(), settings.verification());
+        return DataObject.empty().put("required", settings.verification().required()).put("gate", settings.verification().gate().name())
+                .put("instructions", settings.verification().instructions()).put("verified", tally.verified()).put("waived", tally.waived())
+                .put("pending", tally.pending()).put("rejected", tally.rejected());
     }
 
     // ---------- organisers ----------
@@ -427,7 +496,7 @@ public class EventsAdminApi implements AdminRouteExtension {
         Long userId = optionalId(body, "userId");
         if (userId == null) throw new ApiError(400, "Pick a player.");
         Member member = guild.getMemberById(userId);
-        if (member == null || member.getUser().isBot()) throw new ApiError(400, "That player isn't a member of this server.");
+        if (member == null || member.getUser().isBot()) throw new ApiError(400, "That player isn't in this Discord server. They need to join the server before they can take part.");
         TeamRules.Kind kind = null;
         if (!text(body, "kind").isEmpty()) {
             try {

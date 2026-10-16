@@ -25,7 +25,9 @@ public class EventChanges {
         /** The event's settings, objectives or board changed. */
         SETUP,
         /** A player's proof was approved or denied. */
-        CLAIM_DECIDED
+        CLAIM_DECIDED,
+        /** The roster changed: someone joined or left, signups were closed or reopened, the roster was confirmed, or a player's verification was decided. */
+        ROSTER
     }
 
     /** {@code claimId}, {@code userId}, {@code approved} and {@code note} only mean something for {@link Kind#CLAIM_DECIDED}. */
