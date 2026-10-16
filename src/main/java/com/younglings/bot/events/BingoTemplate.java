@@ -52,6 +52,38 @@ public class BingoTemplate implements EventTemplate {
     }
 
     @Override
+    public List<EventOptions.Option> options() {
+        List<EventOptions.Choice> shapes = new ArrayList<>();
+        shapes.add(new EventOptions.Choice("grid", "Square grid", "Rows, columns and diagonals earn bonuses."));
+        for (BingoLayout l : BingoLayout.all()) shapes.add(new EventOptions.Choice(l.id(), l.name(), l.blurb()));
+        // the look new events get comes first
+        List<EventOptions.Choice> looks = new ArrayList<>();
+        for (BingoLooks.Look l : BingoLooks.all()) {
+            EventOptions.Choice choice = new EventOptions.Choice(l.id(), l.label(), l.blurb());
+            if (l.id().equals(BingoLooks.DEFAULT_FOR_NEW)) looks.add(0, choice);
+            else looks.add(choice);
+        }
+        EventOptions.When isGrid = EventOptions.When.is("config.board.layout", "grid");
+        return List.of(
+                EventOptions.Option.choice("config.board.layout", "Board shape", "A square grid, or one of the picture shapes.", EventOptions.Step.RULES, "grid", shapes).widget("shape").inQuick(),
+                EventOptions.Option.number("config.board.size", "Board size", "3 to 7 tiles across.", EventOptions.Step.RULES, DEFAULT_SIZE, BingoBoard.MIN_SIZE, BingoBoard.MAX_SIZE).showWhen(isGrid),
+                EventOptions.Option.choice("config.board.unlock", "Tiles open",
+                        "In order, a tile can only be done once the tiles it rests on are done (a drop for a closed tile can't be saved). Automatic is in order for tasks and any order for drops.",
+                        EventOptions.Step.RULES, "auto", List.of(new EventOptions.Choice("auto", "Automatic"), new EventOptions.Choice(UNLOCK_LOCKED, "In order"),
+                                new EventOptions.Choice(UNLOCK_FREE, "Any order (the shape only earns bonuses)"))).showWhen(EventOptions.When.isNot("config.board.layout", "grid")),
+                EventOptions.Option.choice("config.board.pool", "Tiles come from", "You can edit, lock and swap any tile afterwards.", EventOptions.Step.RULES, BingoBoard.POOL_DROPS,
+                        List.of(new EventOptions.Choice(BingoBoard.POOL_DROPS, "Boss drops"), new EventOptions.Choice(BingoBoard.POOL_CLASSIC, "Kills, skilling and goals"))),
+                EventOptions.Option.choice("config.board.look", "Look", "What the board picture in Discord is drawn on. You can change it any time before the event ends.", EventOptions.Step.RULES,
+                        BingoLooks.DEFAULT_FOR_NEW, looks).widget("look"),
+                EventOptions.Option.number("config.lineBonus", "Bonus per line", "A row, column or diagonal on a grid; a finished tier, row or ring on a shape. 0 for none.", EventOptions.Step.RULES,
+                        DEFAULT_LINE_BONUS, 0, EventBonuses.MAX_POINTS),
+                EventOptions.Option.number("config.blackoutBonus", "Blackout bonus", "Every tile done. 0 for none.", EventOptions.Step.RULES, DEFAULT_BLACKOUT_BONUS, 0, EventBonuses.MAX_POINTS),
+                EventOptions.Option.of("config.boardChannelId", "Live board channel", "The board picture is posted here when the event starts and updates as tiles are approved.", EventOptions.Step.DISCORD,
+                        EventOptions.Type.CHANNEL, null),
+                EventOptions.reviewChannel());
+    }
+
+    @Override
     public String description() {
         return "A board of tiles. Complete tiles for points, and earn bonuses for rows, columns, diagonals and a full blackout. Pick the size, re-roll the board, lock the tiles you like.";
     }

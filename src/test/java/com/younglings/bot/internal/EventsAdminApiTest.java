@@ -98,7 +98,9 @@ class EventsAdminApiTest {
         EventBoardPanels panels = Mockito.mock(EventBoardPanels.class);
         Mockito.when(panels.refresh(ArgumentMatchers.anyLong(), ArgumentMatchers.anyLong())).thenReturn("Posted the board.");
         links = Mockito.mock(com.younglings.bot.runescape.PlayerLinkRepository.class);
-        api = new EventsAdminApi(service, repository, templates, signups, new BingoTemplate(), panels, links, new com.younglings.bot.events.BingoTiles(new com.younglings.bot.internal.WikiCatalog()));
+        var eventSetup = new com.younglings.bot.events.EventSetup(service, templates, new com.younglings.bot.events.EventDraftRepository(supplier), new com.younglings.bot.events.EventBlueprintRepository(supplier));
+        api = new EventsAdminApi(service, repository, templates, signups, new BingoTemplate(), panels, links, new com.younglings.bot.events.BingoTiles(new com.younglings.bot.internal.WikiCatalog()),
+                new EventSetupApi(eventSetup));
 
         guild = Mockito.mock(Guild.class);
         Mockito.when(guild.getIdLong()).thenReturn(G);
@@ -448,6 +450,98 @@ class EventsAdminApiTest {
         assertEquals("OFF", call("GET", "events/" + id, null).getObject("event").getObject("config").getObject("setup").getString("mode"));
         assertEquals(400, failure("POST", "events", "{\"name\":\"Bad mode\",\"config\":{\"setup\":{\"mode\":\"sometimes\"}}}").status);
         assertEquals(400, failure("POST", "events", "{\"name\":\"Bad gate\",\"config\":{\"verification\":{\"required\":true,\"gate\":\"later\"}}}").status);
+    }
+
+    // ---------- setting an event up: standard, quick, guided drafts and saved templates ----------
+
+    @Test
+    void theSetupRoutesGiveTheSchemaAndMakeStandardAndQuickEvents() {
+        var schema = call("GET", "events/setup/schema/bingo", null);
+        assertEquals("bingo", schema.getString("template"));
+        assertEquals(7, schema.getArray("steps").length());
+        assertTrue(schema.getArray("options").length() > 15);
+        assertTrue(schema.getObject("standard").getString("name").startsWith("Bingo \u00b7 "));
+        assertEquals(400, failure("GET", "events/setup/schema/spiral", null).status);
+        assertEquals(405, failure("POST", "events/setup/schema/bingo", "{}").status);
+
+        // one call, nothing to fill in
+        var made = call("POST", "events/setup/standard", "{\"template\":\"scavenger-hunt\"}");
+        var detail = call("GET", "events/" + made.getString("id"), null);
+        assertEquals("DRAFT", detail.getObject("event").getString("status"));
+        assertEquals(8, count(detail.getArray("objectives")));
+        assertEquals("STANDARD", detail.getObject("event").getObject("config").getObject("setup").getString("mode"));
+
+        // a few answers over the standard ones; a boss night can't skip its boss
+        var quick = call("POST", "events/setup/standard", "{\"template\":\"boss-night\",\"overrides\":{\"name\":\"Zuk night\",\"config.boss\":\"TzKal-Zuk\"}}");
+        assertEquals("Zuk night", call("GET", "events/" + quick.getString("id"), null).getObject("event").getString("name"));
+        ApiError refused = failure("POST", "events/setup/standard", "{\"template\":\"boss-night\"}");
+        assertEquals(400, refused.status);
+        assertFalse(refused.problems.isEmpty());
+        assertEquals(400, failure("POST", "events/setup/standard", "{\"template\":\"nope\"}").status);
+
+        // every answer at once
+        var full = call("POST", "events/setup/create", "{\"answers\":{\"template\":\"custom\",\"name\":\"Full setup\",\"scoringMode\":\"TEAM\",\"config\":{\"buyIn\":{\"enabled\":true,\"amount\":2000000,\"showPot\":true}},"
+                + "\"prizes\":[{\"place\":1,\"kind\":\"IN_GAME\",\"description\":\"Zaros godsword\",\"split\":\"EACH\"}]}}");
+        var fullDetail = call("GET", "events/" + full.getString("id"), null);
+        assertEquals("TEAM", fullDetail.getObject("event").getString("scoringMode"));
+        assertEquals(1, count(fullDetail.getArray("prizes")));
+        assertEquals(400, failure("POST", "events/setup/create", "{}").status);
+        assertEquals(404, failure("GET", "events/setup/nothing", null).status);
+    }
+
+    @Test
+    void aDraftIsStartedSavedAsItGoesAndFinishedIntoAnEvent() {
+        var started = call("POST", "events/drafts", "{\"template\":\"bingo\",\"stream\":\"guided\"}").getObject("draft");
+        String id = started.getString("id");
+        assertEquals("BASICS", started.getString("step"));
+        assertEquals(0, started.getArray("missing").length());
+        assertEquals(1, count(call("GET", "events/drafts", null).getArray("drafts")));
+
+        // the name is blanked: it is reported as missing and the event can't be made, but the draft stays
+        var answers = started.getObject("answers");
+        answers.put("name", "");
+        var saved = call("PUT", "events/drafts/" + id, "{\"step\":\"basics\",\"answers\":" + answers + "}").getObject("draft");
+        assertEquals("name", saved.getArray("missing").getObject(0).getString("path"));
+        assertEquals(1, saved.getInt("missingCount"));
+        ApiError early = failure("POST", "events/drafts/" + id + "/create", "{}");
+        assertEquals(400, early.status);
+        assertEquals(1, count(call("GET", "events/drafts", null).getArray("drafts")));
+
+        // the answers on screen are saved with the finish
+        answers.put("name", "Saturday bingo");
+        var made = call("POST", "events/drafts/" + id + "/create", "{\"step\":\"review\",\"answers\":" + answers + "}");
+        assertEquals("Saturday bingo", call("GET", "events/" + made.getString("id"), null).getObject("event").getString("name"));
+        assertEquals(0, count(call("GET", "events/drafts", null).getArray("drafts")), "finishing removes the draft");
+        assertEquals(404, failure("GET", "events/drafts/" + id, null).status);
+
+        var other = call("POST", "events/drafts", "{\"template\":\"custom\"}").getObject("draft");
+        assertEquals(0, count(call("DELETE", "events/drafts/" + other.getString("id"), null).getArray("drafts")));
+        assertEquals(400, failure("POST", "events/drafts", "{\"template\":\"nope\"}").status);
+        assertEquals(400, failure("GET", "events/drafts/abc", null).status);
+    }
+
+    @Test
+    void anEventCanBeSavedAsATemplateAndSimilarEventsMadeFromIt() {
+        String source = create("{\"name\":\"Source event\",\"template\":\"scavenger-hunt\",\"config\":{\"steps\":6}}");
+        var saved = call("POST", "events/saved-templates", "{\"eventId\":\"" + source + "\",\"name\":\"Clue hunt\",\"description\":\"Six clues\"}");
+        assertEquals(1, count(saved.getArray("templates")));
+        var template = saved.getObject("saved");
+        assertEquals("Clue hunt", template.getString("name"));
+        assertEquals("Scavenger hunt", template.getString("templateLabel"));
+        assertTrue(template.getBoolean("available"));
+        assertEquals(409, failure("POST", "events/saved-templates", "{\"eventId\":\"" + source + "\",\"name\":\"clue HUNT\"}").status, "names are unique");
+        assertEquals(400, failure("POST", "events/saved-templates", "{\"name\":\"No event\"}").status);
+
+        var made = call("POST", "events/saved-templates/" + template.getString("id") + "/create", "{\"name\":\"Clue hunt, round two\"}");
+        var detail = call("GET", "events/" + made.getString("id"), null);
+        assertEquals("Clue hunt, round two", detail.getObject("event").getString("name"));
+        assertEquals(6, count(detail.getArray("objectives")));
+        assertEquals(400, failure("POST", "events/saved-templates/" + template.getString("id") + "/create", "{\"startsAt\":\"soon\"}").status);
+
+        var renamed = call("PUT", "events/saved-templates/" + template.getString("id"), "{\"name\":\"Six clues\",\"description\":\"\"}");
+        assertEquals("Six clues", renamed.getArray("templates").getObject(0).getString("name"));
+        assertEquals(0, count(call("DELETE", "events/saved-templates/" + template.getString("id"), null).getArray("templates")));
+        assertEquals(404, failure("POST", "events/saved-templates/" + template.getString("id") + "/create", "{}").status);
     }
 
     // ---------- bingo ----------

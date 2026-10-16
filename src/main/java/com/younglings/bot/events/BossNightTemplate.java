@@ -38,6 +38,15 @@ public class BossNightTemplate implements EventTemplate {
     }
 
     @Override
+    public List<EventOptions.Option> options() {
+        return List.of(
+                EventOptions.Option.of("config.boss", "Boss", "The boss the night is for.", EventOptions.Step.RULES, EventOptions.Type.TEXT, null).mandatory().inQuick().maxLength(MAX_BOSS_NAME),
+                EventOptions.Option.number("config.kills", "Kills that count", "Up to " + String.format("%,d", EventRules.MAX_REPEAT) + ".", EventOptions.Step.RULES, DEFAULT_KILLS, 1, EventRules.MAX_REPEAT),
+                EventOptions.Option.number("config.pointsPerKill", "Points per kill", "What each kill is worth.", EventOptions.Step.RULES, DEFAULT_POINTS_PER_KILL, 0, EventRules.MAX_POINTS),
+                EventOptions.reviewChannel());
+    }
+
+    @Override
     public String description() {
         return "A signup for an evening of one boss. Count kills per player or team, with proof or by an organiser, on top of the usual teams, buy-ins and prizes.";
     }

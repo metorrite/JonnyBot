@@ -39,6 +39,15 @@ public interface EventTemplate {
         return Set.of();
     }
 
+    /**
+     * The options this template adds to the ones every event has: what each is called, where it is kept in the settings, its standard value and whether it is
+     * required (see {@link EventOptions}). The quick, standard and guided setups are drawn from this, so a template that lists its options here gets them in
+     * all three with no other edit. The default is none.
+     */
+    default List<EventOptions.Option> options() {
+        return List.of();
+    }
+
     /** What is wrong with these template settings, in words, or an empty list. {@code config} is never null. */
     List<String> configProblems(DataObject config);
 

@@ -102,18 +102,22 @@ public final class EventQuickCreate {
         if (look != null && !BingoLooks.valid(look)) throw new IllegalArgumentException("Choose a board look from the list.");
         if (days < 1 || days > MAX_DAYS) throw new IllegalArgumentException("An event can run for 1 to " + MAX_DAYS + " days.");
         if (startInHours < 0 || startInHours > MAX_START_HOURS) throw new IllegalArgumentException("It can start from now up to " + MAX_START_HOURS + " hours away.");
-        DataObject config = DataObject.empty();
+        // the standard answers for the kind (the same ones the dashboard's standard setup uses), with what was asked for laid over them
+        DataObject answers = EventOptions.standard(templateFor(kind), now);
+        // made from one Discord command, so it doesn't take the dashboard's setup steps: an organiser just starts it
+        EventOptions.set(answers, "config.setup.mode", EventPrep.Mode.OFF.name());
         String about;
         switch (kind) {
             case BINGO -> {
                 BingoLayout shape = shapeNamed(detail);
                 String boardLook = look == null ? BingoLooks.DEFAULT_FOR_NEW : look;
+                EventOptions.set(answers, "config.board.look", boardLook);
                 if (shape != null) {
-                    config.put("board", DataObject.empty().put("layout", shape.id()).put("look", boardLook));
+                    EventOptions.set(answers, "config.board.layout", shape.id());
                     about = shape.name() + " board (" + shape.tiles() + " tiles)";
                 } else {
                     int size = whole(detail, BingoTemplate.DEFAULT_SIZE, 3, 7, "The board size");
-                    config.put("board", DataObject.empty().put("size", size).put("look", boardLook));
+                    EventOptions.set(answers, "config.board.size", size);
                     about = size + "x" + size + " board";
                 }
                 about += " · " + BingoLooks.label(boardLook) + " look";
@@ -121,25 +125,36 @@ public final class EventQuickCreate {
             case COMPETITION -> {
                 Integer skill = skillByName(detail == null ? "" : detail);
                 if (skill == null) throw new IllegalArgumentException("I don't know the skill \"" + detail.strip() + "\". Use a skill name like Slayer, or overall.");
-                config.put("skillId", skill);
+                EventOptions.set(answers, "config.skillId", skill);
                 about = CompetitionTemplate.skillName(skill) + " XP";
             }
             case BOSS_NIGHT -> {
                 String boss = detail == null ? "" : detail.strip();
                 if (boss.isEmpty()) throw new IllegalArgumentException("Say which boss the night is for.");
-                config.put("boss", boss);
+                EventOptions.set(answers, "config.boss", boss);
                 about = boss;
             }
             case SCAVENGER_HUNT -> {
-                int items = whole(detail, 8, ScavengerHuntTemplate.MIN_STEPS, ScavengerHuntTemplate.MAX_STEPS, "The number of items");
-                config.put("steps", items);
+                int items = whole(detail, ScavengerHuntTemplate.DEFAULT_STEPS, ScavengerHuntTemplate.MIN_STEPS, ScavengerHuntTemplate.MAX_STEPS, "The number of items");
+                EventOptions.set(answers, "config.steps", items);
                 about = items + " items to find";
             }
             default -> throw new IllegalArgumentException("That kind of event can't be made here.");
         }
         Instant starts = now.plus(Duration.ofHours(startInHours));
         Instant ends = starts.plus(Duration.ofDays(days));
-        EventInput input = new EventInput(name == null ? "" : name.strip(), "", kind.template, Scope.PRIVATE, ScoringMode.INDIVIDUAL, starts, ends, 0, config);
+        answers.put("startsAt", starts.toString()).put("endsAt", ends.toString()).put("name", name == null ? "" : name.strip());
+        EventInput input = EventOptions.toInput(EventOptions.normalize(answers));
         return new Plan(input, kind.label + " · " + about + " · " + days + (days == 1 ? " day" : " days"));
+    }
+
+    /** The template of a kind, for its options. The templates keep no state, so one made here is as good as the one the bot holds. */
+    private static EventTemplate templateFor(Kind kind) {
+        return switch (kind) {
+            case BINGO -> new BingoTemplate();
+            case COMPETITION -> new CompetitionTemplate();
+            case BOSS_NIGHT -> new BossNightTemplate();
+            case SCAVENGER_HUNT -> new ScavengerHuntTemplate();
+        };
     }
 }
