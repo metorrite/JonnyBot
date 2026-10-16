@@ -14,6 +14,7 @@ import com.younglings.bot.events.EventRepository.Event;
 import com.younglings.bot.events.EventRules.Status;
 import com.younglings.bot.events.EventService;
 import com.younglings.bot.events.EventSettings;
+import com.younglings.bot.events.EventSignups;
 import com.younglings.bot.internal.MemberEventsApi;
 import com.younglings.bot.permission.AdminRoleFilter;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
@@ -41,7 +42,8 @@ import java.util.List;
  * {@code /events}: what a member can do with the server's events from Discord. {@code mine} shows their place, points, buy-in and prizes,
  * {@code open} lists events taking signups, and {@code join} / {@code leave} sign up or step out. Everything is the same engine and rules as the
  * website, so the team policy, deadline, waitlist and buy-in all apply. Staff can also start an event from here ({@code create}, {@code start},
- * {@code finish}) with the template's usual settings, and name organisers for one event ({@code add-organiser}, {@code remove-organiser}); prizes, teams and fine-tuning are on the website.
+ * {@code finish}) with the template's usual settings, close and reopen its signups ({@code close-signups}, {@code reopen-signups}), and name organisers for one event
+ * ({@code add-organiser}, {@code remove-organiser}); prizes, teams and fine-tuning are on the website.
  */
 @Command
 public class EventsCommand {
@@ -50,9 +52,11 @@ public class EventsCommand {
     private final MemberEventsApi view;
     private final EventBoardPanels panels;
     private final AdminRoleFilter adminRoleFilter;
+    private final EventSignups signups;
 
-    public EventsCommand(EventService service, EventRepository repository, MemberEventsApi view, EventBoardPanels panels, AdminRoleFilter adminRoleFilter) {
+    public EventsCommand(EventService service, EventRepository repository, MemberEventsApi view, EventBoardPanels panels, AdminRoleFilter adminRoleFilter, EventSignups signups) {
         this.adminRoleFilter = adminRoleFilter;
+        this.signups = signups;
         this.service = service;
         this.repository = repository;
         this.view = view;
@@ -84,6 +88,11 @@ public class EventsCommand {
             }
             DataObject buyIn = e.getObject("buyIn");
             if (buyIn.getBoolean("enabled") && buyIn.getString("status").equals("DUE")) line.append(" · buy-in due (").append(gp(buyIn.getLong("amount"))).append(")");
+            DataObject verification = e.getObject("verification");
+            if (verification.getBoolean("required") && !List.of("VERIFIED", "WAIVED").contains(verification.getString("state"))) {
+                line.append(" · verification ").append(verification.getString("state").toLowerCase().replace('_', ' '));
+                if (!verification.getString("note").isBlank()) line.append(" (").append(verification.getString("note")).append(")");
+            }
             if (e.getInt("pendingProof") > 0) line.append(" · ").append(e.getInt("pendingProof")).append(" proof waiting");
             DataArray awards = e.getArray("awards");
             for (int a = 0; a < awards.length(); a++) {
@@ -121,7 +130,10 @@ public class EventsCommand {
             if (joined.waiting()) {
                 Containers.replyEphemeral(event, Containers.WARNING, "**" + e.name() + "** is full. You're on the waitlist at position " + joined.position() + ".");
             } else {
-                Containers.replyEphemeral(event, Containers.SUCCESS, "You're in **" + e.name() + "**.", "-# Check `/events mine` for your buy-in and team once the organisers set them.");
+                var verification = EventSettings.verificationOf(DataObject.fromJson(e.config()));
+                Containers.replyEphemeral(event, Containers.SUCCESS, "You're in **" + e.name() + "**.",
+                        verification.required() ? "-# This event asks for verification: " + com.younglings.bot.events.EventRoster.askText(verification) + " You count once an organiser approves it."
+                                : "-# Check `/events mine` for your buy-in and team once the organisers set them.");
             }
         } catch (EventProblem p) {
             Containers.replyEphemeral(event, Containers.WARNING, p.getMessage());
@@ -297,6 +309,43 @@ public class EventsCommand {
             }
             service.moveStage(guildId, id, to);
             Containers.reply(event, Containers.SUCCESS, false, "**" + e.name() + "** " + what + ".", "-# " + hint);
+        } catch (EventProblem p) {
+            Containers.replyEphemeral(event, Containers.WARNING, refusal(p));
+        }
+    }
+
+    @JDASlashCommand(name = "events", subcommand = "close-signups", description = "Staff: stop taking signups, pause the signup and sync the roster one last time")
+    public void onCloseSignups(GuildSlashEvent event, @SlashOption(description = "The event's number") long id) {
+        Guild guild = event.getGuild();
+        try {
+            Event e = service.event(guild.getIdLong(), id);
+            if (!service.mayOrganise(e, event.getUser().getIdLong(), isStaff(guild, event.getMember()))) {
+                Containers.replyEphemeral(event, Containers.WARNING, "Only staff and this event's organisers can do that.");
+                return;
+            }
+            EventSignups.Closed closed = signups.closeSignups(guild, id, event.getUser().getIdLong());
+            List<String> lines = new ArrayList<>();
+            lines.add("**" + e.name() + "**: signups are closed.");
+            lines.add("-# " + closed.active() + " on the roster" + (closed.waiting() > 0 ? ", " + closed.waiting() + " waiting" : "") + "; the last sync added " + closed.added()
+                    + ". Check the roster on the dashboard's Event manager, then confirm it.");
+            if (!closed.refused().isEmpty()) lines.add("-# " + closed.refused().size() + " signup" + (closed.refused().size() == 1 ? " was" : "s were") + " turned away by the event's rules; the dashboard says why.");
+            Containers.reply(event, Containers.SUCCESS, false, lines.toArray(String[]::new));
+        } catch (EventProblem p) {
+            Containers.replyEphemeral(event, Containers.WARNING, refusal(p));
+        }
+    }
+
+    @JDASlashCommand(name = "events", subcommand = "reopen-signups", description = "Staff: take signups again after closing them")
+    public void onReopenSignups(GuildSlashEvent event, @SlashOption(description = "The event's number") long id) {
+        Guild guild = event.getGuild();
+        try {
+            Event e = service.event(guild.getIdLong(), id);
+            if (!service.mayOrganise(e, event.getUser().getIdLong(), isStaff(guild, event.getMember()))) {
+                Containers.replyEphemeral(event, Containers.WARNING, "Only staff and this event's organisers can do that.");
+                return;
+            }
+            signups.reopenSignups(guild, id);
+            Containers.reply(event, Containers.SUCCESS, false, "**" + e.name() + "**: signups are open again.", "-# The roster has to be confirmed again once they are closed.");
         } catch (EventProblem p) {
             Containers.replyEphemeral(event, Containers.WARNING, refusal(p));
         }

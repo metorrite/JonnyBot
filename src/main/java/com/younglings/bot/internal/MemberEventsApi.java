@@ -1,14 +1,18 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.clanprofile.ClanProfileRepository;
+import com.younglings.bot.events.EventProblem;
 import com.younglings.bot.events.EventRepository;
 import com.younglings.bot.events.EventRepository.Event;
 import com.younglings.bot.events.EventRepository.Participant;
 import com.younglings.bot.events.EventRules.Status;
 import com.younglings.bot.events.EventScoring.Standing;
 import com.younglings.bot.events.EventService;
+import com.younglings.bot.events.EventRoster;
 import com.younglings.bot.events.EventSettings;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.utils.data.DataArray;
 import net.dv8tion.jda.api.utils.data.DataObject;
 import org.slf4j.Logger;
@@ -21,7 +25,8 @@ import java.util.Optional;
  * What a member sees of the events they are in, for their profile on the website ({@code GET /internal/me/events}): their place and
  * points, which objectives they have completed, whether their buy-in is paid, pending proof, and their prizes with where each stands.
  * Only the member's own rows are returned (other players' prizes and claims never are), and drafts and cancelled-before-start events
- * are left out. Also lists events taking signups that the member hasn't joined, so they can find them.
+ * are left out. Also lists events taking signups that the member hasn't joined, so they can find them, and lets them join or leave one
+ * ({@link #join}, {@link #leave}) by the same rules as {@code /events join}. Taking part in an event needs the member to be in the server's Discord.
  */
 @BService
 public class MemberEventsApi {
@@ -30,10 +35,57 @@ public class MemberEventsApi {
 
     private final EventService service;
     private final EventRepository repository;
+    private final ClanProfileRepository profiles;
 
-    public MemberEventsApi(EventService service, EventRepository repository) {
+    public MemberEventsApi(EventService service, EventRepository repository, ClanProfileRepository profiles) {
         this.service = service;
         this.repository = repository;
+        this.profiles = profiles;
+    }
+
+    /** Signs the member up for an event, as the player (so the deadline, a closed signup, the team policy and the waitlist all apply). */
+    public DataObject join(Guild guild, long userId, DataObject body) {
+        long eventId = eventIdOf(body);
+        requireInServer(guild, userId);
+        var joined = service.join(guild.getIdLong(), eventId, guild.getIdLong(), userId, null, false, null);
+        return mine(guild, userId).put("result", DataObject.empty().put("waiting", joined.waiting()).put("position", joined.position()));
+    }
+
+    /** Takes the member out of an event, only while it is taking signups (the same rule as {@code /events leave}). */
+    public DataObject leave(Guild guild, long userId, DataObject body) {
+        long eventId = eventIdOf(body);
+        long guildId = guild.getIdLong();
+        Event event = service.event(guildId, eventId);
+        if (event.status() != Status.SIGNUPS) throw new EventProblem(409, "You can only leave while an event is taking signups. Ask an organiser if you need out of one that has started.");
+        service.leave(guildId, eventId, userId);
+        return mine(guild, userId);
+    }
+
+    private static long eventIdOf(DataObject body) {
+        try {
+            return Long.parseLong(body.getString("eventId", "").strip());
+        } catch (NumberFormatException e) {
+            throw new EventProblem(400, "Say which event.");
+        }
+    }
+
+    /** Taking part needs the Discord, so someone who isn't in the server is told to join it, with the clan's link when it has one. */
+    private void requireInServer(Guild guild, long userId) {
+        Member member = guild.getMemberById(userId);
+        if (member == null) {
+            try {
+                member = guild.retrieveMemberById(userId).complete();
+            } catch (RuntimeException e) {
+                member = null;
+            }
+        }
+        if (member == null) throw new EventProblem(403, notInServerMessage(guild));
+    }
+
+    /** The sentence shown to someone who isn't in the server yet; its link comes from the clan profile's apply link when it has one. */
+    String notInServerMessage(Guild guild) {
+        String link = profiles.get(guild.getIdLong()).map(p -> p.applyUrl()).filter(u -> u != null && !u.isBlank()).orElse(null);
+        return "To take part in an event you need to be in the " + guild.getName() + " Discord server. Join it first" + (link == null ? ", then sign up here again." : " (" + link + "), then sign up here again.");
     }
 
     public DataObject mine(Guild guild, long userId) {
@@ -57,6 +109,8 @@ public class MemberEventsApi {
             open.add(DataObject.empty().put("id", Long.toString(event.id())).put("name", event.name()).put("description", event.description())
                     .put("template", event.template()).put("scoringMode", event.scoringMode().name())
                     .put("signupClosesAt", settings.signupClosesAt() == null ? null : settings.signupClosesAt().toString())
+                    .put("closed", repository.setup(event.id()).signupsClosed())
+                    .put("verification", settings.verification().required())
                     .put("buyIn", settings.buyIn().enabled() ? settings.buyIn().amount() : 0));
         }
         return DataObject.empty().put("events", mine).put("open", open);
@@ -105,6 +159,10 @@ public class MemberEventsApi {
         return DataObject.empty().put("id", Long.toString(event.id())).put("name", event.name()).put("description", event.description()).put("template", event.template())
                 .put("status", event.status().name()).put("scoringMode", event.scoringMode().name())
                 .put("waiting", me.waiting()).put("team", teamName)
+                .put("verification", DataObject.empty().put("required", settings.verification().required())
+                        .put("state", EventRoster.effective(me.verification(), settings.verification()).name())
+                        .put("note", me.verification() == EventRoster.Verification.REJECTED ? me.verificationNote() : "")
+                        .put("instructions", settings.verification().required() ? EventRoster.askText(settings.verification()) : ""))
                 .put("buyIn", DataObject.empty().put("enabled", settings.buyIn().enabled()).put("amount", settings.buyIn().amount()).put("status", me.buyIn().name()))
                 .put("rank", rank).put("of", standings.size()).put("points", mineStanding == null ? 0 : mineStanding.points())
                 .put("objectives", objectives).put("pendingProof", repository.pendingClaimsFor(event.id(), userId)).put("awards", awards);

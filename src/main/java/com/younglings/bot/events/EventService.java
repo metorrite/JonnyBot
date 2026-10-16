@@ -130,6 +130,15 @@ public class EventService {
             throw new EventProblem(409, "An event can't go from " + label(event.status()) + " to " + label(to) + ".");
         }
         if (to == Status.RUNNING && repository.objectives(id).isEmpty()) throw new EventProblem(409, "Add at least one objective before the event starts.");
+        if (to == Status.RUNNING) {
+            // an event that follows the setup checklist, or asks for verification before the start, can't start until that is settled
+            EventSettings settings = settingsOf(event);
+            boolean gated = settings.setupMode() != EventPrep.Mode.OFF || (settings.verification().required() && settings.verification().gate() == EventRoster.Gate.START);
+            if (gated) {
+                EventPrep.Prep prep = prepOf(event);
+                if (!prep.ready()) throw new EventProblem(409, "The event isn't ready to start yet.", prep.blockers());
+            }
+        }
         if (!repository.moveStage(guildId, id, event.status(), to)) throw new EventProblem(409, "Someone else already moved this event.");
         changes.publish(EventChanges.Kind.STAGE, guildId, id);
     }
@@ -289,7 +298,7 @@ public class EventService {
         Event event = event(guildId, id);
         if (!EventRules.acceptsJoins(event.status())) throw new EventProblem(409, "This event isn't taking signups.");
         EventSettings settings = settingsOf(event);
-        if (!staff && !settings.selfSignupOpen(Instant.now())) throw new EventProblem(409, "Signups have closed. Ask an organiser to add you.");
+        if (!staff && (repository.setup(id).signupsClosed() || !settings.selfSignupOpen(Instant.now()))) throw new EventProblem(409, "Signups have closed. Ask an organiser to add you.");
         Kind kind = kindOverride != null ? kindOverride : kinds.kindOf(guildId, userGuildId, userId);
         if (!TeamRules.mayJoin(settings.teamPolicy(), kind)) throw new EventProblem(409, "This event isn't open to " + describe(kind) + ".");
         if (teamId != null) checkTeam(id, settings, teamId, kind, userId);
@@ -299,6 +308,7 @@ public class EventService {
         var waiting = repository.join(id, userId, userGuildId, teamId, kind, settings.buyIn().enabled() ? BuyInStatus.DUE : BuyInStatus.NONE, event.maxParticipants());
         if (waiting.isEmpty()) throw new EventProblem(409, "That player is already in the event.");
         repository.clearRefusal(id, userId);
+        changes.publish(EventChanges.Kind.ROSTER, guildId, id);
         if (!waiting.get()) return new Joined(false, 0);
         return new Joined(true, QueueRules.position(settings.queue(), queueEntries(id), userId));
     }
@@ -332,6 +342,72 @@ public class EventService {
             QueueRules.Entry next = QueueRules.next(settingsOf(event).queue(), queueEntries(id));
             if (next != null) repository.promote(id, next.userId(), event.maxParticipants());
         }
+        changes.publish(EventChanges.Kind.ROSTER, guildId, id);
+    }
+
+    // ---------- closing signups, the roster and verification ----------
+
+    public EventRepository.Setup setupOf(long eventId) {
+        return repository.setup(eventId);
+    }
+
+    /** The setup checklist for an event: what is done, what to do now, and what stops it from starting. */
+    public EventPrep.Prep prepOf(Event event) {
+        EventSettings settings = settingsOf(event);
+        EventRepository.Setup setup = repository.setup(event.id());
+        List<Participant> players = repository.participants(event.id());
+        List<EventRoster.Verification> held = players.stream().filter(p -> !p.waiting()).map(Participant::verification).toList();
+        return EventPrep.of(new EventPrep.Facts(event.status(), settings.setupMode(), !repository.objectives(event.id()).isEmpty(), setup.signupsClosed(), setup.rosterConfirmed(),
+                held.size(), players.size() - held.size(), settings.verification(), EventRoster.tally(held, settings.verification())));
+    }
+
+    /**
+     * Closes signups: from now players can't join themselves (staff can still add late entries). The Discord signup is paused and the roster synced one last
+     * time by {@link EventSignups#closeSignups}, which is what callers use; this is the rule itself.
+     */
+    public void closeSignups(long guildId, long id, long actorId) {
+        Event event = event(guildId, id);
+        if (event.status() != Status.SIGNUPS) throw new EventProblem(409, "Signups can only be closed while the event is taking them.");
+        if (!repository.closeSignups(id, actorId)) throw new EventProblem(409, "Signups are already closed.");
+        changes.publish(EventChanges.Kind.ROSTER, guildId, id);
+    }
+
+    /** Opens signups again. The roster has to be confirmed again once they are closed. */
+    public void reopenSignups(long guildId, long id) {
+        Event event = event(guildId, id);
+        if (!EventPrep.canReopenSignups(event.status(), repository.setup(id).signupsClosed())) throw new EventProblem(409, "Signups aren't closed, or the event has moved on, so they can't be reopened.");
+        if (!repository.reopenSignups(id)) throw new EventProblem(409, "Signups aren't closed.");
+        changes.publish(EventChanges.Kind.ROSTER, guildId, id);
+    }
+
+    /** Says the roster has been checked and is final. Signups have to be closed first. */
+    public void confirmRoster(long guildId, long id, long actorId) {
+        Event event = event(guildId, id);
+        EventRepository.Setup setup = repository.setup(id);
+        if (event.status() != Status.SIGNUPS) throw new EventProblem(409, "The roster can only be confirmed while the event is taking signups.");
+        if (!setup.signupsClosed()) throw new EventProblem(409, "Close signups first, so the roster can't change under you.");
+        if (setup.rosterConfirmed()) throw new EventProblem(409, "The roster is already confirmed.");
+        if (!repository.confirmRoster(id, actorId)) throw new EventProblem(409, "The roster is already confirmed.");
+        changes.publish(EventChanges.Kind.ROSTER, guildId, id);
+    }
+
+    /** An organiser's decision on a player's verification: verified, turned down (with a reason), waived, or back to pending. Only for an event that asks for it. */
+    public void setVerification(long guildId, long id, long userId, EventRoster.Verification to, long actorId, String note) {
+        Event event = event(guildId, id);
+        if (event.status() == Status.DONE || event.status() == Status.CANCELLED) throw new EventProblem(409, "This event is over.");
+        if (!settingsOf(event).verification().required()) throw new EventProblem(409, "This event doesn't ask for verification. Turn it on in the event's settings first.");
+        if (!EventRoster.settable(to)) throw new EventProblem(400, "Choose verified, waived, turned down or pending.");
+        String cleanNote = clean(note);
+        if (cleanNote.length() > EventRules.MAX_NOTE) throw new EventProblem(400, "Keep the note to " + EventRules.MAX_NOTE + " characters or fewer.");
+        if (to == EventRoster.Verification.REJECTED && cleanNote.isEmpty()) throw new EventProblem(400, "Say why they were turned down, so they can fix it.");
+        repository.participant(id, userId).orElseThrow(() -> new EventProblem(404, "That player isn't in the event."));
+        if (!repository.setVerification(id, userId, to, actorId, cleanNote)) throw new EventProblem(404, "That player isn't in the event.");
+        changes.publish(EventChanges.Kind.ROSTER, guildId, id);
+    }
+
+    /** Whether a player may take part once the event runs: always without verification, otherwise only when verified or waived. */
+    public boolean mayPlay(Event event, Participant player) {
+        return EventRoster.counts(player.verification(), settingsOf(event).verification(), EventRoster.Gate.START);
     }
 
     public void setTeam(long guildId, long id, long userId, Long teamId) {
@@ -467,6 +543,7 @@ public class EventService {
         if (!EventRules.evidenceAllows(objective.evidence(), source)) throw new EventProblem(409, "\"" + objective.label() + "\" doesn't accept progress that way.");
         Participant player = repository.participant(id, userId).orElseThrow(() -> new EventProblem(404, "That player isn't in the event."));
         if (player.waiting()) throw new EventProblem(409, "That player is on the waitlist, so progress doesn't count yet.");
+        if (source != Source.MANUAL && !mayPlay(event, player)) throw new EventProblem(409, "That player hasn't been verified for this event, so progress doesn't count. An organiser can verify or waive them.");
 
         boolean byTeam = event.scoringMode() == ScoringMode.TEAM;
         if (byTeam && player.teamId() == null) throw new EventProblem(409, "Put that player in a team first: this event is scored by team.");
@@ -505,7 +582,8 @@ public class EventService {
         ObjectiveSpec objective = repository.objectives(id).stream().filter(o -> o.key().equals(objectiveKey)).findFirst()
                 .orElseThrow(() -> new EventProblem(404, "That objective doesn't exist."));
         if (!EventRules.evidenceAllows(objective.evidence(), Source.CLAIM)) throw new EventProblem(409, "\"" + objective.label() + "\" can't be claimed with proof.");
-        if (repository.participant(id, userId).isEmpty()) throw new EventProblem(404, "That player isn't in the event.");
+        Participant claimant = repository.participant(id, userId).orElseThrow(() -> new EventProblem(404, "That player isn't in the event."));
+        if (!mayPlay(event, claimant)) throw new EventProblem(409, "You haven't been verified for this event yet, so claims aren't open to you. " + EventRoster.askText(settingsOf(event).verification()));
         if (amount < 1 || amount > objective.target()) throw new EventProblem(400, "Claim between 1 and " + objective.target() + ".");
         String cleanNote = clean(note);
         if (cleanNote.length() > EventRules.MAX_NOTE) throw new EventProblem(400, "Keep the note to " + EventRules.MAX_NOTE + " characters or fewer.");

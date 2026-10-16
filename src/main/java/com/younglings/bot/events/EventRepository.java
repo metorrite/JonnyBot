@@ -44,8 +44,25 @@ public class EventRepository {
 
     public record Team(long id, long eventId, String name, Long captainId) {}
 
-    /** {@code waiting} is true while the player is on the waitlist of a full event; {@code buyIn} is their buy-in stage. */
-    public record Participant(long eventId, long userId, long guildId, Long teamId, Kind kind, boolean waiting, BuyInStatus buyIn, Instant joinedAt) {}
+    /**
+     * {@code waiting} is true while the player is on the waitlist of a full event; {@code buyIn} is their buy-in stage. {@code verification} is what is
+     * stored (PENDING until someone decides); how it reads depends on whether the event asks for verification, see {@link EventRoster#effective}.
+     */
+    public record Participant(long eventId, long userId, long guildId, Long teamId, Kind kind, boolean waiting, BuyInStatus buyIn, Instant joinedAt,
+                              EventRoster.Verification verification, Long verifiedBy, Instant verifiedAt, String verificationNote) {}
+
+    /** Where an event is in its setup: when signups were closed and the roster confirmed, and by whom. Nothing set until an organiser does it. */
+    public record Setup(Instant signupsClosedAt, Long signupsClosedBy, Instant rosterConfirmedAt, Long rosterConfirmedBy) {
+        public static final Setup NONE = new Setup(null, null, null, null);
+
+        public boolean signupsClosed() {
+            return signupsClosedAt != null;
+        }
+
+        public boolean rosterConfirmed() {
+            return rosterConfirmedAt != null;
+        }
+    }
 
     /** What one person is owed for one prize at one place, and where that stands. */
     public record AwardRow(long id, long eventId, long prizeId, int place, long userId, PrizeKind kind, String description, long amount, AwardStatus status,
@@ -205,6 +222,21 @@ public class EventRepository {
                     at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 );
                 """,
+                // where an event is in its setup (signups closed, roster confirmed); a row only exists once an organiser has done one of them
+                """
+                CREATE TABLE IF NOT EXISTS younglings.event_setup (
+                    event_id BIGINT PRIMARY KEY REFERENCES younglings.event (id) ON DELETE CASCADE,
+                    signups_closed_at TIMESTAMPTZ NULL,
+                    signups_closed_by BIGINT NULL,
+                    roster_confirmed_at TIMESTAMPTZ NULL,
+                    roster_confirmed_by BIGINT NULL
+                );
+                """,
+                // verification: PENDING means nobody has decided yet, and only matters when the event asks for verification
+                "ALTER TABLE younglings.event_participant ADD COLUMN IF NOT EXISTS verification TEXT NOT NULL DEFAULT 'PENDING';",
+                "ALTER TABLE younglings.event_participant ADD COLUMN IF NOT EXISTS verified_by BIGINT NULL;",
+                "ALTER TABLE younglings.event_participant ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ NULL;",
+                "ALTER TABLE younglings.event_participant ADD COLUMN IF NOT EXISTS verification_note TEXT NOT NULL DEFAULT '';",
                 // Discord signups the event's rules turned away, and why, so staff can see them and the player is told once
                 """
                 CREATE TABLE IF NOT EXISTS younglings.event_signup_refusal (
@@ -396,6 +428,101 @@ public class EventRepository {
             return list;
         } catch (SQLException e) {
             throw new RuntimeException("Failed to read the events with signups", e);
+        }
+    }
+
+    /** Events (in every server) in {@code status}, for sweeps that act on all of them. */
+    public List<Event> eventsInStatus(Status status) {
+        List<Event> list = new ArrayList<>();
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("SELECT * FROM younglings.event WHERE status = ? ORDER BY id")) {
+            s.setString(1, status.name());
+            try (ResultSet rs = s.executeQuery()) {
+                while (rs.next()) list.add(mapEvent(rs));
+            }
+            return list;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read the events", e);
+        }
+    }
+
+    // ---------- setup: closing signups, confirming the roster ----------
+
+    public Setup setup(long eventId) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(
+                "SELECT signups_closed_at, signups_closed_by, roster_confirmed_at, roster_confirmed_by FROM younglings.event_setup WHERE event_id = ?")) {
+            s.setLong(1, eventId);
+            try (ResultSet rs = s.executeQuery()) {
+                if (!rs.next()) return Setup.NONE;
+                Timestamp closed = rs.getTimestamp("signups_closed_at");
+                Timestamp confirmed = rs.getTimestamp("roster_confirmed_at");
+                return new Setup(closed == null ? null : closed.toInstant(), nullableLong(rs, "signups_closed_by"), confirmed == null ? null : confirmed.toInstant(),
+                        nullableLong(rs, "roster_confirmed_by"));
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read the event's setup", e);
+        }
+    }
+
+    /** Marks signups closed. False when they already were (so closing twice does nothing and can't say it worked). */
+    public boolean closeSignups(long eventId, long by) {
+        String sql = """
+                INSERT INTO younglings.event_setup (event_id, signups_closed_at, signups_closed_by) VALUES (?, NOW(), ?)
+                ON CONFLICT (event_id) DO UPDATE SET signups_closed_at = NOW(), signups_closed_by = EXCLUDED.signups_closed_by
+                WHERE younglings.event_setup.signups_closed_at IS NULL
+                """;
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
+            s.setLong(1, eventId);
+            s.setLong(2, by);
+            return s.executeUpdate() == 1;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to close the signups", e);
+        }
+    }
+
+    /** Opens signups again, which also takes back a confirmed roster (it has to be checked again). False when they weren't closed. */
+    public boolean reopenSignups(long eventId) {
+        String sql = """
+                UPDATE younglings.event_setup SET signups_closed_at = NULL, signups_closed_by = NULL, roster_confirmed_at = NULL, roster_confirmed_by = NULL
+                WHERE event_id = ? AND signups_closed_at IS NOT NULL
+                """;
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
+            s.setLong(1, eventId);
+            return s.executeUpdate() == 1;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to reopen the signups", e);
+        }
+    }
+
+    /** Marks the roster confirmed. False unless signups are closed and it wasn't confirmed already. */
+    public boolean confirmRoster(long eventId, long by) {
+        String sql = """
+                UPDATE younglings.event_setup SET roster_confirmed_at = NOW(), roster_confirmed_by = ?
+                WHERE event_id = ? AND signups_closed_at IS NOT NULL AND roster_confirmed_at IS NULL
+                """;
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
+            s.setLong(1, by);
+            s.setLong(2, eventId);
+            return s.executeUpdate() == 1;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to confirm the roster", e);
+        }
+    }
+
+    /** Records an organiser's decision on a player's verification. False when the player isn't in the event. */
+    public boolean setVerification(long eventId, long userId, EventRoster.Verification to, Long by, String note) {
+        String sql = """
+                UPDATE younglings.event_participant SET verification = ?, verified_by = ?, verified_at = NOW(), verification_note = ?
+                WHERE event_id = ? AND user_id = ?
+                """;
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
+            s.setString(1, to.name());
+            if (by == null) s.setNull(2, Types.BIGINT); else s.setLong(2, by);
+            s.setString(3, note == null ? "" : note);
+            s.setLong(4, eventId);
+            s.setLong(5, userId);
+            return s.executeUpdate() == 1;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to save the verification", e);
         }
     }
 
@@ -1123,8 +1250,11 @@ public class EventRepository {
             if (userId != null) s.setLong(2, userId);
             try (ResultSet rs = s.executeQuery()) {
                 while (rs.next()) {
+                    Timestamp verifiedAt = rs.getTimestamp("verified_at");
                     list.add(new Participant(eventId, rs.getLong("user_id"), rs.getLong("guild_id"), nullableLong(rs, "team_id"), Kind.valueOf(rs.getString("kind")),
-                            rs.getString("status").equals("WAITING"), BuyInStatus.valueOf(rs.getString("buy_in_status")), rs.getTimestamp("joined_at").toInstant()));
+                            rs.getString("status").equals("WAITING"), BuyInStatus.valueOf(rs.getString("buy_in_status")), rs.getTimestamp("joined_at").toInstant(),
+                            EventRoster.Verification.valueOf(rs.getString("verification")), nullableLong(rs, "verified_by"), verifiedAt == null ? null : verifiedAt.toInstant(),
+                            rs.getString("verification_note")));
                 }
             }
             return list;
