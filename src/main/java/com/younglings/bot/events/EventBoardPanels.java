@@ -115,15 +115,30 @@ public class EventBoardPanels {
             List<ObjectiveSpec> objectives = service.objectives(eventId);
             standings = service.standings(guildId, eventId);
             int subjects = subjectCount(event, standings);
-            tileViews = BingoBoardView.shared(BingoBoardView.boardKeys(config), objectives, standings, subjects, tiles::iconKeyFor);
+            Map<String, String> firstBy = new java.util.HashMap<>();
+            if (BingoTemplate.layoutOf(config).isPresent()) {
+                // who got each tile first, for the line under a finished tile on the picture shapes
+                boolean byTeam = event.scoringMode() == EventRules.ScoringMode.TEAM;
+                List<EventScoring.Entry> entries = new java.util.ArrayList<>();
+                for (EventRepository.Progress p : repository.progress(eventId)) {
+                    if (byTeam && p.teamId() == null) continue;
+                    entries.add(new EventScoring.Entry(byTeam ? "t:" + p.teamId() : "u:" + p.userId(), p.objectiveKey(), p.amount(), p.createdAt()));
+                }
+                var teams = repository.teams(eventId);
+                BingoBoardView.firstCompleters(objectives, entries).forEach((key, subject) -> firstBy.put(key, nameOf(guild, subject, teams)));
+            }
+            tileViews = BingoBoardView.shared(BingoBoardView.boardKeys(config), objectives, standings, subjects, tiles::iconKeyFor, firstBy);
             text = panelText(guild, event, standings);
         } catch (RuntimeException e) {
             log.warn("Could not build the board of event {}", eventId, e);
             return "The board couldn't be built: " + e.getMessage();
         }
         try {
-            png = BingoBoardImage.render(event.name(), stageText(event.status()) + " · tiles show how many " + (event.scoringMode() == EventRules.ScoringMode.TEAM ? "teams" : "players") + " have them",
-                    BingoBoardView.boardSize(config), tileViews, "Submit proof with /events submit event:" + eventId + " and the tile's number");
+            var layout = BingoTemplate.layoutOf(config);
+            png = layout.isPresent()
+                    ? BingoBoardImage.render(layout.get(), tileViews)
+                    : BingoBoardImage.render(event.name(), stageText(event.status()) + " · tiles show how many " + (event.scoringMode() == EventRules.ScoringMode.TEAM ? "teams" : "players") + " have them",
+                            BingoBoardView.boardSize(config), tileViews, "Submit proof with /events submit event:" + eventId + " and the tile's number");
         } catch (IOException | RuntimeException | LinkageError e) {
             // a server with no usable fonts can't draw text onto a picture (LinkageError: the font system failed to start once and stays unusable);
             // the board is then posted as text so it still works
@@ -207,18 +222,19 @@ public class EventBoardPanels {
             int rank = 1;
             for (Standing s : standings) {
                 if (rank > 5) break;
-                long id = Long.parseLong(s.subject().substring(2));
-                String name;
-                if (s.subject().startsWith("t:")) {
-                    name = teams.stream().filter(t -> t.id() == id).map(EventRepository.Team::name).findFirst().orElse("A team");
-                } else {
-                    Member member = guild.getMemberById(id);
-                    name = member == null ? "Player" : member.getEffectiveName();
-                }
+                String name = nameOf(guild, s.subject(), teams);
                 text.append("\n").append(rank++).append(". **").append(name).append("** · ").append(s.points()).append(" pts · ").append(s.objectivesCompleted()).append(" tiles");
             }
         }
         return text.toString();
+    }
+
+    /** A subject of the standings ("u:id" for a player, "t:id" for a team) as a name: the member's server name, or the team's name. */
+    private static String nameOf(Guild guild, String subject, List<EventRepository.Team> teams) {
+        long id = Long.parseLong(subject.substring(2));
+        if (subject.startsWith("t:")) return teams.stream().filter(t -> t.id() == id).map(EventRepository.Team::name).findFirst().orElse("A team");
+        Member member = guild.getMemberById(id);
+        return member == null ? "Player" : member.getEffectiveName();
     }
 
     /** DMs a player whose proof was decided. A closed DM is fine: nothing else depends on it. */

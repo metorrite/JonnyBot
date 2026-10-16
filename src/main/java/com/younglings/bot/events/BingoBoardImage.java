@@ -7,6 +7,9 @@ import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
+import java.awt.Shape;
+import java.awt.geom.Area;
+import java.awt.geom.Ellipse2D;
 import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
@@ -32,9 +35,13 @@ public final class BingoBoardImage {
      * One tile as drawn. {@code count} of {@code of} have completed it on a shared board; {@code of} 0 means a personal board with no counts.
      * {@code iconKey} names the item picture to draw above the text (see {@link BingoTiles}), or is null for a tile without one.
      */
-    public record TileView(int number, String label, long points, boolean done, int count, int of, String iconKey) {
+    public record TileView(int number, String label, long points, boolean done, int count, int of, String iconKey, String by, boolean locked) {
         public TileView(int number, String label, long points, boolean done, int count, int of) {
-            this(number, label, points, done, count, of, null);
+            this(number, label, points, done, count, of, null, null, false);
+        }
+
+        public TileView(int number, String label, long points, boolean done, int count, int of, String iconKey) {
+            this(number, label, points, done, count, of, iconKey, null, false);
         }
     }
 
@@ -176,6 +183,142 @@ public final class BingoBoardImage {
         }
 
         if (t.done()) drawTick(g, x + tile - 26, y + 12, 16);
+    }
+
+    // ---------- the picture shapes ----------
+
+    private static final Color INSET_FALLBACK = new Color(0x0a1015);
+    private static final Color CENTRE = new Color(0x3b2230);
+    private static final Color COMPLETE = new Color(0x35ce72);
+    private static final Color BADGE = new Color(0xc7a35f);
+
+    /**
+     * Draws a board in one of the picture shapes: the shape's own picture with each tile's place filled in. The picture has printed placeholders
+     * ("ITEM ICON", "PLAYER NAME") that are covered first, using the colour the picture itself has there. A finished tile is tinted green, shows
+     * its item picture or its text, and under it who completed it first (and how many others did too); a tile not finished shows what it is
+     * worth. On a personal board a tile that hasn't opened yet is dimmed. {@code tiles} are in the picture's numbering.
+     */
+    public static byte[] render(BingoLayout layout, List<TileView> tiles) throws IOException {
+        if (tiles.size() != layout.tiles()) throw new IllegalArgumentException("The " + layout.name() + " board needs " + layout.tiles() + " tiles.");
+        BufferedImage base = layout.image();
+        BufferedImage image = new BufferedImage(base.getWidth(), base.getHeight(), BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = image.createGraphics();
+        try {
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            g.drawImage(base, 0, 0, null);
+            for (int i = 0; i < tiles.size(); i++) drawPlace(g, base, layout.slots().get(i), tiles.get(i));
+        } finally {
+            g.dispose();
+        }
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ImageIO.write(image, "png", out);
+        return out.toByteArray();
+    }
+
+    private static Color colourAt(BufferedImage base, int x, int y, Color fallback) {
+        if (x < 0 || y < 0 || x >= base.getWidth() || y >= base.getHeight()) return fallback;
+        Color c = new Color(base.getRGB(x, y));
+        return c.getAlpha() < 255 ? fallback : c;
+    }
+
+    private static void drawPlace(Graphics2D g, BufferedImage base, BingoLayout.Slot slot, TileView t) {
+        int[] b = slot.bounds();
+        int[] ib = slot.icon();
+        int[] nb = slot.name();
+        Shape shape = slot.round() ? new Ellipse2D.Float(b[0] + 6, b[1] + 6, b[2] - 12, b[3] - 12) : new RoundRectangle2D.Float(b[0], b[1], b[2], b[3], 18, 18);
+
+        // cover what the picture printed there
+        if (slot.round()) {
+            g.setColor(CENTRE);
+            g.fill(shape);
+        } else {
+            g.setColor(colourAt(base, ib[0] + 8, ib[1] + 8, INSET_FALLBACK));
+            g.fillRoundRect(ib[0] - 3, ib[1] - 3, ib[2] + 6, ib[3] + 6, 8, 8);
+            g.setColor(colourAt(base, nb[0] + 5, nb[1] + 9, INSET_FALLBACK));
+            g.fillRoundRect(nb[0] - 1, nb[1] - 1, nb[2] + 2, nb[3] + 2, 6, 6);
+        }
+        if (t.done()) {
+            g.setColor(new Color(COMPLETE.getRed(), COMPLETE.getGreen(), COMPLETE.getBlue(), 70));
+            g.fill(shape);
+        }
+
+        drawLabel(g, ib, t, slot.round());
+        drawUnder(g, nb, t);
+        if (t.done()) drawTick(g, b[0] + b[2] - (slot.round() ? 36 : 26), b[1] + (slot.round() ? 16 : 10), 14);
+        if (slot.round()) {
+            // the centre has no printed number badge like the other places, so one is drawn on the circle's edge
+            int cx = b[0] + b[2] / 2 - Math.round(b[2] * 0.354f);
+            int cy = b[1] + b[3] / 2 - Math.round(b[3] * 0.354f);
+            g.setColor(BADGE);
+            g.fill(new Ellipse2D.Float(cx - 12, cy - 12, 24, 24));
+            g.setColor(new Color(0x1b1b1b));
+            g.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 11));
+            String number = Integer.toString(t.number());
+            FontMetrics nm = g.getFontMetrics();
+            g.drawString(number, cx - nm.stringWidth(number) / 2, cy + (nm.getAscent() - nm.getDescent()) / 2);
+        }
+        if (t.locked() && !t.done()) {
+            // dimmed, but the number badge stays readable: it is what a player types to submit proof for the tile
+            Area dim = new Area(shape);
+            dim.subtract(new Area(new Ellipse2D.Float(b[0] - 4, b[1] - 4, 27, 27)));
+            g.setColor(new Color(6, 10, 14, 135));
+            g.fill(dim);
+        }
+    }
+
+    /** The tile's picture and name inside {@code box}: the item picture above two lines of text, or only text when there is no picture. */
+    private static void drawLabel(Graphics2D g, int[] box, TileView t, boolean round) {
+        String label = t.label();
+        BufferedImage icon = BingoTiles.icon(t.iconKey()).orElse(null);
+        // with a picture the boss is dropped from "Boss: item" to leave room; without one the whole label is the only clue
+        int colon = label.indexOf(": ");
+        String main = icon != null && colon > 0 && colon < label.length() - 2 ? label.substring(colon + 2) : label;
+        Font font = new Font(Font.SANS_SERIF, Font.BOLD, icon != null ? 10 : 12);
+        g.setFont(font);
+        FontMetrics fm = g.getFontMetrics(font);
+        int lineHeight = fm.getHeight() - 1;
+        int maxLines = icon != null ? 2 : 5;
+        List<String> lines = wrap(fm, main, box[2], maxLines);
+        int iconHeight = icon == null ? 0 : Math.min(round ? 28 : 34, box[3] - lines.size() * lineHeight - 2);
+        int blockHeight = iconHeight + (icon == null ? 0 : 2) + lines.size() * lineHeight;
+        int y = box[1] + Math.max(0, (box[3] - blockHeight) / 2);
+        if (icon != null && iconHeight > 8) {
+            int scale = Math.max(1, Math.min(iconHeight / Math.max(1, icon.getHeight()), box[2] / Math.max(1, icon.getWidth())));
+            int w = icon.getWidth() * scale;
+            int h = icon.getHeight() * scale;
+            Object previous = g.getRenderingHint(RenderingHints.KEY_INTERPOLATION);
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+            g.drawImage(icon, box[0] + (box[2] - w) / 2, y + (iconHeight - h) / 2, w, h, null);
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, previous == null ? RenderingHints.VALUE_INTERPOLATION_BILINEAR : previous);
+            y += iconHeight + 2;
+        }
+        g.setFont(font);
+        g.setColor(t.done() ? TEXT : new Color(0xc9d0dc));
+        for (String line : lines) {
+            g.drawString(line, box[0] + (box[2] - fm.stringWidth(line)) / 2, y + fm.getAscent() - 1);
+            y += lineHeight;
+        }
+    }
+
+    /** The line under a tile: who completed it first (and how many others did too), or what it is worth while it isn't done. */
+    private static void drawUnder(Graphics2D g, int[] box, TileView t) {
+        String text;
+        Color colour;
+        if (t.done()) {
+            String who = t.by() == null || t.by().isBlank() ? "Done" : t.by();
+            text = t.count() > 1 ? who + " +" + (t.count() - 1) : who;
+            colour = GOLD;
+        } else {
+            text = t.points() + " pts";
+            colour = MUTED;
+        }
+        Font font = new Font(Font.SANS_SERIF, Font.BOLD, 11);
+        g.setFont(font);
+        FontMetrics fm = g.getFontMetrics(font);
+        String shown = ellipsize(fm, text, box[2] - 8);
+        g.setColor(colour);
+        g.drawString(shown, box[0] + (box[2] - fm.stringWidth(shown)) / 2, box[1] + (box[3] + fm.getAscent() - fm.getDescent()) / 2);
     }
 
     private static void drawTick(Graphics2D g, int x, int y, int s) {

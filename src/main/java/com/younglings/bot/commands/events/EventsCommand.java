@@ -173,8 +173,11 @@ public class EventsCommand {
             DataObject config = DataObject.fromJson(target.config());
             var tiles = panels.personalTiles(target, userId);
             int done = (int) tiles.stream().filter(BingoBoardImage.TileView::done).count();
-            byte[] png = BingoBoardImage.render(target.name(), "Your board", BingoBoardView.boardSize(config), tiles,
-                    done + " of " + tiles.size() + " tiles done · submit proof with /events submit event:" + target.id());
+            var layout = BingoTemplate.layoutOf(config);
+            byte[] png = layout.isPresent()
+                    ? BingoBoardImage.render(layout.get(), tiles)
+                    : BingoBoardImage.render(target.name(), "Your board", BingoBoardView.boardSize(config), tiles,
+                            done + " of " + tiles.size() + " tiles done · submit proof with /events submit event:" + target.id());
             event.getHook().sendFiles(FileUpload.fromData(png, "my-bingo-board.png")).queue();
         } catch (IOException | RuntimeException e) {
             event.getHook().sendMessage("I couldn't draw the board right now.").queue();

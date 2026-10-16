@@ -21,7 +21,7 @@ public final class EventQuickCreate {
 
     /** The kinds of event that can be made this way, with what the optional {@code detail} means for each. */
     public enum Kind {
-        BINGO(BingoTemplate.KEY, "Bingo", "Board size, 3 to 7 (default 5)"),
+        BINGO(BingoTemplate.KEY, "Bingo", "Board size, 3 to 7 (default 5), or a shape: path, pyramid, convergence or tree"),
         COMPETITION(CompetitionTemplate.KEY, "XP competition", "Skill name, or overall (default overall)"),
         BOSS_NIGHT(BossNightTemplate.KEY, "Boss night", "The boss (required)"),
         SCAVENGER_HUNT(ScavengerHuntTemplate.KEY, "Scavenger hunt", "How many items to find, 3 to 30 (default 8)");
@@ -62,6 +62,13 @@ public final class EventQuickCreate {
         }
     }
 
+    /** The board shape a bingo's detail names ("pyramid", "path", "convergence", "tree" or "world tree"), or null when it names none. */
+    static BingoLayout shapeNamed(String detail) {
+        if (detail == null) return null;
+        String word = detail.strip().toLowerCase(java.util.Locale.ROOT);
+        return BingoLayout.all().stream().filter(l -> l.id().equals(word) || l.name().toLowerCase(java.util.Locale.ROOT).contains(word) && word.length() >= 4).findFirst().orElse(null);
+    }
+
     /**
      * @param days         how long the event runs once it starts
      * @param startInHours when it is planned to start, counted from {@code now}
@@ -74,9 +81,15 @@ public final class EventQuickCreate {
         String about;
         switch (kind) {
             case BINGO -> {
-                int size = whole(detail, BingoTemplate.DEFAULT_SIZE, 3, 7, "The board size");
-                config.put("board", DataObject.empty().put("size", size));
-                about = size + "x" + size + " board";
+                BingoLayout shape = shapeNamed(detail);
+                if (shape != null) {
+                    config.put("board", DataObject.empty().put("layout", shape.id()));
+                    about = shape.name() + " board (" + shape.tiles() + " tiles)";
+                } else {
+                    int size = whole(detail, BingoTemplate.DEFAULT_SIZE, 3, 7, "The board size");
+                    config.put("board", DataObject.empty().put("size", size));
+                    about = size + "x" + size + " board";
+                }
             }
             case COMPETITION -> {
                 Integer skill = skillByName(detail == null ? "" : detail);

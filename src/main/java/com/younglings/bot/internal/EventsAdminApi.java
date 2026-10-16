@@ -11,6 +11,7 @@ import com.younglings.bot.events.EventRules.Scope;
 import com.younglings.bot.events.EventRules.ScoringMode;
 import com.younglings.bot.events.EventRules.Source;
 import com.younglings.bot.events.EventRules.Status;
+import com.younglings.bot.events.BingoLayout;
 import com.younglings.bot.events.BingoTemplate;
 import com.younglings.bot.events.BingoTiles;
 import com.younglings.bot.events.EventBoardPanels;
@@ -101,6 +102,12 @@ public class EventsAdminApi implements AdminRouteExtension {
         if (parts.length == 2 && parts[1].equals("bingo-catalog")) {
             AdminRouteExtension.requireMethod(method, "GET");
             return tiles.choices();
+        }
+        if (parts.length == 2 && parts[1].equals("bingo-layouts")) {
+            AdminRouteExtension.requireMethod(method, "GET");
+            DataArray shapes = DataArray.empty();
+            BingoLayout.all().forEach(l -> shapes.add(layoutJson(l)));
+            return DataObject.empty().put("layouts", shapes);
         }
         if (parts.length == 2 && parts[1].equals("archive-finished")) {
             AdminRouteExtension.requireMethod(method, "POST");
@@ -335,7 +342,17 @@ public class EventsAdminApi implements AdminRouteExtension {
         }
         DataArray organisers = DataArray.empty();
         settings.organisers().forEach(o -> organisers.add(DataObject.empty().put("userId", Long.toString(o)).put("userName", name(guild, o))));
-        return DataObject.empty().put("tiles", tileInfo).put("organisers", organisers).put("refused", refused).put("event", eventJson(e)).put("signup", DataObject.empty().put("attached", signup.attached()).put("active", signup.active())
+        DataObject layout = null;
+        if (e.template().equals(BingoTemplate.KEY)) {
+            try {
+                DataObject config = DataObject.fromJson(e.config());
+                var shape = BingoTemplate.layoutOf(config);
+                if (shape.isPresent()) layout = layoutJson(shape.get()).put("unlock", BingoTemplate.unlockedInOrder(config) ? BingoTemplate.UNLOCK_LOCKED : BingoTemplate.UNLOCK_FREE);
+            } catch (RuntimeException ignored) {
+                // an unreadable board has no shape to show
+            }
+        }
+        return DataObject.empty().put("layout", layout).put("tiles", tileInfo).put("organisers", organisers).put("refused", refused).put("event", eventJson(e)).put("signup", DataObject.empty().put("attached", signup.attached()).put("active", signup.active())
                         .put("entries", signup.entries()).put("channelsChosen", signup.channelsChosen())).put("prizes", prizes).put("pot", service.pot(guild.getIdLong(), id)).put("potVisible", PrizeRules.potVisible(settings.buyIn()))
                 .put("buyInEnabled", settings.buyIn().enabled()).put("objectives", objectives).put("teams", teams).put("participants", players).put("nextStages", next)
                 .put("editable", EventRules.editable(e.status()));
@@ -493,6 +510,26 @@ public class EventsAdminApi implements AdminRouteExtension {
 
     // ---------- bingo ----------
 
+    /** A board shape as the dashboard needs it: its tiles in rows from the top, and which tiles each one needs first. */
+    static DataObject layoutJson(BingoLayout l) {
+        DataArray rows = DataArray.empty();
+        l.rows().forEach(row -> {
+            DataArray numbers = DataArray.empty();
+            row.forEach(numbers::add);
+            rows.add(numbers);
+        });
+        DataArray rowNames = DataArray.empty();
+        l.rowNames().forEach(rowNames::add);
+        DataObject requires = DataObject.empty();
+        l.requires().forEach((number, needs) -> {
+            DataArray list = DataArray.empty();
+            needs.forEach(list::add);
+            requires.put(Integer.toString(number), list);
+        });
+        return DataObject.empty().put("id", l.id()).put("name", l.name()).put("blurb", l.blurb()).put("rule", l.rule()).put("tiles", l.tiles())
+                .put("rows", rows).put("rowNames", rowNames).put("requires", requires);
+    }
+
     DataObject rerollBingo(Guild guild, Member actor, long id, DataObject body) {
         Event event = service.event(guild.getIdLong(), id);
         if (!BingoTemplate.KEY.equals(event.template())) throw new ApiError(409, "This event isn't a bingo.");
@@ -511,7 +548,8 @@ public class EventsAdminApi implements AdminRouteExtension {
                 log.info("Dashboard: {} replaced tile {} of the bingo board of event {}", actor.getId(), number(r, "number", 0), id);
                 return detail(guild, id);
             }
-            var rerolled = bingo.reroll(DataObject.fromJson(event.config()), service.objectives(id), size, seed, locked);
+            String shape = body.hasKey("layout") && !body.isNull("layout") ? text(body, "layout") : null;
+            var rerolled = bingo.reroll(DataObject.fromJson(event.config()), service.objectives(id), size, seed, locked, shape == null || shape.isEmpty() ? null : shape);
             service.reconfigure(guild.getIdLong(), id, rerolled.config(), rerolled.objectives());
         } catch (IllegalArgumentException e) {
             throw new ApiError(400, e.getMessage());

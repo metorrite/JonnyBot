@@ -9,6 +9,7 @@ import java.time.Instant;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -41,6 +42,16 @@ class EventQuickCreateTest {
         assertEquals(4, plan(Kind.BINGO, " 4 ").config().getObject("board").getInt("size"));
         assertThrows(IllegalArgumentException.class, () -> plan(Kind.BINGO, "9"));
         assertThrows(IllegalArgumentException.class, () -> plan(Kind.BINGO, "big"));
+    }
+
+    @Test
+    void bingoCanBeStartedInOneOfTheBoardShapes() {
+        assertEquals("pyramid", plan(Kind.BINGO, " Pyramid ").config().getObject("board").getString("layout"));
+        assertEquals("tree", plan(Kind.BINGO, "world tree").config().getObject("board").getString("layout"));
+        assertEquals("convergence", plan(Kind.BINGO, "convergence").config().getObject("board").getString("layout"));
+        assertEquals("path", plan(Kind.BINGO, "path").config().getObject("board").getString("layout"));
+        assertFalse(plan(Kind.BINGO, "pyramid").config().getObject("board").hasKey("size"), "a shape has no square size");
+        assertThrows(IllegalArgumentException.class, () -> plan(Kind.BINGO, "spiral"));
     }
 
     @Test
