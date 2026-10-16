@@ -109,7 +109,7 @@ class EventBoardPanelsTest {
         });
 
         try (var drawing = org.mockito.Mockito.mockStatic(BingoBoardImage.class)) {
-            drawing.when(() -> BingoBoardImage.render(any(), any(), org.mockito.ArgumentMatchers.anyInt(), any(), any()))
+            drawing.when(() -> BingoBoardImage.render(any(net.dv8tion.jda.api.utils.data.DataObject.class), any(), any(), any(), any()))
                     .thenThrow(new RuntimeException("Fontconfig head is null, check your fonts or fonts configuration"));
 
             String result = panels.refresh(GUILD, EVENT);

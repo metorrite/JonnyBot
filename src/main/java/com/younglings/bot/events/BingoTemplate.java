@@ -26,6 +26,8 @@ import java.util.stream.Collectors;
  * the shape's rules about which tiles open first are enforced ({@code "locked"}, as prerequisites on the tiles) or only the bonuses apply
  * ({@code "free"}). Locked suits tasks players can plan; for rare drops that can't be banked, free is the fairer choice, so it is the default
  * unless the tiles come from the classic pool.
+ * <p>
+ * {@code board.look} picks what the board is drawn on ({@link BingoLooks}); it never changes the rules, so it can be changed at any time before the event is over.
  */
 @BService
 public class BingoTemplate implements EventTemplate {
@@ -119,6 +121,9 @@ public class BingoTemplate implements EventTemplate {
                 if (board.hasKey("layout") && !board.isNull("layout") && layout.isEmpty()) problems.add("Choose a board shape from the list.");
                 if (board.hasKey("unlock") && !board.isNull("unlock") && !List.of(UNLOCK_LOCKED, UNLOCK_FREE).contains(board.getString("unlock", ""))) {
                     problems.add("Tiles either unlock in order or in any order.");
+                }
+                if (board.hasKey("look") && !board.isNull("look") && !BingoLooks.valid(board.getString("look", ""))) {
+                    problems.add("Choose a board look from the list.");
                 }
             }
         } catch (RuntimeException e) {
@@ -328,6 +333,8 @@ public class BingoTemplate implements EventTemplate {
         DataObject stored = DataObject.empty().put("size", board.size()).put("seed", board.seed()).put("pool", pool).put("keys", keys);
         // a shaped board also records its shape and whether its rules about which tiles open first are enforced, so that never changes by accident later
         if (board.layout() != null) stored.put("layout", board.layout()).put("unlock", inOrder ? UNLOCK_LOCKED : UNLOCK_FREE);
+        // the look is the organiser's choice and survives a re-roll, a new shape or a swapped tile
+        BingoLooks.of(config).ifPresent(look -> stored.put("look", look));
         copy.put("board", stored);
         copy.put("bonuses", EventBonuses.toJson(board.bonuses()));
         return copy;

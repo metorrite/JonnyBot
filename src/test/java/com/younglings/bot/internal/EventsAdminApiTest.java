@@ -388,6 +388,46 @@ class EventsAdminApiTest {
     }
 
     @Test
+    void aBingosLookIsChosenAtCreationKeptThroughARerollAndChangedUntilTheEventIsOver() {
+        var looks = call("GET", "events/bingo-layouts", null).getArray("looks");
+        assertEquals(2, looks.length());
+        assertEquals("classic", looks.getObject(0).getString("id"));
+        assertEquals("runescape", looks.getObject(1).getString("id"));
+        assertFalse(looks.getObject(1).getString("label").isEmpty());
+
+        String id = create("{\"name\":\"Look night\",\"template\":\"bingo\",\"config\":{\"board\":{\"size\":3,\"seed\":4,\"look\":\"runescape\"}}}");
+        assertEquals("runescape", lookOf(call("GET", "events/" + id, null)));
+
+        var changed = call("POST", "events/" + id + "/look", "{\"look\":\"classic\"}");
+        assertEquals("classic", lookOf(changed));
+        assertEquals(9, count(changed.getArray("objectives")), "only the picture changed");
+        assertEquals("classic", lookOf(call("POST", "events/" + id + "/bingo", "{\"seed\":8}")), "a re-roll keeps the look");
+
+        assertEquals(400, failure("POST", "events/" + id + "/look", "{\"look\":\"neon\"}").status);
+        assertEquals("classic", lookOf(call("GET", "events/" + id, null)), "a refused change leaves it alone");
+        assertEquals(400, failure("POST", "events", "{\"name\":\"Bad look\",\"template\":\"bingo\",\"config\":{\"board\":{\"size\":3,\"look\":\"neon\"}}}").status);
+        assertNull(lookOf(call("POST", "events/" + id + "/look", "{\"look\":\"\"}")), "an empty look goes back to how the board was first drawn");
+
+        // it is only a picture, so it may change while the event runs, but not once the event is over
+        call("POST", "events/" + id + "/look", "{\"look\":\"runescape\"}");
+        call("POST", "events/" + id + "/status", "{\"status\":\"signups\"}");
+        call("POST", "events/" + id + "/status", "{\"status\":\"running\"}");
+        assertEquals("classic", lookOf(call("POST", "events/" + id + "/look", "{\"look\":\"classic\"}")));
+        call("POST", "events/" + id + "/status", "{\"status\":\"scoring\"}");
+        call("POST", "events/" + id + "/status", "{\"status\":\"done\"}");
+        assertEquals(409, failure("POST", "events/" + id + "/look", "{\"look\":\"runescape\"}").status);
+
+        String notBingo = create("{\"name\":\"Not a bingo\"}");
+        assertEquals(409, failure("POST", "events/" + notBingo + "/look", "{\"look\":\"classic\"}").status);
+    }
+
+    /** The look in an event's settings, or null when it has none. */
+    private static String lookOf(DataObject detail) {
+        var board = detail.getObject("event").getObject("config").getObject("board");
+        return board.hasKey("look") && !board.isNull("look") ? board.getString("look") : null;
+    }
+
+    @Test
     void theBingoRoutesRefuseAnEventThatIsntABingo() {
         String id = create("{\"name\":\"Not a bingo\"}");
         assertEquals(409, failure("POST", "events/" + id + "/bingo", "{\"seed\":1}").status);

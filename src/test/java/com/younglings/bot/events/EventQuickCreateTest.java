@@ -55,6 +55,20 @@ class EventQuickCreateTest {
     }
 
     @Test
+    void aBingoIsDrawnInTheDefaultLookUnlessOneIsChosen() {
+        assertEquals(BingoLooks.DEFAULT_FOR_NEW, plan(Kind.BINGO, null).config().getObject("board").getString("look"));
+        assertEquals(BingoLooks.DEFAULT_FOR_NEW, plan(Kind.BINGO, "pyramid").config().getObject("board").getString("look"), "shapes get it too");
+        EventInput chosen = EventQuickCreate.plan(Kind.BINGO, "Look night", 7, 24, "pyramid", NOW, BingoLooks.CLASSIC).input();
+        assertEquals(BingoLooks.CLASSIC, chosen.config().getObject("board").getString("look"));
+        assertValid(chosen, new BingoTemplate());
+        assertThrows(IllegalArgumentException.class, () -> EventQuickCreate.plan(Kind.BINGO, "x", 7, 24, null, NOW, "neon"));
+        assertFalse(plan(Kind.COMPETITION, null).config().hasKey("board"), "only a bingo has a board to draw");
+        assertTrue(EventQuickCreate.plan(Kind.BINGO, "x", 7, 24, "3", NOW, BingoLooks.RUNESCAPE).summary().contains("RuneScape"));
+        assertEquals("RuneScape", EventQuickCreate.Look.RUNESCAPE.toString());
+        assertEquals(BingoLooks.CLASSIC, EventQuickCreate.Look.TEMPLATE.id);
+    }
+
+    @Test
     void aCompetitionIsOverallUnlessASkillIsNamed() {
         assertEquals(CompetitionTemplate.OVERALL, plan(Kind.COMPETITION, null).config().getInt("skillId"));
         assertEquals(CompetitionTemplate.OVERALL, plan(Kind.COMPETITION, "Overall").config().getInt("skillId"));

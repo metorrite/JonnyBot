@@ -27,6 +27,14 @@ public final class BingoLayout {
     public static final String CONVERGENCE = "convergence";
     public static final String TREE = "tree";
 
+    /** A board's look: the picture the tiles are drawn on (see {@link BingoLooks}). */
+    public static final String LOOK_CLASSIC = BingoLooks.CLASSIC;
+    public static final String LOOK_RUNESCAPE = BingoLooks.RUNESCAPE;
+
+    public static List<String> looks() {
+        return BingoLooks.ids();
+    }
+
     /** One place on the picture. {@code bounds}, {@code icon} and {@code name} are {@code [x, y, width, height]} in picture pixels; {@code round} marks the centre circle. */
     public record Slot(int number, int[] bounds, int[] icon, int[] name, boolean round) {}
 
@@ -117,11 +125,17 @@ public final class BingoLayout {
     private static final Object LOCK = new Object();
     private static final Map<String, BufferedImage> IMAGES = new LinkedHashMap<>();
 
-    /** The empty board picture (read once and kept). Callers must not draw on it: copy it first. */
+    /** The empty board picture in the classic look (read once and kept). Callers must not draw on it: copy it first. */
     public BufferedImage image() {
+        return image(LOOK_CLASSIC);
+    }
+
+    /** The empty board picture in a look (read once and kept). The classic one has its "ITEM ICON" and "PLAYER NAME" placeholders printed in; the others are clean. */
+    public BufferedImage image(String look) {
+        String file = LOOK_RUNESCAPE.equals(look) ? "runescape/" + id + ".jpg" : image;
         synchronized (LOCK) {
-            return IMAGES.computeIfAbsent(id, k -> {
-                try (InputStream in = BingoLayout.class.getResourceAsStream("/bingo/" + image)) {
+            return IMAGES.computeIfAbsent(file, k -> {
+                try (InputStream in = BingoLayout.class.getResourceAsStream("/bingo/" + file)) {
                     if (in == null) throw new IllegalStateException("The picture for the " + name + " board is missing.");
                     return ImageIO.read(in);
                 } catch (IOException e) {
@@ -129,6 +143,11 @@ public final class BingoLayout {
                 }
             });
         }
+    }
+
+    /** Whether a look's picture has the printed placeholders that must be covered before drawing (only the classic template does). */
+    public static boolean hasPlaceholders(String look) {
+        return !LOOK_RUNESCAPE.equals(look);
     }
 
     // ---------- the shapes ----------

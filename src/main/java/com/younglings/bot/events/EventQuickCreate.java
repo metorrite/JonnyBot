@@ -37,6 +37,23 @@ public final class EventQuickCreate {
         }
     }
 
+    /** What a quick bingo's board is drawn on: the choices {@code /events create} offers (see {@link BingoLooks}). */
+    public enum Look {
+        RUNESCAPE(BingoLooks.RUNESCAPE),
+        TEMPLATE(BingoLooks.CLASSIC);
+
+        public final String id;
+
+        Look(String id) {
+            this.id = id;
+        }
+
+        @Override
+        public String toString() {
+            return BingoLooks.label(id);
+        }
+    }
+
     public record Plan(EventInput input, String summary) {}
 
     private EventQuickCreate() {}
@@ -75,6 +92,14 @@ public final class EventQuickCreate {
      * @param detail       the kind's one optional setting; see {@link Kind#detailHelp}
      */
     public static Plan plan(Kind kind, String name, int days, int startInHours, String detail, Instant now) {
+        return plan(kind, name, days, startInHours, detail, now, null);
+    }
+
+    /**
+     * As above, and a bingo's board is drawn in {@code look} ({@link BingoLooks#ids}; the default for new events when null). Other kinds have no board and ignore it.
+     */
+    public static Plan plan(Kind kind, String name, int days, int startInHours, String detail, Instant now, String look) {
+        if (look != null && !BingoLooks.valid(look)) throw new IllegalArgumentException("Choose a board look from the list.");
         if (days < 1 || days > MAX_DAYS) throw new IllegalArgumentException("An event can run for 1 to " + MAX_DAYS + " days.");
         if (startInHours < 0 || startInHours > MAX_START_HOURS) throw new IllegalArgumentException("It can start from now up to " + MAX_START_HOURS + " hours away.");
         DataObject config = DataObject.empty();
@@ -82,14 +107,16 @@ public final class EventQuickCreate {
         switch (kind) {
             case BINGO -> {
                 BingoLayout shape = shapeNamed(detail);
+                String boardLook = look == null ? BingoLooks.DEFAULT_FOR_NEW : look;
                 if (shape != null) {
-                    config.put("board", DataObject.empty().put("layout", shape.id()));
+                    config.put("board", DataObject.empty().put("layout", shape.id()).put("look", boardLook));
                     about = shape.name() + " board (" + shape.tiles() + " tiles)";
                 } else {
                     int size = whole(detail, BingoTemplate.DEFAULT_SIZE, 3, 7, "The board size");
-                    config.put("board", DataObject.empty().put("size", size));
+                    config.put("board", DataObject.empty().put("size", size).put("look", boardLook));
                     about = size + "x" + size + " board";
                 }
+                about += " · " + BingoLooks.label(boardLook) + " look";
             }
             case COMPETITION -> {
                 Integer skill = skillByName(detail == null ? "" : detail);

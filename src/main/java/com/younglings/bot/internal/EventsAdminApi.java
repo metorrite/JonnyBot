@@ -12,6 +12,7 @@ import com.younglings.bot.events.EventRules.ScoringMode;
 import com.younglings.bot.events.EventRules.Source;
 import com.younglings.bot.events.EventRules.Status;
 import com.younglings.bot.events.BingoLayout;
+import com.younglings.bot.events.BingoLooks;
 import com.younglings.bot.events.BingoTemplate;
 import com.younglings.bot.events.BingoTiles;
 import com.younglings.bot.events.EventBoardPanels;
@@ -107,7 +108,9 @@ public class EventsAdminApi implements AdminRouteExtension {
             AdminRouteExtension.requireMethod(method, "GET");
             DataArray shapes = DataArray.empty();
             BingoLayout.all().forEach(l -> shapes.add(layoutJson(l)));
-            return DataObject.empty().put("layouts", shapes);
+            DataArray looks = DataArray.empty();
+            BingoLooks.all().forEach(l -> looks.add(DataObject.empty().put("id", l.id()).put("label", l.label()).put("blurb", l.blurb())));
+            return DataObject.empty().put("layouts", shapes).put("looks", looks);
         }
         if (parts.length == 2 && parts[1].equals("archive-finished")) {
             AdminRouteExtension.requireMethod(method, "POST");
@@ -150,6 +153,13 @@ public class EventsAdminApi implements AdminRouteExtension {
                 case "bingo" -> {
                     AdminRouteExtension.requireMethod(method, "POST");
                     return rerollBingo(guild, actor, id, body.get());
+                }
+                case "look" -> {
+                    AdminRouteExtension.requireMethod(method, "POST");
+                    String look = body.get().hasKey("look") && !body.get().isNull("look") ? text(body.get(), "look") : "";
+                    service.changeLook(guild.getIdLong(), id, look.isEmpty() ? null : look);
+                    log.info("Dashboard: {} set the look of event {}'s board to {}", actor.getId(), id, look.isEmpty() ? "the default" : look);
+                    return detail(guild, id);
                 }
                 case "board" -> {
                     AdminRouteExtension.requireMethod(method, "POST");

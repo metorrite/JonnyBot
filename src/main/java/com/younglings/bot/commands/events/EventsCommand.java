@@ -173,11 +173,8 @@ public class EventsCommand {
             DataObject config = DataObject.fromJson(target.config());
             var tiles = panels.personalTiles(target, userId);
             int done = (int) tiles.stream().filter(BingoBoardImage.TileView::done).count();
-            var layout = BingoTemplate.layoutOf(config);
-            byte[] png = layout.isPresent()
-                    ? BingoBoardImage.render(layout.get(), tiles)
-                    : BingoBoardImage.render(target.name(), "Your board", BingoBoardView.boardSize(config), tiles,
-                            done + " of " + tiles.size() + " tiles done · submit proof with /events submit event:" + target.id());
+            byte[] png = BingoBoardImage.render(config, target.name(), "Your board",
+                    done + " of " + tiles.size() + " tiles done · submit proof with /events submit event:" + target.id(), tiles);
             event.getHook().sendFiles(FileUpload.fromData(png, "my-bingo-board.png")).queue();
         } catch (IOException | RuntimeException e) {
             event.getHook().sendMessage("I couldn't draw the board right now.").queue();
@@ -256,7 +253,8 @@ public class EventsCommand {
                          @SlashOption(description = "The event's name") String name,
                          @SlashOption(description = "How many days it runs (default 7)") @Nullable Integer days,
                          @SlashOption(name = "starts_in_hours", description = "Hours until it starts (default 24)") @Nullable Integer startsInHours,
-                         @SlashOption(description = "Bingo: board size. Competition: skill. Boss night: the boss. Scavenger hunt: item count") @Nullable String detail) {
+                         @SlashOption(description = "Bingo: board size or shape. Competition: skill. Boss night: the boss. Scavenger hunt: item count") @Nullable String detail,
+                         @SlashOption(description = "Bingo only: what the board is drawn on (default RuneScape)", usePredefinedChoices = true) @Nullable EventQuickCreate.Look look) {
         Guild guild = event.getGuild();
         if (!isStaff(guild, event.getMember())) {
             Containers.replyEphemeral(event, Containers.WARNING, "Only staff can create events.");
@@ -264,7 +262,7 @@ public class EventsCommand {
         }
         long guildId = guild.getIdLong();
         try {
-            EventQuickCreate.Plan plan = EventQuickCreate.plan(kind, name, days == null ? 7 : days, startsInHours == null ? 24 : startsInHours, detail, Instant.now());
+            EventQuickCreate.Plan plan = EventQuickCreate.plan(kind, name, days == null ? 7 : days, startsInHours == null ? 24 : startsInHours, detail, Instant.now(), look == null ? null : look.id);
             long id = service.createEvent(guildId, event.getUser().getIdLong(), plan.input());
             service.moveStage(guildId, id, Status.SIGNUPS);
             Containers.reply(event, Containers.SUCCESS, false,

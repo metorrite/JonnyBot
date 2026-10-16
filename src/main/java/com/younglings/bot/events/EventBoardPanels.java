@@ -134,11 +134,9 @@ public class EventBoardPanels {
             return "The board couldn't be built: " + e.getMessage();
         }
         try {
-            var layout = BingoTemplate.layoutOf(config);
-            png = layout.isPresent()
-                    ? BingoBoardImage.render(layout.get(), tileViews)
-                    : BingoBoardImage.render(event.name(), stageText(event.status()) + " · tiles show how many " + (event.scoringMode() == EventRules.ScoringMode.TEAM ? "teams" : "players") + " have them",
-                            BingoBoardView.boardSize(config), tileViews, "Submit proof with /events submit event:" + eventId + " and the tile's number");
+            png = BingoBoardImage.render(config, event.name(),
+                    stageText(event.status()) + " · tiles show how many " + (event.scoringMode() == EventRules.ScoringMode.TEAM ? "teams" : "players") + " have them",
+                    "Submit proof with /events submit event:" + eventId + " and the tile's number", tileViews);
         } catch (IOException | RuntimeException | LinkageError e) {
             // a server with no usable fonts can't draw text onto a picture (LinkageError: the font system failed to start once and stays unusable);
             // the board is then posted as text so it still works
