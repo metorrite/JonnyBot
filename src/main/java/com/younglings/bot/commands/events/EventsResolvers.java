@@ -1,5 +1,6 @@
 package com.younglings.bot.commands.events;
 
+import com.younglings.bot.events.BingoLooks;
 import com.younglings.bot.events.EventQuickCreate;
 import io.github.freya022.botcommands.api.core.service.annotations.BConfiguration;
 import io.github.freya022.botcommands.api.core.service.annotations.Resolver;
@@ -14,6 +15,14 @@ public class EventsResolvers {
     public static ParameterResolver<?, ?> eventKindResolver() {
         return Resolvers.enumResolver(EventQuickCreate.Kind.class)
                 .setNameFunction(kind -> kind.label)
+                .build();
+    }
+
+    /** Backs {@code @SlashOption(usePredefinedChoices = true) EventQuickCreate.Look} with a dropdown of RuneScape and Template. */
+    @Resolver
+    public static ParameterResolver<?, ?> bingoLookResolver() {
+        return Resolvers.enumResolver(EventQuickCreate.Look.class)
+                .setNameFunction(look -> BingoLooks.label(look.id))
                 .build();
     }
 }
