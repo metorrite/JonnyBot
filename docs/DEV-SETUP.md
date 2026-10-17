@@ -53,6 +53,8 @@ Keep these in a password manager and re-enter them on the new machine. Never com
 4. Website: `cd younglings-website; npm ci; npm run dev` (port 3000). A `.claude/launch.json` entry named `younglings-website` (`npm --prefix <path> run dev`, port 3000) lets Claude start it in its browser pane. Sign in with Discord, open `http://localhost:3000/dashboard/1495619657674264717/event-manager`.
 5. Only one bot instance may run per token: starting "JonnyBot Dev" again does **not** stop the old one (the second logs "Address already in use" for port 8081). Stop the old `com.younglings.bot.Main` java process first.
 
+Checking the running bot without the browser: `python tools/dev_api.py GET events/12/space --actor <your discord user id>` calls the same internal admin routes the dashboard uses (it reads the secret from the run configuration and never prints it). A GET only reads; remember the dev bot sits in the real clan server, so POST/PUT/DELETE change real things.
+
 ## 5. Running the tests
 
 ```
