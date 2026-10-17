@@ -113,6 +113,7 @@ public class EventService {
                 else config.remove(key);
             }
             keepOrganisers(kept, config); // organisers are changed with their own call, so a settings save can't wipe them
+            keepChannels(kept, config); // so are the roles and channels, on the Channels tab
         }
         List<String> problems = new ArrayList<>(EventRules.eventProblems(in.name(), in.description(), in.maxParticipants(), in.startsAt(), in.endsAt()));
         problems.addAll(template.configProblems(config));
@@ -146,6 +147,8 @@ public class EventService {
     /** Deletes an event and everything in it. Only a draft or an event that is over: cancel or finish one that is running first. */
     public void deleteEvent(long guildId, long id) {
         event(guildId, id);
+        // deleting the event would forget which roles and channels are its own, leaving them behind on Discord
+        if (repository.setup(id).spaceApplied()) throw new EventProblem(409, "This event has roles and channels on Discord. Remove them on its Channels tab first, then delete it.");
         if (!repository.deleteEvent(guildId, id)) throw new EventProblem(409, "Cancel or finish the event before deleting it.");
     }
 
@@ -279,6 +282,35 @@ public class EventService {
         else into.remove("organisers");
     }
 
+    private static void keepChannels(DataObject from, DataObject into) {
+        if (from.hasKey("channels") && !from.isNull("channels")) into.put("channels", from.get("channels"));
+        else into.remove("channels");
+    }
+
+    // ---------- roles and channels ----------
+
+    /**
+     * Saves the choices for an event's roles and channels ({@code config.channels}, see {@link EventSpace}), whole: what is not in {@code channels} goes back
+     * to its default. Allowed until the event is over; a space that already exists is brought in line with them the next time it is updated.
+     */
+    public void setChannelSettings(long guildId, long id, DataObject channels) {
+        Event event = event(guildId, id);
+        if (event.status() == Status.DONE || event.status() == Status.CANCELLED) throw new EventProblem(409, "This event is over, so its channels can't change.");
+        DataObject config = DataObject.fromJson(event.config());
+        config.put("channels", DataObject.fromJson(channels.toString()));
+        List<String> problems = EventSpace.problems(config);
+        if (!problems.isEmpty()) throw new EventProblem(400, "The channels can't be saved yet.", problems);
+        if (!repository.setConfig(guildId, id, config.toString())) throw new EventProblem(404, "That event doesn't exist in this server.");
+        changes.publish(EventChanges.Kind.SETUP, guildId, id);
+    }
+
+    /** The players who hold a place and count right now, whom the event's roles and channels are for: those on the waitlist and any not verified in time don't. */
+    public List<Participant> countedPlayers(Event event) {
+        EventSettings settings = settingsOf(event);
+        EventRoster.Gate moment = teamMoment(event);
+        return repository.participants(event.id()).stream().filter(p -> !p.waiting() && EventRoster.counts(p.verification(), settings.verification(), moment)).toList();
+    }
+
     // ---------- organisers ----------
 
     /** Whether this person may run the event from Discord: staff always, otherwise only someone named an organiser of it. */
@@ -403,8 +435,9 @@ public class EventService {
         List<Participant> players = repository.participants(event.id());
         List<EventRoster.Verification> held = players.stream().filter(p -> !p.waiting()).map(Participant::verification).toList();
         EventPrep.TeamFacts teams = event.scoringMode() == ScoringMode.TEAM ? teamFactsOf(event, settings, players, setup) : null;
+        EventPrep.SpaceFacts space = settings.channels().enabled() ? new EventPrep.SpaceFacts(setup.spaceApplied(), setup.spaceComplete(), setup.spaceNote()) : null;
         return EventPrep.of(new EventPrep.Facts(event.status(), settings.setupMode(), !repository.objectives(event.id()).isEmpty(), setup.signupsClosed(), setup.rosterConfirmed(),
-                held.size(), players.size() - held.size(), settings.verification(), EventRoster.tally(held, settings.verification()), teams));
+                held.size(), players.size() - held.size(), settings.verification(), EventRoster.tally(held, settings.verification()), teams, space));
     }
 
     /** The teams as the setup checklist and "finalise" look at them. */
@@ -435,7 +468,7 @@ public class EventService {
     // ---------- building the teams ----------
 
     /** The moment players are counted at when teams are built: when teams are made, or, once the event runs, when it started. */
-    private static EventRoster.Gate teamMoment(Event event) {
+    static EventRoster.Gate teamMoment(Event event) {
         return event.status() == Status.RUNNING || event.status() == Status.SCORING || event.status() == Status.DONE ? EventRoster.Gate.START : EventRoster.Gate.TEAMS;
     }
 

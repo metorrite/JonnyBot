@@ -53,11 +53,16 @@ public class EventRepository {
                               EventRoster.Verification verification, Long verifiedBy, Instant verifiedAt, String verificationNote, Integer rating) {}
 
     /**
-     * Where an event is in its setup: when signups were closed, the roster confirmed and the teams called final, and by whom. Nothing set until an organiser
-     * does it.
+     * Where an event is in its setup: when signups were closed, the roster confirmed and the teams called final, and by whom, and when its roles and channels
+     * were set up (and whether everything wanted is still there, with a note on what is missing if not). Nothing set until an organiser does it.
      */
-    public record Setup(Instant signupsClosedAt, Long signupsClosedBy, Instant rosterConfirmedAt, Long rosterConfirmedBy, Instant teamsFinalisedAt, Long teamsFinalisedBy) {
-        public static final Setup NONE = new Setup(null, null, null, null, null, null);
+    public record Setup(Instant signupsClosedAt, Long signupsClosedBy, Instant rosterConfirmedAt, Long rosterConfirmedBy, Instant teamsFinalisedAt, Long teamsFinalisedBy,
+                        Instant spaceAppliedAt, Long spaceAppliedBy, boolean spaceComplete, String spaceNote) {
+        public static final Setup NONE = new Setup(null, null, null, null, null, null, null, null, false, "");
+
+        public boolean spaceApplied() {
+            return spaceAppliedAt != null;
+        }
 
         public boolean signupsClosed() {
             return signupsClosedAt != null;
@@ -250,6 +255,11 @@ public class EventRepository {
                 // when the teams were called final, and by whom
                 "ALTER TABLE younglings.event_setup ADD COLUMN IF NOT EXISTS teams_finalised_at TIMESTAMPTZ NULL;",
                 "ALTER TABLE younglings.event_setup ADD COLUMN IF NOT EXISTS teams_finalised_by BIGINT NULL;",
+                // when the event's roles and channels were set up, whether everything wanted is still there, and what is missing if not
+                "ALTER TABLE younglings.event_setup ADD COLUMN IF NOT EXISTS space_applied_at TIMESTAMPTZ NULL;",
+                "ALTER TABLE younglings.event_setup ADD COLUMN IF NOT EXISTS space_applied_by BIGINT NULL;",
+                "ALTER TABLE younglings.event_setup ADD COLUMN IF NOT EXISTS space_complete BOOLEAN NOT NULL DEFAULT FALSE;",
+                "ALTER TABLE younglings.event_setup ADD COLUMN IF NOT EXISTS space_note TEXT NOT NULL DEFAULT '';",
                 // Discord signups the event's rules turned away, and why, so staff can see them and the player is told once
                 """
                 CREATE TABLE IF NOT EXISTS younglings.event_signup_refusal (
@@ -462,15 +472,17 @@ public class EventRepository {
 
     public Setup setup(long eventId) {
         try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(
-                "SELECT signups_closed_at, signups_closed_by, roster_confirmed_at, roster_confirmed_by, teams_finalised_at, teams_finalised_by FROM younglings.event_setup WHERE event_id = ?")) {
+                "SELECT signups_closed_at, signups_closed_by, roster_confirmed_at, roster_confirmed_by, teams_finalised_at, teams_finalised_by, space_applied_at, space_applied_by, space_complete, space_note FROM younglings.event_setup WHERE event_id = ?")) {
             s.setLong(1, eventId);
             try (ResultSet rs = s.executeQuery()) {
                 if (!rs.next()) return Setup.NONE;
                 Timestamp closed = rs.getTimestamp("signups_closed_at");
                 Timestamp confirmed = rs.getTimestamp("roster_confirmed_at");
                 Timestamp finalised = rs.getTimestamp("teams_finalised_at");
+                Timestamp applied = rs.getTimestamp("space_applied_at");
                 return new Setup(closed == null ? null : closed.toInstant(), nullableLong(rs, "signups_closed_by"), confirmed == null ? null : confirmed.toInstant(),
-                        nullableLong(rs, "roster_confirmed_by"), finalised == null ? null : finalised.toInstant(), nullableLong(rs, "teams_finalised_by"));
+                        nullableLong(rs, "roster_confirmed_by"), finalised == null ? null : finalised.toInstant(), nullableLong(rs, "teams_finalised_by"),
+                        applied == null ? null : applied.toInstant(), nullableLong(rs, "space_applied_by"), rs.getBoolean("space_complete"), rs.getString("space_note"));
             }
         } catch (SQLException e) {
             throw new RuntimeException("Failed to read the event's setup", e);
@@ -520,6 +532,37 @@ public class EventRepository {
             return s.executeUpdate() == 1;
         } catch (SQLException e) {
             throw new RuntimeException("Failed to confirm the roster", e);
+        }
+    }
+
+    /** Records that the event's roles and channels were set up (or brought up to date), whether everything wanted is there, and what is missing if not. */
+    public void markSpace(long eventId, Long by, boolean complete, String note) {
+        String sql = """
+                INSERT INTO younglings.event_setup (event_id, space_applied_at, space_applied_by, space_complete, space_note) VALUES (?, NOW(), ?, ?, ?)
+                ON CONFLICT (event_id) DO UPDATE SET space_applied_at = COALESCE(younglings.event_setup.space_applied_at, NOW()),
+                       space_applied_by = COALESCE(younglings.event_setup.space_applied_by, EXCLUDED.space_applied_by),
+                       space_complete = EXCLUDED.space_complete, space_note = EXCLUDED.space_note
+                """;
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
+            s.setLong(1, eventId);
+            if (by == null) s.setNull(2, Types.BIGINT);
+            else s.setLong(2, by);
+            s.setBoolean(3, complete);
+            s.setString(4, note == null ? "" : note);
+            s.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to record the event's roles and channels", e);
+        }
+    }
+
+    /** Forgets that the event's roles and channels were set up (they were removed). */
+    public void clearSpace(long eventId) {
+        String sql = "UPDATE younglings.event_setup SET space_applied_at = NULL, space_applied_by = NULL, space_complete = FALSE, space_note = '' WHERE event_id = ?";
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
+            s.setLong(1, eventId);
+            s.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to clear the event's roles and channels", e);
         }
     }
 
