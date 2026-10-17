@@ -138,6 +138,7 @@ public class MemberApi {
                 case "polls" -> method.equals("GET") ? myPolls(guild, userId) : method.equals("POST") ? createPoll(guild, userId, body) : null;
                 case "coffer" -> method.equals("GET") ? myCoffer(guild, userId) : null;
                 case "events" -> method.equals("GET") ? events.mine(guild, userId) : null;
+                case "events/detail" -> method.equals("GET") ? events.detail(guild, userId, parseId(query(exchange, "eventId"), "eventId")) : null;
                 case "events/join" -> method.equals("POST") ? events.join(guild, userId, body) : null;
                 case "events/leave" -> method.equals("POST") ? events.leave(guild, userId, body) : null;
                 case "link" -> switch (method) {

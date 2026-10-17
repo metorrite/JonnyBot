@@ -68,7 +68,7 @@ class MemberEventsApiTest {
         service = new EventService(repository, new EventTemplates(List.of(new CustomTemplate())), kinds, new PointsService(new PointsRepository(supplier), new RewardsRepository(supplier)), new EventChanges());
         profiles = Mockito.mock(ClanProfileRepository.class);
         Mockito.when(profiles.get(G)).thenReturn(Optional.empty());
-        api = new MemberEventsApi(service, repository, profiles);
+        api = new MemberEventsApi(service, repository, profiles, new com.younglings.bot.events.EventSpaceRepository(supplier, repository));
         guild = Mockito.mock(Guild.class);
         Mockito.when(guild.getIdLong()).thenReturn(G);
         Mockito.when(guild.getName()).thenReturn("Younglings");
@@ -174,5 +174,54 @@ class MemberEventsApiTest {
         assertFalse(verification.getBoolean("required"));
         assertEquals("NOT_REQUIRED", verification.getString("state"));
         assertEquals("", verification.getString("instructions"));
+    }
+
+    // ---------- the event page (GET events/detail) ----------
+
+    private static final String VERIFY = "{\"verification\":{\"required\":true,\"gate\":\"TEAMS\",\"instructions\":\"Send your bank\"}}";
+
+    @Test
+    void anEventTakingSignupsCanBeReadByAMemberWhoHasntJoinedButARunningOneCannot() {
+        long id = signupsOpen("Open to read", "{}");
+        DataObject page = api.detail(guild, INSIDE, id);
+        assertEquals("Open to read", page.getObject("event").getString("name"));
+        assertTrue(page.isNull("me"), "not in it yet");
+        assertFalse(page.hasKey("standings"), "nothing of the players is shown to an outsider");
+
+        service.join(G, id, G, 777, null, true, null);
+        service.moveStage(G, id, EventRules.Status.RUNNING);
+        EventProblem hidden = assertThrows(EventProblem.class, () -> api.detail(guild, INSIDE, id));
+        assertEquals(404, hidden.status());
+        assertEquals(403, assertThrows(EventProblem.class, () -> api.detail(guild, OUTSIDE, id)).status(), "not in the Discord server");
+        assertEquals(404, assertThrows(EventProblem.class, () -> api.detail(guild, INSIDE, id + 100000)).status(), "no such event");
+    }
+
+    @Test
+    void aPlayerSeesTheirVerificationTheirOwnSubmissionsAndTheStandings() {
+        long id = signupsOpen("Mine", VERIFY);
+        service.join(G, id, G, INSIDE, null, true, null);
+        service.join(G, id, G, 777, null, true, null);
+        long proof = service.submitVerification(G, id, INSIDE, "my bank", "https://cdn.discordapp.com/x.png");
+        DataObject waiting = api.detail(guild, INSIDE, id);
+        assertTrue(waiting.getObject("me").getObject("verification").getBoolean("waitingProof"));
+        assertEquals("PENDING", waiting.getObject("me").getObject("verification").getString("state"));
+        assertEquals("Send your bank", waiting.getObject("event").getString("verificationInstructions"));
+        assertEquals(1, waiting.getArray("submissions").length());
+        assertEquals("Verification", waiting.getArray("submissions").getObject(0).getString("label"));
+
+        service.decideClaim(G, id, proof, true, "", 9L);
+        service.moveStage(G, id, EventRules.Status.RUNNING);
+        service.recordProgress(G, id, "anything", INSIDE, 1, EventRules.Source.MANUAL, null, 9L, "test");
+        service.recordProgress(G, id, "anything", 777, 1, EventRules.Source.MANUAL, null, 9L, "test");
+        DataObject page = api.detail(guild, INSIDE, id);
+        assertEquals("VERIFIED", page.getObject("me").getObject("verification").getString("state"));
+        assertEquals(1, page.getArray("objectives").length());
+        assertEquals(1, page.getArray("objectives").getObject(0).getInt("done"));
+        assertEquals(2, page.getObject("standings").getInt("of"));
+        assertTrue(page.getObject("standings").getInt("myRank") >= 1);
+        assertTrue(page.getBoolean("canSubmit"));
+        assertEquals("APPROVED", page.getArray("submissions").getObject(0).getString("status"));
+        assertEquals(0, page.getArray("channels").length(), "no channels were set up");
+        assertTrue(page.isNull("board"), "a custom event has no board");
     }
 }
