@@ -1,8 +1,11 @@
 package com.younglings.bot.internal;
 
 import com.younglings.bot.clanprofile.ClanProfileRepository;
+import com.younglings.bot.events.BingoBoardView;
+import com.younglings.bot.events.BingoTemplate;
 import com.younglings.bot.events.EventProblem;
 import com.younglings.bot.events.EventRepository;
+import com.younglings.bot.events.EventSpaceRepository;
 import com.younglings.bot.events.EventRepository.Event;
 import com.younglings.bot.events.EventRepository.Participant;
 import com.younglings.bot.events.EventRules.Status;
@@ -36,11 +39,13 @@ public class MemberEventsApi {
     private final EventService service;
     private final EventRepository repository;
     private final ClanProfileRepository profiles;
+    private final EventSpaceRepository space;
 
-    public MemberEventsApi(EventService service, EventRepository repository, ClanProfileRepository profiles) {
+    public MemberEventsApi(EventService service, EventRepository repository, ClanProfileRepository profiles, EventSpaceRepository space) {
         this.service = service;
         this.repository = repository;
         this.profiles = profiles;
+        this.space = space;
     }
 
     /** Signs the member up for an event, as the player (so the deadline, a closed signup, the team policy and the waitlist all apply). */
@@ -114,6 +119,159 @@ public class MemberEventsApi {
                     .put("buyIn", settings.buyIn().enabled() ? settings.buyIn().amount() : 0));
         }
         return DataObject.empty().put("events", mine).put("open", open);
+    }
+
+    /** How many rows of the standings a member is shown (the top of the table, plus their own row). */
+    private static final int STANDINGS_SHOWN = 10;
+    private static final int SUBMISSIONS_SHOWN = 20;
+
+    /**
+     * One event as its player sees it, for the website's event page ({@code GET /internal/me/events/detail?eventId=}): the schedule, rules and prizes, their
+     * team and teammates, their progress (and their board for a bingo), the top of the standings, their own submissions with how each was decided, their
+     * verification status, and links to the channels they can use. A member can open an event they are in, or one that is taking signups (to read it
+     * and join); anything else, and any event of another server, is "not found". Other players' submissions, prizes and buy-ins are never included.
+     */
+    public DataObject detail(Guild guild, long userId, long eventId) {
+        long guildId = guild.getIdLong();
+        if (guild.getMemberById(userId) == null) throw new EventProblem(403, notInServerMessage(guild));
+        Event event = service.event(guildId, eventId);
+        Participant me = repository.participant(eventId, userId).orElse(null);
+        if (me == null && event.status() != Status.SIGNUPS) throw new EventProblem(404, "That event doesn't exist, or you aren't in it.");
+        EventSettings settings = settingsOf(event);
+        var setup = repository.setup(eventId);
+        boolean teamEvent = event.scoringMode() == com.younglings.bot.events.EventRules.ScoringMode.TEAM;
+        boolean scored = event.status() == Status.RUNNING || event.status() == Status.SCORING || event.status() == Status.DONE;
+        List<EventRepository.Team> teams = repository.teams(eventId);
+        List<Participant> players = repository.participants(eventId);
+
+        DataObject out = DataObject.empty();
+        out.put("event", DataObject.empty().put("id", Long.toString(event.id())).put("name", event.name()).put("description", event.description()).put("template", event.template())
+                .put("status", event.status().name()).put("scoringMode", event.scoringMode().name())
+                .put("startsAt", event.startsAt() == null ? null : event.startsAt().toString()).put("endsAt", event.endsAt() == null ? null : event.endsAt().toString())
+                .put("signupClosesAt", settings.signupClosesAt() == null ? null : settings.signupClosesAt().toString()).put("signupsClosed", setup.signupsClosed())
+                .put("maxParticipants", event.maxParticipants()).put("players", (int) players.stream().filter(p -> !p.waiting()).count())
+                .put("buyIn", DataObject.empty().put("enabled", settings.buyIn().enabled()).put("amount", settings.buyIn().amount()))
+                .put("verificationRequired", settings.verification().required())
+                .put("verificationInstructions", settings.verification().required() ? EventRoster.askText(settings.verification()) : ""));
+
+        if (me == null) {
+            out.put("me", (DataObject) null);
+            out.put("prizes", prizes(event));
+            return out;
+        }
+
+        String teamName = me.teamId() == null ? null : teams.stream().filter(t -> t.id() == me.teamId()).map(EventRepository.Team::name).findFirst().orElse(null);
+        EventRoster.Verification verification = EventRoster.effective(me.verification(), settings.verification());
+        out.put("me", DataObject.empty().put("waiting", me.waiting()).put("team", teamName)
+                .put("buyIn", DataObject.empty().put("enabled", settings.buyIn().enabled()).put("amount", settings.buyIn().amount()).put("status", me.buyIn().name()))
+                .put("verification", DataObject.empty().put("required", settings.verification().required()).put("state", verification.name())
+                        .put("note", me.verification() == EventRoster.Verification.REJECTED ? me.verificationNote() : "")
+                        .put("waitingProof", repository.pendingVerificationClaimsFor(eventId, userId) > 0)));
+
+        DataArray teammates = DataArray.empty();
+        if (teamEvent && me.teamId() != null) {
+            for (Participant p : players) {
+                if (p.waiting() || !me.teamId().equals(p.teamId())) continue;
+                teammates.add(DataObject.empty().put("name", displayName(guild, p.userId())).put("me", p.userId() == userId));
+            }
+        }
+        out.put("teammates", teammates);
+
+        List<Standing> standings = scored ? service.standings(guildId, eventId) : List.of();
+        String subject = teamEvent ? (me.teamId() == null ? null : "t:" + me.teamId()) : "u:" + userId;
+        Standing mineStanding = standings.stream().filter(s -> s.subject().equals(subject)).findFirst().orElse(null);
+        DataArray rows = DataArray.empty();
+        int myRank = 0;
+        for (int i = 0; i < standings.size(); i++) {
+            Standing s = standings.get(i);
+            boolean mine = s.subject().equals(subject);
+            if (mine) myRank = i + 1;
+            if (i < STANDINGS_SHOWN || mine) rows.add(DataObject.empty().put("rank", i + 1).put("name", standingName(guild, s.subject(), teams)).put("points", s.points()).put("me", mine));
+        }
+        out.put("standings", DataObject.empty().put("rows", rows).put("of", standings.size()).put("myRank", myRank).put("myPoints", mineStanding == null ? 0 : mineStanding.points()));
+
+        var objectives = service.objectives(eventId);
+        DataArray progress = DataArray.empty();
+        if (scored && !me.waiting()) {
+            for (var o : objectives) {
+                int done = mineStanding == null ? 0 : mineStanding.completions().getOrDefault(o.key(), 0);
+                progress.add(DataObject.empty().put("key", o.key()).put("label", o.label()).put("points", o.points()).put("target", o.target()).put("repeatLimit", o.repeatLimit()).put("done", done));
+            }
+        }
+        out.put("objectives", progress);
+
+        DataObject config = DataObject.fromJson(event.config());
+        if (scored && !me.waiting() && BingoTemplate.KEY.equals(event.template())) {
+            var tiles = BingoBoardView.personal(BingoBoardView.boardKeys(config), objectives, mineStanding);
+            DataArray tileJson = DataArray.empty();
+            for (var t : tiles) tileJson.add(DataObject.empty().put("n", t.number()).put("label", t.label()).put("points", t.points()).put("done", t.done()).put("locked", t.locked()));
+            int size = (int) Math.round(Math.sqrt(tiles.size()));
+            boolean grid = size * size == tiles.size() && !tiles.isEmpty();
+            out.put("board", DataObject.empty().put("tiles", tileJson).put("columns", grid ? size : 0));
+        } else {
+            out.put("board", (DataObject) null);
+        }
+
+        DataArray submissions = DataArray.empty();
+        for (EventRepository.Claim c : repository.claimsOf(eventId, userId, SUBMISSIONS_SHOWN)) {
+            String label = c.kind() == EventRepository.ClaimKind.VERIFICATION ? "Verification"
+                    : objectives.stream().filter(o -> o.key().equals(c.objectiveKey())).map(o -> o.label()).findFirst().orElse(c.objectiveKey());
+            submissions.add(DataObject.empty().put("id", Long.toString(c.id())).put("kind", c.kind().name()).put("label", label).put("status", c.status().name())
+                    .put("note", c.note()).put("decisionNote", c.decisionNote()).put("createdAt", c.createdAt().toString()));
+        }
+        out.put("submissions", submissions);
+
+        out.put("prizes", prizes(event));
+
+        DataArray awards = DataArray.empty();
+        if (event.status() == Status.SCORING || event.status() == Status.DONE) {
+            service.awards(guildId, eventId).stream().filter(a -> a.userId() == userId).forEach(a -> awards.add(DataObject.empty()
+                    .put("place", a.place()).put("kind", a.kind().name()).put("description", a.description()).put("amount", a.amount()).put("status", a.status().name())));
+        }
+        out.put("awards", awards);
+
+        out.put("channels", channels(guild, eventId, me, teamEvent));
+        out.put("canSubmit", !me.waiting() && event.status() == Status.RUNNING);
+        return out;
+    }
+
+    private DataArray prizes(Event event) {
+        DataArray prizes = DataArray.empty();
+        for (var p : service.prizes(event.id())) {
+            prizes.add(DataObject.empty().put("place", p.place()).put("placeTo", p.placeTo()).put("kind", p.kind().name()).put("description", p.description()).put("amount", p.amount()));
+        }
+        return prizes;
+    }
+
+    /** Links to the channels this player can use: the shared ones and their own team's or player channel, when the event has set them up. */
+    private DataArray channels(Guild guild, long eventId, Participant me, boolean teamEvent) {
+        DataArray links = DataArray.empty();
+        String own = teamEvent && me.teamId() != null ? "team:" + me.teamId() : "player:" + me.userId();
+        var rows = space.channels(eventId);
+        for (String key : new String[]{"announcements", "general", "board", own}) {
+            for (var row : rows) {
+                if (!row.key().equals(key) || guild.getGuildChannelById(row.channelId()) == null) continue;
+                String label = switch (key) {
+                    case "announcements" -> "Announcements";
+                    case "general" -> "General chat";
+                    case "board" -> "Live board";
+                    default -> key.startsWith("team:") ? "Your team's channel" : "Your channel";
+                };
+                links.add(DataObject.empty().put("label", label).put("url", "https://discord.com/channels/" + guild.getId() + "/" + row.channelId()));
+            }
+        }
+        return links;
+    }
+
+    private static String displayName(Guild guild, long userId) {
+        Member member = guild.getMemberById(userId);
+        return member == null ? "Player" : member.getEffectiveName();
+    }
+
+    private static String standingName(Guild guild, String subject, List<EventRepository.Team> teams) {
+        long id = Long.parseLong(subject.substring(2));
+        if (subject.startsWith("t:")) return teams.stream().filter(t -> t.id() == id).map(EventRepository.Team::name).findFirst().orElse("A team");
+        return displayName(guild, id);
     }
 
     private static EventSettings settingsOf(Event event) {

@@ -1394,6 +1394,11 @@ public class EventRepository {
         return claims("SELECT * FROM younglings.event_claim WHERE event_id = ? AND id = ?", eventId, id, null).stream().findFirst();
     }
 
+    /** A player's own claims in an event, newest first. */
+    public List<Claim> claimsOf(long eventId, long userId, int limit) {
+        return claims("SELECT * FROM younglings.event_claim WHERE event_id = ? AND user_id = ? ORDER BY id DESC LIMIT ?", eventId, userId, limit);
+    }
+
     public List<Claim> pendingClaims(long eventId, int limit) {
         return claims("SELECT * FROM younglings.event_claim WHERE event_id = ? AND status = 'PENDING' ORDER BY id LIMIT ?", eventId, null, limit);
     }
