@@ -88,6 +88,8 @@ class EventSpaceOpsTest {
         final List<String> given = new ArrayList<>();
         final List<String> taken = new ArrayList<>();
         final List<Long> deleted = new ArrayList<>();
+        /** A channel with this name can't be made (Discord is having a moment). */
+        volatile String failChannel;
     }
 
     @BeforeAll
@@ -241,6 +243,7 @@ class EventSpaceOpsTest {
             return action;
         });
         Mockito.when(action.complete()).thenAnswer(inv -> {
+            if (name.equals(server.failChannel)) throw new IllegalStateException("Discord is having a moment");
             long id = server.nextId++;
             GuildChannel channel = category ? Mockito.mock(Category.class) : Mockito.mock(TextChannel.class);
             Mockito.when(channel.getIdLong()).thenReturn(id);
@@ -364,6 +367,32 @@ class EventSpaceOpsTest {
         assertEquals("done", finish(ops.startSetup(guild, reload(id), ACTOR, false)).state());
         assertEquals(roles, server.madeRoles.size(), "the roles were made once");
         assertEquals(channels, server.madeChannels.size(), "the channels were made once");
+    }
+
+    @Test
+    void aSetupThatStopsPartWayKeepsWhatWasMadeSaysWhatIsMissingAndCarriesOnNextTime() throws Exception {
+        long id = event(CompetitionTemplate.KEY, ScoringMode.INDIVIDUAL, "{\"channels\": {\"enabled\": true}}");
+        open(id);
+        join(id, 701, null);
+        closeAndConfirm(id);
+        server.failChannel = "boss-night-general";
+
+        EventSpaceOps.Job job = finish(ops.startSetup(guild, reload(id), ACTOR, false));
+        assertEquals("failed", job.state());
+        assertEquals("Discord is having a moment", job.message());
+        assertEquals(List.of("boss-night-staff", "boss-night-announcements"), server.madeChannels, "what came before the failure was made");
+        assertEquals(3, space.channels(id).size(), "and is recorded: the category and two channels");
+        EventRepository.Setup stopped = events.setup(id);
+        assertTrue(stopped.spaceApplied());
+        assertFalse(stopped.spaceComplete());
+        assertTrue(stopped.spaceNote().contains("boss-night-general"), stopped.spaceNote());
+        assertFalse(events.setup(id).spaceNote().contains("boss-night-staff"), "what was made isn't called missing");
+
+        server.failChannel = null;
+        assertEquals("done", finish(ops.startSetup(guild, reload(id), ACTOR, false)).state());
+        assertEquals(List.of("boss-night-staff", "boss-night-announcements", "boss-night-general"), server.madeChannels, "only the missing channel was made the second time");
+        assertEquals(List.of("Boss Night Participant", "Boss Night Organiser"), server.madeRoles, "the roles were not made again");
+        assertTrue(events.setup(id).spaceComplete());
     }
 
     @Test

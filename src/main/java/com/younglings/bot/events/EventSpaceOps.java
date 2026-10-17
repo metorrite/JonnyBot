@@ -229,6 +229,22 @@ public class EventSpaceOps {
         // from here the event counts as set up (or part way), so it can't be deleted while its roles and channels exist
         events.markSpace(eventId, actorId, false, "Setting up…");
         job.total = (int) (plan.newRoles() + plan.newChannels() + (removeUnneeded ? plan.count(Action.REMOVE) : 0)) + 1;
+        try {
+            make(guild, event, gathered, plan, actorId, removeUnneeded, job);
+        } catch (RuntimeException e) {
+            // what was made is recorded; say what is still missing so the checklist and the page tell the truth
+            try {
+                events.markSpace(eventId, actorId, false, noteOf(EventSpace.plan(spaces.gather(guild, service.event(guildId, eventId)).facts())));
+            } catch (RuntimeException ignored) {
+                // the original failure is the one to report
+            }
+            throw e;
+        }
+    }
+
+    private void make(Guild guild, Event event, EventSpaces.Gathered gathered, Plan plan, long actorId, boolean removeUnneeded, Job job) {
+        long guildId = event.guildId();
+        long eventId = event.id();
 
         Map<String, Long> roleIds = new LinkedHashMap<>();
         for (RoleItem r : plan.roles()) {
