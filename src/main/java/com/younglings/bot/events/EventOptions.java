@@ -239,6 +239,12 @@ public final class EventOptions {
                 .showWhen(When.is("config.verification.required", true)).maxLength(EventRoster.MAX_INSTRUCTIONS));
         list.add(Option.of("config.submissions.require", "Proof only from the event's channels", "Players must send proof with /submit in their own event channel. Staff and organisers can still send from anywhere.", Step.DISCORD, Type.BOOL, false));
         list.add(Option.of("config.submissions.receipts", "Post a receipt in the player's channel", "Each submission also shows in the player's (or team's) own channel and is updated when staff decide.", Step.DISCORD, Type.BOOL, true));
+        list.add(Option.of("config.wrapup.lockOnFinish", "Make the channels read-only when the event ends", "Players can still read the channels after the event but not write in them.", Step.DISCORD, Type.BOOL, true));
+        list.add(Option.number("config.wrapup.rolesDays", "Take the event roles back after (days)", "Days after the event ends. 0 is straight away, -1 keeps them until an organiser removes them.", Step.DISCORD, 7, -1, EventWrapup.MAX_DAYS));
+        list.add(Option.number("config.wrapup.channelsDays", "Deal with the channels after (days)", "Days after the event ends. -1 leaves them until an organiser archives, compresses, exports or deletes them.", Step.DISCORD, -1, -1, EventWrapup.MAX_DAYS));
+        list.add(Option.choice("config.wrapup.channelsAction", "Then the channels are", "What happens when that many days have passed.", Step.DISCORD, "ARCHIVE",
+                List.of(new Choice("ARCHIVE", "Archived", "Moved into an archive only staff can see."), new Choice("DELETE", "Deleted", "Gone for good. Export first if you want the messages."), new Choice("NONE", "Left alone", "Nothing happens by itself.")))
+                .showWhen(When.isSet("config.wrapup.channelsDays")));
         return list;
     }
 

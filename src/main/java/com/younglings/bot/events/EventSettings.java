@@ -28,12 +28,13 @@ import java.util.Set;
  * and what they are told to send, and
  * {@code channels: {enabled, teamChannels, playerChannels, slots, names}}: the roles and channels JonnyBot makes for the event ({@link EventSpace}), and
  * {@code submissions: {require, receipts}}: whether proof only counts when sent with {@code /submit} from the player's own event channel (staff and
- * organisers may still name the event from anywhere), and whether a receipt is posted in the player's (or team's) channel ({@link Submissions}).
+ * organisers may still name the event from anywhere), and whether a receipt is posted in the player's (or team's) channel ({@link Submissions}), and
+ * {@code wrapup: {lockOnFinish, rolesDays, channelsDays, channelsAction, archiveCategoryId}}: what happens to the roles and channels once the event is over ({@link EventWrapup}).
  * Pure, so it can be tested.
  */
 public record EventSettings(BuyIn buyIn, Policy teamPolicy, QueueRules.Policy queue, Instant signupClosesAt, Long signupChannelId, Long signupAdminChannelId,
                             Long boardChannelId, Long reviewChannelId, Set<Long> organisers, EventPrep.Mode setupMode, EventRoster.Setting verification,
-                            EventSpace.Setting channels, Submissions submissions) {
+                            EventSpace.Setting channels, Submissions submissions, EventWrapup.Setting wrapup) {
     public static final String DEFAULT_POLICY = "everyone";
     public static final int MAX_ORGANISERS = 10;
 
@@ -45,11 +46,12 @@ public record EventSettings(BuyIn buyIn, Policy teamPolicy, QueueRules.Policy qu
     public EventSettings {
         organisers = organisers == null ? Set.of() : java.util.Collections.unmodifiableSet(new LinkedHashSet<>(organisers));
         submissions = submissions == null ? Submissions.DEFAULT : submissions;
+        wrapup = wrapup == null ? EventWrapup.Setting.DEFAULT : wrapup;
     }
 
     /** These settings with the roles and channels settings replaced, for showing what other choices would do without saving them. */
     public EventSettings withChannels(EventSpace.Setting channels) {
-        return new EventSettings(buyIn, teamPolicy, queue, signupClosesAt, signupChannelId, signupAdminChannelId, boardChannelId, reviewChannelId, organisers, setupMode, verification, channels, submissions);
+        return new EventSettings(buyIn, teamPolicy, queue, signupClosesAt, signupChannelId, signupAdminChannelId, boardChannelId, reviewChannelId, organisers, setupMode, verification, channels, submissions, wrapup);
     }
 
     /** The submission settings; the defaults when there are none or they can't be read. */
@@ -70,7 +72,7 @@ public record EventSettings(BuyIn buyIn, Policy teamPolicy, QueueRules.Policy qu
 
     public static EventSettings defaults() {
         return new EventSettings(new BuyIn(false, PrizeKind.IN_GAME, 0, false), TeamRules.everyoneTogether(), QueueRules.Policy.FIRST_COME, null, null, null, null, null, Set.of(),
-                EventPrep.Mode.OFF, EventRoster.notRequired(), EventSpace.Setting.OFF, Submissions.DEFAULT);
+                EventPrep.Mode.OFF, EventRoster.notRequired(), EventSpace.Setting.OFF, Submissions.DEFAULT, EventWrapup.Setting.DEFAULT);
     }
 
     /** Reads the settings, filling anything missing with the defaults. A value that can't be read is left at its default; {@link #problems} reports it. */
@@ -92,7 +94,7 @@ public record EventSettings(BuyIn buyIn, Policy teamPolicy, QueueRules.Policy qu
             // reported by problems()
         }
         return new EventSettings(buyIn, policy == null ? d.teamPolicy() : policy, queue == null ? d.queue() : queue, closes, id(config, "signupChannelId"), id(config, "signupAdminChannelId"),
-                id(config, "boardChannelId"), id(config, "reviewChannelId"), organisersOf(config), setupModeOf(config), verificationOf(config), EventSpace.parse(config), submissionsOf(config));
+                id(config, "boardChannelId"), id(config, "reviewChannelId"), organisersOf(config), setupModeOf(config), verificationOf(config), EventSpace.parse(config), submissionsOf(config), EventWrapup.parse(config));
     }
 
     /** The setup mode in the settings; OFF when there is none or it can't be read ({@link #problems} reports the latter). */
@@ -196,6 +198,7 @@ public record EventSettings(BuyIn buyIn, Policy teamPolicy, QueueRules.Policy qu
             }
         }
         problems.addAll(EventSpace.problems(config));
+        problems.addAll(EventWrapup.problems(config));
         boolean one = config.hasKey("signupChannelId") && id(config, "signupChannelId") != null;
         boolean other = config.hasKey("signupAdminChannelId") && id(config, "signupAdminChannelId") != null;
         if (one != other) problems.add("A signup needs both a public channel and a staff channel, or neither.");

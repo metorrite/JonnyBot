@@ -105,6 +105,14 @@ public class EventSpaceOps {
             return state.equals("running");
         }
 
+        void total(int count) {
+            total = count;
+        }
+
+        void say(String text) {
+            message = text;
+        }
+
         void step(String what) {
             message = what;
             done++;
@@ -191,11 +199,12 @@ public class EventSpaceOps {
         return start(event.id(), "removal", job -> runRemoval(guild, event.guildId(), event.id(), job));
     }
 
-    private Job start(long eventId, String kind, java.util.function.Consumer<Job> work) {
+    /** Runs {@code work} in the background as the event's one job at a time (shared with the wrap-up, which also changes channels and roles). */
+    Job start(long eventId, String kind, java.util.function.Consumer<Job> work) {
         Job job = new Job(kind);
         synchronized (jobs) {
             Job running = jobs.get(eventId);
-            if (running != null && running.running()) throw new EventProblem(409, "This event's roles and channels are already being " + (running.kind().equals("removal") ? "removed" : "set up") + ".");
+            if (running != null && running.running()) throw new EventProblem(409, "This event's roles and channels are busy: " + running.kind() + " is still running. Wait for it to finish.");
             jobs.put(eventId, job);
         }
         executor.execute(() -> {
@@ -367,7 +376,7 @@ public class EventSpaceOps {
         return note.length() > NOTE_LIMIT ? note.substring(0, NOTE_LIMIT - 1) + "…" : note;
     }
 
-    private void deleteRole(Guild guild, long eventId, String key, Long id) {
+    void deleteRole(Guild guild, long eventId, String key, Long id) {
         Role role = id == null ? null : guild.getRoleById(id);
         try {
             if (role != null) role.delete().reason("Removing the roles of an event").complete();
@@ -377,7 +386,7 @@ public class EventSpaceOps {
         space.deleteRole(eventId, key);
     }
 
-    private void deleteChannel(Guild guild, long eventId, String key, Long id) {
+    void deleteChannel(Guild guild, long eventId, String key, Long id) {
         GuildChannel channel = id == null ? null : guild.getGuildChannelById(id);
         try {
             if (channel != null) channel.delete().reason("Removing the channels of an event").complete();
