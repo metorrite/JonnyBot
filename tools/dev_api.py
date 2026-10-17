@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Calls the running dev bot's internal admin API (the routes the website's dashboard uses), for checking things without the browser.
 
-    python tools/dev_api.py GET events/12/space --actor 231145573753815040
-    python tools/dev_api.py POST events/12/space/preview '{"enabled": true}' --actor 231145573753815040
+    python tools/dev_api.py GET events/12/space --actor <your discord user id>
+    python tools/dev_api.py POST events/12/space/preview '{"enabled": true}' --actor <your discord user id>
 
 The secret and the server id are read from the "JonnyBot Dev" run configuration in .idea/workspace.xml (INTERNAL_API_SECRET and GUILD_ID); they are
 never printed. --actor is the Discord user id of a dashboard admin (or set DEV_ACTOR_ID). The bot must be running (the API listens on port 8081).
