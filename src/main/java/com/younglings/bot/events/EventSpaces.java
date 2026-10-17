@@ -38,6 +38,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -61,8 +62,8 @@ public class EventSpaces {
         this.groups = groups;
     }
 
-    /** What the plan was made from, kept so the page can say who isn't in the server and which roles count as staff. */
-    public record Gathered(Facts facts, Map<Long, Member> present, List<Role> staffRoles, EventSettings settings) {}
+    /** What the plan was made from, kept so the page can say which roles count as staff and what settings were used. */
+    public record Gathered(Facts facts, List<Role> staffRoles, EventSettings settings) {}
 
     /** What setting up the space would do right now: the plan, plus a note on players who haven't joined the server. */
     public record Preview(Plan plan, Gathered gathered) {}
@@ -100,13 +101,12 @@ public class EventSpaces {
         counted.forEach(p -> ask.add(p.userId()));
         ask.addAll(settings.organisers());
         Presence presence = presenceOf(guild, ask);
-        Map<Long, Member> present = presence.members();
         List<PlayerRef> players = new ArrayList<>();
         for (Participant p : counted) {
-            Member member = present.get(p.userId());
+            String name = presence.names().get(p.userId());
             Long team = p.teamId() != null && teamIds.contains(p.teamId()) ? p.teamId() : null;
             // when Discord couldn't be asked, nobody is assumed to be missing
-            players.add(new PlayerRef(p.userId(), member != null ? member.getEffectiveName() : "player " + shortId(p.userId()), team, member != null || !presence.complete()));
+            players.add(new PlayerRef(p.userId(), name != null ? name : "player " + shortId(p.userId()), team, name != null || !presence.complete()));
         }
 
         Map<String, HeldRole> heldRoles = new LinkedHashMap<>();
@@ -127,7 +127,7 @@ public class EventSpaces {
         Facts facts = new Facts(event.name(), event.template(), teamScored, setting, settings.boardChannelId(), settings.reviewChannelId(),
                 teams.stream().map(t -> new TeamRef(t.id(), t.name())).toList(), players, settings.organisers(), excluded, heldRoles, heldChannels,
                 pickProblems(guild, event, settings), roomOf(guild), readiness);
-        return new Gathered(facts, present, staffRoles(guild), settings);
+        return new Gathered(facts, staffRoles(guild), settings);
     }
 
     private static String shortId(long id) {
@@ -135,17 +135,41 @@ public class EventSpaces {
         return text.length() <= 4 ? text : text.substring(text.length() - 4);
     }
 
-    /** Who is in the server among those asked about, and whether Discord could be asked (if not, those missing from {@code members} may be in the server after all). */
-    record Presence(Map<Long, Member> members, boolean complete) {}
+    /** Who is in the server among those asked about (by name), and whether Discord could be asked (if not, those missing from {@code names} may be in the server after all). */
+    record Presence(Map<Long, String> names, boolean complete) {}
 
-    /** The members among {@code ids} who are in the server: from the cache, and for the rest by asking Discord (100 at a time). */
+    /** What was found out about one player a moment ago. */
+    private record Seen(String name, boolean inServer, long at) {}
+
+    /** Asking Discord is slow and the dashboard asks every two seconds while a setup runs, so what was found is kept for this long. */
+    private static final long SEEN_MILLIS = 60_000;
+    private final Map<Long, Map<Long, Seen>> seen = new ConcurrentHashMap<>();
+
+    /** Forgets what was found out about a player, because something changed (they joined the server). */
+    public void forget(long guildId, long userId) {
+        Map<Long, Seen> forGuild = seen.get(guildId);
+        if (forGuild != null) forGuild.remove(userId);
+    }
+
+    /** The members among {@code ids} who are in the server: from the cache or what was found a moment ago, and for the rest by asking Discord (100 at a time). */
     Presence presenceOf(Guild guild, Collection<Long> ids) {
-        Map<Long, Member> found = new HashMap<>();
+        Map<Long, String> found = new HashMap<>();
+        Map<Long, Seen> known = seen.computeIfAbsent(guild.getIdLong(), id -> new ConcurrentHashMap<>());
+        long now = System.currentTimeMillis();
         List<Long> missing = new ArrayList<>();
         for (long id : ids) {
             Member cached = guild.getMemberById(id);
-            if (cached != null) found.put(id, cached);
-            else missing.add(id);
+            if (cached != null) {
+                found.put(id, cached.getEffectiveName());
+                known.put(id, new Seen(cached.getEffectiveName(), true, now));
+                continue;
+            }
+            Seen before = known.get(id);
+            if (before != null && now - before.at() < SEEN_MILLIS) {
+                if (before.inServer()) found.put(id, before.name());
+            } else {
+                missing.add(id);
+            }
         }
         boolean complete = true;
         for (int i = 0; i < missing.size(); i += 100) {
@@ -153,7 +177,15 @@ public class EventSpaces {
             try {
                 CompletableFuture<List<Member>> asked = new CompletableFuture<>();
                 guild.retrieveMembersByIds(chunk).onSuccess(asked::complete).onError(asked::completeExceptionally);
-                for (Member m : asked.get(30, TimeUnit.SECONDS)) found.put(m.getIdLong(), m);
+                Set<Long> answered = new HashSet<>();
+                for (Member m : asked.get(30, TimeUnit.SECONDS)) {
+                    found.put(m.getIdLong(), m.getEffectiveName());
+                    known.put(m.getIdLong(), new Seen(m.getEffectiveName(), true, now));
+                    answered.add(m.getIdLong());
+                }
+                for (long id : chunk) {
+                    if (!answered.contains(id)) known.put(id, new Seen("", false, now));
+                }
             } catch (Exception e) {
                 if (e instanceof InterruptedException) Thread.currentThread().interrupt();
                 log.warn("Could not check which players are in the server", e);

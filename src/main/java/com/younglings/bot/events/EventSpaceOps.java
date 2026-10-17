@@ -157,6 +157,7 @@ public class EventSpaceOps {
     @BEventListener
     public void onMemberJoin(GuildMemberJoinEvent event) {
         try {
+            spaces.forget(event.getGuild().getIdLong(), event.getUser().getIdLong());
             for (long eventId : space.eventsWithSpace(event.getGuild().getIdLong())) schedule(event.getGuild().getIdLong(), eventId);
         } catch (RuntimeException e) {
             log.warn("Could not look for roles to give {}", event.getUser().getId(), e);

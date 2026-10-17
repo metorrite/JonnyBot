@@ -478,6 +478,26 @@ class EventSpaceOpsTest {
     }
 
     @Test
+    void whoIsInTheServerIsAskedAboutOnlyOnceAMinuteUntilSomeoneJoins() {
+        server.notInServer.add(704L);
+        long id = event(CompetitionTemplate.KEY, ScoringMode.INDIVIDUAL, "{\"channels\": {\"enabled\": true}}");
+        open(id);
+        join(id, 701, null);
+        join(id, 704, null);
+        closeAndConfirm(id);
+
+        var first = spaces.preview(guild, reload(id)).plan();
+        var second = spaces.preview(guild, reload(id)).plan();
+        assertTrue(first.warnings().stream().anyMatch(w -> w.contains("1 player hasn't joined this Discord server yet")), first.warnings().toString());
+        assertEquals(first.warnings(), second.warnings());
+        Mockito.verify(guild, Mockito.times(1)).retrieveMembersByIds(ArgumentMatchers.<Collection<Long>>any());
+
+        server.notInServer.remove(704L);
+        spaces.forget(G, 704);
+        assertTrue(spaces.preview(guild, reload(id)).plan().warnings().stream().noneMatch(w -> w.contains("hasn't joined")), "after they join, they are no longer reported missing");
+    }
+
+    @Test
     void aTeamMemberMovedToAnotherTeamSwapsTeamRoles() throws Exception {
         long id = event(BossNightTemplate.KEY, ScoringMode.TEAM, "{\"boss\":\"Araxxor\",\"channels\": {\"enabled\": true}}");
         open(id);
