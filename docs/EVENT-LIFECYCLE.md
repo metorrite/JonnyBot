@@ -1,0 +1,74 @@
+# The event lifecycle project
+
+What was asked for, what has been decided, what is built, and what is next. Written 2026-10-17 so the work can be picked up on another machine. (Claude's own notes for the project hold the same plus working lessons: `memory/project_event_lifecycle_channels.md`, `project_event_reminders.md`.)
+
+## The goal
+
+Drake runs RuneScape clan events (bingo, scavenger hunts, XP competitions, boss nights) through JonnyBot and the clan dashboard. The event engine (create, objectives, teams, players, proof, standings, buy-ins, prizes) already existed. This project turns it into a full lifecycle:
+
+**build -> take signups -> close signups and confirm the roster -> (verify players) -> build teams -> make Discord roles and channels -> run, with players submitting proof -> finish -> wrap up (export, archive, delete).**
+
+## Requirements (Drake's words, condensed) and decisions
+
+- R1-R4 Bingo looks: keep both the template pictures ("classic") and the RuneScape-themed ones; shapes (path, pyramid, convergence = "The Boss Convergence", world tree) plus the normal grid, now with backdrops; options to customise each.
+- R5-R9 Every event gets channel, player/team and board management that coincide, and a player-facing area. The bot makes **event roles** for signed-up players (website and Discord signups stay in sync); marking signups closed pauses the signup and syncs the roster **one last time**; roles then drive a category and channels; a **"Set up event channels"** button only works once signups are over, the roster is confirmed and (team events) the teams are final.
+- R10-R11 Team events: an admin builds teams by hand by skill (some bigger and weaker, some smaller and stronger), in a friendly web interface **and** Discord commands, then finalises them.
+- R12-R17 Channels: every channel name from a pattern setting (`{event} General Channel` -> `christmas-bingo-general-channel`); per channel the bot **creates it or the admin picks an existing one**, independently; picked channels are validated; the next phase is blocked until everything the engine needs exists. Per event: its own category, a staff+organiser channel, an announcement channel (participants read, organisers post), a general channel, optional board/standings channels, private team channels, optional per-player channels for solo events. Discord allows 50 channels per category, so extra categories are made automatically (decided, not optional).
+- R18-R19 `/submit`: the event is worked out from the channel it is used in; an option makes `/submit` the only way to submit; each submission goes to the player's/team's channel and (optionally) a staff-only channel. Decided shape: `/submit event` and `/submit event-verify` (subcommands).
+- R20/R22 Verification before the event (so nobody hoards): pending players sit on the roster but are excluded from teams unless an organiser lets them through; the gate (at signup / before teams / before start) is movable.
+- R23 Setup streams in the web interface: Quick, Standard, Guided; saved templates; drafts.
+- R24 Wrap-up options (undecided in detail): export everything to a zip of JSON files, delete all, archive into archive channels, compress/transcribe (e.g. every solo channel into one), de-duplicate bot messages, and a role-retention schedule independent of the channel schedule (e.g. keep general and announcements viewable a week).
+- D10 Participants must join the host Discord to take part (so roles and channels only concern members).
+- Parked: an events subdomain hub for open community events (`events.rsyounglings.com`).
+
+## Slices and status
+
+| # | Slice | Bot | Website | State |
+|---|---|---|---|---|
+| 1 | Bingo looks, grid backdrops, options | #186 | #75 | merged into dev |
+| 2 | Lifecycle foundation: close signups, roster, verification, readiness checklist | #187 | #76 | merged into dev |
+| 3 | Setup streams (standard/quick/guided), drafts, saved templates, options registry | #188 | #77 | merged into dev |
+| 4 | Team builder: ratings, strength, suggestion, finalise, `/events team` | #189 | #78 | merged into dev |
+| 5 | Roles and channels (see below) | | | in progress |
+| 6 | `/submit event` and `/submit event-verify`, channel inference, receipts, require flag | | | not started |
+| 7 | Player-facing event area on the website (my events, team, board, standings, submissions, links to channels) | | | not started |
+| 8 | Wrap-up: export zip, delete, archive, compress, de-duplicate, role retention; docs/guide text | | | not started |
+
+Nothing from these slices is on `master`: it needs Drake's explicit go-ahead (it deploys). After slice 8 comes refinement.
+
+## How the engine fits together (bot, `com.younglings.bot.events`)
+
+- `EventService` applies the rules; `EventRepository` owns the tables (`SchemaBootstrapper` creates them at startup, `ALTER ... IF NOT EXISTS` for new columns). Standings are never stored: `EventScoring` works them out from the append-only progress log.
+- Stages: DRAFT, SIGNUPS, RUNNING, SCORING, DONE, CANCELLED (`EventRules`).
+- `EventPrep` (pure): the "before it starts" checklist: build, signups, roster, verification, teams. Mode OFF/STANDARD/FULL decides whether steps are required. `EventRoster` (pure): verification states and the gate. `TeamBuilder` (pure): ratings, suggestion, "what stops the teams being final". `TeamRules`: who may join and share a team.
+- Templates (`EventTemplate`: custom, bingo, scavenger-hunt, competition, boss-night). `EventOptions` is the **single registry of every creation option** (path, label, step, type, standard value, required, show-when, quick); `EventSetup` creates events from answers, keeps drafts (`event_draft`) and saved templates (`event_blueprint`); the website renders its three setup streams from the registry's schema, so a new option appears everywhere.
+- `EventChanges` is a tiny bus (PROGRESS, STAGE, SETUP, CLAIM_DECIDED, ROSTER, TEAMS) that Discord-facing parts subscribe to (`EventBoardPanels` redraws the live bingo board).
+- Website routes live in `EventsAdminApi` (+ `EventSetupApi`), reached through the dashboard's allow-listed server action `eventApiAction` (`src/app/dashboard/[guildId]/event-manager/actions.ts`). Discord commands: `/events ...` (`EventsCommand`), `/events team ...` (`EventsTeamCommand`).
+- Website: `EventManager.tsx` (the event's tabs), `setup/` (the three streams, wizard, live summary), `teams/` (the team builder), `src/lib/eventOptions.ts` and `eventTeams.ts` (pure helpers mirroring the bot).
+
+## Slice 5 plan: roles and channels
+
+Per event, after signups are closed, the roster is confirmed and (team events) the teams are final:
+
+- **Roles** the bot makes (recorded so it only ever touches its own): participant, organiser, one per team. Membership follows the effective roster (players who count at the current verification moment, so unverified players never get roles), teams and organisers, kept in step when they change.
+- **Channels** (slots): category (plus overflow categories at 50 channels each), staff, announcements, general, board, submissions (staff queue), a private channel per team, optionally one per player for solo events. Names from patterns; each slot is created by the bot or an existing channel the admin picked (validated).
+- **Access:** @everyone cannot see any of it; staff roles and organisers see and post everywhere; participants read announcements and the board, post in general; a team's role sees only its channel; a player sees only theirs.
+- **Preview, then apply:** a pre-flight (bot permissions, role hierarchy, headroom under Discord's limits of 250 roles, 500 channels, 50 channels per category, 100 permission overwrites per channel) and a dry-run list of everything that will be created or changed, then apply; applying is idempotent and resumable (each created id is saved as it goes; pressing it again only creates what is missing and repairs drift). A way to remove everything the bot made for an event.
+- Opt-in per event (`config.channels.enabled`), so existing events are unaffected; when on, "Roles and channels" becomes a required step of the checklist in an event that follows the setup steps.
+
+## Decisions I made that Drake may want to change
+
+Setup defaults (one `standard` value per option in `EventOptions`/the templates' `options()`): starts a day after creation, runs a week, solo, clan only, no limit, mix freely, first come first served, no buy-in, no prizes, setup steps ON from the dashboard (OFF for Discord quick-create), verification off (gate before teams), bingo 5x5 RuneScape look boss-drop pool 50 per line 250 blackout, hunt 8 items 25 pts unordered 100 bonus, competition overall 1 point per 10,000 XP, boss night 10 kills 10 pts.
+Verification: a pending player counts until the gate's moment; the deadline closes signups for every event that has one; confirming the roster survives late adds, reopening signups resets it.
+Teams: ratings 1-5 (3 = unknown); the suggestion levels totals (strongest first onto the weakest team); strength = total XP of the linked RuneScape name; teams can still be changed after they are final and reopened until the event starts.
+
+## What is not proven yet
+
+Discord-side code has needed fixes the first time it ran for real every time. Not yet run in Discord: closing signups and the pause, the join messages with verification, `/events create` from the standard answers, `/events team ...`, board posting with the new looks. Test on the dev bot (dev server `1495619657674264717`) with Drake's account and his alt. Lessons that bit before: a new enum slash option needs a resolver in `EventsResolvers` or the bot will not start; a new `ListenerAdapter` must be registered in `Bot.java`; starting the dev bot twice leaves two bots on one token.
+
+## Open questions for Drake
+
+- Does he like the standard defaults above (especially RuneScape as the default look and setup steps on by default)?
+- Bingo customisation beyond the look: variable shape sizes (pyramid base, path length) need shapes drawn in code; fog of war, a title override, names under tiles, a free centre space?
+- His `path.png` has two empty glyph boxes beside START and TREASURE CHEST (offered to paint them out).
+- Wrap-up details (slice 8): what exactly to export, archive and delete, and the role-retention schedule.
