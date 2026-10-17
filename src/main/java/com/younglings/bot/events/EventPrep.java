@@ -9,7 +9,8 @@ import java.util.List;
 /**
  * How ready an event is to start, as a checklist an organiser can follow: build it, take signups, close them and confirm the roster, sort out
  * verification. The event's stage ({@link Status}) stays as it was; this reads the facts about the event and says what is done, what to do now and
- * what stops it from starting. A step that doesn't apply to this event is left out, and later steps (teams, channels) are added here as they exist.
+ * what stops it from starting. A step that doesn't apply to this event is left out (an event scored by player has no teams step), and later steps (channels)
+ * are added here as they exist.
  * <p>
  * How strict it is depends on the event's {@link Mode}: an event on {@code OFF} (what every event was before this) starts whenever an organiser says,
  * so the signup and roster steps only advise; the other modes make closing signups and confirming the roster required. Verification is checked
@@ -29,9 +30,21 @@ public final class EventPrep {
         }
     }
 
-    /** What the checklist is worked out from. The counts are of players who hold a place (not the waitlist), except {@code waiting}. */
+    /** The teams of an event scored by team, as the checklist needs them: what they look like ({@link TeamBuilder}) and whether an organiser called them final. */
+    public record TeamFacts(TeamBuilder.Facts teams, boolean finalised) {}
+
+    /**
+     * What the checklist is worked out from. The counts are of players who hold a place (not the waitlist), except {@code waiting}. {@code teams} is null for an
+     * event scored by player, which has no teams step.
+     */
     public record Facts(Status status, Mode mode, boolean hasObjectives, boolean signupsClosed, boolean rosterConfirmed, int active, int waiting,
-                        EventRoster.Setting verification, EventRoster.Tally tally) {}
+                        EventRoster.Setting verification, EventRoster.Tally tally, TeamFacts teams) {
+        /** An event with no teams. */
+        public Facts(Status status, Mode mode, boolean hasObjectives, boolean signupsClosed, boolean rosterConfirmed, int active, int waiting,
+                     EventRoster.Setting verification, EventRoster.Tally tally) {
+            this(status, mode, hasObjectives, signupsClosed, rosterConfirmed, active, waiting, verification, tally, null);
+        }
+    }
 
     /** The checklist, everything that stops the start, and things worth knowing that don't. */
     public record Prep(List<Step> steps, List<String> blockers, List<String> warnings) {
@@ -133,6 +146,33 @@ public final class EventPrep {
             }
             steps.add(new Step("verification", "Verification", unsettled == 0 ? State.DONE : called ? State.SKIPPED : State.ACTIVE, blocksStart, detail, why));
         }
+
+        // 5. teams, only for an event scored by team
+        if (f.teams() != null) steps.add(teamsStep(f, managed, started, called, blockers, warnings));
         return new Prep(steps, blockers, warnings);
+    }
+
+    /** The teams step: waits for the roster in a managed event, then asks for every player on a team and an organiser's word that the teams are final. */
+    private static Step teamsStep(Facts f, boolean managed, boolean started, boolean called, List<String> blockers, List<String> warnings) {
+        TeamBuilder.Facts t = f.teams().teams();
+        boolean finalised = f.teams().finalised();
+        List<String> problems = TeamBuilder.problems(t);
+        String counts = plural(t.teams(), "team", "teams") + ", " + (t.pool() - t.unassigned()) + " of " + plural(t.pool(), "player", "players") + " placed";
+        if (started) return new Step("teams", "Teams", State.DONE, managed, (finalised ? "Final: " : "") + counts + ".", List.of());
+        if (called) return new Step("teams", "Teams", State.SKIPPED, managed, "The event was cancelled.", List.of());
+        if (managed && !f.rosterConfirmed()) return new Step("teams", "Teams", State.WAITING, true, "Confirm the roster first, then build the teams.", List.of());
+        boolean done = problems.isEmpty() && (finalised || !managed);
+        List<String> why = new ArrayList<>();
+        if (!done) {
+            why.addAll(problems);
+            if (problems.isEmpty()) why.add("Finalise the teams.");
+        }
+        if (managed) {
+            blockers.addAll(why);
+        } else if (!problems.isEmpty()) {
+            warnings.add(String.join(" ", problems) + " Players without a team can't earn points for one.");
+        }
+        String detail = counts + "." + (problems.isEmpty() ? (done ? "" : " Check them, then finalise.") : " " + String.join(" ", problems));
+        return new Step("teams", "Teams", done ? State.DONE : State.ACTIVE, managed, detail, managed ? why : List.of());
     }
 }

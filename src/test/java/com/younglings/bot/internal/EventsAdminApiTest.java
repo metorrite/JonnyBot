@@ -100,7 +100,7 @@ class EventsAdminApiTest {
         links = Mockito.mock(com.younglings.bot.runescape.PlayerLinkRepository.class);
         var eventSetup = new com.younglings.bot.events.EventSetup(service, templates, new com.younglings.bot.events.EventDraftRepository(supplier), new com.younglings.bot.events.EventBlueprintRepository(supplier));
         api = new EventsAdminApi(service, repository, templates, signups, new BingoTemplate(), panels, links, new com.younglings.bot.events.BingoTiles(new com.younglings.bot.internal.WikiCatalog()),
-                new EventSetupApi(eventSetup));
+                new EventSetupApi(eventSetup), new com.younglings.bot.events.EventTeams(service, repository, links));
 
         guild = Mockito.mock(Guild.class);
         Mockito.when(guild.getIdLong()).thenReturn(G);
@@ -301,6 +301,139 @@ class EventsAdminApiTest {
         assertEquals(409, failure("POST", "events/" + id + "/awards/" + award + "/status", "{\"status\":\"pending\"}").status);
         var history = call("GET", "events/" + id + "/awards", null).getArray("awards").getObject(0).getArray("history");
         assertEquals(1, count(history));
+    }
+
+    // ---------- building the teams ----------
+
+    private static DataObject playerOf(DataObject detail, String userId) {
+        var players = detail.getArray("participants");
+        for (int i = 0; i < players.length(); i++) if (players.getObject(i).getString("userId").equals(userId)) return players.getObject(i);
+        throw new AssertionError("no player " + userId);
+    }
+
+    private static String teamIdNamed(DataObject detail, String name) {
+        var teams = detail.getArray("teams");
+        for (int i = 0; i < teams.length(); i++) if (teams.getObject(i).getString("name").equals(name)) return teams.getObject(i).getString("id");
+        throw new AssertionError("no team " + name);
+    }
+
+    @Test
+    void theTeamBuilderRoutesRateSuggestMoveNameAndFinaliseTheTeams() {
+        Mockito.when(links.getAllLinks(G)).thenReturn(List.of(new com.younglings.bot.runescape.PlayerLink(1, G, 101, "Main", "x", null, null), new com.younglings.bot.runescape.PlayerLink(2, G, 102, "Second", "x", null, null)));
+        Mockito.when(links.getLatestSnapshots(ArgumentMatchers.anyCollection())).thenReturn(java.util.Map.of(
+                "main", new com.younglings.bot.runescape.PlayerLinkRepository.StatsSnapshotRow(1L, java.time.OffsetDateTime.now(), 2800, 5_000_000_000L, 138, 0, 0, 0),
+                "second", new com.younglings.bot.runescape.PlayerLinkRepository.StatsSnapshotRow(2L, java.time.OffsetDateTime.now(), 1500, 100_000_000L, 120, 0, 0, 0)));
+        String id = create("{\"name\":\"Builder\",\"scoringMode\":\"team\",\"config\":{\"setup\":{\"mode\":\"STANDARD\"}}}");
+        call("PUT", "events/" + id + "/objectives", "{\"objectives\":[{\"key\":\"zuk\",\"label\":\"Kill Zuk\",\"points\":50,\"evidence\":\"either\"}]}");
+        call("POST", "events/" + id + "/status", "{\"status\":\"signups\"}");
+        for (String user : List.of("101", "102", "103", "104")) call("POST", "events/" + id + "/participants", "{\"userId\":\"" + user + "\"}");
+        call("POST", "events/" + id + "/teams", "{\"name\":\"Red\"}");
+        call("POST", "events/" + id + "/teams", "{\"name\":\"Blue\"}");
+
+        // what is known about each player: strength from the linked account, and a rating suggested from it
+        var detail = call("GET", "events/" + id, null);
+        var main = playerOf(detail, "101");
+        assertEquals("Main", main.getObject("strength").getString("rsn"));
+        assertEquals(2800, main.getObject("strength").getInt("totalLevel"));
+        assertEquals(5_000_000_000L, main.getObject("strength").getLong("totalXp"));
+        assertEquals(5, main.getInt("suggestedRating"), "the most XP of the two with stats");
+        assertEquals(1, playerOf(detail, "102").getInt("suggestedRating"));
+        assertTrue(playerOf(detail, "103").isNull("strength"));
+        assertTrue(playerOf(detail, "103").isNull("suggestedRating"));
+        assertEquals(3, playerOf(detail, "103").getInt("effectiveRating"), "nothing known counts as average");
+        assertTrue(playerOf(detail, "101").isNull("teamBlock"));
+
+        // an organiser's rating wins, can be cleared, and is checked
+        detail = call("PUT", "events/" + id + "/participants/102/rating", "{\"rating\":4}");
+        assertEquals(4, playerOf(detail, "102").getInt("rating"));
+        assertEquals(4, playerOf(detail, "102").getInt("effectiveRating"));
+        assertEquals(400, failure("PUT", "events/" + id + "/participants/102/rating", "{\"rating\":9}").status);
+        detail = call("PUT", "events/" + id + "/participants/102/rating", "{\"rating\":null}");
+        assertTrue(playerOf(detail, "102").isNull("rating"));
+        assertEquals(1, playerOf(detail, "102").getInt("effectiveRating"), "back to the one worked out from their stats");
+        assertEquals(404, failure("PUT", "events/" + id + "/participants/999/rating", "{\"rating\":3}").status);
+
+        // a suggestion changes nothing until it is applied through the bulk route
+        var suggestion = call("POST", "events/" + id + "/teams/suggest", "{}");
+        assertEquals(4, count(suggestion.getArray("moves")));
+        assertTrue(suggestion.getArray("notes").isEmpty());
+        detail = call("GET", "events/" + id, null);
+        for (String user : List.of("101", "102", "103", "104")) assertTrue(playerOf(detail, user).isNull("teamId"));
+        StringBuilder assignments = new StringBuilder("{\"assignments\":[");
+        for (int i = 0; i < suggestion.getArray("moves").length(); i++) {
+            var move = suggestion.getArray("moves").getObject(i);
+            assignments.append(i > 0 ? "," : "").append("{\"userId\":\"").append(move.getString("userId")).append("\",\"teamId\":\"").append(move.getString("teamId")).append("\"}");
+        }
+        detail = call("PUT", "events/" + id + "/teams/assign", assignments.append("]}").toString());
+        for (String user : List.of("101", "102", "103", "104")) assertFalse(playerOf(detail, user).isNull("teamId"), user + " has a team now");
+        assertEquals(400, failure("PUT", "events/" + id + "/teams/assign", "{\"assignments\":[{\"userId\":\"101\",\"teamId\":\"424242\"}]}").status, "all or nothing");
+        assertEquals(400, failure("PUT", "events/" + id + "/teams/assign", "{}").status);
+
+        // naming a team and its captain (who has to be on it)
+        String red = teamIdNamed(detail, "Red");
+        String onRed = null;
+        for (String user : List.of("101", "102", "103", "104")) if (red.equals(playerOf(detail, user).getString("teamId"))) onRed = user;
+        assertNotNull(onRed);
+        detail = call("PUT", "events/" + id + "/teams/" + red, "{\"name\":\"Crimson\",\"captainId\":\"" + onRed + "\"}");
+        assertEquals(red, teamIdNamed(detail, "Crimson"), "Red was renamed");
+        var teamList = detail.getArray("teams");
+        for (int i = 0; i < teamList.length(); i++) if (teamList.getObject(i).getString("id").equals(red)) assertEquals(onRed, teamList.getObject(i).getString("captainId"));
+        String blueOnlyPlayer = null;
+        for (String user : List.of("101", "102", "103", "104")) if (!red.equals(playerOf(detail, user).getString("teamId"))) blueOnlyPlayer = user;
+        String crimson = teamIdNamed(detail, "Crimson");
+        assertEquals(409, failure("PUT", "events/" + id + "/teams/" + crimson, "{\"captainId\":\"" + blueOnlyPlayer + "\"}").status, "a captain has to be on the team");
+        assertEquals(409, failure("PUT", "events/" + id + "/teams/" + crimson, "{\"name\":\"Blue\"}").status, "names are unique");
+        assertEquals(400, failure("PUT", "events/" + id + "/teams/abc", "{}").status);
+
+        // final: the roster first, then the word
+        assertEquals(409, failure("POST", "events/" + id + "/teams/finalise", "{}").status, "confirm the roster first");
+        call("POST", "events/" + id + "/signup/close", "{}");
+        call("POST", "events/" + id + "/roster/confirm", "{}");
+        assertEquals("ACTIVE", stepState(call("GET", "events/" + id, null), "teams"));
+        detail = call("POST", "events/" + id + "/teams/finalise", "{}");
+        assertFalse(detail.getObject("setup").isNull("teamsFinalisedAt"));
+        assertEquals("Tester", detail.getObject("setup").getString("teamsFinalisedBy"));
+        assertEquals("DONE", stepState(detail, "teams"));
+        assertTrue(detail.getObject("prep").getBoolean("ready"));
+        assertEquals(409, failure("POST", "events/" + id + "/teams/finalise", "{}").status, "already final");
+        detail = call("POST", "events/" + id + "/teams/reopen", "{}");
+        assertTrue(detail.getObject("setup").isNull("teamsFinalisedAt"));
+        assertEquals(409, failure("POST", "events/" + id + "/teams/reopen", "{}").status);
+        assertEquals(405, failure("GET", "events/" + id + "/teams/finalise", null).status);
+        call("POST", "events/" + id + "/teams/finalise", "{}");
+        call("POST", "events/" + id + "/status", "{\"status\":\"running\"}");
+        assertEquals(409, failure("POST", "events/" + id + "/teams/reopen", "{}").status, "not once the event has started");
+    }
+
+    @Test
+    void aPlayerWhoNeedsVerificationBeforeTeamsIsFlaggedAndRefusedUntilWaived() {
+        String id = create("{\"name\":\"Verified teams\",\"scoringMode\":\"team\",\"config\":{\"verification\":{\"required\":true,\"gate\":\"TEAMS\"}}}");
+        call("POST", "events/" + id + "/status", "{\"status\":\"signups\"}");
+        call("POST", "events/" + id + "/participants", "{\"userId\":\"101\"}");
+        call("POST", "events/" + id + "/teams", "{\"name\":\"Red\"}");
+        var detail = call("GET", "events/" + id, null);
+        assertTrue(playerOf(detail, "101").getString("teamBlock").contains("hasn't been verified"), playerOf(detail, "101").getString("teamBlock"));
+        String red = teamIdNamed(detail, "Red");
+        assertEquals(409, failure("PUT", "events/" + id + "/participants/101", "{\"teamId\":\"" + red + "\"}").status);
+        assertEquals(400, failure("PUT", "events/" + id + "/teams/assign", "{\"assignments\":[{\"userId\":\"101\",\"teamId\":\"" + red + "\"}]}").status);
+        assertTrue(call("POST", "events/" + id + "/teams/suggest", "{}").getArray("moves").isEmpty(), "they can't be placed, so nothing is suggested");
+
+        detail = call("PUT", "events/" + id + "/participants/101/verification", "{\"state\":\"waived\"}");
+        assertTrue(playerOf(detail, "101").isNull("teamBlock"));
+        detail = call("PUT", "events/" + id + "/participants/101", "{\"teamId\":\"" + red + "\"}");
+        assertEquals(red, playerOf(detail, "101").getString("teamId"));
+    }
+
+    @Test
+    void aSoloEventHasNoTeamBuilderData() {
+        String id = create("{\"name\":\"Solo\"}");
+        call("POST", "events/" + id + "/status", "{\"status\":\"signups\"}");
+        call("POST", "events/" + id + "/participants", "{\"userId\":\"101\"}");
+        var player = playerOf(call("GET", "events/" + id, null), "101");
+        assertTrue(player.isNull("strength"));
+        assertTrue(player.isNull("teamBlock"));
+        assertEquals(409, failure("POST", "events/" + id + "/teams/suggest", "{}").status);
+        assertEquals(409, failure("POST", "events/" + id + "/teams/finalise", "{}").status);
     }
 
     // ---------- closing signups, the roster and verification ----------

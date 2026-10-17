@@ -43,7 +43,7 @@ import java.util.List;
  * {@code open} lists events taking signups, and {@code join} / {@code leave} sign up or step out. Everything is the same engine and rules as the
  * website, so the team policy, deadline, waitlist and buy-in all apply. Staff can also start an event from here ({@code create}, {@code start},
  * {@code finish}) with the template's usual settings, close and reopen its signups ({@code close-signups}, {@code reopen-signups}), and name organisers for one event
- * ({@code add-organiser}, {@code remove-organiser}); prizes, teams and fine-tuning are on the website.
+ * ({@code add-organiser}, {@code remove-organiser}); teams are built with {@code /events team} (see {@link EventsTeamCommand}), prizes and fine-tuning are on the website.
  */
 @Command
 public class EventsCommand {
@@ -281,7 +281,7 @@ public class EventsCommand {
                     "### 🎉 New event: " + plan.input().name(),
                     plan.summary(),
                     "Sign up with `/events join id:" + id + "`. See everything open with `/events open`.",
-                    "-# Staff: teams, prizes and buy-ins are on the dashboard's Event manager, and `/events start id:" + id + "` begins it.");
+                    "-# Staff: prizes and buy-ins are on the dashboard's Event manager; teams are built there (Team builder) or with `/events team`. `/events start id:" + id + "` begins it.");
         } catch (IllegalArgumentException e) {
             Containers.replyEphemeral(event, Containers.WARNING, e.getMessage());
         } catch (EventProblem p) {

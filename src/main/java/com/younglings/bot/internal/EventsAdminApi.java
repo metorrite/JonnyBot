@@ -22,6 +22,8 @@ import com.younglings.bot.events.EventRoster;
 import com.younglings.bot.events.EventScoring.Standing;
 import com.younglings.bot.events.EventSignups;
 import com.younglings.bot.events.EventSettings;
+import com.younglings.bot.events.EventTeams;
+import com.younglings.bot.events.TeamBuilder;
 import com.younglings.bot.events.PrizePlan;
 import com.younglings.bot.events.PrizeRules;
 import com.younglings.bot.events.PrizeRules.AwardStatus;
@@ -44,7 +46,9 @@ import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.Locale;
 import java.util.function.Supplier;
@@ -54,7 +58,9 @@ import java.util.function.Supplier;
  * {@code POST events/{id}/status}. Inside an event: {@code PUT .../objectives} (the whole list), {@code POST .../teams},
  * {@code DELETE .../teams/{teamId}}, {@code POST .../participants}, {@code PUT/DELETE .../participants/{userId}}, {@code POST .../progress},
  * {@code GET .../standings}, {@code GET/POST .../claims}, {@code POST .../claims/{claimId}/approve|deny}, {@code POST .../signup/close|reopen},
- * {@code POST .../roster/confirm} and {@code PUT .../participants/{userId}/verification}. Everything is checked by
+ * {@code POST .../roster/confirm} and {@code PUT .../participants/{userId}/verification}. The team builder uses {@code PUT .../teams/{teamId}} (rename, captain),
+ * {@code PUT .../teams/assign} (many moves at once), {@code POST .../teams/suggest}, {@code POST .../teams/finalise|reopen} and
+ * {@code PUT .../participants/{userId}/rating}. Everything is checked by
  * {@link EventService}. Reached only through {@link TicketAdminApi}, which has already checked the asker may use the dashboard in this server
  * and audit-logs every change.
  */
@@ -71,9 +77,11 @@ public class EventsAdminApi implements AdminRouteExtension {
     private final com.younglings.bot.runescape.PlayerLinkRepository links;
     private final BingoTiles tiles;
     private final EventSetupApi setupApi;
+    private final EventTeams eventTeams;
 
     public EventsAdminApi(EventService service, EventRepository repository, EventTemplates templates, EventSignups signups, BingoTemplate bingo, EventBoardPanels panels,
-                          com.younglings.bot.runescape.PlayerLinkRepository links, BingoTiles tiles, EventSetupApi setupApi) {
+                          com.younglings.bot.runescape.PlayerLinkRepository links, BingoTiles tiles, EventSetupApi setupApi, EventTeams eventTeams) {
+        this.eventTeams = eventTeams;
         this.setupApi = setupApi;
         this.links = links;
         this.tiles = tiles;
@@ -257,9 +265,18 @@ public class EventsAdminApi implements AdminRouteExtension {
             return detail(guild, id);
         }
         if (parts.length == 4 && what.equals("teams")) {
-            AdminRouteExtension.requireMethod(method, "DELETE");
-            service.removeTeam(guild.getIdLong(), id, idOf(parts[3], "team"));
-            log.info("Dashboard: {} removed a team from event {}", actor.getId(), id);
+            return teamRoute(guild, actor, method, id, parts[3], body);
+        }
+        if (parts.length == 5 && what.equals("participants") && parts[4].equals("rating")) {
+            AdminRouteExtension.requireMethod(method, "PUT");
+            DataObject b = body.get();
+            Integer rating = null;
+            if (b.hasKey("rating") && !b.isNull("rating")) {
+                long value = number(b, "rating", -1);
+                if (value < Integer.MIN_VALUE || value > Integer.MAX_VALUE) throw new ApiError(400, "A rating is from " + TeamBuilder.MIN_RATING + " to " + TeamBuilder.MAX_RATING + ".");
+                rating = (int) value;
+            }
+            service.setRating(guild.getIdLong(), id, idOf(parts[3], "player"), rating);
             return detail(guild, id);
         }
         if (parts.length == 4 && what.equals("participants")) {
@@ -372,13 +389,22 @@ public class EventsAdminApi implements AdminRouteExtension {
         DataArray teams = DataArray.empty();
         repository.teams(id).forEach(t -> teams.add(DataObject.empty().put("id", Long.toString(t.id())).put("name", t.name()).put("captainId", t.captainId() == null ? null : Long.toString(t.captainId()))));
         EventSettings settings = EventSettings.parse(eventJson(e).getObject("config"));
+        // for an event scored by team: how strong each player looks, and whether they may be put on a team right now
+        boolean teamEvent = e.scoringMode() == ScoringMode.TEAM;
+        List<TeamBuilder.Player> builderPlayers = teamEvent ? eventTeams.players(guild.getIdLong(), e) : List.of();
+        Map<Long, Integer> suggestedRatings = TeamBuilder.suggestedRatings(builderPlayers);
+        Map<Long, Integer> effectiveRatings = TeamBuilder.effectiveRatings(builderPlayers);
+        Map<Long, TeamBuilder.Strength> strengths = new java.util.HashMap<>();
+        builderPlayers.stream().filter(bp -> bp.strength() != null).forEach(bp -> strengths.put(bp.userId(), bp.strength()));
         DataArray players = DataArray.empty();
         repository.participants(id).forEach(p -> players.add(DataObject.empty().put("userId", Long.toString(p.userId())).put("userName", name(guild, p.userId()))
                 .put("guildId", Long.toString(p.guildId())).put("teamId", p.teamId() == null ? null : Long.toString(p.teamId())).put("joinedAt", p.joinedAt().toString())
                 .put("kind", p.kind().name()).put("waiting", p.waiting()).put("buyIn", p.buyIn().name())
                 .put("verification", EventRoster.effective(p.verification(), settings.verification()).name())
                 .put("verifiedBy", p.verifiedBy() == null ? null : name(guild, p.verifiedBy())).put("verifiedAt", p.verifiedAt() == null ? null : p.verifiedAt().toString())
-                .put("verificationNote", p.verificationNote())));
+                .put("verificationNote", p.verificationNote())
+                .put("rating", p.rating()).put("suggestedRating", suggestedRatings.get(p.userId())).put("effectiveRating", effectiveRatings.get(p.userId()))
+                .put("strength", strengthJson(strengths.get(p.userId()))).put("teamBlock", teamEvent ? service.teamBlock(e, p) : null)));
         DataArray next = DataArray.empty();
         EventRules.next(e.status()).stream().sorted().forEach(s -> next.add(s.name()));
         DataArray prizes = DataArray.empty();
@@ -433,7 +459,15 @@ public class EventsAdminApi implements AdminRouteExtension {
         return DataObject.empty().put("signupsClosedAt", setup.signupsClosedAt() == null ? null : setup.signupsClosedAt().toString())
                 .put("signupsClosedBy", setup.signupsClosedBy() == null ? null : name(guild, setup.signupsClosedBy()))
                 .put("rosterConfirmedAt", setup.rosterConfirmedAt() == null ? null : setup.rosterConfirmedAt().toString())
-                .put("rosterConfirmedBy", setup.rosterConfirmedBy() == null ? null : name(guild, setup.rosterConfirmedBy()));
+                .put("rosterConfirmedBy", setup.rosterConfirmedBy() == null ? null : name(guild, setup.rosterConfirmedBy()))
+                .put("teamsFinalisedAt", setup.teamsFinalisedAt() == null ? null : setup.teamsFinalisedAt().toString())
+                .put("teamsFinalisedBy", setup.teamsFinalisedBy() == null ? null : name(guild, setup.teamsFinalisedBy()));
+    }
+
+    /** What is known of a player's account: their linked RuneScape name and its latest total level, combat level and total XP. Null when nothing is known. */
+    private static DataObject strengthJson(TeamBuilder.Strength strength) {
+        if (strength == null) return null;
+        return DataObject.empty().put("rsn", strength.rsn()).put("totalLevel", strength.totalLevel()).put("combatLevel", strength.combatLevel()).put("totalXp", strength.totalXp());
     }
 
     /** The event's verification settings and how many players are in each state (players on the waitlist aren't counted). */
@@ -524,6 +558,73 @@ public class EventsAdminApi implements AdminRouteExtension {
         service.addTeam(guild.getIdLong(), id, text(body, "name"), captain);
         log.info("Dashboard: {} added a team to event {}", actor.getId(), id);
         return detail(guild, id);
+    }
+
+    /**
+     * Inside {@code teams/}: {@code PUT teams/{teamId}} renames a team and/or names its captain ({@code {name, captainId}}, a null {@code captainId} clears it),
+     * {@code DELETE teams/{teamId}} removes it, {@code PUT teams/assign} makes many moves at once ({@code {assignments: [{userId, teamId}]}}, all or none),
+     * {@code POST teams/suggest} answers with a starting point for the teams without changing anything, and {@code POST teams/finalise|reopen} calls the teams
+     * final or takes that back.
+     */
+    private DataObject teamRoute(Guild guild, Member actor, String method, long id, String what, Supplier<DataObject> body) {
+        long guildId = guild.getIdLong();
+        switch (what) {
+            case "assign" -> {
+                AdminRouteExtension.requireMethod(method, "PUT");
+                DataObject b = body.get();
+                if (!b.hasKey("assignments") || b.isNull("assignments")) throw new ApiError(400, "Send the moves to make.");
+                DataArray array = b.getArray("assignments");
+                if (array.length() > 1000) throw new ApiError(400, "That is too many moves at once.");
+                Map<Long, Long> moves = new LinkedHashMap<>();
+                for (int i = 0; i < array.length(); i++) {
+                    DataObject move = array.getObject(i);
+                    Long userId = optionalId(move, "userId");
+                    if (userId == null) throw new ApiError(400, "Every move needs a player.");
+                    moves.put(userId, optionalId(move, "teamId"));
+                }
+                int changed = service.assignTeams(guildId, id, moves, user -> {
+                    String name = name(guild, user);
+                    return name == null ? "Player " + user : name;
+                });
+                log.info("Dashboard: {} moved {} players between the teams of event {}", actor.getId(), changed, id);
+                return detail(guild, id);
+            }
+            case "suggest" -> {
+                AdminRouteExtension.requireMethod(method, "POST");
+                TeamBuilder.Suggestion suggestion = eventTeams.suggest(guildId, id);
+                DataArray moves = DataArray.empty();
+                suggestion.moves().forEach(m -> moves.add(DataObject.empty().put("userId", Long.toString(m.userId())).put("teamId", m.teamId() == null ? null : Long.toString(m.teamId()))));
+                DataArray notes = DataArray.empty();
+                suggestion.notes().forEach(notes::add);
+                return DataObject.empty().put("moves", moves).put("notes", notes);
+            }
+            case "finalise" -> {
+                AdminRouteExtension.requireMethod(method, "POST");
+                service.finaliseTeams(guildId, id, actor.getIdLong());
+                log.info("Dashboard: {} finalised the teams of event {}", actor.getId(), id);
+                return detail(guild, id);
+            }
+            case "reopen" -> {
+                AdminRouteExtension.requireMethod(method, "POST");
+                service.reopenTeams(guildId, id);
+                log.info("Dashboard: {} reopened the teams of event {}", actor.getId(), id);
+                return detail(guild, id);
+            }
+            default -> {
+                long teamId = idOf(what, "team");
+                if (method.equals("DELETE")) {
+                    service.removeTeam(guildId, id, teamId);
+                    log.info("Dashboard: {} removed a team from event {}", actor.getId(), id);
+                    return detail(guild, id);
+                }
+                AdminRouteExtension.requireMethod(method, "PUT");
+                DataObject b = body.get();
+                if (b.hasKey("name") && !b.isNull("name")) service.renameTeam(guildId, id, teamId, text(b, "name"));
+                if (b.hasKey("captainId")) service.setCaptain(guildId, id, teamId, optionalId(b, "captainId"));
+                log.info("Dashboard: {} changed a team of event {}", actor.getId(), id);
+                return detail(guild, id);
+            }
+        }
     }
 
     DataObject addParticipant(Guild guild, Member actor, long id, DataObject body) {
