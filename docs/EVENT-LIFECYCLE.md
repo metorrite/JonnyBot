@@ -2,6 +2,14 @@
 
 What was asked for, what has been decided, what is built, and what is next. Written 2026-10-17 so the work can be picked up on another machine. (Claude's own notes for the project hold the same plus working lessons: `memory/project_event_lifecycle_channels.md`, `project_event_reminders.md`.)
 
+## Resume here (written 2026-10-17, when the work moved to a new PC)
+
+- **State:** slices 1-4 are merged into `dev` in both repos. Slice 5 (roles and channels) is built and tested and sits in open pull requests: bot [#191](https://github.com/metorrite/JonnyBot/pull/191) and website [#79](https://github.com/metorrite/younglings-website/pull/79), branch `feat/event-space` in both. Nothing is on `master` (master deploys; it needs Drake's explicit go-ahead every time).
+- **First moves on the new machine:** set up the environment from `DEV-SETUP.md`, copy Claude's memory folder across (it holds the plan, decisions, reminders and lessons), check CI on both pull requests, and merge them into `dev` (bot first, then website) when Drake says go or asks for the next slice. A fresh slice branch is made off `dev` after that (no stacked pull requests).
+- **Slice 5 has never been run against Discord for real** (see "What is not proven" below); the first thing worth doing with Drake is the small live test described there.
+- **Next is slice 6, `/submit event` and `/submit event-verify`.** What slice 5 already gives it: `EventSpaceRepository.channelById(guildId, channelId)` maps any channel JonnyBot made or was told to use back to its event and key (`general`, `staff`, `team:<id>`, `player:<userId>`, ...), which is how "the event is worked out from the channel the command is used in" can work; a team's or player's private channel is where their submission is mirrored; the `review` channel (the event's `reviewChannelId`) is the staff queue. Still to decide with Drake or default: the exact subcommand options, the "make `/submit` the only way to submit" flag, receipts to the player, and what `/submit event-verify` accepts (screenshots) and where it lands.
+- After 6: slice 7 (the player-facing event area on the website: my events, my team, board, standings, my submissions, links to the event's channels) and slice 8 (wrap-up: export zip of JSON, delete, archive, compress, de-duplicate, role and channel retention). Then refinement: the items listed under "Open questions" and "Choices I made" below.
+
 ## The goal
 
 Drake runs RuneScape clan events (bingo, scavenger hunts, XP competitions, boss nights) through JonnyBot and the clan dashboard. The event engine (create, objectives, teams, players, proof, standings, buy-ins, prizes) already existed. This project turns it into a full lifecycle:
