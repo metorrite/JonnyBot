@@ -26,22 +26,41 @@ import java.util.Set;
  * organisers start whenever they like), and
  * {@code verification: {required, gate: "SIGNUP" | "TEAMS" | "START", instructions}}: whether players must be verified, by when ({@link EventRoster.Gate}),
  * and what they are told to send, and
- * {@code channels: {enabled, teamChannels, playerChannels, slots, names}}: the roles and channels JonnyBot makes for the event ({@link EventSpace}).
+ * {@code channels: {enabled, teamChannels, playerChannels, slots, names}}: the roles and channels JonnyBot makes for the event ({@link EventSpace}), and
+ * {@code submissions: {require, receipts}}: whether proof only counts when sent with {@code /submit} from the player's own event channel (staff and
+ * organisers may still name the event from anywhere), and whether a receipt is posted in the player's (or team's) channel ({@link Submissions}).
  * Pure, so it can be tested.
  */
 public record EventSettings(BuyIn buyIn, Policy teamPolicy, QueueRules.Policy queue, Instant signupClosesAt, Long signupChannelId, Long signupAdminChannelId,
                             Long boardChannelId, Long reviewChannelId, Set<Long> organisers, EventPrep.Mode setupMode, EventRoster.Setting verification,
-                            EventSpace.Setting channels) {
+                            EventSpace.Setting channels, Submissions submissions) {
     public static final String DEFAULT_POLICY = "everyone";
     public static final int MAX_ORGANISERS = 10;
 
+    /** How proof is sent. {@code require}: only {@code /submit} from an event channel counts for players. {@code receipts}: a receipt goes in the player's own channel (default on). */
+    public record Submissions(boolean require, boolean receipts) {
+        public static final Submissions DEFAULT = new Submissions(false, true);
+    }
+
     public EventSettings {
         organisers = organisers == null ? Set.of() : java.util.Collections.unmodifiableSet(new LinkedHashSet<>(organisers));
+        submissions = submissions == null ? Submissions.DEFAULT : submissions;
     }
 
     /** These settings with the roles and channels settings replaced, for showing what other choices would do without saving them. */
     public EventSettings withChannels(EventSpace.Setting channels) {
-        return new EventSettings(buyIn, teamPolicy, queue, signupClosesAt, signupChannelId, signupAdminChannelId, boardChannelId, reviewChannelId, organisers, setupMode, verification, channels);
+        return new EventSettings(buyIn, teamPolicy, queue, signupClosesAt, signupChannelId, signupAdminChannelId, boardChannelId, reviewChannelId, organisers, setupMode, verification, channels, submissions);
+    }
+
+    /** The submission settings; the defaults when there are none or they can't be read. */
+    public static Submissions submissionsOf(DataObject config) {
+        try {
+            if (config == null || !config.hasKey("submissions") || config.isNull("submissions")) return Submissions.DEFAULT;
+            DataObject s = config.getObject("submissions");
+            return new Submissions(s.getBoolean("require", false), s.getBoolean("receipts", true));
+        } catch (RuntimeException e) {
+            return Submissions.DEFAULT;
+        }
     }
 
     /** Whether {@code userId} was named an organiser of this event. Staff are not listed here; they may run every event. */
@@ -51,7 +70,7 @@ public record EventSettings(BuyIn buyIn, Policy teamPolicy, QueueRules.Policy qu
 
     public static EventSettings defaults() {
         return new EventSettings(new BuyIn(false, PrizeKind.IN_GAME, 0, false), TeamRules.everyoneTogether(), QueueRules.Policy.FIRST_COME, null, null, null, null, null, Set.of(),
-                EventPrep.Mode.OFF, EventRoster.notRequired(), EventSpace.Setting.OFF);
+                EventPrep.Mode.OFF, EventRoster.notRequired(), EventSpace.Setting.OFF, Submissions.DEFAULT);
     }
 
     /** Reads the settings, filling anything missing with the defaults. A value that can't be read is left at its default; {@link #problems} reports it. */
@@ -73,7 +92,7 @@ public record EventSettings(BuyIn buyIn, Policy teamPolicy, QueueRules.Policy qu
             // reported by problems()
         }
         return new EventSettings(buyIn, policy == null ? d.teamPolicy() : policy, queue == null ? d.queue() : queue, closes, id(config, "signupChannelId"), id(config, "signupAdminChannelId"),
-                id(config, "boardChannelId"), id(config, "reviewChannelId"), organisersOf(config), setupModeOf(config), verificationOf(config), EventSpace.parse(config));
+                id(config, "boardChannelId"), id(config, "reviewChannelId"), organisersOf(config), setupModeOf(config), verificationOf(config), EventSpace.parse(config), submissionsOf(config));
     }
 
     /** The setup mode in the settings; OFF when there is none or it can't be read ({@link #problems} reports the latter). */
@@ -164,6 +183,16 @@ public record EventSettings(BuyIn buyIn, Policy teamPolicy, QueueRules.Policy qu
                 }
             } catch (RuntimeException e) {
                 problems.add("The verification settings couldn't be read.");
+            }
+        }
+        if (config.hasKey("submissions") && !config.isNull("submissions")) {
+            try {
+                DataObject s = config.getObject("submissions");
+                for (String key : new String[]{"require", "receipts"}) {
+                    if (s.hasKey(key) && !s.isNull(key) && !(s.opt(key).orElse(null) instanceof Boolean)) problems.add("The submission setting \"" + key + "\" has to be on or off.");
+                }
+            } catch (RuntimeException e) {
+                problems.add("The submission settings couldn't be read.");
             }
         }
         problems.addAll(EventSpace.problems(config));

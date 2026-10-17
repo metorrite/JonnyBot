@@ -821,7 +821,7 @@ public class EventsAdminApi implements AdminRouteExtension {
 
     private DataObject claimJson(Guild guild, Claim c) {
         return DataObject.empty().put("id", Long.toString(c.id())).put("objective", c.objectiveKey()).put("userId", Long.toString(c.userId())).put("userName", name(guild, c.userId()))
-                .put("amount", c.amount()).put("note", c.note()).put("proofUrl", c.proofUrl()).put("status", c.status().name())
+                .put("kind", c.kind().name()).put("amount", c.amount()).put("note", c.note()).put("proofUrl", c.proofUrl()).put("status", c.status().name())
                 .put("decidedByName", c.decidedBy() == null ? null : name(guild, c.decidedBy())).put("decisionNote", c.decisionNote())
                 .put("createdAt", c.createdAt().toString()).put("decidedAt", c.decidedAt() == null ? null : c.decidedAt().toString());
     }

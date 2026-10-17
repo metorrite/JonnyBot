@@ -44,6 +44,8 @@ public class EventService {
     /** A server can have this many events that aren't finished, so one server can't pile up unlimited work. */
     public static final int MAX_OPEN_EVENTS = 20;
     public static final int MAX_PENDING_CLAIMS_PER_PLAYER = 5;
+    /** The objective key stored on a verification claim, which has no objective. */
+    public static final String VERIFICATION_KEY = "verification";
 
     /** The settings of an event as admins send them. */
     public record EventInput(String name, String description, String template, Scope scope, ScoringMode scoringMode, Instant startsAt, Instant endsAt,
@@ -345,7 +347,7 @@ public class EventService {
         return new ArrayList<>(ids);
     }
 
-    private EventSettings settingsOf(Event event) {
+    public EventSettings settingsOf(Event event) {
         try {
             return EventSettings.parse(DataObject.fromJson(event.config()));
         } catch (RuntimeException e) {
@@ -824,8 +826,30 @@ public class EventService {
     }
 
     /**
+     * A player's proof for the event's verification (no objective, no points): approving it verifies them, denying it turns them down with the
+     * reason, and they may send new proof. Only for an event that asks for verification, from a player who isn't already verified or waived.
+     */
+    public long submitVerification(long guildId, long id, long userId, String note, String proofUrl) {
+        Event event = event(guildId, id);
+        if (event.status() == Status.DONE || event.status() == Status.CANCELLED) throw new EventProblem(409, "This event is over.");
+        if (!settingsOf(event).verification().required()) throw new EventProblem(409, "This event doesn't ask for verification.");
+        Participant player = repository.participant(id, userId).orElseThrow(() -> new EventProblem(404, "That player isn't in the event."));
+        if (player.verification() == EventRoster.Verification.VERIFIED || player.verification() == EventRoster.Verification.WAIVED) {
+            throw new EventProblem(409, "You're already verified for this event.");
+        }
+        String cleanNote = clean(note);
+        if (cleanNote.length() > EventRules.MAX_NOTE) throw new EventProblem(400, "Keep the note to " + EventRules.MAX_NOTE + " characters or fewer.");
+        if (proofUrl == null || proofUrl.isBlank()) throw new EventProblem(400, "Attach the proof the organisers asked for.");
+        String linkProblem = EventRules.proofUrlProblem(proofUrl);
+        if (linkProblem != null) throw new EventProblem(400, linkProblem);
+        if (repository.pendingVerificationClaimsFor(id, userId) > 0) throw new EventProblem(409, "Your verification is already waiting for the organisers.");
+        return repository.addClaim(id, EventRepository.ClaimKind.VERIFICATION, VERIFICATION_KEY, userId, 1, cleanNote, proofUrl.strip());
+    }
+
+    /**
      * Approves or denies a pending claim. Approving counts its amount as progress under the key {@code claim:<id>}, so even a repeat after a
      * crash counts it once. The claim is checked against the event first, so an approval that can't be counted is refused before anything changes.
+     * A verification claim verifies the player instead (or turns them down with the reason).
      */
     public Claim decideClaim(long guildId, long id, long claimId, boolean approve, String note, long actorId) {
         Event event = event(guildId, id);
@@ -834,12 +858,22 @@ public class EventService {
         String cleanNote = clean(note);
         if (cleanNote.length() > EventRules.MAX_NOTE) throw new EventProblem(400, "Keep the note to " + EventRules.MAX_NOTE + " characters or fewer.");
         if (!approve && cleanNote.isEmpty()) throw new EventProblem(400, "Say why it was denied, so the player can fix it.");
-        if (approve && !EventRules.acceptsProgress(event.status())) throw new EventProblem(409, "The event isn't running, so an approval couldn't be counted. Reopen it first.");
+        boolean verification = claim.kind() == EventRepository.ClaimKind.VERIFICATION;
+        if (verification && (event.status() == Status.DONE || event.status() == Status.CANCELLED)) throw new EventProblem(409, "This event is over.");
+        if (!verification && approve && !EventRules.acceptsProgress(event.status())) throw new EventProblem(409, "The event isn't running, so an approval couldn't be counted. Reopen it first.");
 
         if (!repository.decideClaim(id, claimId, approve ? ClaimStatus.APPROVED : ClaimStatus.DENIED, actorId, cleanNote.isEmpty() ? null : cleanNote)) {
             throw new EventProblem(409, "Someone has already decided that claim.");
         }
-        if (approve) {
+        if (verification) {
+            try {
+                setVerification(guildId, id, claim.userId(), approve ? EventRoster.Verification.VERIFIED : EventRoster.Verification.REJECTED, actorId,
+                        approve ? "Approved proof #" + claimId : cleanNote);
+            } catch (EventProblem e) {
+                // verification was switched off or the player left meanwhile: the proof stays decided, with nothing to change
+                log.warn("Decided verification claim {} of event {} couldn't be applied: {}", claimId, id, e.getMessage());
+            }
+        } else if (approve) {
             try {
                 Recorded recorded = recordProgress(guildId, id, claim.objectiveKey(), claim.userId(), claim.amount(), Source.CLAIM, "claim:" + claimId, actorId, "Approved claim #" + claimId);
                 repository.linkClaimProgress(claimId, recorded.progressId());
