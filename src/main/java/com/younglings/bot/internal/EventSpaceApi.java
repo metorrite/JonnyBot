@@ -11,6 +11,7 @@ import com.younglings.bot.events.EventSpace.ChannelItem;
 import com.younglings.bot.events.EventSpace.Grant;
 import com.younglings.bot.events.EventSpace.Plan;
 import com.younglings.bot.events.EventSpace.RoleItem;
+import com.younglings.bot.events.EventSpaceOps;
 import com.younglings.bot.events.EventSpaces;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -29,7 +30,9 @@ import java.util.function.Supplier;
 /**
  * The dashboard's routes for an event's roles and channels, under {@code events/{id}/space}:
  * {@code GET} says where they stand (the choices, whether they are set up, and a plan of what setting up would do now), and
- * {@code PUT .../settings} saves the choices ({@code config.channels}, the whole object). Every rule is {@link EventSpace}'s and the engine's. Reached through
+ * {@code PUT .../settings} saves the choices ({@code config.channels}, the whole object), {@code POST .../preview} shows the plan for choices without saving
+ * them, {@code POST .../apply} starts setting them up on Discord (in the background; {@code GET} shows how far it got), {@code POST .../remove} starts taking
+ * them down and {@code POST .../sync} puts who holds each role right at once. Every rule is {@link EventSpace}'s and the engine's. Reached through
  * {@link TicketAdminApi}, which has already checked the asker may use the dashboard in this server and audit-logs every change.
  */
 @BService
@@ -39,11 +42,13 @@ public class EventSpaceApi implements AdminRouteExtension {
     private final EventService service;
     private final EventRepository repository;
     private final EventSpaces spaces;
+    private final EventSpaceOps ops;
 
-    public EventSpaceApi(EventService service, EventRepository repository, EventSpaces spaces) {
+    public EventSpaceApi(EventService service, EventRepository repository, EventSpaces spaces, EventSpaceOps ops) {
         this.service = service;
         this.repository = repository;
         this.spaces = spaces;
+        this.ops = ops;
     }
 
     @Override
@@ -54,6 +59,31 @@ public class EventSpaceApi implements AdminRouteExtension {
             if (parts.length == 3) {
                 AdminRouteExtension.requireMethod(method, "GET");
                 return view(guild, id);
+            }
+            if (parts.length == 4 && parts[3].equals("apply")) {
+                AdminRouteExtension.requireMethod(method, "POST");
+                DataObject b = body.get();
+                ops.startSetup(guild, service.event(guild.getIdLong(), id), actor.getIdLong(), b.hasKey("removeUnneeded") && b.getBoolean("removeUnneeded", false));
+                log.info("Dashboard: {} started setting up the roles and channels of event {}", actor.getId(), id);
+                return view(guild, id);
+            }
+            if (parts.length == 4 && parts[3].equals("remove")) {
+                AdminRouteExtension.requireMethod(method, "POST");
+                DataObject b = body.get();
+                if (!b.getBoolean("confirm", false)) throw new ApiError(400, "Say that you are sure: this deletes the event's roles and channels from Discord.");
+                ops.startRemoval(guild, service.event(guild.getIdLong(), id));
+                log.info("Dashboard: {} started removing the roles and channels of event {}", actor.getId(), id);
+                return view(guild, id);
+            }
+            if (parts.length == 4 && parts[3].equals("sync")) {
+                AdminRouteExtension.requireMethod(method, "POST");
+                int failed = ops.syncMembers(guild, service.event(guild.getIdLong(), id));
+                log.info("Dashboard: {} put the role holders of event {} right ({} failed)", actor.getId(), id, failed);
+                return view(guild, id).put("syncFailed", failed);
+            }
+            if (parts.length == 4 && parts[3].equals("preview")) {
+                AdminRouteExtension.requireMethod(method, "POST");
+                return preview(guild, id, body.get());
             }
             if (parts.length == 4 && parts[3].equals("settings")) {
                 AdminRouteExtension.requireMethod(method, "PUT");
@@ -72,10 +102,23 @@ public class EventSpaceApi implements AdminRouteExtension {
         return Long.parseLong(raw);
     }
 
+    /** What the plan would be with {@code channels} as the settings, without saving them (the page shows this while an organiser is still typing). */
+    private DataObject preview(Guild guild, long id, DataObject channels) {
+        Event event = service.event(guild.getIdLong(), id);
+        DataObject config = DataObject.empty().put("channels", channels);
+        java.util.List<String> problems = EventSpace.problems(config);
+        if (!problems.isEmpty()) throw new ApiError(400, "Those choices can't be used yet.", problems);
+        return view(guild, event, EventSpace.parse(config));
+    }
+
     /** The choices, the state and the plan for one event. */
     DataObject view(Guild guild, long id) {
-        Event event = service.event(guild.getIdLong(), id);
-        EventSpaces.Preview preview = spaces.preview(guild, event);
+        return view(guild, service.event(guild.getIdLong(), id), null);
+    }
+
+    private DataObject view(Guild guild, Event event, EventSpace.Setting instead) {
+        long id = event.id();
+        EventSpaces.Preview preview = spaces.preview(guild, event, instead);
         EventSettings settings = preview.gathered().settings();
         Plan plan = preview.plan();
         EventRepository.Setup setup = repository.setup(id);
@@ -96,7 +139,10 @@ public class EventSpaceApi implements AdminRouteExtension {
                 .put("note", setup.spaceNote());
         DataObject summary = DataObject.empty().put("newRoles", plan.newRoles()).put("newChannels", plan.newChannels()).put("toRemove", plan.count(Action.REMOVE))
                 .put("players", preview.gathered().facts().players().size()).put("excluded", preview.gathered().facts().excludedPlayers());
-        return DataObject.empty().put("settings", EventSpace.settingJson(settings.channels(), event.template(), settings.boardChannelId(), settings.reviewChannelId()))
+        EventSpaceOps.Job job = ops.job(id);
+        DataObject jobJson = job == null ? null : DataObject.empty().put("kind", job.kind()).put("state", job.state()).put("done", job.done()).put("total", job.total()).put("message", job.message())
+                .put("startedAt", job.startedAt().toString()).put("finishedAt", job.finishedAt() == null ? null : job.finishedAt().toString());
+        return DataObject.empty().put("job", jobJson).put("settings", EventSpace.settingJson(settings.channels(), event.template(), settings.boardChannelId(), settings.reviewChannelId()))
                 .put("teamEvent", preview.gathered().facts().teamScored()).put("state", state).put("ready", plan.blockers().isEmpty()).put("complete", plan.complete())
                 .put("blockers", blockers).put("warnings", warnings).put("roles", roles).put("channels", channels).put("staffRoles", staff).put("summary", summary);
     }

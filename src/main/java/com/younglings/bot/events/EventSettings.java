@@ -39,6 +39,11 @@ public record EventSettings(BuyIn buyIn, Policy teamPolicy, QueueRules.Policy qu
         organisers = organisers == null ? Set.of() : java.util.Collections.unmodifiableSet(new LinkedHashSet<>(organisers));
     }
 
+    /** These settings with the roles and channels settings replaced, for showing what other choices would do without saving them. */
+    public EventSettings withChannels(EventSpace.Setting channels) {
+        return new EventSettings(buyIn, teamPolicy, queue, signupClosesAt, signupChannelId, signupAdminChannelId, boardChannelId, reviewChannelId, organisers, setupMode, verification, channels);
+    }
+
     /** Whether {@code userId} was named an organiser of this event. Staff are not listed here; they may run every event. */
     public boolean isOrganiser(long userId) {
         return organisers.contains(userId);

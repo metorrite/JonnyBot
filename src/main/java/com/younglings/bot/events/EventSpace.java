@@ -809,7 +809,7 @@ public final class EventSpace {
         DataArray slots = DataArray.empty();
         for (Kind kind : Kind.slots()) {
             Choice choice = choice(s, kind, template, boardChannelId, reviewChannelId);
-            slots.add(DataObject.empty().put("key", kind.key()).put("label", kind.label()).put("hint", kind.hint()).put("applies", choice != null)
+            slots.add(DataObject.empty().put("key", kind.key()).put("label", kind.label()).put("hint", kind.hint()).put("applies", choice != null).put("explicit", s.slots().containsKey(kind))
                     .put("use", choice == null ? "none" : choice.use().name().toLowerCase(Locale.ROOT)).put("channelId", choice == null || choice.channelId() == null ? null : Long.toString(choice.channelId()))
                     .put("pattern", s.pattern(kind)).put("defaultPattern", kind.defaultPattern()));
         }

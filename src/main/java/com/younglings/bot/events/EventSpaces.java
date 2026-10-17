@@ -68,7 +68,12 @@ public class EventSpaces {
     public record Preview(Plan plan, Gathered gathered) {}
 
     public Preview preview(Guild guild, Event event) {
-        Gathered gathered = gather(guild, event);
+        return preview(guild, event, null);
+    }
+
+    /** {@link #preview(Guild, Event)} as it would be with the roles and channels settings {@code instead} (null: the saved ones), which are not saved. */
+    public Preview preview(Guild guild, Event event, EventSpace.Setting instead) {
+        Gathered gathered = gather(guild, event, instead);
         Plan plan = EventSpace.plan(gathered.facts());
         long absent = gathered.facts().players().stream().filter(p -> !p.inServer()).count();
         if (absent > 0) {
@@ -79,7 +84,11 @@ public class EventSpaces {
 
     /** The facts for {@code event} in {@code guild}, read now. */
     public Gathered gather(Guild guild, Event event) {
-        EventSettings settings = service.settings(event);
+        return gather(guild, event, null);
+    }
+
+    private Gathered gather(Guild guild, Event event, EventSpace.Setting instead) {
+        EventSettings settings = instead == null ? service.settings(event) : service.settings(event).withChannels(instead);
         List<Participant> counted = service.countedPlayers(event);
         int excluded = events.participants(event.id()).size() - counted.size();
         List<EventRepository.Team> teams = events.teams(event.id());

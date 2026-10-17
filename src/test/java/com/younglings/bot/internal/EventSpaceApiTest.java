@@ -10,6 +10,7 @@ import com.younglings.bot.events.EventRules.Scope;
 import com.younglings.bot.events.EventRules.ScoringMode;
 import com.younglings.bot.events.EventService;
 import com.younglings.bot.events.EventService.EventInput;
+import com.younglings.bot.events.EventSpaceOps;
 import com.younglings.bot.events.EventSpaceRepository;
 import com.younglings.bot.events.EventSpaces;
 import com.younglings.bot.events.EventTemplates;
@@ -107,7 +108,9 @@ class EventSpaceApiTest {
         PermissionGroupService groups = Mockito.mock(PermissionGroupService.class);
         Mockito.when(groups.group(ArgumentMatchers.eq(G), ArgumentMatchers.eq(PermissionGroup.ADMIN)))
                 .thenReturn(Optional.of(new PermissionGroup(1, G, PermissionGroup.ADMIN, "Admin", true, true, List.of(501L))));
-        api = new EventSpaceApi(service, repository, new EventSpaces(repository, service, new EventSpaceRepository(supplier, repository), groups));
+        EventSpaceRepository spaceRepository = new EventSpaceRepository(supplier, repository);
+        EventSpaces spaces = new EventSpaces(repository, service, spaceRepository, groups);
+        api = new EventSpaceApi(service, repository, spaces, new EventSpaceOps(repository, service, spaceRepository, spaces, new EventChanges()));
     }
 
     @AfterEach
@@ -192,6 +195,29 @@ class EventSpaceApiTest {
         assertEquals(400, bad.status);
         assertTrue(bad.problems.stream().anyMatch(p -> p.contains("{evnt}")), bad.problems.toString());
         assertTrue(call("GET", "events/" + id + "/space", null).getObject("settings").getBoolean("enabled"), "a refused save changes nothing");
+    }
+
+    @Test
+    void aPreviewShowsTheChoicesWithoutSavingThemAndRefusesBadOnes() {
+        long id = event(CompetitionTemplate.KEY, ScoringMode.INDIVIDUAL, null);
+        DataObject view = call("POST", "events/" + id + "/space/preview", "{\"enabled\": true, \"names\": {\"general\": \"{event} Talk\"}}");
+        assertTrue(names(view.getArray("channels"), "name").contains("boss-night-friday-talk"), names(view.getArray("channels"), "name").toString());
+        assertFalse(call("GET", "events/" + id + "/space", null).getObject("settings").getBoolean("enabled"), "a preview saves nothing");
+
+        ApiError bad = failure("POST", "events/" + id + "/space/preview", "{\"names\": {\"general\": \"{nope} Talk\"}}");
+        assertEquals(400, bad.status);
+        assertTrue(bad.problems.stream().anyMatch(p -> p.contains("{nope}")), bad.problems.toString());
+        assertEquals(405, failure("GET", "events/" + id + "/space/preview", null).status);
+    }
+
+    @Test
+    void theViewSaysWhichChoicesWereMadeAndWhichAreJustDefaults() {
+        long id = event(CompetitionTemplate.KEY, ScoringMode.INDIVIDUAL, "{\"channels\": {\"enabled\": true, \"slots\": {\"staff\": {\"use\": \"none\"}}}}");
+        DataArray slots = call("GET", "events/" + id + "/space", null).getObject("settings").getArray("slots");
+        assertTrue(slots.getObject(0).getBoolean("explicit"), "the staff channel was chosen");
+        assertEquals("none", slots.getObject(0).getString("use"));
+        assertFalse(slots.getObject(1).getBoolean("explicit"), "announcements are just the default");
+        assertEquals("create", slots.getObject(1).getString("use"));
     }
 
     @Test

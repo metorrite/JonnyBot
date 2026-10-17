@@ -147,6 +147,8 @@ public class EventService {
     /** Deletes an event and everything in it. Only a draft or an event that is over: cancel or finish one that is running first. */
     public void deleteEvent(long guildId, long id) {
         event(guildId, id);
+        // deleting the event would forget which roles and channels are its own, leaving them behind on Discord
+        if (repository.setup(id).spaceApplied()) throw new EventProblem(409, "This event has roles and channels on Discord. Remove them on its Channels tab first, then delete it.");
         if (!repository.deleteEvent(guildId, id)) throw new EventProblem(409, "Cancel or finish the event before deleting it.");
     }
 
