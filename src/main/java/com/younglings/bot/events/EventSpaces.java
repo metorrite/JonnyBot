@@ -163,7 +163,11 @@ public class EventSpaces {
         return new Presence(found, complete);
     }
 
-    /** The roles that see everything in every event: the Admin group, and when it includes higher roles, every role above its lowest (bots' own roles aside). */
+    /**
+     * The roles that get access to every event's channels: the Admin group, and when it includes higher roles, every role above its lowest (bots' own roles
+     * aside). A role with the Administrator permission is left out: it sees everything on the server whatever a channel says, so naming it would only clutter
+     * every channel's permission list.
+     */
     public List<Role> staffRoles(Guild guild) {
         Optional<PermissionGroup> group = groups.group(guild.getIdLong(), PermissionGroup.ADMIN);
         if (group.isEmpty()) return List.of();
@@ -179,7 +183,7 @@ public class EventSpaces {
                 if (!role.isPublicRole() && !role.isManaged() && role.getPosition() >= lowest) staff.add(role);
             }
         }
-        return List.copyOf(staff);
+        return staff.stream().filter(role -> !role.hasPermission(Permission.ADMINISTRATOR)).toList();
     }
 
     /** How many more roles and channels the server can take and what JonnyBot lacks permission for. */

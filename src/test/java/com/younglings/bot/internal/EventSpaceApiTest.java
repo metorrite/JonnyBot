@@ -90,7 +90,14 @@ class EventSpaceApiTest {
         Mockito.when(adminRole.getId()).thenReturn("501");
         Mockito.when(adminRole.getName()).thenReturn("Admin");
         Mockito.when(adminRole.getPosition()).thenReturn(10);
-        Mockito.when(guild.getRoles()).thenReturn(List.of(adminRole, everyone));
+        // a senior role with the Administrator permission, which sees everything anyway
+        Role ownerRole = Mockito.mock(Role.class);
+        Mockito.when(ownerRole.getIdLong()).thenReturn(502L);
+        Mockito.when(ownerRole.getId()).thenReturn("502");
+        Mockito.when(ownerRole.getName()).thenReturn("Owner");
+        Mockito.when(ownerRole.getPosition()).thenReturn(20);
+        Mockito.when(ownerRole.hasPermission(net.dv8tion.jda.api.Permission.ADMINISTRATOR)).thenReturn(true);
+        Mockito.when(guild.getRoles()).thenReturn(List.of(ownerRole, adminRole, everyone));
         Mockito.when(guild.getRoleById(501L)).thenReturn(adminRole);
         Mockito.when(guild.getChannels()).thenReturn(List.of());
         // the bot holds every permission
@@ -235,6 +242,7 @@ class EventSpaceApiTest {
         assertEquals("participant", participants.getString("key"));
         assertEquals(4, participants.getInt("members"));
         assertEquals("create", participants.getString("action"));
+        assertEquals(1, view.getArray("staffRoles").length(), "the role with the Administrator permission needs no mention");
         assertEquals("501", view.getArray("staffRoles").getObject(0).getString("id"));
         DataObject general = null;
         for (int i = 0; i < view.getArray("channels").length(); i++) {
