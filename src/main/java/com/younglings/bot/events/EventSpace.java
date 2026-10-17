@@ -438,8 +438,15 @@ public final class EventSpace {
 
     public record TeamRef(long id, String name) {}
 
-    /** A player who holds a place and counts, as the space needs them: who they are and which team they are on. */
-    public record PlayerRef(long userId, String name, Long teamId) {}
+    /**
+     * A player who holds a place and counts, as the space needs them: who they are and which team they are on. A player who hasn't joined the server can't
+     * be given a role or a channel yet, but is still wanted: they get their role the moment they join.
+     */
+    public record PlayerRef(long userId, String name, Long teamId, boolean inServer) {
+        public PlayerRef(long userId, String name, Long teamId) {
+            this(userId, name, teamId, true);
+        }
+    }
 
     /** A channel JonnyBot made for the event and still finds on the server. {@code parent} is the key of the category it sits in (null for a category). */
     public record HeldChannel(long id, String name, String parent) {}
@@ -500,6 +507,13 @@ public final class EventSpace {
             channels = List.copyOf(channels);
             blockers = List.copyOf(blockers);
             warnings = List.copyOf(warnings);
+        }
+
+        /** This plan with one more thing worth knowing. */
+        public Plan withWarning(String warning) {
+            List<String> all = new ArrayList<>(warnings);
+            all.add(warning);
+            return new Plan(roles, channels, blockers, all);
         }
 
         public long count(Action action) {
@@ -603,6 +617,7 @@ public final class EventSpace {
         }
         if (!f.teamScored() && s.playerChannels()) {
             for (PlayerRef p : f.players()) {
+                if (!p.inServer()) continue;
                 wanted.add(new Wanted(playerKey(p.userId()), Kind.PLAYER, EventNaming.channel(s.pattern(Kind.PLAYER), varsOf(event, EventNaming.PLAYER, p.name()), p.name()), null, p.userId()));
             }
         } else if (f.teamScored() && s.playerChannels()) {

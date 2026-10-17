@@ -25,11 +25,13 @@ import java.util.Set;
  * {@code setup: {mode: "OFF" | "STANDARD" | "FULL"}}: how much of the setup checklist the event follows ({@link EventPrep.Mode}; OFF, the default, is an event
  * organisers start whenever they like), and
  * {@code verification: {required, gate: "SIGNUP" | "TEAMS" | "START", instructions}}: whether players must be verified, by when ({@link EventRoster.Gate}),
- * and what they are told to send.
+ * and what they are told to send, and
+ * {@code channels: {enabled, teamChannels, playerChannels, slots, names}}: the roles and channels JonnyBot makes for the event ({@link EventSpace}).
  * Pure, so it can be tested.
  */
 public record EventSettings(BuyIn buyIn, Policy teamPolicy, QueueRules.Policy queue, Instant signupClosesAt, Long signupChannelId, Long signupAdminChannelId,
-                            Long boardChannelId, Long reviewChannelId, Set<Long> organisers, EventPrep.Mode setupMode, EventRoster.Setting verification) {
+                            Long boardChannelId, Long reviewChannelId, Set<Long> organisers, EventPrep.Mode setupMode, EventRoster.Setting verification,
+                            EventSpace.Setting channels) {
     public static final String DEFAULT_POLICY = "everyone";
     public static final int MAX_ORGANISERS = 10;
 
@@ -44,7 +46,7 @@ public record EventSettings(BuyIn buyIn, Policy teamPolicy, QueueRules.Policy qu
 
     public static EventSettings defaults() {
         return new EventSettings(new BuyIn(false, PrizeKind.IN_GAME, 0, false), TeamRules.everyoneTogether(), QueueRules.Policy.FIRST_COME, null, null, null, null, null, Set.of(),
-                EventPrep.Mode.OFF, EventRoster.notRequired());
+                EventPrep.Mode.OFF, EventRoster.notRequired(), EventSpace.Setting.OFF);
     }
 
     /** Reads the settings, filling anything missing with the defaults. A value that can't be read is left at its default; {@link #problems} reports it. */
@@ -66,7 +68,7 @@ public record EventSettings(BuyIn buyIn, Policy teamPolicy, QueueRules.Policy qu
             // reported by problems()
         }
         return new EventSettings(buyIn, policy == null ? d.teamPolicy() : policy, queue == null ? d.queue() : queue, closes, id(config, "signupChannelId"), id(config, "signupAdminChannelId"),
-                id(config, "boardChannelId"), id(config, "reviewChannelId"), organisersOf(config), setupModeOf(config), verificationOf(config));
+                id(config, "boardChannelId"), id(config, "reviewChannelId"), organisersOf(config), setupModeOf(config), verificationOf(config), EventSpace.parse(config));
     }
 
     /** The setup mode in the settings; OFF when there is none or it can't be read ({@link #problems} reports the latter). */
@@ -159,6 +161,7 @@ public record EventSettings(BuyIn buyIn, Policy teamPolicy, QueueRules.Policy qu
                 problems.add("The verification settings couldn't be read.");
             }
         }
+        problems.addAll(EventSpace.problems(config));
         boolean one = config.hasKey("signupChannelId") && id(config, "signupChannelId") != null;
         boolean other = config.hasKey("signupAdminChannelId") && id(config, "signupAdminChannelId") != null;
         if (one != other) problems.add("A signup needs both a public channel and a staff channel, or neither.");
