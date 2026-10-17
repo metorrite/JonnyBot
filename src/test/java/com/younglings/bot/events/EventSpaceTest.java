@@ -196,6 +196,14 @@ class EventSpaceTest {
         assertTrue(allows(merged.get(0), Permission.VIEW_CHANNEL));
     }
 
+    @Test
+    void theBotNeedsEveryPermissionItHandsOutAndTheRightToManageRolesAndChannels() {
+        assertTrue(EventSpace.BOT_NEEDS.containsAll(List.of(Permission.MANAGE_ROLES, Permission.MANAGE_CHANNEL, Permission.MESSAGE_MANAGE, Permission.MESSAGE_MENTION_EVERYONE)));
+        for (Level level : Level.values()) {
+            assertTrue(EventSpace.BOT_NEEDS.containsAll(EventSpace.allowed(level)), level + " hands out something the bot may not hold");
+        }
+    }
+
     // ---------- when it can be set up ----------
 
     @Test

@@ -406,9 +406,20 @@ public final class EventSpace {
         return who.who() != Who.PLAYER && who.who() != Who.BOT;
     }
 
-    /** What JonnyBot needs to be allowed to do on the server to make and run a space. */
-    public static final List<Permission> BOT_NEEDS = List.of(Permission.VIEW_CHANNEL, Permission.MANAGE_CHANNEL, Permission.MANAGE_ROLES, Permission.MESSAGE_SEND,
-            Permission.MESSAGE_ATTACH_FILES, Permission.MESSAGE_EMBED_LINKS);
+    /**
+     * What JonnyBot needs to be allowed to do on the server to make and run a space: manage roles and channels, and hold every permission it hands out in a
+     * channel (Discord refuses to let someone give a permission they don't have).
+     */
+    public static final List<Permission> BOT_NEEDS = botNeeds();
+
+    private static List<Permission> botNeeds() {
+        EnumSet<Permission> needs = EnumSet.of(Permission.MANAGE_ROLES);
+        needs.addAll(READING);
+        needs.addAll(CHATTING);
+        needs.addAll(MANAGING);
+        needs.addAll(KEEPING);
+        return List.copyOf(needs);
+    }
 
     // ---------- when it can be set up ----------
 
