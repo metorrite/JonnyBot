@@ -237,6 +237,8 @@ public final class EventOptions {
                 .showWhen(When.is("config.verification.required", true)));
         list.add(Option.of("config.verification.instructions", "What players are told to send", "Shown to players who join. Up to " + EventRoster.MAX_INSTRUCTIONS + " characters.", Step.SETUP, Type.TEXTAREA, "")
                 .showWhen(When.is("config.verification.required", true)).maxLength(EventRoster.MAX_INSTRUCTIONS));
+        list.add(Option.of("config.submissions.require", "Proof only from the event's channels", "Players must send proof with /submit in their own event channel. Staff and organisers can still send from anywhere.", Step.DISCORD, Type.BOOL, false));
+        list.add(Option.of("config.submissions.receipts", "Post a receipt in the player's channel", "Each submission also shows in the player's (or team's) own channel and is updated when staff decide.", Step.DISCORD, Type.BOOL, true));
         return list;
     }
 

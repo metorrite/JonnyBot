@@ -89,8 +89,12 @@ public class EventRepository {
 
     public enum ClaimStatus { PENDING, APPROVED, DENIED }
 
+    /** What a claim is for: OBJECTIVE is proof for a tile or objective, VERIFICATION is a player's proof for the event's pre-start verification (no objective, no points). */
+    public enum ClaimKind { OBJECTIVE, VERIFICATION }
+
     public record Claim(long id, long eventId, String objectiveKey, long userId, long amount, String note, String proofUrl, ClaimStatus status,
-                        Long decidedBy, String decisionNote, Long progressId, Instant createdAt, Instant decidedAt) {}
+                        Long decidedBy, String decisionNote, Long progressId, Instant createdAt, Instant decidedAt, ClaimKind kind,
+                        Long receiptChannelId, Long receiptMessageId) {}
 
     private final ConnectionSupplier connectionSupplier;
 
@@ -189,6 +193,10 @@ public class EventRepository {
                 );
                 """,
                 "CREATE INDEX IF NOT EXISTS event_claim_event ON younglings.event_claim (event_id, status, id);",
+                // /submit: what the claim is for, and the receipt message in the player's own (or team's) channel that is edited when staff decide
+                "ALTER TABLE younglings.event_claim ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'OBJECTIVE';",
+                "ALTER TABLE younglings.event_claim ADD COLUMN IF NOT EXISTS receipt_channel_id BIGINT NULL;",
+                "ALTER TABLE younglings.event_claim ADD COLUMN IF NOT EXISTS receipt_message_id BIGINT NULL;",
                 // the dedicated signup attached to the event (a signup panel in Discord), until it is closed
                 "ALTER TABLE younglings.event ADD COLUMN IF NOT EXISTS signup_id BIGINT NULL;",
                 "ALTER TABLE younglings.event ADD COLUMN IF NOT EXISTS archived BOOLEAN NOT NULL DEFAULT FALSE;",
@@ -669,6 +677,20 @@ public class EventRepository {
             s.executeUpdate();
         } catch (SQLException e) {
             throw new RuntimeException("Failed to save an event's board message", e);
+        }
+    }
+
+    /** Remembers the receipt message posted for a claim in the player's own channel, so it can be updated when staff decide. */
+    public void setClaimReceipt(long eventId, long claimId, long channelId, long messageId) {
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("UPDATE younglings.event_claim SET receipt_channel_id = ?, receipt_message_id = ? WHERE event_id = ? AND id = ?")) {
+            s.setLong(1, channelId);
+            s.setLong(2, messageId);
+            s.setLong(3, eventId);
+            s.setLong(4, claimId);
+            s.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to update a claim's receipt", e);
         }
     }
 
@@ -1346,7 +1368,11 @@ public class EventRepository {
     // ---------- claims ----------
 
     public long addClaim(long eventId, String objectiveKey, long userId, long amount, String note, String proofUrl) {
-        String sql = "INSERT INTO younglings.event_claim (event_id, objective_key, user_id, amount, note, proof_url) VALUES (?, ?, ?, ?, ?, ?) RETURNING id";
+        return addClaim(eventId, ClaimKind.OBJECTIVE, objectiveKey, userId, amount, note, proofUrl);
+    }
+
+    public long addClaim(long eventId, ClaimKind kind, String objectiveKey, long userId, long amount, String note, String proofUrl) {
+        String sql = "INSERT INTO younglings.event_claim (event_id, objective_key, user_id, amount, note, proof_url, kind) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id";
         try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
             s.setLong(1, eventId);
             s.setString(2, objectiveKey);
@@ -1354,6 +1380,7 @@ public class EventRepository {
             s.setLong(4, amount);
             s.setString(5, note);
             if (proofUrl == null) s.setNull(6, Types.VARCHAR); else s.setString(6, proofUrl);
+            s.setString(7, kind.name());
             try (ResultSet rs = s.executeQuery()) {
                 rs.next();
                 return rs.getLong(1);
@@ -1375,9 +1402,18 @@ public class EventRepository {
         return claims("SELECT * FROM younglings.event_claim WHERE event_id = ? AND status <> 'PENDING' ORDER BY decided_at DESC, id DESC LIMIT ?", eventId, null, limit);
     }
 
+    /** The proof for tiles and objectives a player has waiting (verification proof is counted by {@link #pendingVerificationClaimsFor}). */
     public int pendingClaimsFor(long eventId, long userId) {
+        return countPending(eventId, userId, "OBJECTIVE");
+    }
+
+    public int pendingVerificationClaimsFor(long eventId, long userId) {
+        return countPending(eventId, userId, "VERIFICATION");
+    }
+
+    private int countPending(long eventId, long userId, String kind) {
         try (Connection c = connectionSupplier.getConnection();
-             PreparedStatement s = c.prepareStatement("SELECT COUNT(*) FROM younglings.event_claim WHERE event_id = ? AND user_id = ? AND status = 'PENDING'")) {
+             PreparedStatement s = c.prepareStatement("SELECT COUNT(*) FROM younglings.event_claim WHERE event_id = ? AND user_id = ? AND status = 'PENDING' AND kind = '" + kind + "'")) {
             s.setLong(1, eventId);
             s.setLong(2, userId);
             try (ResultSet rs = s.executeQuery()) {
@@ -1475,7 +1511,8 @@ public class EventRepository {
                     Timestamp decided = rs.getTimestamp("decided_at");
                     list.add(new Claim(rs.getLong("id"), eventId, rs.getString("objective_key"), rs.getLong("user_id"), rs.getLong("amount"), rs.getString("note"),
                             rs.getString("proof_url"), ClaimStatus.valueOf(rs.getString("status")), noBy ? null : by, rs.getString("decision_note"),
-                            noProgress ? null : progress, rs.getTimestamp("created_at").toInstant(), decided == null ? null : decided.toInstant()));
+                            noProgress ? null : progress, rs.getTimestamp("created_at").toInstant(), decided == null ? null : decided.toInstant(),
+                            ClaimKind.valueOf(rs.getString("kind")), nullableLong(rs, "receipt_channel_id"), nullableLong(rs, "receipt_message_id")));
                 }
             }
             return list;

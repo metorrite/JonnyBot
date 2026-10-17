@@ -243,10 +243,12 @@ public class EventBoardPanels {
             var claim = repository.claim(change.eventId(), change.claimId()).orElse(null);
             Event event = repository.event(change.guildId(), change.eventId()).orElse(null);
             if (claim == null || event == null) return;
-            String tile = service.objectives(change.eventId()).stream().filter(o -> o.key().equals(claim.objectiveKey())).map(ObjectiveSpec::label).findFirst().orElse(claim.objectiveKey());
+            String tile = claim.kind() == EventRepository.ClaimKind.VERIFICATION ? "verification"
+                    : "**" + service.objectives(change.eventId()).stream().filter(o -> o.key().equals(claim.objectiveKey())).map(ObjectiveSpec::label).findFirst().orElse(claim.objectiveKey()) + "**";
             String message = change.approved()
-                    ? "Your proof for **" + tile + "** in **" + event.name() + "** was approved."
-                    : "Your proof for **" + tile + "** in **" + event.name() + "** wasn't accepted" + (change.note().isBlank() ? "." : ": " + change.note());
+                    ? "Your proof for " + tile + " in **" + event.name() + "** was approved."
+                    : "Your proof for " + tile + " in **" + event.name() + "** wasn't accepted" + (change.note().isBlank() ? "." : ": " + change.note())
+                    + (claim.kind() == EventRepository.ClaimKind.VERIFICATION ? "\nSend it again with `/submit event-verify`." : "");
             client.retrieveUserById(change.userId()).flatMap(user -> user.openPrivateChannel()).flatMap(dm -> dm.sendMessage(message))
                     .queue(ok -> { }, error -> log.debug("Could not DM {} about claim {}: {}", change.userId(), change.claimId(), error.getMessage()));
         } catch (RuntimeException e) {
