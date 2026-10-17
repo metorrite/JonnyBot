@@ -44,6 +44,12 @@ public class EventsTeamCommand {
     static final String TEAMS = "event-team-names";
     /** How many players are listed for one team before "and N more", to stay inside Discord's message size. */
     private static final int LISTED = 30;
+    /**
+     * How much text {@code /events team list} fills before it leaves the lists of names out, and before it stops listing teams at all (a message holds 4000
+     * characters in all, with room kept for the notes at the end).
+     */
+    private static final int BUDGET = 3000;
+    private static final int HEADINGS_BUDGET = 3300;
 
     private final EventService service;
     private final EventTeams eventTeams;
@@ -276,22 +282,46 @@ public class EventsTeamCommand {
     static List<String> listLines(String eventName, List<TeamBuilder.Team> teams, Map<Long, TeamBuilder.Totals> totals, List<TeamBuilder.Player> players,
                                   Map<Long, String> blocked, String standing) {
         List<String> lines = new ArrayList<>();
-        lines.add("### Teams · " + eventName);
-        if (teams.isEmpty()) lines.add("No teams yet. Add one with `/events team create`.");
-        for (TeamBuilder.Team team : teams) {
+        int[] used = {0};
+        boolean[] trimmed = {false};
+        // a section: its heading line, and the names under it only while they still fit in what Discord lets one message hold
+        java.util.function.BiConsumer<String, String> add = (heading, names) -> {
+            if (names.isEmpty()) {
+                lines.add(heading);
+                used[0] += heading.length();
+            } else if (used[0] + heading.length() + names.length() <= BUDGET) {
+                lines.add(heading + "\n-# " + names);
+                used[0] += heading.length() + names.length() + 4;
+            } else {
+                lines.add(heading);
+                used[0] += heading.length();
+                trimmed[0] = true;
+            }
+        };
+        add.accept("### Teams · " + eventName, "");
+        if (teams.isEmpty()) add.accept("No teams yet. Add one with `/events team create`.", "");
+        for (int i = 0; i < teams.size(); i++) {
+            TeamBuilder.Team team = teams.get(i);
             TeamBuilder.Totals t = totals.get(team.id());
             List<Long> members = players.stream().filter(p -> p.teamId() != null && p.teamId() == team.id()).map(TeamBuilder.Player::userId).toList();
-            lines.add("**" + team.name() + "** · " + members.size() + (members.size() == 1 ? " player" : " players") + (members.isEmpty() ? "" : " · rating " + t.ratingTotal() + " (average " + t.average() + ")")
-                    + (team.captainId() == null ? "" : " · captain <@" + team.captainId() + ">") + (members.isEmpty() ? "" : "\n-# " + mentions(members)));
+            String heading = "**" + team.name() + "** · " + members.size() + (members.size() == 1 ? " player" : " players") + (members.isEmpty() ? "" : " · rating " + t.ratingTotal() + " (average " + t.average() + ")")
+                    + (team.captainId() == null ? "" : " · captain <@" + team.captainId() + ">");
+            if (used[0] + heading.length() > HEADINGS_BUDGET) {
+                lines.add("-# …and " + (teams.size() - i) + (teams.size() - i == 1 ? " more team" : " more teams") + ".");
+                trimmed[0] = true;
+                break;
+            }
+            add.accept(heading, members.isEmpty() ? "" : mentions(members));
         }
         List<Long> without = players.stream().filter(p -> p.teamId() == null && !blocked.containsKey(p.userId())).map(TeamBuilder.Player::userId).toList();
-        if (!without.isEmpty()) lines.add("**No team** · " + without.size() + "\n-# " + mentions(without));
+        if (!without.isEmpty()) add.accept("**No team** · " + without.size(), mentions(without));
         if (!blocked.isEmpty()) {
             List<String> who = new ArrayList<>();
             blocked.forEach((id, why) -> who.add("<@" + id + "> (" + why + ")"));
-            lines.add("**Can't be on a team yet** · " + blocked.size() + "\n-# " + String.join(" ", who.stream().limit(LISTED).toList()) + (who.size() > LISTED ? " and " + (who.size() - LISTED) + " more" : ""));
+            add.accept("**Can't be on a team yet** · " + blocked.size(), String.join(" ", who.stream().limit(LISTED).toList()) + (who.size() > LISTED ? " and " + (who.size() - LISTED) + " more" : ""));
         }
         if (!standing.isBlank()) lines.add("-# " + standing);
+        if (trimmed[0]) lines.add("-# Some lists of names are left out to fit Discord's message size: the dashboard's Team builder shows everyone.");
         return lines;
     }
 }

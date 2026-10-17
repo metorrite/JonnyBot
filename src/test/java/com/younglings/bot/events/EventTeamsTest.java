@@ -152,6 +152,36 @@ class EventTeamsTest {
         assertEquals(red, player(id, 501).teamId());
     }
 
+    @Test
+    void aNewPlayerCannotBeAddedStraightOntoATeamWhenTheEventNeedsVerificationBeforeTeams() {
+        long id = teamEvent("Join onto a team", "{\"verification\":{\"required\":true,\"gate\":\"TEAMS\"}}");
+        long red = service.addTeam(G, id, "Red", null);
+        EventProblem refusal = refused(() -> service.join(G, id, G, 501, red, true, null));
+        assertEquals(409, refusal.status());
+        assertTrue(refusal.getMessage().contains("Add them without a team"), refusal.getMessage());
+        assertTrue(repository.participants(id).isEmpty(), "nobody was added");
+        service.join(G, id, G, 501, null, true, null);
+        service.setVerification(G, id, 501, Verification.VERIFIED, 9L, "");
+        service.setTeam(G, id, 501, red);
+
+        // verification only needed before the start: a new player can go straight onto a team
+        long later = teamEvent("Join onto a team later", "{\"verification\":{\"required\":true,\"gate\":\"START\"}}");
+        long blue = service.addTeam(G, later, "Blue", null);
+        service.join(G, later, G, 502, blue, true, null);
+        assertEquals(blue, player(later, 502).teamId());
+    }
+
+    @Test
+    void aPlayerOnTheWaitlistHasNoTeamWhateverTheyWereAddedWith() {
+        long id = event("Full", ScoringMode.TEAM, "{}", 1);
+        long red = service.addTeam(G, id, "Red", null);
+        service.join(G, id, G, 501, red, true, null);
+        service.join(G, id, G, 502, red, true, null);
+        assertEquals(red, player(id, 501).teamId());
+        assertTrue(player(id, 502).waiting(), "the event is full");
+        assertNull(player(id, 502).teamId(), "no place, no team");
+    }
+
     // ---------- teams and captains ----------
 
     @Test

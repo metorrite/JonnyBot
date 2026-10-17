@@ -338,13 +338,21 @@ public class EventService {
         if (!staff && (repository.setup(id).signupsClosed() || !settings.selfSignupOpen(Instant.now()))) throw new EventProblem(409, "Signups have closed. Ask an organiser to add you.");
         Kind kind = kindOverride != null ? kindOverride : kinds.kindOf(guildId, userGuildId, userId);
         if (!TeamRules.mayJoin(settings.teamPolicy(), kind)) throw new EventProblem(409, "This event isn't open to " + describe(kind) + ".");
-        if (teamId != null) checkTeam(id, settings, teamId, kind, userId);
+        if (teamId != null) {
+            checkTeam(id, settings, teamId, kind, userId);
+            // a new player hasn't been verified, so before the event runs they can't be put straight onto a team when it needs verification by now
+            if (teamMoment(event) == EventRoster.Gate.TEAMS && !EventRoster.counts(EventRoster.Verification.PENDING, settings.verification(), EventRoster.Gate.TEAMS)) {
+                throw new EventProblem(409, "This event needs players verified before they can be on a team. Add them without a team, verify them, then put them on one.");
+            }
+        }
         if (event.scoringMode() == ScoringMode.TEAM && teamId == null && event.status() == Status.RUNNING) {
             throw new EventProblem(400, "Pick a team: this event is scored by team and it has already started.");
         }
         var waiting = repository.join(id, userId, userGuildId, teamId, kind, settings.buyIn().enabled() ? BuyInStatus.DUE : BuyInStatus.NONE, event.maxParticipants());
         if (waiting.isEmpty()) throw new EventProblem(409, "That player is already in the event.");
         repository.clearRefusal(id, userId);
+        // a player on the waitlist holds no place, so has no team until they move up
+        if (waiting.get() && teamId != null) repository.setTeam(id, userId, null);
         changes.publish(EventChanges.Kind.ROSTER, guildId, id);
         if (!waiting.get()) return new Joined(false, 0);
         return new Joined(true, QueueRules.position(settings.queue(), queueEntries(id), userId));

@@ -37,6 +37,22 @@ class EventsTeamCommandTest {
     }
 
     @Test
+    void aHugeEventKeepsTheListInsideDiscordsMessageSize() {
+        List<Team> teams = new ArrayList<>();
+        List<Player> players = new ArrayList<>();
+        for (int t = 1; t <= 100; t++) {
+            teams.add(new Team(t, "Team number " + t, null));
+            for (int i = 0; i < 30; i++) players.add(player(100_000_000_000_000_000L * (t % 90 + 1) + i, (long) t, 3));
+        }
+        List<String> lines = EventsTeamCommand.listLines("Huge", teams, TeamBuilder.totals(teams, players), players, Map.of(), "3 teams, 6 of 6 players placed. Check them, then finalise.");
+        int total = lines.stream().mapToInt(String::length).sum();
+        assertTrue(total < 4000, "the whole list is " + total + " characters");
+        assertTrue(lines.get(1).contains("\n-# <@"), "the first teams still show their players");
+        assertTrue(lines.stream().anyMatch(l -> l.startsWith("-# …and ") && l.endsWith(" more teams.")), "the teams that don't fit are counted");
+        assertTrue(lines.get(lines.size() - 1).startsWith("-# Some lists of names are left out"), lines.get(lines.size() - 1));
+    }
+
+    @Test
     void anEventWithNoTeamsSaysHowToAddOneAndAHugeTeamIsCutShort() {
         List<String> none = EventsTeamCommand.listLines("Empty", List.of(), Map.of(), List.of(), Map.of(), "");
         assertEquals(List.of("### Teams · Empty", "No teams yet. Add one with `/events team create`."), none);
