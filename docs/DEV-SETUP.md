@@ -38,7 +38,16 @@ Branch model (both repos): feature branches are made off `dev`, a PR goes into `
 Keep these in a password manager and re-enter them on the new machine. Never commit them.
 
 **Bot (IntelliJ run configuration "JonnyBot Dev", environment variables):**
-`DATABASE_URL` (local Postgres, `postgresql://USER:PASSWORD@127.0.0.1:5432/jonnybot_dev`), `DISCORD_TOKEN` (the *dev* bot's token), `GUILD_ID` (`1495619657674264717`: **this is the real Younglings clan server**; the "JonnyBot Dev" bot is a separate Discord application that sits in it, so anything the dev bot does on Discord happens in the real server, and a bot cannot create a throwaway test server, Discord refuses that for bots now), `INTERNAL_API_SECRET` (shared with the website), `LIVE_ENV=FALSE`, `REMOVE_COMMANDS_ON_SHUTDOWN=TRUE`. The internal API listens on port 8081. "JonnyBot Production" and "Initialize Databse JonnyBot Dev" are the other run configurations. The run configurations live in `.idea/workspace.xml` (not in git).
+`DATABASE_URL` (local Postgres, `postgresql://USER:PASSWORD@127.0.0.1:5432/jonnybot_dev`), `DISCORD_TOKEN` (the *dev* bot's token), `GUILD_ID` (`1495619657674264717`: **this is the real Younglings clan server**; the "JonnyBot Dev" bot is a separate Discord application that sits in it, so anything the dev bot does on Discord happens in the real server, and a bot cannot create a throwaway test server, Discord refuses that for bots now), `INTERNAL_API_SECRET` (shared with the website), `LIVE_ENV=FALSE`, `REMOVE_COMMANDS_ON_SHUTDOWN=TRUE`. The internal API listens on port 8081. "JonnyBot Production" and "Initialize Databse JonnyBot Dev" are the other run configurations. The run configurations live in `.idea/workspace.xml` (the whole `.idea` folder is untracked, not in git), so on a new machine they are made again by hand: in IntelliJ, Run > Edit Configurations > Application, module `JonnyBot`, JDK 21:
+
+| Name | Main class | Environment variables |
+|---|---|---|
+| JonnyBot Dev | `com.younglings.bot.Main` | `DATABASE_URL`, `DISCORD_TOKEN`, `GUILD_ID`, `INTERNAL_API_SECRET`, `LIVE_ENV`, `REMOVE_COMMANDS_ON_SHUTDOWN` |
+| Initialize Databse JonnyBot Dev (optional; the bot initialises its tables itself) | `com.younglings.bot.util.InitializeDatabase` | `DATABASE_URL` |
+| JonnyBot Production (not used locally; production is set on Railway) | `com.younglings.bot.Main` | none |
+| Icon Image Update and Download (a tool) | `com.younglings.bot.tools.IconDownloader` | none |
+
+Copying the old machine's `.idea/workspace.xml` also works when the repository is at the same path, but it carries the secrets and a lot of other IDE state, so move it the way you would move a password.
 
 **Website (`younglings-website/.env.local`, not in git):**
 `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL` (`http://localhost:3000`), `JONNYBOT_INTERNAL_API_URL` (`http://localhost:8081`), `JONNYBOT_INTERNAL_API_SECRET` (must equal the bot's `INTERNAL_API_SECRET`). Signing in to the dashboard uses Discord OAuth, so the Discord application's redirect URI must include `http://localhost:3000/api/auth/callback/discord`.
@@ -48,7 +57,7 @@ Keep these in a password manager and re-enter them on the new machine. Never com
 ## 4. First run
 
 1. Start Postgres and create the database: `createdb jonnybot_dev` (user `postgres`).
-2. Get data into it. Either let the bot create empty tables on first start, or restore a copy of live data (how it was done on 2026-10-14 is in Claude's memory `reference_live_to_local_db_sync.md`: dump live read-only, restore locally; **the dev bot must not run against that data in the real server**).
+2. Get data into it. Either let the bot create empty tables on first start (it also creates BotCommands' own tables, schema `bc`; if the log ever complains they are missing, load `docs/bc-schema.sql` once as that file says), or restore a copy of live data (how it was done on 2026-10-14 is in Claude's memory `reference_live_to_local_db_sync.md`: dump live read-only, restore locally; **the dev bot must not run against that data in the real server**).
 3. IntelliJ: open `JonnyBot`, set the JDK to 21, import the Maven project, create the "JonnyBot Dev" run configuration with the variables above, build, run. Success looks like `Internal API listening on port 8081` and `Finished Loading!` in the log.
 4. Website: `cd younglings-website; npm ci; npm run dev` (port 3000). A `.claude/launch.json` entry named `younglings-website` (`npm --prefix <path> run dev`, port 3000) lets Claude start it in its browser pane. Sign in with Discord, open `http://localhost:3000/dashboard/1495619657674264717/event-manager`.
 5. Only one bot instance may run per token: starting "JonnyBot Dev" again does **not** stop the old one (the second logs "Address already in use" for port 8081). Stop the old `com.younglings.bot.Main` java process first.
@@ -68,9 +77,23 @@ Website: `npx tsc --noEmit` (ignore the one `LayoutProps` error in a worktree: N
 
 ## 6. Files that exist only on the old machine (carry over if wanted)
 
+The short version of what is **not** in GitHub: Claude's memory folder, the IntelliJ run configurations (`.idea`), the website's `.env.local`, Claude's local permission approvals (`.claude/settings.local.json`), the local database, and a few throwaway scratch files. Everything else (all code, both repositories' branches, these two documents) is in GitHub.
+
 - **Claude's memory for this project**: `C:\Users\drake\.claude\projects\C--Users-drake-Documents-Github-Repositories-JonnyBot\memory\` (the plan, decisions, reminders, lessons). The folder name is the repository path with separators turned into dashes, so on a machine where the repo lives at a different path the folder has a different name: copy the *contents* into the matching `projects\<encoded path>\memory\` folder. This is what lets the assistant pick the work up where it was left.
-- `.idea/workspace.xml` (run configurations with the secrets above) and `younglings-website/.env.local`.
-- Git-excluded scratch files: bot `src/test/.../BingoSkinScratchTest.java` (generates the bingo look preview pictures; a copy of the generator is in `tools/BingoSkinGenerator.java.txt`), `tools/DevDbPluginE2eTest.java.txt` (untracked); website `src/app/dev-preview/` (a throwaway page that mounts dashboard components over mock data: `?v=teams`, `?v=wizard`, `?v=events`; `.git/info/exclude` lists it) and `.claude/launch.json`.
-- The conversation transcripts under `~/.claude/projects/...` are optional.
+  **This folder is sensitive:** `reference_railway_live_db.md` in it holds the live Railway database credentials. Move the folder the way you would move a password (a USB stick, or a private encrypted store), never through a public place or the repository, or take those credentials out of that one file first and keep them in your password manager.
+- `.idea/workspace.xml` (run configurations with the secrets above; see section 3 for recreating them instead), `younglings-website/.env.local`, and `JonnyBot/.claude/settings.local.json` (the permissions Claude was already allowed in this project; optional, it only saves answering the prompts again).
+- Git-excluded scratch files: bot `src/test/java/com/younglings/bot/DevDb*SmokeTest.java` and `tools/DevDbSmokeTest.java.txt` (throwaway tests that run repository SQL against the local dev database), `src/test/.../BingoSkinScratchTest.java` (generates the bingo look preview pictures; a copy of the generator is in `tools/BingoSkinGenerator.java.txt`), `tools/DevDbPluginE2eTest.java.txt` (untracked); website `src/app/dev-preview/` (a throwaway page that mounts dashboard components over mock data: `?v=teams`, `?v=wizard`, `?v=events`, `?v=channels&s=solo|teams|big|off`; `.git/info/exclude` lists it; about 190 KB, includes the bot's real roles-and-channels planner output in `spaceViews.ts`) and `.claude/launch.json`.
+- The local database `jonnybot_dev` (and `jonnybot_dev_liveparity`, a copy of live data, which holds real clan data: treat a dump of it as private). Moving data is optional: `pg_dump -U postgres -Fc jonnybot_dev -f jonnybot_dev.dump` here and `pg_restore -U postgres -d jonnybot_dev --clean --if-exists jonnybot_dev.dump` there. A fresh empty database works too.
+- Logins that cannot be moved and are done again: the Claude app, `gh auth login`, git credentials for GitHub, Discord in the built-in browser pane (the dashboard needs a Discord sign-in), and the IDE connection for Claude (IntelliJ: Settings > Tools > MCP Server).
+- The conversation transcripts under `~/.claude/projects/...` are optional: they are large (the current project session is about 165 MB) and nothing needs them (the memory folder and these documents hold the decisions); copy the one file you want searchable if you like. Do **not** copy `~/.claude/.credentials.json` or `~/.claude.json`: sign in fresh.
+
+## 7. Moving to a new PC: the order of things
+
+1. **Old PC, now:** check that both pull requests of the current slice are merged into `dev` or still open and pushed (`git status` clean in every checkout, nothing unpushed); copy the memory folder and the secrets (password manager) somewhere private; optionally dump the database; optionally copy the website's `dev-preview` folder.
+2. **New PC, tools:** install what section 1 lists, then sign in to GitHub (`gh auth login`) and set `git config --global user.name "Drake Forness"` and your email.
+3. **New PC, code:** clone both repositories into the *same folder layout* as section 2 (same absolute path means Claude finds the memory folder under the same name), `git checkout dev`.
+4. **New PC, Claude's memory:** put the memory folder at `C:\Users\<you>\.claude\projects\<repository path with every : and \ and / turned into ->\memory\` (for `C:\Users\drake\Documents\Github\Repositories\JonnyBot` that is `C--Users-drake-Documents-Github-Repositories-JonnyBot`). Open the repository in the Claude app; the first thing to ask is where the event lifecycle project stands.
+5. **New PC, secrets and run configurations:** section 3. Create the database (section 4), start the bot, start the website, sign in to Discord in the browser pane.
+6. **Check it works:** the bot log shows `Finished Loading!`; the dashboard opens; `python tools/dev_api.py GET whoami --actor <your discord user id>` answers `ADMIN`; `mvn -o test -Dtest=EventSpaceTest` passes.
 
 See `docs/EVENT-LIFECYCLE.md` for the event project itself.
