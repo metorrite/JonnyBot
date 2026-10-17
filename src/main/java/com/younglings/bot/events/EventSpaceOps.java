@@ -175,7 +175,7 @@ public class EventSpaceOps {
     // ---------- setting up ----------
 
     /**
-     * Starts setting up the event's roles and channels in the background. Refused when something stops it (see {@link Plan#blockers}) or a job is already
+     * Starts setting up the event's roles and channels in the background. Refused when something stops it (see {@link Plan#blockers()}) or a job is already
      * running for the event. {@code removeUnneeded} also removes what JonnyBot made before that the event no longer wants (a deleted team's channel).
      */
     public Job startSetup(Guild guild, Event event, long actorId, boolean removeUnneeded) {
