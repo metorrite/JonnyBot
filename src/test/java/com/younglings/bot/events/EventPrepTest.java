@@ -170,6 +170,62 @@ class EventPrepTest {
         assertEquals(State.SKIPPED, step(EventPrep.of(withTeams(Status.CANCELLED, Mode.STANDARD, false, new TeamBuilder.Facts(0, 0, 0, List.of(), 0), false)), "teams").state());
     }
 
+    private static Facts withSpace(Status status, Mode mode, boolean closed, boolean confirmed, EventPrep.TeamFacts teams, EventPrep.SpaceFacts space) {
+        return new Facts(status, mode, true, closed, confirmed, 6, 0, EventRoster.notRequired(), NOBODY, teams, space);
+    }
+
+    @Test
+    void anEventWithoutRolesAndChannelsHasNoStepForThem() {
+        Prep solo = EventPrep.of(facts(Status.SIGNUPS, Mode.STANDARD, true, true, 6, 0, EventRoster.notRequired(), NOBODY));
+        assertTrue(solo.steps().stream().noneMatch(s -> s.key().equals("space")));
+    }
+
+    @Test
+    void rolesAndChannelsWaitForTheStepsBeforeThemThenAreSetUpAndStayRequiredIfSomethingGoesMissing() {
+        EventPrep.SpaceFacts none = new EventPrep.SpaceFacts(false, false, "");
+        Prep early = EventPrep.of(withSpace(Status.SIGNUPS, Mode.STANDARD, true, false, null, none));
+        assertEquals(State.WAITING, step(early, "space").state());
+        assertTrue(step(early, "space").detail().contains("Confirm the roster first."), step(early, "space").detail());
+        assertFalse(early.blockers().contains("Set up the roles and channels."), "the steps before it already say what is next: " + early.blockers());
+
+        Prep ready = EventPrep.of(withSpace(Status.SIGNUPS, Mode.STANDARD, true, true, null, none));
+        assertEquals(State.ACTIVE, step(ready, "space").state());
+        assertTrue(step(ready, "space").required());
+        assertEquals(List.of("Set up the roles and channels."), ready.blockers());
+        assertFalse(ready.ready());
+
+        Prep done = EventPrep.of(withSpace(Status.SIGNUPS, Mode.STANDARD, true, true, null, new EventPrep.SpaceFacts(true, true, "")));
+        assertEquals(State.DONE, step(done, "space").state());
+        assertTrue(done.ready());
+
+        Prep lost = EventPrep.of(withSpace(Status.SIGNUPS, Mode.STANDARD, true, true, null, new EventPrep.SpaceFacts(true, false, "the channel boss-night-red is missing.")));
+        assertEquals(State.ACTIVE, step(lost, "space").state());
+        assertEquals(List.of("Bring the roles and channels up to date."), lost.blockers());
+        assertTrue(step(lost, "space").detail().contains("boss-night-red"), step(lost, "space").detail());
+    }
+
+    @Test
+    void aTeamEventsRolesAndChannelsWaitUntilTheTeamsAreFinal() {
+        EventPrep.SpaceFacts none = new EventPrep.SpaceFacts(false, false, "");
+        TeamBuilder.Facts placed = new TeamBuilder.Facts(2, 6, 0, List.of(), 0);
+        Prep unfinished = EventPrep.of(withSpace(Status.SIGNUPS, Mode.STANDARD, true, true, new EventPrep.TeamFacts(placed, false), none));
+        assertEquals(State.WAITING, step(unfinished, "space").state());
+        assertTrue(step(unfinished, "space").detail().contains("Finalise the teams first."), step(unfinished, "space").detail());
+        Prep finished = EventPrep.of(withSpace(Status.SIGNUPS, Mode.STANDARD, true, true, new EventPrep.TeamFacts(placed, true), none));
+        assertEquals(State.ACTIVE, step(finished, "space").state());
+    }
+
+    @Test
+    void anEventNotFollowingTheSetupOnlyAdvisesAboutItsRolesAndChannelsAndTheyCloseOutWhenItStarts() {
+        EventPrep.SpaceFacts none = new EventPrep.SpaceFacts(false, false, "");
+        Prep off = EventPrep.of(withSpace(Status.SIGNUPS, Mode.OFF, true, true, null, none));
+        assertTrue(off.ready());
+        assertFalse(step(off, "space").required());
+        assertEquals(State.SKIPPED, step(EventPrep.of(withSpace(Status.RUNNING, Mode.STANDARD, true, true, null, none)), "space").state());
+        assertEquals(State.DONE, step(EventPrep.of(withSpace(Status.RUNNING, Mode.STANDARD, true, true, null, new EventPrep.SpaceFacts(true, true, ""))), "space").state());
+        assertEquals(State.SKIPPED, step(EventPrep.of(withSpace(Status.CANCELLED, Mode.STANDARD, false, false, null, none)), "space").state());
+    }
+
     @Test
     void closingReopeningAndConfirmingFollowTheStage() {
         assertTrue(EventPrep.canCloseSignups(Status.SIGNUPS, false));

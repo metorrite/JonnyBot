@@ -9,8 +9,8 @@ import java.util.List;
 /**
  * How ready an event is to start, as a checklist an organiser can follow: build it, take signups, close them and confirm the roster, sort out
  * verification. The event's stage ({@link Status}) stays as it was; this reads the facts about the event and says what is done, what to do now and
- * what stops it from starting. A step that doesn't apply to this event is left out (an event scored by player has no teams step), and later steps (channels)
- * are added here as they exist.
+ * what stops it from starting. A step that doesn't apply to this event is left out (an event scored by player has no teams step, and an event
+ * that doesn't make roles and channels has no step for them).
  * <p>
  * How strict it is depends on the event's {@link Mode}: an event on {@code OFF} (what every event was before this) starts whenever an organiser says,
  * so the signup and roster steps only advise; the other modes make closing signups and confirming the roster required. Verification is checked
@@ -34,15 +34,31 @@ public final class EventPrep {
     public record TeamFacts(TeamBuilder.Facts teams, boolean finalised) {}
 
     /**
+     * The roles and channels of an event that has them switched on, as the checklist needs them: whether they were set up, whether everything wanted is still
+     * there, and what is missing if not ({@code note}).
+     */
+    public record SpaceFacts(boolean applied, boolean complete, String note) {
+        public SpaceFacts {
+            note = note == null ? "" : note;
+        }
+    }
+
+    /**
      * What the checklist is worked out from. The counts are of players who hold a place (not the waitlist), except {@code waiting}. {@code teams} is null for an
-     * event scored by player, which has no teams step.
+     * event scored by player, which has no teams step, and {@code space} for an event that doesn't make roles and channels.
      */
     public record Facts(Status status, Mode mode, boolean hasObjectives, boolean signupsClosed, boolean rosterConfirmed, int active, int waiting,
-                        EventRoster.Setting verification, EventRoster.Tally tally, TeamFacts teams) {
-        /** An event with no teams. */
+                        EventRoster.Setting verification, EventRoster.Tally tally, TeamFacts teams, SpaceFacts space) {
+        /** An event with no roles and channels. */
+        public Facts(Status status, Mode mode, boolean hasObjectives, boolean signupsClosed, boolean rosterConfirmed, int active, int waiting,
+                     EventRoster.Setting verification, EventRoster.Tally tally, TeamFacts teams) {
+            this(status, mode, hasObjectives, signupsClosed, rosterConfirmed, active, waiting, verification, tally, teams, null);
+        }
+
+        /** An event with no teams and no roles and channels. */
         public Facts(Status status, Mode mode, boolean hasObjectives, boolean signupsClosed, boolean rosterConfirmed, int active, int waiting,
                      EventRoster.Setting verification, EventRoster.Tally tally) {
-            this(status, mode, hasObjectives, signupsClosed, rosterConfirmed, active, waiting, verification, tally, null);
+            this(status, mode, hasObjectives, signupsClosed, rosterConfirmed, active, waiting, verification, tally, null, null);
         }
     }
 
@@ -149,7 +165,29 @@ public final class EventPrep {
 
         // 5. teams, only for an event scored by team
         if (f.teams() != null) steps.add(teamsStep(f, managed, started, called, blockers, warnings));
+
+        // 6. the roles and channels, only for an event that makes them
+        if (f.space() != null) steps.add(spaceStep(f, managed, started, called, blockers));
         return new Prep(steps, blockers, warnings);
+    }
+
+    /** The roles and channels step: waits for the steps before it, then asks for them to be set up, and again if something goes missing afterwards. */
+    private static Step spaceStep(Facts f, boolean managed, boolean started, boolean called, List<String> blockers) {
+        SpaceFacts space = f.space();
+        if (called) return new Step("space", "Roles and channels", State.SKIPPED, managed, "The event was cancelled.", List.of());
+        if (started) {
+            if (!space.applied()) return new Step("space", "Roles and channels", State.SKIPPED, managed, "Not set up before the event started.", List.of());
+            return new Step("space", "Roles and channels", State.DONE, managed, space.complete() ? "Set up." : "Set up, but " + space.note(), List.of());
+        }
+        boolean teamEvent = f.teams() != null;
+        List<String> early = EventSpace.notReady(new EventSpace.Readiness(f.status(), teamEvent, f.signupsClosed(), f.rosterConfirmed(), teamEvent && f.teams().finalised()));
+        if (!early.isEmpty()) return new Step("space", "Roles and channels", State.WAITING, managed, "Finish the steps above first: " + String.join(" ", early), List.of());
+        if (space.applied() && space.complete()) return new Step("space", "Roles and channels", State.DONE, managed, "The roles and channels are set up.", List.of());
+        List<String> why = new ArrayList<>();
+        if (managed) why.add(space.applied() ? "Bring the roles and channels up to date." : "Set up the roles and channels.");
+        blockers.addAll(why);
+        String detail = space.applied() ? "Something is missing: " + space.note() : "Everything before this is done. Set up the roles and channels.";
+        return new Step("space", "Roles and channels", State.ACTIVE, managed, detail, why);
     }
 
     /** The teams step: waits for the roster in a managed event, then asks for every player on a team and an organiser's word that the teams are final. */

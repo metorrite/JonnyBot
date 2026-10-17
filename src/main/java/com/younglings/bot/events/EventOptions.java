@@ -221,6 +221,7 @@ public final class EventOptions {
         list.add(Option.of("config.buyIn.showPot", "Show the pot to players", "Players see how much is in the pot.", Step.MONEY, Type.BOOL, true).showWhen(When.is("config.buyIn.enabled", true)));
         list.add(Option.of("prizes", "Prizes", "A prize goes to one place or a range of places. Optional; you can also add them later.", Step.MONEY, Type.PRIZES, null));
 
+        list.add(Option.of("config.channels.enabled", "Roles and channels", "Once signups are closed and the roster is confirmed, JonnyBot makes a role for the players and organisers, a category and channels for the event. What they are called and which channels to make is chosen on the event's Channels tab.", Step.DISCORD, Type.BOOL, false));
         list.add(Option.of("config.signupChannelId", "Signup channel", "Where the signup is posted for players. Choose it together with the staff channel.", Step.DISCORD, Type.CHANNEL, null)
                 .requiredWhen(When.isSet("config.signupAdminChannelId")));
         list.add(Option.of("config.signupAdminChannelId", "Signup staff channel", "Where staff see who signed up.", Step.DISCORD, Type.CHANNEL, null)
@@ -371,6 +372,8 @@ public final class EventOptions {
             if (v == null || String.valueOf(v).isBlank()) set(a, blank, null);
         }
         if (!Boolean.TRUE.equals(get(a, "config.buyIn.enabled"))) set(a, "config.buyIn", null);
+        // roles and channels that aren't switched on need nothing stored
+        if (!Boolean.TRUE.equals(get(a, "config.channels.enabled")) && get(a, "config.channels") instanceof Map<?, ?> channels && channels.size() <= 1) set(a, "config.channels", null);
         if (a.hasKey("config") && !a.isNull("config")) {
             DataObject config = a.getObject("config");
             for (String key : List.copyOf(config.keys())) {
