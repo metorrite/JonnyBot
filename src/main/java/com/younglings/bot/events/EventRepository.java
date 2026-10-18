@@ -26,6 +26,7 @@ import java.sql.Types;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -385,6 +386,31 @@ public class EventRepository {
             return list;
         } catch (SQLException e) {
             throw new RuntimeException("Failed to read the events", e);
+        }
+    }
+
+    /** How busy an event is, for the event list: players in, players waiting for a place, and proof (or verification) waiting for an organiser. */
+    public record ListCounts(int players, int waiting, int proofWaiting) {
+        public static final ListCounts NONE = new ListCounts(0, 0, 0);
+    }
+
+    /** The counts for every event of the server, keyed by event id, in one query. */
+    public Map<Long, ListCounts> listCounts(long guildId) {
+        String sql = """
+                SELECT e.id,
+                       (SELECT COUNT(*) FROM younglings.event_participant p WHERE p.event_id = e.id AND p.status = 'ACTIVE'),
+                       (SELECT COUNT(*) FROM younglings.event_participant p WHERE p.event_id = e.id AND p.status = 'WAITING'),
+                       (SELECT COUNT(*) FROM younglings.event_claim k WHERE k.event_id = e.id AND k.status = 'PENDING')
+                FROM younglings.event e WHERE e.guild_id = ?""";
+        Map<Long, ListCounts> counts = new HashMap<>();
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
+            s.setLong(1, guildId);
+            try (ResultSet rs = s.executeQuery()) {
+                while (rs.next()) counts.put(rs.getLong(1), new ListCounts(rs.getInt(2), rs.getInt(3), rs.getInt(4)));
+            }
+            return counts;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to count the events' players and proof", e);
         }
     }
 
