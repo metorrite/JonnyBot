@@ -114,6 +114,8 @@ class EventSignupsCloseTest {
         signups.reopenSignups(guild, id);
 
         Mockito.verify(signupService, Mockito.times(2)).togglePause(7777L);
+        // the panels in Discord are redrawn each time, so they say PAUSED and then ACTIVE at once (they used to keep the old status until someone clicked one)
+        Mockito.verify(signupService, Mockito.times(2)).updateMessages(guild, 7777L);
         assertFalse(repository.setup(id).signupsClosed());
         service.join(G, id, G, 503, null, false, null);
         assertEquals(1, repository.participants(id).size());

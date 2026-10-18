@@ -212,8 +212,12 @@ public class EventSetupApi {
     }
 
     private static long idOf(String raw, String what) {
-        if (raw == null || !raw.matches("\\d{1,18}")) throw new ApiError(400, "That isn't a valid " + what + ".");
-        return Long.parseLong(raw);
+        if (raw == null || !raw.matches("\\d{1,19}")) throw new ApiError(400, "That isn't a valid " + what + ".");
+        try {
+            return Long.parseLong(raw);
+        } catch (NumberFormatException e) {
+            throw new ApiError(400, "That isn't a valid " + what + ".");
+        }
     }
 
     private static String name(Guild guild, long userId) {

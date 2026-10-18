@@ -109,7 +109,7 @@ public class EventSignups {
         Event event = service.event(guild.getIdLong(), eventId);
         int added = 0;
         if (event.signupId() != null) {
-            pause(event.signupId());
+            pause(guild, event.signupId());
             added = sync(guild, eventId);
         }
         return report(eventId, added);
@@ -119,7 +119,10 @@ public class EventSignups {
     public void reopenSignups(Guild guild, long eventId) {
         service.reopenSignups(guild.getIdLong(), eventId);
         Event event = service.event(guild.getIdLong(), eventId);
-        if (event.signupId() != null && !signups.isSignupActive(event.signupId())) signups.togglePause(event.signupId());
+        if (event.signupId() != null && !signups.isSignupActive(event.signupId())) {
+            signups.togglePause(event.signupId());
+            signups.updateMessages(guild, event.signupId());
+        }
     }
 
     private Closed report(long eventId, int added) {
@@ -162,7 +165,7 @@ public class EventSignups {
         if (event.signupId() == null) return;
         if (to == Status.RUNNING || to == Status.SCORING) {
             sync(guild, eventId);
-            pause(event.signupId());
+            pause(guild, event.signupId());
         } else if (to == Status.DONE || to == Status.CANCELLED) {
             signups.deleteSignup(guild, event.signupId());
             repository.setSignup(eventId, null);
@@ -187,8 +190,11 @@ public class EventSignups {
         }
     }
 
-    private void pause(long signupId) {
-        if (signups.isSignupActive(signupId)) signups.togglePause(signupId);
+    /** Pauses the Discord signup and redraws its panels, so they say PAUSED at once instead of when someone next clicks one. */
+    private void pause(Guild guild, long signupId) {
+        if (!signups.isSignupActive(signupId)) return;
+        signups.togglePause(signupId);
+        signups.updateMessages(guild, signupId);
     }
 
     void sweep(JDA jda) {
@@ -203,7 +209,7 @@ public class EventSignups {
                             // an attached signup is kept in step until the event closes it, which the deadline sweep above does
                             if (!repository.setup(event.id()).signupsClosed()) sync(guild, event.id());
                         }
-                        case RUNNING, SCORING -> pause(event.signupId());
+                        case RUNNING, SCORING -> pause(guild, event.signupId());
                         case DONE, CANCELLED -> onStage(guild, event.id(), event.status());
                         default -> { }
                     }
