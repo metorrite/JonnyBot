@@ -349,7 +349,11 @@ public class EventsAdminApi implements AdminRouteExtension {
 
     DataObject list(Guild guild) {
         DataArray events = DataArray.empty();
-        for (Event e : repository.events(guild.getIdLong(), List.of(), 100)) events.add(eventJson(e));
+        Map<Long, EventRepository.ListCounts> counts = repository.listCounts(guild.getIdLong());
+        for (Event e : repository.events(guild.getIdLong(), List.of(), 100)) {
+            EventRepository.ListCounts n = counts.getOrDefault(e.id(), EventRepository.ListCounts.NONE);
+            events.add(eventJson(e).put("players", n.players()).put("waiting", n.waiting()).put("proofWaiting", n.proofWaiting()));
+        }
         return DataObject.empty().put("events", events).put("maxOpen", EventService.MAX_OPEN_EVENTS);
     }
 

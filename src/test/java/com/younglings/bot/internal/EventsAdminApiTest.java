@@ -168,6 +168,33 @@ class EventsAdminApiTest {
     }
 
     @Test
+    void theListSaysHowManyPlayersAreInHowManyWaitAndHowMuchProofIsWaiting() {
+        String id = create("{\"name\":\"Busy one\",\"maxParticipants\":2,\"config\":{\"queue\":\"FIRST_COME\"}}");
+        String quiet = create("{\"name\":\"Quiet one\"}");
+        call("PUT", "events/" + id + "/objectives", "{\"objectives\":[{\"key\":\"cape\",\"label\":\"Cape\",\"points\":100,\"evidence\":\"proof\"}]}");
+        call("POST", "events/" + id + "/status", "{\"status\":\"signups\"}");
+        for (String user : List.of("101", "102", "103")) call("POST", "events/" + id + "/participants", "{\"userId\":\"" + user + "\"}");
+        call("POST", "events/" + id + "/status", "{\"status\":\"running\"}");
+        call("POST", "events/" + id + "/claims", "{\"userId\":\"101\",\"objective\":\"cape\",\"amount\":1,\"note\":\"here it is\",\"proofUrl\":\"https://example.com/p.png\"}");
+
+        var events = call("GET", "events", null).getArray("events");
+        DataObject busy = null;
+        DataObject other = null;
+        for (int i = 0; i < events.length(); i++) {
+            if (events.getObject(i).getString("id").equals(id)) busy = events.getObject(i);
+            if (events.getObject(i).getString("id").equals(quiet)) other = events.getObject(i);
+        }
+        assertNotNull(busy);
+        assertNotNull(other);
+        assertEquals(2, busy.getInt("players"));
+        assertEquals(1, busy.getInt("waiting"));
+        assertEquals(1, busy.getInt("proofWaiting"));
+        assertEquals(0, other.getInt("players"));
+        assertEquals(0, other.getInt("waiting"));
+        assertEquals(0, other.getInt("proofWaiting"));
+    }
+
+    @Test
     void anotherServersEventIsNotFoundHereOnAnyRoute() {
         long theirs = service.createEvent(OTHER, 9L, new EventService.EventInput("Theirs", "", "custom", com.younglings.bot.events.EventRules.Scope.PRIVATE, com.younglings.bot.events.EventRules.ScoringMode.INDIVIDUAL, null, null, 0, null));
         for (String path : List.of("events/" + theirs, "events/" + theirs + "/standings", "events/" + theirs + "/claims", "events/" + theirs + "/awards")) {
