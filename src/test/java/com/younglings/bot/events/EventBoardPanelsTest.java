@@ -39,6 +39,7 @@ class EventBoardPanelsTest {
     private EventRepository repository;
     private EventService service;
     private EventBoardPanels panels;
+    private EventSpaceRepository space;
     private Guild guild;
     private GuildMessageChannel channel;
     private final List<String> calls = new ArrayList<>();
@@ -48,7 +49,8 @@ class EventBoardPanelsTest {
         repository = mock(EventRepository.class);
         service = mock(EventService.class);
         BingoTiles tiles = mock(BingoTiles.class);
-        panels = new EventBoardPanels(repository, service, new EventChanges(), tiles);
+        space = mock(EventSpaceRepository.class);
+        panels = new EventBoardPanels(repository, service, space, new EventChanges(), tiles);
 
         JDA jda = mock(JDA.class);
         guild = mock(Guild.class);
@@ -126,7 +128,7 @@ class EventBoardPanelsTest {
     @Test
     void everyReasonNothingIsPostedIsSaidInWords() {
         event(BingoTemplate.KEY, Status.RUNNING, "{" + BOARD + "}");
-        assertEquals("Choose a board channel in the event's settings first.", panels.refresh(GUILD, EVENT));
+        assertEquals("Shared board: there is no live board channel yet. Choose or make one on the Channels tab.", panels.refresh(GUILD, EVENT));
 
         event(BingoTemplate.KEY, Status.SIGNUPS, "{\"boardChannelId\":\"" + CHANNEL + "\"," + BOARD + "}");
         assertEquals("The board is posted once the event starts.", panels.refresh(GUILD, EVENT));
@@ -149,5 +151,53 @@ class EventBoardPanelsTest {
         when(guild.getSelfMember()).thenReturn(self);
 
         assertEquals("JonnyBot needs to see, send messages and attach files in #bingo.", panels.refresh(GUILD, EVENT));
+    }
+
+    // ---------- each player's or team's own board ----------
+
+    private EventRepository.Participant player(long userId) {
+        return new EventRepository.Participant(EVENT, userId, GUILD, null, com.younglings.bot.events.TeamRules.Kind.HOME_CLAN, false, PrizeRules.BuyInStatus.NONE, Instant.now(),
+                EventRoster.Verification.PENDING, null, null, "", null, EventRepository.RosterSource.STAFF);
+    }
+
+    @Test
+    void withOwnBoardsEachPlayerGetsTheirBoardInTheirOwnChannelAndWhoHasNoPlaceIsSaid() {
+        event(BingoTemplate.KEY, Status.RUNNING, "{" + BOARD.replace("\"size\":3}", "\"size\":3,\"display\":\"OWN\"}") + "}");
+        when(repository.participants(EVENT)).thenReturn(List.of(player(501), player(502)));
+        when(space.channels(EVENT)).thenReturn(List.of(new EventSpaceRepository.ChannelRow(EVENT, "player:501", CHANNEL, "bingo-501", true, "category")));
+
+        String result = panels.refresh(GUILD, EVENT);
+
+        assertEquals("Own boards: 1 posted, 0 updated, 0 unchanged, 1 with nowhere to post (set up the event's channels, or choose a live board channel).", result);
+        verify(channel).sendMessage(any(CharSequence.class));
+    }
+
+    @Test
+    void ownBoardsNeedNoLiveBoardChannelAndAPlayerWithoutAChannelUsesItWhenThereIsOne() {
+        event(BingoTemplate.KEY, Status.RUNNING, "{\"boardChannelId\":\"" + CHANNEL + "\"," + BOARD.replace("\"size\":3}", "\"size\":3,\"display\":\"OWN\"}") + "}");
+        when(repository.participants(EVENT)).thenReturn(List.of(player(501), player(502)));
+
+        String result = panels.refresh(GUILD, EVENT);
+
+        assertEquals("Own boards: 2 posted, 0 updated, 0 unchanged.", result, "no channels of their own: both go in the live board channel");
+        verify(channel, org.mockito.Mockito.times(2)).sendMessage(any(CharSequence.class));
+    }
+
+    @Test
+    void anOwnBoardsEventPostsNoSharedBoardAndABothEventPostsBoth() {
+        event(BingoTemplate.KEY, Status.RUNNING, "{\"boardChannelId\":\"" + CHANNEL + "\"," + BOARD.replace("\"size\":3}", "\"size\":3,\"display\":\"OWN\"}") + "}");
+        when(repository.participants(EVENT)).thenReturn(List.of(player(501)));
+        assertEquals("Own boards: 1 posted, 0 updated, 0 unchanged.", panels.refresh(GUILD, EVENT), "no 'Posted the board' sentence: only their own");
+
+        event(BingoTemplate.KEY, Status.RUNNING, "{\"boardChannelId\":\"" + CHANNEL + "\"," + BOARD.replace("\"size\":3}", "\"size\":3,\"display\":\"BOTH\"}") + "}");
+        String both = panels.refresh(GUILD, EVENT);
+        assertTrue(both.startsWith("Posted the board in #bingo."), both);
+        assertTrue(both.contains("Own boards: 1 posted"), both);
+    }
+
+    @Test
+    void ownBoardsWithNobodyInTheEventSaySo() {
+        event(BingoTemplate.KEY, Status.RUNNING, "{" + BOARD.replace("\"size\":3}", "\"size\":3,\"display\":\"OWN\"}") + "}");
+        assertEquals("No own boards yet: nobody is in the event.", panels.refresh(GUILD, EVENT));
     }
 }

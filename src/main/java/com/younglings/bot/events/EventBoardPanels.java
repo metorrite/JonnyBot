@@ -41,6 +41,7 @@ public class EventBoardPanels {
 
     private final EventRepository repository;
     private final EventService service;
+    private final EventSpaceRepository space;
     private final BingoTiles tiles;
     private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor((ThreadFactory) runnable -> {
         Thread thread = new Thread(runnable, "event-board-panels");
@@ -50,9 +51,10 @@ public class EventBoardPanels {
     private final Map<Long, ScheduledFuture<?>> pending = new ConcurrentHashMap<>();
     private volatile JDA jda;
 
-    public EventBoardPanels(EventRepository repository, EventService service, EventChanges changes, BingoTiles tiles) {
+    public EventBoardPanels(EventRepository repository, EventService service, EventSpaceRepository space, EventChanges changes, BingoTiles tiles) {
         this.repository = repository;
         this.service = service;
+        this.space = space;
         this.tiles = tiles;
         changes.subscribe(this::onChange);
     }
@@ -88,7 +90,10 @@ public class EventBoardPanels {
         return status == Status.RUNNING || status == Status.SCORING || status == Status.DONE;
     }
 
-    /** Posts or updates the event's board message now. Returns a sentence on what happened, for the dashboard's "refresh" button. */
+    /**
+     * Posts or updates the event's boards now: the one everybody shares and/or each team's or player's own, as the event's board display says
+     * ({@link EventBoards.Display}). Returns a sentence on what happened, for the dashboard's "refresh" button.
+     */
     public String refresh(long guildId, long eventId) {
         JDA client = jda;
         if (client == null) return "The bot isn't connected to Discord yet.";
@@ -96,8 +101,130 @@ public class EventBoardPanels {
         Event event = repository.event(guildId, eventId).orElse(null);
         if (guild == null || event == null) return "That event or server wasn't found.";
         if (!BingoTemplate.KEY.equals(event.template())) return "Only bingo events have a board.";
+        if (!shown(event.status())) return "The board is posted once the event starts.";
+        EventBoards.Display display = EventBoards.displayOf(DataObject.fromJson(event.config()));
+        List<String> parts = new java.util.ArrayList<>();
+        if (display.shared()) parts.add(refreshShared(guildId, eventId));
+        if (display.own()) parts.add(refreshOwn(guild, event));
+        return String.join(" ", parts);
+    }
+
+    /**
+     * Each team's (or player's) own board, in their own channel when the event made one, else in the live board channel. A board is drawn and sent only
+     * when its tiles changed since it was last posted, so a busy event doesn't redraw every card for every approval.
+     */
+    private String refreshOwn(Guild guild, Event event) {
+        long eventId = event.id();
+        try {
+            DataObject config = DataObject.fromJson(event.config());
+            List<ObjectiveSpec> objectives = service.objectives(eventId);
+            List<Standing> standings = service.standings(guild.getIdLong(), eventId);
+            List<String> keys = BingoBoardView.boardKeys(config);
+            boolean byTeam = event.scoringMode() == EventRules.ScoringMode.TEAM;
+            var teams = repository.teams(eventId);
+            var players = repository.participants(eventId).stream().filter(p -> !p.waiting()).toList();
+            Map<String, Long> ownChannel = new java.util.HashMap<>();
+            for (EventSpaceRepository.ChannelRow row : space.channels(eventId)) ownChannel.put(row.key(), row.channelId());
+
+            List<EventBoards.Subject> subjects = new java.util.ArrayList<>();
+            if (byTeam) {
+                for (EventRepository.Team team : teams) {
+                    if (players.stream().noneMatch(p -> p.teamId() != null && p.teamId() == team.id())) continue;
+                    subjects.add(new EventBoards.Subject("t:" + team.id(), team.name(), ownChannel.get(EventSpace.teamKey(team.id()))));
+                }
+            } else {
+                for (var player : players) {
+                    Member member = guild.getMemberById(player.userId());
+                    subjects.add(new EventBoards.Subject("u:" + player.userId(), member == null ? "Player" : member.getEffectiveName(), ownChannel.get(EventSpace.playerKey(player.userId()))));
+                }
+            }
+            if (subjects.isEmpty()) return "No own boards yet: nobody is " + (byTeam ? "on a team." : "in the event.");
+
+            Map<String, List<BingoBoardImage.TileView>> tilesOf = new java.util.HashMap<>();
+            Map<String, String> hashes = new java.util.HashMap<>();
+            for (EventBoards.Subject s : subjects) {
+                Standing mine = standings.stream().filter(st -> st.subject().equals(s.key())).findFirst().orElse(null);
+                var views = BingoBoardView.personal(keys, objectives, mine, tiles::iconKeyFor);
+                tilesOf.put(s.key(), views);
+                hashes.put(s.key(), EventBoards.hashOf(views));
+            }
+            Long fallback = settingsOf(event).boardChannelId();
+            var steps = EventBoards.plan(subjects, fallback, repository.boardPanels(eventId), hashes);
+            int posted = 0, edited = 0, same = 0, nowhere = 0;
+            for (EventBoards.Step step : steps) {
+                switch (step.what()) {
+                    case UNCHANGED -> same++;
+                    case NO_PLACE -> nowhere++;
+                    case POST, EDIT -> {
+                        if (sendOwn(guild, event, config, step, tilesOf.get(step.subject().key()))) {
+                            if (step.what() == EventBoards.What.POST) posted++;
+                            else edited++;
+                        } else {
+                            nowhere++;
+                        }
+                    }
+                }
+            }
+            return "Own boards: " + posted + " posted, " + edited + " updated, " + same + " unchanged" + (nowhere > 0 ? ", " + nowhere + " with nowhere to post (set up the event's channels, or choose a live board channel)." : ".");
+        } catch (RuntimeException e) {
+            log.warn("Could not refresh the own boards of event {}", eventId, e);
+            return "The own boards couldn't be built: " + e.getMessage();
+        }
+    }
+
+    /** Draws one subject's board and posts it (or edits the message already there). False when the channel can't be used. */
+    private boolean sendOwn(Guild guild, Event event, DataObject config, EventBoards.Step step, List<BingoBoardImage.TileView> tileViews) {
+        GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, step.channelId());
+        if (channel == null || !guild.getSelfMember().hasPermission(channel, Permission.VIEW_CHANNEL, Permission.MESSAGE_SEND, Permission.MESSAGE_ATTACH_FILES)) return false;
+        String subject = step.subject().key();
+        int done = (int) tileViews.stream().filter(BingoBoardImage.TileView::done).count();
+        String text = "### " + event.name() + " · " + step.subject().name() + "\n" + done + " of " + tileViews.size() + " tiles done · " + stageText(event.status());
+        byte[] png;
+        try {
+            png = BingoBoardImage.render(config, event.name(), step.subject().name() + " · " + stageText(event.status()), done + " of " + tileViews.size() + " tiles done · send proof with /submit event in your channel", tileViews);
+        } catch (IOException | RuntimeException | LinkageError e) {
+            log.warn("Could not draw the board of {} in event {}; posting it as text", subject, event.id(), e);
+            png = null;
+            text = withTiles(text, tileViews);
+        }
+        FileUpload file = png == null ? null : FileUpload.fromData(png, "bingo-board.png");
+        String message = text;
+        byte[] picture = png;
+        long eventId = event.id();
+        long channelId = channel.getIdLong();
+        String hash = step.hash();
+        if (step.what() == EventBoards.What.EDIT) {
+            var existing = repository.boardPanels(eventId).get(subject);
+            if (existing != null && existing.channelId() == channelId) {
+                var edit = channel.editMessageById(existing.messageId(), message);
+                edit = file == null ? edit.setAttachments(java.util.Collections.emptyList()) : edit.setAttachments(file);
+                edit.queue(ok -> repository.setBoardPanel(eventId, subject, channelId, existing.messageId(), hash), error -> {
+                    log.info("The board message of {} in event {} couldn't be edited ({}); posting a new one", subject, eventId, error.getMessage());
+                    postOwn(channel, eventId, subject, message, picture, hash);
+                });
+                return true;
+            }
+        }
+        postOwn(channel, eventId, subject, message, picture, hash);
+        return true;
+    }
+
+    private void postOwn(GuildMessageChannel channel, long eventId, String subject, String text, byte[] picture, String hash) {
+        var send = channel.sendMessage(text).setAllowedMentions(List.of());
+        if (picture != null) send = send.addFiles(FileUpload.fromData(picture, "bingo-board.png"));
+        send.queue(message -> repository.setBoardPanel(eventId, subject, channel.getIdLong(), message.getIdLong(), hash),
+                error -> log.warn("Could not post the board of {} in event {}", subject, eventId, error));
+    }
+
+    /** The one live board everybody shares: how many teams or players have each tile. */
+    private String refreshShared(long guildId, long eventId) {
+        JDA client = jda;
+        if (client == null) return "The bot isn't connected to Discord yet.";
+        Guild guild = client.getGuildById(guildId);
+        Event event = repository.event(guildId, eventId).orElse(null);
+        if (guild == null || event == null) return "That event or server wasn't found.";
         EventSettings settings = settingsOf(event);
-        if (settings.boardChannelId() == null) return "Choose a board channel in the event's settings first.";
+        if (settings.boardChannelId() == null) return "Shared board: there is no live board channel yet. Choose or make one on the Channels tab.";
         if (!shown(event.status())) return "The board is posted once the event starts.";
         GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, settings.boardChannelId());
         if (channel == null) return "The board channel isn't a channel JonnyBot can post in (it may have been deleted, or it is a forum or category).";

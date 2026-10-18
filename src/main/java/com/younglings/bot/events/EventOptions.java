@@ -221,7 +221,6 @@ public final class EventOptions {
         list.add(Option.of("config.buyIn.showPot", "Show the pot to players", "Players see how much is in the pot.", Step.MONEY, Type.BOOL, true).showWhen(When.is("config.buyIn.enabled", true)));
         list.add(Option.of("prizes", "Prizes", "A prize goes to one place or a range of places. Optional; you can also add them later.", Step.MONEY, Type.PRIZES, null));
 
-        list.add(Option.of("config.channels.enabled", "Roles and channels", "Once signups are closed and the roster is confirmed, JonnyBot makes a role for the players and organisers, a category and channels for the event. What they are called and which channels to make is chosen on the event's Channels tab.", Step.DISCORD, Type.BOOL, false));
         list.add(Option.of("config.signupChannelId", "Signup channel", "Where the signup is posted for players. Choose it together with the staff channel.", Step.DISCORD, Type.CHANNEL, null)
                 .requiredWhen(When.isSet("config.signupAdminChannelId")));
         list.add(Option.of("config.signupAdminChannelId", "Signup staff channel", "Where staff see who signed up.", Step.DISCORD, Type.CHANNEL, null)
@@ -237,6 +236,11 @@ public final class EventOptions {
                 .showWhen(When.is("config.verification.required", true)));
         list.add(Option.of("config.verification.instructions", "What players are told to send", "Shown to players who join. Up to " + EventRoster.MAX_INSTRUCTIONS + " characters.", Step.SETUP, Type.TEXTAREA, "")
                 .showWhen(When.is("config.verification.required", true)).maxLength(EventRoster.MAX_INSTRUCTIONS));
+        list.add(Option.of("config.channels.enabled", "Let JonnyBot make the event's roles and channels", "A category with the event's channels, and a role for the players, made when you press Set up after signups close. Fine-tune names and channels below, or later on the Channels tab.", Step.DISCORD, Type.BOOL, true));
+        list.add(Option.of("config.channels.teamChannels", "A private channel for each team", "Only that team, the organisers and staff can see it.", Step.DISCORD, Type.BOOL, true)
+                .showWhen(When.is("scoringMode", "TEAM")));
+        list.add(Option.of("config.channels.playerChannels", "A private channel for each player", "For events where everyone plays alone. Only that player, the organisers and staff can see it.", Step.DISCORD, Type.BOOL, false)
+                .showWhen(When.is("scoringMode", "INDIVIDUAL")));
         list.add(Option.of("config.submissions.require", "Proof only from the event's channels", "Players must send proof with /submit in their own event channel. Staff and organisers can still send from anywhere.", Step.DISCORD, Type.BOOL, false));
         list.add(Option.of("config.submissions.receipts", "Post a receipt in the player's channel", "Each submission also shows in the player's (or team's) own channel and is updated when staff decide.", Step.DISCORD, Type.BOOL, true));
         list.add(Option.of("config.wrapup.lockOnFinish", "Make the channels read-only when the event ends", "Players can still read the channels after the event but not write in them.", Step.DISCORD, Type.BOOL, true));
@@ -248,15 +252,33 @@ public final class EventOptions {
         return list;
     }
 
-    /** A Discord channel option for where proof is sent, for templates whose objectives are claimed with proof. */
-    public static Option reviewChannel() {
-        return Option.of("config.reviewChannelId", "Screenshot review channel", "Players send proof with /events submit; it lands here for staff.", Step.DISCORD, Type.CHANNEL, null);
+    /**
+     * How one of the event's single channels (the live board, the proof to review) is provided: JonnyBot makes it (with a name pattern), an existing channel
+     * is used, or it is left out. These are the same choices as on the Channels tab ({@code config.channels.slots} and {@code names}), so there is one
+     * place for them. Only asked when JonnyBot is set to make the event's roles and channels.
+     */
+    static List<Option> slotOptions(EventSpace.Kind kind, String about) {
+        String path = "config.channels.slots." + kind.key();
+        When on = When.is("config.channels.enabled", true);
+        When existing = When.is(path + ".use", "existing");
+        When create = When.is(path + ".use", "create");
+        return List.of(
+                Option.choice(path + ".use", kind.label(), about, Step.DISCORD, "create",
+                        List.of(new Choice("create", "JonnyBot makes it", "Named from the pattern below, inside the event's category."), new Choice("existing", "Use a channel I already have", "Pick it from the list."),
+                                new Choice("none", "Leave it out", "")))
+                        .showWhen(on),
+                Option.of(path + ".channelId", kind.label() + " channel", "The channel to use.", Step.DISCORD, Type.CHANNEL, null).showWhen(existing).requiredWhen(existing),
+                Option.of("config.channels.names." + kind.key(), kind.label() + " name", "{event} is the event's name. Leave it empty for the usual: " + kind.defaultPattern() + ".", Step.DISCORD, Type.TEXT, null)
+                        .showWhen(create).maxLength(100));
     }
 
     /** Every option for an event of {@code template}: the ones every event has and the template's own, by stage and then in the order declared. */
     public static List<Option> of(EventTemplate template) {
         List<Option> all = new ArrayList<>(common());
         all.addAll(template.options());
+        // the live board and the proof to review: made by JonnyBot, an existing channel or none, the same choices as the Channels tab
+        if (EventSpace.Kind.BOARD.appliesTo(template.key())) all.addAll(slotOptions(EventSpace.Kind.BOARD, "The bingo's board picture, posted when the event starts and kept up to date."));
+        if (EventSpace.Kind.REVIEW.appliesTo(template.key())) all.addAll(slotOptions(EventSpace.Kind.REVIEW, "Where players' proof lands for staff to approve. Players send it with /submit."));
         all.sort(Comparator.comparingInt(o -> o.step().ordinal()));
         return all;
     }
@@ -381,7 +403,7 @@ public final class EventOptions {
         }
         if (!Boolean.TRUE.equals(get(a, "config.buyIn.enabled"))) set(a, "config.buyIn", null);
         // roles and channels that aren't switched on need nothing stored
-        if (!Boolean.TRUE.equals(get(a, "config.channels.enabled")) && get(a, "config.channels") instanceof Map<?, ?> channels && channels.size() <= 1) set(a, "config.channels", null);
+        if (!Boolean.TRUE.equals(get(a, "config.channels.enabled"))) set(a, "config.channels", null);
         if (a.hasKey("config") && !a.isNull("config")) {
             DataObject config = a.getObject("config");
             for (String key : List.copyOf(config.keys())) {

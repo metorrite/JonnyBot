@@ -201,6 +201,17 @@ public class EventRepository {
                 "ALTER TABLE younglings.event ADD COLUMN IF NOT EXISTS signup_id BIGINT NULL;",
                 "ALTER TABLE younglings.event ADD COLUMN IF NOT EXISTS archived BOOLEAN NOT NULL DEFAULT FALSE;",
                 "ALTER TABLE younglings.event_participant ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'HOME_CLAN';",
+                // each team's or player's own bingo board message ("t:<teamId>" or "u:<userId>"), with a fingerprint of the tiles it shows so an unchanged board isn't sent again
+                """
+                CREATE TABLE IF NOT EXISTS younglings.event_board_panel (
+                    event_id BIGINT NOT NULL REFERENCES younglings.event (id) ON DELETE CASCADE,
+                    subject TEXT NOT NULL,
+                    channel_id BIGINT NOT NULL,
+                    message_id BIGINT NOT NULL,
+                    state_hash TEXT NOT NULL DEFAULT '',
+                    PRIMARY KEY (event_id, subject)
+                );
+                """,
                 // where the player came from: SIGNUP follows the Discord signup both ways, SELF joined by themselves, STAFF was added by staff
                 "ALTER TABLE younglings.event_participant ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'STAFF';",
                 // players an organiser removed and barred from this event again, with the reason
@@ -730,6 +741,35 @@ public class EventRepository {
             s.executeUpdate();
         } catch (SQLException e) {
             throw new RuntimeException("Failed to clear a refused signup", e);
+        }
+    }
+
+    /** Every own-board message of the event, by subject ("t:<teamId>" or "u:<userId>"). */
+    public java.util.Map<String, EventBoards.Posted> boardPanels(long eventId) {
+        java.util.Map<String, EventBoards.Posted> map = new java.util.LinkedHashMap<>();
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("SELECT subject, channel_id, message_id, state_hash FROM younglings.event_board_panel WHERE event_id = ?")) {
+            s.setLong(1, eventId);
+            try (ResultSet rs = s.executeQuery()) {
+                while (rs.next()) map.put(rs.getString(1), new EventBoards.Posted(rs.getLong(2), rs.getLong(3), rs.getString(4)));
+            }
+            return map;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read the event's own boards", e);
+        }
+    }
+
+    public void setBoardPanel(long eventId, String subject, long channelId, long messageId, String hash) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("""
+                INSERT INTO younglings.event_board_panel (event_id, subject, channel_id, message_id, state_hash) VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT (event_id, subject) DO UPDATE SET channel_id = EXCLUDED.channel_id, message_id = EXCLUDED.message_id, state_hash = EXCLUDED.state_hash""")) {
+            s.setLong(1, eventId);
+            s.setString(2, subject);
+            s.setLong(3, channelId);
+            s.setLong(4, messageId);
+            s.setString(5, hash);
+            s.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to remember a board message", e);
         }
     }
 

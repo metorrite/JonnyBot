@@ -78,9 +78,10 @@ public class BingoTemplate implements EventTemplate {
                 EventOptions.Option.number("config.lineBonus", "Bonus per line", "A row, column or diagonal on a grid; a finished tier, row or ring on a shape. 0 for none.", EventOptions.Step.RULES,
                         DEFAULT_LINE_BONUS, 0, EventBonuses.MAX_POINTS),
                 EventOptions.Option.number("config.blackoutBonus", "Blackout bonus", "Every tile done. 0 for none.", EventOptions.Step.RULES, DEFAULT_BLACKOUT_BONUS, 0, EventBonuses.MAX_POINTS),
-                EventOptions.Option.of("config.boardChannelId", "Live board channel", "The board picture is posted here when the event starts and updates as tiles are approved.", EventOptions.Step.DISCORD,
-                        EventOptions.Type.CHANNEL, null),
-                EventOptions.reviewChannel());
+                EventOptions.Option.choice("config.board.display", "Boards", "Most events give every team or player their own board to work through. A shared board shows how many have each tile.", EventOptions.Step.RULES, "OWN",
+                        List.of(new EventOptions.Choice("OWN", "Each team or player has their own board", "Posted in their own channel, and updated as their tiles are approved."),
+                                new EventOptions.Choice("SHARED", "One board for everyone", "The live board: how many teams or players have each tile."),
+                                new EventOptions.Choice("BOTH", "Both", "Their own boards and the shared live board."))));
     }
 
     @Override
@@ -157,6 +158,8 @@ public class BingoTemplate implements EventTemplate {
                 if (board.hasKey("look") && !board.isNull("look") && !BingoLooks.valid(board.getString("look", ""))) {
                     problems.add("Choose a board look from the list.");
                 }
+                String display = EventBoards.problem(config);
+                if (display != null) problems.add(display);
             }
         } catch (RuntimeException e) {
             problems.add("The board settings couldn't be read.");
@@ -367,6 +370,12 @@ public class BingoTemplate implements EventTemplate {
         if (board.layout() != null) stored.put("layout", board.layout()).put("unlock", inOrder ? UNLOCK_LOCKED : UNLOCK_FREE);
         // the look is the organiser's choice and survives a re-roll, a new shape or a swapped tile
         BingoLooks.of(config).ifPresent(look -> stored.put("look", look));
+        // so is how the boards are shown (one for everyone, one each, or both)
+        try {
+            if (config.hasKey("board") && !config.isNull("board") && config.getObject("board").hasKey("display") && !config.getObject("board").isNull("display")) stored.put("display", config.getObject("board").getString("display"));
+        } catch (RuntimeException ignored) {
+            // reported by problems()
+        }
         copy.put("board", stored);
         copy.put("bonuses", EventBonuses.toJson(board.bonuses()));
         return copy;
