@@ -306,6 +306,20 @@ public class EventService {
         changes.publish(EventChanges.Kind.SETUP, guildId, id);
     }
 
+    /**
+     * Saves what happens to the roles and channels once the event is over ({@code config.wrapup}, see {@link EventWrapup}), whole. Allowed at any time, also
+     * after the event finished, because that is when it matters.
+     */
+    public void setWrapupSettings(long guildId, long id, DataObject wrapup) {
+        Event event = event(guildId, id);
+        DataObject config = DataObject.fromJson(event.config());
+        config.put("wrapup", DataObject.fromJson(wrapup.toString()));
+        List<String> problems = EventWrapup.problems(config);
+        if (!problems.isEmpty()) throw new EventProblem(400, "The wrap-up settings can't be saved yet.", problems);
+        if (!repository.setConfig(guildId, id, config.toString())) throw new EventProblem(404, "That event doesn't exist in this server.");
+        changes.publish(EventChanges.Kind.SETUP, guildId, id);
+    }
+
     /** The players who hold a place and count right now, whom the event's roles and channels are for: those on the waitlist and any not verified in time don't. */
     public List<Participant> countedPlayers(Event event) {
         EventSettings settings = settingsOf(event);
