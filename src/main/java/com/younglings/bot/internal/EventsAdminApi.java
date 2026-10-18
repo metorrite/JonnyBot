@@ -828,9 +828,14 @@ public class EventsAdminApi implements AdminRouteExtension {
 
     // ---------- small helpers ----------
 
-    private static long idOf(String raw, String what) {
-        if (raw == null || !raw.matches("\\d{1,18}")) throw new ApiError(400, "That isn't a valid " + what + ".");
-        return Long.parseLong(raw);
+    /** An id from the path. A Discord id can have 19 digits (the newest user ids do), which still fits a long; one that doesn't is refused, not crashed on. */
+    static long idOf(String raw, String what) {
+        if (raw == null || !raw.matches("\\d{1,19}")) throw new ApiError(400, "That isn't a valid " + what + ".");
+        try {
+            return Long.parseLong(raw);
+        } catch (NumberFormatException e) {
+            throw new ApiError(400, "That isn't a valid " + what + ".");
+        }
     }
 
     private static Long optionalId(DataObject body, String key) {

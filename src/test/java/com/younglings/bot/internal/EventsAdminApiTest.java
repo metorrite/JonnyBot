@@ -1005,4 +1005,31 @@ class EventsAdminApiTest {
         assertTrue(listed(after, open, false));
         assertEquals(0, call("POST", "events/archive-finished", null).getInt("archivedCount"));
     }
+
+    @Test
+    void aPlayerWithANineteenDigitDiscordIdCanBeMovedRatedAndRemovedLikeAnyOther() {
+        String player = "1006494212210053150";
+        String id = create("{\"name\":\"Long ids\",\"scoringMode\":\"team\"}");
+        call("POST", "events/" + id + "/status", "{\"status\":\"signups\"}");
+        call("POST", "events/" + id + "/participants", "{\"userId\":\"" + player + "\"}");
+        call("POST", "events/" + id + "/teams", "{\"name\":\"Red\"}");
+        String red = teamIdNamed(call("GET", "events/" + id, null), "Red");
+
+        var detail = call("PUT", "events/" + id + "/participants/" + player, "{\"teamId\":\"" + red + "\"}");
+        assertEquals(red, playerOf(detail, player).getString("teamId"));
+        detail = call("PUT", "events/" + id + "/participants/" + player + "/rating", "{\"rating\":4}");
+        assertEquals(4, playerOf(detail, player).getInt("rating"));
+        detail = call("PUT", "events/" + id + "/participants/" + player, "{\"teamId\":null}");
+        assertTrue(playerOf(detail, player).isNull("teamId"));
+        call("DELETE", "events/" + id + "/participants/" + player, null);
+        assertTrue(repository.participant(Long.parseLong(id), Long.parseLong(player)).isEmpty(), "removed");
+    }
+
+    @Test
+    void anIdThatIsNotADiscordIdIsRefusedNotCrashedOn() {
+        String id = create("{\"name\":\"Bad ids\"}");
+        assertEquals(400, failure("PUT", "events/" + id + "/participants/99999999999999999999", "{\"teamId\":null}").status, "20 digits don't fit a long");
+        assertEquals(400, failure("DELETE", "events/" + id + "/participants/12ab", null).status);
+        assertEquals(400, failure("GET", "events/9223372036854775808", null).status, "past the largest id there is");
+    }
 }
