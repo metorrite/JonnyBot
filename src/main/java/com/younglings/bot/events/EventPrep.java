@@ -48,17 +48,23 @@ public final class EventPrep {
      * event scored by player, which has no teams step, and {@code space} for an event that doesn't make roles and channels.
      */
     public record Facts(Status status, Mode mode, boolean hasObjectives, boolean signupsClosed, boolean rosterConfirmed, int active, int waiting,
-                        EventRoster.Setting verification, EventRoster.Tally tally, TeamFacts teams, SpaceFacts space) {
+                        EventRoster.Setting verification, EventRoster.Tally tally, TeamFacts teams, SpaceFacts space, boolean rosterChanged, boolean teamsChanged) {
+        /** An event whose roster and teams haven't changed since they were confirmed. */
+        public Facts(Status status, Mode mode, boolean hasObjectives, boolean signupsClosed, boolean rosterConfirmed, int active, int waiting,
+                     EventRoster.Setting verification, EventRoster.Tally tally, TeamFacts teams, SpaceFacts space) {
+            this(status, mode, hasObjectives, signupsClosed, rosterConfirmed, active, waiting, verification, tally, teams, space, false, false);
+        }
+
         /** An event with no roles and channels. */
         public Facts(Status status, Mode mode, boolean hasObjectives, boolean signupsClosed, boolean rosterConfirmed, int active, int waiting,
                      EventRoster.Setting verification, EventRoster.Tally tally, TeamFacts teams) {
-            this(status, mode, hasObjectives, signupsClosed, rosterConfirmed, active, waiting, verification, tally, teams, null);
+            this(status, mode, hasObjectives, signupsClosed, rosterConfirmed, active, waiting, verification, tally, teams, null, false, false);
         }
 
         /** An event with no teams and no roles and channels. */
         public Facts(Status status, Mode mode, boolean hasObjectives, boolean signupsClosed, boolean rosterConfirmed, int active, int waiting,
                      EventRoster.Setting verification, EventRoster.Tally tally) {
-            this(status, mode, hasObjectives, signupsClosed, rosterConfirmed, active, waiting, verification, tally, null, null);
+            this(status, mode, hasObjectives, signupsClosed, rosterConfirmed, active, waiting, verification, tally, null, null, false, false);
         }
     }
 
@@ -127,7 +133,12 @@ public final class EventPrep {
         }
 
         // 3. the roster
-        if (started || f.rosterConfirmed()) {
+        if (!started && !called && f.rosterConfirmed() && f.rosterChanged()) {
+            // confirmed, but someone joined, left or was removed since: what was confirmed is not the roster any more
+            List<String> why = managed ? List.of("Confirm the roster again.") : List.of();
+            blockers.addAll(why);
+            steps.add(new Step("roster", "Roster", State.ACTIVE, managed, "The roster changed after you confirmed it (" + people + " now). Check the list, then confirm it again.", why));
+        } else if (started || f.rosterConfirmed()) {
             steps.add(new Step("roster", "Roster", State.DONE, managed, f.rosterConfirmed() ? "Confirmed: " + people + "." : "Not confirmed before the event started.", List.of()));
         } else if (called) {
             steps.add(new Step("roster", "Roster", State.SKIPPED, managed, "The event was cancelled.", List.of()));
@@ -199,18 +210,19 @@ public final class EventPrep {
         if (started) return new Step("teams", "Teams", State.DONE, managed, (finalised ? "Final: " : "") + counts + ".", List.of());
         if (called) return new Step("teams", "Teams", State.SKIPPED, managed, "The event was cancelled.", List.of());
         if (managed && !f.rosterConfirmed()) return new Step("teams", "Teams", State.WAITING, true, "Confirm the roster first, then build the teams.", List.of());
-        boolean done = problems.isEmpty() && (finalised || !managed);
+        boolean changed = finalised && f.teamsChanged();
+        boolean done = problems.isEmpty() && (finalised || !managed) && !(managed && changed);
         List<String> why = new ArrayList<>();
         if (!done) {
             why.addAll(problems);
-            if (problems.isEmpty()) why.add("Finalise the teams.");
+            if (problems.isEmpty()) why.add(changed ? "Finalise the teams again." : "Finalise the teams.");
         }
         if (managed) {
             blockers.addAll(why);
         } else if (!problems.isEmpty()) {
             warnings.add(String.join(" ", problems) + " Players without a team can't earn points for one.");
         }
-        String detail = counts + "." + (problems.isEmpty() ? (done ? "" : " Check them, then finalise.") : " " + String.join(" ", problems));
+        String detail = counts + "." + (problems.isEmpty() ? (done ? "" : changed ? " The teams changed after you called them final. Check them, then finalise again." : " Check them, then finalise.") : " " + String.join(" ", problems));
         return new Step("teams", "Teams", done ? State.DONE : State.ACTIVE, managed, detail, managed ? why : List.of());
     }
 }

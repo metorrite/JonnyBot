@@ -57,8 +57,18 @@ public class EventRepository {
      * were set up (and whether everything wanted is still there, with a note on what is missing if not). Nothing set until an organiser does it.
      */
     public record Setup(Instant signupsClosedAt, Long signupsClosedBy, Instant rosterConfirmedAt, Long rosterConfirmedBy, Instant teamsFinalisedAt, Long teamsFinalisedBy,
-                        Instant spaceAppliedAt, Long spaceAppliedBy, boolean spaceComplete, String spaceNote) {
-        public static final Setup NONE = new Setup(null, null, null, null, null, null, null, null, false, "");
+                        Instant spaceAppliedAt, Long spaceAppliedBy, boolean spaceComplete, String spaceNote, Instant rosterChangedAt, Instant teamsChangedAt) {
+        public static final Setup NONE = new Setup(null, null, null, null, null, null, null, null, false, "", null, null);
+
+        /** Someone joined, left or was removed (or a verification was decided) after the roster was confirmed: what was confirmed is out of date. */
+        public boolean rosterChangedSinceConfirmed() {
+            return rosterConfirmedAt != null && rosterChangedAt != null && rosterChangedAt.isAfter(rosterConfirmedAt);
+        }
+
+        /** A team was added, renamed or removed, or a player was moved, after the teams were called final: what was called final is out of date. */
+        public boolean teamsChangedSinceFinal() {
+            return teamsFinalisedAt != null && teamsChangedAt != null && teamsChangedAt.isAfter(teamsFinalisedAt);
+        }
 
         public boolean spaceApplied() {
             return spaceAppliedAt != null;
@@ -292,6 +302,9 @@ public class EventRepository {
                 "ALTER TABLE younglings.event_setup ADD COLUMN IF NOT EXISTS space_applied_by BIGINT NULL;",
                 "ALTER TABLE younglings.event_setup ADD COLUMN IF NOT EXISTS space_complete BOOLEAN NOT NULL DEFAULT FALSE;",
                 "ALTER TABLE younglings.event_setup ADD COLUMN IF NOT EXISTS space_note TEXT NOT NULL DEFAULT '';",
+                // when the roster or the teams last changed, so a roster confirmed or teams called final earlier can be seen to be out of date
+                "ALTER TABLE younglings.event_setup ADD COLUMN IF NOT EXISTS roster_changed_at TIMESTAMPTZ NULL;",
+                "ALTER TABLE younglings.event_setup ADD COLUMN IF NOT EXISTS teams_changed_at TIMESTAMPTZ NULL;",
                 // Discord signups the event's rules turned away, and why, so staff can see them and the player is told once
                 """
                 CREATE TABLE IF NOT EXISTS younglings.event_signup_refusal (
@@ -504,7 +517,7 @@ public class EventRepository {
 
     public Setup setup(long eventId) {
         try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(
-                "SELECT signups_closed_at, signups_closed_by, roster_confirmed_at, roster_confirmed_by, teams_finalised_at, teams_finalised_by, space_applied_at, space_applied_by, space_complete, space_note FROM younglings.event_setup WHERE event_id = ?")) {
+                "SELECT signups_closed_at, signups_closed_by, roster_confirmed_at, roster_confirmed_by, teams_finalised_at, teams_finalised_by, space_applied_at, space_applied_by, space_complete, space_note, roster_changed_at, teams_changed_at FROM younglings.event_setup WHERE event_id = ?")) {
             s.setLong(1, eventId);
             try (ResultSet rs = s.executeQuery()) {
                 if (!rs.next()) return Setup.NONE;
@@ -512,9 +525,12 @@ public class EventRepository {
                 Timestamp confirmed = rs.getTimestamp("roster_confirmed_at");
                 Timestamp finalised = rs.getTimestamp("teams_finalised_at");
                 Timestamp applied = rs.getTimestamp("space_applied_at");
+                Timestamp rosterChanged = rs.getTimestamp("roster_changed_at");
+                Timestamp teamsChanged = rs.getTimestamp("teams_changed_at");
                 return new Setup(closed == null ? null : closed.toInstant(), nullableLong(rs, "signups_closed_by"), confirmed == null ? null : confirmed.toInstant(),
                         nullableLong(rs, "roster_confirmed_by"), finalised == null ? null : finalised.toInstant(), nullableLong(rs, "teams_finalised_by"),
-                        applied == null ? null : applied.toInstant(), nullableLong(rs, "space_applied_by"), rs.getBoolean("space_complete"), rs.getString("space_note"));
+                        applied == null ? null : applied.toInstant(), nullableLong(rs, "space_applied_by"), rs.getBoolean("space_complete"), rs.getString("space_note"),
+                        rosterChanged == null ? null : rosterChanged.toInstant(), teamsChanged == null ? null : teamsChanged.toInstant());
             }
         } catch (SQLException e) {
             throw new RuntimeException("Failed to read the event's setup", e);
@@ -553,10 +569,30 @@ public class EventRepository {
     }
 
     /** Marks the roster confirmed. False unless signups are closed and it wasn't confirmed already. */
+    /** Notes that the roster changed just now (a player joined, left, was removed or verified), so a confirmation from before can be seen to be out of date. */
+    public void touchRoster(long eventId) {
+        touch(eventId, "roster_changed_at");
+    }
+
+    /** Notes that the teams changed just now (a team added, renamed or removed, or a player moved). */
+    public void touchTeams(long eventId) {
+        touch(eventId, "teams_changed_at");
+    }
+
+    private void touch(long eventId, String column) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(
+                "INSERT INTO younglings.event_setup (event_id, " + column + ") VALUES (?, clock_timestamp()) ON CONFLICT (event_id) DO UPDATE SET " + column + " = clock_timestamp()")) {
+            s.setLong(1, eventId);
+            s.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to note a change to the event's setup", e);
+        }
+    }
+
     public boolean confirmRoster(long eventId, long by) {
         String sql = """
                 UPDATE younglings.event_setup SET roster_confirmed_at = NOW(), roster_confirmed_by = ?
-                WHERE event_id = ? AND signups_closed_at IS NOT NULL AND roster_confirmed_at IS NULL
+                WHERE event_id = ? AND signups_closed_at IS NOT NULL AND (roster_confirmed_at IS NULL OR roster_changed_at > roster_confirmed_at)
                 """;
         try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
             s.setLong(1, by);
@@ -1392,7 +1428,7 @@ public class EventRepository {
         String sql = """
                 INSERT INTO younglings.event_setup (event_id, teams_finalised_at, teams_finalised_by) VALUES (?, NOW(), ?)
                 ON CONFLICT (event_id) DO UPDATE SET teams_finalised_at = NOW(), teams_finalised_by = EXCLUDED.teams_finalised_by
-                WHERE younglings.event_setup.teams_finalised_at IS NULL
+                WHERE younglings.event_setup.teams_finalised_at IS NULL OR younglings.event_setup.teams_changed_at > younglings.event_setup.teams_finalised_at
                 """;
         try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
             s.setLong(1, eventId);

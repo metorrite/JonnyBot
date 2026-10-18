@@ -345,6 +345,13 @@ class EventTeamsTest {
         assertFalse(service.prepOf(service.event(G, id)).ready());
         assertTrue(service.prepOf(service.event(G, id)).blockers().contains("1 player still needs a team."));
         service.setTeam(G, id, 504, blue);
+        // placed, but the roster and the teams both changed after they were confirmed and called final: they have to be confirmed again
+        var changed = service.prepOf(service.event(G, id));
+        assertFalse(changed.ready());
+        assertTrue(changed.blockers().contains("Confirm the roster again."), changed.blockers().toString());
+        assertTrue(changed.blockers().contains("Finalise the teams again."), changed.blockers().toString());
+        service.confirmRoster(G, id, 9L);
+        service.finaliseTeams(G, id, 9L);
         assertTrue(service.prepOf(service.event(G, id)).ready());
         service.moveStage(G, id, Status.RUNNING);
     }
