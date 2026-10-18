@@ -205,6 +205,7 @@ public class EventService {
                 throw e;
             }
         }
+        repository.touchTeams(id);
         changes.publish(EventChanges.Kind.TEAMS, guildId, id);
         return team.getAsLong();
     }
@@ -213,6 +214,7 @@ public class EventService {
         Event event = event(guildId, id);
         if (!EventRules.editable(event.status())) throw new EventProblem(409, "Teams can only be changed while the event is a draft or taking signups.");
         if (!repository.removeTeam(id, teamId)) throw new EventProblem(404, "That team doesn't exist.");
+        repository.touchTeams(id);
         changes.publish(EventChanges.Kind.TEAMS, guildId, id);
     }
 
@@ -224,6 +226,7 @@ public class EventService {
         int renamed = repository.renameTeam(id, teamId, name.strip());
         if (renamed < 0) throw new EventProblem(409, "There is already a team with that name.");
         if (renamed == 0) throw new EventProblem(404, "That team doesn't exist.");
+        repository.touchTeams(id);
         changes.publish(EventChanges.Kind.TEAMS, guildId, id);
     }
 
@@ -404,6 +407,7 @@ public class EventService {
         var waiting = repository.join(id, userId, userGuildId, teamId, kind, settings.buyIn().enabled() ? BuyInStatus.DUE : BuyInStatus.NONE, event.maxParticipants());
         if (waiting.isEmpty()) throw new EventProblem(409, "That player is already in the event.");
         repository.setSource(id, userId, staff ? EventRepository.RosterSource.STAFF : EventRepository.RosterSource.SELF);
+        repository.touchRoster(id);
         repository.clearRefusal(id, userId);
         // a player on the waitlist holds no place, so has no team until they move up
         if (waiting.get() && teamId != null) repository.setTeam(id, userId, null);
@@ -439,6 +443,8 @@ public class EventService {
         var player = repository.participant(id, userId).orElseThrow(() -> new EventProblem(404, "That player isn't in the event."));
         if (player.buyIn() == BuyInStatus.PAID) throw new EventProblem(409, "They have paid a buy-in. Refund it first, then remove them.");
         if (!repository.leave(id, userId)) throw new EventProblem(404, "That player isn't in the event.");
+        repository.touchRoster(id);
+        repository.touchTeams(id);
         if (!player.waiting() && event.maxParticipants() > 0) {
             QueueRules.Entry next = QueueRules.next(settingsOf(event).queue(), queueEntries(id));
             if (next != null) repository.promote(id, next.userId(), event.maxParticipants());
@@ -492,7 +498,8 @@ public class EventService {
         EventPrep.TeamFacts teams = event.scoringMode() == ScoringMode.TEAM ? teamFactsOf(event, settings, players, setup) : null;
         EventPrep.SpaceFacts space = settings.channels().enabled() ? new EventPrep.SpaceFacts(setup.spaceApplied(), setup.spaceComplete(), setup.spaceNote()) : null;
         return EventPrep.of(new EventPrep.Facts(event.status(), settings.setupMode(), !repository.objectives(event.id()).isEmpty(), setup.signupsClosed(), setup.rosterConfirmed(),
-                held.size(), players.size() - held.size(), settings.verification(), EventRoster.tally(held, settings.verification()), teams, space));
+                held.size(), players.size() - held.size(), settings.verification(), EventRoster.tally(held, settings.verification()), teams, space,
+                setup.rosterChangedSinceConfirmed(), teams != null && setup.teamsChangedSinceFinal()));
     }
 
     /** The teams as the setup checklist and "finalise" look at them. */
@@ -599,6 +606,7 @@ public class EventService {
         }
         if (!problems.isEmpty()) throw new EventProblem(400, "Those teams can't be set yet.", problems.stream().distinct().toList());
         int changed = repository.setTeams(id, assignments);
+        repository.touchTeams(id);
         changes.publish(EventChanges.Kind.TEAMS, guildId, id);
         return changed;
     }
@@ -662,7 +670,7 @@ public class EventService {
         EventRepository.Setup setup = repository.setup(id);
         if (event.status() != Status.SIGNUPS) throw new EventProblem(409, "The roster can only be confirmed while the event is taking signups.");
         if (!setup.signupsClosed()) throw new EventProblem(409, "Close signups first, so the roster can't change under you.");
-        if (setup.rosterConfirmed()) throw new EventProblem(409, "The roster is already confirmed.");
+        if (setup.rosterConfirmed() && !setup.rosterChangedSinceConfirmed()) throw new EventProblem(409, "The roster is already confirmed.");
         if (!repository.confirmRoster(id, actorId)) throw new EventProblem(409, "The roster is already confirmed.");
         changes.publish(EventChanges.Kind.ROSTER, guildId, id);
     }
@@ -678,6 +686,7 @@ public class EventService {
         if (to == EventRoster.Verification.REJECTED && cleanNote.isEmpty()) throw new EventProblem(400, "Say why they were turned down, so they can fix it.");
         repository.participant(id, userId).orElseThrow(() -> new EventProblem(404, "That player isn't in the event."));
         if (!repository.setVerification(id, userId, to, actorId, cleanNote)) throw new EventProblem(404, "That player isn't in the event.");
+        repository.touchRoster(id);
         changes.publish(EventChanges.Kind.ROSTER, guildId, id);
     }
 
@@ -697,6 +706,7 @@ public class EventService {
             checkTeam(id, settingsOf(event), teamId, player.kind(), userId);
         }
         if (!repository.setTeam(id, userId, teamId)) throw new EventProblem(404, "That player isn't in the event.");
+        repository.touchTeams(id);
         changes.publish(EventChanges.Kind.TEAMS, guildId, id);
     }
 

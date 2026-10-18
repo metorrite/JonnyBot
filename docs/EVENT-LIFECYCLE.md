@@ -98,6 +98,17 @@ Slice 7, the player's event page: website `/clan-events` (your events, open even
 
 Slice 8, wrapping an event up (Wrap-up tab on the event manager, bot routes `events/{id}/wrapup`): settings `wrapup` {lockOnFinish (default on), rolesDays (default 7; -1 never), channelsDays (default -1: the organiser decides), channelsAction (ARCHIVE | DELETE | NONE), archiveCategoryId}. Defaults: when the event finishes its channels go read-only, its roles are taken back after 7 days, its channels stay until an organiser acts. The schedule runs every 15 minutes (`EventWrapupOps.sweep`), once per step, only on roles and channels JonnyBot made. Actions an organiser can start: lock/unlock, take the roles back, archive (channels move into an "Event archive" category only staff can see, the event's own categories are deleted), compress (each private channel's messages become a transcript file in one staff-only channel, the originals optionally deleted), export (a zip: event.json, messages.json, each channel as .json and .txt in a folder per category, and the images up to 12 MB, the rest as links; the bot's duplicate receipts folded into one; kept for an hour for download), delete (the existing take-down). Everything that deletes asks for confirmation. Not built: unlocking happens by hand only, a reopened event starts its wrap-up over but its channels stay read-only until Unlock.
 
+## Phases, forward and back (safeguards, 2026-10-17)
+
+Signups open -> signups closed -> roster confirmed -> teams final (team events) -> roles and channels set up -> start. Each step is only open once the one before it is done, and going back takes what depends on it back:
+
+- **Reopening signups** takes back the roster confirmation and the final teams (and the Discord signup is switched on again, its panels redrawn).
+- **Changing the roster after it was confirmed** (a player joins, leaves, is removed or barred, or a verification is decided) does not silently keep the old confirmation: the Roster step goes back to "confirm it again" and the start is held until it is (`event_setup.roster_changed_at` against `roster_confirmed_at`).
+- **Changing the teams after they were called final** (a team added, renamed or removed, a player moved) does the same for the Teams step ("finalise again"; `teams_changed_at`).
+- **The roster and the Discord signup follow each other** until the event starts (`event_participant.source`: SIGNUP follows the signup, SELF joined on their own, STAFF added by staff). A player taken off the signup in Discord is taken off the roster and their team; one removed on the website loses their entry.
+- **Barring** (`event_ban`) removes a player and keeps them out of this event by every road until the ban is lifted.
+- A checklist-free event (setup mode "start whenever I like") is never held up by any of this.
+
 ## What is not proven yet
 
 Discord-side code has needed fixes the first time it ran for real every time. Not yet run in Discord: closing signups and the pause, the join messages with verification, `/events create` from the standard answers, `/events team ...`, board posting with the new looks. Test on the dev bot with Drake's account and his alt. The dev bot runs in the real clan server (`1495619657674264717`), so tests there are live: keep them small and clean up after. Lessons that bit before: a new enum slash option needs a resolver in `EventsResolvers` or the bot will not start; a new `ListenerAdapter` must be registered in `Bot.java`; starting the dev bot twice leaves two bots on one token.
