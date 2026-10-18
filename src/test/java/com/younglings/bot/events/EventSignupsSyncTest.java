@@ -56,7 +56,7 @@ class EventSignupsSyncTest {
                 new PointsService(new PointsRepository(supplier), new RewardsRepository(supplier)), new EventChanges());
         SignupService signupService = Mockito.mock(SignupService.class);
         Mockito.when(signupService.getEntries(7777L)).thenReturn(List.of(new SignupEntry(501, "clan member", null), new SignupEntry(502, "from elsewhere", null)));
-        var signups = new EventSignups(repository, service, signupService);
+        var signups = new EventSignups(repository, service, signupService, new EventChanges());
 
         Guild guild = Mockito.mock(Guild.class);
         JDA jda = Mockito.mock(JDA.class, Mockito.RETURNS_DEEP_STUBS);

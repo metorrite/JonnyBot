@@ -29,7 +29,11 @@ public class EventChanges {
         /** The roster changed: someone joined or left, signups were closed or reopened, the roster was confirmed, or a player's verification was decided. */
         ROSTER,
         /** The teams changed: one was added, renamed or removed, a player was moved, a captain was named, or the teams were made final or taken back. */
-        TEAMS
+        TEAMS,
+        /** A player joined on their own (the website, {@code /events join}); {@code userId} says who. Staff adds and the signup's own sync don't publish this. */
+        PLAYER_JOINED,
+        /** A player left or was removed; {@code userId} says who. */
+        PLAYER_LEFT
     }
 
     /** {@code claimId}, {@code userId}, {@code approved} and {@code note} only mean something for {@link Kind#CLAIM_DECIDED}. */

@@ -57,7 +57,7 @@ class EventSignupsCloseTest {
         };
         service = new EventService(repository, new EventTemplates(List.of(new CustomTemplate())), kinds, new PointsService(new PointsRepository(supplier), new RewardsRepository(supplier)), new EventChanges());
         signupService = Mockito.mock(SignupService.class);
-        signups = new EventSignups(repository, service, signupService);
+        signups = new EventSignups(repository, service, signupService, new EventChanges());
         guild = Mockito.mock(Guild.class);
         Mockito.when(guild.getIdLong()).thenReturn(G);
         Mockito.when(guild.getJDA()).thenReturn(Mockito.mock(JDA.class, Mockito.RETURNS_DEEP_STUBS));

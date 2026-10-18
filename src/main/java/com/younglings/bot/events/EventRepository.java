@@ -50,7 +50,7 @@ public class EventRepository {
      * stored (PENDING until someone decides); how it reads depends on whether the event asks for verification, see {@link EventRoster#effective}.
      */
     public record Participant(long eventId, long userId, long guildId, Long teamId, Kind kind, boolean waiting, BuyInStatus buyIn, Instant joinedAt,
-                              EventRoster.Verification verification, Long verifiedBy, Instant verifiedAt, String verificationNote, Integer rating) {}
+                              EventRoster.Verification verification, Long verifiedBy, Instant verifiedAt, String verificationNote, Integer rating, RosterSource source) {}
 
     /**
      * Where an event is in its setup: when signups were closed, the roster confirmed and the teams called final, and by whom, and when its roles and channels
@@ -201,6 +201,19 @@ public class EventRepository {
                 "ALTER TABLE younglings.event ADD COLUMN IF NOT EXISTS signup_id BIGINT NULL;",
                 "ALTER TABLE younglings.event ADD COLUMN IF NOT EXISTS archived BOOLEAN NOT NULL DEFAULT FALSE;",
                 "ALTER TABLE younglings.event_participant ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'HOME_CLAN';",
+                // where the player came from: SIGNUP follows the Discord signup both ways, SELF joined by themselves, STAFF was added by staff
+                "ALTER TABLE younglings.event_participant ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'STAFF';",
+                // players an organiser removed and barred from this event again, with the reason
+                """
+                CREATE TABLE IF NOT EXISTS younglings.event_ban (
+                    event_id BIGINT NOT NULL REFERENCES younglings.event (id) ON DELETE CASCADE,
+                    user_id BIGINT NOT NULL,
+                    reason TEXT NOT NULL,
+                    banned_by BIGINT NOT NULL,
+                    banned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    PRIMARY KEY (event_id, user_id)
+                );
+                """,
                 "ALTER TABLE younglings.event_participant ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'ACTIVE';",
                 "ALTER TABLE younglings.event_participant ADD COLUMN IF NOT EXISTS buy_in_status TEXT NOT NULL DEFAULT 'NONE';",
                 """
@@ -607,6 +620,73 @@ public class EventRepository {
             return list;
         } catch (SQLException e) {
             throw new RuntimeException("Failed to read a player's events", e);
+        }
+    }
+
+    /** A player an organiser removed and barred from taking part again, with the reason (shown to staff, and to the player if they try to come back). */
+    public record Ban(long userId, String reason, long bannedBy, Instant at) {}
+
+    /** Where a player on the roster came from: {@code SIGNUP} follows the event's Discord signup both ways, {@code SELF} joined on their own, {@code STAFF} was added by staff. */
+    public enum RosterSource { SIGNUP, SELF, STAFF }
+
+    public void setSource(long eventId, long userId, RosterSource source) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("UPDATE younglings.event_participant SET source = ? WHERE event_id = ? AND user_id = ?")) {
+            s.setString(1, source.name());
+            s.setLong(2, eventId);
+            s.setLong(3, userId);
+            s.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to note where a player came from", e);
+        }
+    }
+
+    public Optional<Ban> ban(long eventId, long userId) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("SELECT user_id, reason, banned_by, banned_at FROM younglings.event_ban WHERE event_id = ? AND user_id = ?")) {
+            s.setLong(1, eventId);
+            s.setLong(2, userId);
+            try (ResultSet rs = s.executeQuery()) {
+                return rs.next() ? Optional.of(new Ban(rs.getLong(1), rs.getString(2), rs.getLong(3), rs.getTimestamp(4).toInstant())) : Optional.empty();
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read a ban", e);
+        }
+    }
+
+    public List<Ban> bans(long eventId) {
+        List<Ban> list = new ArrayList<>();
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("SELECT user_id, reason, banned_by, banned_at FROM younglings.event_ban WHERE event_id = ? ORDER BY banned_at")) {
+            s.setLong(1, eventId);
+            try (ResultSet rs = s.executeQuery()) {
+                while (rs.next()) list.add(new Ban(rs.getLong(1), rs.getString(2), rs.getLong(3), rs.getTimestamp(4).toInstant()));
+            }
+            return list;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read the bans", e);
+        }
+    }
+
+    /** Bars a player from the event (or changes the reason of a ban that is already there). */
+    public void addBan(long eventId, long userId, String reason, long bannedBy) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("""
+                INSERT INTO younglings.event_ban (event_id, user_id, reason, banned_by) VALUES (?, ?, ?, ?)
+                ON CONFLICT (event_id, user_id) DO UPDATE SET reason = EXCLUDED.reason, banned_by = EXCLUDED.banned_by, banned_at = NOW()""")) {
+            s.setLong(1, eventId);
+            s.setLong(2, userId);
+            s.setString(3, reason);
+            s.setLong(4, bannedBy);
+            s.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to ban a player", e);
+        }
+    }
+
+    public boolean removeBan(long eventId, long userId) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("DELETE FROM younglings.event_ban WHERE event_id = ? AND user_id = ?")) {
+            s.setLong(1, eventId);
+            s.setLong(2, userId);
+            return s.executeUpdate() > 0;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to lift a ban", e);
         }
     }
 
@@ -1491,7 +1571,7 @@ public class EventRepository {
                     list.add(new Participant(eventId, rs.getLong("user_id"), rs.getLong("guild_id"), nullableLong(rs, "team_id"), Kind.valueOf(rs.getString("kind")),
                             rs.getString("status").equals("WAITING"), BuyInStatus.valueOf(rs.getString("buy_in_status")), rs.getTimestamp("joined_at").toInstant(),
                             EventRoster.Verification.valueOf(rs.getString("verification")), nullableLong(rs, "verified_by"), verifiedAt == null ? null : verifiedAt.toInstant(),
-                            rs.getString("verification_note"), nullableInt(rs, "rating")));
+                            rs.getString("verification_note"), nullableInt(rs, "rating"), RosterSource.valueOf(rs.getString("source"))));
                 }
             }
             return list;

@@ -382,6 +382,11 @@ public class EventService {
     public Joined join(long guildId, long id, long userGuildId, long userId, Long teamId, boolean staff, Kind kindOverride) {
         Event event = event(guildId, id);
         if (!EventRules.acceptsJoins(event.status())) throw new EventProblem(409, "This event isn't taking signups.");
+        var barred = repository.ban(id, userId);
+        if (barred.isPresent()) {
+            throw new EventProblem(403, staff ? "That player was removed from this event and barred from it: " + barred.get().reason() + " Lift the ban first, on the Teams and players tab."
+                    : "You can't take part in this event: " + barred.get().reason());
+        }
         EventSettings settings = settingsOf(event);
         if (!staff && (repository.setup(id).signupsClosed() || !settings.selfSignupOpen(Instant.now()))) throw new EventProblem(409, "Signups have closed. Ask an organiser to add you.");
         Kind kind = kindOverride != null ? kindOverride : kinds.kindOf(guildId, userGuildId, userId);
@@ -398,10 +403,13 @@ public class EventService {
         }
         var waiting = repository.join(id, userId, userGuildId, teamId, kind, settings.buyIn().enabled() ? BuyInStatus.DUE : BuyInStatus.NONE, event.maxParticipants());
         if (waiting.isEmpty()) throw new EventProblem(409, "That player is already in the event.");
+        repository.setSource(id, userId, staff ? EventRepository.RosterSource.STAFF : EventRepository.RosterSource.SELF);
         repository.clearRefusal(id, userId);
         // a player on the waitlist holds no place, so has no team until they move up
         if (waiting.get() && teamId != null) repository.setTeam(id, userId, null);
         changes.publish(EventChanges.Kind.ROSTER, guildId, id);
+        // a player who joined on their own is added to the event's Discord signup too, so the two lists stay the same
+        if (!staff) changes.publish(new EventChanges.Change(EventChanges.Kind.PLAYER_JOINED, guildId, id, 0, userId, false, ""));
         if (!waiting.get()) return new Joined(false, 0);
         return new Joined(true, QueueRules.position(settings.queue(), queueEntries(id), userId));
     }
@@ -436,6 +444,37 @@ public class EventService {
             if (next != null) repository.promote(id, next.userId(), event.maxParticipants());
         }
         changes.publish(EventChanges.Kind.ROSTER, guildId, id);
+        // and out of the event's Discord signup, so removing someone here removes them there
+        changes.publish(new EventChanges.Change(EventChanges.Kind.PLAYER_LEFT, guildId, id, 0, userId, false, ""));
+    }
+
+    public static final int MAX_BAN_REASON = 300;
+
+    /**
+     * Removes a player (if they are in the event) and bars them from taking part again, with the reason. Their Discord signup entry goes too. A player who
+     * has paid a buy-in must be refunded first, as with any removal. Also works for someone who isn't in the event yet, to keep them out.
+     */
+    public void ban(long guildId, long id, long userId, String reason, long actorId) {
+        Event event = event(guildId, id);
+        if (event.status() == Status.DONE || event.status() == Status.CANCELLED) throw new EventProblem(409, "This event is over.");
+        String cleanReason = clean(reason);
+        if (cleanReason.isEmpty()) throw new EventProblem(400, "Say why, so it can be shown to them and to the next organiser.");
+        if (cleanReason.length() > MAX_BAN_REASON) throw new EventProblem(400, "Keep the reason to " + MAX_BAN_REASON + " characters or fewer.");
+        if (repository.participant(id, userId).isPresent()) leave(guildId, id, userId);
+        repository.addBan(id, userId, cleanReason, actorId);
+        repository.clearRefusal(id, userId);
+        changes.publish(EventChanges.Kind.ROSTER, guildId, id);
+    }
+
+    /** Lets a barred player take part again. They are not put back on the roster: they sign up again like anyone. */
+    public void unban(long guildId, long id, long userId) {
+        event(guildId, id);
+        if (!repository.removeBan(id, userId)) throw new EventProblem(404, "That player isn't barred from this event.");
+        changes.publish(EventChanges.Kind.ROSTER, guildId, id);
+    }
+
+    public List<EventRepository.Ban> bans(long id) {
+        return repository.bans(id);
     }
 
     // ---------- closing signups, the roster and verification ----------
