@@ -49,8 +49,8 @@ public final class EventSpace {
         STAFF("staff", "Staff channel", "Where organisers and staff talk. Players can't see it.", "{event} Staff", true),
         ANNOUNCEMENTS("announcements", "Announcements", "Organisers post here. Players can read it but not reply.", "{event} Announcements", true),
         GENERAL("general", "General chat", "Where the players talk.", "{event} General", true),
-        BOARD("board", "Live board", "The bingo's live board. Players can read it.", "{event} Board", true),
-        REVIEW("review", "Proof to review", "Where players' proof lands for staff to approve. Players can't see it.", "{event} Review", true),
+        BOARD("board", "Live board", "The bingo's live board. Players can read it.", "{event} Live Board", true),
+        REVIEW("review", "Proof to review", "Where players' proof lands for staff to approve. Players can't see it.", "{event} Staff Review", true),
         TEAM("teamChannel", "Team channel", "A private channel for each team.", "{event} {team}", false),
         PLAYER("playerChannel", "Player channel", "A private channel for each player of a solo event.", "{event} {player}", false);
 

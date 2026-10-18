@@ -45,8 +45,7 @@ public class ScavengerHuntTemplate implements EventTemplate {
                 EventOptions.Option.number("config.steps", "Items to find", "3 to 30. Rename them into clues later.", EventOptions.Step.RULES, DEFAULT_STEPS, MIN_STEPS, MAX_STEPS).inQuick(),
                 EventOptions.Option.number("config.stepPoints", "Points per item", "What each item is worth.", EventOptions.Step.RULES, DEFAULT_STEP_POINTS, 0, EventRules.MAX_POINTS),
                 EventOptions.Option.of("config.ordered", "One after another", "Each item opens after the one before.", EventOptions.Step.RULES, EventOptions.Type.BOOL, false),
-                EventOptions.Option.number("config.finishBonus", "Bonus for finding everything", "0 for none.", EventOptions.Step.RULES, DEFAULT_FINISH_BONUS, 0, EventRules.MAX_POINTS),
-                EventOptions.reviewChannel());
+                EventOptions.Option.number("config.finishBonus", "Bonus for finding everything", "0 for none.", EventOptions.Step.RULES, DEFAULT_FINISH_BONUS, 0, EventRules.MAX_POINTS));
     }
 
     @Override

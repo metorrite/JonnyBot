@@ -227,7 +227,7 @@ class EventSpaceTest {
         Plan plan = EventSpace.plan(solo(BingoTemplate.KEY, ON, players(3, null)));
         assertTrue(plan.blockers().isEmpty(), plan.blockers().toString());
         assertEquals(List.of("Christmas Bingo"), plan.channels().stream().filter(c -> c.kind() == Kind.CATEGORY).map(ChannelItem::name).toList());
-        assertEquals(List.of("christmas-bingo-staff", "christmas-bingo-announcements", "christmas-bingo-general", "christmas-bingo-board", "christmas-bingo-review"),
+        assertEquals(List.of("christmas-bingo-staff", "christmas-bingo-announcements", "christmas-bingo-general", "christmas-bingo-live-board", "christmas-bingo-staff-review"),
                 plan.channels().stream().filter(c -> c.kind() != Kind.CATEGORY).map(ChannelItem::name).toList());
         assertTrue(plan.channels().stream().filter(c -> c.kind() != Kind.CATEGORY).allMatch(c -> c.action() == Action.CREATE && "category".equals(c.parent())));
         assertEquals(List.of("Christmas Bingo Participant", "Christmas Bingo Organiser"), plan.roles().stream().map(RoleItem::name).toList());
@@ -248,7 +248,7 @@ class EventSpaceTest {
     void aChannelLeftOutIsNotMadeAndAnExistingOneIsUsedAsItIs() {
         Setting setting = new Setting(true, true, false, Map.of(Kind.STAFF, Choice.NONE, Kind.GENERAL, Choice.existing(777)), Map.of());
         Plan plan = EventSpace.plan(solo(BingoTemplate.KEY, setting, players(2, null)));
-        assertEquals(List.of("christmas-bingo-announcements", "christmas-bingo-board", "christmas-bingo-review"), names(plan, Action.CREATE).stream().filter(n -> !n.equals("Christmas Bingo")).toList());
+        assertEquals(List.of("christmas-bingo-announcements", "christmas-bingo-live-board", "christmas-bingo-staff-review"), names(plan, Action.CREATE).stream().filter(n -> !n.equals("Christmas Bingo")).toList());
         ChannelItem general = plan.channels().stream().filter(c -> c.kind() == Kind.GENERAL).findFirst().orElseThrow();
         assertEquals(Action.USE_EXISTING, general.action());
         assertEquals(777L, general.id());
@@ -350,7 +350,7 @@ class EventSpaceTest {
         Map<String, HeldRole> lost = Map.of("participant", new HeldRole(201, "Christmas Bingo Participant"));
         Plan again = EventSpace.plan(new Facts("Christmas Bingo", BossNightTemplate.KEY, true, ON, null, null, List.of(new TeamRef(11, "Red")), players(2, 11L), Set.of(), 0, lost, held, Map.of(),
                 Room.UNLIMITED, READY_TEAMS));
-        assertEquals(List.of("the role Christmas Bingo Organiser", "the role Christmas Bingo Red", "the channel christmas-bingo-review", "the channel christmas-bingo-red"), again.missing());
+        assertEquals(List.of("the role Christmas Bingo Organiser", "the role Christmas Bingo Red", "the channel christmas-bingo-staff-review", "the channel christmas-bingo-red"), again.missing());
         assertEquals("category", again.channels().stream().filter(c -> c.key().equals("team:11")).findFirst().orElseThrow().parent());
     }
 
