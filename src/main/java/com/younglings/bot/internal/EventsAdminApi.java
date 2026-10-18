@@ -164,6 +164,14 @@ public class EventsAdminApi implements AdminRouteExtension {
                     AdminRouteExtension.requireMethod(method, "POST");
                     return addParticipant(guild, actor, id, body.get());
                 }
+                case "bans" -> {
+                    AdminRouteExtension.requireMethod(method, "POST");
+                    DataObject b = body.get();
+                    long userId = idOf(text(b, "userId"), "player");
+                    service.ban(guild.getIdLong(), id, userId, text(b, "reason"), actor.getIdLong());
+                    log.info("Dashboard: {} removed {} from event {} and barred them: {}", actor.getId(), userId, id, text(b, "reason"));
+                    return detail(guild, id);
+                }
                 case "progress" -> {
                     AdminRouteExtension.requireMethod(method, "POST");
                     return progress(guild, actor, id, body.get());
@@ -228,9 +236,21 @@ public class EventsAdminApi implements AdminRouteExtension {
         }
         if (parts.length == 4 && what.equals("signup") && parts[3].equals("sync")) {
             AdminRouteExtension.requireMethod(method, "POST");
+            java.util.Set<Long> before = new java.util.HashSet<>();
+            repository.participants(id).forEach(p -> before.add(p.userId()));
             int added = signups.sync(guild, id);
-            log.info("Dashboard: {} synced the signup of event {} ({} added)", actor.getId(), id, added);
-            return detail(guild, id).put("synced", added);
+            java.util.Set<Long> after = new java.util.HashSet<>();
+            repository.participants(id).forEach(p -> after.add(p.userId()));
+            int removed = (int) before.stream().filter(u -> !after.contains(u)).count();
+            log.info("Dashboard: {} synced the signup of event {} ({} added, {} removed)", actor.getId(), id, added, removed);
+            return detail(guild, id).put("synced", added).put("removed", removed);
+        }
+        if (parts.length == 4 && what.equals("bans")) {
+            AdminRouteExtension.requireMethod(method, "DELETE");
+            long userId = idOf(parts[3], "player");
+            service.unban(guild.getIdLong(), id, userId);
+            log.info("Dashboard: {} lifted the ban of {} from event {}", actor.getId(), userId, id);
+            return detail(guild, id);
         }
         if (parts.length == 4 && what.equals("signup") && (parts[3].equals("close") || parts[3].equals("reopen"))) {
             AdminRouteExtension.requireMethod(method, "POST");
@@ -399,7 +419,7 @@ public class EventsAdminApi implements AdminRouteExtension {
         DataArray players = DataArray.empty();
         repository.participants(id).forEach(p -> players.add(DataObject.empty().put("userId", Long.toString(p.userId())).put("userName", name(guild, p.userId()))
                 .put("guildId", Long.toString(p.guildId())).put("teamId", p.teamId() == null ? null : Long.toString(p.teamId())).put("joinedAt", p.joinedAt().toString())
-                .put("kind", p.kind().name()).put("waiting", p.waiting()).put("buyIn", p.buyIn().name())
+                .put("kind", p.kind().name()).put("waiting", p.waiting()).put("buyIn", p.buyIn().name()).put("source", p.source().name())
                 .put("verification", EventRoster.effective(p.verification(), settings.verification()).name())
                 .put("verifiedBy", p.verifiedBy() == null ? null : name(guild, p.verifiedBy())).put("verifiedAt", p.verifiedAt() == null ? null : p.verifiedAt().toString())
                 .put("verificationNote", p.verificationNote())
@@ -414,6 +434,9 @@ public class EventsAdminApi implements AdminRouteExtension {
         DataArray refused = DataArray.empty();
         repository.refusals(id).forEach(r -> refused.add(DataObject.empty().put("userId", Long.toString(r.userId())).put("userName", name(guild, r.userId()))
                 .put("reason", r.reason()).put("at", r.at().toString())));
+        DataArray bans = DataArray.empty();
+        service.bans(id).forEach(b -> bans.add(DataObject.empty().put("userId", Long.toString(b.userId())).put("userName", name(guild, b.userId())).put("reason", b.reason())
+                .put("bannedBy", name(guild, b.bannedBy())).put("at", b.at().toString())));
         DataArray tileInfo = DataArray.empty();
         if (e.template().equals(BingoTemplate.KEY)) {
             for (ObjectiveSpec o : service.objectives(id)) {
@@ -433,7 +456,7 @@ public class EventsAdminApi implements AdminRouteExtension {
                 // an unreadable board has no shape to show
             }
         }
-        return DataObject.empty().put("layout", layout).put("tiles", tileInfo).put("organisers", organisers).put("refused", refused).put("event", eventJson(e)).put("signup", DataObject.empty().put("attached", signup.attached()).put("active", signup.active())
+        return DataObject.empty().put("layout", layout).put("tiles", tileInfo).put("organisers", organisers).put("refused", refused).put("bans", bans).put("event", eventJson(e)).put("signup", DataObject.empty().put("attached", signup.attached()).put("active", signup.active())
                         .put("entries", signup.entries()).put("channelsChosen", signup.channelsChosen())).put("prizes", prizes).put("pot", service.pot(guild.getIdLong(), id)).put("potVisible", PrizeRules.potVisible(settings.buyIn()))
                 .put("buyInEnabled", settings.buyIn().enabled()).put("objectives", objectives).put("teams", teams).put("participants", players).put("nextStages", next)
                 .put("prep", prepJson(service.prepOf(e))).put("setup", setupJson(service.setupOf(id), guild)).put("verification", verificationJson(e, settings))

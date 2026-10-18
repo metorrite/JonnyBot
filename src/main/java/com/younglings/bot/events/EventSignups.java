@@ -10,6 +10,7 @@ import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.utils.data.DataObject;
 import org.slf4j.Logger;
@@ -32,6 +33,11 @@ import java.util.concurrent.TimeUnit;
  * <p>
  * Closing signups ({@link #closeSignups}) is the organiser's one action for it: the event stops taking players' own joins, the Discord signup is
  * paused, and the roster is synced one last time, in that order, so nobody can slip in between.
+ * <p>
+ * The roster and the Discord signup are kept the same both ways until the event starts: a player who signs up in Discord is added to the roster, a player
+ * who is taken off the signup in Discord is taken off the roster (and off their team), a player who joins on the website gets an entry in the signup, and a
+ * player removed on the website loses their entry. Only players who came from the signup (or joined on their own) are mirrored: staff-added players have
+ * no entry to follow. Someone barred from the event is kept out of the roster and their entry is taken off the signup.
  */
 @BService
 public class EventSignups {
@@ -46,22 +52,58 @@ public class EventSignups {
     private final EventRepository repository;
     private final EventService service;
     private final SignupService signups;
+    /** How often the signup and the roster are compared. */
+    static final int SWEEP_SECONDS = 30;
+
     private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor((ThreadFactory) runnable -> {
         Thread thread = new Thread(runnable, "event-signups");
         thread.setDaemon(true);
         return thread;
     });
+    private volatile JDA jda;
 
-    public EventSignups(EventRepository repository, EventService service, SignupService signups) {
+    public EventSignups(EventRepository repository, EventService service, SignupService signups, EventChanges changes) {
         this.repository = repository;
         this.service = service;
         this.signups = signups;
+        changes.subscribe(change -> {
+            if (change.kind() == EventChanges.Kind.PLAYER_JOINED || change.kind() == EventChanges.Kind.PLAYER_LEFT) executor.execute(() -> mirror(change));
+        });
     }
 
     @BEventListener
     public void onJdaReady(InjectedJDAEvent event) {
-        JDA jda = event.getJda();
-        executor.scheduleWithFixedDelay(() -> sweep(jda), 60, 60, TimeUnit.SECONDS);
+        JDA client = event.getJda();
+        this.jda = client;
+        executor.scheduleWithFixedDelay(() -> sweep(client), SWEEP_SECONDS, SWEEP_SECONDS, TimeUnit.SECONDS);
+    }
+
+    /** Copies a player who joined or left on the website (or with a command) onto the Discord signup, so the two lists stay the same. */
+    void mirror(EventChanges.Change change) {
+        JDA client = jda;
+        if (client == null) return;
+        try {
+            Guild guild = client.getGuildById(change.guildId());
+            Event event = repository.event(change.guildId(), change.eventId()).orElse(null);
+            if (guild == null || event == null || event.signupId() == null || signups.getSessionById(event.signupId()) == null) return;
+            long signupId = event.signupId();
+            if (change.kind() == EventChanges.Kind.PLAYER_LEFT) {
+                if (signups.removeUser(guild, signupId, change.userId())) signups.updateMessages(guild, signupId);
+                return;
+            }
+            if (signups.getEntries(signupId).stream().anyMatch(e -> e.userId() == change.userId())) {
+                repository.setSource(event.id(), change.userId(), EventRepository.RosterSource.SIGNUP);
+                return;
+            }
+            Member member = guild.getMemberById(change.userId());
+            String name = member == null ? "Website signup" : member.getEffectiveName();
+            if (signups.addManualUser(guild, signupId, change.userId(), name, null, change.userId())) {
+                repository.setSource(event.id(), change.userId(), EventRepository.RosterSource.SIGNUP);
+                signups.updateMessages(guild, signupId);
+            }
+        } catch (RuntimeException e) {
+            log.warn("Could not mirror a player of event {} onto its signup", change.eventId(), e);
+        }
     }
 
     private static EventSettings settingsOf(Event event) {
@@ -138,10 +180,24 @@ public class EventSignups {
         Set<Long> already = new HashSet<>();
         repository.participants(eventId).forEach(p -> already.add(p.userId()));
         int added = 0;
-        for (SignupEntry entry : signups.getEntries(event.signupId())) {
-            if (already.contains(entry.userId())) continue;
+        List<SignupEntry> entries = signups.getEntries(event.signupId());
+        for (SignupEntry entry : entries) {
+            var barred = repository.ban(eventId, entry.userId());
+            if (barred.isPresent()) {
+                // barred from this event: off the signup, and told why (once)
+                if (signups.removeUser(guild, event.signupId(), entry.userId())) signups.updateMessages(guild, event.signupId());
+                if (repository.recordRefusal(eventId, entry.userId(), barred.get().reason())) tellRefused(guild, event, entry.userId(), "you were barred from it: " + barred.get().reason());
+                continue;
+            }
+            if (already.contains(entry.userId())) {
+                // already on the roster; a player who is on the signup is one the signup now follows
+                repository.participant(eventId, entry.userId()).filter(p -> p.source() == EventRepository.RosterSource.SELF)
+                        .ifPresent(p -> repository.setSource(eventId, p.userId(), EventRepository.RosterSource.SIGNUP));
+                continue;
+            }
             try {
                 service.join(guild.getIdLong(), eventId, guild.getIdLong(), entry.userId(), null, true, null);
+                repository.setSource(eventId, entry.userId(), EventRepository.RosterSource.SIGNUP);
                 added++;
             } catch (EventProblem e) {
                 log.debug("Signup entry {} wasn't added to event {}: {}", entry.userId(), eventId, e.getMessage());
@@ -149,7 +205,37 @@ public class EventSignups {
                 if (repository.recordRefusal(eventId, entry.userId(), e.getMessage())) tellRefused(guild, event, entry.userId(), e.getMessage());
             }
         }
+        prune(guild, event, entries);
         return added;
+    }
+
+    /**
+     * Takes players off the roster (and their team) who were on the Discord signup and are not any more, because staff removed them there. Only while the
+     * event is still taking signups, only players who came from the signup, and only when the signup is really there to read: a signup that can't be
+     * found would look empty and take everyone off.
+     */
+    private void prune(Guild guild, Event event, List<SignupEntry> entries) {
+        if (event.signupId() == null || event.status() != Status.SIGNUPS || signups.getSessionById(event.signupId()) == null) return;
+        Set<Long> onSignup = new HashSet<>();
+        entries.forEach(e -> onSignup.add(e.userId()));
+        for (var player : repository.participants(event.id())) {
+            if (player.source() != EventRepository.RosterSource.SIGNUP || onSignup.contains(player.userId())) continue;
+            try {
+                service.leave(guild.getIdLong(), event.id(), player.userId());
+                log.info("{} was taken off the roster of event {}: they are no longer on its Discord signup", player.userId(), event.id());
+            } catch (EventProblem e) {
+                // for instance a paid buy-in, which has to be refunded before anyone is removed: leave them and tell staff on the dashboard
+                log.info("{} stays on the roster of event {} although they left the signup: {}", player.userId(), event.id(), e.getMessage());
+                repository.recordRefusal(event.id(), player.userId(), "They were taken off the Discord signup but couldn't be taken off the roster: " + e.getMessage());
+            }
+        }
+    }
+
+    /** Takes players off the roster who left the Discord signup, without adding anyone: for an event whose signups are closed but not started. */
+    public void syncRemovals(Guild guild, long eventId) {
+        Event event = service.event(guild.getIdLong(), eventId);
+        if (event.signupId() == null || event.status() != Status.SIGNUPS) return;
+        prune(guild, event, signups.getEntries(event.signupId()));
     }
 
     /** DMs a player whose signup was turned away, with the reason. A closed DM is fine: the dashboard still shows it to staff. */
@@ -207,7 +293,9 @@ public class EventSignups {
                     switch (event.status()) {
                         case SIGNUPS -> {
                             // an attached signup is kept in step until the event closes it, which the deadline sweep above does
+                            // open: both ways; closed: the Discord signup is paused, but staff can still take people off it
                             if (!repository.setup(event.id()).signupsClosed()) sync(guild, event.id());
+                            else syncRemovals(guild, event.id());
                         }
                         case RUNNING, SCORING -> pause(guild, event.signupId());
                         case DONE, CANCELLED -> onStage(guild, event.id(), event.status());
