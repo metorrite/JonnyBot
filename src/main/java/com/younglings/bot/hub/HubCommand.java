@@ -41,6 +41,10 @@ public enum HubCommand {
     PRICE("price", "Grand Exchange prices", "price", "Look up an item's Grand Exchange price with its 7 and 30 day change, and a link to its wiki page.",
             "Everyone", false),
     WORLD_EVENTS("worldevents", "World events", "worldevents", "The Voice of Seren right now and the events that come round by themselves, with how often. Hourly reminders are set on the RuneScape timers page.",
+            "Everyone", false),
+    RESET("reset", "Reset timers", "reset", "Countdowns to the daily, weekly and monthly RuneScape resets. Reminders at each reset are set on the RuneScape timers page.",
+            "Everyone", false),
+    DND("dnd", "Distractions and Diversions", "dnd", "The RuneScape Distractions and Diversions by how often they can be played (daily, weekly, monthly, when available), from the wiki.",
             "Everyone", false);
 
     private final String key;
