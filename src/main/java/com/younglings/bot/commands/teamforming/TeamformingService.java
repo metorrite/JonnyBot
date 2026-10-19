@@ -10,6 +10,8 @@ import net.dv8tion.jda.api.components.selections.StringSelectMenu;
 import net.dv8tion.jda.api.components.separator.Separator;
 import net.dv8tion.jda.api.components.textdisplay.TextDisplay;
 import net.dv8tion.jda.api.components.thumbnail.Thumbnail;
+import com.younglings.bot.branding.BrandingService;
+import com.younglings.bot.config.BotConfig;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Role;
@@ -36,7 +38,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>
  * There are two messages:
  * <ul>
- *     <li>The <b>public panel</b> ({@link #buildPublicPanelMessage()}), posted once by an admin via
+ *     <li>The <b>public panel</b> ({@link #buildPublicPanelMessage(Guild)}), posted once by an admin via
  *     {@code /teamforming post}. It's the same for everyone and just has an entry-point button —
  *     it can't show per-viewer state (see below).</li>
  *     <li>The <b>personal panel</b> ({@link #buildPersonalPanelComponents}), opened fresh (ephemeral,
@@ -71,6 +73,14 @@ public class TeamformingService {
     public static final String SELECT_PREFIX = "teamforming_select:";
     public static final String UPDATE_ROLES_BUTTON_ID = "teamforming_update_roles";
 
+    private final BrandingService branding;
+    private final BotConfig botConfig;
+
+    public TeamformingService(BrandingService branding, BotConfig botConfig) {
+        this.branding = branding;
+        this.botConfig = botConfig;
+    }
+
     /** Per-user staged selections for the personal panel, applied together on "Update Roles". */
     private final Map<Long, PendingChanges> pendingByUserId = new ConcurrentHashMap<>();
 
@@ -90,10 +100,10 @@ public class TeamformingService {
 
     // --- Public panel (posted once by an admin) ---
 
-    public MessageCreateData buildPublicPanelMessage() {
+    public MessageCreateData buildPublicPanelMessage(Guild guild) {
         List<ContainerChildComponent> children = new ArrayList<>();
 
-        children.add(buildHeader());
+        children.add(buildHeader(guild));
 
         StringBuilder categories = new StringBuilder();
         for (TeamformingSection section : TeamformingCatalog.SECTIONS) {
@@ -119,16 +129,19 @@ public class TeamformingService {
      * Note: Discord's {@link Section} component is fixed as "content on the left, accessory on
      * the right" — there's no supported way to put the thumbnail on the left instead.
      */
-    private ContainerChildComponent buildHeader() {
+    private ContainerChildComponent buildHeader(Guild guild) {
         TextDisplay headerText = TextDisplay.of(
-                "### Younglings Teamforming\nClick the button below to assign yourself boss event roles!");
+                "### " + branding.displayName(guild) + " Teamforming\nClick the button below to assign yourself boss event roles!");
 
-        FileUpload logo = loadLogo();
-        if (logo == null) {
-            return headerText;
+        // The bundled picture is the home clan's logo, so it is only used in the home server; every other server shows its own icon.
+        Long home = botConfig.getGuildId();
+        if (home == null || home == guild.getIdLong()) {
+            FileUpload logo = loadLogo();
+            if (logo != null) return Section.of(Thumbnail.fromFile(logo).withDescription("Clan logo"), headerText);
         }
-
-        return Section.of(Thumbnail.fromFile(logo).withDescription("Clan logo"), headerText);
+        String icon = guild.getIconUrl();
+        if (icon == null) return headerText;
+        return Section.of(Thumbnail.fromUrl(icon).withDescription("Server icon"), headerText);
     }
 
     private FileUpload loadLogo() {

@@ -80,7 +80,14 @@ public class BotConfig {
         return databaseUrl;
     }
 
+    /**
+     * The bot's status (one value for the whole bot: Discord has no per-server status). {@code BOT_STATUS} in the environment wins, so it
+     * can be changed on the host without a new build; otherwise {@code bot.activity} from the properties file.
+     */
     public Activity getActivity() {
+        String fromEnv = System.getenv("BOT_STATUS");
+        if (fromEnv == null || fromEnv.isBlank()) fromEnv = dotenv.get("BOT_STATUS");
+        if (fromEnv != null && !fromEnv.isBlank()) return Activity.customStatus(fromEnv.strip());
         return Activity.customStatus(properties.getProperty("bot.activity", "Online"));
     }
 
