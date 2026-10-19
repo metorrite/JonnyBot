@@ -113,12 +113,10 @@ class ServerSideReadOnly(unittest.TestCase):
     """Guard 1 off: the database's own read-only transaction must still stop each write."""
 
     def test_database_rejects_writes_even_without_the_statement_check(self):
-        for sql in ["DELETE FROM event WHERE false", "CREATE TEMP TABLE kit_probe (x int)", "SELECT nextval(c.oid::regclass) FROM pg_class c WHERE false AND relkind = 'S'",
-                    "INSERT INTO admin_audit SELECT * FROM admin_audit WHERE false", "UPDATE event SET id = id WHERE false"]:
+        for sql in ["DELETE FROM event WHERE false", "CREATE TEMP TABLE kit_probe (x int)", "INSERT INTO admin_audit SELECT * FROM admin_audit WHERE false",
+                    "UPDATE event SET id = id WHERE false", "TRUNCATE kit_probe_missing"]:
             with self.subTest(sql=sql):
                 result = db_query.execute(URL, sql, False, checked=False)
-                if sql.startswith("SELECT nextval"):
-                    continue  # planner may not evaluate it; the point is the DML/DDL rows
                 self.assertNotEqual(result.returncode, 0, result.stdout)
                 self.assertIn("read-only transaction", result.stderr)
 
