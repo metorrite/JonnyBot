@@ -303,9 +303,18 @@ public final class EventSpace {
      * already names, else made by JonnyBot. Null when the channel doesn't apply to this kind of event.
      */
     public static Choice choice(Setting setting, Kind kind, String template, Long boardChannelId, Long reviewChannelId) {
+        return choice(setting, kind, template, boardChannelId, reviewChannelId, true);
+    }
+
+    /**
+     * As above, and {@code sharedBoard} says whether the event shows a shared live board ({@code SHARED} or {@code BOTH}). An own-only bingo needs the shared board
+     * channel only as the fallback for boards with no channel of their own, so it isn't made while team or player channels are on.
+     */
+    public static Choice choice(Setting setting, Kind kind, String template, Long boardChannelId, Long reviewChannelId, boolean sharedBoard) {
         if (!kind.appliesTo(template)) return null;
         Choice chosen = setting.slots().get(kind);
         if (chosen != null) return chosen;
+        if (kind == Kind.BOARD && !sharedBoard && boardChannelId == null && (setting.teamChannels() || setting.playerChannels())) return Choice.NONE;
         if (kind == Kind.BOARD && boardChannelId != null) return Choice.existing(boardChannelId);
         if (kind == Kind.REVIEW && reviewChannelId != null) return Choice.existing(reviewChannelId);
         return Choice.CREATE;
@@ -471,7 +480,14 @@ public final class EventSpace {
      */
     public record Facts(String eventName, String template, boolean teamScored, Setting setting, Long boardChannelId, Long reviewChannelId, List<TeamRef> teams,
                         List<PlayerRef> players, Set<Long> organiserIds, int excludedPlayers, Map<String, HeldRole> heldRoles, Map<String, HeldChannel> heldChannels,
-                        Map<Kind, String> pickProblems, Room available, Readiness readiness) {
+                        Map<Kind, String> pickProblems, Room available, Readiness readiness, boolean sharedBoard) {
+        public Facts(String eventName, String template, boolean teamScored, Setting setting, Long boardChannelId, Long reviewChannelId, List<TeamRef> teams,
+                     List<PlayerRef> players, Set<Long> organiserIds, int excludedPlayers, Map<String, HeldRole> heldRoles, Map<String, HeldChannel> heldChannels,
+                     Map<Kind, String> pickProblems, Room available, Readiness readiness) {
+            this(eventName, template, teamScored, setting, boardChannelId, reviewChannelId, teams, players, organiserIds, excludedPlayers, heldRoles, heldChannels,
+                    pickProblems, available, readiness, true);
+        }
+
         public Facts {
             teams = List.copyOf(teams);
             players = List.copyOf(players);
@@ -610,7 +626,7 @@ public final class EventSpace {
         List<Wanted> wanted = new ArrayList<>();
         Set<Long> picked = new LinkedHashSet<>();
         for (Kind kind : Kind.slots()) {
-            Choice choice = choice(s, kind, f.template(), f.boardChannelId(), f.reviewChannelId());
+            Choice choice = choice(s, kind, f.template(), f.boardChannelId(), f.reviewChannelId(), f.sharedBoard());
             if (choice == null || choice.use() == Use.NONE) continue;
             if (choice.use() == Use.EXISTING) {
                 String problem = f.pickProblems().get(kind);
@@ -817,9 +833,13 @@ public final class EventSpace {
 
     /** The settings as the website's Channels tab needs them: the choices with defaults filled in, and every pattern with its default. */
     public static DataObject settingJson(Setting s, String template, Long boardChannelId, Long reviewChannelId) {
+        return settingJson(s, template, boardChannelId, reviewChannelId, true);
+    }
+
+    public static DataObject settingJson(Setting s, String template, Long boardChannelId, Long reviewChannelId, boolean sharedBoard) {
         DataArray slots = DataArray.empty();
         for (Kind kind : Kind.slots()) {
-            Choice choice = choice(s, kind, template, boardChannelId, reviewChannelId);
+            Choice choice = choice(s, kind, template, boardChannelId, reviewChannelId, sharedBoard);
             slots.add(DataObject.empty().put("key", kind.key()).put("label", kind.label()).put("hint", kind.hint()).put("applies", choice != null).put("explicit", s.slots().containsKey(kind))
                     .put("use", choice == null ? "none" : choice.use().name().toLowerCase(Locale.ROOT)).put("channelId", choice == null || choice.channelId() == null ? null : Long.toString(choice.channelId()))
                     .put("pattern", s.pattern(kind)).put("defaultPattern", kind.defaultPattern()));
