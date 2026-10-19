@@ -231,7 +231,7 @@ public class TicketAdminApi {
             json.put("id", actor.getId()).put("displayName", actor.getEffectiveName()).put("avatarUrl", actor.getEffectiveAvatarUrl());
         }
         // which server this answer is about; only given to someone allowed in, so it never names a server to a stranger
-        if (tier != Tier.NONE) json.put("guildName", guild.getName()).put("guildIconUrl", guild.getIconUrl());
+        if (tier != Tier.NONE) json.put("guildId", guild.getId()).put("guildName", guild.getName()).put("guildIconUrl", guild.getIconUrl());
         return json;
     }
 
