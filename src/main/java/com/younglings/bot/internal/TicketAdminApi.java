@@ -1,5 +1,7 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.access.AccessArea;
+import com.younglings.bot.access.AccessGrantService;
 import com.younglings.bot.beta.BetaAccessService;
 
 import com.sun.net.httpserver.HttpExchange;
@@ -79,10 +81,12 @@ public class TicketAdminApi {
     private final ImageAdminApi imageAdmin;
     private final List<AdminRouteExtension> extensions;
     private final BetaAccessService betaAccess;
+    private final AccessGrantService accessGrants;
 
     public TicketAdminApi(DashboardAccess access, TicketRepository repository, TicketService service, ClanAdminApi clanAdmin, CommunityAdminApi communityAdmin, AdminOpsApi ops, AdminToolsStore auditStore,
                           HelpOnboarding onboarding, HelpPanels helpPanels, WelcomeAdminApi welcomeAdmin, ServerSetupAdminApi serverSetup, PermissionsAdminApi permissions, HubAdminApi hubAdmin, OverviewAdminApi overviewAdmin, ImageAdminApi imageAdmin, BetaAccessService betaAccess,
-                          List<AdminRouteExtension> extensions) {
+                          AccessGrantService accessGrants, List<AdminRouteExtension> extensions) {
+        this.accessGrants = accessGrants;
         this.extensions = extensions;
         log.info("Admin API ready with {} route extension(s): {}", extensions.size(), extensions.stream().map(e -> e.getClass().getSimpleName()).toList());
         this.betaAccess = betaAccess;
@@ -138,7 +142,12 @@ public class TicketAdminApi {
                 // Whether this person may use JonnyBot's website while it is closed: the clan's own admins, or admins of a trusted beta server.
                 // Worked out from the asker's id alone, because a beta tester usually isn't a member of the clan's server.
                 long askerId = actorIdOf(exchange);
-                who.put("beta", tier != Tier.NONE || (askerId != 0 && betaAccess.managesAnyBetaGuild(guild.getJDA(), askerId)));
+                boolean beta = tier != Tier.NONE || (askerId != 0 && betaAccess.managesAnyBetaGuild(guild.getJDA(), askerId));
+                who.put("beta", beta);
+                // Per restricted area: the beta rule above, or a grant on the owner's access list for that area. Fails closed.
+                DataObject areas = DataObject.empty();
+                for (AccessArea area : AccessArea.values()) areas.put(area.key(), beta || accessGrants.allows(guild.getJDA(), area, askerId));
+                who.put("areas", areas);
                 InternalApiServer.sendJson(exchange, 200, who);
                 return;
             }
