@@ -37,7 +37,7 @@ Ticket board (the work queue): https://claude.ai/artifact/W1MkBY5EH8beWVZGfnQUER
 
 **Bot (Java)**
 - New listener adapters must be added to `Bot.java` or buttons silently time out.
-- New setting on the bot = a website admin control too (settings parity), and vice versa where it applies.
+- **Website first.** The dashboard is the primary way to change how the bot behaves; Discord-only use must keep working. In the same ticket as the bot change: every new setting, setup step or configuration gets a dashboard control; every new slash command appears on the dashboard Commands page (on/off, who, where) and its staff actions get a dashboard equivalent where that makes sense; a new feature gets its own dashboard page and nav entry. Skip a side only when it has no meaning there, and say why in the PR.
 - Tests: `mvn -o test` (about 1,200 tests; all must pass). A throwaway JUnit against the local dev DB is the way to check new SQL.
 - Dev bot lives in the real clan server (`GUILD_ID`): live tests are real. Do not spam it.
 
@@ -50,6 +50,7 @@ Ticket board (the work queue): https://claude.ai/artifact/W1MkBY5EH8beWVZGfnQUER
 - Privacy: public pages never show an individual member's figures or Discord details.
 
 **Everything**
+- The website-first rule applies to the RS3 plugin too: anything the plugin reports or lets a member or admin control gets a website view or control (the member's profile for personal consent and data, the dashboard for clan settings).
 - Do not invent facts about Discord/JDA limits: look them up or test them.
 - Report what you could not verify (signed-in pages, anything against live Discord) in the ticket log and PR.
 
