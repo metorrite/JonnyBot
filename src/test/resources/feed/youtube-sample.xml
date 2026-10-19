@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns:yt="http://www.youtube.com/xml/schemas/2015" xmlns:media="http://search.yahoo.com/mrss/" xmlns="http://www.w3.org/2005/Atom">
+ <link rel="self" href="http://www.youtube.com/feeds/videos.xml?channel_id=UCabcdefghijklmnopqrstuv"/>
+ <id>yt:channel:abcdefghijklmnopqrstuv</id>
+ <yt:channelId>abcdefghijklmnopqrstuv</yt:channelId>
+ <title>Example Clan</title>
+ <author><name>Example Clan</name><uri>https://www.youtube.com/channel/UCabcdefghijklmnopqrstuv</uri></author>
+ <entry>
+  <id>yt:video:NEWEST000001</id>
+  <yt:videoId>NEWEST000001</yt:videoId>
+  <yt:channelId>abcdefghijklmnopqrstuv</yt:channelId>
+  <title>Barrows &amp; chill: a "full" run</title>
+  <link rel="alternate" href="https://www.youtube.com/watch?v=NEWEST000001"/>
+  <author><name>Example Clan</name><uri>https://www.youtube.com/channel/UCabcdefghijklmnopqrstuv</uri></author>
+  <published>2026-10-18T12:00:00+00:00</published>
+ </entry>
+ <entry>
+  <id>yt:video:OLDER0000002</id>
+  <yt:videoId>OLDER0000002</yt:videoId>
+  <title>Older upload</title>
+  <author><name>Example Clan</name></author>
+  <published>2026-10-10T12:00:00+00:00</published>
+ </entry>
+ <entry>
+  <yt:videoId></yt:videoId>
+  <title>Broken entry without an id</title>
+ </entry>
+</feed>
