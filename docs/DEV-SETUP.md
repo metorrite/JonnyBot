@@ -64,6 +64,18 @@ Copying the old machine's `.idea/workspace.xml` also works when the repository i
 
 Checking the running bot without the browser: `python tools/dev_api.py GET events/12/space --actor <your discord user id>` calls the same internal admin routes the dashboard uses (it reads the secret from the run configuration and never prints it). A GET only reads; remember the dev bot sits in the real clan server, so POST/PUT/DELETE change real things.
 
+## 4b. Start everything with one command
+
+From this repository, in a terminal:
+
+```
+powershell -ExecutionPolicy Bypass -File tools/dev-start.ps1
+```
+
+It stops every running bot and the website, rebuilds `local/wip-preview` in the website worktree (origin/dev plus every open website PR merged in; a PR that conflicts is skipped and named), builds and starts exactly one bot from whatever branch is checked out here, starts the website on port 3000, and prints whether both answer and how many bot processes are running (it must be 1). `-NoRefresh` leaves the website branch as it is. The bot's environment comes from the git-ignored `.idea/runConfigurations/JonnyBot_Dev.xml`, so no secret is in the script. Logs: `%TEMP%\jonnybot-dev.log` and `%TEMP%\website-dev.log`.
+
+Do not also start "JonnyBot Dev" from IntelliJ: each launch adds another process, and the older one keeps port 8081 with old code.
+
 ## 5. Running the tests
 
 ```
