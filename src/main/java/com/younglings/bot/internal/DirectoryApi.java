@@ -39,6 +39,7 @@ import java.util.Optional;
  *   <li>{@code GET clans/{slug}/events}: that clan's shared upcoming events</li>
  *   <li>{@code POST clans/{slug}/report} {@code {reason, reporter?}}: report a listing for the bot's owner to review</li>
  *   <li>{@code GET events}: shared upcoming events of every listed clan, soonest first</li>
+ *   <li>{@code GET site-switches}: whether the owner has opened the JonnyBot website, the hub and the dashboard (the website gates read it)</li>
  *   <li>{@code GET leaderboards?period=week|month}: clans that opted in, ranked by XP their members gained</li>
  * </ul>
  */
@@ -58,9 +59,11 @@ public class DirectoryApi {
     private final ClanProfileRepository repository;
     private final ClanProfileService service;
     private final SiteStatsRepository stats;
+    private final SiteSwitchAdminApi siteSwitches;
     private final TtlCache cache = new TtlCache();
 
-    public DirectoryApi(ClanProfileRepository repository, ClanProfileService service, SiteStatsRepository stats) {
+    public DirectoryApi(ClanProfileRepository repository, ClanProfileService service, SiteStatsRepository stats, SiteSwitchAdminApi siteSwitches) {
+        this.siteSwitches = siteSwitches;
         this.repository = repository;
         this.service = service;
         this.stats = stats;
@@ -98,6 +101,9 @@ public class DirectoryApi {
             send(exchange, 200, DataObject.empty().put("events", eventsJson(profile.get(), jda, EVENTS_PER_CLAN)).put("generatedAt", Instant.now().toString()));
         } else if (head.equals("clans") && parts.length == 3 && parts[2].equals("report")) {
             report(exchange, method, parts[1]);
+        } else if (head.equals("site-switches") && parts.length == 1) {
+            if (!get(exchange, method)) return;
+            send(exchange, 200, siteSwitches.states());
         } else if (head.equals("events") && parts.length == 1) {
             if (!get(exchange, method)) return;
             send(exchange, 200, cache.get("events", LIST_TTL_MILLIS, () -> allEvents(jda)));
