@@ -36,6 +36,10 @@ public enum HubCommand {
             "Everyone (awarding needs Manage Server)", false),
     RANK("rank", "Self roles", "rank", "List, join and leave the roles this server lets members pick for themselves (the list is edited on the website).",
             "Everyone", false),
+    ROLEPERSIST("rolepersist", "Kept roles", "rolepersist", "Mark a role on a member to be given back whenever they rejoin, and see or remove what is kept. The server-wide sticky list is on the Kept roles page.",
+            "Admins only", true),
+    TEMPROLE("temprole", "Temporary roles", "temprole", "Give a member a role for a set time (like 2h, 7d or 1w); it is taken off by itself, even across restarts and rejoins.",
+            "Admins only", true),
     EVENTS("events", "Events", "events", "See the events you are in (place, points, buy-in, prizes), browse the ones open for signup, and join or leave them. Events are made and run from the dashboard's Event manager.",
             "Everyone", false);
 
