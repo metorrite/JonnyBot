@@ -129,11 +129,14 @@ public class TicketAdminApi {
 
             Member actor = actorOf(exchange, guild);
             Tier tier = actor == null ? Tier.NONE : access.tierOf(guild, actor);
+            boolean coordinator = actor != null && tier == Tier.NONE && access.isEventCoordinator(guild, actor);
 
             // whoami is the one route that answers "no" with a 200: the website uses it to decide what to show.
             if (parts.length == 1 && parts[0].equals("whoami")) {
                 requireMethod(method, "GET");
                 DataObject who = whoami(guild, actor, tier);
+                // An Event coordinator is not allowed in the dashboard as such (allowed stays false); the website lets them into the event manager only.
+                if (coordinator) who.put("coordinator", true).put("guildId", guild.getId()).put("guildName", guild.getName()).put("guildIconUrl", guild.getIconUrl());
                 if (actor != null && tier != Tier.NONE) who.put("isOwner", overviewAdmin.isOwner(guild, actor.getIdLong()));
                 // Whether this person may use JonnyBot's website while it is closed: the clan's own admins, or admins of a trusted beta server.
                 // Worked out from the asker's id alone, because a beta tester usually isn't a member of the clan's server.
@@ -142,7 +145,7 @@ public class TicketAdminApi {
                 InternalApiServer.sendJson(exchange, 200, who);
                 return;
             }
-            if (tier == Tier.NONE) {
+            if (tier == Tier.NONE && !(coordinator && DashboardAccess.coordinatorMayUse(method, parts))) {
                 InternalApiServer.sendJson(exchange, 403, DataObject.empty().put("error", "You don't have access to the dashboard."));
                 return;
             }
@@ -186,9 +189,10 @@ public class TicketAdminApi {
                     Member member = memberIn(guild, actorId);
                     if (member == null) continue;
                     Tier tier = access.tierOf(guild, member);
-                    if (tier == Tier.NONE) continue;
+                    boolean coordinator = tier == Tier.NONE && access.isEventCoordinator(guild, member);
+                    if (tier == Tier.NONE && !coordinator) continue;
                     guilds.add(DataObject.empty().put("id", guild.getId()).put("name", guild.getName()).put("iconUrl", guild.getIconUrl())
-                            .put("memberCount", guild.getMemberCount()).put("tier", tier.name()));
+                            .put("memberCount", guild.getMemberCount()).put("tier", coordinator ? "COORDINATOR" : tier.name()));
                 }
             }
             InternalApiServer.sendJson(exchange, 200, DataObject.empty().put("guilds", guilds));

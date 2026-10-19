@@ -21,7 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * A server's permission levels, and the one place that answers "is this member in that group?".
  * <p>
- * Every server has three built-in groups, Admin, Support and Developer, which carry the bot's tiers (see
+ * Every server has four built-in groups, Admin, Support and Developer (which carry the bot's tiers) and Event coordinator (events only) (see
  * {@link AdminRoleFilter} and {@link DashboardAccess}), and can add groups of its own, e.g. "Web Dev" and "Discord Dev", each
  * holding as many server roles as it likes. A group of the server's own has no powers by itself; a setting that asks "who may do
  * this?" can name it (as {@code group:<key>}, see {@link #matches}) or name a single server role ({@code role:<id>}).
@@ -81,13 +81,14 @@ public class PermissionGroupService {
         List<PermissionGroup> existing = repository.list(guildId);
         Set<String> have = new HashSet<>();
         existing.forEach(g -> have.add(g.key()));
-        if (have.containsAll(List.of(PermissionGroup.ADMIN, PermissionGroup.SUPPORT, PermissionGroup.DEVELOPER))) return List.copyOf(existing);
+        if (have.containsAll(List.of(PermissionGroup.ADMIN, PermissionGroup.SUPPORT, PermissionGroup.DEVELOPER, PermissionGroup.EVENT_COORDINATOR))) return List.copyOf(existing);
 
         GuildSettings old = legacySettings.getEffective(guildId);
         List<PermissionGroup> missing = new ArrayList<>();
         if (!have.contains(PermissionGroup.ADMIN)) missing.add(builtin(guildId, PermissionGroup.ADMIN, "Admin", true, old.adminRoleId()));
         if (!have.contains(PermissionGroup.SUPPORT)) missing.add(builtin(guildId, PermissionGroup.SUPPORT, "Support", false, old.supportRoleId()));
         if (!have.contains(PermissionGroup.DEVELOPER)) missing.add(builtin(guildId, PermissionGroup.DEVELOPER, "Developer", false, old.developerRoleId()));
+        if (!have.contains(PermissionGroup.EVENT_COORDINATOR)) missing.add(builtin(guildId, PermissionGroup.EVENT_COORDINATOR, "Event coordinator", false, null));
         repository.createMissing(guildId, missing);
         return List.copyOf(repository.list(guildId));
     }
