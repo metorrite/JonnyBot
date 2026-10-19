@@ -1,10 +1,10 @@
 # RSN link system: design and protocol spec
 
-Ticket T-112. Status: **draft for Drake's approval**. Build tickets T-113..T-118 follow this document; a build worker who finds a gap here asks (ticket back to `planning`) rather than inventing.
+Ticket T-112. Status: **draft; Drake's decisions of 2026-10-19 applied (section 18)**. Build tickets T-113..T-118 follow this document; a build worker who finds a gap here asks (ticket back to `planning`) rather than inventing.
 
 ## 0. In one paragraph
 
-A standalone RS3 plugin (working name **Lodestone**, see section 15) lets a player link the character they are logged into to their Discord account. The plugin shows a short code and a short web address; the player opens the address on any device, signs in with Discord, types the code and confirms "Link RuneScape name X to this Discord". The plugin then holds a private random token and never shows it to anyone. Other plugins depend on it and can ask only two things: "is this player linked?" and "what is this player's alias for my plugin?" (a stable random-looking id that is different for every plugin). For players who prefer it, a fallback has JonnyBot DM them a code instead, which only works when JonnyBot can reach them on Discord. Trust is implicit for now, with a `verification` field and a hook so a real check can be added later. The service has its own database, its own keys and a neutral, unbranded web face whose address is configuration, so the final domain can be chosen before the Jagex submission.
+A standalone RS3 plugin named **Discord Link** (Drake's pick; section 15 has a brand-rule risk) lets a player link the character they are logged into to their Discord account. The plugin shows a short code and a short web address; the player opens the address on any device, signs in with Discord, types the code and confirms "Link RuneScape name X to this Discord". The plugin then holds a private random token and never shows it to anyone. Other plugins depend on it and can ask only two things: "is this player linked?" and "what is this player's alias for my plugin?" (a stable random-looking id that is different for every plugin). For players who prefer it, a fallback has JonnyBot DM them a code instead, which only works when JonnyBot can reach them on Discord. Trust is implicit for now, with a `verification` field and a hook so a real check can be added later. The service has its own database, its own keys and a neutral, unbranded web face whose address is configuration, so the final domain can be chosen before the Jagex submission.
 
 ## 1. Fixed decisions (from Drake's Q&A, 2026-10-19; not re-opened here)
 
@@ -22,7 +22,7 @@ A standalone RS3 plugin (working name **Lodestone**, see section 15) lets a play
 ```
   RS3 client (player's PC)                     Neutral link host (website app, own host face)          JonnyBot process
  +---------------------------+   HTTPS         +--------------------------------------+   internal   +------------------------------+
- | Lodestone plugin (Lua)    | --------------> | /v1/*   plugin API (proxy + limits)  | -----------> | rsnlink service (Java)       |
+ | Discord Link plugin (Lua) | --------------> | /v1/*   plugin API (proxy + limits)  | -----------> | rsnlink service (Java)       |
  |  - pairing panel          |                 | /       code entry + Discord sign-in |  X-Internal- |  - own DataSource            |
  |  - token in PersistentDB  |                 | /links  my links, unlink, delete     |   Secret     |  - own schema `rsnlink`      |
  |  - library for dependents |                 +--------------------------------------+              |  - DM fallback via JDA       |
@@ -33,9 +33,13 @@ A standalone RS3 plugin (working name **Lodestone**, see section 15) lets a play
  +---------------------------+
 ```
 
-- **Lodestone plugin** (new repo, T-116): Lua 5.4. Shows the pairing panel, talks to the link host, stores the token, exports a small library.
+- **Discord Link plugin** (new repo, T-116): Lua 5.4. Shows the pairing panel, talks to the link host, stores the token, exports a small library.
 - **Link host face** (website, T-114): a separate host face of the existing Next.js app, chosen by hostname like the `api.`/`clans.`/`jonnybot.` faces in `src/proxy.ts`. It serves the plugin API (thin proxy with its own per-IP limits, the same pattern as `src/lib/pluginProxy.ts`) and the sign-in pages. It shares no cookies, sessions or nav with the clan site or the dashboard.
-- **rsnlink service** (bot, T-113): a new package `com.younglings.bot.rsnlink` inside the JonnyBot process, exposed only on the internal port behind `X-Internal-Secret`. It has **its own DataSource** (`LINK_DATABASE_URL`), its own schema and its own keys, and it must not import or query anything from the clan schema `younglings` (a unit test checks the package imports). This keeps one process to run today while making a later move to its own service a deployment change, not a rewrite.
+- **rsnlink service** (bot, T-113): a new package `com.younglings.bot.rsnlink` inside the JonnyBot process for now (Drake, 2026-10-19), exposed only on the internal port behind `X-Internal-Secret`. It becomes its own service when Drake is ready to transition, so the module boundary is kept clean enough that the split is a move, not a rewrite:
+  - **its own DataSource** (`LINK_DATABASE_URL`), schema, keys and config; it never touches the clan schema `younglings`;
+  - it imports nothing from other bot packages except a tiny shared HTTP/bootstrap layer, and other packages never import its internals; a unit test checks both directions;
+  - what it needs from JonnyBot sits behind two interfaces: `LinkDmSender` (send a DM, resolve a username; JDA today, a small bot-side endpoint after the split) and `LinkHttpRoutes` (mounting its routes); the `/internal/rsnlink/*` contract, tables and keys move unchanged;
+  - consumers inside JonnyBot (T-121) use only the same internal routes a separate service would expose, never its classes.
 - **DM fallback** (bot, T-115): uses JonnyBot's gateway connection to send the code. This is the one place the JonnyBot name appears, because it is the bot that sends the DM.
 - **Abuse view** (website `/admin` Super admin + bot `/internal/admin/rsnlink/*`, T-118).
 
@@ -49,10 +53,10 @@ Paraphrased from the guide pages named in brackets; no Jagex text is copied.
 
 | Question | Answer | Design consequence |
 |---|---|---|
-| How does a dependency expose functions? [Plugin Structure] | `plugin.json` lists it in `requiredDependencies` / `optionalDependencies` (array = imported under its plugin name; object = `"VarName": "PluginName"` to rename). The dependency loads first; whatever its `main.lua` returns (a table of functions in the examples) is cloned and handed to the dependent as a variable named after it. Dependents call `Lodestone:IsLinked()`. Optional dependencies can be nil, so dependents check first. A global `PluginDependencyUpdate(pluginIdentifier, enabled)` is called when an optional dependency is turned on or off. Cycles are an error. Names that are not valid Lua identifiers get `_` substitutions. | The plugin name must be a plain Lua identifier (letters only is safest). Export **functions only**: data fields in a cloned table would be snapshots, while functions keep reading the plugin's live internal state. The guide also says exported tables may be shared across imports, so the library must not hold per-dependent state in the exported table. |
-| Does a dependency's HTTP use its own manifest URLs? [Plugin Structure, Plugin, HTTP] | **Not documented.** `HTTPRequest.new(base, path)` takes a base from `Plugin.urls`, and only manifest base URLs are allowed, but nothing says whose manifest and permissions apply when a dependent calls a dependency function that makes a request. | Exported functions **never make HTTP calls themselves**. They read cached state or put a request on a queue; Lodestone's own event subscription (registered by Lodestone, so running as Lodestone) sends the queue and calls the dependent's callback afterwards. Dependents need no `httpAccess` and no URL for linking. Question goes to Jagex via T-119. |
-| Can dependents read the dependency's PersistentDB? [Persistent DB] | Records are isolated per plugin; one plugin cannot read or change another's. Not said directly for dependents, but isolation implies no. Scope per character or per account is not documented, and so is when data is written to disk (examples set values on shutdown). | The token lives in Lodestone's PersistentDB, keyed per character inside (section 9.3) so it works whether storage is per account or per PC. Save straight after pairing, not only in `PluginShutdown` (shutdown does not run on a crash). |
-| How to show a code and a text box? [Simple UI tutorial, Input Field, Text, Button] | Attach a GroupBox to `TOPLEVEL_V2__PLUGIN_BUILD_LAYER_TOP` with a stylesheet (invisible without one); `ui.Text` needs a font; `ui.Button` fires `ONBUTTONPRESSED`. `ui.InputField` fires `ONCONTENTCHANGED` with a cause (`SUBMIT` on Enter, Escape, focus loss), `Setup(visibility, filter, maxLength)` sets a filter (`ALPHANUMERIC`, `NUMERIC`, ...) and length. Masked fields (`HIDDEN`) cannot be read back. | Code box: `ALPHANUMERIC`, max 9, visible. Discord ID box: `NUMERIC`, max 20. No documented clipboard or "open URL" function, so the player **types** the address and code: both must be short and unambiguous. |
+| How does a dependency expose functions? [Plugin Structure] | `plugin.json` lists it in `requiredDependencies` / `optionalDependencies` (array = imported under its plugin name; object = `"VarName": "PluginName"` to rename). The dependency loads first; whatever its `main.lua` returns (a table of functions in the examples) is cloned and handed to the dependent as a variable named after it. Dependents call `DiscordLink:IsLinked()`. Optional dependencies can be nil, so dependents check first. A global `PluginDependencyUpdate(pluginIdentifier, enabled)` is called when an optional dependency is turned on or off. Cycles are an error. Names that are not valid Lua identifiers get `_` substitutions. | The name "Discord Link" has a space, so the array form would import it as `Discord_Link`. Dependents should use the object form `{ "DiscordLink": "Discord Link" }` and call `DiscordLink:...`; the README says so. T-116 checks in the beta client which string the import actually uses (the manifest `name` or the plugin folder id). Export **functions only**: data fields in a cloned table would be snapshots, while functions keep reading the plugin's live internal state. The guide also says exported tables may be shared across imports, so the library must not hold per-dependent state in the exported table. |
+| Does a dependency's HTTP use its own manifest URLs? [Plugin Structure, Plugin, HTTP] | **Not documented.** `HTTPRequest.new(base, path)` takes a base from `Plugin.urls`, and only manifest base URLs are allowed, but nothing says whose manifest and permissions apply when a dependent calls a dependency function that makes a request. | Exported functions **never make HTTP calls themselves**. They read cached state or put a request on a queue; Discord Link's own event subscription (registered by Discord Link, so running as Discord Link) sends the queue and calls the dependent's callback afterwards. Dependents need no `httpAccess` and no URL for linking. Question goes to Jagex via T-119. |
+| Can dependents read the dependency's PersistentDB? [Persistent DB] | Records are isolated per plugin; one plugin cannot read or change another's. Not said directly for dependents, but isolation implies no. Scope per character or per account is not documented, and so is when data is written to disk (examples set values on shutdown). | The token lives in Discord Link's PersistentDB, keyed per character inside (section 9.3) so it works whether storage is per account or per PC. Save straight after pairing, not only in `PluginShutdown` (shutdown does not run on a crash). |
+| How to show a code and a text box? [Simple UI tutorial, Input Field, Text, Button] | Attach a GroupBox to `TOPLEVEL_V2__PLUGIN_BUILD_LAYER_TOP` with a stylesheet (invisible without one); `ui.Text` needs a font; `ui.Button` fires `ONBUTTONPRESSED`. `ui.InputField` fires `ONCONTENTCHANGED` with a cause (`SUBMIT` on Enter, Escape, focus loss), `Setup(visibility, filter, maxLength)` sets a filter (`ALPHANUMERIC`, `NUMERIC`, ...) and length. Masked fields (`HIDDEN`) cannot be read back. | Code box: `ALPHANUMERIC`, max 9, visible. Discord username-or-id box: filter `NONE` (usernames contain `.` and `_`), max 32, checked by the rules in 4.2. No documented clipboard or "open URL" function, so the player **types** the address and code: both must be short and unambiguous. |
 | Character identity [Player] | `Player.GetTrackingID()` returns a 64-bit per-character value or nil (needs `trackingAccess`; arrives a few seconds after login). Stability across name changes is not documented. Display name comes from the player entity (`Player.GetEntity()`). | Tracking id is optional but strongly recommended; the service keys characters on it when present (RSN recycling, section 11). Plugin waits up to 10 s for it before pairing. Ask Jagex whether it survives name changes (T-119). |
 
 Still unknown, for T-119: HTTP rate limits and timeouts; dependency HTTP context; PersistentDB scope; tracking id stability; whether any Jagex-signed proof of the logged-in player is coming.
@@ -62,15 +66,17 @@ Still unknown, for T-119: HTTP rate limits and timeouts; dependency HTTP context
 - **No device grant.** Discord OAuth2 supports the authorization code grant (with refresh), implicit and client credentials; there is no RFC 8628 device grant. So "device-style" is built on top: our own short user code typed on our page, plus a normal authorization code sign-in in the browser.
 - **`identify` scope** returns the user's id, username, global name and avatar, without email. That is all we ask for. We use the access token once to read `/users/@me`, then **throw it away** (no refresh token stored).
 - **State and PKCE:** Discord returns `state` and an `iss` value (`https://discord.com`) on the redirect; we require both to match. PKCE is only mentioned in passing in Discord's docs, so the server also uses the client secret (confidential client) and sends PKCE S256 as an extra.
-- **Consent screen shows the OAuth application's name.** To keep the page neutral, the sign-in uses a **separate Discord application** named after the plugin (no bot user needed), not JonnyBot's. Open question Q2.
+- **Consent screen shows the OAuth application's name.** Decision (Q2): a **separate, neutral Discord application** eventually, **JonnyBot's application for now**. Client id, secret and redirect URL are configuration (`LINK_DISCORD_CLIENT_ID` / `LINK_DISCORD_CLIENT_SECRET` / `LINK_PUBLIC_BASE_URL`), so the switch is a config change plus registering the redirect URL on the new app; no code change. Discord does not allow "discord" inside usernames, so an app or bot literally named "Discord Link" will likely be refused; the separate app needs another name (section 15).
 - **DMs.** Discord's Create DM docs say DMs should generally follow a user action, must not be used to message a whole server, and that opening many DMs quickly gets a bot rate limited or blocked from opening new ones. The pages read do **not** state the mutual-server rule or what a user-installed app may do.
+- **Usernames are unique.** Since Discord's username change, a username is unique and lowercase: letters, digits, `.` and `_` (Discord blog post on usernames); old `name#1234` tags keep working as aliases. The developer docs' user page still calls usernames "not unique" (wording from the discriminator days) and gives 2 to 32 characters, so the id stays the stored key and a username is only an input to resolve.
+- **Resolving a username as a bot:** there is no bot API to look a user up by username across Discord. A bot can only find members of servers it is in (its member cache, or each server's member search). That loses nothing here, because the DM can only reach someone who shares a server with JonnyBot anyway (next bullet).
 - **Honest limit for the DM fallback:** a bot can only DM a user it shares a server with, and only if that user allows DMs from members of that server (Discord's per-server privacy setting); otherwise the send fails with "Cannot send messages to this user". Whether a **user-installed** JonnyBot can DM the person who installed it is **not documented**; T-115 treats it as unsupported until Drake tests it with the dev bot (test step in T-115). So in practice the fallback reaches only players who are in a server with JonnyBot and have server DMs on, which is a small slice of all RS3 players. Sign-in is the path that always works.
 
 ## 4. Flows
 
 ### 4.1 Primary: sign in with Discord (device-style)
 
-1. Player opens the Lodestone panel and presses **Link Discord**. Plugin reads the display name and (if granted) tracking id, then `POST /v1/pair/start`.
+1. Player opens the Discord Link panel and presses **Link Discord**. Plugin reads the display name and (if granted) tracking id, then `POST /v1/pair/start`.
 2. Service creates a pairing and returns `userCode` (shown) and `deviceSecret` (never shown). Panel shows:
    *"On your phone or PC go to **link.example.org** and enter **BHKD-7Q2M**. Expires in 10 minutes."* (host from config).
 3. Plugin polls `POST /v1/pair/poll` every `interval` seconds with the device secret.
@@ -82,8 +88,10 @@ Still unknown, for T-119: HTTP rate limits and timeouts; dependency HTTP context
 
 ### 4.2 Fallback: DM code
 
-1. In the panel the player types their Discord user ID (digits) and presses **Send me a code**. `POST /v1/pair/dm`.
-2. The service always answers the same way (`202`, a pairing id and device secret), whether or not a DM could be sent, so the endpoint cannot be used to learn whether an ID exists, shares a server with JonnyBot or accepts DMs. The panel says: *"If JonnyBot can reach you, a DM with a code arrives within a minute (check Message Requests). No DM? Use Sign in instead; it always works."* (Q3 asks whether to keep this uniform answer.)
+1. In the panel the player types their Discord **username or user id** (decision Q4) and presses **Send me a code**. `POST /v1/pair/dm`.
+   - Input rules: all digits and 17 to 20 long = an id; otherwise a username: trimmed, a leading `@` dropped, lowercased, 2 to 32 of `a-z 0-9 . _`. Old `name#1234` tags are refused with "type your new username".
+   - Username resolution (T-115): exact username match only (never display names or nicknames), first JonnyBot's member cache, then each shared server's member search, stopping at the first hit; a username that matches two different ids is treated as not found. It runs in the background after the reply, never while the request waits, so response timing leaks nothing.
+2. The service always answers the same way (`202`, a pairing id and device secret), whether or not a DM could be sent, so the endpoint cannot be used to learn whether an id or username exists, shares a server with JonnyBot or accepts DMs (decision Q3). The panel says: *"If JonnyBot can reach you, a DM with a code arrives within a minute (check Message Requests). No DM? Use Sign in instead; it always works."*
 3. JonnyBot DMs (neutral text, section 13.3) the code, the RSN that asked, and two buttons: **Not me** (denies the pairing) and **Stop these messages** (opts the Discord ID out of DM codes for 90 days).
 4. Player types the code into the panel: `POST /v1/pair/dm/confirm`. Correct code returns the token once. Five wrong codes lock the pairing.
 
@@ -101,9 +109,9 @@ All JSON, UTF-8, `Cache-Control: no-store`. Public paths are on the link host (`
 
 | Route | Auth | Body | Success |
 |---|---|---|---|
-| `POST /v1/pair/start` | none | `{ "rsn": "Zezima", "trackingId": "123..." or null, "client": { "name": "Lodestone", "version": "1.0.0" } }` | `201 { "pairingId", "deviceSecret", "userCode": "BHKD-7Q2M", "verifyUrl": "https://link.example.org", "expiresIn": 600, "interval": 5 }` |
+| `POST /v1/pair/start` | none | `{ "rsn": "Zezima", "trackingId": "123..." or null, "client": { "name": "Discord Link", "version": "1.0.0" } }` | `201 { "pairingId", "deviceSecret", "userCode": "BHKD-7Q2M", "verifyUrl": "https://link.example.org", "expiresIn": 600, "interval": 5 }` |
 | `POST /v1/pair/poll` | device secret in body | `{ "pairingId", "deviceSecret" }` | `200 { "status": "pending" }`, `{ "status": "slow_down", "interval": 10 }`, `{ "status": "denied" }`, `{ "status": "expired_or_unknown" }`, or `{ "status": "linked", "token": "lnk_example-token-not-real", "verification": "implicit" }` (token only on this one response) |
-| `POST /v1/pair/dm` | none | `{ "rsn", "trackingId", "discordId": "1234...", "client" }` | always `202 { "pairingId", "deviceSecret", "expiresIn": 600 }` |
+| `POST /v1/pair/dm` | none | `{ "rsn", "trackingId", "discord": "someone" or "1234...", "client" }` | always `202 { "pairingId", "deviceSecret", "expiresIn": 600 }` |
 | `POST /v1/pair/dm/confirm` | device secret | `{ "pairingId", "deviceSecret", "code" }` | `200 { "status": "linked", "token", "verification" }`; wrong code `400 { "error": "wrong_code", "attemptsLeft": 3 }`; `423 locked` |
 | `POST /v1/session` | `Authorization: Bearer lnk_...` | `{ "rsn", "trackingId" }` | `200 { "linked": true, "verification": "implicit", "discordName": "someone" }` or `401 token_revoked` |
 | `POST /v1/alias` | Bearer | `{ "plugin": "RuneSync" }` | `200 { "alias": "a1_7k2m...", "assertion": "<signed, 15 min>" }` |
@@ -111,7 +119,7 @@ All JSON, UTF-8, `Cache-Control: no-store`. Public paths are on the link host (`
 | `POST /v1/forget-me` | Bearer | `{ "confirm": "DELETE" }` | `200`: deletes this character, its links and tokens (the plugin's "delete my data") |
 | `GET /v1/keys` | none | | public key set for checking assertions (section 8.3) |
 
-`discordName` goes only to the Lodestone panel so the player sees "Linked to @someone"; the library never passes it on.
+`discordName` goes only to the Discord Link panel so the player sees "Linked to @someone"; the library never passes it on.
 
 Formats: user codes are 8 characters from the 27-symbol alphabet `BCDFGHJKMNPQRSTVWXZ23456789` (no vowels, so no accidental words; no 0/O, 1/I/L look-alikes), shown as `XXXX-XXXX`, drawn with `SecureRandom`. Device secrets are 32 random bytes, base64url. Tokens are `lnk_` + 43 base64url characters (32 random bytes), the same shape as `PluginTokens` but a different prefix so scanners and code can tell them apart. Pairing ids are random UUIDs.
 
@@ -164,7 +172,7 @@ Every "lookup" column is an HMAC-SHA-256 with a server key, never a plain hash: 
 | `LINK_LOOKUP_KEY` | HMAC for the lookup columns. |
 | `LINK_ALIAS_KEY` | HMAC for aliases (separate so it can never be rotated by accident: rotating it changes every alias). |
 | `LINK_SIGNING_KEY` | Ed25519 private key for alias assertions; public half published at `/v1/keys`. |
-| `LINK_DISCORD_CLIENT_ID`, `LINK_DISCORD_CLIENT_SECRET` | The neutral OAuth application (website side only). |
+| `LINK_DISCORD_CLIENT_ID`, `LINK_DISCORD_CLIENT_SECRET` | The OAuth application used for sign-in (website side only): JonnyBot's app for now, the separate neutral app later. |
 | `LINK_PUBLIC_BASE_URL` | Section 14. |
 
 The service refuses to start if a key is missing or shorter than 32 bytes. Local dev keys go in the git-ignored env files only. Tests build random keys at runtime; no key-shaped literal appears in the repo.
@@ -235,22 +243,22 @@ PersistentDB keys: `token.<characterKey>` where `characterKey` is the tracking i
 
 ## 10. Plugin library for dependents
 
-Exported from Lodestone's `main.lua`. Functions only; none returns the token, the Discord id or the Discord name.
+Exported from Discord Link's `main.lua`. Functions only; none returns the token, the Discord id or the Discord name.
 
 ```lua
--- In the dependent's plugin.json: "requiredDependencies": ["Lodestone"]  (or optionalDependencies)
+-- In the dependent's plugin.json: "requiredDependencies": { "DiscordLink": "Discord Link" }  (object form, see 3.1; or optionalDependencies)
 
-Lodestone:ApiVersion()                 -- 1
-Lodestone:IsLinked()                   -- true / false / nil (nil = not known yet this session)
-Lodestone:GetVerification()            -- "implicit" today; later values in section 12
-Lodestone:GetAlias("MyPlugin", function(alias, err) end)
-Lodestone:GetAssertion("MyPlugin", function(assertion, err) end)   -- signed, for the dependent's own server
-Lodestone:OnLinkChanged("MyPlugin", function(linked) end)          -- one callback per name, replaced on re-subscribe
-Lodestone:OpenLinkPanel()              -- opens the pairing panel for the player
+DiscordLink:ApiVersion()                 -- 1
+DiscordLink:IsLinked()                   -- true / false / nil (nil = not known yet this session)
+DiscordLink:GetVerification()            -- "implicit" today; later values in section 12
+DiscordLink:GetAlias("MyPlugin", function(alias, err) end)
+DiscordLink:GetAssertion("MyPlugin", function(assertion, err) end)   -- signed, for the dependent's own server
+DiscordLink:OnLinkChanged("MyPlugin", function(linked) end)          -- one callback per name, replaced on re-subscribe
+DiscordLink:OpenLinkPanel()              -- opens the pairing panel for the player
 ```
 
 Rules for the implementation (T-116):
-- No HTTP inside these functions (section 3.1): calls go on a queue that Lodestone's own `ServerLogic` subscription sends. Callbacks run later from Lodestone's loop, wrapped in `pcall` so a dependent's error cannot break Lodestone.
+- No HTTP inside these functions (section 3.1): calls go on a queue that Discord Link's own `ServerLogic` subscription sends. Callbacks run later from Discord Link's loop, wrapped in `pcall` so a dependent's error cannot break Discord Link.
 - Aliases are cached per plugin name for the session.
 - `err` values: `"not_linked"`, `"offline"`, `"rate_limited"`, `"bad_name"`.
 - Plugin names for aliases: trimmed, 1 to 64 of letters, digits, `.`, `_`, `-`; compared lowercase.
@@ -288,7 +296,7 @@ A dependent's own server cannot tell a real alias from a made-up one, so `/v1/al
 
 ### 13.3 DM text (T-115)
 
-> Someone playing RuneScape as **Zezima** asked to link this Discord account using the Lodestone plugin.
+> Someone playing RuneScape as **Zezima** asked to link this Discord account using the Discord Link plugin.
 > If that was you, type this code into the plugin: **BHKD-7Q2M** (expires in 10 minutes).
 > If it wasn't you, ignore this message. Nothing is linked without the code.
 > [Not me] [Stop these messages]
@@ -300,7 +308,7 @@ No clan name, no invite, no links other than the configured base URL.
 **The page** (T-114):
 - Uses the website's visual theme (colours, fonts, components) but no clan name, clan logo, JonnyBot branding, Discord server invites, ads, donation links, or links into the clan site.
 - Title and header are the plugin name and the words "Link your RuneScape name to Discord". Footer: privacy page, source link to the public plugin repo, contact email (T-120).
-- Separate OAuth app named after the plugin (Q2), so the Discord consent screen is neutral too.
+- OAuth app: JonnyBot's for now, so Discord's consent screen says JonnyBot; later a separate neutral app (Q2), switched by config only. The page itself stays unbranded either way.
 - Not "official": it never uses Jagex or Discord logos, and says "not affiliated with Jagex or Discord".
 - Phone-width first; clear messages for wrong, expired and locked codes and for rate limits.
 
@@ -313,18 +321,18 @@ No clan name, no invite, no links other than the configured base URL.
 - Plugin `plugin.json`: `"urls": { "link": "<base URL>" }`. Dev builds point at `http://localhost:3000` (the beta client allows plain http to localhost). The release value is set in T-120 once Drake picks the domain; changing it after release means a plugin update and a new Jagex review, so pick before submitting.
 - The address should be short enough to type from the panel (e.g. a 2-word host, no path).
 
-## 15. Plugin name (Drake picks)
+## 15. Plugin name: Discord Link
 
-The name is also the Lua variable dependents use, so a single plain word is best.
+Drake picked **Discord Link** (2026-10-19). Nothing is renamed without Drake.
 
-| Name | Why | Watch out |
-|---|---|---|
-| **Lodestone** (recommended) | Lodestones are RS3's network that links places; short, valid Lua name, not a brand. | Game term; check no mod.io plugin already uses it. |
-| **Linkstone** | Same idea, less likely to clash. | Made-up word. |
-| **RSNLink** | Says exactly what it does. | Less friendly; mixed case in Lua. |
-| **Kinship** | Friendly, "who you are" theme. | Also an RS3 term (Daemonheim ring); less obvious. |
+**Brand risk.** Discord's public brand guidelines (discord.com/branding) say third parties may not put the Discord marks, or anything confusingly similar, into a product name (bots made for Discord are named as included), nor into a brand, company or domain name. Using the word to describe that something works with Discord is allowed, as long as it does not suggest it is Discord's or endorsed by Discord. The guidelines say nothing about "for Discord" style names. Separately, Discord refuses usernames containing "discord", so a bot or app with that name will likely be rejected. Read plainly, "Discord Link" as a product name goes against the guideline. The realistic risk is a takedown request to Jagex or mod.io, or a refusal in moderation, forcing a rename after release; a rename breaks every dependent's `plugin.json`.
 
-Avoid "Discord" in the name: Discord's brand rules discourage names that suggest Discord made it.
+**What this spec does about it:**
+- Everything a rename would touch is in one place: the manifest `name`, the import variable (`DiscordLink`), the page title and the DM text come from config or constants.
+- The web host, the OAuth app and the repo do **not** use "discord" in their names (domain and brand names fall under the same rule).
+- Descriptive wording stays on the page: "Link your RuneScape name to Discord", "not affiliated with Jagex or Discord".
+
+**Fallback if Drake wants to avoid the risk:** keep the description and change the name to one without the mark, e.g. **Linkstone** or **RSN Link**, or ask Discord for permission. Best decided before the first public release (T-120), while no other plugin depends on the name yet.
 
 ## 16. Abuse list and mitigations
 
@@ -338,8 +346,8 @@ Avoid "Discord" in the name: Discord's brand rules discourage names that suggest
 | **Consent phishing** (attacker gets a victim to approve the attacker's code, linking the attacker's character to the victim's Discord) | Confirm screen always names the RSN and warns to continue only if you are logged in as it now; "This isn't me" denies and records it; the result is only an `implicit` link the victim can see and remove on `/links`. |
 | **RSN recycling** | Keyed on tracking id when granted; 30-day rule before a recycled name's old link is released; renames tracked in history (section 11). |
 | **Forged claims / impersonation** | Cannot take over a tracked link without the tracking id; `implicit` level visible to every consumer; strong-proof uses keep their own checks; verification hook for later. |
-| **Token theft** (from the player's PC) | Token only in Lodestone's own PersistentDB, never exported; revocable from `/links`; max 5 per link; prefix `lnk_` so secret scanners recognise it; stored server-side only as SHA-256. |
-| **Malicious dependent** | Gets functions only; no token, Discord id or name; cannot make Lodestone call arbitrary URLs; plugin name only changes the alias. |
+| **Token theft** (from the player's PC) | Token only in Discord Link's own PersistentDB, never exported; revocable from `/links`; max 5 per link; prefix `lnk_` so secret scanners recognise it; stored server-side only as SHA-256. |
+| **Malicious dependent** | Gets functions only; no token, Discord id or name; cannot make Discord Link call arbitrary URLs; plugin name only changes the alias. |
 | **Database leak** | Discord ids encrypted, lookups are keyed HMACs, tokens hashed, codes hashed; keys only in env; separate database from clan data. |
 | **Log leak** | Never log codes, tokens, device secrets, Discord ids, tracking ids or IPs in plain text; log the pairing id and lookup prefix only. A unit test runs the flows with a capturing logger and fails if any of those values appear. |
 | **OAuth CSRF / session mix-up** | `state`, `iss` and PKCE checked; pairing bound to the browser session that entered the code; `__Host-` cookie, CSRF token on POSTs. |
@@ -350,28 +358,28 @@ Avoid "Discord" in the name: Discord's brand rules discourage names that suggest
 
 | Ticket | Builds | Sections |
 |---|---|---|
-| **T-113** link service + database | `rsnlink` package, own DataSource and schema, every table, keys, codes, tokens, pairing state machine, section 9 link rules, section 11 recycling, rate limits and blocks, aliases and assertions, verification field + `LinkVerifier` hook (no verifiers), internal routes 5.3, delete paths, retention jobs. Tests: expiry, lockout, limits, token hashing, alias stability, recycling rules, "no secrets in logs". | 2, 5, 6, 7, 8, 9, 11, 12, 13.1, 13.2, 16 |
-| **T-114** neutral sign-in page | Link host face (`LINK_HOST`), plugin API proxy with per-IP limits, code entry, OAuth (separate app), confirm screen, `/links` with unlink and delete-my-data, privacy text, preview-harness views of each screen with made-up data. | 3.2, 4.1, 5.1 (proxy), 5.2, 14 |
-| **T-115** DM fallback | `pair/dm` + confirm, uniform 202, DM sending with JDA, DM buttons (Not me, Stop), opt-out, DM caps and circuit breaker, panel copy; Drake tests user-install DMs with the dev bot. | 3.2, 4.2, 8, 13.3 |
-| **T-116** Lodestone plugin | New private repo (MIT), `plugin.json` (`httpAccess` required, `trackingAccess` optional, one `link` URL), pairing panel (code + address, Discord id box, code box, status, unlink, delete), token in PersistentDB, `/v1/session` on login, library section 10 with queue + `pcall`, README for dependents. | 3.1, 4, 9.3, 10, 14 |
-| **T-117** RuneSync uses it | Adds `Lodestone` to RuneSync's dependencies, uses `IsLinked` / `GetAlias` / `GetAssertion`, drops the dev-echo pairing assumptions. | 10, 13.2 |
+| **T-113** link service + database | `rsnlink` package with the clean boundary of section 2 (import test, `LinkDmSender`), own DataSource and schema, every table, keys, codes, tokens, pairing state machine, section 9 link rules, section 11 recycling, rate limits and blocks, aliases and assertions, verification field + `LinkVerifier` hook (no verifiers), internal routes 5.3, delete paths, retention jobs. Tests: expiry, lockout, limits, token hashing, alias stability, recycling rules, "no secrets in logs". | 2, 5, 6, 7, 8, 9, 11, 12, 13.1, 13.2, 16 |
+| **T-114** neutral sign-in page | Link host face (`LINK_HOST`), plugin API proxy with per-IP limits, code entry, OAuth (JonnyBot's app for now, client from config), confirm screen, `/links` with unlink and delete-my-data, privacy text, preview-harness views of each screen with made-up data. | 3.2, 4.1, 5.1 (proxy), 5.2, 14 |
+| **T-115** DM fallback | `pair/dm` + confirm, id or username input with resolution among shared servers, uniform 202, DM sending with JDA, DM buttons (Not me, Stop), opt-out, DM caps and circuit breaker, panel copy; Drake tests user-install DMs with the dev bot. | 3.2, 4.2, 8, 13.3 |
+| **T-116** Discord Link plugin | New private repo (MIT), `plugin.json` (`httpAccess` required, `trackingAccess` optional, one `link` URL), pairing panel (code + address, Discord username-or-id box, code box, status, unlink, delete), token in PersistentDB, `/v1/session` on login, library section 10 with queue + `pcall`, README for dependents. | 3.1, 4, 9.3, 10, 14 |
+| **T-117** RuneSync uses it | Adds Discord Link to RuneSync's dependencies, uses `IsLinked` / `GetAlias` / `GetAssertion`, drops the dev-echo pairing assumptions. | 10, 13.2 |
 | **T-118** abuse view | Super admin page: counts and recent `abuse_event`s, lockouts, DM breaker state, block/unblock (IP, tracking, Discord), remove a link; owner-only, audit-logged; Discord ids shown only to the owner (decrypted on demand); never codes or tokens. | 5.3, 6, 8, 16 |
 | T-119 (Drake asks Jagex) | Unknowns in 3.1. | 3.1 |
 | T-120 (release) | Domain, region, privacy page, backup wording, contact email, repo public, submission. | 9.5, 14 |
-| T-121 (clan server) | Needs Discord ids, which dependents never get: needs Q5 decided first. | 1, 13 |
+| T-121 (clan server) | Needs Discord ids, which dependents never get: the opt-in for JonnyBot servers is decided there (Q5). | 1, 13 |
 | T-122 (parked) | Verifiers against the hook. | 12 |
 
 Website-first rule: the player's controls (link, unlink, delete, see links) are on the link host, not in Discord. Discord-only use is the DM fallback, which still works. Owner controls are in Super admin (T-118); there are no per-server settings in v1, so no dashboard page is needed until T-121.
 
-## 18. Open questions for Drake
+## 18. Decisions (Drake, 2026-10-19)
 
-Each has a default that the build tickets use if Drake just says "go".
+1. **Name:** "Discord Link". Brand-rule risk and fallback in section 15; no rename without Drake.
+2. **Sign-in app:** a separate neutral Discord app eventually, JonnyBot's app for now. Client id, secret and redirect come from config, so switching is config only (sections 3.2, 6.1, 14).
+3. **DM fallback answer:** always the same, whether or not a DM can be sent (section 4.2).
+4. **DM fallback input:** a Discord id or a username. Usernames are unique since Discord's username change; they are resolved only among servers JonnyBot shares, exact match only, and the same-answer rule still applies (sections 3.2, 4.2).
+5. **JonnyBot servers seeing the real link:** decided in T-121.
+6. **Signed alias assertions:** included now (section 13.2).
+7. **Recycled names:** 30-day wait (section 11).
+8. **Where it runs:** inside the bot for now; split into its own service when ready, with a clean module boundary so the split is a move, not a rewrite (section 2).
 
-1. **Name:** Lodestone, Linkstone, RSNLink or Kinship? *Default: Lodestone.*
-2. **Discord sign-in app:** a separate Discord application named after the plugin (neutral consent screen), or reuse JonnyBot's (consent screen says JonnyBot)? *Default: separate app; Drake creates it in the Discord developer portal and puts the id/secret in env.*
-3. **DM fallback answer:** always the same "if we can reach you, a DM arrives" (no leaks), or tell the player straight away "JonnyBot can't DM you, use sign-in" (friendlier, but reveals whether a Discord id shares a server with JonnyBot)? *Default: always the same.*
-4. **DM fallback input:** Discord user id only (digits; players must turn on Developer Mode to copy it), or also accept a username (only resolvable among servers JonnyBot is in)? *Default: id only, with a one-line how-to.*
-5. **First-party access for JonnyBot (T-121):** the clan server needs the real Discord id, which dependents never get. Proposal: an opt-in checkbox on the confirm screen, "Also let JonnyBot servers see this link", off by default, revocable on `/links`. *Default: build nothing for this now; decide in T-121.*
-6. **Signed assertions in v1:** include them (lets any dependent's server trust an alias), or leave for later? *Default: include; it is small and RuneSync's server needs it.*
-7. **Recycling window:** 30 days without the old owner reporting the name before a recycled name can be re-linked? *Default: 30 days.*
-8. **Where the service runs:** inside the JonnyBot process with its own database (this spec), or a separate service from day one? *Default: inside the bot; the separate database keeps a later split easy.*
+Still open, not blocking the build tickets: keep the name or take the section 15 fallback before release (T-120), and the Jagex unknowns in section 3.1 (T-119).
