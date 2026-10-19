@@ -155,11 +155,12 @@ public class Bot extends JDAService {
         // privileged ones (GUILD_MEMBERS, GUILD_PRESENCES, MESSAGE_CONTENT) are switches in the developer portal.
         // The rest of GatewayIntent.values() (voice states, invites, webhooks, typing, auto-moderation, poll votes)
         // fed no listener, so they are left off; the server permissions the bot needs are the invite link's bits.
-        return defaultIntents(
+        // A privileged intent whose portal switch is off is left out (see PrivilegedIntents) so the bot still starts.
+        return com.younglings.bot.config.PrivilegedIntents.filter(botConfig.getToken(), defaultIntents(
                 GatewayIntent.GUILD_MEMBERS, GatewayIntent.GUILD_MODERATION, GatewayIntent.GUILD_EXPRESSIONS,
                 GatewayIntent.GUILD_PRESENCES, GatewayIntent.GUILD_MESSAGES, GatewayIntent.GUILD_MESSAGE_REACTIONS,
                 GatewayIntent.MESSAGE_CONTENT, GatewayIntent.SCHEDULED_EVENTS,
-                GatewayIntent.DIRECT_MESSAGES, GatewayIntent.DIRECT_MESSAGE_REACTIONS);
+                GatewayIntent.DIRECT_MESSAGES, GatewayIntent.DIRECT_MESSAGE_REACTIONS));
     }
 
     @Override

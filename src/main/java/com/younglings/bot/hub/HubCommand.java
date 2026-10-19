@@ -36,6 +36,8 @@ public enum HubCommand {
             "Everyone (awarding needs Manage Server)", false),
     RANK("rank", "Self roles", "rank", "List, join and leave the roles this server lets members pick for themselves (the list is edited on the website).",
             "Everyone", false),
+    HIGHLIGHT("highlight", "Highlights", "highlight", "Members pick words and get a direct message when someone says one in a channel they can see. Off until the Highlights page switches it on.",
+            "Everyone", false),
     EVENTS("events", "Events", "events", "See the events you are in (place, points, buy-in, prizes), browse the ones open for signup, and join or leave them. Events are made and run from the dashboard's Event manager.",
             "Everyone", false);
 

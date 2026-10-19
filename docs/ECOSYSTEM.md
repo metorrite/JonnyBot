@@ -45,6 +45,7 @@ Ticket board (the work queue): https://claude.ai/artifact/W1MkBY5EH8beWVZGfnQUER
 **Bot (Java)**
 - New listener adapters must be added to `Bot.java` or buttons silently time out.
 - **Website first.** The dashboard is the primary way to change how the bot behaves; Discord-only use must keep working. In the same ticket as the bot change: every new setting, setup step or configuration gets a dashboard control; every new slash command appears on the dashboard Commands page (on/off, who, where) and its staff actions get a dashboard equivalent where that makes sense; a new feature gets its own dashboard page and nav entry. Skip a side only when it has no meaning there, and say why in the PR.
+- **Privileged intents:** `Bot.getIntents()` passes the wanted intents through `PrivilegedIntents.filter`, which asks Discord which of Message Content / Server Members / Presence are switched on for the application and leaves out the ones that are off (logging which features lose out), so the bot still starts. Features that read message text check `PrivilegedIntents.messageContent()`.
 - Tests: `mvn -o test` (about 1,200 tests; all must pass). A throwaway JUnit against the local dev DB is the way to check new SQL.
 - Dev bot lives in the real clan server (`GUILD_ID`): live tests are real. Do not spam it.
 
