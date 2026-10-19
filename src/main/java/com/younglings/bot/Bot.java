@@ -146,7 +146,8 @@ public class Bot extends JDAService {
     // structure that JDA otherwise never has to populate or hold onto.
     @Override
     public Set<CacheFlag> getCacheFlags() {
-        return Set.of(CacheFlag.ONLINE_STATUS, CacheFlag.SCHEDULED_EVENTS);
+        // VOICE_STATE: JDA only fires GuildVoiceUpdateEvent (the voice log) with it; it holds one small entry per member currently in voice.
+        return Set.of(CacheFlag.ONLINE_STATUS, CacheFlag.SCHEDULED_EVENTS, CacheFlag.VOICE_STATE);
     }
 
     @Override
@@ -159,7 +160,7 @@ public class Bot extends JDAService {
         return com.younglings.bot.config.PrivilegedIntents.filter(botConfig.getToken(), defaultIntents(
                 GatewayIntent.GUILD_MEMBERS, GatewayIntent.GUILD_MODERATION, GatewayIntent.GUILD_EXPRESSIONS,
                 GatewayIntent.GUILD_PRESENCES, GatewayIntent.GUILD_MESSAGES, GatewayIntent.GUILD_MESSAGE_REACTIONS,
-                GatewayIntent.MESSAGE_CONTENT, GatewayIntent.SCHEDULED_EVENTS,
+                GatewayIntent.MESSAGE_CONTENT, GatewayIntent.SCHEDULED_EVENTS, GatewayIntent.GUILD_VOICE_STATES,
                 GatewayIntent.DIRECT_MESSAGES, GatewayIntent.DIRECT_MESSAGE_REACTIONS));
     }
 
