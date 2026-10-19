@@ -17,7 +17,7 @@ class TestSecretsTest {
 
     @Test
     void shapedFakesHaveTheRightStructure() {
-        assertEquals(3, TestSecrets.fakeDiscordToken().split("\.").length);
+        assertEquals(3, TestSecrets.fakeDiscordToken().split("[.]").length);
         assertTrue(TestSecrets.fakePostgresUrl().startsWith("postgresql://user:"));
     }
 }
