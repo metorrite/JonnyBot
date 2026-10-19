@@ -2,6 +2,7 @@ package com.younglings.bot.afk;
 
 import com.younglings.bot.BotListener;
 import com.younglings.bot.afk.AfkRepository.Afk;
+import com.younglings.bot.hub.HubService;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Message;
@@ -26,9 +27,11 @@ public class AfkListener extends ListenerAdapter implements BotListener {
     private static final int MAX_NOTED = 3;
 
     private final AfkService service;
+    private final HubService hub;
 
-    public AfkListener(AfkService service) {
+    public AfkListener(AfkService service, HubService hub) {
         this.service = service;
+        this.hub = hub;
     }
 
     @Override
@@ -37,8 +40,11 @@ public class AfkListener extends ListenerAdapter implements BotListener {
         try {
             long guildId = event.getGuild().getIdLong();
             Message message = event.getMessage();
+            HubService.AfkPolicy policy = hub.afkPolicy(guildId);
+            if (isIgnored(policy, event)) return;
 
             if (service.clear(guildId, event.getAuthor().getIdLong())) {
+                if (policy.nicknameTag() && event.getMember() != null) AfkNicknames.markBack(event.getGuild(), event.getMember());
                 reply(message, "Welcome back, " + event.getAuthor().getEffectiveName() + "! I've taken you off the away list.", 8);
             }
 
@@ -52,6 +58,14 @@ public class AfkListener extends ListenerAdapter implements BotListener {
         } catch (Exception e) {
             log.error("AFK check failed for a message in guild {}", event.getGuild().getId(), e);
         }
+    }
+
+    /** Whether the server asked for away status to be left alone in this channel (or the channel a thread belongs to). */
+    private static boolean isIgnored(HubService.AfkPolicy policy, MessageReceivedEvent event) {
+        if (policy.ignoreChannelIds().isEmpty()) return false;
+        if (policy.ignoreChannelIds().contains(event.getChannel().getIdLong())) return true;
+        return event.getChannel() instanceof net.dv8tion.jda.api.entities.channel.concrete.ThreadChannel thread
+                && policy.ignoreChannelIds().contains(thread.getParentChannel().getIdLong());
     }
 
     private static void reply(Message message, String text, int deleteAfterSeconds) {

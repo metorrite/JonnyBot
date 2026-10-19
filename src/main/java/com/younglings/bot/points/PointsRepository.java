@@ -98,8 +98,8 @@ public class PointsRepository {
             s.setLong(1, guildId);
             try (ResultSet rs = s.executeQuery()) {
                 if (!rs.next()) return Settings.defaults(guildId);
-                long channel = rs.getLong(3);
-                return new Settings(guildId, rs.getBoolean(1), rs.getString(2), rs.wasNull() ? null : channel);
+                Long channel = nullableLong(rs, "review_channel_id");
+                return new Settings(guildId, rs.getBoolean(1), rs.getString(2), channel);
             }
         } catch (SQLException e) {
             throw new RuntimeException("Failed to read the points settings", e);

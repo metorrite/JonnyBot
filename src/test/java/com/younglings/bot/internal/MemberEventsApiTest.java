@@ -48,6 +48,7 @@ class MemberEventsApiTest {
     private EventRepository repository;
     private EventService service;
     private ClanProfileRepository profiles;
+    private com.younglings.bot.configure.GuildSettingsService guildSettings;
     private MemberEventsApi api;
     private Guild guild;
 
@@ -66,9 +67,11 @@ class MemberEventsApiTest {
             }
         };
         service = new EventService(repository, new EventTemplates(List.of(new CustomTemplate())), kinds, new PointsService(new PointsRepository(supplier), new RewardsRepository(supplier)), new EventChanges());
+        guildSettings = Mockito.mock(com.younglings.bot.configure.GuildSettingsService.class);
+        Mockito.when(guildSettings.getEffective(G)).thenReturn(new com.younglings.bot.configure.GuildSettings(G, null, null, null, null, null, null, null, null, false, null, null, null));
         profiles = Mockito.mock(ClanProfileRepository.class);
         Mockito.when(profiles.get(G)).thenReturn(Optional.empty());
-        api = new MemberEventsApi(service, repository, profiles, new com.younglings.bot.events.EventSpaceRepository(supplier, repository));
+        api = new MemberEventsApi(service, repository, profiles, new com.younglings.bot.events.EventSpaceRepository(supplier, repository), guildSettings);
         guild = Mockito.mock(Guild.class);
         Mockito.when(guild.getIdLong()).thenReturn(G);
         Mockito.when(guild.getName()).thenReturn("Younglings");
@@ -108,6 +111,19 @@ class MemberEventsApiTest {
         EventProblem withLink = assertThrows(EventProblem.class, () -> api.join(guild, OUTSIDE, body(id)));
         assertTrue(withLink.getMessage().contains("https://discord.gg/example"), withLink.getMessage());
         assertTrue(repository.participants(id).isEmpty(), "nothing was added");
+    }
+
+    @Test
+    void theServersInviteLinkIsUsedBeforeTheApplyLink() {
+        ClanProfile profile = Mockito.mock(ClanProfile.class);
+        Mockito.when(profile.applyUrl()).thenReturn("https://discord.gg/apply");
+        Mockito.when(profiles.get(G)).thenReturn(Optional.of(profile));
+        Mockito.when(guildSettings.getEffective(G)).thenReturn(new com.younglings.bot.configure.GuildSettings(G, null, null, null, null, null, null, null, null, false, null, null, null, null, "https://discord.gg/invite1"));
+
+        String message = api.notInServerMessage(guild);
+
+        assertTrue(message.contains("https://discord.gg/invite1"), message);
+        assertFalse(message.contains("apply"), message);
     }
 
     @Test

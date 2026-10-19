@@ -39,6 +39,11 @@ public class HubService {
         public static final SignupPolicy NONE = new SignupPolicy(null, false, List.of());
     }
 
+    /** Settings only Away status has, stored in {@link HubSettings#extras()}: tag the nickname with [AFK] (off by default), and channels where away status is ignored. */
+    public record AfkPolicy(boolean nicknameTag, List<Long> ignoreChannelIds) {
+        public static final AfkPolicy NONE = new AfkPolicy(false, List.of());
+    }
+
     private final HubRepository repository;
     private final AdminRoleFilter adminRoleFilter;
     private final PermissionGroupService permissionGroups;
@@ -145,5 +150,39 @@ public class HubService {
                 .put("lockAdminChannel", policy.lockAdminChannel())
                 .put("publicChannelIds", publics)
                 .toString();
+    }
+
+    // ---------- Away status ----------
+
+    public AfkPolicy afkPolicy(long guildId) {
+        return parseAfk(get(guildId, HubCommand.AFK).extras());
+    }
+
+    public static AfkPolicy parseAfk(String extras) {
+        if (extras == null || extras.isBlank()) return AfkPolicy.NONE;
+        DataObject json;
+        try {
+            json = DataObject.fromJson(extras);
+        } catch (RuntimeException e) {
+            return AfkPolicy.NONE;
+        }
+        List<Long> ignored = new ArrayList<>();
+        if (!json.isNull("ignoreChannelIds")) {
+            DataArray array = json.getArray("ignoreChannelIds");
+            for (int i = 0; i < array.length(); i++) {
+                try {
+                    ignored.add(Long.parseLong(array.getString(i, "")));
+                } catch (NumberFormatException ignoredValue) {
+                    // skip anything that isn't an id
+                }
+            }
+        }
+        return new AfkPolicy(json.getBoolean("nicknameTag", false), List.copyOf(ignored));
+    }
+
+    public static String writeAfk(AfkPolicy policy) {
+        DataArray ignored = DataArray.empty();
+        policy.ignoreChannelIds().forEach(id -> ignored.add(Long.toString(id)));
+        return DataObject.empty().put("nicknameTag", policy.nicknameTag()).put("ignoreChannelIds", ignored).toString();
     }
 }

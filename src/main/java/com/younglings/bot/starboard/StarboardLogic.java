@@ -20,6 +20,19 @@ public final class StarboardLogic {
         return n;
     }
 
+    /** The reactions a message in {@code channelId} (or in a thread of {@code parentId}) needs: the channel's own rule, else its parent's, else the server's. */
+    public static int thresholdFor(StarboardConfig config, long channelId, Long parentId) {
+        Integer own = config.channelThresholds().get(channelId);
+        if (own == null && parentId != null) own = config.channelThresholds().get(parentId);
+        return own != null ? own : config.threshold();
+    }
+
+    /** Whether messages from this channel may be copied at all: on the allow-list when there is one, and visible to everyone when hidden channels are skipped. */
+    public static boolean sourceAllowed(StarboardConfig config, long channelId, Long parentId, boolean visibleToEveryone) {
+        if (!config.onlyChannels().isEmpty() && !config.onlyChannels().contains(channelId) && (parentId == null || !config.onlyChannels().contains(parentId))) return false;
+        return !config.skipHiddenChannels() || visibleToEveryone;
+    }
+
     /** What to do about a message now that it has {@code stars}. */
     public enum Action { NOTHING, POST, UPDATE, REMOVE }
 
