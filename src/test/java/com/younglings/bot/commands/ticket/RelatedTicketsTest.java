@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /** Finding other open tickets for the same group boss, and who may link or merge them. */
 class RelatedTicketsTest {
-    private static final HelpExtras ON = new HelpExtras(1, false, 24, 1, true, "Vorago, Solak");
+    private static final HelpExtras ON = new HelpExtras(1, false, 24, 1, true, "Vorago, Solak", false, 30, true, 120, "");
 
     private static Candidate c(long id, int number, long requester, String boss) {
         return new Candidate(id, number, 100L + id, requester, boss);
@@ -70,8 +70,8 @@ class RelatedTicketsTest {
     @Test
     void theSettingsNeedAGroupBossWhenSwitchedOn() {
         assertTrue(ON.problems().isEmpty());
-        assertFalse(new HelpExtras(1, false, 24, 1, true, " , ").problems().isEmpty());
-        assertTrue(new HelpExtras(1, false, 24, 1, false, "").problems().isEmpty());
+        assertFalse(new HelpExtras(1, false, 24, 1, true, " , ", false, 30, true, 120, "").problems().isEmpty());
+        assertTrue(new HelpExtras(1, false, 24, 1, false, "", false, 30, true, 120, "").problems().isEmpty());
         assertEquals(List.of("Vorago", "Solak"), ON.groupBossList());
     }
 

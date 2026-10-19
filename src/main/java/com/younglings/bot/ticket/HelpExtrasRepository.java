@@ -35,6 +35,11 @@ public class HelpExtrasRepository {
                 """,
                 "ALTER TABLE younglings.help_extras ADD COLUMN IF NOT EXISTS related_tickets BOOLEAN NOT NULL DEFAULT FALSE;",
                 "ALTER TABLE younglings.help_extras ADD COLUMN IF NOT EXISTS group_bosses TEXT NOT NULL DEFAULT 'Vorago, Solak';",
+                "ALTER TABLE younglings.help_extras ADD COLUMN IF NOT EXISTS priority_tiers BOOLEAN NOT NULL DEFAULT FALSE;",
+                "ALTER TABLE younglings.help_extras ADD COLUMN IF NOT EXISTS longtime_guest_days INTEGER NOT NULL DEFAULT 30;",
+                "ALTER TABLE younglings.help_extras ADD COLUMN IF NOT EXISTS longtime_guest_pings BOOLEAN NOT NULL DEFAULT TRUE;",
+                "ALTER TABLE younglings.help_extras ADD COLUMN IF NOT EXISTS longtime_guest_escalation_hours INTEGER NOT NULL DEFAULT 120;",
+                "ALTER TABLE younglings.help_extras ADD COLUMN IF NOT EXISTS kc_requirements TEXT NOT NULL DEFAULT '';",
                 // tickets linked as being about the same group content (stored once, smaller id first)
                 """
                 CREATE TABLE IF NOT EXISTS younglings.help_ticket_link (
@@ -58,11 +63,12 @@ public class HelpExtrasRepository {
 
     public HelpExtras get(long guildId) {
         try (Connection c = connectionSupplier.getConnection();
-             PreparedStatement s = c.prepareStatement("SELECT event_button, event_start_hours, event_days, related_tickets, group_bosses FROM younglings.help_extras WHERE guild_id = ?")) {
+             PreparedStatement s = c.prepareStatement("SELECT event_button, event_start_hours, event_days, related_tickets, group_bosses, priority_tiers, longtime_guest_days, longtime_guest_pings, longtime_guest_escalation_hours, kc_requirements FROM younglings.help_extras WHERE guild_id = ?")) {
             s.setLong(1, guildId);
             try (ResultSet rs = s.executeQuery()) {
                 if (!rs.next()) return HelpExtras.defaults(guildId);
-                return new HelpExtras(guildId, rs.getBoolean("event_button"), rs.getInt("event_start_hours"), rs.getInt("event_days"), rs.getBoolean("related_tickets"), rs.getString("group_bosses"));
+                return new HelpExtras(guildId, rs.getBoolean("event_button"), rs.getInt("event_start_hours"), rs.getInt("event_days"), rs.getBoolean("related_tickets"), rs.getString("group_bosses"),
+                        rs.getBoolean("priority_tiers"), rs.getInt("longtime_guest_days"), rs.getBoolean("longtime_guest_pings"), rs.getInt("longtime_guest_escalation_hours"), rs.getString("kc_requirements"));
             }
         } catch (SQLException e) {
             log.error("Failed to read the help extras of guild {}", guildId, e);
@@ -72,9 +78,12 @@ public class HelpExtrasRepository {
 
     public void save(HelpExtras extras) {
         String sql = """
-                INSERT INTO younglings.help_extras (guild_id, event_button, event_start_hours, event_days, related_tickets, group_bosses, updated_at) VALUES (?, ?, ?, ?, ?, ?, NOW())
+                INSERT INTO younglings.help_extras (guild_id, event_button, event_start_hours, event_days, related_tickets, group_bosses, priority_tiers, longtime_guest_days,
+                    longtime_guest_pings, longtime_guest_escalation_hours, kc_requirements, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
                 ON CONFLICT (guild_id) DO UPDATE SET event_button = EXCLUDED.event_button, event_start_hours = EXCLUDED.event_start_hours,
-                    event_days = EXCLUDED.event_days, related_tickets = EXCLUDED.related_tickets, group_bosses = EXCLUDED.group_bosses, updated_at = NOW()
+                    event_days = EXCLUDED.event_days, related_tickets = EXCLUDED.related_tickets, group_bosses = EXCLUDED.group_bosses, priority_tiers = EXCLUDED.priority_tiers,
+                    longtime_guest_days = EXCLUDED.longtime_guest_days, longtime_guest_pings = EXCLUDED.longtime_guest_pings,
+                    longtime_guest_escalation_hours = EXCLUDED.longtime_guest_escalation_hours, kc_requirements = EXCLUDED.kc_requirements, updated_at = NOW()
                 """;
         try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
             s.setLong(1, extras.guildId());
@@ -83,6 +92,11 @@ public class HelpExtrasRepository {
             s.setInt(4, extras.eventDays());
             s.setBoolean(5, extras.relatedTickets());
             s.setString(6, extras.groupBosses());
+            s.setBoolean(7, extras.priorityTiers());
+            s.setInt(8, extras.longtimeGuestDays());
+            s.setBoolean(9, extras.longtimeGuestPings());
+            s.setInt(10, extras.longtimeGuestEscalationHours());
+            s.setString(11, extras.kcRequirements());
             s.executeUpdate();
         } catch (SQLException e) {
             log.error("Failed to save the help extras of guild {}", extras.guildId(), e);
