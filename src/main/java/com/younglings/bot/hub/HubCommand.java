@@ -45,6 +45,10 @@ public enum HubCommand {
     RESET("reset", "Reset timers", "reset", "Countdowns to the daily, weekly and monthly RuneScape resets. Reminders at each reset are set on the RuneScape timers page.",
             "Everyone", false),
     DND("dnd", "Distractions and Diversions", "dnd", "The RuneScape Distractions and Diversions by how often they can be played (daily, weekly, monthly, when available), from the wiki.",
+            "Everyone", false),
+    BOSS("boss", "Boss info", "boss", "A short wiki summary of a RuneScape 3 boss with its key facts and a link to its strategy page.",
+            "Everyone", false),
+    QUEST("quest", "Quest info", "quest", "A short wiki summary of a RuneScape 3 quest with its difficulty, area and a link to its quick guide.",
             "Everyone", false);
 
     private final String key;
