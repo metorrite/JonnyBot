@@ -39,6 +39,8 @@ public enum HubCommand {
     EVENTS("events", "Events", "events", "See the events you are in (place, points, buy-in, prizes), browse the ones open for signup, and join or leave them. Events are made and run from the dashboard's Event manager.",
             "Everyone", false),
     PRICE("price", "Grand Exchange prices", "price", "Look up an item's Grand Exchange price with its 7 and 30 day change, and a link to its wiki page.",
+            "Everyone", false),
+    WORLD_EVENTS("worldevents", "World events", "worldevents", "The Voice of Seren right now and the events that come round by themselves, with how often. Hourly reminders are set on the RuneScape timers page.",
             "Everyone", false);
 
     private final String key;
