@@ -87,3 +87,13 @@ Memory lives in `C:\Users\drake\.claude\projects\C--Users-drake-Documents-Github
 
 - **Model and effort** per ticket come from the routing table on the board (design/large on the strongest model and high effort, standard features Sonnet/high, small ones Sonnet/medium, mechanical Haiku, git work Sonnet/low). A started session can use the same model or a cheaper one than the thread that starts it, so the master runs on the strongest.
 - Every board write pins `if_version` (re-read and redo if it fails).
+
+**Rules learned from the first overnight runs (2026-10-19)**
+- **Deletion check before review:** `git diff --diff-filter=D --name-only origin/dev...HEAD` must list nothing you did not mean to delete (a long-running branch once deleted docs another ticket had just merged).
+- **Board first:** update the ticket (status, PR, log) *before* pushing or merging, so a usage cut-off leaves a truthful board.
+- **Merge only when `gh pr checks` shows no pending checks** and all are green. `gh pr merge` does not wait for CI.
+- **Shared or core files are `after-test` even when small:** shared UI components, `nav.ts`, the dashboard shell, `Bot.java` gateway/intents. Raise `risk.merge` and say why in the log. Two tickets touching the same core file are done one after the other, not in parallel.
+- **Stack only when the code really depends on it** (does it use the new code?). Say so in the PR when stacking, and never delete the base branch while the top PR is open.
+- **Edge case with no rule:** pick the safest option, note it in the log and PR. A real product decision sends the ticket to `planning` with the question written down.
+- **Secrets:** never print or commit real secrets; read single keys, never grep `.env` or run configurations wholesale; test secrets are obviously fake or built at runtime.
+- **Verification you could not do** (signed-in pages, anything against live Discord) is listed in the ticket log and the PR.
