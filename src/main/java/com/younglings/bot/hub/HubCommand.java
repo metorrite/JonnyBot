@@ -37,6 +37,10 @@ public enum HubCommand {
     RANK("rank", "Self roles", "rank", "List, join and leave the roles this server lets members pick for themselves (the list is edited on the website).",
             "Everyone", false),
     EVENTS("events", "Events", "events", "See the events you are in (place, points, buy-in, prizes), browse the ones open for signup, and join or leave them. Events are made and run from the dashboard's Event manager.",
+            "Everyone", false),
+    LEVEL("level", "Chat level", "level", "See your chat level, XP and rank, or another member's. Chat levels are off until the Chat levels page switches them on.",
+            "Everyone", false),
+    LEVELS("levels", "Chat leaderboard", "levels", "The most active chatters in the server.",
             "Everyone", false);
 
     private final String key;

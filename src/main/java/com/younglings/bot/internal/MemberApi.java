@@ -72,12 +72,15 @@ public class MemberApi {
     private final SiteStatsRepository stats;
     private final RsInteractionListener rsLinks;
     private final MemberEventsApi events;
+    private final ChatLevelMemberApi chatLevel;
     // Per member: a handful of quick clicks is normal, a sustained flood is not. Reads are far cheaper than writes.
     private final RateLimiter writes = new RateLimiter(8, 1_500);
     private final RateLimiter reads = new RateLimiter(40, 500);
 
     public MemberApi(MemberProfileRepository repository, PlayerLinkRepository links, PollService pollService, SignupService signupService, MemberAccess memberAccess,
-                     Debouncer debouncer, SiteCache cache, CommunitySettings community, SiteStatsRepository stats, RsInteractionListener rsLinks, MemberEventsApi events) {
+                     Debouncer debouncer, SiteCache cache, CommunitySettings community, SiteStatsRepository stats, RsInteractionListener rsLinks, MemberEventsApi events,
+                     ChatLevelMemberApi chatLevel) {
+        this.chatLevel = chatLevel;
         this.rsLinks = rsLinks;
         this.events = events;
         this.community = community;
@@ -148,6 +151,7 @@ public class MemberApi {
                     default -> null;
                 };
                 case "polls/vote" -> method.equals("POST") ? votePoll(guild, userId, body) : null;
+                case "level" -> method.equals("GET") ? chatLevel.get(guild, userId) : null;
                 case "signups" -> method.equals("GET") ? mySignups(guild, userId) : null;
                 case "signups/join" -> method.equals("POST") ? joinSignup(guild, userId, body) : null;
                 case "signups/leave" -> method.equals("POST") ? leaveSignup(guild, userId, body) : null;
