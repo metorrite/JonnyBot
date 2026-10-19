@@ -5,6 +5,7 @@ import com.younglings.bot.permission.AdminRoleFilter;
 import com.younglings.bot.wheel.WheelEligibility;
 import com.younglings.bot.wheel.WheelEntries;
 import com.younglings.bot.wheel.WheelSpin;
+import com.younglings.bot.wheel.WheelWinnerRepository;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
@@ -47,6 +48,7 @@ public class WeeklyDigestInteractionListener extends ListenerAdapter {
     private static final String MODAL_PREFIX = "weekly_spin_modal:";
     private static final String COPY_PREFIX = "weekly_copy_names:";
     private static final String POST_PREFIX = "weekly_post_winner:";
+    private static final String LOCK_PREFIX = "weekly_lock_winner:";
     private static final int REVEAL_AFTER_SECONDS = 6;
     /** The wheel is drawn this many pixels across; a GIF that would be too big for Discord is redrawn smaller automatically. */
     static final int WHEEL_SIZE = 720;
@@ -54,6 +56,14 @@ public class WeeklyDigestInteractionListener extends ListenerAdapter {
     private final CitadelWheelEntries wheelEntries;
     private final CitadelWheelPoster poster;
     private final AdminRoleFilter adminRoleFilter;
+    private final CitadelWinners winners;
+    /** The wheel each recent spin was made from, by the "Lock in winner" button's id, so locking keeps the entries (a restart forgets them: the winner is then locked alone). */
+    private final java.util.Map<String, List<String>> spunWheels = java.util.Collections.synchronizedMap(new java.util.LinkedHashMap<>() {
+        @Override
+        protected boolean removeEldestEntry(java.util.Map.Entry<String, List<String>> eldest) {
+            return size() > 100;
+        }
+    });
     /** Spin messages whose winner has already been announced, so a second click doesn't post it twice. */
     private final java.util.Set<Long> announced = java.util.concurrent.ConcurrentHashMap.newKeySet();
     private Executor worker = Executors.newFixedThreadPool(2, (ThreadFactory) runnable -> {
@@ -67,7 +77,8 @@ public class WeeklyDigestInteractionListener extends ListenerAdapter {
         this.worker = executor;
     }
 
-    public WeeklyDigestInteractionListener(CitadelWheelEntries wheelEntries, CitadelWheelPoster poster, AdminRoleFilter adminRoleFilter) {
+    public WeeklyDigestInteractionListener(CitadelWheelEntries wheelEntries, CitadelWheelPoster poster, AdminRoleFilter adminRoleFilter, CitadelWinners winners) {
+        this.winners = winners;
         this.wheelEntries = wheelEntries;
         this.poster = poster;
         this.adminRoleFilter = adminRoleFilter;
@@ -106,6 +117,8 @@ public class WeeklyDigestInteractionListener extends ListenerAdapter {
                 copyNames(event, guild, windowOf(id, COPY_PREFIX));
             } else if (id.startsWith(POST_PREFIX)) {
                 postWinner(event, guild, id);
+            } else if (id.startsWith(LOCK_PREFIX)) {
+                lockWinner(event, guild, id);
             }
         } catch (Exception e) {
             log.error("Unhandled exception in weekly digest button '{}'", id, e);
@@ -188,7 +201,16 @@ public class WeeklyDigestInteractionListener extends ListenerAdapter {
 
     /** The id of the "Post winner" button: the week, how many entries were on the wheel, and the winner (encoded, since a name can hold any character). */
     static String postId(String dateKey, int entryCount, String winner) {
-        String id = POST_PREFIX + dateKey + ":" + entryCount + ":" + java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(winner.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        return buttonId(POST_PREFIX, dateKey, entryCount, winner);
+    }
+
+    /** The id of the "Lock in winner" button: the same parts as {@link #postId}. */
+    static String lockId(String dateKey, int entryCount, String winner) {
+        return buttonId(LOCK_PREFIX, dateKey, entryCount, winner);
+    }
+
+    private static String buttonId(String prefix, String dateKey, int entryCount, String winner) {
+        String id = prefix + dateKey + ":" + entryCount + ":" + java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(winner.getBytes(java.nio.charset.StandardCharsets.UTF_8));
         return id.length() <= 100 ? id : null;
     }
 
@@ -225,6 +247,49 @@ public class WeeklyDigestInteractionListener extends ListenerAdapter {
                 announced.remove(messageId);
                 log.error("Could not post the Citadel wheel winner", e);
                 event.getHook().editOriginal("I couldn't post that just now. Try again in a moment.").queue();
+            }
+        });
+    }
+
+    /**
+     * Locks the spin's winner in as the week's winner (staff only), with the wheel it was spun from and the picture that was spun. The same rules as the
+     * dashboard's lock: a week that already has a winner is never added to or replaced here (more places and unlocking are done on the dashboard).
+     */
+    private void lockWinner(ButtonInteractionEvent event, Guild guild, String id) {
+        if (!isStaff(guild, event.getMember())) {
+            Containers.replyEphemeral(event, Containers.WARNING, "Only staff can lock in the winner.");
+            return;
+        }
+        String[] parts = id.substring(LOCK_PREFIX.length()).split(":", 3);
+        if (parts.length != 3) {
+            Containers.replyEphemeral(event, Containers.WARNING, "That button is out of date. Spin again.");
+            return;
+        }
+        LocalDate weekEnd = LocalDate.parse(parts[0]);
+        String winner = new String(java.util.Base64.getUrlDecoder().decode(parts[2]), java.nio.charset.StandardCharsets.UTF_8);
+        event.deferReply(true).queue();
+        worker.execute(() -> {
+            try {
+                var already = winners.forWeek(guild.getIdLong(), weekEnd);
+                if (!already.isEmpty()) {
+                    event.getHook().editOriginal("That week already has a locked winner (**" + already.get(0).winner() + "**). Add more places or unlock it on the dashboard's Citadel wheel page.").queue();
+                    return;
+                }
+                var attachments = event.getMessage().getAttachments();
+                byte[] gif = null;
+                try {
+                    gif = attachments.isEmpty() ? null : attachments.get(0).getProxy().download().get().readAllBytes();
+                } catch (Exception e) {
+                    log.warn("Could not fetch the spun wheel picture to lock; the bot will draw its own", e);
+                }
+                List<String> wheel = spunWheels.get(id);
+                winners.lock(guild.getIdLong(), weekEnd, winner, wheel, WheelWinnerRepository.Method.SPUN, event.getUser().getIdLong(), gif, WheelWinnerRepository.GifSource.BOT);
+                event.getHook().editOriginal("Locked **" + winner + "** in as the winner of the week ending " + weekEnd + ".").queue();
+            } catch (CitadelWinners.CannotLock e) {
+                event.getHook().editOriginal(e.getMessage()).queue();
+            } catch (Exception e) {
+                log.error("Could not lock the Citadel wheel winner", e);
+                event.getHook().editOriginal("I couldn't lock that just now. Try again in a moment.").queue();
             }
         });
     }
@@ -269,8 +334,11 @@ public class WeeklyDigestInteractionListener extends ListenerAdapter {
                 try {
                     TimeUnit.SECONDS.sleep(REVEAL_AFTER_SECONDS);
                     String postId = postId(dateKey, drawn.size(), result.winner());
+                    String lockId = lockId(dateKey, drawn.size(), result.winner());
+                    if (lockId != null) spunWheels.put(lockId, List.copyOf(drawn));
                     var edit = event.getHook().editOriginal(reveal);
-                    if (postId != null) edit = edit.setComponents(ActionRow.of(Button.success(postId, "📣 Post winner")));
+                    if (postId != null && lockId != null) edit = edit.setComponents(ActionRow.of(Button.success(postId, "📣 Post winner"), Button.secondary(lockId, "🔒 Lock in winner")));
+                    else if (postId != null) edit = edit.setComponents(ActionRow.of(Button.success(postId, "📣 Post winner")));
                     edit.queue();
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
