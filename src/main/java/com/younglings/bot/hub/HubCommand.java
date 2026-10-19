@@ -37,6 +37,8 @@ public enum HubCommand {
     RANK("rank", "Self roles", "rank", "List, join and leave the roles this server lets members pick for themselves (the list is edited on the website).",
             "Everyone", false),
     EVENTS("events", "Events", "events", "See the events you are in (place, points, buy-in, prizes), browse the ones open for signup, and join or leave them. Events are made and run from the dashboard's Event manager.",
+            "Everyone", false),
+    PRICE("price", "Grand Exchange prices", "price", "Look up an item's Grand Exchange price with its 7 and 30 day change, and a link to its wiki page.",
             "Everyone", false);
 
     private final String key;
