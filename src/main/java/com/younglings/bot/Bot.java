@@ -151,7 +151,15 @@ public class Bot extends JDAService {
 
     @Override
     public Set<GatewayIntent> getIntents() {
-        return defaultIntents(GatewayIntent.values());
+        // Intents are not permissions: they only choose which gateway events Discord sends us, and the three
+        // privileged ones (GUILD_MEMBERS, GUILD_PRESENCES, MESSAGE_CONTENT) are switches in the developer portal.
+        // The rest of GatewayIntent.values() (voice states, invites, webhooks, typing, auto-moderation, poll votes)
+        // fed no listener, so they are left off; the server permissions the bot needs are the invite link's bits.
+        return defaultIntents(
+                GatewayIntent.GUILD_MEMBERS, GatewayIntent.GUILD_MODERATION, GatewayIntent.GUILD_EXPRESSIONS,
+                GatewayIntent.GUILD_PRESENCES, GatewayIntent.GUILD_MESSAGES, GatewayIntent.GUILD_MESSAGE_REACTIONS,
+                GatewayIntent.MESSAGE_CONTENT, GatewayIntent.SCHEDULED_EVENTS,
+                GatewayIntent.DIRECT_MESSAGES, GatewayIntent.DIRECT_MESSAGE_REACTIONS);
     }
 
     @Override
