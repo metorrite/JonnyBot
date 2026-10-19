@@ -3,6 +3,7 @@ package com.younglings.bot.internal;
 import com.younglings.bot.afk.AfkNicknames;
 import com.younglings.bot.afk.AfkRepository;
 import com.younglings.bot.afk.AfkService;
+import com.younglings.bot.fun.FunCommandSync;
 import com.younglings.bot.hub.CommandTag;
 import com.younglings.bot.hub.HubCommand;
 import com.younglings.bot.hub.HubService;
@@ -42,13 +43,15 @@ public class HubAdminApi {
     private final HubService hub;
     private final PermissionGroupService groups;
     private final DashboardAccess access;
+    private final FunCommandSync funSync;
     private final AfkService afk;
 
-    public HubAdminApi(HubService hub, PermissionGroupService groups, DashboardAccess access, AfkService afk) {
+    public HubAdminApi(HubService hub, PermissionGroupService groups, DashboardAccess access, AfkService afk, FunCommandSync funSync) {
         this.afk = afk;
         this.hub = hub;
         this.groups = groups;
         this.access = access;
+        this.funSync = funSync;
     }
 
     DataObject get(Guild guild) {
@@ -94,6 +97,8 @@ public class HubAdminApi {
         if (!problems.isEmpty()) throw new ApiError(400, "Those settings can't be saved yet.", problems);
 
         hub.save(new HubSettings(guild.getIdLong(), command.key(), enabled, customAccess, refs, channels, extras));
+        // a fun command is only registered with Discord in a server that has it on, so switching it changes that server's command list
+        if (command.registeredPerServer() && enabled != current.enabled()) funSync.sync(guild);
         for (long userId : clearAfk) {
             if (!afk.clear(guild.getIdLong(), userId)) continue;
             Member away = guild.getMemberById(userId);
