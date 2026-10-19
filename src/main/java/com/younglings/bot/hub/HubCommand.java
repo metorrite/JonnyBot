@@ -36,6 +36,8 @@ public enum HubCommand {
             "Everyone (awarding needs Manage Server)", false),
     ANNOUNCE("announce", "Announce", "announce", "Staff post an announcement in a channel, optionally pinging one role, @everyone or @here. Pings follow the sender's own mention permissions. The dashboard has the same form under Announcements.",
             "Admins only", true),
+    RANK("rank", "Self roles", "rank", "List, join and leave the roles this server lets members pick for themselves (the list is edited on the website).",
+            "Everyone", false),
     EVENTS("events", "Events", "events", "See the events you are in (place, points, buy-in, prizes), browse the ones open for signup, and join or leave them. Events are made and run from the dashboard's Event manager.",
             "Everyone", false);
 

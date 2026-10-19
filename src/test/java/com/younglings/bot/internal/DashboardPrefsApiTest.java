@@ -41,9 +41,11 @@ class DashboardPrefsApiTest {
 
     @AfterEach
     void cleanUp() throws Exception {
-        try (Connection c = supplier.getConnection(); PreparedStatement s = c.prepareStatement("DELETE FROM younglings.dashboard_favorite WHERE guild_id = ?")) {
-            s.setLong(1, G);
-            s.executeUpdate();
+        for (String table : new String[]{"dashboard_favorite", "dashboard_view"}) {
+            try (Connection c = supplier.getConnection(); PreparedStatement s = c.prepareStatement("DELETE FROM younglings." + table + " WHERE guild_id = ?")) {
+                s.setLong(1, G);
+                s.executeUpdate();
+            }
         }
     }
 
@@ -94,6 +96,34 @@ class DashboardPrefsApiTest {
         StringBuilder many = new StringBuilder("{\"paths\":[");
         for (int i = 0; i < DashboardPrefsApi.MAX_FAVORITES + 1; i++) many.append(i == 0 ? "" : ",").append("\"/page-").append(i).append("\"");
         assertEquals(400, assertThrows(ApiError.class, () -> put(a, many.append("]}").toString())).status);
+    }
+
+    private DataObject view(Member who, String method, String json) {
+        return api.route(guild, who, method, new String[]{"prefs", "view"}, () -> DataObject.fromJson(json));
+    }
+
+    @Test
+    void theViewIsNullUntilChosenThenKeptPerAdmin() {
+        Member a = admin(1);
+        Member b = admin(2);
+        assertNull(view(a, "GET", "{}").getString("mode", null), "never chosen: the browser decides");
+        view(a, "PUT", "{\"mode\":\"advanced\"}");
+        view(b, "PUT", "{\"mode\":\"basic\"}");
+        assertEquals("advanced", view(a, "GET", "{}").getString("mode"));
+        assertEquals("basic", view(b, "GET", "{}").getString("mode"));
+        view(a, "PUT", "{\"mode\":\"basic\"}");
+        assertEquals("basic", view(a, "GET", "{}").getString("mode"));
+    }
+
+    @Test
+    void anythingButBasicOrAdvancedIsRefusedAndChangesNothing() {
+        Member a = admin(1);
+        view(a, "PUT", "{\"mode\":\"advanced\"}");
+        for (String bad : new String[]{"{\"mode\":\"expert\"}", "{\"mode\":\"\"}", "{}"}) {
+            assertEquals(400, assertThrows(ApiError.class, () -> view(a, "PUT", bad)).status, bad);
+        }
+        assertEquals("advanced", view(a, "GET", "{}").getString("mode"));
+        assertEquals(405, assertThrows(ApiError.class, () -> view(a, "DELETE", "{}")).status);
     }
 
     @Test
