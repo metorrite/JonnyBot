@@ -1,5 +1,7 @@
 # Setting up the JonnyBot dev environment on a new machine
 
+**Read first:** [docs/ECOSYSTEM.md](ECOSYSTEM.md), the map of the repos, the ticket board and the rules every thread follows.
+
 Written when moving to a new PC (2026-10-17). It lists what the project needs and where each piece comes from. **No secrets are in this file**: where a secret is needed it says which one and where to find it.
 
 ## 1. What to install
