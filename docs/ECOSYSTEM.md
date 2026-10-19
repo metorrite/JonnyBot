@@ -13,7 +13,7 @@ Ticket board (the work queue): https://claude.ai/artifact/W1MkBY5EH8beWVZGfnQUER
 | ... clan site | `/` and `src/app/(hub)` | | The Younglings clan's public site: home, members, stats, recaps. |
 | ... JonnyBot site + dashboard | `/jonnybot`, `/dashboard` | | Marketing/docs/install pages, and the per-server **bot dashboard** (every setting of the bot). |
 | ... clans hub | `/hub` (or `clans.<domain>`) | | Public directory of clans, events, leaderboards (redesigned 2026-10-19). |
-| ... old admin console | `/admin` | | Legacy staff console, mostly replaced by the dashboard. |
+| ... admin console | `/admin` | | Website behaviour only (what the Younglings site shows, its news-feed channels, site options) plus the owner-only super-admin area. Bot behaviour is never here (see section 3, Surface). |
 | **Public / plugin API** | `/api/v1`, `/api/ingest/v1` (host `api.<domain>`) | | Public read API (OpenAPI in `public/openapi`) and the plugin ingest routes. |
 | **RS3 plugin** (planned, very soon) | not started | Jagex's coming plugin API | A clan plugin reporting player data into the ingest API. Groundwork exists: ingest API, points ledger, approvals, cross-guild events. See memory note `project_rs3_plugin_api_prep`. |
 | Local + hosting | Railway (bot + site), Cloudflare (DNS) | | `clans.`, `api.`, `jonnybot.` subdomains all point at the one site app. |
@@ -35,6 +35,13 @@ Ticket board (the work queue): https://claude.ai/artifact/W1MkBY5EH8beWVZGfnQUER
 - `master` is a real deploy to Railway. **Never merge, push or open a PR to master** unless the user says so in that thread.
 - LF line endings (`.gitattributes`). Commit messages end with the Claude co-author line; PR bodies end with the generated-with line.
 - Never `git checkout -- .` / `reset --hard` in a worktree with uncommitted work.
+
+**Surface (where a control goes), Drake 2026-10-19**
+- **JonnyBot dashboard (`/dashboard`)** holds everything that changes how the bot behaves: roles, command on/off, channels the bot posts to, tracking, tickets, welcome, events (including the ones the site displays), member and points data.
+- **`/admin`** holds only website behaviour: what the Younglings site shows, its news-feed channels, site options. It also holds the owner-only super-admin area (premium servers, beta servers, JonnyBot/hub/dashboard access switches, users allowed into restricted content). It may read bot data, but it never changes bot behaviour.
+- Never put role or command toggles on `/admin`, and never put site-feed settings on the dashboard.
+- Skipping a surface is allowed only when it has no meaning there (a purely website option needs no Discord control; a member's personal command like `/afk` needs no admin page unless it has server settings). Say why in the PR.
+- Bot work still needs its dashboard side in the same ticket (see Bot below and the website-first rule).
 
 **Bot (Java)**
 - New listener adapters must be added to `Bot.java` or buttons silently time out.
@@ -69,6 +76,15 @@ Memory lives in `C:\Users\drake\.claude\projects\C--Users-drake-Documents-Github
 - **Ticket** = one PR (or one tightly related batch). Fields: project, kind, size, summary, requirements, acceptance, context to read, `dependsOn`, model + effort, branch, PR, log.
 - **Statuses:** `planning` (needs a design chat; a design thread talks it through with Drake, then sets it `ready`), `ready`, `blocked` (waiting on `dependsOn`), `in_progress`, `in_review` (PR open), `done` (merged into dev), `cancelled`.
 - **Worker thread:** reads its ticket and the context, sets `in_progress`, does the work on one branch, opens one PR into dev, sets `in_review` with the PR link and an honest log of what was not verified. A question that needs a decision stops the work: the ticket goes back to `planning` with the question written down.
-- **Git-management thread:** merges `in_review` PRs into dev when CI is green, writes PR comments and the changelog, sets `done`, and promotes tickets whose dependencies are all done from `blocked` to `ready`. Workers never merge.
+- **Git-management thread:** merges `in_review` PRs into dev when CI is green, writes PR comments and the changelog, sets `done`, and promotes tickets whose dependencies are all done from `blocked` to `ready`. Workers merge only their own `auto` tickets (see Risk and merge policy below). Master is never merged by anyone without Drake's explicit go.
+- **Risk field:** every ticket has a `risk` object: `level` (low / medium / high), `merge` (`auto` / `after-test` / `drake`), `breaks[]` (likely bugs), `scale` (how bad, how many affected), `interrupts[]` (features or services it can disturb), `tested` (untested / unit tested / run locally / tested on Discord / live / n/a (docs)), `assessedAt` / `assessedBy`. The master thread sets it; a worker raises it if the work turns out riskier and says why in the log.
+- **Merge policy:**
+  - `auto`: the worker merges its own PR into dev once CI is green and its own checks pass (`gh pr merge <n> --merge`, keep the branch, bot PR before its website PR), then sets `done` and archives. Only for work that cannot delete, ban, re-role, expose or touch live data.
+  - `after-test`: `in_review` until the test named in the PR passes (a local run, the dev bot, or a short check by Drake on Discord). Then merged.
+  - `drake`: `in_review` until Drake says merge. Used for design, high-risk work (deletes, bans, mass role changes, access and gates, live data) and anything with a choice to make.
+  - Either way, never merge to master.
+- **Archive:** a done ticket moves from collection `tickets` to `archive` (same id, plus `archivedAt`) so the board stays small. Write the archive copy first, then delete from `tickets`, both pinned with `if_version`.
+- **Bugs against a finished ticket:** file a new bug ticket with `relatesTo` set to the old id, using the standard form in `docs/BUG-REPORT.md`. Do not reopen an archived ticket unless the work itself was wrong.
+
 - **Model and effort** per ticket come from the routing table on the board (design/large on the strongest model and high effort, standard features Sonnet/high, small ones Sonnet/medium, mechanical Haiku, git work Sonnet/low). A started session can use the same model or a cheaper one than the thread that starts it, so the master runs on the strongest.
 - Every board write pins `if_version` (re-read and redo if it fails).
