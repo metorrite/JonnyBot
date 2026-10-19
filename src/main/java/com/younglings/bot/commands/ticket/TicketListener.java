@@ -37,8 +37,10 @@ public class TicketListener extends ListenerAdapter {
     private final TicketRepository repository;
     private final TicketService service;
     private final HelpTicketFlow helpFlow;
+    private final TicketEventService ticketEvents;
 
-    public TicketListener(TicketRepository repository, TicketService service, HelpTicketFlow helpFlow) {
+    public TicketListener(TicketRepository repository, TicketService service, HelpTicketFlow helpFlow, TicketEventService ticketEvents) {
+        this.ticketEvents = ticketEvents;
         this.repository = repository;
         this.service = service;
         this.helpFlow = helpFlow;
@@ -57,6 +59,7 @@ public class TicketListener extends ListenerAdapter {
             if (id.startsWith(TicketView.OPEN_PREFIX)) handleOpen(event, guild, member, parse(id, TicketView.OPEN_PREFIX));
             else if (id.startsWith(TicketView.JOIN_PREFIX)) handleJoin(event, guild, member, parse(id, TicketView.JOIN_PREFIX));
             else if (id.startsWith(TicketView.CLOSE_PREFIX)) handleCloseButton(event, guild, member, parse(id, TicketView.CLOSE_PREFIX));
+            else if (id.startsWith(TicketView.EVENT_PREFIX)) ticketEvents.handle(event, guild, member, parse(id, TicketView.EVENT_PREFIX));
         } catch (Exception e) {
             log.error("Unhandled exception in ticket button '{}'", id, e);
             Containers.replyError(event);
@@ -176,7 +179,7 @@ public class TicketListener extends ListenerAdapter {
                     // Opened before the Ticket Tool style layout: still the older card.
                     event.editComponents(List.of(TicketView.welcome(panel, fresh, rsns, helpers, pingRole))).useComponentsV2(true).queue();
                 } else {
-                    event.editMessage(TicketView.opening(panel, fresh, rsns, helpers, pingRole, pingUsers).toEdit()).queue();
+                    event.editMessage(TicketView.opening(panel, fresh, rsns, helpers, pingRole, pingUsers, service.extrasFor(guild.getIdLong(), panel)).toEdit()).queue();
                 }
             }
             case TICKET_CLOSED -> Containers.replyEphemeral(event, Containers.WARNING, "This ticket is already closed.");
