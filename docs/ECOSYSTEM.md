@@ -1,0 +1,73 @@
+# The JonnyBot / Younglings ecosystem
+
+The one document every thread reads first. The master thread keeps it true; a worker that changes how things connect updates the relevant section in its PR.
+
+Ticket board (the work queue): https://claude.ai/artifact/W1MkBY5EH8beWVZGfnQUER
+
+## 1. The pieces
+
+| Piece | Repository / path | Stack | What it is |
+|---|---|---|---|
+| **JonnyBot** (Discord bot) | `metorrite/JonnyBot`, `Repositories/JonnyBot` | Java 21, JDA 6.4.1, BotCommands 3.1, PostgreSQL (schema `younglings`), Maven, shaded jar | The bot: commands, listeners, RuneScape tracking, tickets, events, points, moderation. Owns all data. Serves an internal HTTP API on port 8081. |
+| **Website** (one Next.js app, four faces) | `metorrite/younglings-website`, `Repositories/younglings-website` (+ worktree `younglings-website-p3`) | Next.js 16 (Turbopack), React 19, Tailwind 4, NextAuth Discord | Chooses its face by host and path (`src/proxy.ts`): |
+| ... clan site | `/` and `src/app/(hub)` | | The Younglings clan's public site: home, members, stats, recaps. |
+| ... JonnyBot site + dashboard | `/jonnybot`, `/dashboard` | | Marketing/docs/install pages, and the per-server **bot dashboard** (every setting of the bot). |
+| ... clans hub | `/hub` (or `clans.<domain>`) | | Public directory of clans, events, leaderboards (redesigned 2026-10-19). |
+| ... old admin console | `/admin` | | Legacy staff console, mostly replaced by the dashboard. |
+| **Public / plugin API** | `/api/v1`, `/api/ingest/v1` (host `api.<domain>`) | | Public read API (OpenAPI in `public/openapi`) and the plugin ingest routes. |
+| **RS3 plugin** (planned, very soon) | not started | Jagex's coming plugin API | A clan plugin reporting player data into the ingest API. Groundwork exists: ingest API, points ledger, approvals, cross-guild events. See memory note `project_rs3_plugin_api_prep`. |
+| Local + hosting | Railway (bot + site), Cloudflare (DNS) | | `clans.`, `api.`, `jonnybot.` subdomains all point at the one site app. |
+
+## 2. How the pieces talk
+
+- **Website to bot:** server-side only, over `JONNYBOT_INTERNAL_API_URL` (`http://localhost:8081` locally) with the shared secret in header `X-Internal-Secret`. Browsers never see it. Dashboard calls go through `src/lib/jonnybot-admin.ts` (`adminApi.*` for the signed-in admin's server, each call carries who is asking), hub reads through `src/lib/clansHub.ts` (`/internal/directory/*`), plain calls through `src/lib/botCall.ts`.
+- **Admin routes on the bot:** `/internal/admin/<feature>`; `TicketAdminApi` checks the asker may use the dashboard in that server, rate-limits writes, audit-logs, then offers the path to every `AdminRouteExtension` bean. A new feature = a new `@BService` implementing `AdminRouteExtension`; no edit to `TicketAdminApi`.
+- **Access:** dashboard access is per server (owner, Administrator/Manage Server, or configured admin roles). Bot-owner-only things use `BotOwners` (Discord application owner or `OWNER_IDS`). The beta gate (`canSeeJonnyBot`, `HUB_PUBLIC`) hides the JonnyBot site and the hub from non-staff until switched on.
+- **Premium:** a hand-picked server list (`premium_guild`, managed on `/admin/polling-plan`, owner only). Today it gates faster polling and the bot's server avatar/banner/bio. A future premium plan flips the same list.
+- **Data stores:** everything lives in the bot's PostgreSQL schema `younglings`. Tables are created by each feature's repository through `SchemaBootstrapper` (idempotent `CREATE ... IF NOT EXISTS`, `ADD COLUMN IF NOT EXISTS`). The website has no database of its own.
+- **Multi-server:** the bot runs in many servers. Anything that names a clan or assumes the home server is wrong. Use `BrandingService.displayName(guild)` for names, `GuildSettingsService.getEffective(guildId)` for settings (env defaults apply to the home server only, `GUILD_ID`).
+
+## 3. Rules that apply to every ticket
+
+**Git**
+- Feature branches off `origin/dev`, one PR into `dev` per ticket. Never stack branches on unmerged work; if a ticket needs another, it waits (`dependsOn`).
+- `master` is a real deploy to Railway. **Never merge, push or open a PR to master** unless the user says so in that thread.
+- LF line endings (`.gitattributes`). Commit messages end with the Claude co-author line; PR bodies end with the generated-with line.
+- Never `git checkout -- .` / `reset --hard` in a worktree with uncommitted work.
+
+**Bot (Java)**
+- New listener adapters must be added to `Bot.java` or buttons silently time out.
+- **Website first.** The dashboard is the primary way to change how the bot behaves; Discord-only use must keep working. In the same ticket as the bot change: every new setting, setup step or configuration gets a dashboard control; every new slash command appears on the dashboard Commands page (on/off, who, where) and its staff actions get a dashboard equivalent where that makes sense; a new feature gets its own dashboard page and nav entry. Skip a side only when it has no meaning there, and say why in the PR.
+- Tests: `mvn -o test` (about 1,200 tests; all must pass). A throwaway JUnit against the local dev DB is the way to check new SQL.
+- Dev bot lives in the real clan server (`GUILD_ID`): live tests are real. Do not spam it.
+
+**Website (Next.js)**
+- Read `node_modules/next/dist/docs/` before using a Next API (this Next differs from older versions).
+- Dashboard UI follows `docs/DASHBOARD-DESIGN.md` (heading levels, `FormField` sizes, `PanelGrid`/`FieldGrid`, `SettingRow`, one global Basic/Advanced slider, `SaveBar`). Never add a per-page Basic/Advanced switch. A saved value never hides.
+- A page or building block gets a view in the preview harness (`/dev-preview?v=<view>`), made-up data, no login.
+- Checks before a PR: `npx tsc --noEmit`, `npx eslint <paths>`, `next build` (it catches `'use server'` files that export non-async things).
+- A bot-linked page shows admin controls to a signed-in admin (`getAdminIfAny` to show, `requireAdmin` to enforce).
+- Privacy: public pages never show an individual member's figures or Discord details.
+
+**Everything**
+- The website-first rule applies to the RS3 plugin too: anything the plugin reports or lets a member or admin control gets a website view or control (the member's profile for personal consent and data, the dashboard for clan settings).
+- Do not invent facts about Discord/JDA limits: look them up or test them.
+- Report what you could not verify (signed-in pages, anything against live Discord) in the ticket log and PR.
+
+## 4. Running it locally
+
+`powershell -ExecutionPolicy Bypass -File JonnyBot/tools/dev-start.ps1` stops every old bot, rebuilds the website preview branch `local/wip-preview` (origin/dev plus every open PR), starts exactly one bot (port 8081) and the website (port 3000). Never start the IntelliJ "JonnyBot Dev" configuration as well: it adds a second bot. `HUB_DEMO=true` (git-ignored `.env.local`) fills the hub with fake clans.
+
+## 5. Memory notes worth reading by area
+
+Memory lives in `C:\Users\drake\.claude\projects\C--Users-drake-Documents-Github-Repositories\memory\` (index `MEMORY.md`, loaded automatically in every thread). Start from the index; the ones that matter most: `project_dashboard_design_overhaul`, `project_event_lifecycle_channels`, `project_clan_site`, `project_ticket_system`, `project_multi_server_readiness`, `project_rs3_plugin_api_prep`, `project_remaining_redesign_2026_10_19`, `feedback_*` (how Drake wants work done).
+
+## 6. Ticket workflow
+
+- **Master thread** (strongest model): talks with Drake, knows this whole map, turns requests into tickets on the board, splits large ones, marks unclear ones `planning`, and starts worker threads with `start_session`. It does not write feature code itself.
+- **Ticket** = one PR (or one tightly related batch). Fields: project, kind, size, summary, requirements, acceptance, context to read, `dependsOn`, model + effort, branch, PR, log.
+- **Statuses:** `planning` (needs a design chat; a design thread talks it through with Drake, then sets it `ready`), `ready`, `blocked` (waiting on `dependsOn`), `in_progress`, `in_review` (PR open), `done` (merged into dev), `cancelled`.
+- **Worker thread:** reads its ticket and the context, sets `in_progress`, does the work on one branch, opens one PR into dev, sets `in_review` with the PR link and an honest log of what was not verified. A question that needs a decision stops the work: the ticket goes back to `planning` with the question written down.
+- **Git-management thread:** merges `in_review` PRs into dev when CI is green, writes PR comments and the changelog, sets `done`, and promotes tickets whose dependencies are all done from `blocked` to `ready`. Workers never merge.
+- **Model and effort** per ticket come from the routing table on the board (design/large on the strongest model and high effort, standard features Sonnet/high, small ones Sonnet/medium, mechanical Haiku, git work Sonnet/low). A started session can use the same model or a cheaper one than the thread that starts it, so the master runs on the strongest.
+- Every board write pins `if_version` (re-read and redo if it fails).
