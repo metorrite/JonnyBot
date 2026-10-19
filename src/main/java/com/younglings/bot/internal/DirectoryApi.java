@@ -1,6 +1,14 @@
 package com.younglings.bot.internal;
 
 import com.sun.net.httpserver.HttpExchange;
+import com.younglings.bot.alliance.AllianceRepository;
+import com.younglings.bot.alliance.AllianceRules.Status;
+import com.younglings.bot.alliance.AllianceVisibility;
+import com.younglings.bot.alliance.AllianceVisibility.Ally;
+import com.younglings.bot.alliance.AllianceVisibility.AllianceView;
+import com.younglings.bot.alliance.AllianceVisibility.Group;
+import com.younglings.bot.alliance.AllianceVisibility.Section;
+import com.younglings.bot.alliance.AllianceVisibility.Visibility;
 import com.younglings.bot.clanprofile.ClanLeaderboard;
 import com.younglings.bot.clanprofile.ClanLeaderboard.Period;
 import com.younglings.bot.clanprofile.ClanProfile;
@@ -37,6 +45,7 @@ import java.util.Optional;
  *   <li>{@code GET clans}: every listed clan</li>
  *   <li>{@code GET clans/{slug}}: one clan, listed or unlisted</li>
  *   <li>{@code GET clans/{slug}/events}: that clan's shared upcoming events</li>
+ *   <li>{@code GET alliances/{id}}: an alliance, naming only the clans that chose to show their alliances (404 unless at least two did)</li>
  *   <li>{@code POST clans/{slug}/report} {@code {reason, reporter?}}: report a listing for the bot's owner to review</li>
  *   <li>{@code GET events}: shared upcoming events of every listed clan, soonest first</li>
  *   <li>{@code GET leaderboards?period=week|month}: clans that opted in, ranked by XP their members gained</li>
@@ -58,12 +67,14 @@ public class DirectoryApi {
     private final ClanProfileRepository repository;
     private final ClanProfileService service;
     private final SiteStatsRepository stats;
+    private final AllianceRepository alliances;
     private final TtlCache cache = new TtlCache();
 
-    public DirectoryApi(ClanProfileRepository repository, ClanProfileService service, SiteStatsRepository stats) {
+    public DirectoryApi(ClanProfileRepository repository, ClanProfileService service, SiteStatsRepository stats, AllianceRepository alliances) {
         this.repository = repository;
         this.service = service;
         this.stats = stats;
+        this.alliances = alliances;
     }
 
     /** Called after the shared secret has been checked. */
@@ -98,6 +109,11 @@ public class DirectoryApi {
             send(exchange, 200, DataObject.empty().put("events", eventsJson(profile.get(), jda, EVENTS_PER_CLAN)).put("generatedAt", Instant.now().toString()));
         } else if (head.equals("clans") && parts.length == 3 && parts[2].equals("report")) {
             report(exchange, method, parts[1]);
+        } else if (head.equals("alliances") && parts.length == 2 && parts[1].matches("\\d{1,18}")) {
+            if (!get(exchange, method)) return;
+            DataObject page = alliancePage(Long.parseLong(parts[1]));
+            if (page == null) send(exchange, 404, DataObject.empty().put("error", "No such alliance"));
+            else send(exchange, 200, page);
         } else if (head.equals("events") && parts.length == 1) {
             if (!get(exchange, method)) return;
             send(exchange, 200, cache.get("events", LIST_TTL_MILLIS, () -> allEvents(jda)));
@@ -163,8 +179,61 @@ public class DirectoryApi {
         if (full) {
             json.put("description", p.description()).put("requirements", p.requirements()).put("applyUrl", p.applyUrl()).put("timezone", p.timezone())
                     .put("updatedAt", p.updatedAt() == null ? null : p.updatedAt().toString());
+            json.put("alliances", alliancesJson(p.guildId()));
         }
         return json;
+    }
+
+    // ---------- alliances ----------
+
+    /** An alliance's members as the visibility rules need them. */
+    private List<AllianceView> viewsOf(List<com.younglings.bot.alliance.AllianceRepository.Alliance> list) {
+        List<AllianceView> views = new ArrayList<>();
+        for (var a : list) {
+            var members = alliances.membersOf(a.id());
+            var choices = alliances.visibilities(members.stream().map(m -> m.guildId()).toList());
+            List<Ally> allies = new ArrayList<>();
+            for (var m : members) {
+                boolean listed = service.publicView(m.guildId(), false).isPresent();
+                allies.add(new Ally(m.guildId(), choices.getOrDefault(m.guildId(), Visibility.HIDDEN), listed, m.status() == Status.ACTIVE));
+            }
+            views.add(new AllianceView(a.id(), a.name(), allies));
+        }
+        return views;
+    }
+
+    /** What a clan's page says about its alliances, or null when its clan chose to say nothing. Only clans that chose to be shown, and are listed, are ever named. */
+    private DataObject alliancesJson(long guildId) {
+        Visibility choice = alliances.visibility(guildId);
+        List<AllianceView> views = choice == Visibility.SHOWN ? viewsOf(alliances.alliancesOf(guildId)) : List.of();
+        Section section = AllianceVisibility.sectionFor(guildId, choice, views);
+        if (section.mode() == AllianceVisibility.Mode.ABSENT) return null;
+        DataArray groups = DataArray.empty();
+        for (Group g : section.groups()) {
+            DataArray clans = DataArray.empty();
+            for (long ally : g.allies()) {
+                repository.get(ally).ifPresent(p -> {
+                    if (p.slug() != null) clans.add(DataObject.empty().put("slug", p.slug()).put("name", p.displayName()).put("logoUrl", p.logoUrl()).put("colour", p.colour()));
+                });
+            }
+            groups.add(DataObject.empty().put("id", Long.toString(g.allianceId())).put("name", g.name()).put("clans", clans).put("hasPage", g.pageAvailable()));
+        }
+        return DataObject.empty().put("mode", section.mode().name()).put("alliances", groups);
+    }
+
+    /** An alliance's public page, naming only the clans that chose to show their alliances. Null when fewer than two can be named (so a hidden clan's alliance is not revealed). */
+    private DataObject alliancePage(long id) {
+        var alliance = alliances.alliance(id);
+        if (alliance.isEmpty()) return null;
+        AllianceView view = viewsOf(List.of(alliance.get())).get(0);
+        if (!AllianceVisibility.hasPage(view)) return null;
+        DataArray clans = DataArray.empty();
+        for (Ally ally : AllianceVisibility.nameableMembers(view)) {
+            repository.get(ally.guildId()).ifPresent(p -> {
+                if (p.slug() != null) clans.add(DataObject.empty().put("slug", p.slug()).put("name", p.displayName()).put("tagline", p.tagline()).put("logoUrl", p.logoUrl()).put("colour", p.colour()));
+            });
+        }
+        return clans.length() < 2 ? null : DataObject.empty().put("id", Long.toString(id)).put("name", alliance.get().name()).put("clans", clans);
     }
 
     // ---------- events ----------

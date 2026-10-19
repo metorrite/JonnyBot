@@ -5,6 +5,7 @@ import com.younglings.bot.alliance.AllianceRepository.Alliance;
 import com.younglings.bot.alliance.AllianceRepository.Membership;
 import com.younglings.bot.alliance.AllianceRules;
 import com.younglings.bot.alliance.AllianceRules.Status;
+import com.younglings.bot.alliance.AllianceVisibility.Visibility;
 import com.younglings.bot.clanprofile.ClanProfile;
 import com.younglings.bot.clanprofile.ClanProfileRepository;
 import com.younglings.bot.clanprofile.ClanProfileService;
@@ -58,6 +59,10 @@ public class AllianceAdminApi implements AdminRouteExtension {
             AdminRouteExtension.requireMethod(method, "POST");
             return create(guild, actor, body.get());
         }
+        if (parts.length == 2 && parts[1].equals("visibility")) {
+            AdminRouteExtension.requireMethod(method, "PUT");
+            return saveVisibility(guild, actor, body.get());
+        }
         long id = allianceId(parts[1]);
         if (parts.length == 3 && parts[2].equals("events")) {
             AdminRouteExtension.requireMethod(method, "GET");
@@ -93,7 +98,17 @@ public class AllianceAdminApi implements AdminRouteExtension {
             array.add(DataObject.empty().put("id", Long.toString(a.id())).put("name", a.name()).put("status", mine.name())
                     .put("founder", a.createdByGuild() == guild.getIdLong()).put("members", memberArray));
         }
-        return DataObject.empty().put("alliances", array).put("maxPerServer", AllianceRules.MAX_PER_SERVER).put("maxMembers", AllianceRules.MAX_MEMBERS);
+        return DataObject.empty().put("alliances", array).put("maxPerServer", AllianceRules.MAX_PER_SERVER).put("maxMembers", AllianceRules.MAX_MEMBERS)
+                .put("visibility", alliances.visibility(guild.getIdLong()).name());
+    }
+
+    /** What the public hub page of this clan says about its alliances: HIDDEN (nothing, the default), NO_ALLIES (says there are none) or SHOWN (lists its allies). */
+    DataObject saveVisibility(Guild guild, Member actor, DataObject body) {
+        String raw = body.getString("visibility", "").strip().toUpperCase(java.util.Locale.ROOT);
+        if (!java.util.Set.of("HIDDEN", "NO_ALLIES", "SHOWN").contains(raw)) throw new ApiError(400, "Choose whether your clan page shows its alliances, says it has none, or says nothing.");
+        alliances.saveVisibility(guild.getIdLong(), Visibility.parse(raw));
+        log.info("Dashboard: {} set the alliance visibility of the clan page to {}", actor.getId(), raw);
+        return list(guild);
     }
 
     private DataObject memberJson(Guild viewer, Alliance a, Membership m) {
