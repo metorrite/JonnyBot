@@ -54,7 +54,12 @@ public class GuildSettingsService {
         return new GuildSettings(guildId, clanEnabled ? clanName : null, adminRoleId, renameAlertChannelId, verificationReviewChannelId,
                 verifiedClanRoleId, verifiedNonClanRoleId, unverifiedRoleId, onboardingRoleId, clanEnabled, clanName,
                 stored != null ? stored.supportRoleId() : null, stored != null ? stored.developerRoleId() : null,
-                stored != null ? stored.websiteUrl() : null);
+                stored != null ? stored.websiteUrl() : null, stored != null ? stored.inviteUrl() : null);
+    }
+
+    /** The server's Discord invite, already cleaned by {@link InviteLink#normalize}; {@code null} clears it. */
+    public void updateInviteUrl(long guildId, String inviteUrl) {
+        repository.upsertInviteUrl(guildId, inviteUrl);
     }
 
     /** The clan's website, already cleaned by {@link WebsiteLink#normalize}; {@code null} clears it. */

@@ -111,6 +111,23 @@ class ServerSetupAdminApiTest {
     }
 
     @Test
+    void anInviteLinkIsCleanedUpSavedAndCanBeCleared() {
+        api.save(guild, actor, DataObject.fromJson("{\"inviteUrl\": \"discord.com/invite/abc123\"}"));
+        verify(settings).updateInviteUrl(GUILD, "https://discord.gg/abc123");
+
+        api.save(guild, actor, DataObject.fromJson("{\"inviteUrl\": \"\"}"));
+        verify(settings).updateInviteUrl(GUILD, null);
+    }
+
+    @Test
+    void somethingThatIsNotADiscordInviteRefusesTheSave() {
+        var thrown = assertThrows(TicketAdminApi.ApiError.class, () -> api.save(guild, actor, DataObject.fromJson("{\"inviteUrl\": \"https://example.com/x\"}")));
+
+        assertEquals(400, thrown.status);
+        verify(settings, never()).updateInviteUrl(anyLong(), any());
+    }
+
+    @Test
     void aRoleJonnyBotCannotGiveOutRefusesTheWholeSaveAndChangesNothing() {
         role(500, false, true);
         role(700, false, false); // above JonnyBot's own role
