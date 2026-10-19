@@ -1,5 +1,8 @@
 package com.younglings.bot.warning;
 
+import com.younglings.bot.moderation.ModAction;
+import com.younglings.bot.moderation.ModCase;
+import com.younglings.bot.moderation.ModService;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Guild;
@@ -15,9 +18,11 @@ public class AutopunishService {
     private static final Logger log = LoggerFactory.getLogger(AutopunishService.class);
 
     private final WarningRepository repository;
+    private final ModService mod;
 
-    public AutopunishService(WarningRepository repository) {
+    public AutopunishService(WarningRepository repository, ModService mod) {
         this.repository = repository;
+        this.mod = mod;
     }
 
     /**
@@ -44,6 +49,13 @@ public class AutopunishService {
             case KICK -> guild.kick(target).reason(reason).queue(ok -> {}, e -> log.warn("Autopunish kick of {} failed: {}", target.getId(), e.getMessage()));
             case BAN -> guild.ban(target, 0, TimeUnit.SECONDS).reason(reason).queue(ok -> {}, e -> log.warn("Autopunish ban of {} failed: {}", target.getId(), e.getMessage()));
         }
+        ModAction done = switch (r.action()) {
+            case TIMEOUT -> ModAction.TIMEOUT;
+            case KICK -> ModAction.KICK;
+            case BAN -> ModAction.BAN;
+        };
+        mod.recordOnly(guild, target.getIdLong(), target.getUser().getName(), self.getIdLong(), self.getEffectiveName(), done, reason,
+                r.action() == Autopunish.Action.TIMEOUT ? r.timeoutMinutes() : null, ModCase.AUTOPUNISH);
         log.info("Autopunish: {} {} in guild {} at {} warnings", target.getId(), r.describe(), guild.getId(), totalWarnings);
         return "Autopunish: they have been " + r.describe() + " (" + totalWarnings + " warnings).";
     }

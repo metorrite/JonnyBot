@@ -95,7 +95,7 @@ class FunLogicTest {
         }
         for (HubCommand command : HubCommand.values()) {
             if (command.tags().contains(CommandTag.FUN)) assertTrue(funNames.contains(command.slashName()), "Hub entry /" + command.slashName() + " has no command");
-            else assertTrue(command.defaultEnabled(), "only fun commands start off: " + command.key());
+            else assertEquals(!command.punishes(), command.defaultEnabled(), "only fun and punishing commands start off: " + command.key());
         }
     }
 }
