@@ -66,6 +66,9 @@ public class BingoTemplate implements EventTemplate {
         EventOptions.When isGrid = EventOptions.When.is("config.board.layout", "grid");
         return List.of(
                 EventOptions.Option.choice("config.board.layout", "Board shape", "A square grid, or one of the picture shapes.", EventOptions.Step.RULES, "grid", shapes).widget("shape").inQuick(),
+                EventOptions.Option.number("config.board.shapeSize", "Shape size",
+                        "How big the shape is. Pyramid: tiles along the base, 3 to 8 (5 is the picture). Path: tiles on the trail, 6 to 40 (24 is the picture). Convergence: rings around the boss, 1 to 3 (2 is the picture). "
+                                + "World tree: 3 or 4 levels (leave 0 for the picture). 0 means the picture's own size.", EventOptions.Step.RULES, 0, 0, 40).widget("shapesize").showWhen(EventOptions.When.isNot("config.board.layout", "grid")),
                 EventOptions.Option.number("config.board.size", "Board size", "3 to 7 tiles across.", EventOptions.Step.RULES, DEFAULT_SIZE, BingoBoard.MIN_SIZE, BingoBoard.MAX_SIZE).showWhen(isGrid),
                 EventOptions.Option.choice("config.board.unlock", "Tiles open",
                         "In order, a tile can only be done once the tiles it rests on are done (a drop for a closed tile can't be saved). Automatic is in order for tasks and any order for drops.",
@@ -121,9 +124,19 @@ public class BingoTemplate implements EventTemplate {
     /** The picture shape the board has, if it has one. */
     public static java.util.Optional<BingoLayout> layoutOf(DataObject config) {
         try {
-            return config.hasKey("board") && !config.isNull("board") ? BingoLayout.find(config.getObject("board").getString("layout", null)) : java.util.Optional.empty();
+            return config.hasKey("board") && !config.isNull("board")
+                    ? BingoLayout.of(config.getObject("board").getString("layout", null), config.getObject("board").getInt("shapeSize", 0)) : java.util.Optional.empty();
         } catch (RuntimeException e) {
             return java.util.Optional.empty();
+        }
+    }
+
+    /** The size a shaped board was asked for (pyramid base, path length, rings, levels), 0 for the painted picture's own size. */
+    public static int shapeSizeOf(DataObject config) {
+        try {
+            return config.hasKey("board") && !config.isNull("board") ? config.getObject("board").getInt("shapeSize", 0) : 0;
+        } catch (RuntimeException e) {
+            return 0;
         }
     }
 
@@ -169,7 +182,11 @@ public class BingoTemplate implements EventTemplate {
         try {
             if (config.hasKey("board") && !config.isNull("board")) {
                 DataObject board = config.getObject("board");
-                if (board.hasKey("layout") && !board.isNull("layout") && layout.isEmpty()) problems.add("Choose a board shape from the list.");
+                if (board.hasKey("layout") && !board.isNull("layout") && layout.isEmpty()) {
+                    String id = board.getString("layout", "");
+                    String sizeProblem = BingoLayout.find(id).isPresent() ? BingoShapes.problem(id, board.getInt("shapeSize", 0)) : null;
+                    problems.add(sizeProblem != null ? sizeProblem : "Choose a board shape from the list.");
+                }
                 if (board.hasKey("unlock") && !board.isNull("unlock") && !List.of(UNLOCK_LOCKED, UNLOCK_FREE).contains(board.getString("unlock", ""))) {
                     problems.add("Tiles either unlock in order or in any order.");
                 }
@@ -237,19 +254,42 @@ public class BingoTemplate implements EventTemplate {
      * ({@code "grid"}). Changing shape keeps no locked tiles: the places are different.
      */
     public Rerolled reroll(DataObject config, List<ObjectiveSpec> current, Integer newSize, Long newSeed, Set<String> lockedKeys, String newShape) {
+        return reroll(config, current, newSize, newSeed, lockedKeys, newShape, null);
+    }
+
+    /**
+     * As above, and {@code newShapeSize} sizes a picture shape (see {@link BingoShapes}; 0 for the painted picture's own size). A new size, like a new shape, makes a
+     * fresh board: the places are different, so no tile stays where it was.
+     */
+    public Rerolled reroll(DataObject config, List<ObjectiveSpec> current, Integer newSize, Long newSeed, Set<String> lockedKeys, String newShape, Integer newShapeSize) {
         DataObject board = config.hasKey("board") && !config.isNull("board") ? config.getObject("board") : DataObject.empty();
         var oldLayout = layoutOf(config);
         if (newShape != null && !newShape.equals("grid") && BingoLayout.find(newShape).isEmpty()) throw new IllegalArgumentException("Choose a board shape from the list.");
-        var layout = newShape == null ? oldLayout : newShape.equals("grid") ? java.util.Optional.<BingoLayout>empty() : BingoLayout.find(newShape);
-        boolean shapeChanged = layout.map(BingoLayout::id).orElse("grid").compareTo(oldLayout.map(BingoLayout::id).orElse("grid")) != 0;
+        String oldId = oldLayout.map(BingoLayout::id).orElse("grid");
+        String targetId = newShape == null ? oldId : newShape;
+        boolean idChanged = !targetId.equals(oldId);
+        int oldShapeSize = shapeSizeOf(config);
+        int targetSize = newShapeSize != null ? newShapeSize : idChanged ? 0 : oldShapeSize;
+        if (!targetId.equals("grid")) {
+            String sizeProblem = BingoShapes.problem(targetId, targetSize);
+            if (sizeProblem != null) throw new IllegalArgumentException(sizeProblem);
+        }
+        var layout = targetId.equals("grid") ? java.util.Optional.<BingoLayout>empty() : BingoLayout.of(targetId, targetSize);
+        boolean shapeChanged = idChanged || (layout.isPresent() && targetSize != oldShapeSize);
         if (shapeChanged) {
             // the old board's tiles go with the old shape; only objectives an organiser added beyond the board are kept
             List<String> oldBoardKeys = BingoBoardView.boardKeys(config);
             current = current.stream().filter(o -> !oldBoardKeys.contains(o.key())).toList();
             DataObject changed = DataObject.fromJson(config.toString());
             DataObject changedBoard = DataObject.fromJson(board.toString());
-            if (layout.isPresent()) changedBoard.put("layout", layout.get().id());
-            else changedBoard.remove("layout");
+            if (layout.isPresent()) {
+                changedBoard.put("layout", layout.get().id());
+                if (targetSize > 0) changedBoard.put("shapeSize", targetSize);
+                else changedBoard.remove("shapeSize");
+            } else {
+                changedBoard.remove("layout");
+                changedBoard.remove("shapeSize");
+            }
             changedBoard.remove("keys");
             changed.put("board", changedBoard);
             config = changed;
@@ -389,7 +429,10 @@ public class BingoTemplate implements EventTemplate {
         DataObject copy = DataObject.fromJson(config.toString());
         DataObject stored = DataObject.empty().put("size", board.size()).put("seed", board.seed()).put("pool", pool).put("keys", keys);
         // a shaped board also records its shape and whether its rules about which tiles open first are enforced, so that never changes by accident later
-        if (board.layout() != null) stored.put("layout", board.layout()).put("unlock", inOrder ? UNLOCK_LOCKED : UNLOCK_FREE);
+        if (board.layout() != null) {
+            stored.put("layout", board.layout()).put("unlock", inOrder ? UNLOCK_LOCKED : UNLOCK_FREE);
+            if (shapeSizeOf(config) > 0) stored.put("shapeSize", shapeSizeOf(config));
+        }
         // the look is the organiser's choice and survives a re-roll, a new shape or a swapped tile
         BingoLooks.of(config).ifPresent(look -> stored.put("look", look));
         // and so are the board options (title, fog, names, accent, points curve, free centre)
