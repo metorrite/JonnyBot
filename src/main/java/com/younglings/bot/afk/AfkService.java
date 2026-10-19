@@ -31,6 +31,11 @@ public class AfkService {
         });
     }
 
+    /** Everyone currently away in the server, longest away first. */
+    public java.util.List<Afk> all(long guildId) {
+        return guild(guildId).values().stream().sorted(java.util.Comparator.comparing(Afk::since)).toList();
+    }
+
     public Optional<Afk> get(long guildId, long userId) {
         return Optional.ofNullable(guild(guildId).get(userId));
     }
