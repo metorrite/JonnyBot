@@ -36,6 +36,8 @@ public enum HubCommand {
             "Everyone (awarding needs Manage Server)", false),
     RANK("rank", "Self roles", "rank", "List, join and leave the roles this server lets members pick for themselves (the list is edited on the website).",
             "Everyone", false),
+    ROLE("role", "Role toolkit", "role", "Give or take a role for a member. Admins can use any role the bot can hand out; others only the roles their permission group was allowed on the Role toolkit page.",
+            "Admins, and groups an admin allowed (set on the Role toolkit page)", false),
     EVENTS("events", "Events", "events", "See the events you are in (place, points, buy-in, prizes), browse the ones open for signup, and join or leave them. Events are made and run from the dashboard's Event manager.",
             "Everyone", false);
 
