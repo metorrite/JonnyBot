@@ -47,18 +47,22 @@ public class StarboardRepository {
                     stars INTEGER NOT NULL,
                     PRIMARY KEY (guild_id, source_message_id)
                 );
-                """));
+                """,
+                "ALTER TABLE younglings.starboard_config ADD COLUMN IF NOT EXISTS channel_thresholds TEXT NOT NULL DEFAULT '';",
+                "ALTER TABLE younglings.starboard_config ADD COLUMN IF NOT EXISTS skip_hidden BOOLEAN NOT NULL DEFAULT FALSE;",
+                "ALTER TABLE younglings.starboard_config ADD COLUMN IF NOT EXISTS only_channels TEXT NOT NULL DEFAULT '';"));
     }
 
     public StarboardConfig get(long guildId) {
         try (Connection c = connectionSupplier.getConnection();
-             PreparedStatement s = c.prepareStatement("SELECT enabled, channel_id, emoji, threshold, self_star FROM younglings.starboard_config WHERE guild_id = ?")) {
+             PreparedStatement s = c.prepareStatement("SELECT enabled, channel_id, emoji, threshold, self_star, channel_thresholds, skip_hidden, only_channels FROM younglings.starboard_config WHERE guild_id = ?")) {
             s.setLong(1, guildId);
             try (ResultSet rs = s.executeQuery()) {
                 if (!rs.next()) return StarboardConfig.defaults(guildId);
                 long channel = rs.getLong("channel_id");
                 boolean none = rs.wasNull();
-                return new StarboardConfig(guildId, rs.getBoolean("enabled"), none ? null : channel, rs.getString("emoji"), rs.getInt("threshold"), rs.getBoolean("self_star"));
+                return new StarboardConfig(guildId, rs.getBoolean("enabled"), none ? null : channel, rs.getString("emoji"), rs.getInt("threshold"), rs.getBoolean("self_star"),
+                        StarboardConfig.readThresholds(rs.getString("channel_thresholds")), rs.getBoolean("skip_hidden"), StarboardConfig.readIds(rs.getString("only_channels")));
             }
         } catch (SQLException e) {
             log.error("Failed to read the starboard of guild {}", guildId, e);
@@ -68,9 +72,11 @@ public class StarboardRepository {
 
     public void save(StarboardConfig config) {
         String sql = """
-                INSERT INTO younglings.starboard_config (guild_id, enabled, channel_id, emoji, threshold, self_star, updated_at) VALUES (?, ?, ?, ?, ?, ?, NOW())
+                INSERT INTO younglings.starboard_config (guild_id, enabled, channel_id, emoji, threshold, self_star, channel_thresholds, skip_hidden, only_channels, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
                 ON CONFLICT (guild_id) DO UPDATE SET enabled = EXCLUDED.enabled, channel_id = EXCLUDED.channel_id, emoji = EXCLUDED.emoji,
-                    threshold = EXCLUDED.threshold, self_star = EXCLUDED.self_star, updated_at = NOW()
+                    threshold = EXCLUDED.threshold, self_star = EXCLUDED.self_star, channel_thresholds = EXCLUDED.channel_thresholds,
+                    skip_hidden = EXCLUDED.skip_hidden, only_channels = EXCLUDED.only_channels, updated_at = NOW()
                 """;
         try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
             s.setLong(1, config.guildId());
@@ -79,6 +85,9 @@ public class StarboardRepository {
             s.setString(4, config.emoji());
             s.setInt(5, config.threshold());
             s.setBoolean(6, config.selfStar());
+            s.setString(7, StarboardConfig.writeThresholds(config.channelThresholds()));
+            s.setBoolean(8, config.skipHiddenChannels());
+            s.setString(9, StarboardConfig.writeIds(config.onlyChannels()));
             s.executeUpdate();
         } catch (SQLException e) {
             log.error("Failed to save the starboard of guild {}", config.guildId(), e);

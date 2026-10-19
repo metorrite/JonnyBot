@@ -6,6 +6,8 @@ import com.younglings.bot.starboard.StarboardLogic.Reactor;
 import com.younglings.bot.starboard.StarboardRepository.Post;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.EmbedBuilder;
+import net.dv8tion.jda.api.Permission;
+import net.dv8tion.jda.api.entities.channel.middleman.GuildChannel;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.MessageEmbed;
@@ -58,6 +60,11 @@ public class StarboardListener extends ListenerAdapter implements BotListener {
             Emoji wanted = Emoji.fromFormatted(config.emoji());
             if (!wanted.getAsReactionCode().equals(emoji.getAsReactionCode())) return;
             if (channel instanceof IAgeRestrictedChannel restricted && restricted.isNSFW()) return; // never copy out of an age-restricted channel
+            Long parentId = channel instanceof net.dv8tion.jda.api.entities.channel.concrete.ThreadChannel thread ? thread.getParentChannel().getIdLong() : null;
+            GuildChannel visibilityOf = channel instanceof net.dv8tion.jda.api.entities.channel.concrete.ThreadChannel thread ? thread.getParentChannel() : channel;
+            boolean visible = !config.skipHiddenChannels() || guild.getPublicRole().hasPermission(visibilityOf, Permission.VIEW_CHANNEL);
+            if (!StarboardLogic.sourceAllowed(config, channel.getIdLong(), parentId, visible)) return;
+            int threshold = StarboardLogic.thresholdFor(config, channel.getIdLong(), parentId);
 
             GuildMessageChannel board = guild.getChannelById(GuildMessageChannel.class, config.channelId());
             if (board == null || !board.canTalk()) return;
@@ -65,13 +72,13 @@ public class StarboardListener extends ListenerAdapter implements BotListener {
             event.retrieveMessage().queue(message -> {
                 var reaction = message.getReaction(wanted);
                 if (reaction == null) {
-                    apply(guild, config, board, channel, message, 0);
+                    apply(guild, config, threshold, board, channel, message, 0);
                     return;
                 }
                 reaction.retrieveUsers().limit(100).queue(users -> {
                     List<Reactor> reactors = new ArrayList<>();
                     users.forEach(u -> reactors.add(new Reactor(u.getIdLong(), u.isBot())));
-                    apply(guild, config, board, channel, message, StarboardLogic.count(reactors, message.getAuthor().getIdLong(), config.selfStar()));
+                    apply(guild, config, threshold, board, channel, message, StarboardLogic.count(reactors, message.getAuthor().getIdLong(), config.selfStar()));
                 }, error -> log.debug("Starboard: couldn't read the reactors of {}", messageId));
             }, error -> log.debug("Starboard: message {} is gone", messageId));
         } catch (Exception e) {
@@ -79,9 +86,9 @@ public class StarboardListener extends ListenerAdapter implements BotListener {
         }
     }
 
-    private void apply(Guild guild, StarboardConfig config, GuildMessageChannel board, GuildMessageChannel source, Message message, int stars) {
+    private void apply(Guild guild, StarboardConfig config, int threshold, GuildMessageChannel board, GuildMessageChannel source, Message message, int stars) {
         var existing = repository.post(guild.getIdLong(), message.getIdLong());
-        Action action = StarboardLogic.decide(stars, config.threshold(), existing.isPresent());
+        Action action = StarboardLogic.decide(stars, threshold, existing.isPresent());
         String headline = StarboardLogic.headline(config.emoji(), stars, source.getIdLong());
 
         switch (action) {
