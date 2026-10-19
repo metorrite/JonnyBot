@@ -15,7 +15,7 @@ import java.util.regex.Pattern;
 /**
  * Retired in favor of {@code /embed}'s generic post/remove system (see
  * {@code com.younglings.bot.commands.embed}), which posts the teamforming panel via
- * {@link TeamformingService#buildPublicPanelMessage()} directly instead of through this class —
+ * {@link TeamformingService#buildPublicPanelMessage(net.dv8tion.jda.api.entities.Guild)} directly instead of through this class —
  * kept (not deleted) as reference/fallback, but no longer registered. BotCommands validates that
  * every {@code @JDASlashCommand} method's declaring class is {@code @Command} (and throws at
  * startup otherwise), so all the framework annotations are stripped here, not just the
@@ -45,7 +45,7 @@ public class TeamformingCommand {
         event.deferReply(true).queue();
 
         List<String> createdRoles = teamformingService.ensureAllRolesExist(guild);
-        MessageCreateData panel = teamformingService.buildPublicPanelMessage();
+        MessageCreateData panel = teamformingService.buildPublicPanelMessage(guild);
 
         channel.sendMessage(panel).queue(
                 message -> {
