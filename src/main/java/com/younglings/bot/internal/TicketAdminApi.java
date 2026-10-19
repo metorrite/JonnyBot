@@ -417,6 +417,9 @@ public class TicketAdminApi {
             }
             case "health" -> {
                 requireMethod(method, "GET");
+                // The whole bot's health (gateway, database, memory, polling of every server) is for the bot's owner only; a server's own
+                // summary is on the Overview.
+                if (!overviewAdmin.isOwner(guild, actor.getIdLong())) throw new ApiError(403, "Only the bot's owner can see the bot's health.");
                 return ops.health(guild);
             }
             case "polling" -> {
