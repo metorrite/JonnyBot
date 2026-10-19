@@ -36,6 +36,8 @@ public enum HubCommand {
             "Everyone (awarding needs Manage Server)", false),
     RANK("rank", "Self roles", "rank", "List, join and leave the roles this server lets members pick for themselves (the list is edited on the website).",
             "Everyone", false),
+    SERVER_REMINDER("serverreminder", "Server reminders", "serverreminder", "Staff reminders posted in a channel, once or repeating, with an optional role ping (managed on the Server reminders page too).",
+            "Admins only", true),
     EVENTS("events", "Events", "events", "See the events you are in (place, points, buy-in, prizes), browse the ones open for signup, and join or leave them. Events are made and run from the dashboard's Event manager.",
             "Everyone", false);
 
