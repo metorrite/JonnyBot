@@ -1,6 +1,5 @@
 package com.younglings.bot.internal;
 
-import com.younglings.bot.events.EventBoards;
 import com.younglings.bot.events.EventProblem;
 import com.younglings.bot.events.EventRepository;
 import com.younglings.bot.events.EventRepository.Event;
@@ -143,8 +142,7 @@ public class EventSpaceApi implements AdminRouteExtension {
         EventSpaceOps.Job job = ops.job(id);
         DataObject jobJson = job == null ? null : DataObject.empty().put("kind", job.kind()).put("state", job.state()).put("done", job.done()).put("total", job.total()).put("message", job.message())
                 .put("startedAt", job.startedAt().toString()).put("finishedAt", job.finishedAt() == null ? null : job.finishedAt().toString());
-        return DataObject.empty().put("job", jobJson).put("settings", EventSpace.settingJson(settings.channels(), event.template(), settings.boardChannelId(), settings.reviewChannelId(),
-                EventBoards.displayOf(DataObject.fromJson(event.config())).shared()))
+        return DataObject.empty().put("job", jobJson).put("settings", EventSpace.settingJson(settings.channels(), event.template(), settings.boardChannelId(), settings.reviewChannelId()))
                 .put("teamEvent", preview.gathered().facts().teamScored()).put("state", state).put("ready", plan.blockers().isEmpty()).put("complete", plan.complete())
                 .put("blockers", blockers).put("warnings", warnings).put("roles", roles).put("channels", channels).put("staffRoles", staff).put("summary", summary);
     }

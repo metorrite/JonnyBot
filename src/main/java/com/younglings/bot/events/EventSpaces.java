@@ -19,7 +19,6 @@ import com.younglings.bot.permission.PermissionGroupService;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Guild;
-import net.dv8tion.jda.api.utils.data.DataObject;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.entities.channel.ChannelType;
@@ -127,7 +126,7 @@ public class EventSpaces {
         EventSpace.Setting setting = settings.channels();
         Facts facts = new Facts(event.name(), event.template(), teamScored, setting, settings.boardChannelId(), settings.reviewChannelId(),
                 teams.stream().map(t -> new TeamRef(t.id(), t.name())).toList(), players, settings.organisers(), excluded, heldRoles, heldChannels,
-                pickProblems(guild, event, settings), roomOf(guild), readiness, EventBoards.displayOf(DataObject.fromJson(event.config())).shared());
+                pickProblems(guild, event, settings), roomOf(guild), readiness);
         return new Gathered(facts, staffRoles(guild), settings);
     }
 
@@ -231,9 +230,8 @@ public class EventSpaces {
     /** Why a channel an organiser chose for a slot can't be used, per slot. */
     private Map<Kind, String> pickProblems(Guild guild, Event event, EventSettings settings) {
         Map<Kind, String> problems = new EnumMap<>(Kind.class);
-        boolean sharedBoard = EventBoards.displayOf(DataObject.fromJson(event.config())).shared();
         for (Kind kind : Kind.slots()) {
-            Choice choice = EventSpace.choice(settings.channels(), kind, event.template(), settings.boardChannelId(), settings.reviewChannelId(), sharedBoard);
+            Choice choice = EventSpace.choice(settings.channels(), kind, event.template(), settings.boardChannelId(), settings.reviewChannelId());
             if (choice == null || choice.use() != Use.EXISTING) continue;
             String problem = pickProblem(guild, kind, choice.channelId());
             if (problem != null) problems.put(kind, problem);

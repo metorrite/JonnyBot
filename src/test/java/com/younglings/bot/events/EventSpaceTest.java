@@ -100,18 +100,6 @@ class EventSpaceTest {
     }
 
     @Test
-    void anOwnOnlyBingoGetsNoSharedBoardChannelWhileItsBoardsHaveChannelsOfTheirOwn() {
-        Setting teamChannels = new Setting(true, true, false, Map.of(), Map.of());
-        Setting noChannels = new Setting(true, false, false, Map.of(), Map.of());
-        assertEquals(Choice.NONE, EventSpace.choice(teamChannels, Kind.BOARD, BingoTemplate.KEY, null, null, false));
-        assertEquals(Choice.CREATE, EventSpace.choice(teamChannels, Kind.BOARD, BingoTemplate.KEY, null, null, true), "a shared or both display needs it");
-        assertEquals(Choice.CREATE, EventSpace.choice(noChannels, Kind.BOARD, BingoTemplate.KEY, null, null, false), "the fallback stays when boards have no channels of their own");
-        assertEquals(Choice.existing(55), EventSpace.choice(teamChannels, Kind.BOARD, BingoTemplate.KEY, 55L, null, false), "a channel the event names is still used");
-        Setting chose = new Setting(true, true, false, Map.of(Kind.BOARD, Choice.CREATE), Map.of());
-        assertEquals(Choice.CREATE, EventSpace.choice(chose, Kind.BOARD, BingoTemplate.KEY, null, null, false), "what the organiser chose wins");
-    }
-
-    @Test
     void theBoardAndProofChannelsTheEventAlreadyNamesAreUsedUnlessTheOrganiserChoseOtherwise() {
         assertEquals(Choice.existing(55), EventSpace.choice(ON, Kind.BOARD, BingoTemplate.KEY, 55L, null));
         assertEquals(Choice.existing(66), EventSpace.choice(ON, Kind.REVIEW, BingoTemplate.KEY, null, 66L));
