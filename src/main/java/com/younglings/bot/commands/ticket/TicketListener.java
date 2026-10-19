@@ -38,9 +38,11 @@ public class TicketListener extends ListenerAdapter {
     private final TicketService service;
     private final HelpTicketFlow helpFlow;
     private final TicketEventService ticketEvents;
+    private final TicketRelatedService related;
 
-    public TicketListener(TicketRepository repository, TicketService service, HelpTicketFlow helpFlow, TicketEventService ticketEvents) {
+    public TicketListener(TicketRepository repository, TicketService service, HelpTicketFlow helpFlow, TicketEventService ticketEvents, TicketRelatedService related) {
         this.ticketEvents = ticketEvents;
+        this.related = related;
         this.repository = repository;
         this.service = service;
         this.helpFlow = helpFlow;
@@ -59,7 +61,11 @@ public class TicketListener extends ListenerAdapter {
             if (id.startsWith(TicketView.OPEN_PREFIX)) handleOpen(event, guild, member, parse(id, TicketView.OPEN_PREFIX));
             else if (id.startsWith(TicketView.JOIN_PREFIX)) handleJoin(event, guild, member, parse(id, TicketView.JOIN_PREFIX));
             else if (id.startsWith(TicketView.CLOSE_PREFIX)) handleCloseButton(event, guild, member, parse(id, TicketView.CLOSE_PREFIX));
-            else if (id.startsWith(TicketView.EVENT_PREFIX)) ticketEvents.handle(event, guild, member, parse(id, TicketView.EVENT_PREFIX));
+            else if (id.startsWith("ticket_rel_link:") || id.startsWith("ticket_rel_merge:")) {
+                long[] pair = RelatedTickets.parse(id);
+                if (pair == null) Containers.replyEphemeral(event, Containers.WARNING, "That button is out of date.");
+                else related.handle(event, guild, member, id.startsWith("ticket_rel_merge:"), pair[0], pair[1]);
+            } else if (id.startsWith(TicketView.EVENT_PREFIX)) ticketEvents.handle(event, guild, member, parse(id, TicketView.EVENT_PREFIX));
         } catch (Exception e) {
             log.error("Unhandled exception in ticket button '{}'", id, e);
             Containers.replyError(event);
