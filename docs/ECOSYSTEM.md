@@ -61,6 +61,13 @@ Ticket board (the work queue): https://claude.ai/artifact/W1MkBY5EH8beWVZGfnQUER
 - Do not invent facts about Discord/JDA limits: look them up or test them.
 - Report what you could not verify (signed-in pages, anything against live Discord) in the ticket log and PR.
 
+**Secrets (Drake 2026-10-19, ticket T-109)**
+- Never commit, print or paste a real secret (Discord tokens, DB URLs/passwords, `INTERNAL_API_SECRET`, OAuth/Twitch keys, plugin tokens, live DB credentials): not in code, tests, docs, PR text, ticket logs or transcripts.
+- Never grep `.env*` files or `.idea/workspace.xml` (the run configurations) wholesale; read a single key if you must, and never echo it.
+- Test secrets are built at runtime (`TestSecrets.fake("token")` in the bot's test sources) or are obviously fake (`TEST-SECRET-1`). A literal that looks like a real token fails GitGuardian and the gitleaks scan.
+- Both repos run a gitleaks pre-commit hook (`sh tools/install-hooks` once per clone, see `docs/DEV-SETUP.md`) and a CI "Secret Scan" job. Scan output is always redacted (rule id, file, commit). Do not bypass the hook with `--no-verify`; an allow-list entry in `.gitleaks.toml` needs a reason and must be specific.
+- Run `git diff --cached --stat` before a push. If a real secret was ever committed: stop, set the ticket to `planning`, log the kind, file and commit (no value) and tell Drake. Rotation and history cleaning are his call.
+
 ## 4. Running it locally
 
 `powershell -ExecutionPolicy Bypass -File JonnyBot/tools/dev-start.ps1` stops every old bot, rebuilds the website preview branch `local/wip-preview` (origin/dev plus every open PR), starts exactly one bot (port 8081) and the website (port 3000). Never start the IntelliJ "JonnyBot Dev" configuration as well: it adds a second bot. `HUB_DEMO=true` (git-ignored `.env.local`) fills the hub with fake clans.

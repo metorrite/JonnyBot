@@ -1,0 +1,20 @@
+#!/bin/sh
+# Blocks a commit whose staged changes contain a secret (gitleaks, local, nothing is uploaded).
+# Installed by tools/install-hooks. Output is redacted: rule id + file + line only, never the value.
+# A real false positive goes in .gitleaks.toml (or "gitleaks:allow" on the line). Do not use --no-verify.
+
+BIN="${GITLEAKS_BIN:-gitleaks}"
+if ! command -v "$BIN" >/dev/null 2>&1; then
+  echo "pre-commit: gitleaks not found (set GITLEAKS_BIN or put it on PATH, see docs/DEV-SETUP.md). Commit blocked." >&2
+  exit 1
+fi
+
+out=$("$BIN" protect --staged --redact=100 --no-banner --verbose 2>&1)
+status=$?
+if [ "$status" -ne 0 ]; then
+  echo "$out" | grep -E '^(RuleID|File|Line):' >&2
+  echo "pre-commit: possible secret in the staged changes (values hidden). Commit blocked." >&2
+  echo "pre-commit: a real secret -> remove it and tell Drake. A fake test value -> build it at runtime (TestSecrets.fake) or allow-list it in .gitleaks.toml." >&2
+  exit 1
+fi
+exit 0

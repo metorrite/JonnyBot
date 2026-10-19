@@ -56,6 +56,17 @@ Copying the old machine's `.idea/workspace.xml` also works when the repository i
 
 **Live database and hosting:** the production Postgres is on Railway; its credentials are in Claude's memory file `reference_railway_live_db.md` and in Railway. Only touch it when asked, read-only first. DNS is on Cloudflare (`reference_infra_dns_hosting.md`).
 
+## 3b. Secret scan (pre-commit hook)
+
+Every commit is scanned for secrets by [gitleaks](https://github.com/gitleaks/gitleaks), locally; nothing is uploaded. CI runs the same scan ("Secret Scan" job) next to GitGuardian.
+
+1. Get the pinned release (8.30.1) from the official releases page, `gitleaks_8.30.1_windows_x64.zip`, verify it against `gitleaks_8.30.1_checksums.txt`, and unzip `gitleaks.exe` into a tools folder **outside the repositories** (for example `%LOCALAPPDATA%\Temp	ools`). Never add the binary to a repository.
+2. Put it on `PATH`, or set `GITLEAKS_BIN` to its full path.
+3. In each clone (and each worktree's repository, once): `sh tools/install-hooks` from Git Bash. It sets `core.hooksPath` to `tools/hooks`.
+4. A commit with a secret in the staged changes is blocked and prints only the rule id, file and line, never the value. Remove the secret (a real one: tell Drake), build fake test values at runtime, or add a specific entry to `.gitleaks.toml`. Do not use `--no-verify`.
+
+Check the whole tree by hand: `gitleaks dir . --redact=100 --no-banner`.
+
 ## 4. First run
 
 1. Start Postgres and create the database: `createdb jonnybot_dev` (user `postgres`).
