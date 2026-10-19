@@ -23,7 +23,7 @@ import java.util.function.Supplier;
 
 /**
  * What each dashboard admin has set for themselves in one server, kept with the bot so it follows them from one computer to the next. For now: the starred
- * pages of the sidebar ({@code prefs/favorites}). {@code GET} answers {@code {paths: ["/settings", ...]}} in the order they were starred, and {@code PUT}
+ * pages of the sidebar ({@code prefs/favorites}) and the Basic/Advanced view ({@code prefs/view}, {@code {mode: "basic"|"advanced"|null}}; null means never chosen). {@code GET} answers {@code {paths: ["/settings", ...]}} in the order they were starred, and {@code PUT}
  * with the same body replaces the list. A page is a dashboard path like {@code /event-manager}; the website knows which exist, the bot only checks the shape
  * and keeps at most {@value #MAX_FAVORITES}. Everyone sees and changes only their own: the person is the one the request was made for.
  */
@@ -31,6 +31,7 @@ import java.util.function.Supplier;
 public class DashboardPrefsApi implements AdminRouteExtension {
     private static final Logger log = LoggerFactory.getLogger(DashboardPrefsApi.class);
     public static final int MAX_FAVORITES = 20;
+    static final Set<String> VIEW_MODES = Set.of("basic", "advanced");
     private static final String SHAPE = "/[a-z][a-z0-9-]{0,39}";
 
     private final ConnectionSupplier connectionSupplier;
@@ -47,14 +48,31 @@ public class DashboardPrefsApi implements AdminRouteExtension {
                     position INT NOT NULL,
                     PRIMARY KEY (guild_id, user_id, path)
                 );
+                """,
+                """
+                CREATE TABLE IF NOT EXISTS younglings.dashboard_view (
+                    guild_id BIGINT NOT NULL,
+                    user_id BIGINT NOT NULL,
+                    mode TEXT NOT NULL,
+                    PRIMARY KEY (guild_id, user_id)
+                );
                 """));
     }
 
     @Override
     public DataObject route(Guild guild, Member actor, String method, String[] parts, Supplier<DataObject> body) {
-        if (parts.length != 2 || !parts[0].equals("prefs") || !parts[1].equals("favorites")) return null;
+        if (parts.length != 2 || !parts[0].equals("prefs")) return null;
         long guildId = guild.getIdLong();
         long userId = actor.getIdLong();
+        if (parts[1].equals("view")) {
+            if (method.equals("GET")) return viewAnswer(view(guildId, userId));
+            AdminRouteExtension.requireMethod(method, "PUT");
+            String mode = body.get().getString("mode", "");
+            if (!VIEW_MODES.contains(mode)) throw new ApiError(400, "The view is basic or advanced.");
+            saveView(guildId, userId, mode);
+            return viewAnswer(mode);
+        }
+        if (!parts[1].equals("favorites")) return null;
         if (method.equals("GET")) return answer(favorites(guildId, userId));
         AdminRouteExtension.requireMethod(method, "PUT");
         DataObject b = body.get();
@@ -79,6 +97,35 @@ public class DashboardPrefsApi implements AdminRouteExtension {
         }
         if (seen.size() > MAX_FAVORITES) throw new ApiError(400, "You can star up to " + MAX_FAVORITES + " pages.");
         return new ArrayList<>(seen);
+    }
+
+    private static DataObject viewAnswer(String mode) {
+        return DataObject.empty().put("mode", mode);
+    }
+
+    /** The view this admin chose in this server, or null when they never have (the browser then decides). */
+    String view(long guildId, long userId) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("SELECT mode FROM younglings.dashboard_view WHERE guild_id = ? AND user_id = ?")) {
+            s.setLong(1, guildId);
+            s.setLong(2, userId);
+            try (ResultSet rs = s.executeQuery()) {
+                return rs.next() ? rs.getString(1) : null;
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read the dashboard view", e);
+        }
+    }
+
+    void saveView(long guildId, long userId, String mode) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(
+                "INSERT INTO younglings.dashboard_view (guild_id, user_id, mode) VALUES (?, ?, ?) ON CONFLICT (guild_id, user_id) DO UPDATE SET mode = EXCLUDED.mode")) {
+            s.setLong(1, guildId);
+            s.setLong(2, userId);
+            s.setString(3, mode);
+            s.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to save the dashboard view", e);
+        }
     }
 
     private static DataObject answer(List<String> paths) {

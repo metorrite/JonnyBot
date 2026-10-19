@@ -1,0 +1,7 @@
+{"kind":"Listing","data":{"children":[
+ {"kind":"t3","data":{"id":"abc111","title":"Patch notes","permalink":"/r/runescape/comments/abc111/patch_notes/","author":"Mod_Ash","over_18":false,"stickied":false,"link_flair_text":"News"}},
+ {"kind":"t3","data":{"id":"abc222","title":"Spicy post","permalink":"/r/runescape/comments/abc222/spicy/","author":"someone","over_18":true,"stickied":false,"link_flair_text":"News"}},
+ {"kind":"t3","data":{"id":"abc333","title":"Weekly thread","permalink":"/r/runescape/comments/abc333/weekly/","author":"AutoModerator","over_18":false,"stickied":true,"link_flair_text":"News"}},
+ {"kind":"t3","data":{"id":"abc444","title":"My drop","permalink":"/r/runescape/comments/abc444/my_drop/","author":"player1","over_18":false,"stickied":false,"link_flair_text":"Achievement"}},
+ {"kind":"t3","data":{"id":"abc555","title":"No flair at all","permalink":"/r/runescape/comments/abc555/noflair/","author":"player2","over_18":false,"stickied":false,"link_flair_text":null}}
+]}}

@@ -36,6 +36,7 @@ class WeeklyDigestWheelButtonsTest {
     private CitadelWheelEntries service;
     private CitadelWheelPoster poster;
     private AdminRoleFilter adminFilter;
+    private CitadelWinners winners;
     private WeeklyDigestInteractionListener listener;
     private Guild guild;
 
@@ -44,7 +45,8 @@ class WeeklyDigestWheelButtonsTest {
         service = mock(CitadelWheelEntries.class);
         poster = mock(CitadelWheelPoster.class);
         adminFilter = mock(AdminRoleFilter.class);
-        listener = new WeeklyDigestInteractionListener(service, poster, adminFilter);
+        winners = mock(CitadelWinners.class);
+        listener = new WeeklyDigestInteractionListener(service, poster, adminFilter, winners);
         listener.useExecutor(Runnable::run);
         guild = mock(Guild.class);
         when(guild.getIdLong()).thenReturn(GUILD);
@@ -172,5 +174,44 @@ class WeeklyDigestWheelButtonsTest {
         listener.onButtonInteraction(event);
 
         verify(event.getHook(), times(2)).editOriginal("Choose the channel first.");
+    }
+
+    private static String lockIdFor(String winner) {
+        return WeeklyDigestInteractionListener.lockId("2026-10-14", 12, winner);
+    }
+
+    @Test
+    void aMemberCannotLockTheWinner() {
+        ButtonInteractionEvent event = click(lockIdFor("Axley"), member(false));
+        listener.onButtonInteraction(event);
+        verify(winners, never()).lock(anyLong(), any(), any(), any(), any(), any(), any(), any());
+        verify(event, never()).deferReply(anyBoolean());
+    }
+
+    @Test
+    void staffLockTheSpunWinnerForAWeekThatHasNone() {
+        ButtonInteractionEvent event = click(lockIdFor("G i f f é"), member(true));
+        when(event.getMessage().getAttachments()).thenReturn(List.of());
+        when(event.getUser().getIdLong()).thenReturn(77L);
+        when(winners.forWeek(GUILD, java.time.LocalDate.parse("2026-10-14"))).thenReturn(List.of());
+
+        listener.onButtonInteraction(event);
+
+        verify(winners).lock(eq(GUILD), eq(java.time.LocalDate.parse("2026-10-14")), eq("G i f f é"), any(), eq(com.younglings.bot.wheel.WheelWinnerRepository.Method.SPUN), eq(77L), any(),
+                eq(com.younglings.bot.wheel.WheelWinnerRepository.GifSource.BOT));
+        verify(event.getHook()).editOriginal("Locked **G i f f é** in as the winner of the week ending 2026-10-14.");
+    }
+
+    @Test
+    void aWeekThatAlreadyHasAWinnerIsNeverAddedToOrReplacedFromTheButton() {
+        var existing = mock(com.younglings.bot.wheel.WheelWinnerRepository.Winner.class);
+        when(existing.winner()).thenReturn("Axley");
+        when(winners.forWeek(GUILD, java.time.LocalDate.parse("2026-10-14"))).thenReturn(List.of(existing));
+        ButtonInteractionEvent event = click(lockIdFor("Berserker87"), member(true));
+
+        listener.onButtonInteraction(event);
+
+        verify(winners, never()).lock(anyLong(), any(), any(), any(), any(), any(), any(), any());
+        verify(event.getHook()).editOriginal(org.mockito.ArgumentMatchers.contains("already has a locked winner"));
     }
 }
