@@ -298,3 +298,9 @@ ALTER TABLE ONLY bc.bc_persistent_timeout
 --
 
 
+
+--
+-- The version row BotCommands checks at startup (the schema-only dump above left it out; with it a fresh database starts).
+--
+
+INSERT INTO bc.bc_version (one_row, version) VALUES (true, '3.0.0') ON CONFLICT DO NOTHING;

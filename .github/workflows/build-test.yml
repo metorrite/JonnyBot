@@ -10,6 +10,27 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    # A throwaway database (trust auth, no password: nothing here is a secret) for the headless startup check (StartupWiringTest): it builds the bot's whole service and command wiring
+    # without logging in to Discord, and the repositories create their tables on construction.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: startup_check
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d startup_check"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      STARTUP_CHECK_REQUIRED: "true"
+      STARTUP_CHECK_DATABASE_URL: postgresql://ci:@127.0.0.1:5432/startup_check
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -20,6 +41,9 @@ jobs:
           distribution: temurin
           java-version: "21"
           cache: maven
+
+      - name: Prepare the BotCommands tables for the startup check
+        run: psql -q -f docs/bc-schema.sql "$STARTUP_CHECK_DATABASE_URL"
 
       - name: Verify with Maven
         run: mvn clean verify
