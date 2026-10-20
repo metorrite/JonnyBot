@@ -113,6 +113,7 @@ public class SiteNewsService {
             throw fail("save news channels", e);
         }
         cache.clear();
+        SiteInvalidator.signal(SiteInvalidator.Area.NEWS);
     }
 
     // ---------- the posts ----------

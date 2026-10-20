@@ -51,9 +51,16 @@ public final class BingoLayout {
     private final List<String> rowNames;
     private final Map<Integer, List<Integer>> requires;
     private final int[] depth;
+    /** For a shape in a size of its own: the geometry it is drawn from. Null for the four painted pictures. */
+    private final BingoShapes.Built built;
 
     private BingoLayout(String id, String name, String blurb, String rule, String image, List<Slot> slots, List<List<Integer>> rows, List<String> rowNames,
                         Map<Integer, List<Integer>> requires, int[] depth) {
+        this(id, name, blurb, rule, image, slots, rows, rowNames, requires, depth, null);
+    }
+
+    private BingoLayout(String id, String name, String blurb, String rule, String image, List<Slot> slots, List<List<Integer>> rows, List<String> rowNames,
+                        Map<Integer, List<Integer>> requires, int[] depth, BingoShapes.Built built) {
         this.id = id;
         this.name = name;
         this.blurb = blurb;
@@ -64,6 +71,7 @@ public final class BingoLayout {
         this.rowNames = rowNames;
         this.requires = requires;
         this.depth = depth;
+        this.built = built;
     }
 
     public String id() {
@@ -86,6 +94,30 @@ public final class BingoLayout {
 
     public int tiles() {
         return slots.size();
+    }
+
+    /** True for a shape drawn in code in a size of its own (see {@link BingoShapes}); false for the four painted pictures. */
+    public boolean generated() {
+        return built != null;
+    }
+
+    /** The size a generated shape was made at (pyramid base, path length, rings, levels), or 0 for a painted picture. */
+    public int sizeParam() {
+        return built == null ? 0 : built.size();
+    }
+
+    /** The width of the picture a generated shape is drawn on. */
+    public int canvasWidth() {
+        return built.width();
+    }
+
+    public int canvasHeight() {
+        return built.height();
+    }
+
+    /** The places of a generated shape as points (centres), in tile order; used to draw the paths between tiles. */
+    public List<BingoShapes.Place> places() {
+        return built == null ? List.of() : built.places();
     }
 
     public List<Slot> slots() {
@@ -132,6 +164,7 @@ public final class BingoLayout {
 
     /** The empty board picture in a look (read once and kept). The classic one has its "ITEM ICON" and "PLAYER NAME" placeholders printed in; the others are clean. */
     public BufferedImage image(String look) {
+        if (built != null) return BingoBackdrops.grid(look, built.width(), built.height());
         String file = LOOK_RUNESCAPE.equals(look) ? "runescape/" + id + ".jpg" : image;
         synchronized (LOCK) {
             return IMAGES.computeIfAbsent(file, k -> {
@@ -157,6 +190,29 @@ public final class BingoLayout {
     public static synchronized List<BingoLayout> all() {
         if (all == null) all = List.of(path(), pyramid(), convergence(), tree());
         return all;
+    }
+
+    /**
+     * The shape {@code id} in a size ({@link BingoShapes}). A size of 0, or the size the painted picture has, is the picture itself; any other size in the
+     * shape's range is drawn in code. Empty for an unknown shape or a size outside the range.
+     */
+    public static Optional<BingoLayout> of(String id, int size) {
+        Optional<BingoLayout> picture = find(id);
+        if (picture.isEmpty() || size == 0) return picture;
+        var range = BingoShapes.range(id);
+        if (range.isPresent() && range.get().picture() == size) return picture;
+        return BingoShapes.build(id, size).map(BingoLayout::fromBuilt);
+    }
+
+    private static BingoLayout fromBuilt(BingoShapes.Built b) {
+        List<Slot> slots = new ArrayList<>();
+        for (BingoShapes.Place pl : b.places()) {
+            int x = (int) Math.round(pl.x());
+            int y = (int) Math.round(pl.y());
+            int h = BingoShapes.TILE / 2;
+            slots.add(new Slot(pl.number(), new int[]{x - h, y - h, BingoShapes.TILE, BingoShapes.TILE}, new int[]{x - h + 14, y - h + 10, 82, 70}, new int[]{x - h + 7, y - h + 86, 96, 19}, pl.round()));
+        }
+        return new BingoLayout(b.id(), b.name(), b.blurb(), b.rule(), null, List.copyOf(slots), b.rows(), b.rowNames(), b.requires(), b.depth(), b);
     }
 
     public static Optional<BingoLayout> find(String id) {
