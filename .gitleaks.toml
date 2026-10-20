@@ -1,0 +1,13 @@
+# Secret-scan config (gitleaks). Used by the pre-commit hook and the CI "Secret scan" job.
+# Keep this list SHORT and specific. Never allow-list a real secret: remove it and tell Drake.
+title = "JonnyBot secret scan"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Known non-secrets"
+paths = [
+  # Wiki item keys such as dragon_kite_ornament_kit_*; they look like api keys to the generic rule.
+  '''src/main/resources/catalog/bosses\.json''',
+]

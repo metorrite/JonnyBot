@@ -56,6 +56,17 @@ Copying the old machine's `.idea/workspace.xml` also works when the repository i
 
 **Live database and hosting:** the production Postgres is on Railway; its credentials are in Claude's memory file `reference_railway_live_db.md` and in Railway. Only touch it when asked, read-only first. DNS is on Cloudflare (`reference_infra_dns_hosting.md`).
 
+## 3b. Secret scan (pre-commit hook)
+
+Every commit is scanned for secrets by [gitleaks](https://github.com/gitleaks/gitleaks), locally; nothing is uploaded. CI runs the same scan ("Secret Scan" job) next to GitGuardian.
+
+1. Get the pinned release (8.30.1) from the official releases page, `gitleaks_8.30.1_windows_x64.zip`, verify it against `gitleaks_8.30.1_checksums.txt`, and unzip `gitleaks.exe` into a tools folder **outside the repositories** (for example `%LOCALAPPDATA%\Temp	ools`). Never add the binary to a repository.
+2. Put it on `PATH`, or set `GITLEAKS_BIN` to its full path.
+3. In each clone (and each worktree's repository, once): `sh tools/install-hooks` from Git Bash. It sets `core.hooksPath` to `tools/hooks`.
+4. A commit with a secret in the staged changes is blocked and prints only the rule id, file and line, never the value. Remove the secret (a real one: tell Drake), build fake test values at runtime, or add a specific entry to `.gitleaks.toml`. Do not use `--no-verify`.
+
+Check the whole tree by hand: `gitleaks dir . --redact=100 --no-banner`.
+
 ## 4. First run
 
 1. Start Postgres and create the database: `createdb jonnybot_dev` (user `postgres`).
@@ -86,6 +97,8 @@ mvn -o test -Dtest='EventTeamsTest,EventsAdminApiTest'   # the database-backed e
 ```
 
 Database-backed tests (`EventSetupTest`, `EventTeamsTest`, `EventsAdminApiTest`, ...) use `LocalDatabase`, which refuses anything but 127.0.0.1/localhost and cleans up the rows it makes (made-up server ids). It finds the database in `.idea/workspace.xml` (the run configuration's `DATABASE_URL`) **or** in the environment variable `JONNYBOT_TEST_DATABASE_URL`; a git worktree has no `.idea`, so export the variable (same value as `DATABASE_URL`) when running tests there. Without it those tests are silently skipped (surefire shows "Tests run: 0" for them).
+
+**Headless startup check (`StartupWiringTest`).** Boots the bot's real BotCommands wiring in a child JVM *without logging in to Discord* (the system property `jonnybot.headless=true` makes `Bot.createJDA` return early, so no gateway, no internal API, no schedulers), then runs every command provider's declaration step. It fails on "No service or factories found", an interface service missing `@InterfacedService`, a missing `SlashParameterResolver`, a bad constructor, a SQL error in a repository's table setup. It uses the local dev database (`JONNYBOT_TEST_DATABASE_URL`) and is skipped when there is none; CI runs it against a throwaway Postgres (`STARTUP_CHECK_DATABASE_URL`, with `docs/bc-schema.sql` loaded first) and fails if the database is missing. Run it alone with `mvn -o test -Dtest=StartupWiringTest`. `ListenerRegistrationTest` is its static companion: every `@BService` `ListenerAdapter` must be a field of `Bot` or implement `BotListener`. **Limit:** it proves the wiring and the command definitions build, not that Discord accepts them or that a listener behaves; the "Finished Loading!" launch of the dev bot stays the check for those.
 
 Website: `npx tsc --noEmit` (ignore the one `LayoutProps` error in a worktree: Next generates that type), `npx eslint <paths>`, `npx next build --webpack`.
 

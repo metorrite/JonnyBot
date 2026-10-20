@@ -44,6 +44,9 @@ import java.util.Set;
 @BService
 @NullMarked // Everything is non-null unless @Nullable
 public class Bot extends JDAService {
+    /** System property that makes {@link #createJDA} skip the Discord login (see there). */
+    public static final String HEADLESS_PROPERTY = "jonnybot.headless";
+
     private final BotConfig botConfig;
     private final SignupInteractionListener signupInteractionListener;
     private final PollInteractionListener pollInteractionListener;
@@ -138,7 +141,7 @@ public class Bot extends JDAService {
 
     // If you use Spring, you can return values provided by JDAConfiguration in the getters below
     //
-    // Only ONLINE_STATUS and SCHEDULED_EVENTS are ever actually read anywhere in this codebase —
+    // Only ONLINE_STATUS, SCHEDULED_EVENTS and VOICE_STATE (temporary voice channels) are read anywhere in this codebase —
     // see InternalApiServer's /online-members (member.getOnlineStatus()) and /events
     // (guild.getScheduledEvents()) endpoints. The other 9 CacheFlag.values() (ACTIVITY, VOICE_STATE,
     // EMOJI, STICKER, SOUNDBOARD_SOUNDS, CLIENT_STATUS, MEMBER_OVERRIDES, ROLE_TAGS, FORUM_TAGS) were
@@ -146,7 +149,6 @@ public class Bot extends JDAService {
     // structure that JDA otherwise never has to populate or hold onto.
     @Override
     public Set<CacheFlag> getCacheFlags() {
-        // VOICE_STATE: JDA only fires GuildVoiceUpdateEvent (the voice log) with it; it holds one small entry per member currently in voice.
         return Set.of(CacheFlag.ONLINE_STATUS, CacheFlag.SCHEDULED_EVENTS, CacheFlag.VOICE_STATE);
     }
 
@@ -154,18 +156,25 @@ public class Bot extends JDAService {
     public Set<GatewayIntent> getIntents() {
         // Intents are not permissions: they only choose which gateway events Discord sends us, and the three
         // privileged ones (GUILD_MEMBERS, GUILD_PRESENCES, MESSAGE_CONTENT) are switches in the developer portal.
-        // The rest of GatewayIntent.values() (voice states, invites, webhooks, typing, auto-moderation, poll votes)
+        // Voice states are on for temporary voice channels (with CacheFlag.VOICE_STATE above). The rest of GatewayIntent.values() (invites, webhooks, typing, auto-moderation, poll votes)
         // fed no listener, so they are left off; the server permissions the bot needs are the invite link's bits.
         // A privileged intent whose portal switch is off is left out (see PrivilegedIntents) so the bot still starts.
         return com.younglings.bot.config.PrivilegedIntents.filter(botConfig.getToken(), defaultIntents(
                 GatewayIntent.GUILD_MEMBERS, GatewayIntent.GUILD_MODERATION, GatewayIntent.GUILD_EXPRESSIONS,
-                GatewayIntent.GUILD_PRESENCES, GatewayIntent.GUILD_MESSAGES, GatewayIntent.GUILD_MESSAGE_REACTIONS,
-                GatewayIntent.MESSAGE_CONTENT, GatewayIntent.SCHEDULED_EVENTS, GatewayIntent.GUILD_VOICE_STATES,
+                GatewayIntent.GUILD_PRESENCES, GatewayIntent.GUILD_MESSAGES, GatewayIntent.GUILD_MESSAGE_REACTIONS, GatewayIntent.GUILD_VOICE_STATES,
+                GatewayIntent.MESSAGE_CONTENT, GatewayIntent.SCHEDULED_EVENTS,
                 GatewayIntent.DIRECT_MESSAGES, GatewayIntent.DIRECT_MESSAGE_REACTIONS));
     }
 
     @Override
     public void createJDA(BReadyEvent event, IEventManager eventManager) {
+        // The headless startup check (HeadlessStartup in the tests) boots the whole framework wiring without a Discord login: every
+        // service, listener and command definition is built, but no gateway connection is opened and nothing that waits for the JDA
+        // (internal API, schedulers) starts. Never set in a real run.
+        if (Boolean.getBoolean(HEADLESS_PROPERTY)) {
+            return;
+        }
+
         // This uses JDABuilder#createLight, with the intents and the additional cache flags set above
         // It also sets the EventManager and a special rate limiter
         createLight(botConfig.getToken())
