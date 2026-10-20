@@ -407,6 +407,36 @@ public class BotConfig {
         return raw == null || raw.isBlank() ? null : raw;
     }
 
+
+    /**
+     * Every secret this process was started with, for {@code SnapshotRedactor} to mask wherever it turns up: the value of any
+     * environment or {@code .env} entry whose name looks like a secret (token, secret, password, key, database url), plus the
+     * password and user inside a connection string. Names are never returned, only values.
+     */
+    public java.util.Set<String> secretValues() {
+        java.util.Set<String> found = new java.util.HashSet<>();
+        java.util.Map<String, String> all = new java.util.HashMap<>(System.getenv());
+        dotenv.entries().forEach(entry -> all.putIfAbsent(entry.getKey(), entry.getValue()));
+        all.forEach((name, value) -> {
+            if (value == null || value.isBlank()) return;
+            String upper = name.toUpperCase(java.util.Locale.ROOT);
+            boolean secretLooking = upper.contains("TOKEN") || upper.contains("SECRET") || upper.contains("PASSWORD") || upper.contains("PASSWD")
+                    || upper.contains("API_KEY") || upper.endsWith("_KEY") || upper.contains("DATABASE_URL") || upper.contains("PRIVATE")
+                    || upper.contains("CREDENTIAL") || upper.contains("PGPASSWORD");
+            if (!secretLooking) return;
+            found.add(value.strip());
+            // A connection string also hides its password and user on their own.
+            try {
+                java.net.URI uri = java.net.URI.create(value.strip());
+                if (uri.getUserInfo() != null) {
+                    for (String part : uri.getUserInfo().split(":", 2)) if (!part.isBlank()) found.add(part);
+                }
+            } catch (IllegalArgumentException ignored) {
+                // Not a URI; the whole value is already covered.
+            }
+        });
+        return found;
+    }
     public List<Long> getOwnerIds() {
         String rawOwnerIds = System.getenv("OWNER_IDS");
 
