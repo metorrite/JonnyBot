@@ -34,6 +34,8 @@ public enum HubCommand {
             "Admins only", true),
     POINTS("points", "Points", "points", "A server's points ledger: check your balance, see the top members, and staff award points with a reason on record.",
             "Everyone (awarding needs Manage Server)", false),
+    ANNOUNCE("announce", "Announce", "announce", "Staff post an announcement in a channel, optionally pinging one role, @everyone or @here. Pings follow the sender's own mention permissions. The dashboard has the same form under Announcements.",
+            "Admins only", true),
     RANK("rank", "Self roles", "rank", "List, join and leave the roles this server lets members pick for themselves (the list is edited on the website).",
             "Everyone", false),
     LOCK("lock", "Lock a channel", "lock", "Stop everyone but chosen roles from talking in a channel. /unlock puts its permissions back exactly as they were.",

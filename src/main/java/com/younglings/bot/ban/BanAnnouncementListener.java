@@ -1,0 +1,29 @@
+package com.younglings.bot.ban;
+
+import com.younglings.bot.BotListener;
+import io.github.freya022.botcommands.api.core.service.annotations.BService;
+import net.dv8tion.jda.api.events.guild.GuildBanEvent;
+import net.dv8tion.jda.api.hooks.ListenerAdapter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+/** Announces bans. Registered with JDA by {@code Bot} because it is a {@link BotListener}. */
+@BService
+public class BanAnnouncementListener extends ListenerAdapter implements BotListener {
+    private static final Logger log = LoggerFactory.getLogger(BanAnnouncementListener.class);
+
+    private final BanAnnouncementService service;
+
+    public BanAnnouncementListener(BanAnnouncementService service) {
+        this.service = service;
+    }
+
+    @Override
+    public void onGuildBan(GuildBanEvent event) {
+        try {
+            service.onBan(event.getGuild(), event.getUser());
+        } catch (Exception e) {
+            log.error("The ban announcement for {} failed", event.getUser().getId(), e);
+        }
+    }
+}

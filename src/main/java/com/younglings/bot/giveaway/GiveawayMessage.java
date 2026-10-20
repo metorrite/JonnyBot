@@ -19,11 +19,13 @@ public final class GiveawayMessage {
     public static MessageEmbed embed(Giveaway g, int entries) {
         EmbedBuilder embed = new EmbedBuilder().setTitle("🎉 " + g.prize());
         if (g.open()) {
-            StringBuilder text = new StringBuilder("Press **Enter** to join. Press it again to leave.\n\n");
+            StringBuilder text = new StringBuilder(g.reactionEntry() ? "Press **Enter** or react with " + Giveaway.ENTRY_EMOJI + " to join. Press it again (or remove your reaction) to leave.\n\n"
+                    : "Press **Enter** to join. Press it again to leave.\n\n");
             text.append("Ends <t:").append(g.endsAt().getEpochSecond()).append(":R> (<t:").append(g.endsAt().getEpochSecond()).append(":f>)\n");
             text.append("Hosted by <@").append(g.hostId()).append(">\n");
             text.append("Winners: **").append(g.winnerCount()).append("**");
             if (g.requiredRoleId() != null) text.append("\nOnly for <@&").append(g.requiredRoleId()).append(">");
+            if (g.winnerRoleId() != null) text.append("\nWinners get <@&").append(g.winnerRoleId()).append(">");
             embed.setDescription(text).setColor(GOLD).setFooter(entries + " entered");
         } else {
             String winners = g.winners().isEmpty() ? "Nobody entered, so there is no winner." : "Winner" + (g.winners().size() == 1 ? "" : "s") + ": " + GiveawayDraw.mentions(g.winners());
