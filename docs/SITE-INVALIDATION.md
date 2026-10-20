@@ -20,6 +20,7 @@ Kept in step in two places: `SiteInvalidator.Area` (bot) and `src/lib/cacheTags.
 | `hub:clans` | Clans hub directory and clan pages (`/internal/directory/clans...`) |
 | `hub:events` | Hub events (`/internal/directory/events`, a clan's events) |
 | `hub:leaderboards` | Hub leaderboards |
+| `hub:sites` | Clan websites from the builder (`/internal/directory/sites/<slug>`) |
 
 | Bot `Area` | Tags it sends | Written from |
 |---|---|---|
@@ -29,7 +30,7 @@ Kept in step in two places: `SiteInvalidator.Area` (bot) and `src/lib/cacheTags.
 | `SIGNUPS` | site:signups | `SignupRepository` (create, status, delete, entries) |
 | `NEWS` | site:news | `SiteNewsService` (the news channels setting) |
 | `OPTIONS` | site:options | `CommunitySettings` (site options) |
-| `HUB` | hub:clans, hub:events, hub:leaderboards | `ClanProfileRepository` (profile, verification, suspension, shared events) |
+| `HUB` | hub:clans, hub:events, hub:leaderboards, hub:sites | `ClanProfileRepository` (profile, verification, suspension, shared events), `ClanSiteRepository` (a clan website saved) |
 
 Not signalled (the timers cover them): player stat snapshots written by polling, Discord-side news messages, points and anything that is not in a table above. To cover another write, add one `SiteInvalidator.signal(Area.X)` after it succeeds; to add a page's tag, tag its fetch (`siteTag(path)` for `/internal/site` reads, `tagsForInternalPath` for `botCall`).
 
