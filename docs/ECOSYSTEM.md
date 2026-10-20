@@ -26,6 +26,7 @@ Ticket board (the work queue): https://claude.ai/artifact/W1MkBY5EH8beWVZGfnQUER
 - **Access:** dashboard access is per server (owner, Administrator/Manage Server, or configured admin roles). Bot-owner-only things use `BotOwners` (Discord application owner or `OWNER_IDS`). The beta gate (`canSeeJonnyBot`, `HUB_PUBLIC`) hides the JonnyBot site and the hub from non-staff until switched on.
 - **Premium:** a hand-picked server list (`premium_guild`, managed on `/admin/polling-plan`, owner only). Today it gates faster polling and the bot's server avatar/banner/bio. A future premium plan flips the same list.
 - **Data stores:** everything lives in the bot's PostgreSQL schema `younglings`. Tables are created by each feature's repository through `SchemaBootstrapper` (idempotent `CREATE ... IF NOT EXISTS`, `ADD COLUMN IF NOT EXISTS`). The website has no database of its own.
+- **Dev snapshots (bug reports):** an owner-only zip of the bot's state with a stable id (`snap-yyyyMMdd-HHmmss-xxxx`), taken from the dashboard or `GET/POST /internal/admin/dev/snapshot`. Format, focus and redaction rules: [DEV-SNAPSHOT.md](DEV-SNAPSHOT.md).
 - **Multi-server:** the bot runs in many servers. Anything that names a clan or assumes the home server is wrong. Use `BrandingService.displayName(guild)` for names, `GuildSettingsService.getEffective(guildId)` for settings (env defaults apply to the home server only, `GUILD_ID`).
 
 ## 3. Rules that apply to every ticket
@@ -46,6 +47,7 @@ Ticket board (the work queue): https://claude.ai/artifact/W1MkBY5EH8beWVZGfnQUER
 **Bot (Java)**
 - New listener adapters must be added to `Bot.java` or buttons silently time out.
 - **Website first.** The dashboard is the primary way to change how the bot behaves; Discord-only use must keep working. In the same ticket as the bot change: every new setting, setup step or configuration gets a dashboard control; every new slash command appears on the dashboard Commands page (on/off, who, where) and its staff actions get a dashboard equivalent where that makes sense; a new feature gets its own dashboard page and nav entry. Skip a side only when it has no meaning there, and say why in the PR.
+- **Privileged intents:** `Bot.getIntents()` passes the wanted intents through `PrivilegedIntents.filter`, which asks Discord which of Message Content / Server Members / Presence are switched on for the application and leaves out the ones that are off (logging which features lose out), so the bot still starts. Features that read message text check `PrivilegedIntents.messageContent()`.
 - Tests: `mvn -o test` (about 1,200 tests; all must pass). A throwaway JUnit against the local dev DB is the way to check new SQL.
 - Dev bot lives in the real clan server (`GUILD_ID`): live tests are real. Do not spam it.
 
@@ -61,6 +63,13 @@ Ticket board (the work queue): https://claude.ai/artifact/W1MkBY5EH8beWVZGfnQUER
 - The website-first rule applies to the RS3 plugin too: anything the plugin reports or lets a member or admin control gets a website view or control (the member's profile for personal consent and data, the dashboard for clan settings).
 - Do not invent facts about Discord/JDA limits: look them up or test them.
 - Report what you could not verify (signed-in pages, anything against live Discord) in the ticket log and PR.
+
+**Secrets (Drake 2026-10-19, ticket T-109)**
+- Never commit, print or paste a real secret (Discord tokens, DB URLs/passwords, `INTERNAL_API_SECRET`, OAuth/Twitch keys, plugin tokens, live DB credentials): not in code, tests, docs, PR text, ticket logs or transcripts.
+- Never grep `.env*` files or `.idea/workspace.xml` (the run configurations) wholesale; read a single key if you must, and never echo it.
+- Test secrets are built at runtime (`TestSecrets.fake("token")` in the bot's test sources) or are obviously fake (`TEST-SECRET-1`). A literal that looks like a real token fails GitGuardian and the gitleaks scan.
+- Both repos run a gitleaks pre-commit hook (`sh tools/install-hooks` once per clone, see `docs/DEV-SETUP.md`) and a CI "Secret Scan" job. Scan output is always redacted (rule id, file, commit). Do not bypass the hook with `--no-verify`; an allow-list entry in `.gitleaks.toml` needs a reason and must be specific.
+- Run `git diff --cached --stat` before a push. If a real secret was ever committed: stop, set the ticket to `planning`, log the kind, file and commit (no value) and tell Drake. Rotation and history cleaning are his call.
 
 ## 4. Running it locally
 

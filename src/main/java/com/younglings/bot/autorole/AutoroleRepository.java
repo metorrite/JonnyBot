@@ -43,17 +43,20 @@ public class AutoroleRepository {
                     PRIMARY KEY (guild_id, user_id)
                 );
                 """,
-                "CREATE INDEX IF NOT EXISTS autorole_pending_due ON younglings.autorole_pending (due_at);"));
+                "CREATE INDEX IF NOT EXISTS autorole_pending_due ON younglings.autorole_pending (due_at);",
+                "ALTER TABLE younglings.autorole_config ADD COLUMN IF NOT EXISTS member_remove_role_ids BIGINT[] NOT NULL DEFAULT '{}';",
+                "ALTER TABLE younglings.autorole_config ADD COLUMN IF NOT EXISTS bot_remove_role_ids BIGINT[] NOT NULL DEFAULT '{}';"));
     }
 
     /** This server's autoroles, or the defaults (switched off) if it has never saved any. */
     public AutoroleConfig get(long guildId) {
         try (Connection c = connectionSupplier.getConnection();
-             PreparedStatement s = c.prepareStatement("SELECT enabled, delay_seconds, member_role_ids, bot_role_ids FROM younglings.autorole_config WHERE guild_id = ?")) {
+             PreparedStatement s = c.prepareStatement("SELECT enabled, delay_seconds, member_role_ids, bot_role_ids, member_remove_role_ids, bot_remove_role_ids FROM younglings.autorole_config WHERE guild_id = ?")) {
             s.setLong(1, guildId);
             try (ResultSet rs = s.executeQuery()) {
                 if (!rs.next()) return AutoroleConfig.defaults(guildId);
-                return new AutoroleConfig(guildId, rs.getBoolean("enabled"), rs.getInt("delay_seconds"), ids(rs.getArray("member_role_ids")), ids(rs.getArray("bot_role_ids")));
+                return new AutoroleConfig(guildId, rs.getBoolean("enabled"), rs.getInt("delay_seconds"), ids(rs.getArray("member_role_ids")), ids(rs.getArray("bot_role_ids")),
+                        ids(rs.getArray("member_remove_role_ids")), ids(rs.getArray("bot_remove_role_ids")));
             }
         } catch (SQLException e) {
             log.error("Failed to read the autoroles for guild {}", guildId, e);
@@ -63,10 +66,11 @@ public class AutoroleRepository {
 
     public void save(AutoroleConfig config) {
         String sql = """
-                INSERT INTO younglings.autorole_config (guild_id, enabled, delay_seconds, member_role_ids, bot_role_ids, updated_at)
-                VALUES (?, ?, ?, ?, ?, NOW())
+                INSERT INTO younglings.autorole_config (guild_id, enabled, delay_seconds, member_role_ids, bot_role_ids, member_remove_role_ids, bot_remove_role_ids, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
                 ON CONFLICT (guild_id) DO UPDATE SET enabled = EXCLUDED.enabled, delay_seconds = EXCLUDED.delay_seconds,
-                    member_role_ids = EXCLUDED.member_role_ids, bot_role_ids = EXCLUDED.bot_role_ids, updated_at = NOW()
+                    member_role_ids = EXCLUDED.member_role_ids, bot_role_ids = EXCLUDED.bot_role_ids,
+                    member_remove_role_ids = EXCLUDED.member_remove_role_ids, bot_remove_role_ids = EXCLUDED.bot_remove_role_ids, updated_at = NOW()
                 """;
         try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
             s.setLong(1, config.guildId());
@@ -74,6 +78,8 @@ public class AutoroleRepository {
             s.setInt(3, config.delaySeconds());
             s.setArray(4, c.createArrayOf("BIGINT", config.memberRoleIds().toArray()));
             s.setArray(5, c.createArrayOf("BIGINT", config.botRoleIds().toArray()));
+            s.setArray(6, c.createArrayOf("BIGINT", config.memberRemoveRoleIds().toArray()));
+            s.setArray(7, c.createArrayOf("BIGINT", config.botRemoveRoleIds().toArray()));
             s.executeUpdate();
         } catch (SQLException e) {
             log.error("Failed to save the autoroles for guild {}", config.guildId(), e);
