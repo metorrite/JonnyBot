@@ -66,10 +66,12 @@ public class RolePanelAdminApi implements AdminRouteExtension {
         for (RolePanel panel : repository.list(guild.getIdLong())) {
             GuildMessageChannel channel = panel.channelId() == null ? null : guild.getChannelById(GuildMessageChannel.class, panel.channelId());
             panels.add(DataObject.empty().put("id", Long.toString(panel.id())).put("name", panel.name()).put("title", panel.title()).put("mode", panel.mode().name())
+                    .put("style", panel.style().name()).put("rule", panel.rule().name())
                     .put("buttonCount", panel.buttons().size()).put("posted", panel.posted())
                     .put("channelId", panel.channelId() == null ? null : Long.toString(panel.channelId())).put("channelName", channel == null ? null : channel.getName()));
         }
-        return DataObject.empty().put("panels", panels).put("maxPanels", RolePanel.MAX_PANELS).put("maxButtons", RolePanel.MAX_BUTTONS);
+        return DataObject.empty().put("panels", panels).put("maxPanels", RolePanel.MAX_PANELS).put("maxButtons", RolePanel.MAX_BUTTONS)
+                .put("limits", DataObject.empty().put("BUTTONS", RolePanel.Style.BUTTONS.maxItems()).put("DROPDOWN", RolePanel.Style.DROPDOWN.maxItems()).put("REACTIONS", RolePanel.Style.REACTIONS.maxItems()));
     }
 
     DataObject get(Guild guild, String rawId) {
@@ -102,6 +104,20 @@ public class RolePanelAdminApi implements AdminRouteExtension {
             mode = RolePanel.Mode.TOGGLE;
             problems.add("Choose how members pick roles: any number, or only one.");
         }
+        RolePanel.Style style;
+        try {
+            style = RolePanel.Style.valueOf(body.getString("style", "BUTTONS"));
+        } catch (IllegalArgumentException e) {
+            style = RolePanel.Style.BUTTONS;
+            problems.add("Choose how members pick roles: buttons, a drop-down or reactions.");
+        }
+        RolePanel.Rule rule;
+        try {
+            rule = RolePanel.Rule.valueOf(body.getString("rule", "NORMAL"));
+        } catch (IllegalArgumentException e) {
+            rule = RolePanel.Rule.NORMAL;
+            problems.add("Choose whether members can take and drop roles, only take them, or only drop them.");
+        }
         if (!name.isEmpty() && repository.list(guild.getIdLong()).stream().anyMatch(p -> p.name().equalsIgnoreCase(name) && (id == null || !p.id().equals(id)))) {
             problems.add("Another panel is already called \"" + name + "\".");
         }
@@ -109,12 +125,19 @@ public class RolePanelAdminApi implements AdminRouteExtension {
 
         List<RoleButton> buttons = new ArrayList<>();
         DataArray rawButtons = body.hasKey("buttons") ? body.getArray("buttons") : DataArray.empty();
-        if (rawButtons.length() > RolePanel.MAX_BUTTONS) problems.add("A panel can have at most " + RolePanel.MAX_BUTTONS + " buttons.");
+        final int max = style.maxItems();
+        String what = switch (style) {
+            case BUTTONS -> "buttons";
+            case DROPDOWN -> "options";
+            case REACTIONS -> "reactions";
+        };
+        if (rawButtons.length() > max) problems.add("A " + style.name().toLowerCase() + " panel can have at most " + max + " " + what + " (Discord's limit).");
         Set<Long> seen = new HashSet<>();
-        for (int i = 0; i < rawButtons.length() && i < RolePanel.MAX_BUTTONS; i++) {
+        Set<String> seenEmoji = new HashSet<>();
+        for (int i = 0; i < rawButtons.length() && i < max; i++) {
             DataObject b = rawButtons.getObject(i);
             String roleText = b.getString("roleId", "").strip();
-            String where = "Button " + (i + 1);
+            String where = (style == RolePanel.Style.BUTTONS ? "Button " : style == RolePanel.Style.DROPDOWN ? "Option " : "Reaction ") + (i + 1);
             if (!roleText.matches("\\d{1,20}")) {
                 problems.add(where + ": choose a role.");
                 continue;
@@ -129,29 +152,32 @@ public class RolePanelAdminApi implements AdminRouteExtension {
             if (label.length() > 80) problems.add(where + ": the label can be at most 80 characters.");
             String emoji = b.isNull("emoji") ? "" : b.getString("emoji", "").strip();
             if (!emoji.isEmpty() && RolePanelMessage.emoji(emoji) == null) problems.add(where + ": that emoji isn't one Discord can show.");
-            String style = b.getString("style", "primary").toLowerCase();
-            if (!STYLES.contains(style)) {
-                problems.add(where + ": choose a colour for the button.");
-                style = "primary";
+            if (style == RolePanel.Style.REACTIONS) {
+                if (emoji.isEmpty()) problems.add(where + ": a reaction needs an emoji.");
+                else if (!seenEmoji.add(emoji)) problems.add(where + ": that emoji is already used by another reaction.");
             }
-            buttons.add(new RoleButton(roleId, label, emoji.isEmpty() ? null : emoji, style));
+            if (style == RolePanel.Style.DROPDOWN && label.length() > 100) problems.add(where + ": an option's label can be at most 100 characters.");
+            String colour = b.getString("style", "primary").toLowerCase();
+            if (!STYLES.contains(colour)) {
+                problems.add(where + ": choose a colour for the button.");
+                colour = "primary";
+            }
+            buttons.add(new RoleButton(roleId, label, emoji.isEmpty() ? null : emoji, colour));
         }
 
         if (!problems.isEmpty()) throw new ApiError(400, "That panel can't be saved yet.", problems);
 
         RolePanel saved = repository.save(new RolePanel(id, guild.getIdLong(), name, title, description, color, mode,
-                existing == null ? null : existing.channelId(), existing == null ? null : existing.messageId(), buttons));
+                existing == null ? null : existing.channelId(), existing == null ? null : existing.messageId(), buttons, style, rule,
+                existing != null && existing.attached()));
         log.info("Dashboard: {} saved role panel {} ({}, {} buttons)", actor.getId(), saved.id(), name, buttons.size());
         return json(saved);
     }
 
     DataObject delete(Guild guild, Member actor, String rawId) {
         RolePanel panel = find(guild, rawId);
-        if (panel.posted()) {
-            // take its message down too, so buttons that no longer do anything aren't left in a channel
-            GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, panel.channelId());
-            if (channel != null) channel.deleteMessageById(panel.messageId()).queue(ok -> {}, error -> {});
-        }
+        // take its message down too, so buttons that no longer do anything aren't left in a channel (a message it was attached to keeps everything but our reactions)
+        service.takeDown(guild, panel);
         repository.delete(guild.getIdLong(), panel.id());
         log.info("Dashboard: {} deleted role panel {} ({})", actor.getId(), panel.id(), panel.name());
         return list(guild);
@@ -159,6 +185,16 @@ public class RolePanelAdminApi implements AdminRouteExtension {
 
     DataObject post(Guild guild, Member actor, String rawId, DataObject body) {
         RolePanel panel = find(guild, rawId);
+        String link = body.isNull("messageLink") ? "" : body.getString("messageLink", "").strip();
+        if (!link.isEmpty()) {
+            try {
+                RolePanel attached = service.attach(guild, panel, link);
+                log.info("Dashboard: {} put role panel {} on the message {}", actor.getId(), panel.id(), link);
+                return json(attached);
+            } catch (RolePanelService.PostException e) {
+                throw new ApiError(400, e.getMessage());
+            }
+        }
         String channelText = body.getString("channelId", "").strip();
         if (!channelText.matches("\\d{1,20}")) throw new ApiError(400, "Choose a channel to post in.");
         try {
@@ -185,7 +221,8 @@ public class RolePanelAdminApi implements AdminRouteExtension {
             buttons.add(DataObject.empty().put("roleId", Long.toString(b.roleId())).put("label", b.label()).put("emoji", b.emoji()).put("style", b.style()));
         }
         return DataObject.empty().put("id", Long.toString(panel.id())).put("name", panel.name()).put("title", panel.title()).put("description", panel.description())
-                .put("color", panel.color()).put("mode", panel.mode().name()).put("posted", panel.posted())
+                .put("color", panel.color()).put("mode", panel.mode().name()).put("style", panel.style().name()).put("rule", panel.rule().name())
+                .put("attached", panel.attached()).put("posted", panel.posted())
                 .put("channelId", panel.channelId() == null ? null : Long.toString(panel.channelId()))
                 .put("messageId", panel.messageId() == null ? null : Long.toString(panel.messageId())).put("buttons", buttons);
     }
