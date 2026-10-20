@@ -14,7 +14,7 @@ import java.time.Duration;
 /** Reads a feed over HTTP, politely: an identifying User-Agent, short timeouts, and a cap on how much is read. */
 @BService
 public class FeedFetcher {
-    static final String USER_AGENT = "JonnyBot/1.0 (Discord feed poster; +https://jonnybot.rsyounglings.com)";
+    static final String USER_AGENT = "JonnyBot/1.0 (Discord feed poster; +" + com.younglings.bot.config.BotConfig.getInstance().getJonnybotUrl() + ")";
     static final int MAX_BYTES = 1_000_000;
 
     private final HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).followRedirects(HttpClient.Redirect.NORMAL).build();

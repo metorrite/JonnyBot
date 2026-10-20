@@ -35,7 +35,7 @@ import java.util.regex.Pattern;
 public class PhishingList {
     private static final Logger log = LoggerFactory.getLogger(PhishingList.class);
     static final String DEFAULT_URL = "https://phish.sinking.yachts/v2/all";
-    static final String IDENTITY = "JonnyBot Discord bot (https://jonnybot.rsyounglings.com)";
+    static final String IDENTITY = "JonnyBot Discord bot (" + com.younglings.bot.config.BotConfig.getInstance().getJonnybotUrl() + ")";
     static final int MAX_BYTES = 8_000_000;
     static final int MAX_DOMAINS = 300_000;
     private static final Pattern DOMAIN = Pattern.compile("[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+");

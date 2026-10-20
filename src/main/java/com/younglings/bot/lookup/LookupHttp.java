@@ -24,7 +24,7 @@ import java.util.function.Function;
 public class LookupHttp {
     private static final Logger log = LoggerFactory.getLogger(LookupHttp.class);
 
-    static final String USER_AGENT = "JonnyBot/1.0 (Discord bot for RuneScape clans; https://jonnybot.rsyounglings.com)";
+    static final String USER_AGENT = "JonnyBot/1.0 (Discord bot for RuneScape clans; " + com.younglings.bot.config.BotConfig.getInstance().getJonnybotUrl() + ")";
     private static final long MIN_GAP_MILLIS = 250;
     private static final int MAX_BODY_CHARS = 2_000_000;
 
