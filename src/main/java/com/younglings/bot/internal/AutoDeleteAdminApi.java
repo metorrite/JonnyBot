@@ -61,11 +61,15 @@ public class AutoDeleteAdminApi implements AdminRouteExtension {
             DataArray filters = DataArray.empty();
             for (Filter f : Filter.values()) if (rule.filters().contains(f)) filters.add(f.name());
             rules.add(DataObject.empty().put("channelId", Long.toString(rule.channelId())).put("channelName", channel == null ? null : channel.getName())
-                    .put("filters", filters).put("problem", problem));
+                    .put("filters", filters).put("words", DataArray.fromCollection(rule.words())).put("roleMode", rule.roleMode().name())
+                    .put("roleIds", DataArray.fromCollection(rule.roleIds().stream().map(String::valueOf).toList())).put("delaySeconds", rule.delaySeconds())
+                    .put("problem", problem));
         }
         DataArray available = DataArray.empty();
         for (Filter f : Filter.values()) available.add(DataObject.empty().put("key", f.name()).put("label", f.label()));
-        return DataObject.empty().put("rules", rules).put("available", available).put("maxRules", AutoDeleteRule.MAX_RULES_PER_GUILD);
+        return DataObject.empty().put("rules", rules).put("available", available).put("maxRules", AutoDeleteRule.MAX_RULES_PER_GUILD)
+                .put("maxDelaySeconds", AutoDeleteRule.MAX_DELAY_SECONDS).put("maxWords", AutoDeleteRule.MAX_WORDS).put("minWordLength", AutoDeleteRule.MIN_WORD_LENGTH)
+                .put("maxRoles", AutoDeleteRule.MAX_ROLES);
     }
 
     DataObject save(Guild guild, Member actor, DataObject body) {
@@ -90,6 +94,45 @@ public class AutoDeleteAdminApi implements AdminRouteExtension {
                 problems.add("One of the filters isn't one JonnyBot knows.");
             }
         }
+        List<String> words = new ArrayList<>();
+        if (body.hasKey("words") && !body.isNull("words")) {
+            DataArray wordInput = body.getArray("words");
+            List<String> wordList = new ArrayList<>();
+            for (int i = 0; i < wordInput.length(); i++) wordList.add(wordInput.getString(i, ""));
+            words = AutoDeleteRule.cleanWords(wordList);
+            if (words.size() > AutoDeleteRule.MAX_WORDS) problems.add("At most " + AutoDeleteRule.MAX_WORDS + " words.");
+            for (String word : words) {
+                String problem = AutoDeleteRule.wordProblem(word);
+                if (problem != null) problems.add(problem);
+            }
+        }
+        if (!words.isEmpty()) filters.add(Filter.TEXT);
+        else if (filters.contains(Filter.TEXT)) problems.add("Add at least one word to delete messages containing certain words.");
+
+        AutoDeleteRule.RoleMode roleMode = AutoDeleteRule.RoleMode.EVERYONE;
+        if (body.hasKey("roleMode") && !body.isNull("roleMode")) {
+            try {
+                roleMode = AutoDeleteRule.RoleMode.valueOf(body.getString("roleMode", "").strip().toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                problems.add("Choose who the rule is for: everyone, only people with a role, or everyone except them.");
+            }
+        }
+        Set<Long> roleIds = new java.util.LinkedHashSet<>();
+        if (body.hasKey("roleIds") && !body.isNull("roleIds")) {
+            DataArray roleInput = body.getArray("roleIds");
+            for (int i = 0; i < roleInput.length(); i++) {
+                String id = roleInput.getString(i, "").strip();
+                if (!id.matches("\\d{1,20}") || guild.getRoleById(Long.parseLong(id)) == null) problems.add("A chosen role doesn't exist in this server.");
+                else roleIds.add(Long.parseLong(id));
+            }
+            if (roleIds.size() > AutoDeleteRule.MAX_ROLES) problems.add("At most " + AutoDeleteRule.MAX_ROLES + " roles.");
+        }
+        if (roleMode != AutoDeleteRule.RoleMode.EVERYONE && roleIds.isEmpty()) problems.add("Choose at least one role, or make the rule for everyone.");
+        if (roleMode == AutoDeleteRule.RoleMode.EVERYONE) roleIds.clear();
+
+        int delay = body.hasKey("delaySeconds") && !body.isNull("delaySeconds") ? body.getInt("delaySeconds", -1) : 0;
+        if (delay < 0 || delay > AutoDeleteRule.MAX_DELAY_SECONDS) problems.add("The delay can be 0 to " + AutoDeleteRule.MAX_DELAY_SECONDS + " seconds.");
+
         if (filters.isEmpty() && problems.isEmpty()) problems.add("Choose at least one thing to delete.");
         if (channel != null) {
             final long channelId = channel.getIdLong();
@@ -100,7 +143,7 @@ public class AutoDeleteAdminApi implements AdminRouteExtension {
         }
         if (!problems.isEmpty()) throw new ApiError(400, "That rule can't be saved yet.", problems.stream().distinct().toList());
 
-        repository.save(new AutoDeleteRule(guild.getIdLong(), channel.getIdLong(), filters));
+        repository.save(new AutoDeleteRule(guild.getIdLong(), channel.getIdLong(), filters, words, roleMode, roleIds, delay));
         log.info("Dashboard: {} set auto-delete for #{} to {}", actor.getId(), channel.getName(), filters);
         return list(guild);
     }

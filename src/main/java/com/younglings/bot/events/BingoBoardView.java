@@ -65,6 +65,10 @@ public final class BingoBoardView {
         List<TileView> tiles = new ArrayList<>();
         for (int i = 0; i < keys.size(); i++) {
             String key = keys.get(i);
+            if (BingoBoardOptions.FREE_KEY.equals(key)) {
+                tiles.add(freeSpace(i + 1));
+                continue;
+            }
             ObjectiveSpec o = byKey.get(key);
             int count = (int) standings.stream().filter(s -> s.completions().getOrDefault(key, 0) > 0).count();
             String label = o == null ? key : o.label();
@@ -101,6 +105,10 @@ public final class BingoBoardView {
         Map<String, Integer> done = mine == null ? Map.of() : mine.completions();
         List<TileView> tiles = new ArrayList<>();
         for (int i = 0; i < keys.size(); i++) {
+            if (BingoBoardOptions.FREE_KEY.equals(keys.get(i))) {
+                tiles.add(freeSpace(i + 1));
+                continue;
+            }
             ObjectiveSpec o = byKey.get(keys.get(i));
             String label = o == null ? keys.get(i) : o.label();
             // a tile that needs others first is dimmed until they are done
@@ -108,6 +116,11 @@ public final class BingoBoardView {
             tiles.add(new TileView(i + 1, label, o == null ? 0 : o.points(), done.getOrDefault(keys.get(i), 0) > 0, 0, 0, iconOf.apply(label), null, locked));
         }
         return tiles;
+    }
+
+    /** The free space of a grid with a free centre: done for everybody, worth nothing, nothing to send proof for. */
+    private static TileView freeSpace(int number) {
+        return new TileView(number, "FREE", 0, true, 0, 0, null, null, false);
     }
 
     private static Map<String, ObjectiveSpec> byKey(List<ObjectiveSpec> objectives) {

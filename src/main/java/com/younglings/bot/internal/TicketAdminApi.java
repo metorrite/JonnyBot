@@ -662,7 +662,7 @@ public class TicketAdminApi {
     private DataObject helpSettingsResponse(Guild guild) {
         DataArray panels = DataArray.empty();
         for (Panel panel : repository.getPanels(guild.getIdLong())) {
-            if (!panel.isHelpPanel()) continue;
+            if (panel.helpKind() == com.younglings.bot.ticket.TicketModels.HelpKind.NONE) continue;
             panels.add(DataObject.empty()
                     .put("id", Long.toString(panel.id()))
                     .put("name", panel.name())
@@ -673,7 +673,7 @@ public class TicketAdminApi {
         return TicketAdminJson.helpSettingsJson(repository.getHelpSettings(guild.getIdLong())).put("panels", panels);
     }
 
-    /** Creates the standard PvM Help and CA Help panels where the server doesn't have them; ones already there are left as they are. */
+    /** Creates the standard PvM Help, CA Help and Informational panels where the server doesn't have them; ones already there are left as they are. */
     private DataObject createHelpPanels(Guild guild, Member actor) {
         HelpPanels.Result result = helpPanels.createMissing(guild.getIdLong());
         log.info("Dashboard: {} created {} help panel(s); {} already existed", actor.getId(), result.created().size(), result.existing().size());

@@ -1,5 +1,6 @@
 package com.younglings.bot.poll;
 
+import com.younglings.bot.internal.SiteInvalidator;
 import com.younglings.bot.commands.poll.PollOption;
 import com.younglings.bot.commands.poll.PollSession;
 import io.github.freya022.botcommands.api.core.db.ConnectionSupplier;
@@ -102,6 +103,7 @@ public class PollRepository {
             statement.setLong(1, messageId);
             statement.setLong(2, pollId);
             statement.executeUpdate();
+            SiteInvalidator.signal(SiteInvalidator.Area.POLLS); // the poll is posted: the last step of making one
         } catch (SQLException e) {
             log.error("Failed to save message ID for poll {}", pollId, e);
             throw new RuntimeException("Failed to save poll message ID", e);
@@ -192,7 +194,9 @@ public class PollRepository {
             statement.setLong(1, pollId);
             statement.setLong(2, optionId);
             statement.setLong(3, userId);
-            return statement.executeUpdate() > 0;
+            boolean added = statement.executeUpdate() > 0;
+            if (added) SiteInvalidator.signal(SiteInvalidator.Area.POLLS);
+            return added;
         } catch (SQLException e) {
             log.error("Failed to add vote for poll {}", pollId, e);
             throw new RuntimeException("Failed to add vote", e);
@@ -206,7 +210,9 @@ public class PollRepository {
             statement.setLong(1, pollId);
             statement.setLong(2, optionId);
             statement.setLong(3, userId);
-            return statement.executeUpdate() > 0;
+            boolean removed = statement.executeUpdate() > 0;
+            if (removed) SiteInvalidator.signal(SiteInvalidator.Area.POLLS);
+            return removed;
         } catch (SQLException e) {
             log.error("Failed to remove vote for poll {}", pollId, e);
             throw new RuntimeException("Failed to remove vote", e);
@@ -220,6 +226,7 @@ public class PollRepository {
             statement.setLong(1, pollId);
             statement.setLong(2, userId);
             statement.executeUpdate();
+            SiteInvalidator.signal(SiteInvalidator.Area.POLLS);
         } catch (SQLException e) {
             log.error("Failed to clear votes for user {} in poll {}", userId, pollId, e);
             throw new RuntimeException("Failed to clear user votes", e);
@@ -309,6 +316,7 @@ public class PollRepository {
             statement.setLong(1, pollId);
             statement.executeUpdate();
             log.info("Closed poll {}", pollId);
+            SiteInvalidator.signal(SiteInvalidator.Area.POLLS);
         } catch (SQLException e) {
             log.error("Failed to close poll {}", pollId, e);
             throw new RuntimeException("Failed to close poll", e);

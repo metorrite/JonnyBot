@@ -13,7 +13,11 @@ public final class TicketModels {
     public enum Status { OPEN, CLOSED }
 
     /** Which part of the PvM Help system a panel belongs to; NONE is an ordinary ticket panel the help rules never touch. */
-    public enum HelpKind { NONE, PVM, CA }
+    /**
+     * What a panel is for. PVM and CA follow the PvM Help rules (helpers, member and guest pings, escalation); INFO is the standard Informational panel for
+     * general questions that aren't about a boss. It has no help rules of its own: it pings the role set on the panel (if any) like an ordinary ticket.
+     */
+    public enum HelpKind { NONE, PVM, CA, INFO }
 
     /**
      * What a question means to the PvM Help rules: the boss, the tier, the one achievement they want help with, or whether they have already made
@@ -78,7 +82,12 @@ public final class TicketModels {
 
         /** Whether the PvM Help rules (member and guest pings, the Master+ attempts rule) apply to this panel's tickets. */
         public boolean isHelpPanel() {
-            return helpKind != HelpKind.NONE;
+            return helpKind == HelpKind.PVM || helpKind == HelpKind.CA;
+        }
+
+        /** Whether this is the standard Informational panel (no boss or tier; pings the panel's own role). */
+        public boolean isInformational() {
+            return helpKind == HelpKind.INFO;
         }
     }
 
