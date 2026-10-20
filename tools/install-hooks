@@ -1,0 +1,12 @@
+#!/bin/sh
+# Points this clone at the tracked hooks in tools/hooks (secret scan before every commit).
+# Run once per clone from any shell with git (Git Bash on Windows): sh tools/install-hooks
+set -e
+root=$(git rev-parse --show-toplevel)
+cd "$root"
+git config core.hooksPath tools/hooks
+chmod +x tools/hooks/* 2>/dev/null || true
+echo "Hooks installed (core.hooksPath = tools/hooks)."
+if ! command -v "${GITLEAKS_BIN:-gitleaks}" >/dev/null 2>&1; then
+  echo "WARNING: gitleaks not found. Commits will be blocked until it is installed; see docs/DEV-SETUP.md (Secret scan)."
+fi
