@@ -20,6 +20,7 @@ import com.younglings.bot.runescape.RuneScapeXpTable;
 import com.younglings.bot.runescape.SkillValue;
 import com.younglings.bot.runescape.WeeklyDigestRepository;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
+import com.younglings.bot.config.PrivilegedIntents;
 import net.dv8tion.jda.api.OnlineStatus;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
@@ -187,7 +188,13 @@ public class SiteApi {
      * role (the roles set to "display separately"), groups ordered by that role's position, everyone else
      * under a trailing "Online" group, and alphabetical (ignoring case) inside each group.
      */
+    /** The online answer while the Presence intent is off: nothing can be known, which is not the same as nobody being online. */
+    static DataObject onlineUnavailable() {
+        return DataObject.empty().put("total", 0).put("groups", DataArray.empty()).put("unavailable", true);
+    }
+
     DataObject online(Guild guild) {
+        if (!PrivilegedIntents.presence()) return onlineUnavailable();
         record Group(long id, String name, int colorRaw, int position) {}
         // Which online members can be linked to a clan profile: they have a linked RuneScape name that is a current member and haven't opted out.
         long guildId = guild.getIdLong();
@@ -242,7 +249,7 @@ public class SiteApi {
                     .put("members", memberArray));
         });
 
-        return DataObject.empty().put("total", total).put("groups", groupArray);
+        return DataObject.empty().put("total", total).put("groups", groupArray).put("unavailable", false);
     }
 
     // ---------- events ----------
