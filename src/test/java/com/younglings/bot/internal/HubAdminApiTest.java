@@ -34,6 +34,7 @@ class HubAdminApiTest {
     private HubService hub;
     private PermissionGroupService groups;
     private DashboardAccess access;
+    private com.younglings.bot.afk.AfkService afk;
     private HubAdminApi api;
     private Guild guild;
     private Member actor;
@@ -43,13 +44,16 @@ class HubAdminApiTest {
         hub = mock(HubService.class);
         groups = mock(PermissionGroupService.class);
         access = mock(DashboardAccess.class);
-        api = new HubAdminApi(hub, groups, access);
+        afk = mock(com.younglings.bot.afk.AfkService.class);
+        api = new HubAdminApi(hub, groups, access, afk);
 
         guild = mock(Guild.class);
         actor = mock(Member.class);
         when(guild.getIdLong()).thenReturn(GUILD);
         when(access.tierOf(guild, actor)).thenReturn(DashboardAccess.Tier.ADMIN);
         when(hub.get(GUILD, HubCommand.SIGNUP)).thenReturn(HubSettings.defaults(GUILD, "signup"));
+        when(hub.get(GUILD, HubCommand.AFK)).thenReturn(HubSettings.defaults(GUILD, "afk"));
+        when(hub.afkPolicy(GUILD)).thenReturn(HubService.AfkPolicy.NONE);
         when(hub.signupPolicy(GUILD)).thenReturn(HubService.SignupPolicy.NONE);
         when(groups.groups(GUILD)).thenReturn(List.of(
                 new PermissionGroup(1, GUILD, "admin", "Admin", true, true, List.of()),
@@ -180,5 +184,30 @@ class HubAdminApiTest {
         api.save(guild, actor, "signup", DataObject.fromJson("{\"signup\": {\"adminChannelId\": \"77\", \"lockAdminChannel\": true, \"publicChannelIds\": [\"80\"]}}"));
 
         assertEquals(HubService.writeSignup(new HubService.SignupPolicy(77L, true, List.of(80L))), saved().extras());
+    }
+
+    @Test
+    void awayStatusSettingsAreSavedAndChosenMembersTakenOffTheList() {
+        channel(7, true);
+        when(afk.clear(GUILD, 99L)).thenReturn(true);
+        DataObject body = DataObject.fromJson("{\"afk\": {\"nicknameTag\": true, \"ignoreChannelIds\": [\"7\"], \"clearUserIds\": [\"99\"]}}");
+
+        api.save(guild, actor, "afk", body);
+
+        HubService.AfkPolicy policy = HubService.parseAfk(saved().extras());
+        assertEquals(true, policy.nicknameTag());
+        assertEquals(List.of(7L), policy.ignoreChannelIds());
+        verify(afk).clear(GUILD, 99L);
+    }
+
+    @Test
+    void anIgnoredChannelThatDoesNotExistRefusesTheWholeSave() {
+        DataObject body = DataObject.fromJson("{\"afk\": {\"nicknameTag\": true, \"ignoreChannelIds\": [\"8\"], \"clearUserIds\": [\"99\"]}}");
+
+        var thrown = assertThrows(TicketAdminApi.ApiError.class, () -> api.save(guild, actor, "afk", body));
+
+        assertEquals(400, thrown.status);
+        verify(hub, never()).save(any());
+        verify(afk, never()).clear(GUILD, 99L);
     }
 }

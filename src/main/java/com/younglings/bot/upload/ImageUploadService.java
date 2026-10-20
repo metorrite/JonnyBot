@@ -18,7 +18,7 @@ public class ImageUploadService {
     public static final int MAX_BYTES = 2 * 1024 * 1024;
 
     /** The places a picture can go, by scope: today only the welcome message's embed. */
-    static final Map<String, Set<String>> SLOTS = Map.of("welcome", Set.of("author_icon", "thumbnail", "image", "footer_icon"));
+    static final Map<String, Set<String>> SLOTS = Map.of("welcome", Set.of("author_icon", "thumbnail", "image", "footer_icon", "card_bg"));
 
     public static class InvalidImageException extends RuntimeException {
         public InvalidImageException(String message) {
