@@ -1,5 +1,6 @@
 package com.younglings.bot.member;
 
+import com.younglings.bot.alerts.AutoPostRouter;
 import com.younglings.bot.branding.BrandingService;
 import com.younglings.bot.member.MemberProfileRepository.Goal;
 import com.younglings.bot.runescape.PlayerLinkRepository;
@@ -65,6 +66,7 @@ public class MemberNotifier {
     }
 
     private void run(String what, Runnable task) {
+        if (AutoPostRouter.skip("member notifications (" + what + ")")) return; // these are DMs to real people
         try {
             task.run();
         } catch (Exception e) {

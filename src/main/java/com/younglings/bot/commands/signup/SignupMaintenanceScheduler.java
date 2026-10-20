@@ -1,5 +1,6 @@
 package com.younglings.bot.commands.signup;
 
+import com.younglings.bot.alerts.AutoPostRouter;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -56,6 +57,7 @@ public class SignupMaintenanceScheduler {
     }
 
     private void runSweep(JDA jda) {
+        if (AutoPostRouter.diverting()) return;
         try {
             int purged = signupService.purgeOldDeletedSignups(Instant.now().minus(PURGE_AFTER));
             if (purged > 0) log.info("Signup maintenance: purged {} old soft-deleted signup(s).", purged);

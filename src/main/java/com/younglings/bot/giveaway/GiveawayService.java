@@ -1,5 +1,6 @@
 package com.younglings.bot.giveaway;
 
+import com.younglings.bot.alerts.AutoPostRouter;
 import com.younglings.bot.internal.MemberApi;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
@@ -166,6 +167,7 @@ public class GiveawayService {
     }
 
     void sweep(JDA jda) {
+        if (AutoPostRouter.diverting()) return; // ending a giveaway posts winners and DMs them
         try {
             for (Giveaway g : repository.due(Instant.now(), 20)) {
                 Guild guild = jda.getGuildById(g.guildId());

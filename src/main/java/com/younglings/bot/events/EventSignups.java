@@ -1,5 +1,6 @@
 package com.younglings.bot.events;
 
+import com.younglings.bot.alerts.AutoPostRouter;
 import com.younglings.bot.commands.signup.SignupEntry;
 import com.younglings.bot.commands.signup.SignupService;
 import com.younglings.bot.events.EventRepository.Event;
@@ -284,6 +285,7 @@ public class EventSignups {
     }
 
     void sweep(JDA jda) {
+        if (AutoPostRouter.diverting()) return;
         try {
             closePastDeadline(jda);
             for (Event event : repository.eventsWithSignup()) {

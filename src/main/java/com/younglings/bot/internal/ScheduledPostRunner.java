@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.alerts.AutoPostRouter;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -32,6 +33,7 @@ public class ScheduledPostRunner {
     public void onJdaReady(InjectedJDAEvent event) {
         JDA jda = event.getJda();
         executor.scheduleWithFixedDelay(() -> {
+            if (AutoPostRouter.diverting()) return; // staff scheduled these for the live bot to post
             try {
                 ops.runDue(jda);
             } catch (RuntimeException e) {

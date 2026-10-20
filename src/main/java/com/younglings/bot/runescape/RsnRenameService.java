@@ -1,5 +1,6 @@
 package com.younglings.bot.runescape;
 
+import com.younglings.bot.alerts.AutoPostRouter;
 import com.younglings.bot.configure.GuildSettingsService;
 import com.younglings.bot.discord.Containers;
 import com.younglings.bot.permission.PermissionGroup;
@@ -229,6 +230,7 @@ public class RsnRenameService {
     }
 
     private void dmPlayer(Guild guild, long discordUserId, RsnRenameRepository.RenameCandidate candidate) {
+        if (AutoPostRouter.skip("a rename question DM to a player")) return;
         guild.retrieveMemberById(discordUserId).queue(member -> {
             Container container = Containers.card(Containers.INFO,
                     TextDisplay.of("### Did you rename your RuneScape account?"),
@@ -256,10 +258,11 @@ public class RsnRenameService {
         if (channel == null) {
             log.warn("Configured rename alert channel {} not found in guild {}", channelId, guild.getIdLong());
         }
-        return channel;
+        return AutoPostRouter.route(channel, "a rename alert");
     }
 
     private String adminPing(Guild guild) {
+        if (AutoPostRouter.noPings()) return ""; // a bot that is not live never pings the admin role
         return permissionGroups.roleIds(guild.getIdLong(), PermissionGroup.ADMIN).stream().map(id -> "<@&" + id + "> ").collect(Collectors.joining());
     }
 

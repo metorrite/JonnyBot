@@ -95,8 +95,18 @@ public class OverviewAdminApi {
 
     // ---------- notices ----------
 
+    /** The banner every dashboard page shows while this bot is not live: its automatic posts are kept out of the servers' channels. Never stored; it is there while it is true. */
+    public static DataObject devModeNotice() {
+        Long dev = com.younglings.bot.alerts.AutoPostRouter.devChannelId();
+        String where = dev == null ? "only written to the log" : "sent to one test channel without pings";
+        return DataObject.empty().put("id", "dev-mode").put("severity", "warning").put("createdAt", java.time.Instant.now().toString())
+                .put("body", "Dev mode: this bot is not the live one, so its automatic alerts (clan sync, rename alerts, reminders, feeds and other scheduled posts) are " + where
+                        + " and nobody is pinged. Things you run yourself still work normally.");
+    }
+
     private DataArray noticeList() {
         DataArray array = DataArray.empty();
+        if (com.younglings.bot.alerts.AutoPostRouter.diverting()) array.add(devModeNotice());
         for (Notice notice : notices.all()) {
             array.add(DataObject.empty().put("id", Long.toString(notice.id())).put("severity", notice.severity()).put("body", notice.body()).put("createdAt", notice.createdAt().toString()));
         }
