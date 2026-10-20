@@ -116,4 +116,42 @@ class AutoroleAdminApiTest {
 
         assertEquals(1, result.getArray("issues").length());
     }
+
+    @Test
+    void aRoleToTakeAwayIsSavedEvenIfItIsPowerfulAsLongAsTheBotCanManageIt() {
+        role(10L, "Old staff", true, EnumSet.of(Permission.BAN_MEMBERS));
+
+        api.save(guild, actor, DataObject.empty().put("enabled", true).put("memberRemoveRoleIds", ids("10")));
+
+        verify(repository).save(new AutoroleConfig(5L, true, 0, List.of(), List.of(), List.of(10L), List.of()));
+    }
+
+    @Test
+    void aRoleAboveTheBotCannotBeTakenAway() {
+        role(10L, "Boss", false, EnumSet.noneOf(Permission.class));
+
+        var error = assertThrows(TicketAdminApi.ApiError.class, () -> api.save(guild, actor, DataObject.empty().put("memberRemoveRoleIds", ids("10"))));
+
+        assertEquals(400, error.status);
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void aRoleCannotBeBothGivenAndTakenAway() {
+        role(10L, "Member", true, EnumSet.noneOf(Permission.class));
+
+        var error = assertThrows(TicketAdminApi.ApiError.class, () ->
+                api.save(guild, actor, DataObject.empty().put("memberRoleIds", ids("10")).put("memberRemoveRoleIds", ids("10"))));
+
+        assertTrue(error.problems.get(0).contains("both given and taken away"));
+    }
+
+    @Test
+    void savedRulesWithoutRemovalsStayExactlyAsTheyWere() {
+        AutoroleConfig old = new AutoroleConfig(5L, true, 60, List.of(10L), List.of());
+        assertTrue(old.memberRemoveRoleIds().isEmpty());
+        assertTrue(old.anythingFor(false));
+        assertTrue(!old.anythingFor(true));
+        assertEquals(List.of(), old.removalsFor(false));
+    }
 }

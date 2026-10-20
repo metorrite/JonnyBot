@@ -53,11 +53,16 @@ public class GiveawayRepository {
                     user_id BIGINT NOT NULL,
                     PRIMARY KEY (giveaway_id, user_id)
                 );
-                """));
+                """,
+                "ALTER TABLE younglings.giveaway ADD COLUMN IF NOT EXISTS winner_role_id BIGINT NULL;",
+                "ALTER TABLE younglings.giveaway ADD COLUMN IF NOT EXISTS dm_winners BOOLEAN NOT NULL DEFAULT FALSE;",
+                "ALTER TABLE younglings.giveaway ADD COLUMN IF NOT EXISTS reaction_entry BOOLEAN NOT NULL DEFAULT FALSE;"));
     }
 
-    public long create(long guildId, long channelId, String prize, long hostId, int winnerCount, Instant endsAt, Long requiredRoleId) {
-        String sql = "INSERT INTO younglings.giveaway (guild_id, channel_id, prize, host_id, winner_count, ends_at, required_role_id) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id";
+    public long create(long guildId, long channelId, String prize, long hostId, int winnerCount, Instant endsAt, Long requiredRoleId, Long winnerRoleId, boolean dmWinners,
+                       boolean reactionEntry) {
+        String sql = "INSERT INTO younglings.giveaway (guild_id, channel_id, prize, host_id, winner_count, ends_at, required_role_id, winner_role_id, dm_winners, reaction_entry) "
+                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id";
         try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
             s.setLong(1, guildId);
             s.setLong(2, channelId);
@@ -66,6 +71,9 @@ public class GiveawayRepository {
             s.setInt(5, winnerCount);
             s.setTimestamp(6, Timestamp.from(endsAt));
             if (requiredRoleId == null) s.setNull(7, Types.BIGINT); else s.setLong(7, requiredRoleId);
+            if (winnerRoleId == null) s.setNull(8, Types.BIGINT); else s.setLong(8, winnerRoleId);
+            s.setBoolean(9, dmWinners);
+            s.setBoolean(10, reactionEntry);
             try (ResultSet rs = s.executeQuery()) {
                 rs.next();
                 return rs.getLong(1);
@@ -96,6 +104,18 @@ public class GiveawayRepository {
     public Optional<Giveaway> byId(long id) {
         try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("SELECT * FROM younglings.giveaway WHERE id = ?")) {
             s.setLong(1, id);
+            try (ResultSet rs = s.executeQuery()) {
+                return rs.next() ? Optional.of(map(rs)) : Optional.empty();
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read the giveaway", e);
+        }
+    }
+
+    /** The giveaway whose message this is, for a reaction on it. */
+    public Optional<Giveaway> byMessage(long messageId) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("SELECT * FROM younglings.giveaway WHERE message_id = ?")) {
+            s.setLong(1, messageId);
             try (ResultSet rs = s.executeQuery()) {
                 return rs.next() ? Optional.of(map(rs)) : Optional.empty();
             }
@@ -205,6 +225,24 @@ public class GiveawayRepository {
         }
     }
 
+    /** Enters the person (a reaction); a person already in stays in. */
+    public void addEntry(long giveawayId, long guildId, long userId) {
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("INSERT INTO younglings.giveaway_entry (giveaway_id, guild_id, user_id) VALUES (?, ?, ?) ON CONFLICT DO NOTHING")) {
+            s.setLong(1, giveawayId);
+            s.setLong(2, guildId);
+            s.setLong(3, userId);
+            s.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to add the entry", e);
+        }
+    }
+
+    /** Takes the person out (a reaction removed). */
+    public void removeEntry(long giveawayId, long userId) {
+        exec("DELETE FROM younglings.giveaway_entry WHERE giveaway_id = ? AND user_id = ?", giveawayId, userId);
+    }
+
     private void exec(String sql, long a, long b) {
         try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
             s.setLong(1, a);
@@ -220,10 +258,13 @@ public class GiveawayRepository {
         boolean noMessage = rs.wasNull();
         long role = rs.getLong("required_role_id");
         boolean noRole = rs.wasNull();
+        long winnerRole = rs.getLong("winner_role_id");
+        boolean noWinnerRole = rs.wasNull();
         List<Long> winners = new ArrayList<>();
         String raw = rs.getString("winners");
         if (raw != null && !raw.isBlank()) for (String part : raw.split(",")) winners.add(Long.parseLong(part.strip()));
         return new Giveaway(rs.getLong("id"), rs.getLong("guild_id"), rs.getLong("channel_id"), noMessage ? null : message, rs.getString("prize"), rs.getLong("host_id"),
-                rs.getInt("winner_count"), rs.getTimestamp("ends_at").toInstant(), noRole ? null : role, Status.valueOf(rs.getString("status")), winners);
+                rs.getInt("winner_count"), rs.getTimestamp("ends_at").toInstant(), noRole ? null : role, Status.valueOf(rs.getString("status")), winners,
+                noWinnerRole ? null : winnerRole, rs.getBoolean("dm_winners"), rs.getBoolean("reaction_entry"));
     }
 }
