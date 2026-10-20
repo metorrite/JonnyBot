@@ -47,6 +47,8 @@ public enum HubCommand {
     SERVER_REMINDER("serverreminder", "Server reminders", "serverreminder", "Staff reminders posted in a channel, once or repeating, with an optional role ping (managed on the Server reminders page too).",
             "Admins only", true),
     EVENTS("events", "Events", "events", "See the events you are in (place, points, buy-in, prizes), browse the ones open for signup, and join or leave them. Events are made and run from the dashboard's Event manager.",
+            "Everyone", false),
+    PRICE("price", "Grand Exchange prices", "price", "Look up an item's Grand Exchange price with its 7 and 30 day change, and a link to its wiki page.",
             "Everyone", false);
 
     private final String key;
