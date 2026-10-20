@@ -34,7 +34,7 @@ public final class GuildPurge {
     }
 
     /** Tables that must never be purged, even though they have a server id: the lists of trusted and premium servers, and the bookkeeping for this feature. */
-    public static final Set<String> KEEP = Set.of("guild_departure", "beta_guild", "premium_guild", "beta_guild_seeded");
+    public static final Set<String> KEEP = Set.of("guild_departure", "beta_guild", "premium_guild", "premium_grant_log", "beta_guild_seeded");
 
     public static Result purge(List<String> tables, long guildId, RowDeleter deleter) {
         Map<String, Integer> removed = new LinkedHashMap<>();

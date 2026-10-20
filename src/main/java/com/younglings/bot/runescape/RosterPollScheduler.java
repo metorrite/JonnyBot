@@ -1,7 +1,8 @@
 package com.younglings.bot.runescape;
 
 import com.younglings.bot.config.BotConfig;
-import com.younglings.bot.premium.PremiumGuildRepository;
+import com.younglings.bot.premium.Premium;
+import com.younglings.bot.premium.PremiumFeatures;
 import com.younglings.bot.runescape.polling.PollCoordinator;
 import com.younglings.bot.runescape.polling.PollJob;
 import com.younglings.bot.runescape.polling.PollPriority;
@@ -61,10 +62,10 @@ public class RosterPollScheduler {
     private final PlayerLinkService linkService;
     private final PollCoordinator pollCoordinator;
     private final BotConfig botConfig;
-    private final PremiumGuildRepository premiumGuilds;
+    private final Premium premiumGuilds;
 
     public RosterPollScheduler(ClanMemberRepository clanMemberRepository, ClanSyncService clanSyncService, PlayerLinkService linkService,
-                                PollCoordinator pollCoordinator, BotConfig botConfig, PremiumGuildRepository premiumGuilds) {
+                                PollCoordinator pollCoordinator, BotConfig botConfig, Premium premiumGuilds) {
         this.premiumGuilds = premiumGuilds;
         this.clanMemberRepository = clanMemberRepository;
         this.clanSyncService = clanSyncService;
@@ -123,7 +124,7 @@ public class RosterPollScheduler {
     /** Players in the clan of a server on the premium plan (and that server has a clan set up). */
     private List<String> premiumClanPlayers(JDA jda) {
         Set<Long> premium = new HashSet<>();
-        for (var guild : premiumGuilds.all()) premium.add(guild.guildId());
+        premium.addAll(premiumGuilds.guildsAllowing(PremiumFeatures.FAST_POLLING));
         List<Long> ids = clanGuildIds(jda).stream().filter(premium::contains).toList();
         return ids.isEmpty() ? List.of() : clanMemberRepository.activeRsnsInGuilds(ids);
     }
