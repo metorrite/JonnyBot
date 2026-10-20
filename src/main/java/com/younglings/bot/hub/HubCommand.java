@@ -50,6 +50,10 @@ public enum HubCommand {
             "Everyone", false),
     EVENTS("events", "Events", "events", "See the events you are in (place, points, buy-in, prizes), browse the ones open for signup, and join or leave them. Events are made and run from the dashboard's Event manager.",
             "Everyone", false),
+    LEVEL("level", "Chat level", "level", "See your chat level, XP and rank, or another member's. Chat levels are off until the Chat levels page switches them on.",
+            "Everyone", false),
+    LEVELS("levels", "Chat leaderboard", "levels", "The most active chatters in the server.",
+            "Everyone", false),
     PRICE("price", "Grand Exchange prices", "price", "Look up an item's Grand Exchange price with its 7 and 30 day change, and a link to its wiki page.",
             "Everyone", false),
     WORLD_EVENTS("worldevents", "World events", "worldevents", "The Voice of Seren right now and the events that come round by themselves, with how often. Hourly reminders are set on the RuneScape timers page.",
@@ -57,6 +61,10 @@ public enum HubCommand {
     RESET("reset", "Reset timers", "reset", "Countdowns to the daily, weekly and monthly RuneScape resets. Reminders at each reset are set on the RuneScape timers page.",
             "Everyone", false),
     DND("dnd", "Distractions and Diversions", "dnd", "The RuneScape Distractions and Diversions by how often they can be played (daily, weekly, monthly, when available), from the wiki.",
+            "Everyone", false),
+    BOSS("boss", "Boss info", "boss", "A short wiki summary of a RuneScape 3 boss with its key facts and a link to its strategy page.",
+            "Everyone", false),
+    QUEST("quest", "Quest info", "quest", "A short wiki summary of a RuneScape 3 quest with its difficulty, area and a link to its quick guide.",
             "Everyone", false);
 
     private final String key;
