@@ -11,6 +11,7 @@ import com.younglings.bot.events.EventRepository.Event;
 import com.younglings.bot.events.EventRepository.Participant;
 import com.younglings.bot.events.EventRules.Status;
 import com.younglings.bot.events.EventScoring.Standing;
+import com.younglings.bot.events.EventStandings;
 import com.younglings.bot.events.EventService;
 import com.younglings.bot.events.EventRoster;
 import com.younglings.bot.events.EventSettings;
@@ -184,15 +185,19 @@ public class MemberEventsApi {
         List<Standing> standings = scored ? service.standings(guildId, eventId) : List.of();
         String subject = teamEvent ? (me.teamId() == null ? null : "t:" + me.teamId()) : "u:" + userId;
         Standing mineStanding = standings.stream().filter(s -> s.subject().equals(subject)).findFirst().orElse(null);
+        EventStandings.Visibility visibility = EventStandings.of(DataObject.fromJson(event.config()));
+        boolean shown = EventStandings.tableShown(visibility, event.status());
         DataArray rows = DataArray.empty();
         int myRank = 0;
-        for (int i = 0; i < standings.size(); i++) {
+        for (int i = 0; i < standings.size() && shown; i++) {
             Standing s = standings.get(i);
             boolean mine = s.subject().equals(subject);
             if (mine) myRank = i + 1;
             if (i < STANDINGS_SHOWN || mine) rows.add(DataObject.empty().put("rank", i + 1).put("name", standingName(guild, s.subject(), teams)).put("points", s.points()).put("me", mine));
         }
-        out.put("standings", DataObject.empty().put("rows", rows).put("of", standings.size()).put("myRank", myRank).put("myPoints", mineStanding == null ? 0 : mineStanding.points()));
+        // hidden: players still see their own points, never the table or where they rank
+        out.put("standings", DataObject.empty().put("rows", rows).put("of", shown ? standings.size() : 0).put("myRank", myRank).put("myPoints", mineStanding == null ? 0 : mineStanding.points())
+                .put("hidden", !shown).put("hiddenText", shown ? null : EventStandings.hiddenText(visibility)));
 
         var objectives = service.objectives(eventId);
         DataArray progress = DataArray.empty();
@@ -296,9 +301,10 @@ public class MemberEventsApi {
         String subject = event.scoringMode() == com.younglings.bot.events.EventRules.ScoringMode.TEAM ? (me.teamId() == null ? null : "t:" + me.teamId()) : "u:" + userId;
         int rank = 0;
         Standing mineStanding = null;
+        boolean ranked = EventStandings.tableShown(EventStandings.of(DataObject.fromJson(event.config())), event.status());
         for (int i = 0; i < standings.size(); i++) {
             if (standings.get(i).subject().equals(subject)) {
-                rank = i + 1;
+                rank = ranked ? i + 1 : 0;
                 mineStanding = standings.get(i);
             }
         }

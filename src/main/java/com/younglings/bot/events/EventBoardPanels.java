@@ -340,7 +340,10 @@ public class EventBoardPanels {
 
     private String panelText(Guild guild, Event event, List<Standing> standings) {
         StringBuilder text = new StringBuilder("### " + event.name() + " · " + stageText(event.status()));
-        if (standings.isEmpty()) {
+        EventStandings.Visibility visibility = EventStandings.of(DataObject.fromJson(event.config()));
+        if (!EventStandings.tableShown(visibility, event.status())) {
+            text.append("\n").append(EventStandings.hiddenText(visibility));
+        } else if (standings.isEmpty()) {
             text.append("\nNo points yet.");
         } else {
             var teams = repository.teams(event.id());
