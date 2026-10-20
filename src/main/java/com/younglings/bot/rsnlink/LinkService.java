@@ -55,6 +55,7 @@ public final class LinkService {
     private final List<LinkVerifier> verifiers;
     private final Clock clock;
     private final SecureRandom random;
+    private final LinkDm dmFlow;
 
     private final WindowLimiter startPerIp = new WindowLimiter(LinkLimits.START_PER_IP);
     private final WindowLimiter startPerTracking = new WindowLimiter(LinkLimits.START_PER_TRACKING);
@@ -67,6 +68,12 @@ public final class LinkService {
     private final WindowLimiter webAccount = new WindowLimiter(LinkLimits.WEB_ACCOUNT_PER_DISCORD);
 
     public LinkService(LinkSettings settings, LinkDatabase database, LinkDmSender dm, List<LinkVerifier> verifiers, Clock clock, SecureRandom random) {
+        this(settings, database, dm, verifiers, clock, random, defaultBackground());
+    }
+
+    /** {@code background} runs the DM fallback's lookups and sends after the answer has gone (tests pass a direct executor). */
+    public LinkService(LinkSettings settings, LinkDatabase database, LinkDmSender dm, List<LinkVerifier> verifiers, Clock clock, SecureRandom random,
+                       java.util.concurrent.Executor background) {
         this.settings = settings;
         this.database = database;
         this.store = new LinkStore(settings.schema());
@@ -76,6 +83,7 @@ public final class LinkService {
         this.verifiers = List.copyOf(verifiers);
         this.clock = clock;
         this.random = random;
+        this.dmFlow = new LinkDm(this, background);
     }
 
     /** Creates or upgrades the schema. Call once before serving. */
@@ -402,8 +410,8 @@ public final class LinkService {
     public int[] sweep() {
         Instant now = clock.instant();
         int[] counts = tx(c -> store.sweep(c, now));
-        log.info("Link retention sweep: expired {} pairings, deleted {} pairings, {} links, revoked {} unused tokens, deleted {} events, {} blocks, {} characters",
-                counts[0], counts[1], counts[2], counts[3], counts[4], counts[5], counts[6]);
+        log.info("Link retention sweep: expired {} pairings, deleted {} pairings, {} links, revoked {} unused tokens, deleted {} events, {} blocks, {} characters, {} DM records",
+                counts[0], counts[1], counts[2], counts[3], counts[4], counts[5], counts[6], counts[7]);
         return counts;
     }
 
@@ -721,6 +729,23 @@ public final class LinkService {
     }
 
     // ---------- for the bridge and the abuse view ----------
+
+    /** The DM fallback (T-115). */
+    public LinkDm dmFlow() {
+        return dmFlow;
+    }
+
+    String issueTokenFor(Connection c, UUID linkId, String client, Instant now) throws SQLException {
+        return issueToken(c, linkId, client, now);
+    }
+
+    private static java.util.concurrent.Executor defaultBackground() {
+        return java.util.concurrent.Executors.newSingleThreadExecutor(runnable -> {
+            Thread thread = new Thread(runnable, "rsnlink-dm");
+            thread.setDaemon(true);
+            return thread;
+        });
+    }
 
     LinkStore store() {
         return store;

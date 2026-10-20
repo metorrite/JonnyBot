@@ -161,6 +161,7 @@ Database from `LINK_DATABASE_URL`; locally a new database `jonnybot_link` on the
 | `link_block` (built name) | `subject_kind`, `subject_lookup`, `reason`, `until`, `created_by`, `created_at` | Owner-set or automatic (section 8). |
 | `admin_audit` | `at`, `actor`, `action`, `target` | T-118 actions. |
 | `dispute` (added 2026-10-20) | `id uuid pk`, `rsn_lookup`, `rsn_display`, `incumbent_link_id`, `claimant_link_id`, `status` (`open`, `resolved_incumbent`, `resolved_claimant`, `withdrawn`), `opened_at`, `resolved_at`, `resolved_by`, `note` | Two characters claiming one name (section 11). Shown in T-118; settled by the owner now, by the T-122 tie-breaker later. |
+| `dm_send` (T-115, migration v2) | `id`, `target_lookup bytea` (HMAC of the Discord id), `at`, `outcome` (`sent`, `failed`, `opted_out`, `blocked`, `target_cooldown`, `target_daily_cap`, `breaker`) | Every DM attempt, for the per-target caps and the service-wide breaker. Kept 2 days. The typed Discord id of a DM pairing is stored only sealed on the pairing (`target_discord_enc`), deleted with it; a `discord_user` row is made only when the recipient confirms the code or presses "Stop these messages". |
 
 Every "lookup" column is an HMAC-SHA-256 with a server key, never a plain hash: Discord ids, tracking ids, IPs and 8-character codes are guessable, so an unkeyed hash would not protect them.
 

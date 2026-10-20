@@ -439,6 +439,35 @@ final class LinkStore {
         return update(c, "DELETE FROM {s}.abuse_event WHERE subject_kind = ? AND subject_lookup = ?", subjectKind, subjectLookup);
     }
 
+    // ---------- DM fallback (T-115) ----------
+
+    void setDmTarget(Connection c, UUID pairingId, byte[] lookup, byte[] enc, short keyVersion) throws SQLException {
+        update(c, "UPDATE {s}.pairing SET target_discord_lookup = ?, target_discord_enc = ?, target_key_version = ? WHERE id = ?", lookup, enc, keyVersion, pairingId);
+    }
+
+    /** The sealed Discord id a DM pairing was sent to and its key version, or null when it was never sent. */
+    Object[] dmTarget(Connection c, UUID pairingId) throws SQLException {
+        try (PreparedStatement s = c.prepareStatement(sql("SELECT target_discord_enc, target_key_version FROM {s}.pairing WHERE id = ?"))) {
+            s.setObject(1, pairingId);
+            try (ResultSet rs = s.executeQuery()) {
+                if (!rs.next() || rs.getBytes(1) == null) return null;
+                return new Object[]{rs.getBytes(1), rs.getShort(2)};
+            }
+        }
+    }
+
+    void dmSend(Connection c, byte[] targetLookup, String outcome, Instant now) throws SQLException {
+        update(c, "INSERT INTO {s}.dm_send (target_lookup, at, outcome) VALUES (?, ?, ?)", targetLookup, ts(now), outcome);
+    }
+
+    int countDmSent(Connection c, byte[] targetLookup, Instant since) throws SQLException {
+        return count(c, "SELECT count(*) FROM {s}.dm_send WHERE target_lookup = ? AND outcome = 'sent' AND at >= ?", targetLookup, ts(since));
+    }
+
+    int countDmSentTotal(Connection c, Instant since) throws SQLException {
+        return count(c, "SELECT count(*) FROM {s}.dm_send WHERE outcome = 'sent' AND at >= ?", ts(since));
+    }
+
     // ---------- retention (section 7) ----------
 
     /** Runs the clean-up and returns how many rows each step touched, in order. */
@@ -452,7 +481,8 @@ final class LinkStore {
         int blocks = update(c, "DELETE FROM {s}.link_block WHERE until < ?", ts(now));
         int orphans = update(c, "DELETE FROM {s}.game_character ch WHERE NOT EXISTS (SELECT 1 FROM {s}.link l WHERE l.character_id = ch.id) AND ch.last_seen_at < ?",
                 ts(now.minus(LinkLimits.ENDED_LINK_KEPT)));
-        return new int[]{expired, pairings, links, stale, events, blocks, orphans};
+        int dms = update(c, "DELETE FROM {s}.dm_send WHERE at < ?", ts(now.minus(java.time.Duration.ofDays(2))));
+        return new int[]{expired, pairings, links, stale, events, blocks, orphans, dms};
     }
 
     // ---------- helpers ----------
