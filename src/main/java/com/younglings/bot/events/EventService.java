@@ -116,6 +116,7 @@ public class EventService {
             }
             keepOrganisers(kept, config); // organisers are changed with their own call, so a settings save can't wipe them
             keepChannels(kept, config); // so are the roles and channels, on the Channels tab
+            keepTakedown(kept, config); // only JonnyBot staff take an event off the events hub or put it back
         }
         List<String> problems = new ArrayList<>(EventRules.eventProblems(in.name(), in.description(), in.maxParticipants(), in.startsAt(), in.endsAt()));
         problems.addAll(template.configProblems(config));
@@ -290,6 +291,32 @@ public class EventService {
     private static void keepChannels(DataObject from, DataObject into) {
         if (from.hasKey("channels") && !from.isNull("channels")) into.put("channels", from.get("channels"));
         else into.remove("channels");
+    }
+
+    /** {@code hub.takedown} is JonnyBot staff's (T-216/T-218): a settings save keeps what was there and can't add one. The rest of {@code hub} is the host's. */
+    static void keepTakedown(DataObject from, DataObject into) {
+        Object old = null;
+        try {
+            if (from.hasKey("hub") && !from.isNull("hub") && from.getObject("hub").hasKey("takedown") && !from.getObject("hub").isNull("takedown")) old = from.getObject("hub").get("takedown");
+        } catch (RuntimeException ignored) {
+            // an unreadable hub section has nothing to keep
+        }
+        DataObject hub;
+        try {
+            hub = into.hasKey("hub") && !into.isNull("hub") ? into.getObject("hub") : null;
+        } catch (RuntimeException e) {
+            into.remove("hub");
+            hub = null;
+        }
+        if (old == null) {
+            if (hub != null) hub.remove("takedown");
+            return;
+        }
+        if (hub == null) {
+            hub = DataObject.empty();
+            into.put("hub", hub);
+        }
+        hub.put("takedown", old);
     }
 
     // ---------- roles and channels ----------

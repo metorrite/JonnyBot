@@ -207,8 +207,8 @@ public final class EventOptions {
         list.add(Option.choice("scoringMode", "Who plays", "Teams add up points per team.", Step.PLAYERS, ScoringMode.INDIVIDUAL.name(),
                 List.of(new Choice("INDIVIDUAL", "Solo players"), new Choice("TEAM", "Teams"))));
         list.add(Option.number("maxParticipants", "Most players", "0 for no limit. A full event gets a waitlist.", Step.PLAYERS, 0, 0, EventRules.MAX_PARTICIPANTS));
-        list.add(Option.choice("scope", "Who can see it", "Only your clan sees it by default.", Step.PLAYERS, Scope.PRIVATE.name(),
-                List.of(new Choice("PRIVATE", "Clan only"), new Choice("ALLIANCE", "Clan and allies"), new Choice("PUBLIC", "Everyone"))));
+        list.add(Option.choice("scope", "Who can see and join it", "Only this server by default. Open events are listed on the events hub, where anyone can find them and join after joining this Discord.", Step.PLAYERS, Scope.PRIVATE.name(),
+                List.of(new Choice("PRIVATE", "Only this server"), new Choice("ALLIANCE", "This server and its alliances"), new Choice("PUBLIC", "Open to everyone"))));
         list.add(Option.choice("config.teamPolicy", "Who may join and share a team", "Decides whether clan members, other members of this server and players from other servers may take part and play together.", Step.PLAYERS,
                 EventSettings.DEFAULT_POLICY, List.of(new Choice("everyone", "Everyone, mixed freely"), new Choice("home", "Only this server"),
                         new Choice("clanVsOutsiders", "Clan members apart from everyone else"), new Choice("separate", "Every kind on its own teams"))));

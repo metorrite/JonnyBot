@@ -18,12 +18,18 @@ import java.util.Map;
  * @param gate       an {@link EventRoster.Gate} name, or null
  * @param setupMode  {@code STANDARD} or {@code OFF}, or null
  */
-public record EventDefaults(Map<String, String> names, String look, String gate, String setupMode) {
-    public static final EventDefaults NONE = new EventDefaults(Map.of(), null, null, null);
+public record EventDefaults(Map<String, String> names, String look, String gate, String setupMode, String inviteUrl) {
+    public static final EventDefaults NONE = new EventDefaults(Map.of(), null, null, null, null);
     public static final int MAX_PATTERN = 100;
+    /** A Discord invite: what the events hub shows someone who has to join the host server first (T-216). */
+    private static final java.util.regex.Pattern INVITE = java.util.regex.Pattern.compile("https://(discord\\.gg|(www\\.)?discord\\.com/invite)/[A-Za-z0-9-]{2,32}/?");
 
     public EventDefaults {
         names = names == null ? Map.of() : java.util.Collections.unmodifiableMap(new LinkedHashMap<>(names));
+    }
+
+    public EventDefaults(Map<String, String> names, String look, String gate, String setupMode) {
+        this(names, look, gate, setupMode, null);
     }
 
     /** Every name pattern a server can set: the channels, then the roles, each with its label and built-in pattern. */
@@ -76,7 +82,9 @@ public record EventDefaults(Map<String, String> names, String look, String gate,
                 throw new IllegalArgumentException("Setup steps are either followed or not (STANDARD or OFF).");
             }
         }
-        return new EventDefaults(names, look, gate, mode);
+        String invite = text(body, "inviteUrl");
+        if (invite != null && !INVITE.matcher(invite).matches()) throw new IllegalArgumentException("The invite link has to be a Discord invite, like https://discord.gg/abc123.");
+        return new EventDefaults(names, look, gate, mode, invite);
     }
 
     /** The same, from what was saved; anything that no longer reads is dropped rather than breaking event creation. */
@@ -96,7 +104,7 @@ public record EventDefaults(Map<String, String> names, String look, String gate,
     }
 
     public boolean isEmpty() {
-        return names.isEmpty() && look == null && gate == null && setupMode == null;
+        return names.isEmpty() && look == null && gate == null && setupMode == null && inviteUrl == null;
     }
 
     public DataObject json() {
@@ -106,6 +114,7 @@ public record EventDefaults(Map<String, String> names, String look, String gate,
         if (look != null) o.put("look", look);
         if (gate != null) o.put("gate", gate);
         if (setupMode != null) o.put("setupMode", setupMode);
+        if (inviteUrl != null) o.put("inviteUrl", inviteUrl);
         return o;
     }
 

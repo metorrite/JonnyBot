@@ -37,6 +37,12 @@ public class CompetitionTemplate implements EventTemplate {
         return "Competition";
     }
 
+    /** XP gained is read from the player's RuneScape name. */
+    @Override
+    public boolean needsRsn() {
+        return true;
+    }
+
     @Override
     public List<EventOptions.Option> options() {
         List<EventOptions.Choice> skills = new ArrayList<>();
