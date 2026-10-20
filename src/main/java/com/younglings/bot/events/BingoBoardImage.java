@@ -86,6 +86,10 @@ public final class BingoBoardImage {
     }
 
     public static byte[] render(String title, String subtitle, int size, List<TileView> tiles, String footer) throws IOException {
+        return renderPlain(title, subtitle, size, tiles, footer, BingoBoardOptions.NONE);
+    }
+
+    private static byte[] renderPlain(String title, String subtitle, int size, List<TileView> tiles, String footer, BingoBoardOptions options) throws IOException {
         if (tiles.size() != size * size) throw new IllegalArgumentException("A " + size + "x" + size + " board needs " + size * size + " tiles.");
         int tile = tileSize(size);
         int gap = 8;
@@ -114,7 +118,7 @@ public final class BingoBoardImage {
             for (int i = 0; i < tiles.size(); i++) {
                 int x = pad + (i % size) * (tile + gap);
                 int y = header + (i / size) * (tile + gap);
-                drawTile(g, tiles.get(i), x, y, tile, size, LEGACY);
+                drawTile(g, tiles.get(i), x, y, tile, size, accented(LEGACY, options), options);
             }
 
             if (footer != null && !footer.isBlank()) {
@@ -130,7 +134,15 @@ public final class BingoBoardImage {
         return out.toByteArray();
     }
 
-    private static void drawTile(Graphics2D g, TileView t, int x, int y, int tile, int boardSize, Palette p) {
+    /** The palette with the accent colour of the board options in place of its own (gold, the original, changes nothing). */
+    private static Palette accented(Palette p, BingoBoardOptions options) {
+        if (BingoBoardOptions.ACCENT_GOLD.equals(options.accent())) return p;
+        Color c = options.accentColour();
+        return new Palette(p.tile(), p.tileBorder(), p.done(), c, p.text(), p.muted(), c, p.badge(), c, p.badgeText(), p.panelFill(), p.panelBorder(), p.titleMain(), p.titleShadow(),
+                p.subtitle(), p.plaque(), p.plaqueFill(), p.plaqueBorder());
+    }
+
+    private static void drawTile(Graphics2D g, TileView t, int x, int y, int tile, int boardSize, Palette p, BingoBoardOptions options) {
         RoundRectangle2D shape = new RoundRectangle2D.Float(x, y, tile, tile, 14, 14);
         g.setColor(t.done() ? p.done() : p.tile());
         g.fill(shape);
@@ -148,7 +160,9 @@ public final class BingoBoardImage {
         int inner = tile - 20;
 
         // tile number, top left: what a player types to submit proof for this tile
-        if (p.badge()) {
+        if (!options.numbers()) {
+            // switched off in the board options: no number is drawn
+        } else if (p.badge()) {
             g.setColor(p.badgeFill());
             g.fill(new Ellipse2D.Float(x - 3, y - 3, 26, 26));
             g.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
@@ -224,9 +238,16 @@ public final class BingoBoardImage {
         g.setFont(small);
         FontMetrics sm = g.getFontMetrics();
         g.setColor(t.done() ? p.accent() : p.muted());
-        String points = t.points() + " pts";
-        g.drawString(points, x + tile - 10 - sm.stringWidth(points), y + tile - 9);
-        if (t.of() > 0) {
+        if (t.points() >= 0) {
+            String points = t.points() + " pts";
+            g.drawString(points, x + tile - 10 - sm.stringWidth(points), y + tile - 9);
+        }
+        if (options.names() && t.done() && t.by() != null && !t.by().isBlank()) {
+            // who finished it first (and how many others did too), where the count would be
+            g.setColor(p.accent());
+            String who = t.of() > 0 && t.count() > 1 ? t.by() + " +" + (t.count() - 1) : t.by();
+            g.drawString(ellipsize(sm, who, tile - 20 - (t.points() >= 0 ? sm.stringWidth(t.points() + " pts") + 6 : 0)), x + 10, y + tile - 9);
+        } else if (t.of() > 0) {
             g.setColor(p.muted());
             g.drawString(t.count() + "/" + t.of(), x + 10, y + tile - 9);
         }
@@ -243,8 +264,15 @@ public final class BingoBoardImage {
     public static byte[] render(DataObject config, String title, String subtitle, String footer, List<TileView> tiles) throws IOException {
         var layout = BingoTemplate.layoutOf(config);
         String look = BingoLooks.of(config).orElse(null);
-        if (layout.isPresent()) return render(layout.get(), look == null ? BingoLooks.CLASSIC : look, tiles);
-        return render(title, subtitle, BingoBoardView.boardSize(config), tiles, footer, look);
+        BingoBoardOptions options = BingoBoardOptions.of(config);
+        // fog is applied to the tiles before anything is drawn, so nothing about a hidden tile can reach the picture
+        List<TileView> shown = options.fog() ? BingoBoardOptions.fogged(tiles) : tiles;
+        if (layout.isPresent() && layout.get().generated()) {
+            return renderGenerated(layout.get(), look == null ? BingoLooks.CLASSIC : look, options.title().isEmpty() ? title : options.title(),
+                    options.subtitle().isEmpty() ? subtitle : options.subtitle(), footer, shown, options);
+        }
+        if (layout.isPresent()) return render(layout.get(), look == null ? BingoLooks.CLASSIC : look, shown);
+        return renderGrid(options.title().isEmpty() ? title : options.title(), options.subtitle().isEmpty() ? subtitle : options.subtitle(), BingoBoardView.boardSize(config), shown, footer, look, options);
     }
 
     /**
@@ -252,9 +280,13 @@ public final class BingoBoardImage {
      * tiles. A look that isn't known draws the plain board.
      */
     public static byte[] render(String title, String subtitle, int size, List<TileView> tiles, String footer, String look) throws IOException {
-        if (!BingoLooks.valid(look)) return render(title, subtitle, size, tiles, footer);
+        return renderGrid(title, subtitle, size, tiles, footer, look, BingoBoardOptions.NONE);
+    }
+
+    private static byte[] renderGrid(String title, String subtitle, int size, List<TileView> tiles, String footer, String look, BingoBoardOptions options) throws IOException {
+        if (!BingoLooks.valid(look)) return renderPlain(title, subtitle, size, tiles, footer, options);
         if (tiles.size() != size * size) throw new IllegalArgumentException("A " + size + "x" + size + " board needs " + size * size + " tiles.");
-        Palette p = BingoLooks.RUNESCAPE.equals(look) ? RUNESCAPE : CLASSIC;
+        Palette p = accented(BingoLooks.RUNESCAPE.equals(look) ? RUNESCAPE : CLASSIC, options);
         int tile = tileSize(size);
         int gap = 8;
         int side = size * tile + (size - 1) * gap;
@@ -277,7 +309,7 @@ public final class BingoBoardImage {
             g.draw(panel);
             drawHeader(g, width, title, subtitle, p);
             for (int i = 0; i < tiles.size(); i++) {
-                drawTile(g, tiles.get(i), left + (i % size) * (tile + gap), top + (i / size) * (tile + gap), tile, size, p);
+                drawTile(g, tiles.get(i), left + (i % size) * (tile + gap), top + (i / size) * (tile + gap), tile, size, p, options);
             }
             if (footer != null && !footer.isBlank()) {
                 g.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 15));
@@ -466,6 +498,89 @@ public final class BingoBoardImage {
         return out.toByteArray();
     }
 
+    /**
+     * A shape drawn in code in a size of its own ({@link BingoShapes}): the look's backdrop at the size the shape needs, the title block, a line from each
+     * tile to the tiles that open it, and each place framed and numbered (a painted picture has all of that printed in it). The tiles are then filled in the
+     * way they are on a painted picture.
+     */
+    private static byte[] renderGenerated(BingoLayout layout, String look, String title, String subtitle, String footer, List<TileView> tiles, BingoBoardOptions options) throws IOException {
+        if (tiles.size() != layout.tiles()) throw new IllegalArgumentException("The " + layout.name() + " board needs " + layout.tiles() + " tiles.");
+        String usedLook = BingoLooks.valid(look) ? look : BingoLooks.CLASSIC;
+        Palette p = accented(BingoLooks.RUNESCAPE.equals(usedLook) ? RUNESCAPE : CLASSIC, options);
+        BufferedImage base = layout.image(usedLook);
+        int width = base.getWidth();
+        int height = base.getHeight();
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = image.createGraphics();
+        try {
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            g.drawImage(base, 0, 0, null);
+            drawHeader(g, width, title, subtitle, p);
+            // the ways between tiles go underneath: from each tile to every tile that must be done before it
+            var places = layout.places();
+            g.setStroke(new BasicStroke(4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g.setColor(new Color(p.tileBorder().getRed(), p.tileBorder().getGreen(), p.tileBorder().getBlue(), 120));
+            layout.requires().forEach((number, needs) -> {
+                var to = places.get(number - 1);
+                for (int need : needs) {
+                    var from = places.get(need - 1);
+                    g.draw(new Line2D.Double(from.x(), from.y(), to.x(), to.y()));
+                }
+            });
+            for (BingoLayout.Slot slot : layout.slots()) drawFrame(g, slot, p);
+            for (int i = 0; i < tiles.size(); i++) drawPlace(g, base, layout.slots().get(i), tiles.get(i), false);
+            if (footer != null && !footer.isBlank()) {
+                g.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 15));
+                String shown = fit(g, footer, width - 160);
+                FontMetrics fm = g.getFontMetrics();
+                float x = (width - fm.stringWidth(shown)) / 2f;
+                float y = height - BingoBackdrops.FOOTER + 38;
+                g.setColor(p.titleShadow());
+                g.drawString(shown, x + 1, y + 1);
+                g.setColor(p.subtitle());
+                g.drawString(shown, x, y);
+            }
+        } finally {
+            g.dispose();
+        }
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ImageIO.write(image, "png", out);
+        return out.toByteArray();
+    }
+
+    /** What a painted picture prints at each place: the tile's frame, an inset for the item picture and name, and the number badge. */
+    private static void drawFrame(Graphics2D g, BingoLayout.Slot slot, Palette p) {
+        int[] b = slot.bounds();
+        int[] ib = slot.icon();
+        int[] nb = slot.name();
+        if (slot.round()) {
+            Ellipse2D circle = new Ellipse2D.Float(b[0] + 6, b[1] + 6, b[2] - 12, b[3] - 12);
+            g.setColor(CENTRE);
+            g.fill(circle);
+            g.setColor(p.tileBorder());
+            g.setStroke(new BasicStroke(3f));
+            g.draw(circle);
+            return;
+        }
+        RoundRectangle2D frame = new RoundRectangle2D.Float(b[0], b[1], b[2], b[3], 18, 18);
+        g.setColor(p.tile());
+        g.fill(frame);
+        g.setColor(p.tileBorder());
+        g.setStroke(new BasicStroke(2.5f));
+        g.draw(frame);
+        g.setColor(INSET_FALLBACK);
+        g.fillRoundRect(ib[0] - 3, ib[1] - 3, ib[2] + 6, ib[3] + 6, 8, 8);
+        g.fillRoundRect(nb[0] - 1, nb[1] - 1, nb[2] + 2, nb[3] + 2, 6, 6);
+        g.setColor(p.badgeFill());
+        g.fill(new Ellipse2D.Float(b[0] - 3, b[1] - 3, 26, 26));
+        g.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
+        g.setColor(p.badgeText());
+        String number = Integer.toString(slot.number());
+        FontMetrics nm = g.getFontMetrics();
+        g.drawString(number, b[0] + 10 - nm.stringWidth(number) / 2f, b[1] + 10 + (nm.getAscent() - nm.getDescent()) / 2f);
+    }
+
     private static Color colourAt(BufferedImage base, int x, int y, Color fallback) {
         if (x < 0 || y < 0 || x >= base.getWidth() || y >= base.getHeight()) return fallback;
         Color c = new Color(base.getRGB(x, y));
@@ -562,7 +677,7 @@ public final class BingoBoardImage {
             text = t.count() > 1 ? who + " +" + (t.count() - 1) : who;
             colour = GOLD;
         } else {
-            text = t.points() + " pts";
+            text = t.points() < 0 ? "" : t.points() + " pts";
             colour = MUTED;
         }
         Font font = new Font(Font.SANS_SERIF, Font.BOLD, 11);
