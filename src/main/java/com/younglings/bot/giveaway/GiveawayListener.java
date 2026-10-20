@@ -5,6 +5,8 @@ import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
+import net.dv8tion.jda.api.events.message.react.MessageReactionAddEvent;
+import net.dv8tion.jda.api.events.message.react.MessageReactionRemoveEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,6 +28,43 @@ public class GiveawayListener extends ListenerAdapter implements BotListener {
     public GiveawayListener(GiveawayRepository repository, GiveawayService service) {
         this.repository = repository;
         this.service = service;
+    }
+
+    /** A 🎉 on a giveaway that allows it enters the person; someone without the required role has their reaction taken off again. */
+    @Override
+    public void onMessageReactionAdd(MessageReactionAddEvent event) {
+        if (!event.isFromGuild() || event.getUserIdLong() == event.getJDA().getSelfUser().getIdLong() || !isEntryEmoji(event.getEmoji())) return;
+        try {
+            Giveaway g = repository.byMessage(event.getMessageIdLong()).orElse(null);
+            if (g == null || !g.reactionEntry() || !g.open() || !g.endsAt().isAfter(Instant.now())) return;
+            Member member = event.getMember();
+            if (member == null || member.getUser().isBot()) return;
+            if (g.requiredRoleId() != null && member.getRoles().stream().noneMatch(r -> r.getIdLong() == g.requiredRoleId())) {
+                event.getReaction().removeReaction(member.getUser()).queue(ok -> {}, error -> {});
+                return;
+            }
+            repository.addEntry(g.id(), g.guildId(), member.getIdLong());
+            service.refresh(event.getGuild(), g);
+        } catch (Exception e) {
+            log.error("Unhandled exception in giveaway reaction", e);
+        }
+    }
+
+    @Override
+    public void onMessageReactionRemove(MessageReactionRemoveEvent event) {
+        if (!event.isFromGuild() || !isEntryEmoji(event.getEmoji())) return;
+        try {
+            Giveaway g = repository.byMessage(event.getMessageIdLong()).orElse(null);
+            if (g == null || !g.reactionEntry() || !g.open()) return;
+            repository.removeEntry(g.id(), event.getUserIdLong());
+            service.refresh(event.getGuild(), g);
+        } catch (Exception e) {
+            log.error("Unhandled exception in giveaway reaction", e);
+        }
+    }
+
+    private static boolean isEntryEmoji(net.dv8tion.jda.api.entities.emoji.EmojiUnion emoji) {
+        return emoji.getType() == net.dv8tion.jda.api.entities.emoji.Emoji.Type.UNICODE && Giveaway.ENTRY_EMOJI.equals(emoji.getName());
     }
 
     @Override

@@ -16,10 +16,29 @@ public class PointsService {
 
     private final PointsRepository repository;
     private final RewardsRepository rewards;
+    private final java.util.List<java.util.function.BiConsumer<Long, Long>> afterPointsAdded = new java.util.concurrent.CopyOnWriteArrayList<>();
 
     public PointsService(PointsRepository repository, RewardsRepository rewards) {
         this.repository = repository;
         this.rewards = rewards;
+    }
+
+    /**
+     * Asks to be told (guild id, user id) after an entry that gave a member points was recorded, whichever route it came by (the command, the
+     * dashboard, an approved submission, an event prize, a keyword). The listener must not throw and should not block.
+     */
+    public void onPointsAdded(java.util.function.BiConsumer<Long, Long> listener) {
+        afterPointsAdded.add(listener);
+    }
+
+    private void pointsAdded(long guildId, long userId) {
+        for (var listener : afterPointsAdded) {
+            try {
+                listener.accept(guildId, userId);
+            } catch (RuntimeException e) {
+                // a points entry never fails because something reacting to it did
+            }
+        }
     }
 
     /**
@@ -32,7 +51,10 @@ public class PointsService {
         String unit = repository.settings(guildId).unit();
         OptionalLong id = repository.add(guildId, userId, points, reason.strip(), category, sourceKey, actorId);
         long balance = repository.balance(guildId, userId);
-        if (id.isPresent()) return new Result(Outcome.DONE, null, balance, id.getAsLong());
+        if (id.isPresent()) {
+            if (points > 0) pointsAdded(guildId, userId);
+            return new Result(Outcome.DONE, null, balance, id.getAsLong());
+        }
         if (sourceKey != null && points >= 0) return new Result(Outcome.DUPLICATE, "That has already been paid out.", balance, 0);
         if (points < 0 && PointsRules.overdraws(balance, points)) {
             return new Result(Outcome.INSUFFICIENT, "They only have " + PointsRules.format(balance, unit) + ", so " + PointsRules.format(-points, unit) + " can't be taken.", balance, 0);
@@ -63,6 +85,7 @@ public class PointsService {
         long userId = found.get().userId();
         if (approve) {
             repository.add(guildId, userId, points, "Approved submission: " + shorten(found.get().description()), Category.SUBMISSION, "submission:" + submissionId, actorId);
+            pointsAdded(guildId, userId);
         }
         return new Decision(DecisionOutcome.DONE, null, repository.submission(guildId, submissionId).orElse(found.get()), repository.balance(guildId, userId));
     }
@@ -105,6 +128,7 @@ public class PointsService {
         if (!fulfil) {
             repository.add(guildId, found.get().userId(), found.get().cost(), "Refund: " + found.get().rewardName(), Category.ADJUSTMENT, "redemption-refund:" + redemptionId, actorId);
             rewards.returnStock(guildId, found.get().rewardId());
+            pointsAdded(guildId, found.get().userId());
         }
         return new Redeemed(RedeemOutcome.DONE, null, rewards.redemption(guildId, redemptionId).orElse(found.get()), repository.balance(guildId, found.get().userId()));
     }
