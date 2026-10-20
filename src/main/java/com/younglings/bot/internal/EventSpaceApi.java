@@ -138,7 +138,7 @@ public class EventSpaceApi implements AdminRouteExtension {
         DataObject state = DataObject.empty().put("enabled", settings.channels().enabled()).put("applied", setup.spaceApplied()).put("complete", setup.spaceComplete())
                 .put("appliedAt", setup.spaceAppliedAt() == null ? null : setup.spaceAppliedAt().toString()).put("appliedBy", setup.spaceAppliedBy() == null ? null : nameOf(guild, setup.spaceAppliedBy()))
                 .put("note", setup.spaceNote());
-        DataObject summary = DataObject.empty().put("newRoles", plan.newRoles()).put("newChannels", plan.newChannels()).put("toRemove", plan.count(Action.REMOVE))
+        DataObject summary = DataObject.empty().put("newRoles", plan.newRoles()).put("newChannels", plan.newChannels()).put("toRemove", plan.count(Action.REMOVE)).put("toRepair", plan.count(Action.REPAIR))
                 .put("players", preview.gathered().facts().players().size()).put("excluded", preview.gathered().facts().excludedPlayers());
         EventSpaceOps.Job job = ops.job(id);
         DataObject jobJson = job == null ? null : DataObject.empty().put("kind", job.kind()).put("state", job.state()).put("done", job.done()).put("total", job.total()).put("message", job.message())
