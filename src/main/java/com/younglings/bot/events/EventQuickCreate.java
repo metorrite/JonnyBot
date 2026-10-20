@@ -99,18 +99,27 @@ public final class EventQuickCreate {
      * As above, and a bingo's board is drawn in {@code look} ({@link BingoLooks#ids}; the default for new events when null). Other kinds have no board and ignore it.
      */
     public static Plan plan(Kind kind, String name, int days, int startInHours, String detail, Instant now, String look) {
+        return plan(kind, name, days, startInHours, detail, now, look, EventDefaults.NONE);
+    }
+
+    /**
+     * As above, starting from the server's own defaults ({@link EventDefaults}): its name patterns, verification gate and bingo look (when no look was asked
+     * for). The setup steps stay off whatever the server's default is: an event made from one command is started by hand.
+     */
+    public static Plan plan(Kind kind, String name, int days, int startInHours, String detail, Instant now, String look, EventDefaults defaults) {
         if (look != null && !BingoLooks.valid(look)) throw new IllegalArgumentException("Choose a board look from the list.");
         if (days < 1 || days > MAX_DAYS) throw new IllegalArgumentException("An event can run for 1 to " + MAX_DAYS + " days.");
         if (startInHours < 0 || startInHours > MAX_START_HOURS) throw new IllegalArgumentException("It can start from now up to " + MAX_START_HOURS + " hours away.");
         // the standard answers for the kind (the same ones the dashboard's standard setup uses), with what was asked for laid over them
-        DataObject answers = EventOptions.standard(templateFor(kind), now);
+        EventDefaults own = defaults == null ? EventDefaults.NONE : defaults;
+        DataObject answers = EventOptions.standard(templateFor(kind), now, own);
         // made from one Discord command, so it doesn't take the dashboard's setup steps: an organiser just starts it
         EventOptions.set(answers, "config.setup.mode", EventPrep.Mode.OFF.name());
         String about;
         switch (kind) {
             case BINGO -> {
                 BingoLayout shape = shapeNamed(detail);
-                String boardLook = look == null ? BingoLooks.DEFAULT_FOR_NEW : look;
+                String boardLook = look != null ? look : own.look() != null ? own.look() : BingoLooks.DEFAULT_FOR_NEW;
                 EventOptions.set(answers, "config.board.look", boardLook);
                 if (shape != null) {
                     EventOptions.set(answers, "config.board.layout", shape.id());
