@@ -134,12 +134,12 @@ Drake asked to "revisit everything" once all slices were done, then (2026-10-20)
 | E13 | Welcome message in new event channels | **Build, off by default**: one message per slot (announcements, general, team, player) with tokens, posted once when the bot makes the channel | Optional-off rule | T-209 |
 | E14 | Standings visibility | **Keep "all participants"** as the default and **build the option**: participants / everyone in the server / staff only / hidden until the event ends | Some clans hide standings for suspense | T-211 |
 | E15 | `/clan-events` path name | **Keep** `/clan-events` (and `/events` stays Discord scheduled events); the events hub (T-006) brings a host-aware `/e/<id>` later | No churn now | none |
-| E16 | Shared live board channel made for an OWN-only bingo | **Build the fix**: no shared board channel unless the display is SHARED or BOTH | Known gap | T-212 |
+| E16 | Shared live board channel made for an OWN-only bingo | **Already fixed** on dev: `EventSpace.choice` skips the shared board channel for an own-only bingo when team or player channels are on (it stays only as the fallback) | Checked in code 2026-10-20 | none |
 | E17 | Wrap-up defaults (read-only at once, roles back after 7 days, channels kept until an organiser acts) | **Keep** | Safe: nothing deleted without a person | none |
-| E18 | Reopened event stays read-only until Unlock | **Build**: reopening an event unlocks the channels JonnyBot locked (setting `wrapup.unlockOnReopen`, default on) | Reopening is already an explicit staff act | T-213 |
-| E19 | What else the export holds | **Build**: add `claims.csv` (every submission with decision, decider, time), `standings.csv` and `participants.csv` | What staff ask for after an event | T-213 |
+| E18 | Reopened event stays read-only until Unlock | **Build**: reopening an event unlocks the channels JonnyBot locked (setting `wrapup.unlockOnReopen`, default on) | Reopening is already an explicit staff act | T-212 |
+| E19 | What else the export holds | **Build**: add `claims.csv` (every submission with decision, decider, time; the claims are already in `event.json`), `standings.csv` and `participants.csv` for spreadsheets | What staff ask for after an event | T-212 |
 | E20 | Bingo customisation beyond the look | **Already ticketed**: options T-052, variable shape sizes T-108; no new decision | | none |
-| E21 | Empty glyph boxes in `path.png` | **Build**: paint them out in both looks | Cosmetic, safe | T-214 |
+| E21 | Empty glyph boxes in `path.png` | **Build**: paint them out in both looks | Cosmetic, safe | T-213 |
 | E22 | Gentle reminder for loose screenshots | **Already ticketed** (T-057) | | none |
 | E23 | One pending verification at a time; deny = REJECTED; receipts on | **Keep** | Simple to review | none |
 
