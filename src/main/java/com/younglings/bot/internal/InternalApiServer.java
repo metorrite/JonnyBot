@@ -77,11 +77,13 @@ public class InternalApiServer {
     private final MemberApi memberApi;
     private final ImageUploadService imageUploads;
     private final CitadelWinners citadelWinners;
+    private final java.util.List<InternalRouteModule> routeModules;
     private JDA jda;
 
     public InternalApiServer(BotConfig botConfig, TicketAdminApi ticketAdminApi, SiteApi siteApi, DirectoryApi directoryApi, PluginApi pluginApi, MemberApi memberApi, ImageUploadService imageUploads,
-                             CitadelWinners citadelWinners) {
+                             CitadelWinners citadelWinners, java.util.List<InternalRouteModule> routeModules) {
         this.citadelWinners = citadelWinners;
+        this.routeModules = java.util.List.copyOf(routeModules);
         this.imageUploads = imageUploads;
         this.botConfig = botConfig;
         this.ticketAdminApi = ticketAdminApi;
@@ -127,6 +129,7 @@ public class InternalApiServer {
             server.createContext("/internal/me/", exchange -> handleMe(exchange, secret, guildId));
             server.createContext("/internal/image/", exchange -> handleImage(exchange, secret));
             server.createContext("/internal/wheel-gif/", exchange -> handleWheelGif(exchange, secret));
+            for (InternalRouteModule module : routeModules) server.createContext(module.prefix(), exchange -> handleModule(exchange, secret, module));
 
             // A fixed crew with a bounded queue. When it's full the accepting thread runs the work itself, which slows
             // new connections down (back-pressure) instead of letting an unbounded backlog build up behind a flood.
@@ -247,6 +250,21 @@ public class InternalApiServer {
             pluginApi.handle(exchange);
         } catch (Exception e) {
             log.error("Internal API plugin request failed", e);
+            sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));
+        }
+    }
+
+    /** A self-contained module (see {@link InternalRouteModule}): only the secret is checked here. */
+    private void handleModule(HttpExchange exchange, String secret, InternalRouteModule module) throws IOException {
+        try {
+            String provided = exchange.getRequestHeaders().getFirst(SECRET_HEADER);
+            if (provided == null || !constantTimeEquals(provided, secret)) {
+                sendJson(exchange, 401, DataObject.empty().put("error", "Unauthorized"));
+                return;
+            }
+            module.handle(exchange);
+        } catch (Exception e) {
+            log.error("Internal API request to {} failed: {}", module.prefix(), e.getClass().getSimpleName());
             sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));
         }
     }

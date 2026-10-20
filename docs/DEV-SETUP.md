@@ -56,6 +56,14 @@ Copying the old machine's `.idea/workspace.xml` also works when the repository i
 
 **Live database and hosting:** the production Postgres is on Railway; its credentials are in Claude's memory file `reference_railway_live_db.md` and in Railway. Only touch it when asked, read-only first. DNS is on Cloudflare (`reference_infra_dns_hosting.md`).
 
+**RSN link service (`rsnlink`, optional, off unless set up):** its own database `jonnybot_link` on the same local Postgres and its own keys, all `LINK_*` variables (LINK-SYSTEM.md section 6.1). Set it up locally with one command, from this repository:
+
+```
+powershell -ExecutionPolicy Bypass -File tools/rsnlink-dev-env.ps1
+```
+
+It creates `jonnybot_link` if missing and appends fresh random **local-only** keys to the git-ignored `.env` (`LINK_DATABASE_URL`, `LINK_ENC_KEY`, `LINK_LOOKUP_KEY`, `LINK_ALIAS_KEY`, `LINK_SIGNING_KEY`, `LINK_PUBLIC_BASE_URL`), printing names only. Keys already in `.env` are kept (changing `LINK_ALIAS_KEY` changes every alias; changing `LINK_ENC_KEY` without moving the old one to `LINK_ENC_KEY_OLD` makes stored Discord ids unreadable). To make a key by hand instead: 32 random bytes, base64, e.g. in PowerShell `$b = New-Object byte[] 32; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); [Convert]::ToBase64String($b)`. On start the bot logs `RSN link service is on (schema rsnlink).`, or `... is off` when `LINK_DATABASE_URL` is unset, or `... refused to start:` with the names of the variables that are wrong. Never put these local keys on Railway; production keys are made at go-live (T-120). Tests make their own random keys and use the schema `rsnlink_test`; point them at the link database with `JONNYBOT_TEST_LINK_DATABASE_URL` (same form as `DATABASE_URL`, database `jonnybot_link`).
+
 ## 3b. Secret scan (pre-commit hook)
 
 Every commit is scanned for secrets by [gitleaks](https://github.com/gitleaks/gitleaks), locally; nothing is uploaded. CI runs the same scan ("Secret Scan" job) next to GitGuardian.
