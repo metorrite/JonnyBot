@@ -105,6 +105,12 @@ public class GuildSettingsDatabaseInitializer {
                 """
                 ALTER TABLE younglings.guild_settings
                     ADD COLUMN IF NOT EXISTS website_url TEXT NULL;
+                """,
+
+                // The server's Discord invite link, shown to players who must join the server before they can take part in an event.
+                """
+                ALTER TABLE younglings.guild_settings
+                    ADD COLUMN IF NOT EXISTS invite_url TEXT NULL;
                 """
         ));
     }
