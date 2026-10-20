@@ -4,6 +4,7 @@ import com.younglings.bot.permission.AdminRoleFilter;
 import com.younglings.bot.permission.MemberAccess;
 import com.younglings.bot.runescape.PlayerLink;
 import com.younglings.bot.runescape.PlayerLinkService;
+import com.younglings.bot.ticket.HelpExtrasRepository;
 import com.younglings.bot.ticket.TicketModels.Answer;
 import com.younglings.bot.ticket.TicketModels.Field;
 import com.younglings.bot.ticket.TicketModels.HelpSettings;
@@ -70,14 +71,22 @@ public class TicketService {
     private final AdminRoleFilter adminRoleFilter;
     private final MemberAccess memberAccess;
     private final HelpPingService helpPings;
+    private final HelpExtrasRepository extras;
 
     public TicketService(TicketRepository repository, PlayerLinkService linkService, AdminRoleFilter adminRoleFilter, MemberAccess memberAccess,
-                         HelpPingService helpPings) {
+                         HelpPingService helpPings, HelpExtrasRepository extras) {
         this.repository = repository;
         this.linkService = linkService;
         this.adminRoleFilter = adminRoleFilter;
         this.memberAccess = memberAccess;
         this.helpPings = helpPings;
+        this.extras = extras;
+    }
+
+    /** The optional buttons this server switched on, for a ticket of this panel (help panels only; ordinary and Informational panels never get them). */
+    TicketView.Extras extrasFor(long guildId, Panel panel) {
+        if (panel == null || !panel.isHelpPanel()) return TicketView.Extras.NONE;
+        return new TicketView.Extras(extras.get(guildId).eventButton());
     }
 
     // ================= the form =================
@@ -163,7 +172,7 @@ public class TicketService {
                         Ticket withChannel = repository.getTicket(ticket.id());
                         long[] mentioned = java.util.stream.LongStream.concat(java.util.stream.LongStream.of(requester.getIdLong()),
                                 pingUsers.stream().mapToLong(Long::longValue)).toArray();
-                        return channel.sendMessage(TicketView.opening(panel, withChannel, rsnsOf(guild.getIdLong(), requester.getIdLong()), List.of(), plan.role(), pingUsers).toCreate())
+                        return channel.sendMessage(TicketView.opening(panel, withChannel, rsnsOf(guild.getIdLong(), requester.getIdLong()), List.of(), plan.role(), pingUsers, extrasFor(guild.getIdLong(), panel)).toCreate())
                                 .setAllowedMentions(EnumSet.noneOf(Message.MentionType.class))
                                 .mentionUsers(mentioned)
                                 .mentionRoles(plan.role() == null ? new long[0] : new long[]{plan.role()})
@@ -246,7 +255,7 @@ public class TicketService {
                         var container = TicketView.welcome(panel, ticket, rsns, helpers, pingRole);
                         message.editMessageComponents(container).useComponentsV2(true).queue(null, error -> log.warn("Couldn't update ticket {}'s message", ticket.id(), error));
                     } else {
-                        message.editMessage(TicketView.opening(panel, ticket, rsns, helpers, pingRole, pingUsers).toEdit()).queue(null, error -> log.warn("Couldn't update ticket {}'s message", ticket.id(), error));
+                        message.editMessage(TicketView.opening(panel, ticket, rsns, helpers, pingRole, pingUsers, extrasFor(guild.getIdLong(), panel)).toEdit()).queue(null, error -> log.warn("Couldn't update ticket {}'s message", ticket.id(), error));
                     }
                 },
                 error -> log.warn("Couldn't find ticket {}'s opening message", ticket.id()));
