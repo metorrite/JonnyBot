@@ -40,6 +40,7 @@ import java.util.Optional;
  *   <li>{@code POST clans/{slug}/report} {@code {reason, reporter?}}: report a listing for the bot's owner to review</li>
  *   <li>{@code GET events}: shared upcoming events of every listed clan, soonest first</li>
  *   <li>{@code GET hub-events?viewer=} and {@code GET hub-events/{id}?viewer=}: the events hub's engine events ({@link HubEventsApi})</li>
+ *   <li>{@code POST hub-events/{id}/join} {@code {userId}}: join one as the signed-in person (the website says who; T-217)</li>
  *   <li>{@code GET leaderboards?period=week|month}: clans that opted in, ranked by XP their members gained</li>
  * </ul>
  */
@@ -102,6 +103,20 @@ public class DirectoryApi {
             send(exchange, 200, DataObject.empty().put("events", eventsJson(profile.get(), jda, EVENTS_PER_CLAN)).put("generatedAt", Instant.now().toString()));
         } else if (head.equals("clans") && parts.length == 3 && parts[2].equals("report")) {
             report(exchange, method, parts[1]);
+        } else if (head.equals("hub-events") && parts.length == 3 && parts[2].equals("join")) {
+            if (!method.equals("POST")) {
+                send(exchange, 405, DataObject.empty().put("error", "Method not allowed"));
+                return;
+            }
+            DataObject body;
+            try (InputStream in = exchange.getRequestBody()) {
+                body = DataObject.fromJson(in);
+            } catch (RuntimeException e) {
+                send(exchange, 400, DataObject.empty().put("error", "That request couldn't be read."));
+                return;
+            }
+            HubEventsApi.Answer answer = hubEvents.join(jda, parts[1], body.getString("userId", ""));
+            send(exchange, answer.status(), answer.body());
         } else if (head.equals("hub-events")) {
             if (!get(exchange, method)) return;
             String viewer = queryParam(exchange, "viewer");
