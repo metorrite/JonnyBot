@@ -94,6 +94,19 @@ public final class AliasSigner {
         }
     }
 
+    /** The claims of an assertion this signer made, if the signature is good, it is ours ({@code iss}) and it hasn't expired; else null. */
+    public DataObject claimsIfValid(String jws, Instant now) {
+        if (jws == null || jws.length() > 4096 || !verify(jws)) return null;
+        try {
+            DataObject claims = DataObject.fromJson(Base64.getUrlDecoder().decode(jws.split("\\.")[1]));
+            if (!issuer.equals(claims.getString("iss", null))) return null;
+            if (claims.getLong("exp", 0) <= now.getEpochSecond()) return null;
+            return claims;
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
     public String keyId() {
         return keyId;
     }
