@@ -105,7 +105,6 @@ public class EventSetupApi {
         for (String id : BingoLooks.ids()) looks.add(DataObject.empty().put("id", id).put("label", BingoLooks.label(id)));
         return DataObject.empty().put("defaults", d.json()).put("names", names).put("looks", looks)
                 .put("builtIn", DataObject.empty().put("look", BingoLooks.DEFAULT_FOR_NEW).put("gate", "TEAMS").put("setupMode", "STANDARD"));
-        // (inviteUrl is inside "defaults": the Discord invite the events hub shows people who aren't in this server yet)
     }
 
     private static DataObject created(long id) {

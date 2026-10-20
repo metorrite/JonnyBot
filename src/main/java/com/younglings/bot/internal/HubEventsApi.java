@@ -4,7 +4,7 @@ import com.younglings.bot.alliance.AllianceRepository;
 import com.younglings.bot.alliance.AllianceRules;
 import com.younglings.bot.clanprofile.ClanProfile;
 import com.younglings.bot.clanprofile.ClanProfileService;
-import com.younglings.bot.events.EventDefaultsRepository;
+import com.younglings.bot.configure.GuildSettingsService;
 import com.younglings.bot.events.EventListing;
 import com.younglings.bot.events.EventListing.Access;
 import com.younglings.bot.events.EventRepository;
@@ -48,18 +48,18 @@ public class HubEventsApi {
     private final EventRepository events;
     private final EventService service;
     private final EventTemplates templates;
-    private final EventDefaultsRepository defaults;
+    private final GuildSettingsService guildSettings;
     private final ClanProfileService profiles;
     private final AllianceRepository alliances;
     private final PlayerLinkService links;
     private final TtlCache cache = new TtlCache();
 
-    public HubEventsApi(EventRepository events, EventService service, EventTemplates templates, EventDefaultsRepository defaults, ClanProfileService profiles,
+    public HubEventsApi(EventRepository events, EventService service, EventTemplates templates, GuildSettingsService guildSettings, ClanProfileService profiles,
                         AllianceRepository alliances, PlayerLinkService links) {
         this.events = events;
         this.service = service;
         this.templates = templates;
-        this.defaults = defaults;
+        this.guildSettings = guildSettings;
         this.profiles = profiles;
         this.alliances = alliances;
         this.links = links;
@@ -149,8 +149,9 @@ public class HubEventsApi {
     private DataObject host(JDA jda, long guildId) {
         Guild guild = jda == null ? null : jda.getGuildById(guildId);
         Optional<ClanProfile> listed = profiles.publicView(guildId, false);
-        String invite = defaults.get(guildId).inviteUrl();
-        if (invite == null) invite = listed.map(ClanProfile::applyUrl).orElse(null);
+        // the server's invite link (Server setup), else its clan profile's apply link: the same as the "join the Discord first" message
+        String invite = guildSettings.getEffective(guildId).inviteUrl();
+        if (invite == null || invite.isBlank()) invite = listed.map(ClanProfile::applyUrl).filter(u -> u != null && !u.isBlank()).orElse(null);
         DataObject host = DataObject.empty().put("guildId", Long.toString(guildId)).put("inviteUrl", invite);
         if (listed.isPresent()) {
             ClanProfile p = listed.get();

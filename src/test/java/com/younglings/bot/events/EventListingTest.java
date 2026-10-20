@@ -9,12 +9,10 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class EventListingTest {
@@ -78,14 +76,5 @@ class EventListingTest {
         EventService.keepTakedown(clean, sneaky);
         assertFalse(EventListing.takenDown(sneaky));
         assertNull(EventListing.takedownReason(sneaky));
-    }
-
-    @Test
-    void theInviteLinkMustBeADiscordInvite() {
-        assertEquals("https://discord.gg/abc123", EventDefaults.parse(DataObject.fromJson("{\"inviteUrl\":\"https://discord.gg/abc123\"}")).inviteUrl());
-        assertEquals("https://discord.com/invite/abc-123", EventDefaults.parse(DataObject.fromJson("{\"inviteUrl\":\"https://discord.com/invite/abc-123\"}")).inviteUrl());
-        assertThrows(IllegalArgumentException.class, () -> EventDefaults.parse(DataObject.fromJson("{\"inviteUrl\":\"https://evil.example/discord.gg/x\"}")));
-        assertThrows(IllegalArgumentException.class, () -> EventDefaults.parse(DataObject.fromJson("{\"inviteUrl\":\"http://discord.gg/abc\"}")));
-        assertEquals(new EventDefaults(Map.of(), null, null, null, "https://discord.gg/abc123"), EventDefaults.fromStored(EventDefaults.parse(DataObject.fromJson("{\"inviteUrl\":\"https://discord.gg/abc123\"}")).json().toString()));
     }
 }
