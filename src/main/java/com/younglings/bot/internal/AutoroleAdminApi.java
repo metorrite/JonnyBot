@@ -2,6 +2,7 @@ package com.younglings.bot.internal;
 
 import com.younglings.bot.autorole.AutoroleConfig;
 import com.younglings.bot.autorole.AutoroleRepository;
+import com.younglings.bot.autorole.AutoroleService;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
@@ -45,8 +46,11 @@ public class AutoroleAdminApi implements AdminRouteExtension {
         DataArray issues = DataArray.empty();
         for (long id : config.memberRoleIds()) addIssue(guild, "People", id, issues);
         for (long id : config.botRoleIds()) addIssue(guild, "Bots", id, issues);
+        for (long id : config.memberRemoveRoleIds()) addRemovalIssue(guild, "People (take away)", id, issues);
+        for (long id : config.botRemoveRoleIds()) addRemovalIssue(guild, "Bots (take away)", id, issues);
         return DataObject.empty().put("enabled", config.enabled()).put("delaySeconds", config.delaySeconds())
                 .put("memberRoleIds", strings(config.memberRoleIds())).put("botRoleIds", strings(config.botRoleIds()))
+                .put("memberRemoveRoleIds", strings(config.memberRemoveRoleIds())).put("botRemoveRoleIds", strings(config.botRemoveRoleIds()))
                 .put("maxRoles", AutoroleConfig.MAX_ROLES).put("maxDelaySeconds", AutoroleConfig.MAX_DELAY_SECONDS).put("issues", issues);
     }
 
@@ -60,11 +64,42 @@ public class AutoroleAdminApi implements AdminRouteExtension {
         List<Long> memberRoles = body.hasKey("memberRoleIds") ? roles(guild, body.getArray("memberRoleIds"), "People", problems) : current.memberRoleIds();
         List<Long> botRoles = body.hasKey("botRoleIds") ? roles(guild, body.getArray("botRoleIds"), "Bots", problems) : current.botRoleIds();
 
+        List<Long> memberRemove = body.hasKey("memberRemoveRoleIds") ? removals(guild, body.getArray("memberRemoveRoleIds"), "People (take away)", problems) : current.memberRemoveRoleIds();
+        List<Long> botRemove = body.hasKey("botRemoveRoleIds") ? removals(guild, body.getArray("botRemoveRoleIds"), "Bots (take away)", problems) : current.botRemoveRoleIds();
+        for (long id : memberRemove) if (memberRoles.contains(id)) problems.add("People: a role can't be both given and taken away.");
+        for (long id : botRemove) if (botRoles.contains(id)) problems.add("Bots: a role can't be both given and taken away.");
+
         if (!problems.isEmpty()) throw new ApiError(400, "Those autoroles can't be saved yet.", problems);
 
-        repository.save(new AutoroleConfig(guild.getIdLong(), enabled, delay, memberRoles, botRoles));
+        repository.save(new AutoroleConfig(guild.getIdLong(), enabled, delay, memberRoles, botRoles, memberRemove, botRemove));
         log.info("Dashboard: {} saved the autoroles ({}, {} for people, {} for bots, delay {}s)", actor.getId(), enabled ? "on" : "off", memberRoles.size(), botRoles.size(), delay);
         return get(guild);
+    }
+
+    /** Roles to take away from joiners: any ordinary role the bot is allowed to manage (it need not be safe to hand out). */
+    private static List<Long> removals(Guild guild, DataArray raw, String who, List<String> problems) {
+        LinkedHashSet<Long> ids = new LinkedHashSet<>();
+        for (int i = 0; i < raw.length(); i++) {
+            String text = raw.getString(i, "").strip();
+            if (!text.matches("\\d{1,20}")) {
+                problems.add(who + ": a role id isn't valid.");
+                continue;
+            }
+            ids.add(Long.parseLong(text));
+        }
+        if (ids.size() > AutoroleConfig.MAX_ROLES) problems.add(who + ": at most " + AutoroleConfig.MAX_ROLES + " roles.");
+        for (long id : ids) {
+            Role role = guild.getRoleById(id);
+            if (role == null) problems.add(who + ": a chosen role doesn't exist in this server.");
+            else if (!AutoroleService.canTakeAway(guild, role)) problems.add(who + ": @" + role.getName() + " can't be taken away (it is @everyone, managed by an integration, or above JonnyBot's role).");
+        }
+        return new ArrayList<>(ids);
+    }
+
+    private static void addRemovalIssue(Guild guild, String who, long id, DataArray issues) {
+        Role role = guild.getRoleById(id);
+        if (role == null) issues.add(who + ": a chosen role was deleted, so it is skipped.");
+        else if (!AutoroleService.canTakeAway(guild, role)) issues.add(who + ": @" + role.getName() + " can't be taken away right now, so it is skipped.");
     }
 
     private static List<Long> roles(Guild guild, DataArray raw, String who, List<String> problems) {
