@@ -1,5 +1,6 @@
 package com.younglings.bot.clanprofile;
 
+import com.younglings.bot.internal.SiteInvalidator;
 import com.younglings.bot.clanprofile.ClanProfile.Focus;
 import com.younglings.bot.clanprofile.ClanProfile.Recruiting;
 import com.younglings.bot.clanprofile.ClanProfile.Visibility;
@@ -178,6 +179,7 @@ public class ClanProfileRepository {
             nullable(s, 13, p.applyUrl());
             s.setBoolean(14, p.leaderboardOptIn());
             s.executeUpdate();
+            SiteInvalidator.signal(SiteInvalidator.Area.HUB);
         } catch (SQLException e) {
             throw new RuntimeException("Failed to save the clan profile", e);
         }
@@ -193,6 +195,7 @@ public class ClanProfileRepository {
             s.setString(2, clanName);
             s.setLong(3, verifiedBy);
             s.executeUpdate();
+            SiteInvalidator.signal(SiteInvalidator.Area.HUB);
         } catch (SQLException e) {
             throw new RuntimeException("Failed to record the verification", e);
         }
@@ -211,6 +214,7 @@ public class ClanProfileRepository {
                 s.setLong(2, guildId);
             }
             s.executeUpdate();
+            SiteInvalidator.signal(SiteInvalidator.Area.HUB);
         } catch (SQLException e) {
             throw new RuntimeException("Failed to change the suspension", e);
         }
@@ -259,6 +263,7 @@ public class ClanProfileRepository {
                 s.setString(4, scope);
             }
             s.executeUpdate();
+            SiteInvalidator.signal(SiteInvalidator.Area.HUB);
         } catch (SQLException e) {
             throw new RuntimeException("Failed to change whether the event is shared", e);
         }

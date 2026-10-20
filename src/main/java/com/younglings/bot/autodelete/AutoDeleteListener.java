@@ -30,6 +30,13 @@ public class AutoDeleteListener extends ListenerAdapter implements BotListener {
         this.repository = repository;
     }
 
+    private static void postNotice(GuildMessageChannel channel, String notice) {
+        if (!channel.canTalk()) return;
+        channel.sendMessage(notice)
+                .setAllowedMentions(EnumSet.of(Message.MentionType.USER))
+                .queue(note -> note.delete().queueAfter(NOTICE_SECONDS, TimeUnit.SECONDS, ok -> {}, error -> {}), error -> {});
+    }
+
     @Override
     public void onMessageReceived(MessageReceivedEvent event) {
         if (!event.isFromGuild() || event.getAuthor().isBot() || event.isWebhookMessage()) return;
@@ -43,12 +50,15 @@ public class AutoDeleteListener extends ListenerAdapter implements BotListener {
             if (!event.getGuild().getSelfMember().hasPermission(channel, Permission.MESSAGE_MANAGE)) return;
             Member member = event.getMember();
             if (member != null && member.hasPermission(channel, Permission.MESSAGE_MANAGE)) return; // moderators may post anything
+            if (member != null && !rule.appliesTo(member.getRoles().stream().map(role -> role.getIdLong()).collect(java.util.stream.Collectors.toSet()))) return;
 
-            message.delete().queue(ok -> {}, error -> log.debug("Couldn't delete a message in {}: {}", channel.getId(), error.getMessage()));
-            if (channel.canTalk()) {
-                channel.sendMessage(AutoDeleteRule.notice(event.getAuthor().getAsMention(), broken))
-                        .setAllowedMentions(EnumSet.of(Message.MentionType.USER))
-                        .queue(note -> note.delete().queueAfter(NOTICE_SECONDS, TimeUnit.SECONDS, ok -> {}, error -> {}), error -> {});
+            String notice = AutoDeleteRule.notice(event.getAuthor().getAsMention(), broken);
+            if (rule.delaySeconds() > 0) {
+                // kept in memory only: a restart during the wait leaves the message alone
+                message.delete().queueAfter(rule.delaySeconds(), TimeUnit.SECONDS, ok -> postNotice(channel, notice), error -> log.debug("Couldn't delete a message in {}: {}", channel.getId(), error.getMessage()));
+            } else {
+                message.delete().queue(ok -> {}, error -> log.debug("Couldn't delete a message in {}: {}", channel.getId(), error.getMessage()));
+                postNotice(channel, notice);
             }
         } catch (Exception e) {
             log.error("Auto-delete failed for a message in guild {}", event.getGuild().getId(), e);

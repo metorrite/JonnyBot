@@ -114,7 +114,8 @@ public class AutomodRepository {
             RuleConfig c = rules.getOrDefault(rule, AutomodRules.defaults(rule));
             DataArray words = DataArray.empty();
             c.words().forEach(words::add);
-            json.put(rule.name(), DataObject.empty().put("enabled", c.enabled()).put("warn", c.warn()).put("limit", c.limit()).put("seconds", c.seconds()).put("words", words));
+            json.put(rule.name(), DataObject.empty().put("enabled", c.enabled()).put("warn", c.warn()).put("limit", c.limit()).put("seconds", c.seconds()).put("words", words)
+                    .put("response", c.response()).put("logChannel", Long.toString(c.logChannelId())));
         }
         return json.toString();
     }
@@ -140,7 +141,14 @@ public class AutomodRepository {
                     DataArray array = o.getArray("words");
                     for (int i = 0; i < array.length(); i++) words.add(array.getString(i));
                 }
-                rules.put(rule, new RuleConfig(o.getBoolean("enabled", false), o.getBoolean("warn", false), o.getInt("limit", fallback.limit()), o.getInt("seconds", fallback.seconds()), words));
+                long logChannel = 0;
+                try {
+                    logChannel = Long.parseLong(o.getString("logChannel", "0"));
+                } catch (NumberFormatException ignored) {
+                    // a damaged entry means no log channel
+                }
+                rules.put(rule, new RuleConfig(o.getBoolean("enabled", false), o.getBoolean("warn", false), o.getInt("limit", fallback.limit()), o.getInt("seconds", fallback.seconds()), words,
+                        o.getString("response", ""), logChannel));
             } catch (RuntimeException e) {
                 rules.put(rule, fallback);
             }

@@ -23,7 +23,15 @@ public class GoodbyeService {
 
     /** What a goodbye says for one leaver. Pure apart from reading the server's name and size, so it is testable. */
     public static String render(String template, String username, String avatarUrl, String serverName, String channelName, int memberCount) {
-        return WelcomeTemplate.render(template, new WelcomeTemplate.Lookup() {
+        return WelcomeTemplate.render(template, lookup(username, avatarUrl, serverName, channelName, memberCount));
+    }
+
+    /**
+     * How a template is filled for someone who is no longer in the server (a leaver, a banned member): {user} is their name in bold, because a
+     * mention of someone who has left would only show a bare number, and nothing else can mention anybody.
+     */
+    public static WelcomeTemplate.Lookup lookup(String username, String avatarUrl, String serverName, String channelName, int memberCount) {
+        return new WelcomeTemplate.Lookup() {
             @Override
             public String userMention() {
                 return "**" + username + "**";
@@ -68,7 +76,7 @@ public class GoodbyeService {
             public String findChannel(String name) {
                 return null;
             }
-        });
+        };
     }
 
     /** A real leave: posts this server's goodbye if it is switched on. Never throws; a failure is logged. */
