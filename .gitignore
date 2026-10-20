@@ -52,3 +52,17 @@ application.properties
 
 # output of tools/RuneMetricsRateTest.java
 tools/ratetest_logs/
+
+# Secrets and local data: never commit (see docs/ECOSYSTEM.md, "Secrets")
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+.idea/workspace.xml
+*.zip
+*.dump
+*.sql.gz
+*.bak
+dev-snapshots/
