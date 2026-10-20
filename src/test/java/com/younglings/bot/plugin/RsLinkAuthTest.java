@@ -31,7 +31,7 @@ class RsLinkAuthTest {
     private final AtomicInteger resolves = new AtomicInteger();
     private int resolveStatus = 200;
     private boolean serviceDown = false;
-    private RsLinkAuth auth;
+    private RsLinkAuth.Verifier auth;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -50,7 +50,7 @@ class RsLinkAuthTest {
             if (resolveStatus != 200) return new RsLinkAuth.Answer(resolveStatus, DataObject.empty().put("error", "invalid_assertion"));
             return new RsLinkAuth.Answer(200, DataObject.empty().put("discordId", DISCORD).put("rsn", "Zezima").put("verification", "implicit"));
         };
-        auth = new RsLinkAuth(fake, Clock.fixed(NOW, ZoneOffset.UTC));
+        auth = new RsLinkAuth.Verifier(fake, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     private static String b64(byte[] bytes) {

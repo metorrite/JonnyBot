@@ -67,21 +67,10 @@ public class RsLinkAuth {
         }
     }
 
-    private final Transport transport;
-    private final Clock clock;
-    private volatile Map<String, PublicKey> keys = Map.of();
-    private volatile Instant keysFetchedAt = Instant.EPOCH;
-    private final ConcurrentHashMap<String, Cached> resolved = new ConcurrentHashMap<>();
-
-    private record Cached(Optional<Identity> identity, Instant until) {}
+    private final Verifier verifier;
 
     public RsLinkAuth(BotConfig config) {
-        this(httpTransport(config), Clock.systemUTC());
-    }
-
-    RsLinkAuth(Transport transport, Clock clock) {
-        this.transport = transport;
-        this.clock = clock;
+        this.verifier = new Verifier(httpTransport(config), Clock.systemUTC());
     }
 
     /** The assertion in an {@code Authorization} header, or null when the header isn't the RS Link scheme. */
@@ -91,90 +80,111 @@ public class RsLinkAuth {
         return value.isEmpty() || value.length() > 4096 ? null : value;
     }
 
-    /**
-     * Who a RuneSync assertion speaks for, or empty when it is forged, expired, for another plugin, or the link has ended. Throws
-     * {@link Unavailable} when the link service can't be reached (nothing is cached then, so the next try asks again).
-     */
+    /** See {@link Verifier#authenticate}. */
     public Optional<Identity> authenticate(String assertion) {
-        if (assertion == null) return Optional.empty();
-        Instant now = clock.instant();
-        String cacheKey = HexFormat.of().formatHex(sha256(assertion));
-        Cached cached = resolved.get(cacheKey);
-        if (cached != null && cached.until().isAfter(now)) return cached.identity();
-        if (resolved.size() > 10_000) resolved.entrySet().removeIf(e -> !e.getValue().until().isAfter(now));
-
-        Optional<Identity> identity = verifyLocally(assertion, now) ? resolveRemotely(assertion) : Optional.empty();
-        resolved.put(cacheKey, new Cached(identity, now.plus(RESOLVED_FOR)));
-        return identity;
+        return verifier.authenticate(assertion);
     }
 
-    /** Signature, plugin and expiry, checked against the public key set. */
-    boolean verifyLocally(String assertion, Instant now) {
-        String[] parts = assertion.split("\\.");
-        if (parts.length != 3) return false;
-        try {
-            Base64.Decoder b64 = Base64.getUrlDecoder();
-            DataObject header = DataObject.fromJson(b64.decode(parts[0]));
-            DataObject claims = DataObject.fromJson(b64.decode(parts[1]));
-            if (!"EdDSA".equals(header.getString("alg", null))) return false;
-            PublicKey key = key(header.getString("kid", ""), now);
-            if (key == null) return false;
-            Signature verifier = Signature.getInstance("Ed25519");
-            verifier.initVerify(key);
-            verifier.update((parts[0] + "." + parts[1]).getBytes(StandardCharsets.US_ASCII));
-            if (!verifier.verify(b64.decode(parts[2]))) return false;
-            return PLUGIN.equals(claims.getString("plugin", null)) && claims.getLong("exp", 0) > now.getEpochSecond();
-        } catch (Unavailable e) {
-            throw e;
-        } catch (Exception e) {
-            return false;
-        }
-    }
+    /** The checks themselves, apart from the service wiring so tests can give them a fake link service and clock. */
+    static final class Verifier {
+        private final Transport transport;
+        private final Clock clock;
+        private volatile Map<String, PublicKey> keys = Map.of();
+        private volatile Instant keysFetchedAt = Instant.EPOCH;
+        private final ConcurrentHashMap<String, Cached> resolved = new ConcurrentHashMap<>();
 
-    private Optional<Identity> resolveRemotely(String assertion) {
-        Answer answer = transport.call("POST", "/internal/rsnlink/resolve", DataObject.empty().put("assertion", assertion).toString());
-        if (answer == null || answer.status() >= 500) {
-            log.warn("RS Link couldn't be reached to resolve a plugin upload");
-            throw new Unavailable();
-        }
-        if (answer.status() != 200 || answer.json() == null) return Optional.empty();
-        try {
-            DataObject json = answer.json();
-            return Optional.of(new Identity(Long.parseLong(json.getString("discordId")), json.getString("rsn"), json.getString("verification", "implicit")));
-        } catch (RuntimeException e) {
-            return Optional.empty();
-        }
-    }
+        private record Cached(Optional<Identity> identity, Instant until) {}
 
-    /** The public key with this id, refetching the key set when it is old or the id is new (a key rotation). */
-    private PublicKey key(String kid, Instant now) {
-        PublicKey key = keys.get(kid);
-        if (key != null && keysFetchedAt.plus(KEYS_FOR).isAfter(now)) return key;
-        if (keysFetchedAt.plusSeconds(5).isAfter(now) && key == null) return null; // don't hammer the service for an unknown id
-        Answer answer = transport.call("GET", "/internal/rsnlink/v1/keys", null);
-        if (answer == null || answer.status() != 200 || answer.json() == null) {
-            if (keys.isEmpty()) throw new Unavailable();
-            return key;
+        Verifier(Transport transport, Clock clock) {
+            this.transport = transport;
+            this.clock = clock;
         }
-        Map<String, PublicKey> fresh = new ConcurrentHashMap<>();
-        try {
-            DataArray list = answer.json().getArray("keys");
-            for (int i = 0; i < list.length(); i++) {
-                DataObject k = list.getObject(i);
-                if (!"OKP".equals(k.getString("kty", null)) || !"Ed25519".equals(k.getString("crv", null))) continue;
-                byte[] raw = Base64.getUrlDecoder().decode(k.getString("x"));
-                if (raw.length != 32) continue;
-                byte[] encoded = new byte[ED25519_X509_PREFIX.length + 32];
-                System.arraycopy(ED25519_X509_PREFIX, 0, encoded, 0, ED25519_X509_PREFIX.length);
-                System.arraycopy(raw, 0, encoded, ED25519_X509_PREFIX.length, 32);
-                fresh.put(k.getString("kid"), KeyFactory.getInstance("Ed25519").generatePublic(new X509EncodedKeySpec(encoded)));
+
+        /**
+         * Who a RuneSync assertion speaks for, or empty when it is forged, expired, for another plugin, or the link has ended. Throws
+         * {@link Unavailable} when the link service can't be reached (nothing is cached then, so the next try asks again).
+         */
+        public Optional<Identity> authenticate(String assertion) {
+            if (assertion == null) return Optional.empty();
+            Instant now = clock.instant();
+            String cacheKey = HexFormat.of().formatHex(sha256(assertion));
+            Cached cached = resolved.get(cacheKey);
+            if (cached != null && cached.until().isAfter(now)) return cached.identity();
+            if (resolved.size() > 10_000) resolved.entrySet().removeIf(e -> !e.getValue().until().isAfter(now));
+
+            Optional<Identity> identity = verifyLocally(assertion, now) ? resolveRemotely(assertion) : Optional.empty();
+            resolved.put(cacheKey, new Cached(identity, now.plus(RESOLVED_FOR)));
+            return identity;
+        }
+
+        /** Signature, plugin and expiry, checked against the public key set. */
+        boolean verifyLocally(String assertion, Instant now) {
+            String[] parts = assertion.split("\\.");
+            if (parts.length != 3) return false;
+            try {
+                Base64.Decoder b64 = Base64.getUrlDecoder();
+                DataObject header = DataObject.fromJson(b64.decode(parts[0]));
+                DataObject claims = DataObject.fromJson(b64.decode(parts[1]));
+                if (!"EdDSA".equals(header.getString("alg", null))) return false;
+                PublicKey key = key(header.getString("kid", ""), now);
+                if (key == null) return false;
+                Signature verifier = Signature.getInstance("Ed25519");
+                verifier.initVerify(key);
+                verifier.update((parts[0] + "." + parts[1]).getBytes(StandardCharsets.US_ASCII));
+                if (!verifier.verify(b64.decode(parts[2]))) return false;
+                return PLUGIN.equals(claims.getString("plugin", null)) && claims.getLong("exp", 0) > now.getEpochSecond();
+            } catch (Unavailable e) {
+                throw e;
+            } catch (Exception e) {
+                return false;
             }
-        } catch (Exception e) {
-            return key;
         }
-        keys = Map.copyOf(fresh);
-        keysFetchedAt = now;
-        return keys.get(kid);
+
+        private Optional<Identity> resolveRemotely(String assertion) {
+            Answer answer = transport.call("POST", "/internal/rsnlink/resolve", DataObject.empty().put("assertion", assertion).toString());
+            if (answer == null || answer.status() >= 500) {
+                log.warn("RS Link couldn't be reached to resolve a plugin upload");
+                throw new Unavailable();
+            }
+            if (answer.status() != 200 || answer.json() == null) return Optional.empty();
+            try {
+                DataObject json = answer.json();
+                return Optional.of(new Identity(Long.parseLong(json.getString("discordId")), json.getString("rsn"), json.getString("verification", "implicit")));
+            } catch (RuntimeException e) {
+                return Optional.empty();
+            }
+        }
+
+        /** The public key with this id, refetching the key set when it is old or the id is new (a key rotation). */
+        private PublicKey key(String kid, Instant now) {
+            PublicKey key = keys.get(kid);
+            if (key != null && keysFetchedAt.plus(KEYS_FOR).isAfter(now)) return key;
+            if (keysFetchedAt.plusSeconds(5).isAfter(now) && key == null) return null; // don't hammer the service for an unknown id
+            Answer answer = transport.call("GET", "/internal/rsnlink/v1/keys", null);
+            if (answer == null || answer.status() != 200 || answer.json() == null) {
+                if (keys.isEmpty()) throw new Unavailable();
+                return key;
+            }
+            Map<String, PublicKey> fresh = new ConcurrentHashMap<>();
+            try {
+                DataArray list = answer.json().getArray("keys");
+                for (int i = 0; i < list.length(); i++) {
+                    DataObject k = list.getObject(i);
+                    if (!"OKP".equals(k.getString("kty", null)) || !"Ed25519".equals(k.getString("crv", null))) continue;
+                    byte[] raw = Base64.getUrlDecoder().decode(k.getString("x"));
+                    if (raw.length != 32) continue;
+                    byte[] encoded = new byte[ED25519_X509_PREFIX.length + 32];
+                    System.arraycopy(ED25519_X509_PREFIX, 0, encoded, 0, ED25519_X509_PREFIX.length);
+                    System.arraycopy(raw, 0, encoded, ED25519_X509_PREFIX.length, 32);
+                    fresh.put(k.getString("kid"), KeyFactory.getInstance("Ed25519").generatePublic(new X509EncodedKeySpec(encoded)));
+                }
+            } catch (Exception e) {
+                return key;
+            }
+            keys = Map.copyOf(fresh);
+            keysFetchedAt = now;
+            return keys.get(kid);
+        }
     }
 
     private static byte[] sha256(String text) {
