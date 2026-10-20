@@ -27,8 +27,8 @@ import java.util.Set;
  * {@code verification: {required, gate: "SIGNUP" | "TEAMS" | "START", instructions}}: whether players must be verified, by when ({@link EventRoster.Gate}),
  * and what they are told to send, and
  * {@code channels: {enabled, teamChannels, playerChannels, slots, names}}: the roles and channels JonnyBot makes for the event ({@link EventSpace}), and
- * {@code submissions: {require, receipts}}: whether proof only counts when sent with {@code /submit} from the player's own event channel (staff and
- * organisers may still name the event from anywhere), and whether a receipt is posted in the player's (or team's) channel ({@link Submissions}), and
+ * {@code submissions: {require, receipts, remind}}: whether proof only counts when sent with {@code /submit} from the player's own event channel (staff and
+ * organisers may still name the event from anywhere), and whether a receipt is posted in the player's (or team's) channel, and whether a player who posts a picture in their own channel without {@code /submit} gets a reminder (off by default) ({@link Submissions}), and
  * {@code wrapup: {lockOnFinish, rolesDays, channelsDays, channelsAction, archiveCategoryId}}: what happens to the roles and channels once the event is over ({@link EventWrapup}).
  * Pure, so it can be tested.
  */
@@ -39,8 +39,12 @@ public record EventSettings(BuyIn buyIn, Policy teamPolicy, QueueRules.Policy qu
     public static final int MAX_ORGANISERS = 10;
 
     /** How proof is sent. {@code require}: only {@code /submit} from an event channel counts for players. {@code receipts}: a receipt goes in the player's own channel (default on). */
-    public record Submissions(boolean require, boolean receipts) {
-        public static final Submissions DEFAULT = new Submissions(false, true);
+    public record Submissions(boolean require, boolean receipts, boolean remind) {
+        public static final Submissions DEFAULT = new Submissions(false, true, false);
+
+        public Submissions(boolean require, boolean receipts) {
+            this(require, receipts, false);
+        }
     }
 
     public EventSettings {
@@ -59,7 +63,7 @@ public record EventSettings(BuyIn buyIn, Policy teamPolicy, QueueRules.Policy qu
         try {
             if (config == null || !config.hasKey("submissions") || config.isNull("submissions")) return Submissions.DEFAULT;
             DataObject s = config.getObject("submissions");
-            return new Submissions(s.getBoolean("require", false), s.getBoolean("receipts", true));
+            return new Submissions(s.getBoolean("require", false), s.getBoolean("receipts", true), s.getBoolean("remind", false));
         } catch (RuntimeException e) {
             return Submissions.DEFAULT;
         }
@@ -190,7 +194,7 @@ public record EventSettings(BuyIn buyIn, Policy teamPolicy, QueueRules.Policy qu
         if (config.hasKey("submissions") && !config.isNull("submissions")) {
             try {
                 DataObject s = config.getObject("submissions");
-                for (String key : new String[]{"require", "receipts"}) {
+                for (String key : new String[]{"require", "receipts", "remind"}) {
                     if (s.hasKey(key) && !s.isNull(key) && !(s.opt(key).orElse(null) instanceof Boolean)) problems.add("The submission setting \"" + key + "\" has to be on or off.");
                 }
             } catch (RuntimeException e) {

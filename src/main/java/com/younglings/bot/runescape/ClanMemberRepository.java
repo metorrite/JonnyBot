@@ -1,5 +1,6 @@
 package com.younglings.bot.runescape;
 
+import com.younglings.bot.internal.SiteInvalidator;
 import io.github.freya022.botcommands.api.core.db.ConnectionSupplier;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import org.slf4j.Logger;
@@ -54,6 +55,7 @@ public class ClanMemberRepository {
             statement.setLong(5, kills);
             statement.executeUpdate();
 
+            SiteInvalidator.signal(SiteInvalidator.Area.ROSTER);
         } catch (SQLException e) {
             log.error("Failed to upsert clan member '{}'", rsn, e);
             throw new RuntimeException("Failed to upsert clan member", e);
@@ -70,6 +72,7 @@ public class ClanMemberRepository {
             statement.setString(2, rsn);
             statement.executeUpdate();
 
+            SiteInvalidator.signal(SiteInvalidator.Area.ROSTER);
         } catch (SQLException e) {
             log.error("Failed to mark clan member '{}' inactive", rsn, e);
             throw new RuntimeException("Failed to mark clan member inactive", e);
@@ -172,7 +175,9 @@ public class ClanMemberRepository {
             statement.setObject(1, joinedAt);
             statement.setLong(2, guildId);
             statement.setString(3, rsn);
-            return statement.executeUpdate() > 0;
+            boolean changed = statement.executeUpdate() > 0;
+            if (changed) SiteInvalidator.signal(SiteInvalidator.Area.ROSTER);
+            return changed;
 
         } catch (SQLException e) {
             log.error("Failed to set clan join date for '{}'", rsn, e);

@@ -12,6 +12,7 @@ import com.younglings.bot.events.EventRules.ScoringMode;
 import com.younglings.bot.events.EventRules.Source;
 import com.younglings.bot.events.EventRules.Status;
 import com.younglings.bot.events.BingoLayout;
+import com.younglings.bot.events.BingoShapes;
 import com.younglings.bot.events.BingoLooks;
 import com.younglings.bot.events.BingoTemplate;
 import com.younglings.bot.events.BingoTiles;
@@ -740,8 +741,11 @@ public class EventsAdminApi implements AdminRouteExtension {
             needs.forEach(list::add);
             requires.put(Integer.toString(number), list);
         });
-        return DataObject.empty().put("id", l.id()).put("name", l.name()).put("blurb", l.blurb()).put("rule", l.rule()).put("tiles", l.tiles())
-                .put("rows", rows).put("rowNames", rowNames).put("requires", requires);
+        DataObject json = DataObject.empty().put("id", l.id()).put("name", l.name()).put("blurb", l.blurb()).put("rule", l.rule()).put("tiles", l.tiles())
+                .put("rows", rows).put("rowNames", rowNames).put("requires", requires).put("size", l.sizeParam()).put("generated", l.generated());
+        // what the shape can be sized to, for the size picker
+        BingoShapes.range(l.id()).ifPresent(r -> json.put("range", DataObject.empty().put("what", r.what()).put("min", r.min()).put("max", r.max()).put("picture", r.picture())));
+        return json;
     }
 
     DataObject rerollBingo(Guild guild, Member actor, long id, DataObject body) {
@@ -763,7 +767,8 @@ public class EventsAdminApi implements AdminRouteExtension {
                 return detail(guild, id);
             }
             String shape = body.hasKey("layout") && !body.isNull("layout") ? text(body, "layout") : null;
-            var rerolled = bingo.reroll(DataObject.fromJson(event.config()), service.objectives(id), size, seed, locked, shape == null || shape.isEmpty() ? null : shape);
+            Integer shapeSize = body.hasKey("shapeSize") && !body.isNull("shapeSize") ? (int) number(body, "shapeSize", 0) : null;
+            var rerolled = bingo.reroll(DataObject.fromJson(event.config()), service.objectives(id), size, seed, locked, shape == null || shape.isEmpty() ? null : shape, shapeSize);
             service.reconfigure(guild.getIdLong(), id, rerolled.config(), rerolled.objectives());
         } catch (IllegalArgumentException e) {
             throw new ApiError(400, e.getMessage());
