@@ -1,5 +1,6 @@
 package com.younglings.bot.giveaway;
 
+import com.younglings.bot.internal.MemberApi;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -7,7 +8,9 @@ import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Message;
+import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel;
+import net.dv8tion.jda.api.entities.emoji.Emoji;
 import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,16 +60,23 @@ public class GiveawayService {
 
     /** Creates the giveaway and posts its message. Throws {@link GiveawayException} if the channel can't be used (nothing is kept then). */
     public Giveaway start(Guild guild, long channelId, String prize, long hostId, int winners, Instant endsAt, Long requiredRoleId) {
+        return start(guild, channelId, prize, hostId, winners, endsAt, requiredRoleId, null, false, false);
+    }
+
+    /** As above, with an optional role for the winners, a DM to each winner, and entry by reacting as well as by the button. */
+    public Giveaway start(Guild guild, long channelId, String prize, long hostId, int winners, Instant endsAt, Long requiredRoleId, Long winnerRoleId, boolean dmWinners,
+                          boolean reactionEntry) {
         GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, channelId);
         if (channel == null) throw new GiveawayException("That channel doesn't exist in this server.");
         if (!channel.canTalk()) throw new GiveawayException("JonnyBot can't post in #" + channel.getName() + ". It needs permission to view the channel and send messages there.");
 
-        long id = repository.create(guild.getIdLong(), channelId, prize, hostId, winners, endsAt, requiredRoleId);
+        long id = repository.create(guild.getIdLong(), channelId, prize, hostId, winners, endsAt, requiredRoleId, winnerRoleId, dmWinners, reactionEntry);
         Giveaway g = repository.get(guild.getIdLong(), id).orElseThrow();
         try {
             var edit = GiveawayMessage.edit(g, 0);
             Message sent = channel.sendMessage(new MessageCreateBuilder().setEmbeds(edit.getEmbeds()).setComponents(edit.getComponents()).build()).complete();
             repository.setMessage(id, sent.getIdLong());
+            if (reactionEntry) sent.addReaction(Emoji.fromUnicode(Giveaway.ENTRY_EMOJI)).queue(ok -> {}, error -> log.warn("Couldn't add the entry reaction to giveaway {}", id, error));
             return repository.get(guild.getIdLong(), id).orElseThrow();
         } catch (RuntimeException e) {
             repository.delete(guild.getIdLong(), id);
@@ -131,6 +141,28 @@ public class GiveawayService {
                 : (reroll ? "🎉 New winner" : "🎉 Congratulations") + (winners.size() == 1 ? " " : "s ") + GiveawayDraw.mentions(winners) + "! You won **" + g.prize() + "**.";
         channel.sendMessage(text).setAllowedMentions(EnumSet.of(Message.MentionType.USER)).mentionUsers(winners.stream().mapToLong(Long::longValue).toArray())
                 .setMessageReference(g.messageId()).failOnInvalidReply(false).queue(ok -> {}, error -> {});
+        rewardWinners(guild, g, winners);
+    }
+
+    /** The winner role and the winner DM, each only if this giveaway asked for it. Neither can stop the announcement or each other. */
+    private void rewardWinners(Guild guild, Giveaway g, List<Long> winners) {
+        if (winners.isEmpty()) return;
+        if (g.winnerRoleId() != null) {
+            Role role = guild.getRoleById(g.winnerRoleId());
+            if (role != null && MemberApi.safeToAssign(guild, role)) {
+                for (long winner : winners) {
+                    guild.retrieveMemberById(winner).queue(member -> guild.addRoleToMember(member, role).reason("Won giveaway " + g.id()).queue(ok -> {}, error -> {}), error -> {});
+                }
+            }
+        }
+        if (g.dmWinners()) {
+            String link = g.messageId() == null ? "" : "\nhttps://discord.com/channels/" + g.guildId() + "/" + g.channelId() + "/" + g.messageId();
+            String text = "🎉 You won **" + g.prize() + "** in **" + guild.getName() + "**!" + link;
+            for (long winner : winners) {
+                // closed DMs are expected: nothing to do about them, the announcement in the channel is the fallback
+                guild.getJDA().retrieveUserById(winner).queue(user -> user.openPrivateChannel().queue(dm -> dm.sendMessage(text).queue(ok -> {}, error -> {}), error -> {}), error -> {});
+            }
+        }
     }
 
     void sweep(JDA jda) {
