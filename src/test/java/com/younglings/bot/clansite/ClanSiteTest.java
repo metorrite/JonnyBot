@@ -34,6 +34,19 @@ class ClanSiteTest {
     }
 
     @Test
+    void aClanSiteReadsClanLevelDataOnly() {
+        assertEquals(java.util.Set.of("members", "overview", "leaderboard", "recap"), com.younglings.bot.internal.SiteApi.TENANT_ROUTES);
+        assertFalse(com.younglings.bot.internal.SiteApi.TENANT_ROUTES.contains("member"));
+        assertFalse(com.younglings.bot.internal.SiteApi.TENANT_ROUTES.contains("me"));
+    }
+
+    @Test
+    void blockKindsParseLeniently() {
+        assertEquals(ClanSiteBlock.Kind.LINKS, ClanSiteBlock.Kind.parse(" links ").orElseThrow());
+        assertTrue(ClanSiteBlock.Kind.parse("html").isEmpty());
+    }
+
+    @Test
     void templatesParseLeniently() {
         assertEquals(Template.HALL, Template.parse(" hall ").orElseThrow());
         assertEquals(Template.MINIMAL, Template.parse("MINIMAL").orElseThrow());
