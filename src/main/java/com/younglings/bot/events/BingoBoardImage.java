@@ -267,6 +267,10 @@ public final class BingoBoardImage {
         BingoBoardOptions options = BingoBoardOptions.of(config);
         // fog is applied to the tiles before anything is drawn, so nothing about a hidden tile can reach the picture
         List<TileView> shown = options.fog() ? BingoBoardOptions.fogged(tiles) : tiles;
+        if (layout.isPresent() && layout.get().generated()) {
+            return renderGenerated(layout.get(), look == null ? BingoLooks.CLASSIC : look, options.title().isEmpty() ? title : options.title(),
+                    options.subtitle().isEmpty() ? subtitle : options.subtitle(), footer, shown, options);
+        }
         if (layout.isPresent()) return render(layout.get(), look == null ? BingoLooks.CLASSIC : look, shown);
         return renderGrid(options.title().isEmpty() ? title : options.title(), options.subtitle().isEmpty() ? subtitle : options.subtitle(), BingoBoardView.boardSize(config), shown, footer, look, options);
     }
@@ -492,6 +496,89 @@ public final class BingoBoardImage {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         ImageIO.write(image, "png", out);
         return out.toByteArray();
+    }
+
+    /**
+     * A shape drawn in code in a size of its own ({@link BingoShapes}): the look's backdrop at the size the shape needs, the title block, a line from each
+     * tile to the tiles that open it, and each place framed and numbered (a painted picture has all of that printed in it). The tiles are then filled in the
+     * way they are on a painted picture.
+     */
+    private static byte[] renderGenerated(BingoLayout layout, String look, String title, String subtitle, String footer, List<TileView> tiles, BingoBoardOptions options) throws IOException {
+        if (tiles.size() != layout.tiles()) throw new IllegalArgumentException("The " + layout.name() + " board needs " + layout.tiles() + " tiles.");
+        String usedLook = BingoLooks.valid(look) ? look : BingoLooks.CLASSIC;
+        Palette p = accented(BingoLooks.RUNESCAPE.equals(usedLook) ? RUNESCAPE : CLASSIC, options);
+        BufferedImage base = layout.image(usedLook);
+        int width = base.getWidth();
+        int height = base.getHeight();
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = image.createGraphics();
+        try {
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            g.drawImage(base, 0, 0, null);
+            drawHeader(g, width, title, subtitle, p);
+            // the ways between tiles go underneath: from each tile to every tile that must be done before it
+            var places = layout.places();
+            g.setStroke(new BasicStroke(4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g.setColor(new Color(p.tileBorder().getRed(), p.tileBorder().getGreen(), p.tileBorder().getBlue(), 120));
+            layout.requires().forEach((number, needs) -> {
+                var to = places.get(number - 1);
+                for (int need : needs) {
+                    var from = places.get(need - 1);
+                    g.draw(new Line2D.Double(from.x(), from.y(), to.x(), to.y()));
+                }
+            });
+            for (BingoLayout.Slot slot : layout.slots()) drawFrame(g, slot, p);
+            for (int i = 0; i < tiles.size(); i++) drawPlace(g, base, layout.slots().get(i), tiles.get(i), false);
+            if (footer != null && !footer.isBlank()) {
+                g.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 15));
+                String shown = fit(g, footer, width - 160);
+                FontMetrics fm = g.getFontMetrics();
+                float x = (width - fm.stringWidth(shown)) / 2f;
+                float y = height - BingoBackdrops.FOOTER + 38;
+                g.setColor(p.titleShadow());
+                g.drawString(shown, x + 1, y + 1);
+                g.setColor(p.subtitle());
+                g.drawString(shown, x, y);
+            }
+        } finally {
+            g.dispose();
+        }
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ImageIO.write(image, "png", out);
+        return out.toByteArray();
+    }
+
+    /** What a painted picture prints at each place: the tile's frame, an inset for the item picture and name, and the number badge. */
+    private static void drawFrame(Graphics2D g, BingoLayout.Slot slot, Palette p) {
+        int[] b = slot.bounds();
+        int[] ib = slot.icon();
+        int[] nb = slot.name();
+        if (slot.round()) {
+            Ellipse2D circle = new Ellipse2D.Float(b[0] + 6, b[1] + 6, b[2] - 12, b[3] - 12);
+            g.setColor(CENTRE);
+            g.fill(circle);
+            g.setColor(p.tileBorder());
+            g.setStroke(new BasicStroke(3f));
+            g.draw(circle);
+            return;
+        }
+        RoundRectangle2D frame = new RoundRectangle2D.Float(b[0], b[1], b[2], b[3], 18, 18);
+        g.setColor(p.tile());
+        g.fill(frame);
+        g.setColor(p.tileBorder());
+        g.setStroke(new BasicStroke(2.5f));
+        g.draw(frame);
+        g.setColor(INSET_FALLBACK);
+        g.fillRoundRect(ib[0] - 3, ib[1] - 3, ib[2] + 6, ib[3] + 6, 8, 8);
+        g.fillRoundRect(nb[0] - 1, nb[1] - 1, nb[2] + 2, nb[3] + 2, 6, 6);
+        g.setColor(p.badgeFill());
+        g.fill(new Ellipse2D.Float(b[0] - 3, b[1] - 3, 26, 26));
+        g.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
+        g.setColor(p.badgeText());
+        String number = Integer.toString(slot.number());
+        FontMetrics nm = g.getFontMetrics();
+        g.drawString(number, b[0] + 10 - nm.stringWidth(number) / 2f, b[1] + 10 + (nm.getAscent() - nm.getDescent()) / 2f);
     }
 
     private static Color colourAt(BufferedImage base, int x, int y, Color fallback) {
