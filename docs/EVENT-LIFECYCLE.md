@@ -113,9 +113,34 @@ Signups open -> signups closed -> roster confirmed -> teams final (team events) 
 
 Discord-side code has needed fixes the first time it ran for real every time. Not yet run in Discord: closing signups and the pause, the join messages with verification, `/events create` from the standard answers, `/events team ...`, board posting with the new looks. Test on the dev bot with Drake's account and his alt. The dev bot runs in the real clan server (`1495619657674264717`), so tests there are live: keep them small and clean up after. Lessons that bit before: a new enum slash option needs a resolver in `EventsResolvers` or the bot will not start; a new `ListenerAdapter` must be registered in `Bot.java`; starting the dev bot twice leaves two bots on one token.
 
-## Open questions for Drake
+## Refinement pass (T-051, 2026-10-20): decisions made for Drake
 
-- Does he like the standard defaults above (especially RuneScape as the default look and setup steps on by default)?
-- Bingo customisation beyond the look: variable shape sizes (pyramid base, path length) need shapes drawn in code; fog of war, a title override, names under tiles, a free centre space?
-- His `path.png` has two empty glyph boxes beside START and TREASURE CHEST (offered to paint them out).
-- Wrap-up (slice 8): are the defaults right (read-only at once, roles back after 7 days, channels kept until an organiser acts)? What else should the export hold?
+Drake asked to "revisit everything" once all slices were done, then (2026-10-20) to decide with sensible defaults while he is away. Every open question and "choice he may change" above is answered here. **Keep** means today's behaviour stays and nothing is built; **Build** names the ticket that changes it. He can overturn any line; each is one setting or one small ticket.
+
+| # | Question | Decision (default) | Why | Ticket |
+|---|---|---|---|---|
+| E1 | Default look for new bingos | **Keep RuneScape** (`BingoLooks.DEFAULT_FOR_NEW`); classic stays a choice; a server can change its own default | It is the look he built for, and both stay | T-208 (server default) |
+| E2 | Setup steps on by default for dashboard events, off for Discord quick-create | **Keep** | Quick events stay quick; dashboard events get the safety steps | none |
+| E3 | Verification gate default | **Keep "before teams"**, verification itself off; a server can set its own default gate (his instinct was the signup phase) | Least surprising for solo events; servers that verify at signup set it once | T-208 |
+| E4 | Gate semantics (pending counts until the gate; only verified/waived score once running) | **Keep** | Matches D1 | none |
+| E5 | Deadline closes signups for every event with a deadline | **Keep** | One rule, fewer surprises | none |
+| E6 | Roster confirmation vs late adds | **Keep** the safeguard version (any change asks to confirm again; reopening signups resets it) | Built in the phase safeguards | none |
+| E7 | Team ratings, suggestion, strength | **Keep** (1-5, 3 unknown; strongest onto weakest; total XP of the linked RSN) | Works; tune after real use | none |
+| E8 | Channel/role name patterns | **Keep the short per-event defaults**, and **build a server-wide default pattern** per slot that new events copy | He wanted "Event General Channel" style available without typing it each time | T-208 |
+| E9 | Staff = Admin group | **Keep**; the events-only coordinator tier (T-060) adds a narrower role | One source of staff | none |
+| E10 | Team roles only with team channels; per-player channels off | **Keep** | 250-role limit | none |
+| E11 | Picked (existing) channels are never changed | **Keep**; "Fix permissions for me" stays an explicit button | Never surprise an admin | none |
+| E12 | Repair names/permissions of channels JonnyBot made | **Build**: "Bring them up to date" also repairs drift on bot-made roles/channels, shown in the preview first | Admins rename or edit by accident | T-210 |
+| E13 | Welcome message in new event channels | **Build, off by default**: one message per slot (announcements, general, team, player) with tokens, posted once when the bot makes the channel | Optional-off rule | T-209 |
+| E14 | Standings visibility | **Keep "all participants"** as the default and **build the option**: participants / everyone in the server / staff only / hidden until the event ends | Some clans hide standings for suspense | T-211 |
+| E15 | `/clan-events` path name | **Keep** `/clan-events` (and `/events` stays Discord scheduled events); the events hub (T-006) brings a host-aware `/e/<id>` later | No churn now | none |
+| E16 | Shared live board channel made for an OWN-only bingo | **Build the fix**: no shared board channel unless the display is SHARED or BOTH | Known gap | T-212 |
+| E17 | Wrap-up defaults (read-only at once, roles back after 7 days, channels kept until an organiser acts) | **Keep** | Safe: nothing deleted without a person | none |
+| E18 | Reopened event stays read-only until Unlock | **Build**: reopening an event unlocks the channels JonnyBot locked (setting `wrapup.unlockOnReopen`, default on) | Reopening is already an explicit staff act | T-213 |
+| E19 | What else the export holds | **Build**: add `claims.csv` (every submission with decision, decider, time), `standings.csv` and `participants.csv` | What staff ask for after an event | T-213 |
+| E20 | Bingo customisation beyond the look | **Already ticketed**: options T-052, variable shape sizes T-108; no new decision | | none |
+| E21 | Empty glyph boxes in `path.png` | **Build**: paint them out in both looks | Cosmetic, safe | T-214 |
+| E22 | Gentle reminder for loose screenshots | **Already ticketed** (T-057) | | none |
+| E23 | One pending verification at a time; deny = REJECTED; receipts on | **Keep** | Simple to review | none |
+
+Live Discord testing of slices 2-8 stays the script in `docs/LIVE-TEST-SCRIPT.md` (Drake runs it; the dev bot is in the real server).
