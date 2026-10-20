@@ -72,6 +72,7 @@ public class MemberApi {
     private final SiteStatsRepository stats;
     private final RsInteractionListener rsLinks;
     private final MemberEventsApi events;
+    private final HighlightMemberApi highlights;
     private final ChatLevelMemberApi chatLevel;
     // Per member: a handful of quick clicks is normal, a sustained flood is not. Reads are far cheaper than writes.
     private final RateLimiter writes = new RateLimiter(8, 1_500);
@@ -79,7 +80,8 @@ public class MemberApi {
 
     public MemberApi(MemberProfileRepository repository, PlayerLinkRepository links, PollService pollService, SignupService signupService, MemberAccess memberAccess,
                      Debouncer debouncer, SiteCache cache, CommunitySettings community, SiteStatsRepository stats, RsInteractionListener rsLinks, MemberEventsApi events,
-                     ChatLevelMemberApi chatLevel) {
+                     HighlightMemberApi highlights, ChatLevelMemberApi chatLevel) {
+        this.highlights = highlights;
         this.chatLevel = chatLevel;
         this.rsLinks = rsLinks;
         this.events = events;
@@ -151,6 +153,13 @@ public class MemberApi {
                     default -> null;
                 };
                 case "polls/vote" -> method.equals("POST") ? votePoll(guild, userId, body) : null;
+                case "highlights" -> switch (method) {
+                    case "GET" -> highlights.get(guild, userId);
+                    case "POST" -> highlights.add(guild, userId, body);
+                    case "DELETE" -> highlights.remove(guild, userId, query(exchange, "id"));
+                    default -> null;
+                };
+                case "highlights/ignore" -> method.equals("POST") ? highlights.ignore(guild, userId, body) : null;
                 case "level" -> method.equals("GET") ? chatLevel.get(guild, userId) : null;
                 case "signups" -> method.equals("GET") ? mySignups(guild, userId) : null;
                 case "signups/join" -> method.equals("POST") ? joinSignup(guild, userId, body) : null;
@@ -164,6 +173,8 @@ public class MemberApi {
                 InternalApiServer.sendJson(exchange, 200, result);
             }
         } catch (Rejected e) {
+            InternalApiServer.sendJson(exchange, e.status, DataObject.empty().put("error", e.getMessage()));
+        } catch (HighlightMemberApi.Refused e) {
             InternalApiServer.sendJson(exchange, e.status, DataObject.empty().put("error", e.getMessage()));
         } catch (com.younglings.bot.events.EventProblem e) {
             // the event engine's own refusals already say why in words a member can read

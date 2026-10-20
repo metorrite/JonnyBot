@@ -114,7 +114,7 @@ public class WelcomeRepository {
         }
     }
 
-    static String fieldsToJson(List<EmbedField> fields) {
+    public static String fieldsToJson(List<EmbedField> fields) {
         DataArray array = DataArray.empty();
         for (EmbedField field : fields) {
             array.add(DataObject.empty().put("name", field.name()).put("value", field.value()).put("inline", field.inline()));
@@ -122,7 +122,7 @@ public class WelcomeRepository {
         return array.toString();
     }
 
-    static List<EmbedField> fieldsFromJson(String json) {
+    public static List<EmbedField> fieldsFromJson(String json) {
         List<EmbedField> fields = new ArrayList<>();
         if (json == null || json.isBlank()) return fields;
         try {

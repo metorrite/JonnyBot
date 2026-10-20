@@ -101,6 +101,7 @@ public class CommunitySettings {
             s.setLong(1, guildId);
             s.setBoolean(2, on);
             s.executeUpdate();
+            SiteInvalidator.signal(SiteInvalidator.Area.OPTIONS);
         } catch (SQLException e) {
             throw fail("save the Events bubble setting", e);
         }

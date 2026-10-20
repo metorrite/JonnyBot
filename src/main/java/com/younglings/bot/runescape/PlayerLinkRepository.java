@@ -1,5 +1,6 @@
 package com.younglings.bot.runescape;
 
+import com.younglings.bot.internal.SiteInvalidator;
 import io.github.freya022.botcommands.api.core.db.ConnectionSupplier;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import org.slf4j.Logger;
@@ -540,6 +541,7 @@ public class PlayerLinkRepository {
                 }
                 connection.commit();
                 log.info("Renamed account '{}' to '{}' (link {} in guild {})", oldRsn, newRsn, linkId, guildId);
+                SiteInvalidator.signal(SiteInvalidator.Area.ROSTER);
             } catch (SQLException | RuntimeException e) {
                 connection.rollback();
                 throw e;
@@ -624,6 +626,7 @@ public class PlayerLinkRepository {
                 }
                 connection.commit();
                 log.info("Unlinked player_link {} in guild {}", linkId, guildId);
+                SiteInvalidator.signal(SiteInvalidator.Area.ROSTER);
             } catch (SQLException | RuntimeException e) {
                 connection.rollback();
                 throw e;

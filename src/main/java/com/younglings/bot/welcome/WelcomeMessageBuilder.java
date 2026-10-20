@@ -22,13 +22,23 @@ public final class WelcomeMessageBuilder {
      * @throws IllegalStateException if the config has nothing at all to send
      */
     public static MessageCreateData build(WelcomeConfig c, WelcomeTemplate.Lookup lookup, long userId, boolean withLinkButton) {
+        return assemble(c, lookup, userId, withLinkButton);
+    }
+
+    /** The message with nobody pinged at all, for messages about someone who is no longer in the server (a ban announcement). No link button. */
+    public static MessageCreateData buildSilent(WelcomeConfig c, WelcomeTemplate.Lookup lookup) {
+        return assemble(c, lookup, null, false);
+    }
+
+    private static MessageCreateData assemble(WelcomeConfig c, WelcomeTemplate.Lookup lookup, Long userId, boolean withLinkButton) {
         MessageCreateBuilder message = new MessageCreateBuilder();
 
         if (c.messageType().isContainer()) {
             // A container can't share a message with text or an embed, so it is the whole message. The link button, if wanted, is inside it.
             var button = withLinkButton && c.linkButton() ? ContainerWelcome.linkButton(c, LINK_BUTTON_ID) : null;
             message.useComponentsV2(true).setComponents(ContainerWelcome.build(c, lookup, button));
-            message.setAllowedMentions(EnumSet.noneOf(Message.MentionType.class)).mentionUsers(userId);
+            message.setAllowedMentions(EnumSet.noneOf(Message.MentionType.class));
+            if (userId != null) message.mentionUsers(userId);
             return message.build();
         }
 
@@ -40,7 +50,8 @@ public final class WelcomeMessageBuilder {
             message.setEmbeds(embed(c, lookup).build());
         }
         // Only the new member is ever pinged, whatever the text says: a role or @everyone in a greeting would fire on every join.
-        message.setAllowedMentions(EnumSet.noneOf(Message.MentionType.class)).mentionUsers(userId);
+        message.setAllowedMentions(EnumSet.noneOf(Message.MentionType.class));
+        if (userId != null) message.mentionUsers(userId);
 
         if (withLinkButton && c.linkButton()) {
             message.addComponents(ActionRow.of(ContainerWelcome.linkButton(c, LINK_BUTTON_ID)));
