@@ -215,13 +215,14 @@ public class CitadelAdminApi implements AdminRouteExtension {
     DataObject wheelSettings(Guild guild) {
         WheelSettingsRepository.Settings s = settings.get(guild.getIdLong());
         return DataObject.empty().put("autoPost", s.autoPost()).put("channelId", s.channelId() == null ? null : Long.toString(s.channelId()))
-                .put("message", s.message()).put("defaultMessage", WheelMessage.DEFAULT).put("maxLength", WheelMessage.MAX_LENGTH);
+                .put("video", s.video()).put("message", s.message()).put("defaultMessage", WheelMessage.DEFAULT).put("maxLength", WheelMessage.MAX_LENGTH);
     }
 
     DataObject saveWheelSettings(Guild guild, Member actor, DataObject body) {
         WheelSettingsRepository.Settings current = settings.get(guild.getIdLong());
         List<String> problems = new ArrayList<>();
         boolean autoPost = body.hasKey("autoPost") ? body.getBoolean("autoPost", false) : current.autoPost();
+        boolean video = body.hasKey("video") ? body.getBoolean("video", false) : current.video();
         String message = body.hasKey("message") ? body.getString("message", "").strip() : current.message();
         problems.addAll(WheelMessage.problems(message));
 
@@ -242,8 +243,8 @@ public class CitadelAdminApi implements AdminRouteExtension {
         if (autoPost && channelId == null) problems.add("Choose the channel before switching auto-posting on.");
         if (!problems.isEmpty()) throw new ApiError(400, "Those wheel settings can't be saved yet.", problems);
 
-        settings.save(guild.getIdLong(), new WheelSettingsRepository.Settings(autoPost, channelId, message));
-        log.info("Dashboard: {} saved the Citadel wheel settings (auto-post {})", actor.getId(), autoPost ? "on" : "off");
+        settings.save(guild.getIdLong(), new WheelSettingsRepository.Settings(autoPost, channelId, message, video));
+        log.info("Dashboard: {} saved the Citadel wheel settings (auto-post {}, video {})", actor.getId(), autoPost ? "on" : "off", video ? "on" : "off");
         return wheelSettings(guild);
     }
 
