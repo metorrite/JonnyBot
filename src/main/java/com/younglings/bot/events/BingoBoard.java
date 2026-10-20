@@ -195,10 +195,12 @@ public final class BingoBoard {
 
     public static final String POOL_DROPS = "drops";
     public static final String POOL_CLASSIC = "classic";
+    /** The server's own tiles, kept in the event itself ({@code board.tiles}); see {@link BingoPools}. */
+    public static final String POOL_CUSTOM = "custom";
 
     /** The tile pools an organiser can start a board from. */
     public static List<String> poolIds() {
-        return List.of(POOL_DROPS, POOL_CLASSIC);
+        return List.of(POOL_DROPS, POOL_CLASSIC, POOL_CUSTOM);
     }
 
     public static List<TileSpec> pool(String id) {

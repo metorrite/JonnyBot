@@ -49,7 +49,11 @@ public class EventService {
 
     /** The settings of an event as admins send them. */
     public record EventInput(String name, String description, String template, Scope scope, ScoringMode scoringMode, Instant startsAt, Instant endsAt,
-                             int maxParticipants, DataObject config) {}
+                             int maxParticipants, DataObject config) {
+        public EventInput withConfig(DataObject newConfig) {
+            return new EventInput(name, description, template, scope, scoringMode, startsAt, endsAt, maxParticipants, newConfig);
+        }
+    }
 
     public record Recorded(long progressId, long total, int completions) {}
 

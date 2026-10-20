@@ -57,7 +57,7 @@ class EventSetupTest {
             }
         };
         service = new EventService(repository, templates, kinds, new PointsService(new PointsRepository(supplier), new RewardsRepository(supplier)), new EventChanges());
-        setup = new EventSetup(service, templates, new EventDraftRepository(supplier), new EventBlueprintRepository(supplier));
+        setup = new EventSetup(service, templates, new EventDraftRepository(supplier), new EventBlueprintRepository(supplier), new BingoPools(org.mockito.Mockito.mock(BingoTileRepository.class)));
     }
 
     @AfterEach

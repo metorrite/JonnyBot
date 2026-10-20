@@ -79,9 +79,12 @@ public class EventsAdminApi implements AdminRouteExtension {
     private final BingoTiles tiles;
     private final EventSetupApi setupApi;
     private final EventTeams eventTeams;
+    private final com.younglings.bot.events.BingoPools pools;
 
     public EventsAdminApi(EventService service, EventRepository repository, EventTemplates templates, EventSignups signups, BingoTemplate bingo, EventBoardPanels panels,
-                          com.younglings.bot.runescape.PlayerLinkRepository links, BingoTiles tiles, EventSetupApi setupApi, EventTeams eventTeams) {
+                          com.younglings.bot.runescape.PlayerLinkRepository links, BingoTiles tiles, EventSetupApi setupApi, EventTeams eventTeams,
+                          com.younglings.bot.events.BingoPools pools) {
+        this.pools = pools;
         this.eventTeams = eventTeams;
         this.setupApi = setupApi;
         this.links = links;
@@ -365,7 +368,10 @@ public class EventsAdminApi implements AdminRouteExtension {
     }
 
     DataObject create(Guild guild, Member actor, DataObject body) {
-        long id = service.createEvent(guild.getIdLong(), actor.getIdLong(), input(body, null));
+        var created = input(body, null);
+        // a bingo event that uses the server's own tile pool gets a copy of it now, so changing the pool later never changes this event
+        if (created.config() != null) created = created.withConfig(pools.expand(guild.getIdLong(), created.template(), created.config()));
+        long id = service.createEvent(guild.getIdLong(), actor.getIdLong(), created);
         log.info("Dashboard: {} created event {}", actor.getId(), id);
         return detail(guild, id);
     }
