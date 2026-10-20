@@ -1,5 +1,6 @@
 package com.younglings.bot.signup;
 
+import com.younglings.bot.internal.SiteInvalidator;
 import com.younglings.bot.commands.signup.SignupEntry;
 import com.younglings.bot.commands.signup.SignupMessage;
 import com.younglings.bot.commands.signup.SignupSession;
@@ -100,6 +101,7 @@ public class SignupRepository {
                 if (resultSet.next()) {
                     long signupId = resultSet.getLong("signup_id");
                     log.info("Created {} signup {} for guild {}", type, signupId, guildId);
+                    SiteInvalidator.signal(SiteInvalidator.Area.SIGNUPS);
                     return signupId;
                 }
             }
@@ -305,6 +307,7 @@ public class SignupRepository {
             statement.executeUpdate();
 
             log.info("Set signup {} status to {}", signupId, status);
+            SiteInvalidator.signal(SiteInvalidator.Area.SIGNUPS);
 
         } catch (SQLException e) {
             log.error("Failed to set signup {} status to {}", signupId, status, e);
@@ -328,6 +331,7 @@ public class SignupRepository {
             statement.executeUpdate();
 
             log.info("Soft deleted signup {}", signupId);
+            SiteInvalidator.signal(SiteInvalidator.Area.SIGNUPS);
 
         } catch (SQLException e) {
             log.error("Failed to delete signup {}", signupId, e);
@@ -476,7 +480,10 @@ public class SignupRepository {
                 }
 
                 connection.commit();
-                if (added) log.info("Added entry rsn='{}' / Discord {} to signup {}", rsn, discordUserId, signupId);
+                if (added) {
+                    log.info("Added entry rsn='{}' / Discord {} to signup {}", rsn, discordUserId, signupId);
+                    SiteInvalidator.signal(SiteInvalidator.Area.SIGNUPS);
+                }
                 return added;
 
             } catch (SQLException e) {
@@ -539,6 +546,7 @@ public class SignupRepository {
             if (removed) {
                 normalizePositions(connection, signupId);
                 log.info("Removed Discord user {} from signup {}", discordUserId, signupId);
+                SiteInvalidator.signal(SiteInvalidator.Area.SIGNUPS);
             }
 
             return removed;
