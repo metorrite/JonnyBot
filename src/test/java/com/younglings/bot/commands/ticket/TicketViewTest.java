@@ -160,7 +160,7 @@ class TicketViewTest {
             withIds.add(new Field(fieldId, 4, f.position(), f.label(), f.kind(), f.required(), f.placeholder(), f.maxLength(), options));
         }
 
-        TicketService service = new TicketService(mock(TicketRepository.class), mock(PlayerLinkService.class), mock(AdminRoleFilter.class), mock(com.younglings.bot.permission.MemberAccess.class), mock(HelpPingService.class));
+        TicketService service = new TicketService(mock(TicketRepository.class), mock(PlayerLinkService.class), mock(AdminRoleFilter.class), mock(com.younglings.bot.permission.MemberAccess.class), mock(HelpPingService.class), mock(com.younglings.bot.ticket.HelpExtrasRepository.class));
         var modal = service.buildForm(panel("", 2, true), withIds);
         assertEquals("ticket_form:4", modal.getId());
         assertEquals(5, modal.getComponents().size());
@@ -242,5 +242,17 @@ class TicketViewTest {
         assertTrue(o.buttons().getButtons().stream().allMatch(Button::isDisabled));
         String message = embedText(o.embeds().get(0));
         assertTrue(message.contains("Closed by <@101>") && message.contains("Done"), message);
+    }
+
+    @Test
+    void theMakeItAnEventButtonIsOnlyThereWhenSwitchedOnAndTheTicketIsOpen() {
+        var panel = panel("", 2, true);
+        var open = ticket(Status.OPEN, List.of());
+        var off = TicketView.opening(panel, open, List.of(), List.of(), null);
+        assertTrue(off.buttons().getButtons().stream().noneMatch(b -> b.getCustomId() != null && b.getCustomId().startsWith(TicketView.EVENT_PREFIX)));
+        var on = TicketView.opening(panel, open, List.of(), List.of(), null, List.of(), new TicketView.Extras(true));
+        assertTrue(on.buttons().getButtons().stream().anyMatch(b -> TicketView.EVENT_PREFIX.concat("9").equals(b.getCustomId())));
+        var closed = TicketView.opening(panel, ticket(Status.CLOSED, List.of()), List.of(), List.of(), null, List.of(), new TicketView.Extras(true));
+        assertTrue(closed.buttons().getButtons().stream().noneMatch(b -> b.getCustomId() != null && b.getCustomId().startsWith(TicketView.EVENT_PREFIX)));
     }
 }

@@ -33,6 +33,7 @@ final class TicketView {
     static final String OPEN_PREFIX = "ticket_open:";
     static final String JOIN_PREFIX = "ticket_join:";
     static final String CLOSE_PREFIX = "ticket_close:";
+    static final String EVENT_PREFIX = "ticket_event:";
 
     private static final int ANSWER_MAX = 500;
     private static final DateTimeFormatter STAMP = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm 'UTC'");
@@ -82,8 +83,17 @@ final class TicketView {
         return opening(panel, ticket, rsns, helperIds, pingRoleId, List.of());
     }
 
-    /** {@code pingUserIds} are helpers who chose this ticket's tier in their ping settings; they are mentioned wherever the role would be. */
+    /** The optional buttons a server switched on for help tickets (see {@link com.younglings.bot.ticket.HelpExtras}); none by default. */
+    record Extras(boolean eventButton) {
+        static final Extras NONE = new Extras(false);
+    }
+
     static Opening opening(Panel panel, Ticket ticket, List<String> rsns, List<Long> helperIds, Long pingRoleId, List<Long> pingUserIds) {
+        return opening(panel, ticket, rsns, helperIds, pingRoleId, pingUserIds, Extras.NONE);
+    }
+
+    /** {@code pingUserIds} are helpers who chose this ticket's tier in their ping settings; they are mentioned wherever the role would be. */
+    static Opening opening(Panel panel, Ticket ticket, List<String> rsns, List<Long> helperIds, Long pingRoleId, List<Long> pingUserIds, Extras extras) {
         boolean closed = ticket.status() == Status.CLOSED;
         Color color = closed ? Color.DARK_GRAY : Containers.PRIMARY;
 
@@ -124,6 +134,7 @@ final class TicketView {
             Button join = Button.success(JOIN_PREFIX + ticket.id(), "Join as helper");
             buttons.add(closed ? join.asDisabled() : join);
         }
+        if (extras.eventButton() && !closed) buttons.add(Button.secondary(EVENT_PREFIX + ticket.id(), "Make it an event").withEmoji(Emoji.fromUnicode("🎉")));
         Button close = Button.danger(CLOSE_PREFIX + ticket.id(), "Close").withEmoji(Emoji.fromUnicode("🔒"));
         buttons.add(closed ? close.asDisabled() : close);
 
