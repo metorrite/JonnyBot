@@ -57,6 +57,13 @@ public class GePriceService {
         return new Outcome(Status.FOUND, price);
     }
 
+    /** Just the latest price of the item with this exact name, in coins: one request, no history. Empty if there isn't one or the wiki can't be reached. */
+    public Optional<Long> latestPrice(String itemName) {
+        String name = itemName == null ? "" : itemName.strip();
+        if (name.isEmpty() || name.length() > 80) return Optional.empty();
+        return http.get(EXCHANGE + "latest?name=" + URLEncoder.encode(name, StandardCharsets.UTF_8)).flatMap(GePriceService::parseLatest).map(GePrice::price);
+    }
+
     /** Up to {@code limit} item names starting with or close to what was typed. Empty if the wiki can't be reached. */
     public List<String> suggest(String typed, int limit) {
         String text = typed == null ? "" : typed.strip();
