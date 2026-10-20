@@ -83,7 +83,14 @@ public class LookupReminderScheduler {
     private String textFor(ReminderKind kind, Instant now) {
         return switch (kind) {
             case VOS -> vos.fetch().filter(v -> v.current(now)).map(v -> vosText(v, now)).orElse(null);
+            case DAILY_RESET -> resetText("Daily reset", "daily challenges and daily D&Ds", ResetTimes.nextDaily(now));
+            case WEEKLY_RESET -> resetText("Weekly reset", "weekly D&Ds", ResetTimes.nextWeekly(now));
+            case MONTHLY_RESET -> resetText("Monthly reset", "monthly D&Ds", ResetTimes.nextMonthly(now));
         };
+    }
+
+    static String resetText(String title, String what, Instant next) {
+        return "**" + title + "** has happened: " + what + " are available again.\n-# The next one is <t:" + next.getEpochSecond() + ":R>";
     }
 
     static String vosText(VosService.Vos v, Instant now) {
