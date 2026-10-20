@@ -26,7 +26,7 @@ public class GuildSettingsRepository {
         String sql = """
                 SELECT guild_id, clan_name, admin_role_id, rename_alert_channel_id, verification_review_channel_id,
                        verified_clan_role_id, verified_non_clan_role_id, unverified_role_id, onboarding_role_id,
-                       clan_enabled, support_role_id, developer_role_id, website_url
+                       clan_enabled, support_role_id, developer_role_id, website_url, invite_url
                 FROM younglings.guild_settings WHERE guild_id = ?
                 """;
 
@@ -51,7 +51,8 @@ public class GuildSettingsRepository {
                         rs.getString("clan_name"),
                         (Long) rs.getObject("support_role_id"),
                         (Long) rs.getObject("developer_role_id"),
-                        rs.getString("website_url"));
+                        rs.getString("website_url"),
+                        rs.getString("invite_url"));
             }
 
         } catch (SQLException e) {
@@ -170,6 +171,28 @@ public class GuildSettingsRepository {
         } catch (SQLException e) {
             log.error("Failed to upsert onboarding role for {}", guildId, e);
             throw new RuntimeException("Failed to upsert onboarding role", e);
+        }
+    }
+
+    /** {@code null} clears the invite link. */
+    public void upsertInviteUrl(long guildId, String inviteUrl) {
+        String sql = """
+                INSERT INTO younglings.guild_settings (guild_id, invite_url)
+                VALUES (?, ?)
+                ON CONFLICT (guild_id) DO UPDATE SET
+                    invite_url = EXCLUDED.invite_url
+                """;
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setLong(1, guildId);
+            statement.setString(2, inviteUrl);
+            statement.executeUpdate();
+
+        } catch (SQLException e) {
+            log.error("Failed to upsert invite link for {}", guildId, e);
+            throw new RuntimeException("Failed to upsert invite link", e);
         }
     }
 

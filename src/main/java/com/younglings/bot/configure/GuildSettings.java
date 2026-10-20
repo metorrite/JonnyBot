@@ -13,14 +13,24 @@ package com.younglings.bot.configure;
 public record GuildSettings(long guildId, String clanName, Long adminRoleId, Long renameAlertChannelId,
                              Long verificationReviewChannelId, Long verifiedClanRoleId,
                              Long verifiedNonClanRoleId, Long unverifiedRoleId, Long onboardingRoleId,
-                             boolean clanEnabled, String savedClanName, Long supportRoleId, Long developerRoleId, String websiteUrl) {
+                             boolean clanEnabled, String savedClanName, Long supportRoleId, Long developerRoleId, String websiteUrl,
+                             String inviteUrl) {
+    /** Without an invite link: for the callers (and tests) that predate it. */
+    public GuildSettings(long guildId, String clanName, Long adminRoleId, Long renameAlertChannelId,
+                         Long verificationReviewChannelId, Long verifiedClanRoleId,
+                         Long verifiedNonClanRoleId, Long unverifiedRoleId, Long onboardingRoleId,
+                         boolean clanEnabled, String savedClanName, Long supportRoleId, Long developerRoleId, String websiteUrl) {
+        this(guildId, clanName, adminRoleId, renameAlertChannelId, verificationReviewChannelId, verifiedClanRoleId,
+                verifiedNonClanRoleId, unverifiedRoleId, onboardingRoleId, clanEnabled, savedClanName, supportRoleId, developerRoleId, websiteUrl, null);
+    }
+
     /** Without a website — for the many callers (and tests) that predate it. */
     public GuildSettings(long guildId, String clanName, Long adminRoleId, Long renameAlertChannelId,
                          Long verificationReviewChannelId, Long verifiedClanRoleId,
                          Long verifiedNonClanRoleId, Long unverifiedRoleId, Long onboardingRoleId,
                          boolean clanEnabled, String savedClanName, Long supportRoleId, Long developerRoleId) {
         this(guildId, clanName, adminRoleId, renameAlertChannelId, verificationReviewChannelId, verifiedClanRoleId,
-                verifiedNonClanRoleId, unverifiedRoleId, onboardingRoleId, clanEnabled, savedClanName, supportRoleId, developerRoleId, null);
+                verifiedNonClanRoleId, unverifiedRoleId, onboardingRoleId, clanEnabled, savedClanName, supportRoleId, developerRoleId, null, null);
     }
 
     /** True only if a clan name is set <em>and</em> clan features haven't been switched off — what gates every clan-specific button and job. */
