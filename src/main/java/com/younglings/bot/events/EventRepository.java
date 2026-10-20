@@ -1,5 +1,6 @@
 package com.younglings.bot.events;
 
+import com.younglings.bot.internal.SiteInvalidator;
 import com.younglings.bot.database.SchemaBootstrapper;
 import com.younglings.bot.events.EventRules.Evidence;
 import com.younglings.bot.events.EventRules.ObjectiveSpec;
@@ -359,7 +360,9 @@ public class EventRepository {
             s.setLong(11, createdBy);
             try (ResultSet rs = s.executeQuery()) {
                 rs.next();
-                return rs.getLong(1);
+                long created = rs.getLong(1);
+                SiteInvalidator.signal(SiteInvalidator.Area.EVENTS);
+                return created;
             }
         } catch (SQLException e) {
             throw new RuntimeException("Failed to create the event", e);
@@ -445,7 +448,9 @@ public class EventRepository {
             s.setString(8, config);
             s.setLong(9, guildId);
             s.setLong(10, id);
-            return s.executeUpdate() == 1;
+            boolean updated = s.executeUpdate() == 1;
+            if (updated) SiteInvalidator.signal(SiteInvalidator.Area.EVENTS);
+            return updated;
         } catch (SQLException e) {
             throw new RuntimeException("Failed to update the event", e);
         }
@@ -458,7 +463,9 @@ public class EventRepository {
             s.setBoolean(1, archived);
             s.setLong(2, guildId);
             s.setLong(3, id);
-            return s.executeUpdate() == 1;
+            boolean changed = s.executeUpdate() == 1;
+            if (changed) SiteInvalidator.signal(SiteInvalidator.Area.EVENTS);
+            return changed;
         } catch (SQLException e) {
             throw new RuntimeException("Failed to archive the event", e);
         }
@@ -482,7 +489,9 @@ public class EventRepository {
             s.setString(1, config);
             s.setLong(2, guildId);
             s.setLong(3, id);
-            return s.executeUpdate() == 1;
+            boolean saved = s.executeUpdate() == 1;
+            if (saved) SiteInvalidator.signal(SiteInvalidator.Area.EVENTS);
+            return saved;
         } catch (SQLException e) {
             throw new RuntimeException("Failed to save the event's settings", e);
         }
@@ -496,7 +505,9 @@ public class EventRepository {
             s.setLong(2, guildId);
             s.setLong(3, id);
             s.setString(4, from.name());
-            return s.executeUpdate() == 1;
+            boolean moved = s.executeUpdate() == 1;
+            if (moved) SiteInvalidator.signal(SiteInvalidator.Area.EVENTS);
+            return moved;
         } catch (SQLException e) {
             throw new RuntimeException("Failed to move the event", e);
         }
@@ -1105,6 +1116,7 @@ public class EventRepository {
                         result = rs.next() ? Optional.of(rs.getString(1).equals("WAITING")) : Optional.empty();
                     }
                     c.commit();
+                    if (result.isPresent()) SiteInvalidator.signal(SiteInvalidator.Area.EVENTS);
                     return result;
                 }
             } catch (SQLException | RuntimeException e) {
@@ -1324,6 +1336,7 @@ public class EventRepository {
                 boolean removed = s.executeUpdate() == 1;
                 clearStrayCaptains(c, eventId);
                 c.commit();
+                if (removed) SiteInvalidator.signal(SiteInvalidator.Area.EVENTS);
                 return removed;
             } catch (SQLException | RuntimeException e) {
                 c.rollback();

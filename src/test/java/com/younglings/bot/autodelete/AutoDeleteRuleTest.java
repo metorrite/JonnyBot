@@ -65,4 +65,61 @@ class AutoDeleteRuleTest {
         assertEquals("<@5>, links aren't allowed in this channel.", AutoDeleteRule.notice("<@5>", Filter.LINKS));
         assertEquals("<@5>, files and images aren't allowed in this channel.", AutoDeleteRule.notice("<@5>", Filter.ATTACHMENTS));
     }
+
+    private static AutoDeleteRule wordRule(java.util.List<String> words, AutoDeleteRule.RoleMode mode, java.util.Set<Long> roles) {
+        return new AutoDeleteRule(1, 2, EnumSet.of(Filter.TEXT), words, mode, roles, 0);
+    }
+
+    @Test
+    void certainWordsAreCaughtAnywhereInTheMessageIgnoringCase() {
+        var r = wordRule(java.util.List.of("free nitro", "SCAM"), AutoDeleteRule.RoleMode.EVERYONE, java.util.Set.of());
+
+        assertEquals(Filter.TEXT, r.violation("Get FREE Nitro here", 0));
+        assertEquals(Filter.TEXT, r.violation("this is a scam!", 0));
+        assertNull(r.violation("a perfectly fine message", 0));
+    }
+
+    @Test
+    void wordsAreMatchedAsPlainTextNeverAsAPattern() {
+        var r = wordRule(java.util.List.of("a.b+c"), AutoDeleteRule.RoleMode.EVERYONE, java.util.Set.of());
+
+        assertEquals(Filter.TEXT, r.violation("see a.b+c now", 0));
+        assertNull(r.violation("aXbbbc", 0));
+    }
+
+    @Test
+    void aRuleWithoutWordsOrTheTextFilterNeverCatchesByText() {
+        assertNull(wordRule(java.util.List.of(), AutoDeleteRule.RoleMode.EVERYONE, java.util.Set.of()).violation("anything", 0));
+        assertNull(rule(Filter.INVITES).violation("free nitro", 0));
+    }
+
+    @Test
+    void theRoleConditionDecidesWhoTheRuleIsFor() {
+        var only = wordRule(java.util.List.of("abc"), AutoDeleteRule.RoleMode.ONLY_WITH, java.util.Set.of(7L));
+        var except = wordRule(java.util.List.of("abc"), AutoDeleteRule.RoleMode.EXCEPT_WITH, java.util.Set.of(7L));
+        var all = wordRule(java.util.List.of("abc"), AutoDeleteRule.RoleMode.EVERYONE, java.util.Set.of());
+
+        org.junit.jupiter.api.Assertions.assertTrue(only.appliesTo(java.util.Set.of(7L, 8L)));
+        org.junit.jupiter.api.Assertions.assertFalse(only.appliesTo(java.util.Set.of(8L)));
+        org.junit.jupiter.api.Assertions.assertFalse(except.appliesTo(java.util.Set.of(7L)));
+        org.junit.jupiter.api.Assertions.assertTrue(except.appliesTo(java.util.Set.of(8L)));
+        org.junit.jupiter.api.Assertions.assertTrue(all.appliesTo(java.util.Set.of()));
+    }
+
+    @Test
+    void wordsAreValidatedAndCleaned() {
+        org.junit.jupiter.api.Assertions.assertNotNull(AutoDeleteRule.wordProblem("ab"));
+        org.junit.jupiter.api.Assertions.assertNotNull(AutoDeleteRule.wordProblem("x".repeat(51)));
+        org.junit.jupiter.api.Assertions.assertNull(AutoDeleteRule.wordProblem(" scam "));
+        assertEquals(java.util.List.of("Scam", "free nitro"), AutoDeleteRule.cleanWords(java.util.Arrays.asList(" Scam ", "", "SCAM", "free nitro", null)));
+    }
+
+    @Test
+    void theOriginalThreeFilterRuleIsForEveryoneAndDeletesAtOnce() {
+        var r = rule(Filter.LINKS);
+
+        assertEquals(AutoDeleteRule.RoleMode.EVERYONE, r.roleMode());
+        assertEquals(0, r.delaySeconds());
+        org.junit.jupiter.api.Assertions.assertTrue(r.appliesTo(java.util.Set.of(1L)));
+    }
 }
