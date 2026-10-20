@@ -31,12 +31,24 @@ public final class PrivilegedIntents {
     static final long MESSAGE_CONTENT = (1L << 18) | (1L << 19);
 
     private static volatile boolean messageContent = true;
+    private static volatile boolean members = true;
+    private static volatile boolean presence = true;
 
     private PrivilegedIntents() {}
 
     /** Whether message text can be read. True until a check shows the portal switch is off. */
     public static boolean messageContent() {
         return messageContent;
+    }
+
+    /** Whether member presence (who is online) is available. True until a check shows the portal switch is off; the clan site then hides its online list. */
+    public static boolean presence() {
+        return presence;
+    }
+
+    /** Whether the server member list and join/leave events are available. */
+    public static boolean members() {
+        return members;
     }
 
     /** {@code wanted} without the privileged intents the application has not switched on. Asks Discord once; never throws. */
@@ -54,8 +66,10 @@ public final class PrivilegedIntents {
         drop(result, flags, MESSAGE_CONTENT, GatewayIntent.MESSAGE_CONTENT, "Message Content",
                 "message logs, Highlights, automatic replies, automod word filters and custom commands cannot read message text");
         drop(result, flags, GUILD_MEMBERS, GatewayIntent.GUILD_MEMBERS, "Server Members", "joins, leaves, autoroles and member tracking will not work");
-        drop(result, flags, PRESENCE, GatewayIntent.GUILD_PRESENCES, "Presence", "online counts will not work");
+        drop(result, flags, PRESENCE, GatewayIntent.GUILD_PRESENCES, "Presence", "the clan site's online list is hidden");
         messageContent = result.contains(GatewayIntent.MESSAGE_CONTENT);
+        members = result.contains(GatewayIntent.GUILD_MEMBERS);
+        presence = result.contains(GatewayIntent.GUILD_PRESENCES);
         return result;
     }
 

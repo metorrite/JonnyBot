@@ -283,6 +283,27 @@ public class BotConfig {
         return envOrDotenv(name);
     }
 
+    /** What the JonnyBot face's address was before it was configurable. */
+    public static final String DEFAULT_JONNYBOT_URL = "https://jonnybot.rsyounglings.com";
+
+    /**
+     * The address of JonnyBot's own website (the {@code jonnybot} face of the site host map), no trailing slash. Sent as contact information in the
+     * User-Agent of every request the bot makes to a third party, so they can tell who is calling. {@code JONNYBOT_SITE_URL}; unset, it is
+     * {@value #DEFAULT_JONNYBOT_URL}, exactly as before.
+     */
+    public String getJonnybotUrl() {
+        String url = System.getenv("JONNYBOT_SITE_URL");
+        if (url == null || url.isBlank()) url = dotenv.get("JONNYBOT_SITE_URL");
+        return jonnybotUrlFrom(url);
+    }
+
+    /** The configured address cleaned up, or the default when there is none. Separate so it can be tested without the environment. */
+    static String jonnybotUrlFrom(String configured) {
+        if (configured == null || configured.isBlank()) return DEFAULT_JONNYBOT_URL;
+        String url = configured.trim();
+        return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
+    }
+
     /** Port the internal API listens on. Defaults to 8081 if unset. */
     public int getInternalApiPort() {
         String raw = System.getenv("INTERNAL_API_PORT");

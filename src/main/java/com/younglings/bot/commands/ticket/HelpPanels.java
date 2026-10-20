@@ -25,6 +25,7 @@ import java.util.Set;
 public class HelpPanels {
     public static final String PVM_NAME = "PvM Help";
     public static final String CA_NAME = "CA Help";
+    public static final String INFO_NAME = "Informational";
 
     /** What {@link #createMissing} did: the panels it made and the ones that were already there. */
     public record Result(List<Panel> created, List<Panel> existing) {}
@@ -51,13 +52,15 @@ public class HelpPanels {
 
         List<Panel> created = new ArrayList<>();
         List<Panel> existing = new ArrayList<>();
-        for (PanelDefinition definition : List.of(pvm(guildId, PVM_NAME), ca(guildId, CA_NAME))) {
+        for (PanelDefinition definition : List.of(pvm(guildId, PVM_NAME), ca(guildId, CA_NAME), info(guildId, INFO_NAME))) {
             Panel there = find(guildId, definition.panel().name());
             if (there != null) {
                 existing.add(there);
                 continue;
             }
-            created.add(repository.getPanel(repository.saveDefinition(new PanelDefinition(definition.panel(), definition.fields(), roles))));
+            // Informational tickets have no helpers to join: whoever staffs the panel answers them
+            PanelRoles panelRoles = definition.panel().helpKind() == HelpKind.INFO ? PanelRoles.none() : roles;
+            created.add(repository.getPanel(repository.saveDefinition(new PanelDefinition(definition.panel(), definition.fields(), panelRoles))));
         }
         return new Result(created, existing);
     }
@@ -108,6 +111,22 @@ public class HelpPanels {
                 "A helper will be with you soon. If you named one achievement they will only help with that one.",
                 true, 1, null, 2, null, null, null, null, Panel.DEFAULT_OPENING, true, true, HelpKind.CA);
         return new PanelDefinition(panel, fields(true), PanelRoles.none());
+    }
+
+    /**
+     * General questions that aren't about a particular boss: how something works, where to find it, clan and PvM information. One required question, no boss or
+     * tier. It has no helper pings of its own: set a ping role (and when to escalate) on the panel like on any ordinary one.
+     */
+    public static PanelDefinition info(long guildId, String name) {
+        Panel panel = new Panel(0, guildId, name, "Information",
+                "Got a general question that isn't about a particular boss? How something works, where to find something, or anything about the clan or PvM? Open a ticket and someone will answer.\n"
+                        + "~<LS>~\n"
+                        + "Looking for help with a boss or a Combat Achievement? Use PvM Help or CA Help instead.",
+                "Ask a question", null, "info-{number}",
+                "Someone will be with you soon. Ask your question here and add anything that helps us answer it.",
+                true, 1, null, null, null, null, null, null, Panel.DEFAULT_OPENING, true, false, HelpKind.INFO);
+        return new PanelDefinition(panel, List.of(
+                new Field(0, 0, 0, "What would you like to know?", FieldKind.PARAGRAPH, true, "Your question, with any detail that helps", 500, List.of(), FieldPurpose.NONE)), PanelRoles.none());
     }
 
     /**

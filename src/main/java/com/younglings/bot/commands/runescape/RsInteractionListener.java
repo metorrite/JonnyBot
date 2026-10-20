@@ -863,6 +863,13 @@ public class RsInteractionListener extends ListenerAdapter {
         }
         if (!linkService.canSelfPoll(link)) {
             long minutesLeft = Math.max(1, linkService.selfPollCooldownRemaining(link).toMinutes());
+            // The cooldown is for polling a player. Looking at the clan list polls nobody (and is limited to once a minute for the whole server),
+            // so someone who has just joined the clan still gets their Member role now instead of waiting out the cooldown.
+            if (detectClanJoin(guild, link)) {
+                Containers.replyEphemeral(event, Containers.SUCCESS, "**" + rsn + "** is in the clan. Your roles are being updated now.",
+                        "-# Your stats can be updated again in about " + minutesLeft + " minute(s).");
+                return;
+            }
             Containers.replyEphemeral(event, Containers.WARNING, "You can update again in about " + minutesLeft + " minute(s).");
             return;
         }

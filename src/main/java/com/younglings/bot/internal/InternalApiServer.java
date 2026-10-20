@@ -473,6 +473,7 @@ public class InternalApiServer {
 
     private DataObject buildOnlineMembers(Guild guild) {
         DataArray members = DataArray.empty();
+        if (!com.younglings.bot.config.PrivilegedIntents.presence()) return DataObject.empty().put("members", members).put("unavailable", true);
 
         for (Member member : guild.getMembers()) {
             if (member.getUser().isBot()) continue;
@@ -496,7 +497,7 @@ public class InternalApiServer {
             members.add(entry);
         }
 
-        return DataObject.empty().put("members", members);
+        return DataObject.empty().put("members", members).put("unavailable", false);
     }
 
     private DataObject buildScheduledEvents(Guild guild) {
