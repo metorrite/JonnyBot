@@ -117,7 +117,7 @@ class EventSpaceApiTest {
                 .thenReturn(Optional.of(new PermissionGroup(1, G, PermissionGroup.ADMIN, "Admin", true, true, List.of(501L))));
         EventSpaceRepository spaceRepository = new EventSpaceRepository(supplier, repository);
         EventSpaces spaces = new EventSpaces(repository, service, spaceRepository, groups);
-        api = new EventSpaceApi(service, repository, spaces, new EventSpaceOps(repository, service, spaceRepository, spaces, new EventChanges()));
+        api = new EventSpaceApi(service, repository, spaces, new EventSpaceOps(repository, service, spaceRepository, spaces, new EventChanges(), null));
     }
 
     @AfterEach

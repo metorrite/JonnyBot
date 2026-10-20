@@ -143,8 +143,10 @@ public class EventSpaceApi implements AdminRouteExtension {
         EventSpaceOps.Job job = ops.job(id);
         DataObject jobJson = job == null ? null : DataObject.empty().put("kind", job.kind()).put("state", job.state()).put("done", job.done()).put("total", job.total()).put("message", job.message())
                 .put("startedAt", job.startedAt().toString()).put("finishedAt", job.finishedAt() == null ? null : job.finishedAt().toString());
+        DataObject welcome = DataObject.empty();
+        com.younglings.bot.events.EventWelcome.of(DataObject.fromJson(event.config())).forEach(welcome::put);
         return DataObject.empty().put("job", jobJson).put("settings", EventSpace.settingJson(settings.channels(), event.template(), settings.boardChannelId(), settings.reviewChannelId(),
-                EventBoards.displayOf(DataObject.fromJson(event.config())).shared()))
+                EventBoards.displayOf(DataObject.fromJson(event.config())).shared()).put("welcome", welcome))
                 .put("teamEvent", preview.gathered().facts().teamScored()).put("state", state).put("ready", plan.blockers().isEmpty()).put("complete", plan.complete())
                 .put("blockers", blockers).put("warnings", warnings).put("roles", roles).put("channels", channels).put("staffRoles", staff).put("summary", summary);
     }

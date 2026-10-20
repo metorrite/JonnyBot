@@ -136,6 +136,8 @@ public class EventSpaceOps {
     private final EventSpaceRepository space;
     private final EventSpaces spaces;
     private final EventChanges changes;
+    /** For the website address in a welcome message's {rules-link}; may be null in tests. */
+    private final com.younglings.bot.config.BotConfig botConfig;
     private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(3, (ThreadFactory) runnable -> {
         Thread thread = new Thread(runnable, "event-space");
         thread.setDaemon(true);
@@ -146,7 +148,9 @@ public class EventSpaceOps {
     private final Map<Long, ScheduledFuture<?>> pending = new ConcurrentHashMap<>();
     private volatile JDA jda;
 
-    public EventSpaceOps(EventRepository events, EventService service, EventSpaceRepository space, EventSpaces spaces, EventChanges changes) {
+    public EventSpaceOps(EventRepository events, EventService service, EventSpaceRepository space, EventSpaces spaces, EventChanges changes,
+                         com.younglings.bot.config.BotConfig botConfig) {
+        this.botConfig = botConfig;
         this.events = events;
         this.service = service;
         this.space = space;
@@ -310,6 +314,7 @@ public class EventSpaceOps {
         }
         Map<String, String> teamNames = new HashMap<>();
         events.teams(eventId).forEach(t -> teamNames.put(EventSpace.teamKey(t.id()), t.name()));
+        Map<String, String> welcomes = EventWelcome.of(DataObject.fromJson(event.config()));
         for (ChannelItem c : plan.channels()) {
             if (c.kind() == Kind.CATEGORY) continue;
             if (c.action() == Action.USE_EXISTING && c.id() != null) {
@@ -327,6 +332,7 @@ public class EventSpaceOps {
             var made = action.reason("Channels for the event " + event.name()).complete();
             space.saveChannel(eventId, c.key(), made.getIdLong(), made.getName(), true, c.parent());
             useAsEngineChannel(guildId, eventId, c.kind(), made.getIdLong());
+            welcome(guild, event, c, made, welcomes, teamNames);
             job.step("Made the channel #" + c.name() + ".");
         }
 
@@ -367,6 +373,29 @@ public class EventSpaceOps {
         events.markSpace(eventId, actorId, after.complete(), noteOf(after));
         changes.publish(EventChanges.Kind.SETUP, guildId, eventId);
         job.finish(after.complete() ? "The roles and channels are set up." + (failed > 0 ? " " + failed + " roles couldn't be given out yet." : "") : "Set up, but something is still missing: " + noteOf(after));
+    }
+
+    /**
+     * Posts the organisers' welcome message (T-209) in a channel JonnyBot has just made, if they wrote one for that kind of channel. Nobody is pinged. A
+     * message that can't be posted never stops the setup; the channel is there and the organisers can post by hand.
+     */
+    private void welcome(Guild guild, Event event, ChannelItem c, net.dv8tion.jda.api.entities.channel.concrete.TextChannel channel, Map<String, String> welcomes,
+                         Map<String, String> teamNames) {
+        String text = welcomes.get(c.kind().key());
+        if (text == null) return;
+        String player = null;
+        if (c.kind() == Kind.PLAYER && c.key().startsWith("player:")) {
+            Member member = guild.getMemberById(c.key().substring("player:".length()));
+            player = member == null ? null : member.getEffectiveName();
+        }
+        String site = botConfig == null ? null : botConfig.getSiteUrl();
+        String body = EventWelcome.render(text, event.name(), teamNames.get(c.key()), player, event.startsAt(), site == null ? null : site + "/clan-events/" + event.id());
+        try {
+            var sent = channel.sendMessage(body).setAllowedMentions(java.util.EnumSet.noneOf(net.dv8tion.jda.api.entities.Message.MentionType.class)).complete();
+            space.saveWelcome(event.id(), c.key(), sent.getIdLong());
+        } catch (RuntimeException e) {
+            log.warn("Could not post the welcome message in #{} of event {}", channel.getName(), event.id(), e);
+        }
     }
 
     /** The topic a channel starts with, so people know what it is for. */
