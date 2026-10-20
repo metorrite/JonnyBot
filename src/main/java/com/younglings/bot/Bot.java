@@ -44,6 +44,9 @@ import java.util.Set;
 @BService
 @NullMarked // Everything is non-null unless @Nullable
 public class Bot extends JDAService {
+    /** System property that makes {@link #createJDA} skip the Discord login (see there). */
+    public static final String HEADLESS_PROPERTY = "jonnybot.headless";
+
     private final BotConfig botConfig;
     private final SignupInteractionListener signupInteractionListener;
     private final PollInteractionListener pollInteractionListener;
@@ -165,6 +168,13 @@ public class Bot extends JDAService {
 
     @Override
     public void createJDA(BReadyEvent event, IEventManager eventManager) {
+        // The headless startup check (HeadlessStartup in the tests) boots the whole framework wiring without a Discord login: every
+        // service, listener and command definition is built, but no gateway connection is opened and nothing that waits for the JDA
+        // (internal API, schedulers) starts. Never set in a real run.
+        if (Boolean.getBoolean(HEADLESS_PROPERTY)) {
+            return;
+        }
+
         // This uses JDABuilder#createLight, with the intents and the additional cache flags set above
         // It also sets the EventManager and a special rate limiter
         createLight(botConfig.getToken())
