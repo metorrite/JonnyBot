@@ -43,6 +43,17 @@ class PrivilegedIntentsTest {
     }
 
     @Test
+    void presenceIsReportedUnavailableWhileItsPortalSwitchIsOff() {
+        assertTrue(PrivilegedIntents.presence());
+        PrivilegedIntents.filter((1L << 18) | (1L << 14), WANTED);
+        assertFalse(PrivilegedIntents.presence());
+        assertTrue(PrivilegedIntents.members());
+
+        PrivilegedIntents.filter((1L << 18) | (1L << 14) | (1L << 12), WANTED);
+        assertTrue(PrivilegedIntents.presence());
+    }
+
+    @Test
     void unknownFlagsLeaveTheRequestAlone() {
         assertEquals(WANTED, PrivilegedIntents.filter((Long) null, WANTED));
         assertEquals(262144L, PrivilegedIntents.parseFlags("{\"id\":\"1\",\"flags\": 262144,\"name\":\"x\"}"));
