@@ -2,7 +2,7 @@ package com.younglings.bot.rolepanel;
 
 import com.younglings.bot.rolepanel.RolePanel.Mode;
 import com.younglings.bot.rolepanel.RolePanel.RoleButton;
-import com.younglings.bot.rolepanel.RolePanelListener.Change;
+import com.younglings.bot.rolepanel.RolePanelLogic.Change;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -45,7 +45,7 @@ class RolePanelTest {
 
     @Test
     void pressingARoleTheMemberLacksGivesIt() {
-        Change change = RolePanelListener.decide(panel(Mode.TOGGLE, 1, 2), new RoleButton(1, "", null, "primary"), Set.of(), "Red");
+        Change change = RolePanelLogic.button(panel(Mode.TOGGLE, 1, 2), new RoleButton(1, "", null, "primary"), Set.of(), "Red");
 
         assertEquals(List.of(1L), change.add());
         assertTrue(change.remove().isEmpty());
@@ -53,7 +53,7 @@ class RolePanelTest {
 
     @Test
     void pressingARoleTheMemberHasTakesItAway() {
-        Change change = RolePanelListener.decide(panel(Mode.TOGGLE, 1, 2), new RoleButton(1, "", null, "primary"), Set.of(1L), "Red");
+        Change change = RolePanelLogic.button(panel(Mode.TOGGLE, 1, 2), new RoleButton(1, "", null, "primary"), Set.of(1L), "Red");
 
         assertTrue(change.add().isEmpty());
         assertEquals(List.of(1L), change.remove());
@@ -62,7 +62,7 @@ class RolePanelTest {
     @Test
     void inUniqueModeChoosingARoleSwapsOutTheOthersFromThePanelOnly() {
         // the member holds role 1 (from this panel) and role 99 (nothing to do with it)
-        Change change = RolePanelListener.decide(panel(Mode.UNIQUE, 1, 2, 3), new RoleButton(2, "", null, "primary"), Set.of(1L, 99L), "Blue");
+        Change change = RolePanelLogic.button(panel(Mode.UNIQUE, 1, 2, 3), new RoleButton(2, "", null, "primary"), Set.of(1L, 99L), "Blue");
 
         assertEquals(List.of(2L), change.add());
         assertEquals(List.of(1L), change.remove());
@@ -71,7 +71,7 @@ class RolePanelTest {
 
     @Test
     void inToggleModeChoosingARoleLeavesTheOthersAlone() {
-        Change change = RolePanelListener.decide(panel(Mode.TOGGLE, 1, 2), new RoleButton(2, "", null, "primary"), Set.of(1L), "Blue");
+        Change change = RolePanelLogic.button(panel(Mode.TOGGLE, 1, 2), new RoleButton(2, "", null, "primary"), Set.of(1L), "Blue");
 
         assertEquals(List.of(2L), change.add());
         assertTrue(change.remove().isEmpty());

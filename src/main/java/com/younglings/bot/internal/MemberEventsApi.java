@@ -1,6 +1,7 @@
 package com.younglings.bot.internal;
 
 import com.younglings.bot.clanprofile.ClanProfileRepository;
+import com.younglings.bot.configure.GuildSettingsService;
 import com.younglings.bot.events.BingoBoardView;
 import com.younglings.bot.events.BingoTemplate;
 import com.younglings.bot.events.EventProblem;
@@ -40,8 +41,10 @@ public class MemberEventsApi {
     private final EventRepository repository;
     private final ClanProfileRepository profiles;
     private final EventSpaceRepository space;
+    private final GuildSettingsService guildSettings;
 
-    public MemberEventsApi(EventService service, EventRepository repository, ClanProfileRepository profiles, EventSpaceRepository space) {
+    public MemberEventsApi(EventService service, EventRepository repository, ClanProfileRepository profiles, EventSpaceRepository space, GuildSettingsService guildSettings) {
+        this.guildSettings = guildSettings;
         this.service = service;
         this.repository = repository;
         this.profiles = profiles;
@@ -87,9 +90,10 @@ public class MemberEventsApi {
         if (member == null) throw new EventProblem(403, notInServerMessage(guild));
     }
 
-    /** The sentence shown to someone who isn't in the server yet; its link comes from the clan profile's apply link when it has one. */
+    /** The sentence shown to someone who isn't in the server yet; its link is the server's invite link, else the clan profile's apply link, when there is one. */
     String notInServerMessage(Guild guild) {
-        String link = profiles.get(guild.getIdLong()).map(p -> p.applyUrl()).filter(u -> u != null && !u.isBlank()).orElse(null);
+        String link = guildSettings.getEffective(guild.getIdLong()).inviteUrl();
+        if (link == null || link.isBlank()) link = profiles.get(guild.getIdLong()).map(p -> p.applyUrl()).filter(u -> u != null && !u.isBlank()).orElse(null);
         return "To take part in an event you need to be in the " + guild.getName() + " Discord server. Join it first" + (link == null ? ", then sign up here again." : " (" + link + "), then sign up here again.");
     }
 
