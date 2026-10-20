@@ -23,6 +23,10 @@ The standard bug report. The board's **Report a bug** form (artifact `W1MkBY5EH8
 
 Steps and the snapshot id matter most: they let a worker find the exact state. A report without steps is still filed, but its ticket goes to `planning` until someone can reproduce it.
 
+## Secrets in bug reports
+
+Dev snapshots, logs, screenshots and ticket text stay redacted: no tokens, DB URLs, `INTERNAL_API_SECRET`, plugin tokens or OAuth keys, and no `.env` or run-configuration contents. If a report needs a config value, name the key, never the value. If you find a real secret in a report, snapshot or log, stop and tell Drake (see the Secrets rule in `docs/ECOSYSTEM.md`).
+
 ## Risk for a bug
 
 The form sets a starting risk (`level`, `merge`):
