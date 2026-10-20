@@ -141,7 +141,7 @@ public class Bot extends JDAService {
 
     // If you use Spring, you can return values provided by JDAConfiguration in the getters below
     //
-    // Only ONLINE_STATUS and SCHEDULED_EVENTS are ever actually read anywhere in this codebase —
+    // Only ONLINE_STATUS, SCHEDULED_EVENTS and VOICE_STATE (temporary voice channels) are read anywhere in this codebase —
     // see InternalApiServer's /online-members (member.getOnlineStatus()) and /events
     // (guild.getScheduledEvents()) endpoints. The other 9 CacheFlag.values() (ACTIVITY, VOICE_STATE,
     // EMOJI, STICKER, SOUNDBOARD_SOUNDS, CLIENT_STATUS, MEMBER_OVERRIDES, ROLE_TAGS, FORUM_TAGS) were
@@ -149,20 +149,21 @@ public class Bot extends JDAService {
     // structure that JDA otherwise never has to populate or hold onto.
     @Override
     public Set<CacheFlag> getCacheFlags() {
-        return Set.of(CacheFlag.ONLINE_STATUS, CacheFlag.SCHEDULED_EVENTS);
+        return Set.of(CacheFlag.ONLINE_STATUS, CacheFlag.SCHEDULED_EVENTS, CacheFlag.VOICE_STATE);
     }
 
     @Override
     public Set<GatewayIntent> getIntents() {
         // Intents are not permissions: they only choose which gateway events Discord sends us, and the three
         // privileged ones (GUILD_MEMBERS, GUILD_PRESENCES, MESSAGE_CONTENT) are switches in the developer portal.
-        // The rest of GatewayIntent.values() (voice states, invites, webhooks, typing, auto-moderation, poll votes)
+        // Voice states are on for temporary voice channels (with CacheFlag.VOICE_STATE above). The rest of GatewayIntent.values() (invites, webhooks, typing, auto-moderation, poll votes)
         // fed no listener, so they are left off; the server permissions the bot needs are the invite link's bits.
-        return defaultIntents(
+        // A privileged intent whose portal switch is off is left out (see PrivilegedIntents) so the bot still starts.
+        return com.younglings.bot.config.PrivilegedIntents.filter(botConfig.getToken(), defaultIntents(
                 GatewayIntent.GUILD_MEMBERS, GatewayIntent.GUILD_MODERATION, GatewayIntent.GUILD_EXPRESSIONS,
-                GatewayIntent.GUILD_PRESENCES, GatewayIntent.GUILD_MESSAGES, GatewayIntent.GUILD_MESSAGE_REACTIONS,
+                GatewayIntent.GUILD_PRESENCES, GatewayIntent.GUILD_MESSAGES, GatewayIntent.GUILD_MESSAGE_REACTIONS, GatewayIntent.GUILD_VOICE_STATES,
                 GatewayIntent.MESSAGE_CONTENT, GatewayIntent.SCHEDULED_EVENTS,
-                GatewayIntent.DIRECT_MESSAGES, GatewayIntent.DIRECT_MESSAGE_REACTIONS);
+                GatewayIntent.DIRECT_MESSAGES, GatewayIntent.DIRECT_MESSAGE_REACTIONS));
     }
 
     @Override
