@@ -36,6 +36,13 @@ class HelpExtrasRepositoryDatabaseTest {
                 s.setLong(1, GUILD);
                 s.executeUpdate();
             }
+            try (PreparedStatement s = c.prepareStatement("DELETE FROM younglings.help_ticket_link WHERE ticket_a IN (?, ?) OR ticket_b IN (?, ?)")) {
+                s.setLong(1, TICKET);
+                s.setLong(2, TICKET + 1);
+                s.setLong(3, TICKET);
+                s.setLong(4, TICKET + 1);
+                s.executeUpdate();
+            }
             try (PreparedStatement s = c.prepareStatement("DELETE FROM younglings.help_ticket_event WHERE ticket_id = ?")) {
                 s.setLong(1, TICKET);
                 s.executeUpdate();
@@ -50,10 +57,10 @@ class HelpExtrasRepositoryDatabaseTest {
 
     @Test
     void savedExtrasComeBackAndASecondSaveReplacesThem() {
-        repository.save(new HelpExtras(GUILD, true, 6, 2));
-        assertEquals(new HelpExtras(GUILD, true, 6, 2), repository.get(GUILD));
-        repository.save(new HelpExtras(GUILD, false, 12, 3));
-        assertEquals(new HelpExtras(GUILD, false, 12, 3), repository.get(GUILD));
+        repository.save(new HelpExtras(GUILD, true, 6, 2, true, "Vorago, Telos", true, 45, false, 96, "Master=50, Grandmaster=100"));
+        assertEquals(new HelpExtras(GUILD, true, 6, 2, true, "Vorago, Telos", true, 45, false, 96, "Master=50, Grandmaster=100"), repository.get(GUILD));
+        repository.save(new HelpExtras(GUILD, false, 12, 3, false, "Solak", false, 7, true, 0, ""));
+        assertEquals(new HelpExtras(GUILD, false, 12, 3, false, "Solak", false, 7, true, 0, ""), repository.get(GUILD));
     }
 
     @Test
@@ -68,5 +75,14 @@ class HelpExtrasRepositoryDatabaseTest {
         repository.forgetEvent(TICKET);
         assertTrue(repository.eventOf(TICKET).isEmpty());
         assertTrue(repository.claimEvent(TICKET, 8L), "freed after a failure");
+    }
+
+    @Test
+    void twoTicketsAreLinkedOnceWhicheverWayRound() {
+        assertTrue(repository.linkedTo(TICKET).isEmpty());
+        assertTrue(repository.link(TICKET, TICKET + 1, 5L));
+        assertFalse(repository.link(TICKET + 1, TICKET, 6L), "the same pair the other way round is the same link");
+        assertEquals(java.util.List.of(TICKET + 1), repository.linkedTo(TICKET));
+        assertEquals(java.util.List.of(TICKET), repository.linkedTo(TICKET + 1));
     }
 }

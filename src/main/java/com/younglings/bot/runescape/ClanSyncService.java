@@ -104,15 +104,53 @@ public class ClanSyncService {
      * {@link #getClanName} first to tell that apart from "fetch failed" with a clearer message.
      */
     public SyncResult syncAndPoll(Guild guild) {
-        long guildId = guild.getIdLong();
-        String clanName = getClanName(guildId);
-        if (clanName == null) return new SyncResult(0, 0, 0, 0, 0);
+        return syncAndPollGroup(List.of(guild)).getOrDefault(guild.getIdLong(), EMPTY_RESULT);
+    }
 
-        RosterChange change = refreshRoster(guild, clanName);
-        if (change == null) return new SyncResult(0, 0, 0, 0, 0);
-        List<RuneScapeApiClient.ClanMember> roster = change.roster();
+    private static final SyncResult EMPTY_RESULT = new SyncResult(0, 0, 0, 0, 0);
 
-        // Only kept for names that just appeared this cycle — the rename check is the only thing
+    /** A clan name as a key: case, runs of spaces and underscores don't tell two clans apart (RuneScape treats them as the same name). */
+    public static String clanKey(String clanName) {
+        return clanName == null ? null : clanName.strip().replace('_', ' ').replace(' ', ' ').replaceAll("\\s+", " ").toLowerCase(java.util.Locale.ROOT);
+    }
+
+    /**
+     * {@link #syncAndPoll} for every server that has set up the same clan, doing the shared work once: the clan list is fetched once, every roster
+     * player is polled once, and the result is then applied to each server on its own (roster rows, join/leave announcements, rename detection,
+     * role sync), so each server ends up exactly as if it had synced alone. A server with no clan configured, or whose clan is not the first
+     * server's, is skipped. A server that fails is logged and does not stop the others. The answer holds one result per server that was synced.
+     */
+    public Map<Long, SyncResult> syncAndPollGroup(List<Guild> guilds) {
+        Map<Long, SyncResult> results = new HashMap<>();
+        if (guilds.isEmpty()) return results;
+
+        String clanName = getClanName(guilds.get(0).getIdLong());
+        if (clanName == null) return results;
+        String key = clanKey(clanName);
+        List<Guild> members = new ArrayList<>();
+        for (Guild guild : guilds) {
+            String name = getClanName(guild.getIdLong());
+            if (name != null && key.equals(clanKey(name))) members.add(guild);
+        }
+
+        // one fetch for the whole group
+        List<RuneScapeApiClient.ClanMember> roster = apiClient.fetchClanRoster(clanName);
+        if (roster.isEmpty()) return results;
+
+        Map<Guild, RosterChange> changes = new java.util.LinkedHashMap<>();
+        Set<String> allNewLower = new HashSet<>();
+        for (Guild guild : members) {
+            try {
+                RosterChange change = refreshRoster(guild, roster);
+                changes.put(guild, change);
+                allNewLower.addAll(change.newLower());
+            } catch (Exception e) {
+                log.error("Clan roster refresh failed for guild {}", guild.getIdLong(), e);
+            }
+        }
+        if (changes.isEmpty()) return results;
+
+        // Only kept for names that just appeared (in any of the servers) — the rename check is the only thing
         // that needs the full profile result, not just pass/fail, and there's no reason to hold onto
         // every other roster member's full skills/activities in memory once its snapshot is saved.
         // This poll isn't spread across a window like RosterPollScheduler's — it needs everyone's
@@ -120,16 +158,22 @@ public class ClanSyncService {
         // it to work with immediately.
         Map<String, ProfileResult> newMemberResults = new HashMap<>();
         PollTally tally = pollRsns(roster.stream().map(RuneScapeApiClient.ClanMember::rsn).toList(), PollPriority.CLAN,
-                SYNC_MAX_AGE, Duration.ZERO, "clan sync", change.newLower(), newMemberResults);
-        int polled = tally.polled();
-        int pollFailed = tally.pollFailed();
+                SYNC_MAX_AGE, Duration.ZERO, "clan sync", allNewLower, newMemberResults);
 
-        Set<String> maybeRenamed = detectRenames(guild, change, newMemberResults);
-        applyMembershipRoles(guild, change, maybeRenamed);
-
-        log.info("Clan sync for '{}' (guild {}) finished: {} in roster, {} new, {} departed, {}/{} up to date.",
-                clanName, guildId, roster.size(), change.newLower().size(), change.departedLower().size(), polled, roster.size());
-        return new SyncResult(roster.size(), change.newLower().size(), change.departedLower().size(), polled, pollFailed);
+        for (var entry : changes.entrySet()) {
+            Guild guild = entry.getKey();
+            RosterChange change = entry.getValue();
+            try {
+                Set<String> maybeRenamed = detectRenames(guild, change, newMemberResults);
+                applyMembershipRoles(guild, change, maybeRenamed);
+                log.info("Clan sync for '{}' (guild {}) finished: {} in roster, {} new, {} departed, {}/{} up to date.",
+                        clanName, guild.getIdLong(), roster.size(), change.newLower().size(), change.departedLower().size(), tally.polled(), roster.size());
+                results.put(guild.getIdLong(), new SyncResult(roster.size(), change.newLower().size(), change.departedLower().size(), tally.polled(), tally.pollFailed()));
+            } catch (Exception e) {
+                log.error("Clan sync follow-up failed for guild {}", guild.getIdLong(), e);
+            }
+        }
+        return results;
     }
 
     /** What the clan roster looked like before and after one refresh: who appeared and who vanished. */
@@ -143,14 +187,18 @@ public class ClanSyncService {
 
     /** Fetches the clan list once, updates the stored roster to match, and announces joins and leaves. Doesn't poll anyone: that's what makes it quick. Null if there's nothing to go on (no clan configured, or the fetch came back empty). */
     private RosterChange refreshRoster(Guild guild, String clanName) {
+        List<RuneScapeApiClient.ClanMember> roster = apiClient.fetchClanRoster(clanName);
+        if (roster.isEmpty()) return null;
+        return refreshRoster(guild, roster);
+    }
+
+    /** {@link #refreshRoster(Guild, String)} with the clan list already fetched (non-empty), so several servers of one clan can share the one fetch. */
+    private RosterChange refreshRoster(Guild guild, List<RuneScapeApiClient.ClanMember> roster) {
         long guildId = guild.getIdLong();
         // One refresh at a time: a manual refresh and the daily sync both read "who was in the roster", change it,
         // and announce the difference, so two at once would each announce the same join.
         synchronized (rosterLock) {
             lastRosterRefresh.put(guildId, System.currentTimeMillis());
-
-            List<RuneScapeApiClient.ClanMember> roster = apiClient.fetchClanRoster(clanName);
-            if (roster.isEmpty()) return null;
 
             List<ClanMemberRepository.ClanMemberRow> before = clanMemberRepository.getAll(guildId, true);
             Set<String> beforeLower = new HashSet<>();

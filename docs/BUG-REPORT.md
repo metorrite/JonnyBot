@@ -49,3 +49,18 @@ The worker raises the risk if the fix turns out bigger than the report says.
 7. **Merge or hand over** by the merge policy on the ticket (`auto`, `after-test` or `drake`). Never merge to master.
 
 If the root cause is in a different ticket's area, say so in the log and link it with `dependsOn` rather than fixing it inside this PR.
+
+## From a bug report to the rows that matter
+
+The tools: `tools/snapshot_inspect.py` (read a snapshot zip), `tools/db_query.py` (read-only SQL against the local dev database), the dev bot's internal API through `tools/dev_api.py` (GET only). All are read-only by construction; none needs a secret in the command line.
+
+1. **Get the snapshot.** The report's `bugReport.snapshot` is an id like `snap-20261018-143005-a3f9`. Ask Drake for the zip (`jb-snapshot-<id>.zip` from the owner-only Snapshot button, or `<id>.zip` from the dashboard's Snapshots page). Put it outside the repository; never commit one. Snapshots are kept 14 days. No snapshot: reproduce from the steps and stop at step 4 if you cannot.
+2. **Read it.** `python tools/snapshot_inspect.py <zip>` prints who took it and when (UTC), the server and focus, bot and site commits, bot uptime and database time, RuneMetrics pacer state, which features have settings, the warnings and errors from the 30 minutes before, and a **timeline** that merges those log lines with the browser's console errors and failed requests (the `+Ns` column is seconds from the snapshot, so the error just before the click stands out). Then:
+   - `--table <name>` shows the rows of one focused table (ids are text so 19-digit Discord ids are exact);
+   - `--json guild.json` shows the server's effective settings, `--json site/client-log.json` the browser log, `--json site/page.json` the page, role and viewport.
+3. **Pick the rows.** The focus decides what the zip holds: `event:<id>` gives the event and every table with an `event_id`, `ticket:<id>` likewise, `member:<id>` every table row for that member in that server. For anything outside the focus, or newer than the snapshot, query the database.
+4. **Query the dev database.** `python tools/db_query.py "SELECT ... WHERE event_id = 12"` (`--format json` for machines, `--tables` to list tables). The schema `younglings` is the default, so write `event`, not `younglings.event`. It refuses anything but a single SELECT / WITH / SHOW / EXPLAIN, runs in a read-only transaction and never commits, so it cannot change data. To see a table as it was around the snapshot, filter on its timestamp column using the snapshot's `createdAtUtc` (the manifest) and `databaseTimeUtc` (environment.json: the database's own clock, which is what stored timestamps are compared against). The dev database is a copy of live from 2026-10-14 plus whatever Drake has done since, so a row missing from it is not evidence it was missing in the snapshot: trust the zip's rows for the moment of the bug.
+5. **Live data is Drake's call.** `python tools/db_query.py --live "..."` only prints that Drake must approve and exits; it does not connect. After Drake says yes in your thread, the same command with `--drake-approved` and `LIVE_DATABASE_URL` set in your environment (credentials: `reference_railway_live_db` memory note, never in the repository or the log) runs the same read-only checks. Say in the ticket log what you asked and why. Prefer the snapshot, then the dev database.
+6. **Write the cause down** in the ticket log (one or two sentences, with the row or log line that proves it), then continue with step 4 of *How a worker triages a bug* (failing test first).
+
+Tests for the tools: `python -m unittest tools/test_investigation_kit.py -v` (the write-refusal proof; the database cases skip themselves when there is no local dev database).

@@ -51,7 +51,8 @@ class PermissionGroupServiceTest {
     }
 
     private static final List<PermissionGroup> BUILTINS = List.of(
-            builtin(PermissionGroup.ADMIN, true, 100L), builtin(PermissionGroup.SUPPORT, false), builtin(PermissionGroup.DEVELOPER, false));
+            builtin(PermissionGroup.ADMIN, true, 100L), builtin(PermissionGroup.SUPPORT, false), builtin(PermissionGroup.DEVELOPER, false),
+            builtin(PermissionGroup.EVENT_COORDINATOR, false));
 
     // ---------- who is in a group ----------
 
@@ -133,12 +134,28 @@ class PermissionGroupServiceTest {
 
     @Test
     void aServerThatAlreadyHasItsGroupsIsNotSeededAgain() {
-        existing(BUILTINS.get(0), BUILTINS.get(1), BUILTINS.get(2));
+        existing(BUILTINS.get(0), BUILTINS.get(1), BUILTINS.get(2), BUILTINS.get(3));
 
         service.groups(GUILD);
         service.groups(GUILD);
 
         verify(repository, never()).createMissing(anyLong(), anyList());
+    }
+
+    @Test
+    void aServerFromBeforeTheCoordinatorGroupGetsItAddedEmptyAndNothingElseChanges() {
+        when(repository.list(GUILD)).thenReturn(List.of(BUILTINS.get(0), BUILTINS.get(1), BUILTINS.get(2)), BUILTINS);
+        when(legacy.getEffective(GUILD)).thenReturn(new GuildSettings(GUILD, null, 100L, null, null, null, null, null, null, true, null, 200L, 300L));
+
+        service.groups(GUILD);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<PermissionGroup>> seeded = ArgumentCaptor.forClass(List.class);
+        verify(repository).createMissing(eq(GUILD), seeded.capture());
+        assertEquals(1, seeded.getValue().size());
+        assertEquals(PermissionGroup.EVENT_COORDINATOR, seeded.getValue().get(0).key());
+        assertTrue(seeded.getValue().get(0).roleIds().isEmpty(), "empty until a server assigns roles");
+        assertTrue(seeded.getValue().get(0).builtin());
     }
 
     // ---------- saving ----------

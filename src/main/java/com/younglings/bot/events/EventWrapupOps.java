@@ -114,10 +114,27 @@ public class EventWrapupOps {
         try {
             Event event = events.event(guildId, eventId).orElse(null);
             if (event == null) return;
-            if (event.status() == Status.DONE || event.status() == Status.CANCELLED) wrapup.noteFinished(eventId);
-            else wrapup.clear(eventId); // reopened: its wrap-up starts over
+            if (event.status() == Status.DONE || event.status() == Status.CANCELLED) {
+                wrapup.noteFinished(eventId);
+                return;
+            }
+            // reopened: the channels JonnyBot locked open again (unless switched off), then its wrap-up starts over
+            if (EventWrapup.unlocksOnReopen(service.settingsOf(event).wrapup(), event.status(), wrapup.row(eventId).state())) unlockReopened(guildId, event);
+            wrapup.clear(eventId);
         } catch (RuntimeException e) {
             log.warn("Could not note the stage of event {} for its wrap-up", eventId, e);
+        }
+    }
+
+    private void unlockReopened(long guildId, Event event) {
+        JDA client = jda;
+        Guild guild = client == null ? null : client.getGuildById(guildId);
+        if (guild == null || ownedChannels(event.id()).isEmpty()) return;
+        try {
+            startUnlock(guild, event);
+            log.info("Event {} was reopened, so its channels are being unlocked", event.id());
+        } catch (EventProblem busy) {
+            log.info("Event {} was reopened but its channels couldn't be unlocked now: {}", event.id(), busy.getMessage());
         }
     }
 
@@ -540,7 +557,9 @@ public class EventWrapupOps {
         int links = 0;
         long imageBytes = 0;
         try (ZipOutputStream zip = new ZipOutputStream(bytes)) {
-            put(zip, "event.json", eventJson(guild, event).toPrettyString());
+            DataObject eventJson = eventJson(guild, event);
+            put(zip, "event.json", eventJson.toPrettyString());
+            for (Map.Entry<String, String> sheet : sheets(guild, eventJson).entrySet()) put(zip, sheet.getKey(), sheet.getValue());
             DataArray combined = DataArray.empty();
             for (Map.Entry<ChannelRow, List<Msg>> entry : byChannel.entrySet()) {
                 ChannelRow row = entry.getKey();
@@ -581,6 +600,7 @@ public class EventWrapupOps {
             put(zip, "messages.json", DataObject.empty().put("duplicatesFolded", tidy.dropped()).put("messages", combined).toPrettyString());
             put(zip, "README.txt", "Export of the event \"" + event.name() + "\" made " + Instant.now() + ".\n\n"
                     + "event.json   the event, its settings, players, teams, objectives, standings, proof and prizes\n"
+                    + "participants.csv, standings.csv, claims.csv   the players, the standings and every proof sent (with who decided it and when), for a spreadsheet\n"
                     + "messages.json   every message of every channel in one file (the bot's duplicate receipts folded into one: " + tidy.dropped() + " folded)\n"
                     + "<category>/<channel>.json and .txt   each channel on its own, the way the category was set up\n"
                     + "files/<channel>/   the images that fit (Discord's own links expire; later images stay as links in the files above)\n");
@@ -630,6 +650,38 @@ public class EventWrapupOps {
                 .put("bot", m.bot()).put("content", m.content()).put("attachments", attachments);
     }
 
+    /** The players, the standings and every proof sent, as spreadsheet files, from the same facts as {@code event.json}. */
+    private static Map<String, String> sheets(Guild guild, DataObject event) {
+        Map<String, String> teamNames = new java.util.HashMap<>();
+        event.getArray("teams").stream(DataArray::getObject).forEach(t -> teamNames.put(t.getString("id"), t.getString("name")));
+        Map<String, String> names = new java.util.HashMap<>();
+        List<List<String>> players = new ArrayList<>();
+        for (DataObject p : event.getArray("players").stream(DataArray::getObject).toList()) {
+            String name = p.getString("name", null);
+            names.put(p.getString("userId"), name);
+            String team = p.isNull("teamId") ? "" : teamNames.getOrDefault(p.getString("teamId"), "");
+            players.add(List.of(p.getString("userId"), name == null ? "" : name, team, Boolean.toString(p.getBoolean("waiting")), p.getString("joinedAt", ""), p.getString("verification", "")));
+        }
+        List<List<String>> standings = new ArrayList<>();
+        int place = 1;
+        for (DataObject s : event.getArray("standings").stream(DataArray::getObject).toList()) {
+            standings.add(List.of(Integer.toString(place++), s.getString("subject"), Long.toString(s.getLong("points")), Integer.toString(s.getInt("objectivesCompleted"))));
+        }
+        List<List<String>> claims = new ArrayList<>();
+        for (DataObject c : event.getArray("claims").stream(DataArray::getObject).toList()) {
+            String decider = c.isNull("decidedBy") ? "" : c.getString("decidedBy");
+            Member deciderMember = decider.isEmpty() ? null : guild.getMemberById(decider);
+            claims.add(List.of(c.getString("id"), c.getString("kind"), c.getString("objective", ""), c.getString("userId"), names.getOrDefault(c.getString("userId"), "") == null ? "" : names.getOrDefault(c.getString("userId"), ""),
+                    c.getString("status"), decider, deciderMember == null ? "" : deciderMember.getEffectiveName(), c.getString("decidedAt", ""), c.getString("createdAt", ""),
+                    c.getString("note", ""), c.getString("decisionNote", ""), c.getString("proof", "")));
+        }
+        Map<String, String> files = new LinkedHashMap<>();
+        files.put("participants.csv", EventWrapup.csv(List.of("user id", "name", "team", "waiting", "joined at", "verification"), players));
+        files.put("standings.csv", EventWrapup.csv(List.of("place", "player or team", "points", "objectives completed"), standings));
+        files.put("claims.csv", EventWrapup.csv(List.of("claim id", "kind", "objective", "user id", "name", "status", "decided by id", "decided by", "decided at", "sent at", "note", "decision note", "proof"), claims));
+        return files;
+    }
+
     private DataObject eventJson(Guild guild, Event event) {
         long id = event.id();
         DataObject out = DataObject.empty().put("id", Long.toString(id)).put("name", event.name()).put("description", event.description()).put("template", event.template())
@@ -658,6 +710,7 @@ public class EventWrapupOps {
         for (EventRepository.Claim c : all) {
             claims.add(DataObject.empty().put("id", Long.toString(c.id())).put("kind", c.kind().name()).put("objective", c.objectiveKey()).put("userId", Long.toString(c.userId()))
                     .put("status", c.status().name()).put("note", c.note()).put("decisionNote", c.decisionNote()).put("createdAt", c.createdAt().toString())
+                    .put("decidedBy", c.decidedBy() == null ? null : Long.toString(c.decidedBy()))
                     .put("decidedAt", c.decidedAt() == null ? null : c.decidedAt().toString()).put("proof", c.proofUrl()));
         }
         out.put("claims", claims);

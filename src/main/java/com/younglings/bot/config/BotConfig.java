@@ -48,6 +48,17 @@ public class BotConfig {
         return Boolean.parseBoolean(isLive);
     }
 
+    /**
+     * The channel a bot that is not live sends its automatic alerts to instead of the servers' own channels ({@code DEV_ALERT_CHANNEL_ID}); null when
+     * unset, in which case they are only logged. See {@code AutoPostRouter}.
+     */
+    public Long getDevAlertChannelId() {
+        String raw = System.getenv("DEV_ALERT_CHANNEL_ID");
+        if (raw == null || raw.isBlank()) raw = dotenv.get("DEV_ALERT_CHANNEL_ID");
+        if (raw == null || !raw.strip().matches("\\d{15,20}")) return null;
+        return Long.parseLong(raw.strip());
+    }
+
     public String getToken() {
         String token = System.getenv("DISCORD_TOKEN");
 
@@ -274,6 +285,15 @@ public class BotConfig {
         return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
     }
 
+    /**
+     * A setting of the RSN link service ({@code com.younglings.bot.rsnlink}), which reads its own {@code LINK_*} variables so it can move to a
+     * separate service unchanged. Only names starting with {@code LINK_} are served; null when unset.
+     */
+    public String getLinkSetting(String name) {
+        if (!name.startsWith("LINK_")) throw new IllegalArgumentException("Only LINK_ settings are served here");
+        return envOrDotenv(name);
+    }
+
     /** What the JonnyBot face's address was before it was configurable. */
     public static final String DEFAULT_JONNYBOT_URL = "https://jonnybot.rsyounglings.com";
 
@@ -378,6 +398,14 @@ public class BotConfig {
      */
     public long getRunescapePremiumPollWindowMinutes() {
         return positiveMinutes("RUNESCAPE_PREMIUM_POLL_WINDOW_MINUTES", 60);
+    }
+
+    /**
+     * How many of the plugin's raw XP units make one point of experience. The game client reports skill experience in tenths, so the default is 10;
+     * {@code PLUGIN_XP_SCALE} changes it if that ever turns out to be different. Always at least 1.
+     */
+    public long getPluginXpScale() {
+        return positiveNumber("PLUGIN_XP_SCALE", 10);
     }
 
     private long positiveMinutes(String name, long fallback) {

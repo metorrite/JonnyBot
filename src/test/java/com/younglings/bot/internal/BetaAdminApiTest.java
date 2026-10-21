@@ -66,10 +66,12 @@ class BetaAdminApiTest {
     }
 
     @Test
-    void anAdminWhoIsNotTheOwnerCanReadButNotChangeIt() {
+    void anAdminWhoIsNotTheOwnerSeesAnEmptyListAndCannotChangeIt() {
         when(owners.isOwner(any(), anyLong())).thenReturn(false);
 
-        assertFalse(api.list(guild, actor).getBoolean("canEdit"));
+        DataObject list = api.list(guild, actor);
+        assertFalse(list.getBoolean("canEdit"));
+        assertEquals(0, list.getArray("guilds").length());
         assertEquals(403, assertThrows(TicketAdminApi.ApiError.class, () -> api.save(guild, actor, "577853260153618443", DataObject.empty())).status);
         assertEquals(403, assertThrows(TicketAdminApi.ApiError.class, () -> api.remove(guild, actor, "577853260153618443")).status);
         verify(repository, never()).upsert(anyLong(), anyString(), anyLong());

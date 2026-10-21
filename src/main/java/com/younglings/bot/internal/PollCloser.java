@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.alerts.AutoPostRouter;
 import com.younglings.bot.commands.poll.PollService;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
@@ -51,6 +52,7 @@ public class PollCloser {
     }
 
     void closeDue(JDA jda) {
+        if (AutoPostRouter.diverting()) return; // closing a poll edits and announces in the real channel
         for (long pollId : settings.due(OffsetDateTime.now())) {
             var poll = polls.getSessionById(pollId);
             Guild guild = poll == null ? null : jda.getGuildById(poll.guildId());

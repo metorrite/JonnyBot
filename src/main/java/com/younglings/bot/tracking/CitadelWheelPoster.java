@@ -6,6 +6,7 @@ import com.younglings.bot.wheel.WheelEntries;
 import com.younglings.bot.wheel.WheelMessage;
 import com.younglings.bot.wheel.WheelSettingsRepository;
 import com.younglings.bot.wheel.WheelSpin;
+import com.younglings.bot.wheel.WheelVideo;
 import com.younglings.bot.wheel.WheelWinnerRepository;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
@@ -126,13 +127,23 @@ public class CitadelWheelPoster {
      * draws it under a message.
      */
     private void sendWithGif(Guild guild, GuildMessageChannel channel, String text, List<Long> usersToPing, byte[] gif) {
-        boolean separate = gif != null && text != null && text.contains(WheelMessage.WHEEL);
+        String fileName = "citadel-wheel.gif";
+        byte[] picture = gif;
+        // a server can choose to get the spin as a video; if it can't be made (or is too big for Discord) the GIF goes out as usual
+        if (gif != null && settings.get(guild.getIdLong()).video()) {
+            byte[] video = WheelVideo.fromGif(gif);
+            if (video != null) {
+                picture = video;
+                fileName = "citadel-wheel.mp4";
+            }
+        }
+        boolean separate = picture != null && text != null && text.contains(WheelMessage.WHEEL);
         var action = channel.sendMessage(WheelMessage.withoutWheel(text)).setAllowedMentions(List.of());
         if (!usersToPing.isEmpty()) action = action.mentionUsers(usersToPing.stream().mapToLong(Long::longValue).toArray());
-        if (gif != null && !separate) action = action.addFiles(FileUpload.fromData(gif, "citadel-wheel.gif"));
+        if (picture != null && !separate) action = action.addFiles(FileUpload.fromData(picture, fileName));
         action.queue(ok -> { }, error -> log.warn("Could not post the Citadel wheel winner in guild {}", guild.getIdLong(), error));
         if (separate) {
-            channel.sendFiles(FileUpload.fromData(gif, "citadel-wheel.gif"))
+            channel.sendFiles(FileUpload.fromData(picture, fileName))
                     .queue(ok -> { }, error -> log.warn("Could not post the Citadel wheel GIF in guild {}", guild.getIdLong(), error));
         }
     }

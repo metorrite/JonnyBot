@@ -1,5 +1,6 @@
 package com.younglings.bot.commands.ticket;
 
+import com.younglings.bot.alerts.AutoPostRouter;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -45,6 +46,7 @@ public class TicketScheduler {
     }
 
     private void tick(JDA jda) {
+        if (AutoPostRouter.diverting()) return; // escalations ping roles and closing posts in real tickets
         try {
             ticketService.escalateDue(jda);
             ticketService.sweepClosed(jda);

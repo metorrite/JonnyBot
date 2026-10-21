@@ -35,8 +35,13 @@ public class EventSetup {
     private final EventTemplates templates;
     private final EventDraftRepository drafts;
     private final EventBlueprintRepository blueprints;
+    private final EventDefaultsRepository defaults;
+    private final BingoPools pools;
 
-    public EventSetup(EventService service, EventTemplates templates, EventDraftRepository drafts, EventBlueprintRepository blueprints) {
+    public EventSetup(EventService service, EventTemplates templates, EventDraftRepository drafts, EventBlueprintRepository blueprints, EventDefaultsRepository defaults,
+                      BingoPools pools) {
+        this.defaults = defaults;
+        this.pools = pools;
         this.service = service;
         this.templates = templates;
         this.drafts = drafts;
@@ -52,8 +57,25 @@ public class EventSetup {
     }
 
     /** The options, steps and standard answers for a kind of event, for the website to draw the setup from. */
-    public DataObject schema(String templateKey, Instant now) {
-        return EventOptions.schema(template(templateKey), now);
+    public DataObject schema(long guildId, String templateKey, Instant now) {
+        return EventOptions.schema(template(templateKey), now, defaults.get(guildId));
+    }
+
+    // ---------- the server's own defaults ----------
+
+    public EventDefaults defaults(long guildId) {
+        return defaults.get(guildId);
+    }
+
+    public EventDefaults saveDefaults(long guildId, long actorId, DataObject body) {
+        EventDefaults parsed;
+        try {
+            parsed = EventDefaults.parse(body);
+        } catch (IllegalArgumentException e) {
+            throw new EventProblem(400, e.getMessage());
+        }
+        defaults.save(guildId, parsed, actorId);
+        return parsed;
     }
 
     // ---------- creating ----------
@@ -85,6 +107,8 @@ public class EventSetup {
         }
         if (!prizeProblems.isEmpty()) throw new EventProblem(400, "The prizes can't be saved yet.", prizeProblems.stream().distinct().toList());
 
+        // a bingo event that uses the server's own tile pool gets a copy of it now, so changing the pool later never changes this event
+        if (input.config() != null) input = input.withConfig(pools.expand(guildId, input.template(), input.config()));
         long id = service.createEvent(guildId, actorId, input);
         if (!prizes.isEmpty()) {
             try {
@@ -103,7 +127,7 @@ public class EventSetup {
      */
     public long createStandard(long guildId, long actorId, String templateKey, DataObject overrides, Instant now) {
         EventTemplate template = template(templateKey);
-        DataObject answers = EventOptions.standard(template, now);
+        DataObject answers = EventOptions.standard(template, now, defaults.get(guildId));
         if (overrides != null) {
             for (String path : overrides.keys()) {
                 if (path.equals("template")) continue;
@@ -128,7 +152,7 @@ public class EventSetup {
     public Draft startDraft(long guildId, long actorId, String templateKey, String stream, Instant now) {
         EventTemplate template = template(templateKey);
         if (drafts.count(guildId) >= MAX_DRAFTS) throw new EventProblem(409, "A server can keep up to " + MAX_DRAFTS + " unfinished setups. Finish or delete one first.");
-        DataObject answers = EventOptions.standard(template, now);
+        DataObject answers = EventOptions.standard(template, now, defaults.get(guildId));
         String name = answers.getString("name", template.label());
         long id = drafts.create(guildId, actorId, stream == null || stream.isBlank() ? "GUIDED" : stream.strip().toUpperCase(java.util.Locale.ROOT), EventOptions.Step.BASICS.name(), template.key(), name, answers.toString());
         return draft(guildId, id);

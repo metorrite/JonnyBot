@@ -242,7 +242,7 @@ public final class EventSpace {
 
     /** What is wrong with the space settings in {@code config}, in words, or an empty list. */
     public static List<String> problems(DataObject config) {
-        List<String> problems = new ArrayList<>();
+        List<String> problems = new ArrayList<>(EventWelcome.problems(config));
         if (config == null || !config.hasKey("channels") || config.isNull("channels")) return problems;
         DataObject c;
         try {
@@ -468,8 +468,26 @@ public final class EventSpace {
         }
     }
 
-    /** A channel JonnyBot made for the event and still finds on the server. {@code parent} is the key of the category it sits in (null for a category). */
-    public record HeldChannel(long id, String name, String parent) {}
+    /**
+     * A channel JonnyBot made for the event and still finds on the server. {@code parent} is the key of the category it sits in (null for a category).
+     * {@code overwrites} is who may see and write in it as Discord has it now, or null when that wasn't looked at (then it isn't checked).
+     */
+    public record HeldChannel(long id, String name, String parent, List<Overwrite> overwrites) {
+        public HeldChannel(long id, String name, String parent) {
+            this(id, name, parent, null);
+        }
+
+        public HeldChannel {
+            overwrites = overwrites == null ? null : List.copyOf(overwrites);
+        }
+    }
+
+    /** The Discord ids behind the groups that aren't the event's own roles: everyone, JonnyBot itself and the staff roles. */
+    public record Ids(long everyone, long bot, List<Long> staffRoles) {
+        public Ids {
+            staffRoles = List.copyOf(staffRoles);
+        }
+    }
 
     public record HeldRole(long id, String name) {}
 
@@ -480,7 +498,15 @@ public final class EventSpace {
      */
     public record Facts(String eventName, String template, boolean teamScored, Setting setting, Long boardChannelId, Long reviewChannelId, List<TeamRef> teams,
                         List<PlayerRef> players, Set<Long> organiserIds, int excludedPlayers, Map<String, HeldRole> heldRoles, Map<String, HeldChannel> heldChannels,
-                        Map<Kind, String> pickProblems, Room available, Readiness readiness, boolean sharedBoard) {
+                        Map<Kind, String> pickProblems, Room available, Readiness readiness, boolean sharedBoard, Ids ids) {
+        /** Without the ids nothing JonnyBot made is checked for who can see it (only for its name). */
+        public Facts(String eventName, String template, boolean teamScored, Setting setting, Long boardChannelId, Long reviewChannelId, List<TeamRef> teams,
+                     List<PlayerRef> players, Set<Long> organiserIds, int excludedPlayers, Map<String, HeldRole> heldRoles, Map<String, HeldChannel> heldChannels,
+                     Map<Kind, String> pickProblems, Room available, Readiness readiness, boolean sharedBoard) {
+            this(eventName, template, teamScored, setting, boardChannelId, reviewChannelId, teams, players, organiserIds, excludedPlayers, heldRoles, heldChannels,
+                    pickProblems, available, readiness, sharedBoard, null);
+        }
+
         public Facts(String eventName, String template, boolean teamScored, Setting setting, Long boardChannelId, Long reviewChannelId, List<TeamRef> teams,
                      List<PlayerRef> players, Set<Long> organiserIds, int excludedPlayers, Map<String, HeldRole> heldRoles, Map<String, HeldChannel> heldChannels,
                      Map<Kind, String> pickProblems, Room available, Readiness readiness) {
@@ -516,7 +542,12 @@ public final class EventSpace {
         /** A channel that already existed, chosen by an organiser; JonnyBot only uses it and never changes who can see it. */
         USE_EXISTING,
         /** Was made before but is no longer wanted. Only removed when the organiser says so. */
-        REMOVE
+        REMOVE,
+        /**
+         * Was made before and is still there, but someone renamed it or changed who can see it (or a role it should let in is being made again). Setting up
+         * puts it back the way the plan says. Only ever for what JonnyBot made; a channel an organiser chose is never touched.
+         */
+        REPAIR
     }
 
     public record RoleItem(String key, String name, Action action, Long id, int members, String note) {}
@@ -555,9 +586,9 @@ public final class EventSpace {
             return channels.stream().filter(c -> c.action() == Action.CREATE).count();
         }
 
-        /** Whether everything wanted is there, so applying would change nothing (apart from anything to remove). */
+        /** Whether everything wanted is there as planned, so applying would change nothing (apart from anything to remove). */
         public boolean complete() {
-            return newRoles() == 0 && newChannels() == 0;
+            return newRoles() == 0 && newChannels() == 0 && count(Action.REPAIR) == 0;
         }
 
         /** The things that still have to be made, in a few words each, for the setup checklist. */
@@ -565,6 +596,8 @@ public final class EventSpace {
             List<String> missing = new ArrayList<>();
             roles.stream().filter(r -> r.action() == Action.CREATE).forEach(r -> missing.add("the role " + r.name()));
             channels.stream().filter(c -> c.action() == Action.CREATE).forEach(c -> missing.add(c.kind() == Kind.CATEGORY ? "the category " + c.name() : "the channel " + c.name()));
+            roles.stream().filter(r -> r.action() == Action.REPAIR).forEach(r -> missing.add("putting the role " + r.name() + " back"));
+            channels.stream().filter(c -> c.action() == Action.REPAIR).forEach(c -> missing.add(c.kind() == Kind.CATEGORY ? "putting the category " + c.name() + " back" : "putting #" + c.name() + " back"));
             return missing;
         }
     }
@@ -612,10 +645,18 @@ public final class EventSpace {
         }
         List<String> uniqueRoleNames = EventNaming.unique(new ArrayList<>(roleNames.values()), " ");
         List<RoleItem> roles = new ArrayList<>();
+        Map<String, Long> heldRoleIds = new LinkedHashMap<>();
         int at = 0;
         for (String key : roleNames.keySet()) {
             HeldRole held = f.heldRoles().get(key);
-            roles.add(new RoleItem(key, held != null ? held.name() : uniqueRoleNames.get(at), held != null ? Action.KEEP : Action.CREATE, held == null ? null : held.id(), members.get(key), ""));
+            String wantedName = uniqueRoleNames.get(at);
+            if (held == null) {
+                roles.add(new RoleItem(key, wantedName, Action.CREATE, null, members.get(key), ""));
+            } else {
+                heldRoleIds.put(key, held.id());
+                if (held.name().equals(wantedName)) roles.add(new RoleItem(key, held.name(), Action.KEEP, held.id(), members.get(key), ""));
+                else roles.add(new RoleItem(key, wantedName, Action.REPAIR, held.id(), members.get(key), "Called @" + held.name() + " on Discord now; it gets its name back."));
+            }
             at++;
         }
         f.heldRoles().forEach((key, held) -> {
@@ -702,6 +743,7 @@ public final class EventSpace {
                 channels.add(new ChannelItem(w.key, w.kind, w.name, Action.CREATE, null, placed.get(w.key), "", access(w.kind, w.ref)));
             }
         }
+        repairs(f, channels, wanted, categoryName, roleNames.keySet(), heldRoleIds);
         Set<String> wantedKeys = new LinkedHashSet<>();
         wanted.forEach(w -> wantedKeys.add(w.key));
         f.heldChannels().forEach((key, held) -> {
@@ -744,6 +786,95 @@ public final class EventSpace {
             this.existing = existing;
             this.ref = ref;
         }
+    }
+
+    /**
+     * Marks what JonnyBot made and still finds, but that no longer matches the plan, as {@link Action#REPAIR}: a channel or category someone renamed (a
+     * player's channel keeps whatever it is called, since player names change), one whose permission overwrites were changed, and one that should let in a
+     * role that is being made again. Two channels that would end up with the same name keep theirs.
+     */
+    private static void repairs(Facts f, List<ChannelItem> channels, List<Wanted> wanted, String categoryName, Set<String> roleKeys, Map<String, Long> heldRoleIds) {
+        Map<String, String> wantedNames = new LinkedHashMap<>();
+        for (Wanted w : wanted) if (w.existing == null && f.heldChannels().containsKey(w.key)) wantedNames.put(w.key, w.name);
+        Map<String, Integer> nameCount = new java.util.HashMap<>();
+        wantedNames.values().forEach(n -> nameCount.merge(n, 1, Integer::sum));
+        f.heldChannels().forEach((key, held) -> {
+            if (!wantedNames.containsKey(key)) nameCount.merge(held.name(), 1, Integer::sum);
+        });
+        Function<Principal, List<Long>> idsOf = who -> switch (who.who()) {
+            case EVERYONE -> f.ids() == null ? List.of() : List.of(f.ids().everyone());
+            case STAFF -> f.ids() == null ? List.of() : f.ids().staffRoles();
+            case ORGANISERS -> optional(heldRoleIds.get(ORGANISER_ROLE));
+            case PARTICIPANTS -> optional(heldRoleIds.get(PARTICIPANT_ROLE));
+            case TEAM -> optional(heldRoleIds.get(teamKey(who.ref())));
+            case PLAYER -> List.of(who.ref());
+            case BOT -> f.ids() == null ? List.of() : List.of(f.ids().bot());
+        };
+        for (int i = 0; i < channels.size(); i++) {
+            ChannelItem c = channels.get(i);
+            if (c.action() != Action.KEEP) continue;
+            HeldChannel held = f.heldChannels().get(c.key());
+            if (held == null) continue;
+            List<String> why = new ArrayList<>();
+            String name = held.name();
+            String wantedName = c.kind() == Kind.CATEGORY ? (categoryNumber(c.key()) == 1 ? categoryName : cut(categoryName, " (" + categoryNumber(c.key()) + ")")) : wantedNames.get(c.key());
+            if (c.kind() != Kind.PLAYER && wantedName != null && !wantedName.equals(held.name()) && nameCount.getOrDefault(wantedName, 0) <= 1) {
+                why.add("it was renamed (it is #" + held.name() + " now)");
+                name = wantedName;
+            }
+            if (c.access().stream().anyMatch(g -> needsNewRole(g.who(), roleKeys, heldRoleIds))) why.add("it lets in a role that is being made again");
+            if (f.ids() != null && held.overwrites() != null && !drift(overwrites(c.access(), idsOf), held.overwrites()).none()) why.add("who can see or write in it was changed");
+            if (!why.isEmpty()) channels.set(i, new ChannelItem(c.key(), c.kind(), name, Action.REPAIR, c.id(), c.parent(), "Put back: " + String.join(", ", why) + ".", c.access()));
+        }
+    }
+
+    private static List<Long> optional(Long id) {
+        return id == null ? List.of() : List.of(id);
+    }
+
+    private static boolean needsNewRole(Principal who, Set<String> roleKeys, Map<String, Long> heldRoleIds) {
+        String key = switch (who.who()) {
+            case ORGANISERS -> ORGANISER_ROLE;
+            case PARTICIPANTS -> PARTICIPANT_ROLE;
+            case TEAM -> teamKey(who.ref());
+            default -> null;
+        };
+        return key != null && roleKeys.contains(key) && !heldRoleIds.containsKey(key);
+    }
+
+    /** What putting a channel's overwrites back means: the ones to set (missing or with other permissions) and the ones to take off. */
+    public record Drift(List<Overwrite> put, List<Long> remove) {
+        public Drift {
+            put = List.copyOf(put);
+            remove = List.copyOf(remove);
+        }
+
+        public boolean none() {
+            return put.isEmpty() && remove.isEmpty();
+        }
+    }
+
+    /**
+     * How a channel's overwrites as Discord has them ({@code have}) differ from the plan ({@code want}). Every planned overwrite must be there with exactly the
+     * planned permissions. An overwrite nobody planned is only taken off when it lets someone see the channel (that is what makes an event channel leak);
+     * other extras someone added (a deny, a muted role) are left alone.
+     */
+    public static Drift drift(List<Overwrite> want, List<Overwrite> have) {
+        Map<Long, Overwrite> had = new LinkedHashMap<>();
+        for (Overwrite o : have) had.put(o.id(), o);
+        Set<Long> planned = new java.util.HashSet<>();
+        List<Overwrite> put = new ArrayList<>();
+        for (Overwrite w : want) {
+            planned.add(w.id());
+            Overwrite h = had.get(w.id());
+            if (h == null || h.allow() != w.allow() || h.deny() != w.deny()) put.add(w);
+        }
+        long view = Permission.VIEW_CHANNEL.getRawValue();
+        List<Long> remove = new ArrayList<>();
+        for (Overwrite h : have) {
+            if (!planned.contains(h.id()) && (h.allow() & view) != 0) remove.add(h.id());
+        }
+        return new Drift(put, remove);
     }
 
     private static String cut(String name, String suffix) {

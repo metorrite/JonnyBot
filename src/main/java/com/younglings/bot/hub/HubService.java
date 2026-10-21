@@ -58,7 +58,7 @@ public class HubService {
     // ---------- settings ----------
 
     public HubSettings get(long guildId, HubCommand command) {
-        return cache.computeIfAbsent(guildId, repository::all).getOrDefault(command.key(), HubSettings.defaults(guildId, command.key()));
+        return cache.computeIfAbsent(guildId, repository::all).getOrDefault(command.key(), HubSettings.defaults(guildId, command));
     }
 
     public void save(HubSettings settings) {

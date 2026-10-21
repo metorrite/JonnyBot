@@ -1,5 +1,7 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.access.AccessArea;
+import com.younglings.bot.access.AccessGrantService;
 import com.younglings.bot.beta.BetaAccessService;
 
 import com.sun.net.httpserver.HttpExchange;
@@ -79,10 +81,12 @@ public class TicketAdminApi {
     private final ImageAdminApi imageAdmin;
     private final List<AdminRouteExtension> extensions;
     private final BetaAccessService betaAccess;
+    private final AccessGrantService accessGrants;
 
     public TicketAdminApi(DashboardAccess access, TicketRepository repository, TicketService service, ClanAdminApi clanAdmin, CommunityAdminApi communityAdmin, AdminOpsApi ops, AdminToolsStore auditStore,
                           HelpOnboarding onboarding, HelpPanels helpPanels, WelcomeAdminApi welcomeAdmin, ServerSetupAdminApi serverSetup, PermissionsAdminApi permissions, HubAdminApi hubAdmin, OverviewAdminApi overviewAdmin, ImageAdminApi imageAdmin, BetaAccessService betaAccess,
-                          List<AdminRouteExtension> extensions) {
+                          AccessGrantService accessGrants, List<AdminRouteExtension> extensions) {
+        this.accessGrants = accessGrants;
         this.extensions = extensions;
         log.info("Admin API ready with {} route extension(s): {}", extensions.size(), extensions.stream().map(e -> e.getClass().getSimpleName()).toList());
         this.betaAccess = betaAccess;
@@ -129,20 +133,28 @@ public class TicketAdminApi {
 
             Member actor = actorOf(exchange, guild);
             Tier tier = actor == null ? Tier.NONE : access.tierOf(guild, actor);
+            boolean coordinator = actor != null && tier == Tier.NONE && access.isEventCoordinator(guild, actor);
 
             // whoami is the one route that answers "no" with a 200: the website uses it to decide what to show.
             if (parts.length == 1 && parts[0].equals("whoami")) {
                 requireMethod(method, "GET");
                 DataObject who = whoami(guild, actor, tier);
+                // An Event coordinator is not allowed in the dashboard as such (allowed stays false); the website lets them into the event manager only.
+                if (coordinator) who.put("coordinator", true).put("guildId", guild.getId()).put("guildName", guild.getName()).put("guildIconUrl", guild.getIconUrl());
                 if (actor != null && tier != Tier.NONE) who.put("isOwner", overviewAdmin.isOwner(guild, actor.getIdLong()));
                 // Whether this person may use JonnyBot's website while it is closed: the clan's own admins, or admins of a trusted beta server.
                 // Worked out from the asker's id alone, because a beta tester usually isn't a member of the clan's server.
                 long askerId = actorIdOf(exchange);
-                who.put("beta", tier != Tier.NONE || (askerId != 0 && betaAccess.managesAnyBetaGuild(guild.getJDA(), askerId)));
+                boolean beta = tier != Tier.NONE || (askerId != 0 && betaAccess.managesAnyBetaGuild(guild.getJDA(), askerId));
+                who.put("beta", beta);
+                // Per restricted area: the beta rule above, or a grant on the owner's access list for that area. Fails closed.
+                DataObject areas = DataObject.empty();
+                for (AccessArea area : AccessArea.values()) areas.put(area.key(), beta || accessGrants.allows(guild.getJDA(), area, askerId));
+                who.put("areas", areas);
                 InternalApiServer.sendJson(exchange, 200, who);
                 return;
             }
-            if (tier == Tier.NONE) {
+            if (tier == Tier.NONE && !(coordinator && DashboardAccess.coordinatorMayUse(method, parts))) {
                 InternalApiServer.sendJson(exchange, 403, DataObject.empty().put("error", "You don't have access to the dashboard."));
                 return;
             }
@@ -186,9 +198,10 @@ public class TicketAdminApi {
                     Member member = memberIn(guild, actorId);
                     if (member == null) continue;
                     Tier tier = access.tierOf(guild, member);
-                    if (tier == Tier.NONE) continue;
+                    boolean coordinator = tier == Tier.NONE && access.isEventCoordinator(guild, member);
+                    if (tier == Tier.NONE && !coordinator) continue;
                     guilds.add(DataObject.empty().put("id", guild.getId()).put("name", guild.getName()).put("iconUrl", guild.getIconUrl())
-                            .put("memberCount", guild.getMemberCount()).put("tier", tier.name()));
+                            .put("memberCount", guild.getMemberCount()).put("tier", coordinator ? "COORDINATOR" : tier.name()));
                 }
             }
             InternalApiServer.sendJson(exchange, 200, DataObject.empty().put("guilds", guilds));
@@ -231,7 +244,7 @@ public class TicketAdminApi {
             json.put("id", actor.getId()).put("displayName", actor.getEffectiveName()).put("avatarUrl", actor.getEffectiveAvatarUrl());
         }
         // which server this answer is about; only given to someone allowed in, so it never names a server to a stranger
-        if (tier != Tier.NONE) json.put("guildName", guild.getName()).put("guildIconUrl", guild.getIconUrl());
+        if (tier != Tier.NONE) json.put("guildId", guild.getId()).put("guildName", guild.getName()).put("guildIconUrl", guild.getIconUrl());
         return json;
     }
 
@@ -417,6 +430,9 @@ public class TicketAdminApi {
             }
             case "health" -> {
                 requireMethod(method, "GET");
+                // The whole bot's health (gateway, database, memory, polling of every server) is for the bot's owner only; a server's own
+                // summary is on the Overview.
+                if (!overviewAdmin.isOwner(guild, actor.getIdLong())) throw new ApiError(403, "Only the bot's owner can see the bot's health.");
                 return ops.health(guild);
             }
             case "polling" -> {

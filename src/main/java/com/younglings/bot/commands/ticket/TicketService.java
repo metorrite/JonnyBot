@@ -72,9 +72,13 @@ public class TicketService {
     private final MemberAccess memberAccess;
     private final HelpPingService helpPings;
     private final HelpExtrasRepository extras;
+    private final TicketRelatedNotice relatedNotice;
+    private final GuestKillCount guestKills;
 
     public TicketService(TicketRepository repository, PlayerLinkService linkService, AdminRoleFilter adminRoleFilter, MemberAccess memberAccess,
-                         HelpPingService helpPings, HelpExtrasRepository extras) {
+                         HelpPingService helpPings, HelpExtrasRepository extras, TicketRelatedNotice relatedNotice, GuestKillCount guestKills) {
+        this.relatedNotice = relatedNotice;
+        this.guestKills = guestKills;
         this.repository = repository;
         this.linkService = linkService;
         this.adminRoleFilter = adminRoleFilter;
@@ -179,7 +183,10 @@ public class TicketService {
                                 .submit()
                                 .thenApply(message -> {
                                     repository.setWelcomeMessage(ticket.id(), message.getIdLong());
-                                    return repository.getTicket(ticket.id());
+                                    Ticket made = repository.getTicket(ticket.id());
+                                    // group content: tell helpers and staff when someone else asked about the same boss (does nothing unless switched on)
+                                    relatedNotice.announce(made, panel, channel);
+                                    return made;
                                 });
                     });
                 })
@@ -204,17 +211,49 @@ public class TicketService {
         if (!panel.isHelpPanel()) return new PingPlan(role, CompletableFuture.completedFuture(List.of()), null);
 
         HelpSettings settings = repository.getHelpSettings(guild.getIdLong());
-        HelpRules.Pings pings = HelpRules.pingsFor(settings, memberAccess.isMemberTier(guild, requester));
+        // clan members first, then longtime guests, then new guests, when the server switched priority tiers on
+        HelpPriority.Tier priority = priorityOf(guild, requester);
+        HelpRules.Pings pings = HelpPriority.pingsFor(settings, extras.get(guild.getIdLong()), priority);
         CompletableFuture<List<Long>> users = pings.pingOnOpen()
                 ? helpPings.usersFor(guild, settings, HelpRules.tierOf(fields, rawValues))
                 : CompletableFuture.completedFuture(List.of());
         return new PingPlan(null, users, pings.escalationHours() == null ? 0 : pings.escalationHours());
     }
 
-    /** The reason a guest's form can't open a ticket yet (a Master or Grandmaster request with no earlier attempts), or empty if it can. */
+    private HelpPriority.Tier priorityOf(Guild guild, Member requester) {
+        return HelpPriority.tierOf(memberAccess.isMemberTier(guild, requester), requester.getTimeJoined(), Instant.now(), extras.get(guild.getIdLong()));
+    }
+
+    /**
+     * The reason a guest's form can't open a ticket yet, or empty if it can: a Master or Grandmaster request with no earlier attempts, or (with priority tiers on and
+     * a kill count named for the tier) a new guest whose tracked kills fall short and who hasn't described their attempts. Missing data never blocks anyone: it only
+     * asks for the description.
+     */
     public Optional<String> attemptsProblem(Guild guild, Member requester, Panel panel, List<Field> fields, Map<Long, String> rawValues) {
         if (panel.helpKind() != com.younglings.bot.ticket.TicketModels.HelpKind.CA) return Optional.empty();
-        return HelpRules.attemptsProblem(repository.getHelpSettings(guild.getIdLong()), panel, fields, rawValues, memberAccess.isMemberTier(guild, requester));
+        HelpSettings settings = repository.getHelpSettings(guild.getIdLong());
+        boolean member = memberAccess.isMemberTier(guild, requester);
+        Optional<String> plain = HelpRules.attemptsProblem(settings, panel, fields, rawValues, member);
+        if (plain.isPresent() || member) return plain;
+
+        com.younglings.bot.ticket.HelpExtras e = extras.get(guild.getIdLong());
+        if (!e.priorityTiers()) return Optional.empty();
+        HelpPriority.Tier tier = priorityOf(guild, requester);
+        String tierLabel = HelpRules.tierOf(fields, rawValues);
+        if (tier != HelpPriority.Tier.NEW_GUEST || tierLabel == null || e.kcRequirement(tierLabel) == null) return Optional.empty();
+        String boss = TicketEventPlan.answerFor(fields, rawAnswers(fields, rawValues), com.younglings.bot.ticket.TicketModels.FieldPurpose.BOSS);
+        java.util.OptionalInt tracked = guestKills.count(guild.getIdLong(), requester.getIdLong(), boss);
+        if (!HelpPriority.needsAttemptsForKc(e, tier, tierLabel, tracked)) return Optional.empty();
+        String note = tracked.isPresent() ? " We can see " + tracked.getAsInt() + " tracked kills of " + boss + " and " + e.kcRequirement(tierLabel) + " are wanted for new guests."
+                : " Kill counts of " + e.kcRequirement(tierLabel) + " are wanted for new guests and we can't see yours.";
+        return HelpRules.attemptsProblem(HelpPriority.requiringAttemptsFor(settings, tierLabel), panel, fields, rawValues, false).map(message -> message + note);
+    }
+
+    /** The boss question's answer, as the form sent it, in the shape the answer helpers read. */
+    private static List<Answer> rawAnswers(List<Field> fields, Map<Long, String> rawValues) {
+        List<Answer> answers = new ArrayList<>();
+        for (Field field : fields) answers.add(new Answer(field.label(), rawValues.get(field.id())));
+        return answers;
     }
 
     private static String displayAnswer(Field field, String raw) {

@@ -7,6 +7,7 @@ import com.younglings.bot.plugin.PluginRepository.Token;
 import com.younglings.bot.plugin.PluginService;
 import com.younglings.bot.plugin.PluginService.PluginException;
 import com.younglings.bot.plugin.PluginTokens;
+import com.younglings.bot.plugin.RsLinkAuth;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.utils.data.DataArray;
 import net.dv8tion.jda.api.utils.data.DataObject;
@@ -26,7 +27,8 @@ import java.util.Set;
  * The plugin API, under {@code /internal/plugin/}. {@link InternalApiServer} has already checked the shared secret (the public website
  * is what faces the internet and forwards to this), then there are two halves:
  * <ul>
- *   <li><b>The plugin</b>, identified by its token in {@code X-Plugin-Token}: {@code POST ingest} (a batch of events, schema v1) and
+ *   <li><b>The plugin</b>, identified by its token in {@code X-Plugin-Token} or, for an upload from RuneSync, by an RS Link signed assertion in
+ *       {@code Authorization: RSLink ...} (see {@link RsLinkAuth}): {@code POST ingest} (a batch of events, schema v1) and
  *       {@code GET whoami} (which names it may report for and what the player has allowed).</li>
  *   <li><b>The player</b>, identified by a {@code userId} the website takes from its verified sign-in (the same trust as {@code /internal/me/}):
  *       {@code GET me}, {@code POST me/tokens}, {@code DELETE me/tokens/{id}}, {@code PUT me/consent} and {@code DELETE me/data}.</li>
@@ -40,12 +42,14 @@ public class PluginApi {
     private static final int MAX_BODY_BYTES = 256 * 1024;
 
     private final PluginService service;
+    private final RsLinkAuth rsLink;
     /** 60 requests a minute per token, with a short burst. */
     private final RateLimiter ingestLimit = new RateLimiter(60, 1_000);
     private final RateLimiter accountLimit = new RateLimiter(20, 3_000);
 
-    public PluginApi(PluginService service) {
+    public PluginApi(PluginService service, RsLinkAuth rsLink) {
         this.service = service;
+        this.rsLink = rsLink;
     }
 
     /** Called after the shared secret has been checked. */
@@ -89,9 +93,34 @@ public class PluginApi {
     }
 
     private void ingest(HttpExchange exchange) throws IOException {
-        Optional<Token> token = authenticate(exchange);
-        if (token.isEmpty()) return;
-        if (!ingestLimit.tryAcquire(Long.toString(token.get().id()))) {
+        // Either a RuneSync upload signed through RS Link (Authorization: RSLink <assertion>), or a manual token (X-Plugin-Token).
+        String assertion = RsLinkAuth.assertionFrom(exchange.getRequestHeaders().getFirst("Authorization"));
+        long userId;
+        String linkedRsn = null;
+        String limitKey;
+        if (assertion != null) {
+            Optional<RsLinkAuth.Identity> identity;
+            try {
+                identity = rsLink.authenticate(assertion);
+            } catch (RsLinkAuth.Unavailable e) {
+                exchange.getResponseHeaders().set("Retry-After", "30");
+                send(exchange, 503, error("Linking is unavailable for a moment. Keep the batch and try again shortly."));
+                return;
+            }
+            if (identity.isEmpty()) {
+                send(exchange, 401, error("That RS Link proof isn't valid any more. Check the link in RS Link."));
+                return;
+            }
+            userId = identity.get().discordUserId();
+            linkedRsn = identity.get().rsn();
+            limitKey = "rsl:" + userId;
+        } else {
+            Optional<Token> token = authenticate(exchange);
+            if (token.isEmpty()) return;
+            userId = token.get().discordUserId();
+            limitKey = Long.toString(token.get().id());
+        }
+        if (!ingestLimit.tryAcquire(limitKey)) {
             exchange.getResponseHeaders().set("Retry-After", "2");
             send(exchange, 429, error("Too many requests. Send fewer, larger batches (up to " + PluginPayload.MAX_EVENTS + " events)."));
             return;
@@ -113,7 +142,7 @@ public class PluginApi {
             send(exchange, 400, error(batch.problem()));
             return;
         }
-        var result = service.ingest(token.get().discordUserId(), batch);
+        var result = linkedRsn != null ? service.ingestVerified(userId, linkedRsn, batch) : service.ingest(userId, batch);
         if (result.forbidden() != null) {
             send(exchange, 403, error(result.forbidden()));
             return;

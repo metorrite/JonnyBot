@@ -1,5 +1,6 @@
 package com.younglings.bot.events;
 
+import com.younglings.bot.alerts.AutoPostRouter;
 import com.younglings.bot.events.EventRepository.Event;
 import com.younglings.bot.events.EventRepository.Panel;
 import com.younglings.bot.events.EventRules.ObjectiveSpec;
@@ -76,6 +77,7 @@ public class EventBoardPanels {
         if (jda == null) return;
         ScheduledFuture<?> old = pending.put(eventId, executor.schedule(() -> {
             pending.remove(eventId);
+            if (AutoPostRouter.diverting()) return; // board posts are tracked and edited later: a bot that is not live makes none
             try {
                 // always logged, so a board that didn't appear can be explained from the logs (the reason is also what the dashboard's button shows)
                 log.info("Board of event {}: {}", eventId, refresh(guildId, eventId));
@@ -340,7 +342,10 @@ public class EventBoardPanels {
 
     private String panelText(Guild guild, Event event, List<Standing> standings) {
         StringBuilder text = new StringBuilder("### " + event.name() + " · " + stageText(event.status()));
-        if (standings.isEmpty()) {
+        EventStandings.Visibility visibility = EventStandings.of(DataObject.fromJson(event.config()));
+        if (!EventStandings.tableShown(visibility, event.status())) {
+            text.append("\n").append(EventStandings.hiddenText(visibility));
+        } else if (standings.isEmpty()) {
             text.append("\nNo points yet.");
         } else {
             var teams = repository.teams(event.id());

@@ -119,7 +119,7 @@ public class EventSpaces {
         for (EventSpaceRepository.ChannelRow row : space.channels(event.id())) {
             if (!row.owned()) continue;
             GuildChannel channel = guild.getGuildChannelById(row.channelId());
-            if (channel != null) heldChannels.put(row.key(), new HeldChannel(channel.getIdLong(), channel.getName(), row.parent()));
+            if (channel != null) heldChannels.put(row.key(), new HeldChannel(channel.getIdLong(), channel.getName(), row.parent(), overwritesOf(channel)));
         }
 
         EventRepository.Setup setup = events.setup(event.id());
@@ -127,8 +127,17 @@ public class EventSpaces {
         EventSpace.Setting setting = settings.channels();
         Facts facts = new Facts(event.name(), event.template(), teamScored, setting, settings.boardChannelId(), settings.reviewChannelId(),
                 teams.stream().map(t -> new TeamRef(t.id(), t.name())).toList(), players, settings.organisers(), excluded, heldRoles, heldChannels,
-                pickProblems(guild, event, settings), roomOf(guild), readiness, EventBoards.displayOf(DataObject.fromJson(event.config())).shared());
+                pickProblems(guild, event, settings), roomOf(guild), readiness, EventBoards.displayOf(DataObject.fromJson(event.config())).shared(),
+                new EventSpace.Ids(guild.getPublicRole().getIdLong(), guild.getSelfMember().getIdLong(), staffRoles(guild).stream().map(net.dv8tion.jda.api.entities.Role::getIdLong).toList()));
         return new Gathered(facts, staffRoles(guild), settings);
+    }
+
+    /** Who may see and write in a channel as Discord has it now, or null for a channel that has no permission overwrites of its own. */
+    static List<EventSpace.Overwrite> overwritesOf(GuildChannel channel) {
+        if (!(channel instanceof net.dv8tion.jda.api.entities.channel.attribute.IPermissionContainer container)) return null;
+        List<EventSpace.Overwrite> list = new ArrayList<>();
+        for (var o : container.getPermissionOverrides()) list.add(new EventSpace.Overwrite(o.getIdLong(), o.isRoleOverride(), o.getAllowedRaw(), o.getDeniedRaw()));
+        return list;
     }
 
     private static String shortId(long id) {

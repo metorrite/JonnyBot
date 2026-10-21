@@ -395,4 +395,53 @@ class PollEngineTest {
         assertEquals(1, status.polled());
         assertEquals(1, status.requestsLastMinute());
     }
+
+    // ---------------------------------------------------------------- the day's counters
+
+    @Test
+    void theDaysCountersFollowEachTiersRequests() {
+        clan("a");
+        clan("b");
+        engine.submit(PollRequest.interactive("c", "test"));
+        drain();
+
+        var day = engine.tally().snapshot().byPriority();
+        assertEquals(2, day.get(PollPriority.CLAN).sent());
+        assertEquals(1, day.get(PollPriority.INTERACTIVE).sent());
+    }
+
+    @Test
+    void aPlayerAnsweredFromARecentSnapshotCountsAsReusedNotSent() {
+        storedPollTimes.put("a", clock.get() - 1_000);
+        engine.submit(PollRequest.background("a", PollPriority.LINKED, HOUR, "test"));
+        drain();
+
+        var linked = engine.tally().snapshot().byPriority().get(PollPriority.LINKED);
+        assertEquals(1, linked.reused());
+        assertEquals(0, linked.sent());
+    }
+
+    @Test
+    void aRateLimitedAnswerIsCountedEvenThoughItIsTriedAgain() {
+        answers("a", new ProfileResult.RateLimited(Duration.ofSeconds(1)));
+        clan("a");
+        drain();
+
+        var clanCounts = engine.tally().snapshot().byPriority().get(PollPriority.CLAN);
+        assertEquals(1, clanCounts.rateLimited());
+        assertEquals(1, clanCounts.sent());
+    }
+
+    @Test
+    void theWaitingTimeIsReportedPerTier() {
+        bucket = new RateBucket(1, 1_000_000, clock::get);
+        engine = engineWith(bucket);
+        clan("a");
+        clan("b");
+        engine.tick();
+        clock.addAndGet(5_000);
+
+        assertTrue(engine.oldestWaitingByPriority().getOrDefault(PollPriority.CLAN, 0L) >= 5_000);
+        assertFalse(engine.oldestWaitingByPriority().containsKey(PollPriority.LINKED));
+    }
 }

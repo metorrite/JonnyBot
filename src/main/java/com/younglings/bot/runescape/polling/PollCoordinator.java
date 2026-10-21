@@ -164,6 +164,16 @@ public class PollCoordinator {
 
     // ---------------------------------------------------------------- status
 
+    /** The day's request counters per tier. */
+    public PollTally tally() {
+        return engine.tally();
+    }
+
+    /** How long each tier's longest-waiting due request has waited (millis). */
+    public java.util.Map<PollPriority, Long> oldestWaitingByPriority() {
+        return engine.oldestWaitingByPriority();
+    }
+
     public Status status() {
         List<JobStatus> statuses = new ArrayList<>();
         for (JobState state : jobs.values()) {

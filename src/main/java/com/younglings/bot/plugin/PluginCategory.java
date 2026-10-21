@@ -5,6 +5,7 @@ package com.younglings.bot.plugin;
  * plugin is configured, so the choice is enforced here rather than trusted to the client.
  */
 public enum PluginCategory {
+    XP("Skill XP", "How much XP you have in each skill, so your clan can follow your progress."),
     DROPS("Drops", "Items you receive, and where they came from."),
     KILLS("Boss kills", "Which boss you killed and your kill count."),
     ACHIEVEMENTS("Levels, quests and achievements", "Level-ups, completed quests, achievements and collection log entries."),

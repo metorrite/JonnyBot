@@ -1,5 +1,6 @@
 package com.younglings.bot.serverreminder;
 
+import com.younglings.bot.alerts.AutoPostRouter;
 import com.younglings.bot.serverreminder.ServerReminder.Status;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
@@ -123,8 +124,10 @@ public class ServerReminderService {
         // moved on before posting, so a slow Discord call can never make the same run post twice
         Instant next = reminder.repeating() ? ServerReminder.nextAfter(reminder.nextAt(), reminder.every(), now) : null;
         repository.sent(reminder.id(), now, next);
-        var action = channel.sendMessage(messageOf(reminder)).setAllowedMentions(EnumSet.noneOf(Message.MentionType.class));
-        if (reminder.roleId() != null) action = action.setAllowedMentions(EnumSet.of(Message.MentionType.ROLE)).mentionRoles(reminder.roleId());
+        GuildMessageChannel target = AutoPostRouter.route(channel, "a server reminder");
+        if (target == null) return;
+        var action = target.sendMessage(AutoPostRouter.defang(messageOf(reminder))).setAllowedMentions(EnumSet.noneOf(Message.MentionType.class));
+        if (reminder.roleId() != null && !AutoPostRouter.noPings()) action = action.setAllowedMentions(EnumSet.of(Message.MentionType.ROLE)).mentionRoles(reminder.roleId());
         action.queue(ok -> {}, error -> log.warn("Couldn't post server reminder {} in guild {}: {}", reminder.id(), guild.getId(), error.getMessage()));
     }
 

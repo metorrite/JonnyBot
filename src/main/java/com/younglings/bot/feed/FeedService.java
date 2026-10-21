@@ -1,5 +1,6 @@
 package com.younglings.bot.feed;
 
+import com.younglings.bot.alerts.AutoPostRouter;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -89,8 +90,10 @@ public class FeedService {
                         }
                         readThisRun.put(key, items);
                     }
+                    GuildMessageChannel out = AutoPostRouter.route(channel, "a feed post");
                     for (String text : fresh(sub, items)) {
-                        channel.sendMessage(text).setAllowedMentions(Collections.emptyList())
+                        if (out == null) continue;
+                        out.sendMessage(text).setAllowedMentions(Collections.emptyList())
                                 .queue(null, t -> log.warn("Feed post failed in guild {}: {}", sub.guildId(), t.getMessage()));
                     }
                 } catch (InterruptedException e) {

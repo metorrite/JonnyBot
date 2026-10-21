@@ -48,8 +48,8 @@ public class SiteInvalidator {
         NEWS("site:news"),
         /** The site's own options (what the clan site shows). */
         OPTIONS("site:options"),
-        /** What the clans hub lists: a clan's profile, verification, shared events. */
-        HUB("hub:clans", "hub:events", "hub:leaderboards");
+        /** What the clans hub lists: a clan's profile, verification, shared events; and the clan websites built on those profiles. */
+        HUB("hub:clans", "hub:events", "hub:leaderboards", "hub:sites");
 
         private final List<String> tags;
 

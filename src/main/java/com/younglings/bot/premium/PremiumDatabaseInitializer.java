@@ -18,8 +18,8 @@ public class PremiumDatabaseInitializer {
                 CREATE SCHEMA IF NOT EXISTS younglings;
                 """,
 
-                // The servers on the faster ("premium") polling plan: their clan's players are refreshed more often than a standard
-                // server's. Bot-wide, set by the bot's owner. The label is only a reminder of whose server it is.
+                // The servers on a plan above the free one: their clan's players are refreshed more often than a standard server's, and so on
+                // (see PremiumFeatures). Bot-wide, set by the bot's owner. The label is only a reminder of whose server it is.
                 """
                 CREATE TABLE IF NOT EXISTS younglings.premium_guild (
                     guild_id BIGINT PRIMARY KEY,
@@ -27,7 +27,28 @@ public class PremiumDatabaseInitializer {
                     added_by BIGINT NULL,
                     added_at TIMESTAMPTZ NOT NULL DEFAULT now()
                 );
+                """,
+
+                // Which plan, until when, and why. Every row that existed before these columns is the 'premium' tier with no end, so nothing changes.
+                "ALTER TABLE younglings.premium_guild ADD COLUMN IF NOT EXISTS tier TEXT NOT NULL DEFAULT 'premium';",
+                "ALTER TABLE younglings.premium_guild ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ NULL;",
+                "ALTER TABLE younglings.premium_guild ADD COLUMN IF NOT EXISTS note TEXT NULL;",
+                "ALTER TABLE younglings.premium_guild ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'manual';",
+
+                // Who granted, changed, revoked or let a plan run out, and when. Kept after the grant itself is gone.
                 """
+                CREATE TABLE IF NOT EXISTS younglings.premium_grant_log (
+                    id BIGSERIAL PRIMARY KEY,
+                    guild_id BIGINT NOT NULL,
+                    action TEXT NOT NULL,
+                    tier TEXT NULL,
+                    expires_at TIMESTAMPTZ NULL,
+                    by_user BIGINT NULL,
+                    note TEXT NULL,
+                    at TIMESTAMPTZ NOT NULL DEFAULT now()
+                );
+                """,
+                "CREATE INDEX IF NOT EXISTS premium_grant_log_guild_idx ON younglings.premium_grant_log (guild_id, at DESC);"
         ));
     }
 }

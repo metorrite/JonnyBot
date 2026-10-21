@@ -37,6 +37,8 @@ public class HelpExtrasAdminApi implements AdminRouteExtension {
     DataObject get(Guild guild) {
         HelpExtras e = repository.get(guild.getIdLong());
         return DataObject.empty().put("eventButton", e.eventButton()).put("eventStartHours", e.eventStartHours()).put("eventDays", e.eventDays())
+                .put("relatedTickets", e.relatedTickets()).put("groupBosses", e.groupBosses()).put("priorityTiers", e.priorityTiers()).put("longtimeGuestDays", e.longtimeGuestDays())
+                .put("longtimeGuestPings", e.longtimeGuestPings()).put("longtimeGuestEscalationHours", e.longtimeGuestEscalationHours()).put("kcRequirements", e.kcRequirements())
                 .put("maxStartHours", HelpExtras.MAX_START_HOURS).put("maxDays", HelpExtras.MAX_DAYS);
     }
 
@@ -45,7 +47,14 @@ public class HelpExtrasAdminApi implements AdminRouteExtension {
         HelpExtras next = new HelpExtras(guild.getIdLong(),
                 body.hasKey("eventButton") ? body.getBoolean("eventButton", false) : current.eventButton(),
                 body.hasKey("eventStartHours") ? body.getInt("eventStartHours", -1) : current.eventStartHours(),
-                body.hasKey("eventDays") ? body.getInt("eventDays", -1) : current.eventDays());
+                body.hasKey("eventDays") ? body.getInt("eventDays", -1) : current.eventDays(),
+                body.hasKey("relatedTickets") ? body.getBoolean("relatedTickets", false) : current.relatedTickets(),
+                body.hasKey("groupBosses") ? body.getString("groupBosses", "").strip() : current.groupBosses(),
+                body.hasKey("priorityTiers") ? body.getBoolean("priorityTiers", false) : current.priorityTiers(),
+                body.hasKey("longtimeGuestDays") ? body.getInt("longtimeGuestDays", -1) : current.longtimeGuestDays(),
+                body.hasKey("longtimeGuestPings") ? body.getBoolean("longtimeGuestPings", true) : current.longtimeGuestPings(),
+                body.hasKey("longtimeGuestEscalationHours") ? body.getInt("longtimeGuestEscalationHours", -1) : current.longtimeGuestEscalationHours(),
+                body.hasKey("kcRequirements") ? body.getString("kcRequirements", "").strip() : current.kcRequirements());
         var problems = next.problems();
         if (!problems.isEmpty()) throw new ApiError(400, "Those settings can't be saved yet.", problems);
         repository.save(next);

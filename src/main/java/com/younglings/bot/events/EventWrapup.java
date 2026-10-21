@@ -44,8 +44,18 @@ public final class EventWrapup {
      * {@code rolesDays} and {@code channelsDays}: days after the event finished; 0 is straight away and -1 is never (an organiser decides). The roles go
      * on their own by default; the channels do not.
      */
-    public record Setting(boolean lockOnFinish, int rolesDays, int channelsDays, ChannelsAction channelsAction, Long archiveCategoryId) {
-        public static final Setting DEFAULT = new Setting(true, 7, -1, ChannelsAction.ARCHIVE, null);
+    /** {@code unlockOnReopen}: reopening a finished event lets the players write in the channels JonnyBot locked again (T-212, on unless switched off). */
+    public record Setting(boolean lockOnFinish, int rolesDays, int channelsDays, ChannelsAction channelsAction, Long archiveCategoryId, boolean unlockOnReopen) {
+        public static final Setting DEFAULT = new Setting(true, 7, -1, ChannelsAction.ARCHIVE, null, true);
+
+        public Setting(boolean lockOnFinish, int rolesDays, int channelsDays, ChannelsAction channelsAction, Long archiveCategoryId) {
+            this(lockOnFinish, rolesDays, channelsDays, channelsAction, archiveCategoryId, true);
+        }
+    }
+
+    /** Whether an event that moved back from finished (to {@code now}) should have the channels JonnyBot locked opened again. */
+    public static boolean unlocksOnReopen(Setting setting, EventRules.Status now, State state) {
+        return setting.unlockOnReopen() && state != null && state.lockedAt() != null && now != EventRules.Status.DONE && now != EventRules.Status.CANCELLED;
     }
 
     public static Setting parse(DataObject config) {
@@ -55,7 +65,7 @@ public final class EventWrapup {
             Setting d = Setting.DEFAULT;
             ChannelsAction action = action(w.hasKey("channelsAction") && !w.isNull("channelsAction") ? w.getString("channelsAction") : d.channelsAction().name());
             return new Setting(w.opt("lockOnFinish").orElse(null) instanceof Boolean b ? b : d.lockOnFinish(), days(w, "rolesDays", d.rolesDays()), days(w, "channelsDays", d.channelsDays()),
-                    action == null ? d.channelsAction() : action, id(w, "archiveCategoryId"));
+                    action == null ? d.channelsAction() : action, id(w, "archiveCategoryId"), w.opt("unlockOnReopen").orElse(null) instanceof Boolean u ? u : d.unlockOnReopen());
         } catch (RuntimeException e) {
             return Setting.DEFAULT;
         }
@@ -63,7 +73,7 @@ public final class EventWrapup {
 
     public static DataObject toJson(Setting s) {
         return DataObject.empty().put("lockOnFinish", s.lockOnFinish()).put("rolesDays", s.rolesDays()).put("channelsDays", s.channelsDays())
-                .put("channelsAction", s.channelsAction().name()).put("archiveCategoryId", s.archiveCategoryId() == null ? null : Long.toString(s.archiveCategoryId()));
+                .put("channelsAction", s.channelsAction().name()).put("archiveCategoryId", s.archiveCategoryId() == null ? null : Long.toString(s.archiveCategoryId())).put("unlockOnReopen", s.unlockOnReopen());
     }
 
     /** What is wrong with the {@code wrapup} settings in {@code config}, in words, or an empty list. */
@@ -80,6 +90,7 @@ public final class EventWrapup {
             if (w.hasKey("channelsAction") && !w.isNull("channelsAction") && action(w.getString("channelsAction")) == null) problems.add("Choose what happens to the channels: nothing, archive or delete.");
             if (w.hasKey("archiveCategoryId") && !w.isNull("archiveCategoryId") && !w.getString("archiveCategoryId", "").isBlank() && id(w, "archiveCategoryId") == null) problems.add("Choose a category for the archive (the id looks wrong).");
             if (w.hasKey("lockOnFinish") && !w.isNull("lockOnFinish") && !(w.opt("lockOnFinish").orElse(null) instanceof Boolean)) problems.add("Locking the channels has to be on or off.");
+            if (w.hasKey("unlockOnReopen") && !w.isNull("unlockOnReopen") && !(w.opt("unlockOnReopen").orElse(null) instanceof Boolean)) problems.add("Unlocking the channels when the event is reopened has to be on or off.");
         } catch (RuntimeException e) {
             problems.add("The wrap-up settings couldn't be read.");
         }
@@ -251,6 +262,33 @@ public final class EventWrapup {
             for (String a : m.attachments()) out.append("    attachment: ").append(a).append('\n');
         }
         return out.toString();
+    }
+
+    /**
+     * A table as CSV text that spreadsheets open as it is: a header row, then one row per entry, every value quoted where it needs to be. A value that starts
+     * like a formula ({@code = + - @}) gets a leading apostrophe so a spreadsheet shows it as text instead of running it (players choose their own names).
+     */
+    public static String csv(List<String> header, List<List<String>> rows) {
+        StringBuilder out = new StringBuilder();
+        line(out, header);
+        for (List<String> row : rows) line(out, row);
+        return out.toString();
+    }
+
+    private static void line(StringBuilder out, List<String> values) {
+        for (int i = 0; i < values.size(); i++) {
+            if (i > 0) out.append(',');
+            out.append(cell(values.get(i)));
+        }
+        out.append("\r\n");
+    }
+
+    static String cell(String raw) {
+        if (raw == null) return "";
+        String value = raw;
+        if (!value.isEmpty() && "=+-@".indexOf(value.charAt(0)) >= 0 && !value.matches("-?\\d+(\\.\\d+)?")) value = "'" + value;
+        if (value.contains(",") || value.contains("\"") || value.contains("\n") || value.contains("\r")) value = "\"" + value.replace("\"", "\"\"") + "\"";
+        return value;
     }
 
     /** A file or folder name that is safe in a zip: lower case letters, digits and hyphens. */

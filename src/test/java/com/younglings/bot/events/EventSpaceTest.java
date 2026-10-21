@@ -362,7 +362,12 @@ class EventSpaceTest {
         Map<String, HeldRole> lost = Map.of("participant", new HeldRole(201, "Christmas Bingo Participant"));
         Plan again = EventSpace.plan(new Facts("Christmas Bingo", BossNightTemplate.KEY, true, ON, null, null, List.of(new TeamRef(11, "Red")), players(2, 11L), Set.of(), 0, lost, held, Map.of(),
                 Room.UNLIMITED, READY_TEAMS));
-        assertEquals(List.of("the role Christmas Bingo Organiser", "the role Christmas Bingo Red", "the channel christmas-bingo-staff-review", "the channel christmas-bingo-red"), again.missing());
+        assertEquals(List.of("the role Christmas Bingo Organiser", "the role Christmas Bingo Red", "the channel christmas-bingo-staff-review", "the channel christmas-bingo-red"),
+                again.missing().subList(0, 4));
+        // the channels that let the organisers in are put back so the organiser role made again gets in too
+        ChannelItem staff = again.channels().stream().filter(c -> c.key().equals("staff")).findFirst().orElseThrow();
+        assertEquals(Action.REPAIR, staff.action());
+        assertTrue(staff.note().contains("role that is being made again"), staff.note());
         assertEquals("category", again.channels().stream().filter(c -> c.key().equals("team:11")).findFirst().orElseThrow().parent());
     }
 
@@ -375,7 +380,7 @@ class EventSpaceTest {
                 null, null, List.of(), List.of(new PlayerRef(0, "P0", null), new PlayerRef(500, "Five", null), new PlayerRef(501, "Six", null)), Set.of(), 0,
                 Map.of(), held, Map.of(), Room.UNLIMITED, READY);
         Plan plan = EventSpace.plan(facts);
-        assertEquals(Action.KEEP, plan.channels().stream().filter(c -> c.key().equals("category")).findFirst().orElseThrow().action());
+        assertEquals(Action.REPAIR, plan.channels().stream().filter(c -> c.key().equals("category")).findFirst().orElseThrow().action(), "kept (not made again), and put back so the roles being made get in");
         assertEquals("category", plan.channels().stream().filter(c -> c.key().equals("player:500")).findFirst().orElseThrow().parent());
         assertEquals("category:2", plan.channels().stream().filter(c -> c.key().equals("player:501")).findFirst().orElseThrow().parent());
         assertEquals(Action.CREATE, plan.channels().stream().filter(c -> c.key().equals("category:2")).findFirst().orElseThrow().action());
@@ -395,6 +400,97 @@ class EventSpaceTest {
         assertEquals(List.of("boss-night-blue"), names(plan, Action.REMOVE));
         assertEquals(List.of("Boss Night Blue"), plan.roles().stream().filter(r -> r.action() == Action.REMOVE).map(RoleItem::name).toList());
         assertTrue(plan.complete());
+    }
+
+    // ---------- putting back what was changed on Discord (T-210) ----------
+
+    private static final EventSpace.Ids IDS = new EventSpace.Ids(1, 77, List.of(501L));
+
+    /** A competition (no board) with only the general channel: easy to reason about. */
+    private static Facts generalOnly(Map<String, HeldRole> roles, Map<String, HeldChannel> held, EventSpace.Ids ids) {
+        Setting setting = new Setting(true, true, false, Map.of(Kind.STAFF, Choice.NONE, Kind.ANNOUNCEMENTS, Choice.NONE, Kind.REVIEW, Choice.NONE), Map.of());
+        return new Facts("Christmas Bingo", CompetitionTemplate.KEY, false, setting, null, null, List.of(), players(2, null), Set.of(), 0, roles, held, Map.of(), Room.UNLIMITED, READY, true, ids);
+    }
+
+    private static final Map<String, HeldRole> ROLES = Map.of("participant", new HeldRole(201, "Christmas Bingo Participant"), "organiser", new HeldRole(202, "Christmas Bingo Organiser"));
+
+    /** The overwrites the plan wants for a channel of {@code kind}, with the roles above. */
+    private static List<Overwrite> planned(Kind kind) {
+        return EventSpace.overwrites(EventSpace.access(kind, 0), who -> switch (who.who()) {
+            case EVERYONE -> List.of(1L);
+            case STAFF -> List.of(501L);
+            case ORGANISERS -> List.of(202L);
+            case PARTICIPANTS -> List.of(201L);
+            case BOT -> List.of(77L);
+            default -> List.of();
+        });
+    }
+
+    private static Map<String, HeldChannel> held(String generalName, List<Overwrite> generalOverwrites) {
+        Map<String, HeldChannel> held = new HashMap<>();
+        held.put("category", new HeldChannel(100, "Christmas Bingo", null, planned(Kind.CATEGORY)));
+        held.put("general", new HeldChannel(103, generalName, "category", generalOverwrites));
+        return held;
+    }
+
+    private static ChannelItem item(Plan plan, String key) {
+        return plan.channels().stream().filter(c -> c.key().equals(key)).findFirst().orElseThrow();
+    }
+
+    @Test
+    void whatMatchesThePlanIsKeptAndTheSetupIsComplete() {
+        Plan plan = EventSpace.plan(generalOnly(ROLES, held("christmas-bingo-general", planned(Kind.GENERAL)), IDS));
+        assertEquals(Action.KEEP, item(plan, "general").action());
+        assertEquals(Action.KEEP, item(plan, "category").action());
+        assertTrue(plan.complete(), plan.missing().toString());
+    }
+
+    @Test
+    void aRenamedChannelOrRoleIsPutBackUnderItsPlannedName() {
+        Map<String, HeldRole> renamed = Map.of("participant", new HeldRole(201, "Bingo peeps"), "organiser", new HeldRole(202, "Christmas Bingo Organiser"));
+        Plan plan = EventSpace.plan(generalOnly(renamed, held("chit-chat", planned(Kind.GENERAL)), IDS));
+        ChannelItem general = item(plan, "general");
+        assertEquals(Action.REPAIR, general.action());
+        assertEquals("christmas-bingo-general", general.name(), "the name it gets back");
+        assertTrue(general.note().contains("#chit-chat"), general.note());
+        RoleItem participant = plan.roles().stream().filter(r -> r.key().equals("participant")).findFirst().orElseThrow();
+        assertEquals(Action.REPAIR, participant.action());
+        assertEquals("Christmas Bingo Participant", participant.name());
+        assertFalse(plan.complete(), "something to put back means 'Bring them up to date' is offered");
+        assertTrue(plan.missing().contains("putting #christmas-bingo-general back"), plan.missing().toString());
+    }
+
+    @Test
+    void changedAccessIsPutBackButOnlyWhenItWasLookedAt() {
+        List<Overwrite> opened = new ArrayList<>(planned(Kind.GENERAL));
+        opened.add(new Overwrite(999, true, Permission.VIEW_CHANNEL.getRawValue(), 0)); // someone let another role in
+        Plan plan = EventSpace.plan(generalOnly(ROLES, held("christmas-bingo-general", opened), IDS));
+        assertEquals(Action.REPAIR, item(plan, "general").action());
+        assertTrue(item(plan, "general").note().contains("who can see or write"), item(plan, "general").note());
+        // without the server's ids (nothing was looked up) the access isn't judged
+        assertEquals(Action.KEEP, item(EventSpace.plan(generalOnly(ROLES, held("christmas-bingo-general", opened), null)), "general").action());
+    }
+
+    @Test
+    void aPlayersChannelKeepsWhateverItIsCalled() {
+        Map<String, HeldChannel> held = new HashMap<>();
+        held.put("category", new HeldChannel(100, "Christmas Bingo", null));
+        held.put("player:1001", new HeldChannel(301, "old-nickname", "category"));
+        Setting setting = new Setting(true, true, true, Map.of(Kind.STAFF, Choice.NONE, Kind.ANNOUNCEMENTS, Choice.NONE, Kind.GENERAL, Choice.NONE, Kind.REVIEW, Choice.NONE), Map.of());
+        Plan plan = EventSpace.plan(new Facts("Christmas Bingo", CompetitionTemplate.KEY, false, setting, null, null, List.of(), players(1, null), Set.of(), 0, ROLES, held, Map.of(), Room.UNLIMITED, READY));
+        assertEquals(Action.KEEP, item(plan, "player:1001").action());
+    }
+
+    @Test
+    void driftSetsPlannedOverwritesAndOnlyTakesOffExtrasThatLetSomeoneSee() {
+        long view = Permission.VIEW_CHANNEL.getRawValue();
+        long send = Permission.MESSAGE_SEND.getRawValue();
+        List<Overwrite> want = List.of(new Overwrite(1, true, 0, view), new Overwrite(201, true, view | send, 0));
+        List<Overwrite> have = List.of(new Overwrite(1, true, 0, view), new Overwrite(201, true, view, 0), new Overwrite(999, true, view, 0), new Overwrite(888, true, 0, send));
+        EventSpace.Drift drift = EventSpace.drift(want, have);
+        assertEquals(List.of(new Overwrite(201, true, view | send, 0)), drift.put());
+        assertEquals(List.of(999L), drift.remove(), "a deny someone added (888) is left alone");
+        assertTrue(EventSpace.drift(want, want).none());
     }
 
     @Test

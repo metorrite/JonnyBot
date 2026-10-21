@@ -155,6 +155,26 @@ public class SiteApi {
         }
     }
 
+    /** The routes a hosted clan website (website builder) may read: clan-level pages only, never one member's profile or "me". */
+    public static final java.util.Set<String> TENANT_ROUTES = java.util.Set.of("members", "overview", "leaderboard", "recap");
+
+    /**
+     * One answer for a hosted clan website, for any server (the clan site's own routes above are for the home server). Only
+     * {@link #TENANT_ROUTES}; a recap is always the clan's, never one member's. Cached per server: the key ends in {@code #g<id>}, so the
+     * home server's keys are unchanged and {@link SiteCache#invalidate} by route still clears these.
+     */
+    public DataObject tenant(Guild guild, String route, HttpExchange exchange) {
+        if (!TENANT_ROUTES.contains(route)) return null;
+        String cacheKey = route + "?" + exchange.getRequestURI().getRawQuery() + "#g" + guild.getIdLong();
+        return cache.get(cacheKey, ttlMillis(route), () -> switch (route) {
+            case "members" -> members(guild);
+            case "overview" -> overview(guild);
+            case "leaderboard" -> leaderboard(guild, query(exchange, "month"), query(exchange, "period"));
+            case "recap" -> recap.build(guild, "clan", null, query(exchange, "period"));
+            default -> null;
+        });
+    }
+
     /** How long an answer may be reused. Live things are short; heavy aggregates are longer. Writes drop their own entries early. */
     private static long ttlMillis(String route) {
         return switch (route) {

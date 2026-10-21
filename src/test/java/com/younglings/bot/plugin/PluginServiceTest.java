@@ -34,7 +34,7 @@ class PluginServiceTest {
     private final PluginRepository repository = mock(PluginRepository.class);
     private final PlayerLinkRepository links = mock(PlayerLinkRepository.class);
     private final PluginEventSink sink = mock(PluginEventSink.class);
-    private final PluginService service = new PluginService(repository, links, List.of(sink));
+    private final PluginService service = new PluginService(repository, links, List.of(sink), new PluginEnrichment(name -> java.util.Optional.empty(), () -> 10L));
 
     private static Event drop(String key) {
         return new Event(key, PluginEventType.DROP, Instant.now(), "NPC", "Telos", null, "{\"itemName\":\"X\"}");
@@ -197,5 +197,29 @@ class PluginServiceTest {
 
         assertFalse(service.authenticate(good).isEmpty());
         verify(repository, never()).touch(anyLong());
+    }
+
+    @Test
+    void anRsLinkBatchMustBeForTheLinkedNameButNeedsNoJonnyBotLink() {
+        when(links.getAccountForRsn(anyString())).thenReturn(null);
+        when(repository.consent(USER)).thenReturn(EnumSet.of(PluginCategory.DROPS));
+        when(repository.insertEvent(eq(USER), anyString(), any(), anyString())).thenReturn(true);
+
+        var wrong = service.ingestVerified(USER, "Someone Else", batch(drop("drop-0000-9")));
+        assertNotNull(wrong.forbidden());
+        verify(repository, never()).insertEvent(anyLong(), anyString(), any(), anyString());
+
+        var right = service.ingestVerified(USER, "jonny_young", batch(drop("drop-0000-9")));
+        assertEquals(null, right.forbidden());
+        assertEquals(1, right.accepted());
+        verify(repository).insertEvent(eq(USER), eq("Jonny Young"), any(), anyString());
+    }
+
+    @Test
+    void namesCompareLikeTheGameDoes() {
+        assertTrue(PluginService.sameName("Iron_Man", "iron man"));
+        assertTrue(PluginService.sameName("Iron-Man", "IRON MAN"));
+        assertFalse(PluginService.sameName("IronMan", "Iron Man"));
+        assertFalse(PluginService.sameName(null, "x"));
     }
 }

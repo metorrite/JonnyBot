@@ -207,8 +207,11 @@ public final class EventOptions {
         list.add(Option.choice("scoringMode", "Who plays", "Teams add up points per team.", Step.PLAYERS, ScoringMode.INDIVIDUAL.name(),
                 List.of(new Choice("INDIVIDUAL", "Solo players"), new Choice("TEAM", "Teams"))));
         list.add(Option.number("maxParticipants", "Most players", "0 for no limit. A full event gets a waitlist.", Step.PLAYERS, 0, 0, EventRules.MAX_PARTICIPANTS));
-        list.add(Option.choice("scope", "Who can see it", "Only your clan sees it by default.", Step.PLAYERS, Scope.PRIVATE.name(),
-                List.of(new Choice("PRIVATE", "Clan only"), new Choice("ALLIANCE", "Clan and allies"), new Choice("PUBLIC", "Everyone"))));
+        list.add(Option.choice("scope", "Who can see and join it", "Only this server by default. Open events are listed on the events hub, where anyone can find them and join after joining this Discord.", Step.PLAYERS, Scope.PRIVATE.name(),
+                List.of(new Choice("PRIVATE", "Only this server"), new Choice("ALLIANCE", "This server and its alliances"), new Choice("PUBLIC", "Open to everyone"))));
+        list.add(Option.choice("config.standings.visibility", "Who sees the standings", "Staff always see them. Players always see their own points.", Step.PLAYERS, EventStandings.DEFAULT.name(),
+                List.of(new Choice("PARTICIPANTS", "Everyone taking part"), new Choice("SERVER", "Everyone in the server"), new Choice("STAFF", "Staff only"),
+                        new Choice("HIDDEN_UNTIL_END", "Hidden until the event ends"))));
         list.add(Option.choice("config.teamPolicy", "Who may join and share a team", "Decides whether clan members, other members of this server and players from other servers may take part and play together.", Step.PLAYERS,
                 EventSettings.DEFAULT_POLICY, List.of(new Choice("everyone", "Everyone, mixed freely"), new Choice("home", "Only this server"),
                         new Choice("clanVsOutsiders", "Clan members apart from everyone else"), new Choice("separate", "Every kind on its own teams"))));
@@ -245,6 +248,8 @@ public final class EventOptions {
         list.add(Option.of("config.submissions.receipts", "Post a receipt in the player's channel", "Each submission also shows in the player's (or team's) own channel and is updated when staff decide.", Step.DISCORD, Type.BOOL, true));
         list.add(Option.of("config.submissions.remind", "Remind players who post a picture without /submit", "When a player posts a picture in their own event channel without using /submit, JonnyBot answers once an hour with how to send it properly. Needs the Message Content intent; staff and organisers are never reminded.", Step.DISCORD, Type.BOOL, false));
         list.add(Option.of("config.wrapup.lockOnFinish", "Make the channels read-only when the event ends", "Players can still read the channels after the event but not write in them.", Step.DISCORD, Type.BOOL, true));
+        list.add(Option.of("config.wrapup.unlockOnReopen", "Unlock the channels if the event is reopened", "Players can write again when a finished event is reopened.", Step.DISCORD, Type.BOOL, true)
+                .showWhen(When.is("config.wrapup.lockOnFinish", true)));
         list.add(Option.number("config.wrapup.rolesDays", "Take the event roles back after (days)", "Days after the event ends. 0 is straight away, -1 keeps them until an organiser removes them.", Step.DISCORD, 7, -1, EventWrapup.MAX_DAYS));
         list.add(Option.number("config.wrapup.channelsDays", "Deal with the channels after (days)", "Days after the event ends. -1 leaves them until an organiser archives, compresses, exports or deletes them.", Step.DISCORD, -1, -1, EventWrapup.MAX_DAYS));
         list.add(Option.choice("config.wrapup.channelsAction", "Then the channels are", "What happens when that many days have passed.", Step.DISCORD, "ARCHIVE",
@@ -333,6 +338,11 @@ public final class EventOptions {
      * day, and the start a day from now running for a week. What is still empty (a boss night's boss) is what {@link #missing} reports.
      */
     public static DataObject standard(EventTemplate template, Instant now) {
+        return standard(template, now, EventDefaults.NONE);
+    }
+
+    /** As above, with the server's own defaults ({@link EventDefaults}) laid over the built-in ones. */
+    public static DataObject standard(EventTemplate template, Instant now, EventDefaults defaults) {
         DataObject answers = DataObject.empty().put("template", template.key());
         for (Option o : of(template)) {
             if (o.standard() != null) set(answers, o.path(), o.standard());
@@ -340,6 +350,7 @@ public final class EventOptions {
         Instant starts = now.plus(Duration.ofHours(STANDARD_STARTS_IN_HOURS));
         answers.put("startsAt", starts.toString()).put("endsAt", starts.plus(Duration.ofDays(STANDARD_DAYS)).toString());
         answers.put("name", standardName(template.label(), starts));
+        (defaults == null ? EventDefaults.NONE : defaults).applyTo(answers, template);
         return answers;
     }
 
@@ -480,11 +491,16 @@ public final class EventOptions {
 
     /** The step list, the options and the standard answers for {@code template}, as the website needs them to draw the setup. */
     public static DataObject schema(EventTemplate template, Instant now) {
+        return schema(template, now, EventDefaults.NONE);
+    }
+
+    /** As above, with the server's own defaults in the standard answers. */
+    public static DataObject schema(EventTemplate template, Instant now, EventDefaults defaults) {
         DataArray steps = DataArray.empty();
         for (Step s : Step.values()) steps.add(DataObject.empty().put("key", s.name()).put("label", s.label).put("blurb", s.blurb));
         DataArray options = DataArray.empty();
         of(template).forEach(o -> options.add(o.json()));
         return DataObject.empty().put("template", template.key()).put("label", template.label()).put("description", template.description()).put("steps", steps).put("options", options)
-                .put("standard", standard(template, now)).put("startsInHours", STANDARD_STARTS_IN_HOURS).put("days", STANDARD_DAYS);
+                .put("standard", standard(template, now, defaults)).put("startsInHours", STANDARD_STARTS_IN_HOURS).put("days", STANDARD_DAYS);
     }
 }

@@ -3,6 +3,8 @@ package com.younglings.bot.internal;
 import com.younglings.bot.afk.AfkNicknames;
 import com.younglings.bot.afk.AfkRepository;
 import com.younglings.bot.afk.AfkService;
+import com.younglings.bot.fun.FunCommandSync;
+import com.younglings.bot.hub.CommandTag;
 import com.younglings.bot.hub.HubCommand;
 import com.younglings.bot.hub.HubService;
 import com.younglings.bot.hub.HubSettings;
@@ -41,13 +43,15 @@ public class HubAdminApi {
     private final HubService hub;
     private final PermissionGroupService groups;
     private final DashboardAccess access;
+    private final FunCommandSync funSync;
     private final AfkService afk;
 
-    public HubAdminApi(HubService hub, PermissionGroupService groups, DashboardAccess access, AfkService afk) {
+    public HubAdminApi(HubService hub, PermissionGroupService groups, DashboardAccess access, AfkService afk, FunCommandSync funSync) {
         this.afk = afk;
         this.hub = hub;
         this.groups = groups;
         this.access = access;
+        this.funSync = funSync;
     }
 
     DataObject get(Guild guild) {
@@ -59,7 +63,10 @@ public class HubAdminApi {
         for (PermissionGroup group : groups.groups(guild.getIdLong())) {
             choices.add(DataObject.empty().put("ref", "group:" + group.key()).put("name", group.name()).put("builtin", group.builtin()));
         }
-        return DataObject.empty().put("commands", commands).put("groups", choices).put("maxList", MAX_LIST);
+        // every tag a command can carry, in the order the filter chips show them
+        DataArray tagChoices = DataArray.empty();
+        for (CommandTag tag : CommandTag.values()) tagChoices.add(DataObject.empty().put("key", tag.key()).put("label", tag.label()));
+        return DataObject.empty().put("commands", commands).put("groups", choices).put("tags", tagChoices).put("maxList", MAX_LIST);
     }
 
     DataObject save(Guild guild, Member actor, String key, DataObject body) {
@@ -90,6 +97,8 @@ public class HubAdminApi {
         if (!problems.isEmpty()) throw new ApiError(400, "Those settings can't be saved yet.", problems);
 
         hub.save(new HubSettings(guild.getIdLong(), command.key(), enabled, customAccess, refs, channels, extras));
+        // a fun command is only registered with Discord in a server that has it on, so switching it changes that server's command list
+        if (command.registeredPerServer() && enabled != current.enabled()) funSync.sync(guild);
         for (long userId : clearAfk) {
             if (!afk.clear(guild.getIdLong(), userId)) continue;
             Member away = guild.getMemberById(userId);
@@ -185,6 +194,7 @@ public class HubAdminApi {
         DataObject json = DataObject.empty()
                 .put("key", command.key()).put("title", command.title()).put("slashName", command.slashName())
                 .put("description", command.description()).put("defaultAccess", command.defaultAccess())
+                .put("tags", DataArray.fromCollection(command.tags().stream().map(CommandTag::key).toList()))
                 .put("enabled", s.enabled()).put("customAccess", s.customAccess()).put("allowedRefs", refs).put("channelIds", channels);
         if (command == HubCommand.SIGNUP) {
             HubService.SignupPolicy p = hub.signupPolicy(guildId);

@@ -1,5 +1,8 @@
 package com.younglings.bot.automod;
 
+import com.younglings.bot.moderation.ModAction;
+import com.younglings.bot.moderation.ModCase;
+import com.younglings.bot.moderation.ModService;
 import com.younglings.bot.BotListener;
 import com.younglings.bot.automod.AutomodRepository.Config;
 import com.younglings.bot.automod.AutomodRules.Rule;
@@ -36,10 +39,12 @@ public class AutomodListener extends ListenerAdapter implements BotListener {
     private final WarningRepository warnings;
     private final AutopunishService autopunish;
     private final PhishingList phishing;
+    private final ModService mod;
     private final Map<String, AutomodRules.History> histories = new ConcurrentHashMap<>();
     private int seen;
 
-    public AutomodListener(AutomodRepository repository, WarningRepository warnings, AutopunishService autopunish, PhishingList phishing) {
+    public AutomodListener(AutomodRepository repository, WarningRepository warnings, AutopunishService autopunish, PhishingList phishing, ModService mod) {
+        this.mod = mod;
         this.repository = repository;
         this.phishing = phishing;
         this.warnings = warnings;
@@ -99,6 +104,8 @@ public class AutomodListener extends ListenerAdapter implements BotListener {
         long guildId = event.getGuild().getIdLong();
         warnings.add(guildId, member.getIdLong(), event.getJDA().getSelfUser().getIdLong(), "Automod: " + rule.label());
         int total = warnings.countFor(guildId, member.getIdLong());
+        mod.recordOnly(event.getGuild(), member.getIdLong(), member.getUser().getName(), event.getJDA().getSelfUser().getIdLong(), event.getGuild().getSelfMember().getEffectiveName(),
+                ModAction.WARN, "Automod: " + rule.label(), null, ModCase.AUTOMOD);
         member.getUser().openPrivateChannel()
                 .flatMap(dm -> dm.sendMessage("You have been warned in **" + event.getGuild().getName() + "** by automod for " + rule.reason() + "."))
                 .queue(ok -> {}, error -> {});
