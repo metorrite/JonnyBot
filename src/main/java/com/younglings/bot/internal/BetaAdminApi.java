@@ -15,8 +15,8 @@ import org.slf4j.LoggerFactory;
 import java.util.function.Supplier;
 
 /**
- * The list of trusted servers whose admin team may use JonnyBot's website while it is closed to the public. Anyone who may open
- * the clan's dashboard can read it; changing it is for the bot's owner, because it decides who gets in. Reached only through
+ * The list of trusted servers whose admin team may use JonnyBot's website while it is closed to the public. Reading and changing it is
+ * for the bot's owner, because it decides who gets in. Reached only through
  * {@link TicketAdminApi}, which has already checked the asker and audit-logs every change.
  */
 @BService
@@ -50,13 +50,17 @@ public class BetaAdminApi implements AdminRouteExtension {
     }
 
     DataObject list(Guild guild, Member actor) {
+        boolean owner = owners.isOwner(guild.getJDA(), actor.getIdLong());
         DataArray guilds = DataArray.empty();
-        for (var beta : repository.all()) {
-            Guild known = guild.getJDA().getGuildById(beta.guildId());
-            guilds.add(DataObject.empty().put("guildId", Long.toString(beta.guildId())).put("label", beta.label())
-                    .put("botPresent", known != null).put("name", known == null ? null : known.getName()));
+        // The list names other servers, so only the owner sees it (like the premium list); anyone else gets it empty.
+        if (owner) {
+            for (var beta : repository.all()) {
+                Guild known = guild.getJDA().getGuildById(beta.guildId());
+                guilds.add(DataObject.empty().put("guildId", Long.toString(beta.guildId())).put("label", beta.label())
+                        .put("botPresent", known != null).put("name", known == null ? null : known.getName()));
+            }
         }
-        return DataObject.empty().put("guilds", guilds).put("canEdit", owners.isOwner(guild.getJDA(), actor.getIdLong()));
+        return DataObject.empty().put("guilds", guilds).put("canEdit", owner);
     }
 
     DataObject save(Guild guild, Member actor, String rawId, DataObject body) {
