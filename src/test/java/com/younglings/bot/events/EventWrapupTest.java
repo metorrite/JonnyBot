@@ -184,4 +184,35 @@ class EventWrapupTest {
         assertEquals("channel", EventWrapup.safeName(null));
         assertTrue(EventWrapup.safeName("x".repeat(200)).length() <= 60);
     }
+
+    // ---------- T-212: unlocking a reopened event, and the spreadsheet files ----------
+
+    @Test
+    void unlockOnReopenIsOnUnlessSwitchedOffAndSurvivesSaving() {
+        assertTrue(Setting.DEFAULT.unlockOnReopen());
+        assertTrue(EventWrapup.parse(DataObject.fromJson("{\"wrapup\":{\"lockOnFinish\":true}}")).unlockOnReopen(), "older settings without it are on");
+        Setting off = EventWrapup.parse(DataObject.fromJson("{\"wrapup\":{\"unlockOnReopen\":false}}"));
+        assertFalse(off.unlockOnReopen());
+        assertFalse(EventWrapup.parse(DataObject.empty().put("wrapup", EventWrapup.toJson(off))).unlockOnReopen());
+        assertFalse(EventWrapup.problems(DataObject.fromJson("{\"wrapup\":{\"unlockOnReopen\":\"yes\"}}")).isEmpty());
+    }
+
+    @Test
+    void onlyLockedChannelsOfAReopenedEventAreUnlocked() {
+        State locked = new State(END, END.plusSeconds(60), null, null);
+        State notLocked = new State(END, null, null, null);
+        assertTrue(EventWrapup.unlocksOnReopen(Setting.DEFAULT, EventRules.Status.RUNNING, locked));
+        assertTrue(EventWrapup.unlocksOnReopen(Setting.DEFAULT, EventRules.Status.SCORING, locked));
+        assertFalse(EventWrapup.unlocksOnReopen(Setting.DEFAULT, EventRules.Status.DONE, locked), "still over");
+        assertFalse(EventWrapup.unlocksOnReopen(Setting.DEFAULT, EventRules.Status.RUNNING, notLocked), "nothing was locked");
+        assertFalse(EventWrapup.unlocksOnReopen(new Setting(true, 7, -1, ChannelsAction.ARCHIVE, null, false), EventRules.Status.RUNNING, locked), "switched off");
+    }
+
+    @Test
+    void csvQuotesWhatNeedsItAndDefusesFormulas() {
+        String csv = EventWrapup.csv(List.of("name", "note"), List.of(List.of("Zezima", "plain"), List.of("Smith, John", "said \"hi\""), List.of("=HYPERLINK(1)", "-5"), List.of("two\nlines", "")));
+        assertEquals("name,note\r\nZezima,plain\r\n\"Smith, John\",\"said \"\"hi\"\"\"\r\n'=HYPERLINK(1),-5\r\n\"two\nlines\",\r\n", csv);
+        assertEquals("", EventWrapup.cell(null));
+        assertEquals("'@everyone", EventWrapup.cell("@everyone"));
+    }
 }
