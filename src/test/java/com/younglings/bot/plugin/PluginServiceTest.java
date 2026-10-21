@@ -34,7 +34,7 @@ class PluginServiceTest {
     private final PluginRepository repository = mock(PluginRepository.class);
     private final PlayerLinkRepository links = mock(PlayerLinkRepository.class);
     private final PluginEventSink sink = mock(PluginEventSink.class);
-    private final PluginService service = new PluginService(repository, links, List.of(sink));
+    private final PluginService service = new PluginService(repository, links, List.of(sink), new PluginEnrichment(name -> java.util.Optional.empty(), () -> 10L));
 
     private static Event drop(String key) {
         return new Event(key, PluginEventType.DROP, Instant.now(), "NPC", "Telos", null, "{\"itemName\":\"X\"}");

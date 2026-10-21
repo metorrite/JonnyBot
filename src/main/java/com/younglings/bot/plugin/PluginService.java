@@ -42,9 +42,11 @@ public class PluginService {
     private final PluginRepository repository;
     private final PlayerLinkRepository links;
     private final List<PluginEventSink> sinks;
+    private final PluginEnrichment enrichment;
     private final SecureRandom random = new SecureRandom();
 
-    public PluginService(PluginRepository repository, PlayerLinkRepository links, List<PluginEventSink> sinks) {
+    public PluginService(PluginRepository repository, PlayerLinkRepository links, List<PluginEventSink> sinks, PluginEnrichment enrichment) {
+        this.enrichment = enrichment;
         this.repository = repository;
         this.links = links;
         this.sinks = List.copyOf(sinks);
@@ -119,10 +121,12 @@ public class PluginService {
         int duplicates = 0;
         List<PluginPayload.Event> stored = new ArrayList<>();
         List<Reject> rejected = new ArrayList<>(batch.rejects());
-        for (PluginPayload.Event event : batch.events()) {
+        PluginEnrichment.Budget priceLookups = enrichment.budget();
+        for (PluginPayload.Event original : batch.events()) {
+            PluginPayload.Event event = original;
             if (!consented.contains(event.type().category())) {
                 rejected.add(new Reject(event.key(), "not_consented: the player has not allowed " + event.type().category().name()));
-            } else if (repository.insertEvent(userId, account.rsn(), event, batch.client())) {
+            } else if (repository.insertEvent(userId, account.rsn(), event = enrichment.enrich(event, priceLookups), batch.client())) {
                 accepted++;
                 stored.add(event);
             } else {
