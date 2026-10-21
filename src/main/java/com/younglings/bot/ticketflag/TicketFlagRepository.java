@@ -40,7 +40,7 @@ public class TicketFlagRepository {
                 );
                 """,
                 """
-                CREATE TABLE IF NOT EXISTS younglings.ticket_flag (
+                CREATE TABLE IF NOT EXISTS younglings.ticket_experience_flag (
                     id BIGSERIAL PRIMARY KEY,
                     guild_id BIGINT NOT NULL,
                     ticket_id BIGINT NOT NULL,
@@ -51,7 +51,7 @@ public class TicketFlagRepository {
                     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 );
                 """,
-                "CREATE INDEX IF NOT EXISTS ticket_flag_guild_idx ON younglings.ticket_flag (guild_id, player_id);"));
+                "CREATE INDEX IF NOT EXISTS ticket_experience_flag_guild_idx ON younglings.ticket_experience_flag (guild_id, player_id);"));
     }
 
     public boolean enabled(long guildId) {
@@ -80,7 +80,7 @@ public class TicketFlagRepository {
     }
 
     public long add(long guildId, long ticketId, int ticketNumber, long playerId, long flaggedBy, String note) {
-        String sql = "INSERT INTO younglings.ticket_flag (guild_id, ticket_id, ticket_number, player_id, flagged_by, note) VALUES (?, ?, ?, ?, ?, ?)";
+        String sql = "INSERT INTO younglings.ticket_experience_flag (guild_id, ticket_id, ticket_number, player_id, flagged_by, note) VALUES (?, ?, ?, ?, ?, ?)";
         try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             s.setLong(1, guildId);
             s.setLong(2, ticketId);
@@ -101,7 +101,7 @@ public class TicketFlagRepository {
 
     /** Newest first; {@code playerId} narrows it to one player. */
     public List<Flag> list(long guildId, Long playerId, int limit) {
-        String sql = "SELECT " + COLUMNS + " FROM younglings.ticket_flag WHERE guild_id = ?" + (playerId == null ? "" : " AND player_id = ?")
+        String sql = "SELECT " + COLUMNS + " FROM younglings.ticket_experience_flag WHERE guild_id = ?" + (playerId == null ? "" : " AND player_id = ?")
                 + " ORDER BY created_at DESC, id DESC LIMIT ?";
         try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
             int i = 1;
@@ -123,7 +123,7 @@ public class TicketFlagRepository {
     }
 
     public int count(long guildId) {
-        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("SELECT COUNT(*) FROM younglings.ticket_flag WHERE guild_id = ?")) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("SELECT COUNT(*) FROM younglings.ticket_experience_flag WHERE guild_id = ?")) {
             s.setLong(1, guildId);
             try (ResultSet rs = s.executeQuery()) {
                 return rs.next() ? rs.getInt(1) : 0;
@@ -135,7 +135,7 @@ public class TicketFlagRepository {
 
     /** True if a flag of this guild was removed. */
     public boolean delete(long guildId, long id) {
-        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("DELETE FROM younglings.ticket_flag WHERE guild_id = ? AND id = ?")) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("DELETE FROM younglings.ticket_experience_flag WHERE guild_id = ? AND id = ?")) {
             s.setLong(1, guildId);
             s.setLong(2, id);
             return s.executeUpdate() > 0;
