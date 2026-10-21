@@ -18,4 +18,9 @@ public record HubSettings(long guildId, String commandKey, boolean enabled, bool
     public static HubSettings defaults(long guildId, String commandKey) {
         return new HubSettings(guildId, commandKey, true, false, List.of(), List.of(), "{}");
     }
+
+    /** The settings of a server that has saved nothing: on, except for a command that is off by default (the fun commands). */
+    public static HubSettings defaults(long guildId, HubCommand command) {
+        return new HubSettings(guildId, command.key(), command.defaultEnabled(), false, List.of(), List.of(), "{}");
+    }
 }
