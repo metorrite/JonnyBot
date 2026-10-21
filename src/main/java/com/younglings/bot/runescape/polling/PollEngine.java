@@ -96,6 +96,7 @@ public final class PollEngine {
     private final AtomicLong rateLimited = new AtomicLong();
     private final AtomicLong gaveUp = new AtomicLong();
     private final AtomicLong failed = new AtomicLong();
+    private final PollTally tally = new PollTally();
 
     public PollEngine(ProfilePoller poller, FreshnessSource freshness, RateBucket bucket, LongSupplier clock) {
         this.poller = poller;
@@ -268,6 +269,7 @@ public final class PollEngine {
             lock.unlock();
         }
         reusedRecent.incrementAndGet();
+        tally.record(item.priority, PollTally.Kind.REUSED);
         log.debug("Skipped polling '{}' ({}): polled {}s ago, within the {}s this request allows.",
                 item.rsn, item.source, (now - lastPolled) / 1000, item.maxAgeMs / 1000);
         waiters.forEach(waiter -> waiter.complete(PollOutcome.reused()));
@@ -312,8 +314,10 @@ public final class PollEngine {
             long now = clock.getAsLong();
             bucket.recordResult(wasRateLimited);
 
+            tally.record(item.priority, PollTally.Kind.SENT);
             if (wasRateLimited) {
                 rateLimited.incrementAndGet();
+                tally.record(item.priority, PollTally.Kind.RATE_LIMITED);
                 int limit = item.priority == PollPriority.INTERACTIVE ? INTERACTIVE_MAX_ATTEMPTS : MAX_ATTEMPTS;
                 if (item.attempts < limit) {
                     inFlight.remove(item.key);
@@ -326,9 +330,11 @@ public final class PollEngine {
                     return;
                 }
                 gaveUp.incrementAndGet();
+                tally.record(item.priority, PollTally.Kind.GAVE_UP);
                 outcome = PollOutcome.rateLimited(result, item.attempts);
             } else if (threw) {
                 failed.incrementAndGet();
+                tally.record(item.priority, PollTally.Kind.FAILED);
                 outcome = PollOutcome.failed(item.attempts);
             } else {
                 polled.incrementAndGet();
@@ -365,6 +371,27 @@ public final class PollEngine {
     }
 
     // ---------------------------------------------------------------- status
+
+    /** The day's request counters per tier. */
+    public PollTally tally() {
+        return tally;
+    }
+
+    /** How long the longest-waiting due request of each tier has been waiting (millis); a tier with nothing due is absent. */
+    public Map<PollPriority, Long> oldestWaitingByPriority() {
+        lock.lock();
+        try {
+            long now = clock.getAsLong();
+            Map<PollPriority, Long> oldest = new EnumMap<>(PollPriority.class);
+            for (PollQueue.Item item : queue.all()) {
+                Long queuedAt = enqueuedAt.get(item.key);
+                if (queuedAt != null && item.notBeforeMs <= now) oldest.merge(item.priority, now - Math.max(queuedAt, item.notBeforeMs), Math::max);
+            }
+            return oldest;
+        } finally {
+            lock.unlock();
+        }
+    }
 
     public Status status() {
         lock.lock();
