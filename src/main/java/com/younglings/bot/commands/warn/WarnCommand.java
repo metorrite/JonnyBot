@@ -1,5 +1,8 @@
 package com.younglings.bot.commands.warn;
 
+import com.younglings.bot.moderation.ModAction;
+import com.younglings.bot.moderation.ModCase;
+import com.younglings.bot.moderation.ModService;
 import com.younglings.bot.discord.Containers;
 import com.younglings.bot.warning.AutopunishService;
 import com.younglings.bot.warning.WarnPolicy;
@@ -23,8 +26,10 @@ import java.util.List;
 public class WarnCommand {
     private final WarningRepository repository;
     private final AutopunishService autopunish;
+    private final ModService mod;
 
-    public WarnCommand(WarningRepository repository, AutopunishService autopunish) {
+    public WarnCommand(WarningRepository repository, AutopunishService autopunish, ModService mod) {
+        this.mod = mod;
         this.repository = repository;
         this.autopunish = autopunish;
     }
@@ -45,6 +50,7 @@ public class WarnCommand {
         long guildId = event.getGuild().getIdLong();
         long id = repository.add(guildId, member.getIdLong(), event.getUser().getIdLong(), text);
         int total = repository.countFor(guildId, member.getIdLong());
+        mod.recordOnly(event.getGuild(), member.getIdLong(), member.getUser().getName(), event.getUser().getIdLong(), moderator.getEffectiveName(), ModAction.WARN, text, null, ModCase.WARN);
         member.getUser().openPrivateChannel()
                 .flatMap(channel -> channel.sendMessage("You have been warned in **" + event.getGuild().getName() + "**: " + text))
                 .queue(ok -> {}, error -> {});

@@ -76,7 +76,17 @@ public enum HubCommand {
     CHOOSE("choose", "Choose", "choose", "Pick one from a list of options a member types in.", "Everyone", false, CommandTag.FUN, CommandTag.UTILITY, CommandTag.MEMBER_USE),
     DAD_JOKE("dadjoke", "Dad joke", "dadjoke", "Tell a dad joke (from a free public joke service).", "Everyone", false, CommandTag.FUN, CommandTag.MEMBER_USE),
     CAT("cat", "Cat picture", "cat", "A random cat picture (from a free public picture service).", "Everyone", false, CommandTag.FUN, CommandTag.MEMBER_USE),
-    DOG("dog", "Dog picture", "dog", "A random dog picture (from a free public picture service).", "Everyone", false, CommandTag.FUN, CommandTag.MEMBER_USE);
+    DOG("dog", "Dog picture", "dog", "A random dog picture (from a free public picture service).", "Everyone", false, CommandTag.FUN, CommandTag.MEMBER_USE),
+    // Moderation: the commands that ban, kick or time someone out are OFF until a server switches them on, and admin-only until it widens that
+    // to a moderator group on the Commands page. The two case lookups are read-only and start on (still admin-only).
+    BAN("ban", "Ban", "ban", "Ban a member, or someone who has left, with a reason and a numbered case.", "Admins only", true, CommandTag.MODERATION, CommandTag.ADMIN),
+    UNBAN("unban", "Unban", "unban", "Lift a ban, with a reason and a numbered case.", "Admins only", true, CommandTag.MODERATION, CommandTag.ADMIN),
+    KICK("kick", "Kick", "kick", "Kick a member, with a reason and a numbered case.", "Admins only", true, CommandTag.MODERATION, CommandTag.ADMIN),
+    TIMEOUT("timeout", "Timeout", "timeout", "Time a member out (mute) for up to 28 days, with a reason and a numbered case.", "Admins only", true, CommandTag.MODERATION, CommandTag.ADMIN),
+    UNTIMEOUT("untimeout", "Remove timeout", "untimeout", "Remove a member's timeout early.", "Admins only", true, CommandTag.MODERATION, CommandTag.ADMIN),
+    SOFTBAN("softban", "Softban", "softban", "Ban and at once unban, to clear a member's last day of messages.", "Admins only", true, CommandTag.MODERATION, CommandTag.ADMIN),
+    CASE("case", "Case lookup", "case", "Show or edit one moderation case by its number.", "Admins only", true, CommandTag.MODERATION, CommandTag.ADMIN),
+    MODLOGS("modlogs", "Moderation history", "modlogs", "A member's moderation cases, newest first.", "Admins only", true, CommandTag.MODERATION, CommandTag.ADMIN);
 
     private final String key;
     private final String title;
@@ -120,9 +130,14 @@ public enum HubCommand {
         return adminByDefault;
     }
 
-    /** Whether a server has it switched on before anyone has touched the settings: everything but the fun commands. */
+    /** Whether a server has it switched on before anyone has touched the settings: everything except the fun commands and the ones that ban, kick or time out. */
     public boolean defaultEnabled() {
-        return !tags.contains(CommandTag.FUN);
+        return !tags.contains(CommandTag.FUN) && !punishes();
+    }
+
+    /** True for the commands that do something irreversible or disruptive to a member: ban, unban, kick, timeout, untimeout, softban. */
+    public boolean punishes() {
+        return this == BAN || this == UNBAN || this == KICK || this == TIMEOUT || this == UNTIMEOUT || this == SOFTBAN;
     }
 
     /** True for the commands registered with Discord per server (only where switched on), instead of globally: the fun ones. */
