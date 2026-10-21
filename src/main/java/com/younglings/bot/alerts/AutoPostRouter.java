@@ -1,0 +1,104 @@
+package com.younglings.bot.alerts;
+
+import com.younglings.bot.config.BotConfig;
+import com.younglings.bot.tracking.TrackingPostingToggle;
+import io.github.freya022.botcommands.api.core.annotations.BEventListener;
+import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
+import io.github.freya022.botcommands.api.core.service.annotations.BService;
+import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.function.BooleanSupplier;
+
+/**
+ * The one switch for the bot's own, unprompted posts. The live bot posts them where each server chose. Any other copy of the bot (a development
+ * bot sitting in the real server on a stale copy of the database) would post stale or wrong alerts next to the live bot's correct ones, ping the admin
+ * role, and DM real players. So when the bot is not live (and posting has not been turned on deliberately with {@code /dev toggleposting}):
+ * <ul>
+ *     <li>an alert that is only a message ({@link #route}) goes to the channel named by {@code DEV_ALERT_CHANNEL_ID}, or is only logged when that is
+ *     not set, and never pings anybody ({@link #noPings});</li>
+ *     <li>anything tied to stored state or a person (a post the bot later edits, a DM) is skipped and logged ({@link #skip}).</li>
+ * </ul>
+ * What somebody runs on purpose (a command, a button, a dashboard action) never goes through here and replies where it was run. Sites reach this
+ * through the static methods so the many posters need no new constructor arguments; with no router built (a unit test) everything passes through.
+ */
+@BService
+public class AutoPostRouter {
+    private static final Logger log = LoggerFactory.getLogger(AutoPostRouter.class);
+    private static volatile AutoPostRouter instance;
+
+    private final BooleanSupplier diverting;
+    private final Long devChannelId;
+
+    public AutoPostRouter(BotConfig config, TrackingPostingToggle posting) {
+        this(() -> !posting.isEnabled(), config.getDevAlertChannelId());
+        log.info("Automatic posts are {}{}.", diverting.getAsBoolean() ? "DIVERTED (this bot is not live): " : "posted normally",
+                diverting.getAsBoolean() ? devChannelId == null ? "logged only, DEV_ALERT_CHANNEL_ID is not set" : "sent to channel " + devChannelId + " without pings" : "");
+    }
+
+    /** Having an event listener is what makes the framework build this service at startup, so the switch is in place before any poster runs. */
+    @BEventListener
+    public void onJdaReady(InjectedJDAEvent event) {
+        log.debug("Automatic post routing is active (diverting: {}).", diverting.getAsBoolean());
+    }
+
+    /** For tests and the constructor above. */
+    AutoPostRouter(BooleanSupplier diverting, Long devChannelId) {
+        this.diverting = diverting;
+        this.devChannelId = devChannelId;
+        instance = this;
+    }
+
+    /** Forgets the router (tests). */
+    public static void reset() {
+        instance = null;
+    }
+
+    /** Whether the bot's automatic posts are being kept out of the servers' channels right now. */
+    public static boolean diverting() {
+        AutoPostRouter router = instance;
+        return router != null && router.diverting.getAsBoolean();
+    }
+
+    /** The configured dev channel id, or null. */
+    public static Long devChannelId() {
+        AutoPostRouter router = instance;
+        return router == null ? null : router.devChannelId;
+    }
+
+    /**
+     * Where a stateless alert should go: {@code target} when posting normally, otherwise the dev channel, or null (and a log line) when there is none.
+     * Callers send nothing when this is null, and use {@link #noPings} when it is not the configured channel.
+     */
+    public static GuildMessageChannel route(GuildMessageChannel target, String what) {
+        AutoPostRouter router = instance;
+        if (router == null || !router.diverting.getAsBoolean() || target == null) return target;
+        Long dev = router.devChannelId;
+        GuildMessageChannel devChannel = dev == null ? null : target.getJDA().getChannelById(GuildMessageChannel.class, dev);
+        if (devChannel == null) {
+            log.info("[dev, not posted] {} would have gone to #{} ({}).", what, target.getName(), target.getId());
+            return null;
+        }
+        log.debug("[dev] {} diverted from #{} to #{}.", what, target.getName(), devChannel.getName());
+        return devChannel;
+    }
+
+    /** True while automatic posts are diverted, for what must simply not happen from a non-live bot (DMs, posts the bot keeps track of). Logs what was skipped. */
+    public static boolean skip(String what) {
+        if (!diverting()) return false;
+        log.info("[dev, skipped] {}.", what);
+        return true;
+    }
+
+    /** True while diverted: the post must not ping a role, everyone or anybody. */
+    public static boolean noPings() {
+        return diverting();
+    }
+
+    /** Text with its pings switched off: {@code <@&role>}, {@code <@user>}, {@code @everyone} and {@code @here} become plain words. Only while diverted. */
+    public static String defang(String text) {
+        if (text == null || !diverting()) return text;
+        return text.replaceAll("<@[&!]?(\\d+)>", "<$1>").replace("@everyone", "everyone").replace("@here", "here");
+    }
+}

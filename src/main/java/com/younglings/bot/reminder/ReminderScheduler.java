@@ -1,5 +1,6 @@
 package com.younglings.bot.reminder;
 
+import com.younglings.bot.alerts.AutoPostRouter;
 import com.younglings.bot.reminder.ReminderRepository.Reminder;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
@@ -60,6 +61,7 @@ public class ReminderScheduler {
     }
 
     private void deliver(JDA jda, Reminder reminder) {
+        if (AutoPostRouter.skip("a personal reminder")) return;
         jda.retrieveUserById(reminder.userId()).queue(user -> user.openPrivateChannel()
                         .flatMap(dm -> dm.sendMessage(message(reminder, false)))
                         .queue(sent -> {}, error -> fallback(jda, reminder)),

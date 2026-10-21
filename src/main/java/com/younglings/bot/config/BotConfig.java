@@ -48,6 +48,17 @@ public class BotConfig {
         return Boolean.parseBoolean(isLive);
     }
 
+    /**
+     * The channel a bot that is not live sends its automatic alerts to instead of the servers' own channels ({@code DEV_ALERT_CHANNEL_ID}); null when
+     * unset, in which case they are only logged. See {@code AutoPostRouter}.
+     */
+    public Long getDevAlertChannelId() {
+        String raw = System.getenv("DEV_ALERT_CHANNEL_ID");
+        if (raw == null || raw.isBlank()) raw = dotenv.get("DEV_ALERT_CHANNEL_ID");
+        if (raw == null || !raw.strip().matches("\\d{15,20}")) return null;
+        return Long.parseLong(raw.strip());
+    }
+
     public String getToken() {
         String token = System.getenv("DISCORD_TOKEN");
 

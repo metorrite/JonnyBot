@@ -1,5 +1,6 @@
 package com.younglings.bot.eventannounce;
 
+import com.younglings.bot.alerts.AutoPostRouter;
 import com.younglings.bot.eventannounce.EventAnnounceRepository.Tracked;
 import com.younglings.bot.eventannounce.EventAnnounceRules.Card;
 import com.younglings.bot.eventannounce.EventAnnounceRules.Settings;
@@ -96,6 +97,7 @@ public class EventAnnounceService {
     }
 
     private void guarded(String what, ScheduledEvent event, Runnable work) {
+        if (AutoPostRouter.diverting()) return; // announcements are tracked and edited later: a bot that is not live makes none
         try {
             work.run();
         } catch (RuntimeException e) {
@@ -194,6 +196,7 @@ public class EventAnnounceService {
 
     /** Catches events that ended, were cancelled or were deleted while the bot was off, and any role left behind. */
     void sweep() {
+        if (AutoPostRouter.diverting()) return;
         try {
             JDA jda = this.jda;
             if (jda == null) return;

@@ -1,5 +1,6 @@
 package com.younglings.bot.twitch;
 
+import com.younglings.bot.alerts.AutoPostRouter;
 import com.younglings.bot.twitch.TwitchClient.Stream;
 import com.younglings.bot.twitch.TwitchRepository.Settings;
 import com.younglings.bot.twitch.TwitchRepository.Streamer;
@@ -71,6 +72,7 @@ public class TwitchService {
     }
 
     void poll(JDA jda) {
+        if (AutoPostRouter.diverting()) return; // go-live posts are tracked in the database and edited later: a bot that is not live makes none
         try {
             List<Streamer> streamers = repository.active();
             if (streamers.isEmpty()) return;
