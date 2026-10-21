@@ -18,6 +18,8 @@ import com.younglings.bot.clanprofile.ClanProfileService;
 import com.younglings.bot.clanprofile.ProfileRules;
 import com.younglings.bot.clanprofile.PublicEvents;
 import com.younglings.bot.clanprofile.PublicEvents.EventInfo;
+import com.younglings.bot.clansite.ClanSite;
+import com.younglings.bot.clansite.ClanSiteService;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.Guild;
@@ -52,6 +54,7 @@ import java.util.Optional;
  *   <li>{@code GET hub-events?viewer=} and {@code GET hub-events/{id}?viewer=}: the events hub's engine events ({@link HubEventsApi})</li>
  *   <li>{@code POST hub-events/{id}/join} {@code {userId}}: join one as the signed-in person (the website says who; T-217)</li>
  *   <li>{@code GET leaderboards?period=week|month}: clans that opted in, ranked by XP their members gained</li>
+ *   <li>{@code GET sites/{slug}}: a clan's website from the builder (look and pages), only while it is published and its server is in the beta</li>
  * </ul>
  */
 @BService
@@ -72,18 +75,20 @@ public class DirectoryApi {
     private final SiteStatsRepository stats;
     private final AllianceRepository alliances;
     private final SiteSwitchAdminApi siteSwitches;
+    private final ClanSiteService sites;
     private final TtlCache cache = new TtlCache();
 
     private final HubEventsApi hubEvents;
 
     public DirectoryApi(ClanProfileRepository repository, ClanProfileService service, SiteStatsRepository stats, AllianceRepository alliances, SiteSwitchAdminApi siteSwitches,
-                        HubEventsApi hubEvents) {
+                        HubEventsApi hubEvents, ClanSiteService sites) {
         this.siteSwitches = siteSwitches;
         this.hubEvents = hubEvents;
         this.repository = repository;
         this.service = service;
         this.stats = stats;
         this.alliances = alliances;
+        this.sites = sites;
     }
 
     /** Called after the shared secret has been checked. */
@@ -132,7 +137,7 @@ public class DirectoryApi {
             }
             HubEventsApi.Answer answer = hubEvents.join(jda, parts[1], body.getString("userId", ""));
             send(exchange, answer.status(), answer.body());
-        } else if (head.equals("alliances") && parts.length == 2 && parts[1].matches("\d{1,18}")) {
+        } else if (head.equals("alliances") && parts.length == 2 && parts[1].matches("\\d{1,18}")) {
             if (!get(exchange, method)) return;
             DataObject page = alliancePage(Long.parseLong(parts[1]));
             if (page == null) send(exchange, 404, DataObject.empty().put("error", "No such alliance"));
@@ -146,6 +151,15 @@ public class DirectoryApi {
             DataObject answer = parts.length == 1 ? hubEvents.list(jda, viewer) : parts.length == 2 ? hubEvents.one(jda, parts[1], viewer) : null;
             if (answer == null) send(exchange, 404, DataObject.empty().put("error", "No such event"));
             else send(exchange, 200, answer);
+        } else if (head.equals("sites") && parts.length == 2) {
+            if (!get(exchange, method)) return;
+            Optional<ClanProfile> profile = viewable(parts[1]);
+            Optional<ClanSite> site = profile.flatMap(p -> sites.visible(p.guildId()));
+            if (site.isEmpty()) {
+                send(exchange, 404, DataObject.empty().put("error", "No such site"));
+                return;
+            }
+            send(exchange, 200, siteJson(profile.get(), site.get()));
         } else if (head.equals("events") && parts.length == 1) {
             if (!get(exchange, method)) return;
             send(exchange, 200, cache.get("events", LIST_TTL_MILLIS, () -> allEvents(jda)));
@@ -266,6 +280,31 @@ public class DirectoryApi {
             });
         }
         return clans.length() < 2 ? null : DataObject.empty().put("id", Long.toString(id)).put("name", alliance.get().name()).put("clans", clans);
+    }
+
+    // ---------- clan websites ----------
+
+    /** The public side of a clan's website: its clan (as the directory shows it), its look and its pages. Never a Discord id. */
+    private DataObject siteJson(ClanProfile p, ClanSite site) {
+        return DataObject.empty().put("slug", p.slug()).put("clan", publicJson(p, true)).put("template", site.template().name())
+                .put("theme", jsonObject(site.theme())).put("pages", jsonArray(site.pages()))
+                .put("publishedAt", site.publishedAt() == null ? null : site.publishedAt().toString());
+    }
+
+    private static DataObject jsonObject(String raw) {
+        try {
+            return DataObject.fromJson(raw == null || raw.isBlank() ? "{}" : raw);
+        } catch (RuntimeException e) {
+            return DataObject.empty();
+        }
+    }
+
+    private static DataArray jsonArray(String raw) {
+        try {
+            return DataArray.fromJson(raw == null || raw.isBlank() ? "[]" : raw);
+        } catch (RuntimeException e) {
+            return DataArray.empty();
+        }
     }
 
     // ---------- events ----------
