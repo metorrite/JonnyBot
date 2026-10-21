@@ -48,6 +48,7 @@ import java.util.Optional;
  *   <li>{@code GET alliances/{id}}: an alliance, naming only the clans that chose to show their alliances (404 unless at least two did)</li>
  *   <li>{@code POST clans/{slug}/report} {@code {reason, reporter?}}: report a listing for the bot's owner to review</li>
  *   <li>{@code GET events}: shared upcoming events of every listed clan, soonest first</li>
+ *   <li>{@code GET site-switches}: whether the owner has opened the JonnyBot website, the hub and the dashboard (the website gates read it)</li>
  *   <li>{@code GET leaderboards?period=week|month}: clans that opted in, ranked by XP their members gained</li>
  * </ul>
  */
@@ -68,9 +69,11 @@ public class DirectoryApi {
     private final ClanProfileService service;
     private final SiteStatsRepository stats;
     private final AllianceRepository alliances;
+    private final SiteSwitchAdminApi siteSwitches;
     private final TtlCache cache = new TtlCache();
 
-    public DirectoryApi(ClanProfileRepository repository, ClanProfileService service, SiteStatsRepository stats, AllianceRepository alliances) {
+    public DirectoryApi(ClanProfileRepository repository, ClanProfileService service, SiteStatsRepository stats, AllianceRepository alliances, SiteSwitchAdminApi siteSwitches) {
+        this.siteSwitches = siteSwitches;
         this.repository = repository;
         this.service = service;
         this.stats = stats;
@@ -114,6 +117,9 @@ public class DirectoryApi {
             DataObject page = alliancePage(Long.parseLong(parts[1]));
             if (page == null) send(exchange, 404, DataObject.empty().put("error", "No such alliance"));
             else send(exchange, 200, page);
+        } else if (head.equals("site-switches") && parts.length == 1) {
+            if (!get(exchange, method)) return;
+            send(exchange, 200, siteSwitches.states());
         } else if (head.equals("events") && parts.length == 1) {
             if (!get(exchange, method)) return;
             send(exchange, 200, cache.get("events", LIST_TTL_MILLIS, () -> allEvents(jda)));
