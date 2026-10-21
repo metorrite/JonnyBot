@@ -193,22 +193,24 @@ public class PluginApi {
      * <ul>
      *   <li>{@code GET runesync/config?client=RuneSync%200.1.0&paused=false}: consent, panelAvailable, minClientVersion, sendEverySeconds. The
      *       optional {@code client} and {@code paused} only feed the profile's device card.</li>
-     *   <li>{@code PUT runesync/consent} {@code {"categories": ["XP", ...]}}: the in-game toggles, written to the same record as the profile.</li>
+     *   <li>{@code POST} (or {@code PUT}) {@code runesync/consent} {@code {"categories": ["XP", ...]}}: the in-game toggles, written to the same
+     *       record as the profile.</li>
      *   <li>{@code POST runesync/diagnostics} (a snapshot): stored redacted for 14 days, answers {@code {"id": "RS-7K2M9Q"}}.</li>
      * </ul>
      */
     private void runeSync(HttpExchange exchange, String method, String route) throws IOException {
-        String expected = switch (route) {
-            case "config" -> "GET";
-            case "consent" -> "PUT";
-            case "diagnostics" -> "POST";
+        // The game client can only send GET and POST (local API library docs/core-http.md), so consent takes POST as well as PUT.
+        Set<String> methods = switch (route) {
+            case "config" -> Set.of("GET");
+            case "consent" -> Set.of("PUT", "POST");
+            case "diagnostics" -> Set.of("POST");
             default -> null;
         };
-        if (expected == null) {
+        if (methods == null) {
             send(exchange, 404, error("Not found"));
             return;
         }
-        if (!method.equals(expected)) {
+        if (!methods.contains(method)) {
             send(exchange, 405, error("Method not allowed"));
             return;
         }
