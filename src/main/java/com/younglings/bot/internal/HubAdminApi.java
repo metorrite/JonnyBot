@@ -3,6 +3,7 @@ package com.younglings.bot.internal;
 import com.younglings.bot.afk.AfkNicknames;
 import com.younglings.bot.afk.AfkRepository;
 import com.younglings.bot.afk.AfkService;
+import com.younglings.bot.hub.CommandTag;
 import com.younglings.bot.hub.HubCommand;
 import com.younglings.bot.hub.HubService;
 import com.younglings.bot.hub.HubSettings;
@@ -59,7 +60,10 @@ public class HubAdminApi {
         for (PermissionGroup group : groups.groups(guild.getIdLong())) {
             choices.add(DataObject.empty().put("ref", "group:" + group.key()).put("name", group.name()).put("builtin", group.builtin()));
         }
-        return DataObject.empty().put("commands", commands).put("groups", choices).put("maxList", MAX_LIST);
+        // every tag a command can carry, in the order the filter chips show them
+        DataArray tagChoices = DataArray.empty();
+        for (CommandTag tag : CommandTag.values()) tagChoices.add(DataObject.empty().put("key", tag.key()).put("label", tag.label()));
+        return DataObject.empty().put("commands", commands).put("groups", choices).put("tags", tagChoices).put("maxList", MAX_LIST);
     }
 
     DataObject save(Guild guild, Member actor, String key, DataObject body) {
@@ -185,6 +189,7 @@ public class HubAdminApi {
         DataObject json = DataObject.empty()
                 .put("key", command.key()).put("title", command.title()).put("slashName", command.slashName())
                 .put("description", command.description()).put("defaultAccess", command.defaultAccess())
+                .put("tags", DataArray.fromCollection(command.tags().stream().map(CommandTag::key).toList()))
                 .put("enabled", s.enabled()).put("customAccess", s.customAccess()).put("allowedRefs", refs).put("channelIds", channels);
         if (command == HubCommand.SIGNUP) {
             HubService.SignupPolicy p = hub.signupPolicy(guildId);

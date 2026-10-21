@@ -20,6 +20,7 @@ import org.mockito.ArgumentCaptor;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -209,5 +210,20 @@ class HubAdminApiTest {
         assertEquals(400, thrown.status);
         verify(hub, never()).save(any());
         verify(afk, never()).clear(GUILD, 99L);
+    }
+
+    @Test
+    void everyCommandCarriesTagsAndTheAnswerListsTheTagChoices() {
+        for (HubCommand command : HubCommand.values()) {
+            assertFalse(command.tags().isEmpty(), command.key() + " has no tag, so the Commands page filters could never find it");
+            when(hub.get(GUILD, command)).thenReturn(HubSettings.defaults(GUILD, command.key()));
+        }
+        DataObject answer = api.get(guild);
+
+        assertEquals(com.younglings.bot.hub.CommandTag.values().length, answer.getArray("tags").length());
+        assertEquals("clan-management", answer.getArray("tags").getObject(5).getString("key"));
+        DataObject warn = answer.getArray("commands").stream(net.dv8tion.jda.api.utils.data.DataArray::getObject)
+                .filter(c -> c.getString("key").equals("warn")).findFirst().orElseThrow();
+        assertEquals(List.of("moderation", "admin"), warn.getArray("tags").toList());
     }
 }
