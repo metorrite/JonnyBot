@@ -57,10 +57,10 @@ class HelpExtrasRepositoryDatabaseTest {
 
     @Test
     void savedExtrasComeBackAndASecondSaveReplacesThem() {
-        repository.save(new HelpExtras(GUILD, true, 6, 2, true, "Vorago, Telos"));
-        assertEquals(new HelpExtras(GUILD, true, 6, 2, true, "Vorago, Telos"), repository.get(GUILD));
-        repository.save(new HelpExtras(GUILD, false, 12, 3, false, "Solak"));
-        assertEquals(new HelpExtras(GUILD, false, 12, 3, false, "Solak"), repository.get(GUILD));
+        repository.save(new HelpExtras(GUILD, true, 6, 2, true, "Vorago, Telos", true, 45, false, 96, "Master=50, Grandmaster=100"));
+        assertEquals(new HelpExtras(GUILD, true, 6, 2, true, "Vorago, Telos", true, 45, false, 96, "Master=50, Grandmaster=100"), repository.get(GUILD));
+        repository.save(new HelpExtras(GUILD, false, 12, 3, false, "Solak", false, 7, true, 0, ""));
+        assertEquals(new HelpExtras(GUILD, false, 12, 3, false, "Solak", false, 7, true, 0, ""), repository.get(GUILD));
     }
 
     @Test

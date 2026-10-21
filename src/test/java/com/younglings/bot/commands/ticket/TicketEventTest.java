@@ -40,7 +40,7 @@ class TicketEventTest {
 
     @Test
     void theServersTimingsAreUsedAndAnAchievementIsMentioned() {
-        var plan = TicketEventPlan.plan(fields, answers("Solak", "", "Perfect Solak", ""), 7, new HelpExtras(1, true, 2, 3, false, ""), NOW);
+        var plan = TicketEventPlan.plan(fields, answers("Solak", "", "Perfect Solak", ""), 7, new HelpExtras(1, true, 2, 3, false, "", false, 30, true, 120, ""), NOW);
         assertEquals("Solak group", plan.input().name());
         assertEquals(NOW.plus(Duration.ofHours(2)), plan.input().startsAt());
         assertEquals(plan.input().startsAt().plus(Duration.ofDays(3)), plan.input().endsAt());
@@ -81,7 +81,7 @@ class TicketEventTest {
     void theExtrasAreOffByDefaultAndTheirNumbersAreChecked() {
         assertTrue(HelpExtras.defaults(1).problems().isEmpty());
         assertFalse(HelpExtras.defaults(1).eventButton(), "off by default");
-        assertFalse(new HelpExtras(1, true, -1, 1, false, "x").problems().isEmpty());
-        assertFalse(new HelpExtras(1, true, 24, 0, false, "x").problems().isEmpty());
+        assertFalse(new HelpExtras(1, true, -1, 1, false, "x", false, 30, true, 120, "").problems().isEmpty());
+        assertFalse(new HelpExtras(1, true, 24, 0, false, "x", false, 30, true, 120, "").problems().isEmpty());
     }
 }
