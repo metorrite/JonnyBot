@@ -49,6 +49,8 @@ public enum HubCommand {
             "Admins only", true, CommandTag.UTILITY, CommandTag.ADMIN),
     HIGHLIGHT("highlight", "Highlights", "highlight", "Members pick words and get a direct message when someone says one in a channel they can see. Off until the Highlights page switches it on.",
             "Everyone", false, CommandTag.UTILITY, CommandTag.MEMBER_USE),
+    ROLE("role", "Role toolkit", "role", "Give or take a role for a member. Admins can use any role the bot can hand out; others only the roles their permission group was allowed on the Role toolkit page.",
+            "Admins, and groups an admin allowed (set on the Role toolkit page)", false, CommandTag.ADMIN, CommandTag.CLAN_MANAGEMENT),
     EVENTS("events", "Events", "events", "See the events you are in (place, points, buy-in, prizes), browse the ones open for signup, and join or leave them. Events are made and run from the dashboard's Event manager.",
             "Everyone", false, CommandTag.EVENTS, CommandTag.MEMBER_USE),
     LEVEL("level", "Chat level", "level", "See your chat level, XP and rank, or another member's. Chat levels are off until the Chat levels page switches them on.",
