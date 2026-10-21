@@ -112,6 +112,25 @@ public class ClanSiteRepository {
         SiteInvalidator.signal(SiteInvalidator.Area.HUB);
     }
 
+    /**
+     * Deletes the sites switched off before {@code cutoff}, with their blocks (design W11: settings are kept 30 days after switching off).
+     * A site the bot's owner took down is kept, so switching off and on again can't clear a takedown. Returns how many were deleted.
+     */
+    public int deleteSwitchedOffBefore(Instant cutoff) {
+        String where = "enabled = FALSE AND takedown_reason IS NULL AND updated_at IS NOT NULL AND updated_at < ?";
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement blocks = connection.prepareStatement("DELETE FROM younglings.clan_site_block WHERE guild_id IN (SELECT guild_id FROM younglings.clan_site WHERE " + where + ")");
+             PreparedStatement site = connection.prepareStatement("DELETE FROM younglings.clan_site WHERE " + where)) {
+            blocks.setTimestamp(1, Timestamp.from(cutoff));
+            blocks.executeUpdate();
+            site.setTimestamp(1, Timestamp.from(cutoff));
+            return site.executeUpdate();
+        } catch (SQLException e) {
+            log.error("Failed to clean up switched-off clan websites", e);
+            return 0;
+        }
+    }
+
     /** Deletes a server's site and its blocks. */
     public void delete(long guildId) {
         try (Connection connection = connectionSupplier.getConnection();
