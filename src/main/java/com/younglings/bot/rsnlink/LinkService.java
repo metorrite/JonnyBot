@@ -247,6 +247,40 @@ public final class LinkService {
         });
     }
 
+    /**
+     * The plugins whose own server is this bot, so the link service may tell it who an alias belongs to (RUNESYNC-DESIGN.md section 3).
+     * Every other plugin only ever gets an alias. Names compare in lower case.
+     */
+    static final java.util.Set<String> FIRST_PARTY_PLUGINS = java.util.Set.of("runesync");
+
+    /**
+     * {@code POST /resolve}, first-party only and never reachable through the website: the Discord account and RSN behind a valid assertion
+     * made for a first-party plugin. The assertion must be signed by this service, unexpired, for a plugin in {@link #FIRST_PARTY_PLUGINS}, and
+     * its alias must still match an active link on its RSN; otherwise 401 {@code invalid_assertion}, which says nothing about why.
+     */
+    public DataObject resolve(String assertion) {
+        Instant now = clock.instant();
+        DataObject claims = signer.claimsIfValid(assertion, now);
+        String plugin = claims == null ? null : claims.getString("plugin", null);
+        String alias = claims == null ? null : claims.getString("alias", null);
+        String rsnLookup = claims == null ? null : claims.getString("rsn", null);
+        if (plugin == null || alias == null || rsnLookup == null || !FIRST_PARTY_PLUGINS.contains(plugin)) {
+            throw new LinkException(401, "invalid_assertion", "That assertion can't be used.");
+        }
+        return tx(c -> {
+            for (TokenAuth holder : store.activeHoldersOfName(c, rsnLookup)) {
+                if (!java.security.MessageDigest.isEqual(crypto.alias(holder.link().id().toString(), plugin).getBytes(java.nio.charset.StandardCharsets.US_ASCII),
+                        alias.getBytes(java.nio.charset.StandardCharsets.US_ASCII))) continue;
+                DiscordUser user = store.discordUser(c, holder.link().discordUserId()).orElse(null);
+                if (user == null) break;
+                boolean disputed = !store.openDisputesFor(c, holder.link().id()).isEmpty();
+                return DataObject.empty().put("discordId", crypto.decrypt(user.enc(), user.keyVersion())).put("rsn", holder.character().rsnDisplay())
+                        .put("verification", holder.link().verification()).put("disputed", disputed);
+            }
+            throw new LinkException(401, "invalid_assertion", "That assertion can't be used.");
+        });
+    }
+
     /** {@code GET /v1/keys}. */
     public DataObject keys() {
         return signer.keySet();

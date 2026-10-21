@@ -67,6 +67,7 @@ public final class LinkHttp {
                 case "v1/pair/poll" -> service.poll(str(body, "pairingId"), str(body, "deviceSecret"));
                 case "v1/pair/dm" -> service.dmFlow().start(str(body, "rsn"), str(body, "trackingId"), str(body, "discord"), client(body), ip);
                 case "v1/pair/dm/confirm" -> service.dmFlow().confirm(str(body, "pairingId"), str(body, "deviceSecret"), str(body, "code"));
+                case "resolve" -> service.resolve(str(body, "assertion"));
                 case "v1/session" -> service.session(bearer(exchange), str(body, "rsn"), str(body, "trackingId"));
                 case "v1/alias" -> service.alias(bearer(exchange), str(body, "plugin"));
                 case "v1/unlink" -> service.unlink(bearer(exchange));

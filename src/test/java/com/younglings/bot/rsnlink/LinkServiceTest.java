@@ -425,6 +425,29 @@ class LinkServiceTest {
         assertTrue(service.session(owner, "Zezima", "111").getBoolean("linked"), "the refusal left nothing half-done");
     }
 
+    // ---------- first-party resolve (T-200) ----------
+
+    @Test
+    void aRuneSyncAssertionResolvesToItsDiscordAccountUntilTheLinkEnds() {
+        String token = link("Zezima", "1", ALICE);
+        String assertion = service.alias(token, "RuneSync").getString("assertion");
+        DataObject who = service.resolve(assertion);
+        assertEquals(ALICE, who.getString("discordId"));
+        assertEquals("Zezima", who.getString("rsn"));
+        assertEquals("implicit", who.getString("verification"));
+
+        String other = service.alias(token, "SomeOtherPlugin").getString("assertion");
+        assertEquals("invalid_assertion", assertThrows(LinkException.class, () -> service.resolve(other)).code(), "only first-party plugins can resolve");
+        assertEquals("invalid_assertion", assertThrows(LinkException.class, () -> service.resolve(assertion + "x")).code(), "a tampered signature");
+
+        clock.advance(Duration.ofMinutes(16));
+        assertEquals("invalid_assertion", assertThrows(LinkException.class, () -> service.resolve(assertion)).code(), "expired");
+
+        String fresh = service.alias(token, "RuneSync").getString("assertion");
+        service.unlink(token);
+        assertEquals("invalid_assertion", assertThrows(LinkException.class, () -> service.resolve(fresh)).code(), "the link has ended");
+    }
+
     // ---------- retention ----------
 
     @Test

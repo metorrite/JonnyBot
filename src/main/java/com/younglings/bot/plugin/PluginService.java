@@ -116,6 +116,33 @@ public class PluginService {
         if (account == null || account.discordUserId() != userId) {
             return new IngestResult(0, 0, List.of(), Set.of(), "That RuneScape name isn't linked to your Discord account in JonnyBot. Link it with /rs first.");
         }
+        return store(userId, account.rsn(), batch);
+    }
+
+    /**
+     * A batch signed through RS Link (RUNESYNC-DESIGN.md section 3): the link says this Discord account owns {@code linkedRsn}, which counts
+     * for ingest only (whether it also makes a JonnyBot player link is T-121's call). The batch's name must be that name, compared the
+     * way the game compares names; otherwise it is refused like the token path's "not your name".
+     */
+    public IngestResult ingestVerified(long userId, String linkedRsn, PluginPayload.Parsed batch) {
+        if (linkedRsn == null || !sameName(linkedRsn, batch.rsn())) {
+            return new IngestResult(0, 0, List.of(), Set.of(), "That RuneScape name isn't the one linked through RS Link. Report only for the character you are logged in as.");
+        }
+        return store(userId, batch.rsn(), batch);
+    }
+
+    /** Whether two RuneScape names are the same name: case, and space, _ and - count as equal (as in the game). */
+    static boolean sameName(String a, String b) {
+        String x = PluginPayload.normaliseRsn(a);
+        String y = PluginPayload.normaliseRsn(b);
+        return x != null && y != null && lookup(x).equals(lookup(y));
+    }
+
+    private static String lookup(String rsn) {
+        return rsn.toLowerCase(java.util.Locale.ROOT).replace('_', ' ').replace('-', ' ');
+    }
+
+    private IngestResult store(long userId, String rsn, PluginPayload.Parsed batch) {
         Set<PluginCategory> consented = repository.consent(userId);
         int accepted = 0;
         int duplicates = 0;
@@ -126,7 +153,7 @@ public class PluginService {
             PluginPayload.Event event = original;
             if (!consented.contains(event.type().category())) {
                 rejected.add(new Reject(event.key(), "not_consented: the player has not allowed " + event.type().category().name()));
-            } else if (repository.insertEvent(userId, account.rsn(), event = enrichment.enrich(event, priceLookups), batch.client())) {
+            } else if (repository.insertEvent(userId, rsn, event = enrichment.enrich(event, priceLookups), batch.client())) {
                 accepted++;
                 stored.add(event);
             } else {
@@ -136,7 +163,7 @@ public class PluginService {
         if (!stored.isEmpty()) {
             for (PluginEventSink sink : sinks) {
                 try {
-                    sink.accepted(userId, account.rsn(), stored);
+                    sink.accepted(userId, rsn, stored);
                 } catch (RuntimeException e) {
                     // what is done with the events never decides whether the upload worked, nor whether the next consumer hears of them
                     log.warn("A consumer of plugin events failed for user {}", userId, e);
