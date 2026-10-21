@@ -153,6 +153,16 @@ class WheelTest {
     }
 
     @Test
+    void theWholeGifIsAboutFiveSecondsAndSmooth() {
+        var delays = WheelSpin.delays(-26, 0);
+        int total = delays.stream().mapToInt(Integer::intValue).sum();
+        assertTrue(total >= 4800 && total <= 5400, "about five seconds in all: " + total);
+        // every frame but the first (the pause) and the last (the hold) is short, so the spin never stutters
+        for (int i = 1; i < delays.size() - 1; i++) assertTrue(delays.get(i) <= 60, "frame " + i + " lasts " + delays.get(i) + " ms");
+        assertTrue(delays.size() < 200, "not so many frames that the picture outgrows Discord's limit: " + delays.size());
+    }
+
+    @Test
     void anEmptyWheelIsRefused() {
         try {
             WheelSpin.spin(List.of(), 300);
