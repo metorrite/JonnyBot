@@ -4,7 +4,8 @@ import com.younglings.bot.branding.BrandingImages;
 import com.younglings.bot.branding.BrandingRepository;
 import com.younglings.bot.branding.BrandingService;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
-import com.younglings.bot.premium.PremiumGuildRepository;
+import com.younglings.bot.premium.Premium;
+import com.younglings.bot.premium.PremiumFeatures;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Guild;
@@ -35,9 +36,9 @@ public class BrandingAdminApi implements AdminRouteExtension {
 
     private final BrandingRepository repository;
     private final BrandingService branding;
-    private final PremiumGuildRepository premium;
+    private final Premium premium;
 
-    public BrandingAdminApi(BrandingRepository repository, BrandingService branding, PremiumGuildRepository premium) {
+    public BrandingAdminApi(BrandingRepository repository, BrandingService branding, Premium premium) {
         this.repository = repository;
         this.branding = branding;
         this.premium = premium;
@@ -63,7 +64,7 @@ public class BrandingAdminApi implements AdminRouteExtension {
                 .put("nickname", self.getNickname())
                 .put("botName", self.getUser().getName())
                 .put("canChangeNickname", self.hasPermission(Permission.NICKNAME_CHANGE))
-                .put("premium", premium.isPremium(guild.getIdLong()))
+                .put("premium", premium.allows(guild.getIdLong(), PremiumFeatures.BRANDING_PROFILE))
                 .put("avatarUrl", self.getAvatarUrl())
                 .put("bannerSet", profile.bannerSet())
                 .put("bio", profile.bio())
@@ -100,7 +101,7 @@ public class BrandingAdminApi implements AdminRouteExtension {
         boolean removeAvatar = body.getBoolean("removeAvatar", false);
         boolean removeBanner = body.getBoolean("removeBanner", false);
         boolean touchesProfile = setBio || setAvatar || setBanner || removeAvatar || removeBanner;
-        if (touchesProfile && !premium.isPremium(guild.getIdLong())) {
+        if (touchesProfile && !premium.allows(guild.getIdLong(), PremiumFeatures.BRANDING_PROFILE)) {
             throw new ApiError(403, "A server avatar, banner and bio are for premium servers.");
         }
         String bio = null;
