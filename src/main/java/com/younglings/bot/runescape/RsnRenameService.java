@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -111,22 +112,40 @@ public class RsnRenameService {
         }
         if (pairs.isEmpty()) return Set.of();
 
-        Map<String, List<Pair>> byOld = pairs.stream().collect(Collectors.groupingBy(p -> p.oldRsn().toLowerCase()));
-        Map<String, List<Pair>> byNew = pairs.stream().collect(Collectors.groupingBy(p -> p.newMember().rsn().toLowerCase()));
-
-        Set<String> handledOld = new HashSet<>();
+        // Run the deeper checks (per-skill monotonicity + activity overlap) on EVERY XP-plausible pair first,
+        // so an ambiguity on Total XP alone can still be settled by the stronger evidence.
+        Map<Pair, Assessment> survivors = new LinkedHashMap<>();
         for (Pair pair : pairs) {
-            String oldKey = pair.oldRsn().toLowerCase();
-            if (!handledOld.add(oldKey)) continue;
+            Assessment assessment = assess(pair.oldRsn(), polledResults.get(pair.newMember().rsn().toLowerCase()));
+            if (assessment != null) survivors.put(pair, assessment);
+        }
 
-            String newKey = pair.newMember().rsn().toLowerCase();
-            if (byOld.get(oldKey).size() > 1 || byNew.get(newKey).size() > 1) {
-                List<String> candidateNames = byOld.get(oldKey).stream().map(p -> p.newMember().rsn()).distinct().toList();
-                notifyAmbiguous(guild, pair.oldRsn(), candidateNames);
+        Map<String, List<Pair>> byOld = pairs.stream().collect(Collectors.groupingBy(p -> p.oldRsn().toLowerCase(), LinkedHashMap::new, Collectors.toList()));
+        Map<String, List<Pair>> survivorsByOld = survivors.keySet().stream().collect(Collectors.groupingBy(p -> p.oldRsn().toLowerCase()));
+        Map<String, List<Pair>> survivorsByNew = survivors.keySet().stream().collect(Collectors.groupingBy(p -> p.newMember().rsn().toLowerCase()));
+
+        for (String oldKey : byOld.keySet()) {
+            List<Pair> candidates = byOld.get(oldKey);
+            String oldRsn = candidates.get(0).oldRsn();
+            List<Pair> passed = survivorsByOld.getOrDefault(oldKey, List.of());
+
+            if (passed.isEmpty()) continue; // every candidate failed the per-skill check — nothing to report
+
+            // Several candidates (or a shared new name): settle it if exactly one clears the activity check
+            // and nobody else claims that new name; otherwise leave it to an admin with only the survivors listed.
+            List<Pair> exclusive = passed.stream()
+                    .filter(p -> survivorsByNew.get(p.newMember().rsn().toLowerCase()).size() == 1)
+                    .toList();
+            if (passed.size() == 1 && exclusive.size() == 1) {
+                raise(guild, oldRsn, exclusive.get(0).newMember().rsn(), survivors.get(exclusive.get(0)));
                 continue;
             }
-
-            evaluateCandidate(guild, pair.oldRsn(), pair.newMember().rsn(), polledResults.get(newKey));
+            List<Pair> high = exclusive.stream().filter(p -> survivors.get(p).overlap() > 0).toList();
+            if (high.size() == 1 && passed.stream().noneMatch(p -> p != high.get(0) && survivors.get(p).overlap() > 0)) {
+                raise(guild, oldRsn, high.get(0).newMember().rsn(), survivors.get(high.get(0)));
+                continue;
+            }
+            notifyAmbiguous(guild, oldRsn, passed.stream().map(p -> p.newMember().rsn()).distinct().toList());
         }
         return Set.copyOf(byOld.keySet());
     }
@@ -135,26 +154,33 @@ public class RsnRenameService {
         return newTotalXp >= oldTotalXp && newTotalXp - oldTotalXp <= MAX_PLAUSIBLE_XP_GAIN;
     }
 
-    /** Runs the deeper (non-free-but-already-fetched) checks and, if either passes, records and notifies. */
-    private void evaluateCandidate(Guild guild, String oldRsn, String newRsn, ProfileResult newResult) {
-        if (!(newResult instanceof ProfileResult.Found(var newProfile))) return;
+    /** The outcome of the deeper checks for one pair that passed them. */
+    private record Assessment(int overlap) {
+    }
 
-        long guildId = guild.getIdLong();
+    /** Runs the deeper (non-free-but-already-fetched) checks; null if the pair is ruled out or can't be checked. */
+    private Assessment assess(String oldRsn, ProfileResult newResult) {
+        if (!(newResult instanceof ProfileResult.Found(var newProfile))) return null;
+
         var oldSnapshot = statsService.getLatestSnapshot(oldRsn);
-        if (oldSnapshot == null) return; // never actually polled before — nothing to compare against
+        if (oldSnapshot == null) return null; // never actually polled before — nothing to compare against
 
         List<SkillValue> oldSkills = statsService.getSkillsForSnapshot(oldSnapshot.snapshotId());
-        if (!isMonotonic(oldSkills, newProfile.skills())) return; // a real decrease anywhere rules this pair out
+        if (!isMonotonic(oldSkills, newProfile.skills())) return null; // a real decrease anywhere rules this pair out
 
         List<PlayerActivity> oldActivities = statsService.getRecentActivities(oldRsn, ACTIVITY_MATCH_DEPTH);
-        int overlapCount = countActivityOverlap(oldActivities, newProfile.activities());
+        return new Assessment(countActivityOverlap(oldActivities, newProfile.activities()));
+    }
 
+    /** Records a rename candidate and notifies. */
+    private void raise(Guild guild, String oldRsn, String newRsn, Assessment assessment) {
+        int overlapCount = assessment.overlap();
         String confidence = overlapCount > 0 ? "HIGH" : "MEDIUM";
         String basis = overlapCount > 0
                 ? "Every skill's XP is non-decreasing, plus " + overlapCount + " matching activity log entr" + (overlapCount == 1 ? "y" : "ies") + "."
                 : "Every skill's XP is non-decreasing, but no overlapping activity log entries to confirm it (the old account had little recorded activity, or too much has happened since to still overlap).";
 
-        long candidateId = renameRepository.create(guildId, oldRsn, newRsn, confidence, basis);
+        long candidateId = renameRepository.create(guild.getIdLong(), oldRsn, newRsn, confidence, basis);
         notify(guild, renameRepository.getById(candidateId));
     }
 
@@ -220,7 +246,7 @@ public class RsnRenameService {
         Container container = Containers.card(Containers.WARNING,
                 TextDisplay.of(ping + "### Ambiguous Possible Rename"),
                 TextDisplay.of("**" + oldRsn + "** disappeared from the clan roster and matched more than one " +
-                        "newly-seen name on XP alone: " + String.join(", ", candidateNames) + ". Not automated " +
+                        "newly-seen name, and the per-skill and activity checks couldn't settle it: " + String.join(", ", candidateNames) + ". Not automated " +
                         "— please check manually with **Player Lookup**."));
 
         channel.sendMessageComponents(List.of(container)).useComponentsV2(true)
