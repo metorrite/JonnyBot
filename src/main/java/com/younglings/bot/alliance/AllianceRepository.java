@@ -1,6 +1,7 @@
 package com.younglings.bot.alliance;
 
 import com.younglings.bot.alliance.AllianceRules.Status;
+import com.younglings.bot.alliance.AllianceVisibility.Visibility;
 import com.younglings.bot.database.SchemaBootstrapper;
 import io.github.freya022.botcommands.api.core.db.ConnectionSupplier;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -13,7 +14,10 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
 
@@ -51,7 +55,14 @@ public class AllianceRepository {
                     PRIMARY KEY (alliance_id, guild_id)
                 );
                 """,
-                "CREATE INDEX IF NOT EXISTS alliance_member_guild ON younglings.alliance_member (guild_id);"));
+                "CREATE INDEX IF NOT EXISTS alliance_member_guild ON younglings.alliance_member (guild_id);",
+                // whether a clan's public hub page may show its alliances (see AllianceVisibility); no row means hidden
+                """
+                CREATE TABLE IF NOT EXISTS younglings.alliance_visibility (
+                    guild_id BIGINT PRIMARY KEY,
+                    mode TEXT NOT NULL DEFAULT 'HIDDEN'
+                );
+                """));
     }
 
     /** Creates an alliance with {@code guildId} as its first (active) member. Empty when the name is taken. */
@@ -154,6 +165,39 @@ public class AllianceRepository {
             return removed;
         } catch (SQLException e) {
             throw new RuntimeException("Failed to remove the clan", e);
+        }
+    }
+
+    // ---------- what the public hub may show ----------
+
+    /** What this clan's public page may say about its alliances. Hidden until the clan chooses otherwise. */
+    public Visibility visibility(long guildId) {
+        return visibilities(List.of(guildId)).getOrDefault(guildId, Visibility.HIDDEN);
+    }
+
+    /** The choice of each of these clans; a clan that never chose is not in the map (and so counts as hidden). */
+    public Map<Long, Visibility> visibilities(Collection<Long> guildIds) {
+        Map<Long, Visibility> out = new HashMap<>();
+        if (guildIds.isEmpty()) return out;
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("SELECT guild_id, mode FROM younglings.alliance_visibility WHERE guild_id = ANY (?)")) {
+            s.setArray(1, c.createArrayOf("bigint", guildIds.toArray()));
+            try (ResultSet rs = s.executeQuery()) {
+                while (rs.next()) out.put(rs.getLong(1), Visibility.parse(rs.getString(2)));
+            }
+            return out;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read the alliance visibility", e);
+        }
+    }
+
+    public void saveVisibility(long guildId, Visibility visibility) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(
+                "INSERT INTO younglings.alliance_visibility (guild_id, mode) VALUES (?, ?) ON CONFLICT (guild_id) DO UPDATE SET mode = EXCLUDED.mode")) {
+            s.setLong(1, guildId);
+            s.setString(2, visibility.name());
+            s.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to save the alliance visibility", e);
         }
     }
 
