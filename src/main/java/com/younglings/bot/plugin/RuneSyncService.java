@@ -21,8 +21,9 @@ import java.util.regex.Pattern;
  * RuneSync's own server side (RUNESYNC-DESIGN.md sections 6, 7 and 10, ticket T-202): the settings the plugin asks for, the member's
  * consent written from the in-game panel (the same record the profile writes), and diagnostics snapshots for bug reports.
  * <p>
- * <b>Diagnostics never keep a secret:</b> any field whose name says token, assertion, tracking, chat, secret, password, authorization,
- * cookie or discord is dropped, wherever it is in the snapshot, before anything is stored; snapshots are capped at 16 KB, 10 per member
+ * <b>Diagnostics never keep a secret:</b> any field whose name says token, assertion, tracking id, chat text/message/line, message text,
+ * secret, password, authorization, cookie or discord is dropped, wherever it is in the snapshot, before anything is stored (permission
+ * flags such as {@code chatAccess} stay); snapshots are capped at 16 KB, 10 per member
  * per day, and kept 14 days.
  */
 @BService
@@ -37,7 +38,8 @@ public class RuneSyncService {
     public static final List<String> PROFILE_TYPES = List.of("XP", "DROP", "KILL", "CLUE");
     public static final int PROFILE_EVENTS_PER_TYPE = 50;
 
-    private static final Pattern SECRET_FIELD = Pattern.compile("token|assertion|tracking|chat|secret|password|authori[sz]ation|cookie|discord", Pattern.CASE_INSENSITIVE);
+    private static final Pattern SECRET_FIELD = Pattern.compile(
+            "token|assertion|tracking_?id|chat_?(text|message|line)|message_?text|secret|password|authori[sz]ation|cookie|discord", Pattern.CASE_INSENSITIVE);
     private static final String ID_ALPHABET = "BCDFGHJKMNPQRSTVWXZ23456789";
 
     private final PluginService plugins;

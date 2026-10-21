@@ -73,14 +73,16 @@ class RuneSyncServiceTest {
     void redactionDropsSecretFieldsAtAnyDepth() {
         DataObject in = DataObject.fromJson("""
                 {"clientVersion":"0.1.0","assertion":"a.b.c","rsLinkToken":"x","settings":{"paused":false,"trackingId":"123"},
-                 "last20Batches":[{"accepted":3,"rejected":["not_consented"],"authorization":"RSLink z"}],"chatText":"hi","discordId":"1"}""");
+                 "last20Batches":[{"accepted":3,"rejected":["not_consented"],"authorization":"RSLink z"}],"chatText":"hi","discordId":"1",
+                 "chat_message":"hello","permissions":{"chatAccess":true,"trackingAccess":false}}""");
 
         String out = RuneSyncService.redact(in).toString();
 
-        for (String gone : List.of("assertion", "rsLinkToken", "trackingId", "authorization", "chatText", "discordId", "a.b.c", "RSLink z")) {
+        for (String gone : List.of("assertion", "rsLinkToken", "trackingId", "authorization", "chatText", "chat_message", "discordId", "a.b.c", "RSLink z")) {
             assertFalse(out.contains(gone), gone + " should have been removed: " + out);
         }
         assertTrue(out.contains("clientVersion") && out.contains("not_consented") && out.contains("paused"));
+        assertTrue(out.contains("chatAccess") && out.contains("trackingAccess"), "permission flags stay: " + out);
     }
 
     @Test
