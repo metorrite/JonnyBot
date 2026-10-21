@@ -34,6 +34,11 @@ public class ClanSiteService {
         return sites.byGuild(guildId).filter(site -> servable(site, inBeta(guildId)));
     }
 
+    /** The content blocks of a server's site, by page then position. */
+    public java.util.List<ClanSiteBlock> blocks(long guildId) {
+        return sites.blocks(guildId);
+    }
+
     /** Whether a server may use the builder while it is in beta: the home server, or one on the beta list. */
     public boolean inBeta(long guildId) {
         return Objects.equals(config.getGuildId(), guildId) || beta.all().stream().anyMatch(b -> b.guildId() == guildId);

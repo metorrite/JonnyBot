@@ -15,6 +15,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -43,8 +44,88 @@ public class ClanSiteRepository {
                     published_at TIMESTAMPTZ NULL,
                     takedown_reason TEXT NULL
                 );
+                """,
+                """
+                CREATE TABLE IF NOT EXISTS younglings.clan_site_block (
+                    guild_id BIGINT NOT NULL,
+                    page TEXT NOT NULL,
+                    position INT NOT NULL,
+                    kind TEXT NOT NULL,
+                    body TEXT NOT NULL DEFAULT '{}',
+                    PRIMARY KEY (guild_id, page, position)
+                );
                 """
         ));
+    }
+
+    /** Every content block of a server's site, by page then position (a block of a kind this version doesn't know is skipped). */
+    public List<ClanSiteBlock> blocks(long guildId) {
+        List<ClanSiteBlock> blocks = new ArrayList<>();
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(
+                     "SELECT page, position, kind, body FROM younglings.clan_site_block WHERE guild_id = ? ORDER BY page, position")) {
+            statement.setLong(1, guildId);
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) {
+                    Optional<ClanSiteBlock.Kind> kind = ClanSiteBlock.Kind.parse(rs.getString("kind"));
+                    if (kind.isPresent()) blocks.add(new ClanSiteBlock(guildId, rs.getString("page"), rs.getInt("position"), kind.get(), rs.getString("body")));
+                }
+            }
+            return blocks;
+        } catch (SQLException e) {
+            log.error("Failed to read the clan website blocks of guild {}", guildId, e);
+            throw new RuntimeException("Failed to read the clan website blocks", e);
+        }
+    }
+
+    /** Replaces one page's blocks with these, in order (positions renumbered from 0), in one transaction. */
+    public void replaceBlocks(long guildId, String page, List<ClanSiteBlock> blocks) {
+        try (Connection connection = connectionSupplier.getConnection()) {
+            boolean auto = connection.getAutoCommit();
+            connection.setAutoCommit(false);
+            try (PreparedStatement delete = connection.prepareStatement("DELETE FROM younglings.clan_site_block WHERE guild_id = ? AND page = ?");
+                 PreparedStatement insert = connection.prepareStatement("INSERT INTO younglings.clan_site_block (guild_id, page, position, kind, body) VALUES (?, ?, ?, ?, ?)")) {
+                delete.setLong(1, guildId);
+                delete.setString(2, page);
+                delete.executeUpdate();
+                int position = 0;
+                for (ClanSiteBlock block : blocks) {
+                    insert.setLong(1, guildId);
+                    insert.setString(2, page);
+                    insert.setInt(3, position++);
+                    insert.setString(4, block.kind().name());
+                    insert.setString(5, block.body());
+                    insert.addBatch();
+                }
+                insert.executeBatch();
+                connection.commit();
+            } catch (SQLException e) {
+                connection.rollback();
+                throw e;
+            } finally {
+                connection.setAutoCommit(auto);
+            }
+        } catch (SQLException e) {
+            log.error("Failed to save the clan website blocks of guild {}", guildId, e);
+            throw new RuntimeException("Failed to save the clan website blocks", e);
+        }
+        SiteInvalidator.signal(SiteInvalidator.Area.HUB);
+    }
+
+    /** Deletes a server's site and its blocks. */
+    public void delete(long guildId) {
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement blocks = connection.prepareStatement("DELETE FROM younglings.clan_site_block WHERE guild_id = ?");
+             PreparedStatement site = connection.prepareStatement("DELETE FROM younglings.clan_site WHERE guild_id = ?")) {
+            blocks.setLong(1, guildId);
+            blocks.executeUpdate();
+            site.setLong(1, guildId);
+            site.executeUpdate();
+        } catch (SQLException e) {
+            log.error("Failed to delete the clan website of guild {}", guildId, e);
+            throw new RuntimeException("Failed to delete the clan website", e);
+        }
+        SiteInvalidator.signal(SiteInvalidator.Area.HUB);
     }
 
     public Optional<ClanSite> byGuild(long guildId) {

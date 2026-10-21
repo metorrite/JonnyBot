@@ -19,6 +19,7 @@ import com.younglings.bot.clanprofile.ProfileRules;
 import com.younglings.bot.clanprofile.PublicEvents;
 import com.younglings.bot.clanprofile.PublicEvents.EventInfo;
 import com.younglings.bot.clansite.ClanSite;
+import com.younglings.bot.clansite.ClanSiteBlock;
 import com.younglings.bot.clansite.ClanSiteService;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.JDA;
@@ -55,7 +56,9 @@ import java.util.Optional;
  *   <li>{@code POST hub-events/{id}/join} {@code {userId}}: join one as the signed-in person (the website says who; T-217)</li>
  *   <li>{@code POST hub-events/{id}/report} {@code {reason, reporter?}}: report a listed event for the bot's owner to review (T-218)</li>
  *   <li>{@code GET leaderboards?period=week|month}: clans that opted in, ranked by XP their members gained</li>
- *   <li>{@code GET sites/{slug}}: a clan's website from the builder (look and pages), only while it is published and its server is in the beta</li>
+ *   <li>{@code GET sites/{slug}}: a clan's website from the builder (look, pages, content blocks), only while it is published and its server is in the beta</li>
+ *   <li>{@code GET sites/{slug}/data/{members|overview|leaderboard|recap}}: that site's clan data, the same answers the clan site's own routes give
+ *   the home server ({@link SiteApi#TENANT_ROUTES}); a recap is always the clan's, never one member's</li>
  * </ul>
  */
 @BService
@@ -77,12 +80,13 @@ public class DirectoryApi {
     private final AllianceRepository alliances;
     private final SiteSwitchAdminApi siteSwitches;
     private final ClanSiteService sites;
+    private final SiteApi siteApi;
     private final TtlCache cache = new TtlCache();
 
     private final HubEventsApi hubEvents;
 
     public DirectoryApi(ClanProfileRepository repository, ClanProfileService service, SiteStatsRepository stats, AllianceRepository alliances, SiteSwitchAdminApi siteSwitches,
-                        HubEventsApi hubEvents, ClanSiteService sites) {
+                        HubEventsApi hubEvents, ClanSiteService sites, SiteApi siteApi) {
         this.siteSwitches = siteSwitches;
         this.hubEvents = hubEvents;
         this.repository = repository;
@@ -90,6 +94,7 @@ public class DirectoryApi {
         this.stats = stats;
         this.alliances = alliances;
         this.sites = sites;
+        this.siteApi = siteApi;
     }
 
     /** Called after the shared secret has been checked. */
@@ -166,6 +171,16 @@ public class DirectoryApi {
             DataObject answer = parts.length == 1 ? hubEvents.list(jda, viewer) : parts.length == 2 ? hubEvents.one(jda, parts[1], viewer) : null;
             if (answer == null) send(exchange, 404, DataObject.empty().put("error", "No such event"));
             else send(exchange, 200, answer);
+        } else if (head.equals("sites") && parts.length == 4 && parts[2].equals("data")) {
+            if (!get(exchange, method)) return;
+            Optional<ClanSite> site = viewable(parts[1]).flatMap(p -> sites.visible(p.guildId()));
+            Guild guild = site.isEmpty() ? null : jda.getGuildById(site.get().guildId());
+            DataObject data = guild == null ? null : siteApi.tenant(guild, parts[3], exchange);
+            if (data == null) {
+                send(exchange, 404, DataObject.empty().put("error", "Not found"));
+                return;
+            }
+            send(exchange, 200, data);
         } else if (head.equals("sites") && parts.length == 2) {
             if (!get(exchange, method)) return;
             Optional<ClanProfile> profile = viewable(parts[1]);
@@ -301,8 +316,12 @@ public class DirectoryApi {
 
     /** The public side of a clan's website: its clan (as the directory shows it), its look and its pages. Never a Discord id. */
     private DataObject siteJson(ClanProfile p, ClanSite site) {
+        DataArray blocks = DataArray.empty();
+        for (ClanSiteBlock b : sites.blocks(site.guildId())) {
+            blocks.add(DataObject.empty().put("page", b.page()).put("position", b.position()).put("kind", b.kind().name()).put("body", jsonObject(b.body())));
+        }
         return DataObject.empty().put("slug", p.slug()).put("clan", publicJson(p, true)).put("template", site.template().name())
-                .put("theme", jsonObject(site.theme())).put("pages", jsonArray(site.pages()))
+                .put("theme", jsonObject(site.theme())).put("pages", jsonArray(site.pages())).put("blocks", blocks)
                 .put("publishedAt", site.publishedAt() == null ? null : site.publishedAt().toString());
     }
 
