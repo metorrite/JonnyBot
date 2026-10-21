@@ -45,7 +45,7 @@ class AutoPostRouterTest {
 
     @Test
     void theLiveBotPostsWhereTheServerChose() {
-        new AutoPostRouter(() -> false, DEV);
+        AutoPostRouter.install(() -> false, DEV);
         GuildMessageChannel real = channel(1, mock(JDA.class));
 
         assertSame(real, AutoPostRouter.route(real, "a rename alert"));
@@ -55,7 +55,7 @@ class AutoPostRouterTest {
 
     @Test
     void aBotThatIsNotLiveSendsAlertsToTheDevChannelAndPingsNobody() {
-        new AutoPostRouter(() -> true, DEV);
+        AutoPostRouter.install(() -> true, DEV);
         JDA jda = mock(JDA.class);
         GuildMessageChannel dev = channel(DEV, jda);
         when(jda.getChannelById(GuildMessageChannel.class, DEV)).thenReturn(dev);
@@ -68,14 +68,14 @@ class AutoPostRouterTest {
 
     @Test
     void withNoDevChannelTheAlertIsOnlyLogged() {
-        new AutoPostRouter(() -> true, null);
+        AutoPostRouter.install(() -> true, null);
 
         assertNull(AutoPostRouter.route(channel(1, mock(JDA.class)), "a rename alert"));
     }
 
     @Test
     void aDevChannelTheBotCannotFindIsTreatedAsNone() {
-        new AutoPostRouter(() -> true, DEV);
+        AutoPostRouter.install(() -> true, DEV);
         JDA jda = mock(JDA.class);
 
         assertNull(AutoPostRouter.route(channel(1, jda), "a rename alert"));
@@ -84,7 +84,7 @@ class AutoPostRouterTest {
     @Test
     void pingsInTextAreSwitchedOffWhileDivertedOnly() {
         AtomicBoolean diverted = new AtomicBoolean(true);
-        new AutoPostRouter(diverted::get, null);
+        AutoPostRouter.install(diverted::get, null);
 
         assertEquals("<123> <45> everyone here", AutoPostRouter.defang("<@&123> <@45> @everyone @here"));
         assertEquals("<9>", AutoPostRouter.defang("<@!9>"));
@@ -96,7 +96,7 @@ class AutoPostRouterTest {
     @Test
     void theSwitchFollowsTheToggleLive() {
         AtomicBoolean diverted = new AtomicBoolean(true);
-        new AutoPostRouter(diverted::get, null);
+        AutoPostRouter.install(diverted::get, null);
         assertTrue(AutoPostRouter.diverting());
 
         diverted.set(false); // /dev toggleposting turned posting on for this run
@@ -105,12 +105,12 @@ class AutoPostRouterTest {
 
     @Test
     void theDashboardBannerSaysWhatIsHappening() {
-        new AutoPostRouter(() -> true, null);
+        AutoPostRouter.install(() -> true, null);
         var notice = com.younglings.bot.internal.OverviewAdminApi.devModeNotice();
 
         assertEquals("warning", notice.getString("severity"));
         assertTrue(notice.getString("body").contains("only written to the log"));
-        new AutoPostRouter(() -> true, DEV);
+        AutoPostRouter.install(() -> true, DEV);
         assertTrue(com.younglings.bot.internal.OverviewAdminApi.devModeNotice().getString("body").contains("one test channel without pings"));
     }
 }

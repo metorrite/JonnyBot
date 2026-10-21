@@ -26,28 +26,28 @@ import java.util.function.BooleanSupplier;
 @BService
 public class AutoPostRouter {
     private static final Logger log = LoggerFactory.getLogger(AutoPostRouter.class);
-    private static volatile AutoPostRouter instance;
+    private static volatile Routing instance;
 
-    private final BooleanSupplier diverting;
-    private final Long devChannelId;
+    /** The switch and the dev channel. Kept apart from the service because the framework needs the service to have exactly one constructor. */
+    private record Routing(BooleanSupplier diverting, Long devChannelId) {}
 
     public AutoPostRouter(BotConfig config, TrackingPostingToggle posting) {
-        this(() -> !posting.isEnabled(), config.getDevAlertChannelId());
-        log.info("Automatic posts are {}{}.", diverting.getAsBoolean() ? "DIVERTED (this bot is not live): " : "posted normally",
-                diverting.getAsBoolean() ? devChannelId == null ? "logged only, DEV_ALERT_CHANNEL_ID is not set" : "sent to channel " + devChannelId + " without pings" : "");
+        install(() -> !posting.isEnabled(), config.getDevAlertChannelId());
+        boolean diverting = diverting();
+        Long devChannelId = devChannelId();
+        log.info("Automatic posts are {}{}.", diverting ? "DIVERTED (this bot is not live): " : "posted normally",
+                diverting ? devChannelId == null ? "logged only, DEV_ALERT_CHANNEL_ID is not set" : "sent to channel " + devChannelId + " without pings" : "");
     }
 
     /** Having an event listener is what makes the framework build this service at startup, so the switch is in place before any poster runs. */
     @BEventListener
     public void onJdaReady(InjectedJDAEvent event) {
-        log.debug("Automatic post routing is active (diverting: {}).", diverting.getAsBoolean());
+        log.debug("Automatic post routing is active (diverting: {}).", diverting());
     }
 
     /** For tests and the constructor above. */
-    AutoPostRouter(BooleanSupplier diverting, Long devChannelId) {
-        this.diverting = diverting;
-        this.devChannelId = devChannelId;
-        instance = this;
+    static void install(BooleanSupplier diverting, Long devChannelId) {
+        instance = new Routing(diverting, devChannelId);
     }
 
     /** Forgets the router (tests). */
@@ -57,14 +57,14 @@ public class AutoPostRouter {
 
     /** Whether the bot's automatic posts are being kept out of the servers' channels right now. */
     public static boolean diverting() {
-        AutoPostRouter router = instance;
-        return router != null && router.diverting.getAsBoolean();
+        Routing router = instance;
+        return router != null && router.diverting().getAsBoolean();
     }
 
     /** The configured dev channel id, or null. */
     public static Long devChannelId() {
-        AutoPostRouter router = instance;
-        return router == null ? null : router.devChannelId;
+        Routing router = instance;
+        return router == null ? null : router.devChannelId();
     }
 
     /**
@@ -72,9 +72,9 @@ public class AutoPostRouter {
      * Callers send nothing when this is null, and use {@link #noPings} when it is not the configured channel.
      */
     public static GuildMessageChannel route(GuildMessageChannel target, String what) {
-        AutoPostRouter router = instance;
-        if (router == null || !router.diverting.getAsBoolean() || target == null) return target;
-        Long dev = router.devChannelId;
+        Routing router = instance;
+        if (router == null || !router.diverting().getAsBoolean() || target == null) return target;
+        Long dev = router.devChannelId();
         GuildMessageChannel devChannel = dev == null ? null : target.getJDA().getChannelById(GuildMessageChannel.class, dev);
         if (devChannel == null) {
             log.info("[dev, not posted] {} would have gone to #{} ({}).", what, target.getName(), target.getId());

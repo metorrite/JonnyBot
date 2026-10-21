@@ -3,6 +3,7 @@ package com.younglings.bot.plugin;
 import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.lookup.GePriceService;
 import com.younglings.bot.util.TtlCache;
+import io.github.freya022.botcommands.api.core.service.annotations.BConfiguration;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.utils.data.DataObject;
 
@@ -23,7 +24,7 @@ import java.util.function.LongSupplier;
  * Prices are remembered for half an hour and a batch asks the wiki for at most {@link #MAX_LOOKUPS_PER_BATCH} items it doesn't know, so a busy
  * plugin can't turn into a stream of requests; items beyond that are stored without a value this time.
  */
-@BService
+@BConfiguration
 public class PluginEnrichment {
     static final int MAX_LOOKUPS_PER_BATCH = 8;
     private static final Duration PRICE_TTL = Duration.ofMinutes(30);
@@ -47,11 +48,13 @@ public class PluginEnrichment {
     private final LongSupplier xpScale;
     private final TtlCache<String, Long> prices = new TtlCache<>(PRICE_TTL);
 
-    public PluginEnrichment(GePriceService gePrices, BotConfig config) {
-        this(gePrices::latestPrice, config::getPluginXpScale);
+    /** The bot's instance. A factory, because the framework needs a service class to have exactly one constructor and tests use the other one. */
+    @BService
+    public static PluginEnrichment pluginEnrichment(GePriceService gePrices, BotConfig config) {
+        return new PluginEnrichment(gePrices::latestPrice, config::getPluginXpScale);
     }
 
-    /** For tests: any price source and scale. */
+    /** Any price source and scale (tests use this directly). */
     PluginEnrichment(Function<String, Optional<Long>> priceOf, LongSupplier xpScale) {
         this.priceOf = priceOf;
         this.xpScale = xpScale;
