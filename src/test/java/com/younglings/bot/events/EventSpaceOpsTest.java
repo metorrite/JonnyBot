@@ -194,7 +194,7 @@ class EventSpaceOpsTest {
         Mockito.when(groups.group(ArgumentMatchers.eq(G), ArgumentMatchers.eq(PermissionGroup.ADMIN)))
                 .thenReturn(Optional.of(new PermissionGroup(1, G, PermissionGroup.ADMIN, "Admin", true, false, List.of(STAFF_ROLE))));
         spaces = new EventSpaces(events, service, space, groups);
-        ops = new EventSpaceOps(events, service, space, spaces, new EventChanges());
+        ops = new EventSpaceOps(events, service, space, spaces, new EventChanges(), null);
     }
 
     @AfterEach

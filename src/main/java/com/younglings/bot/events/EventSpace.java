@@ -242,7 +242,7 @@ public final class EventSpace {
 
     /** What is wrong with the space settings in {@code config}, in words, or an empty list. */
     public static List<String> problems(DataObject config) {
-        List<String> problems = new ArrayList<>();
+        List<String> problems = new ArrayList<>(EventWelcome.problems(config));
         if (config == null || !config.hasKey("channels") || config.isNull("channels")) return problems;
         DataObject c;
         try {

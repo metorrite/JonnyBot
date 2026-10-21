@@ -64,6 +64,8 @@ public class EventSpaceRepository {
                 );
                 """,
                 "CREATE INDEX IF NOT EXISTS event_channel_id ON younglings.event_channel (channel_id);",
+                // the welcome message JonnyBot posted when it made the channel (T-209), so it is only ever posted once
+                "ALTER TABLE younglings.event_channel ADD COLUMN IF NOT EXISTS welcome_message_id BIGINT NULL;",
                 // who JonnyBot has given each of an event's roles to, so it can take the role back from exactly those people (members who are offline aren't cached)
                 """
                 CREATE TABLE IF NOT EXISTS younglings.event_role_member (
@@ -157,6 +159,19 @@ public class EventSpaceRepository {
     }
 
     /** Records a channel or category for the event (or replaces the record of one that was made again after someone deleted it). */
+    /** Notes the welcome message posted in a channel JonnyBot made. */
+    public void saveWelcome(long eventId, String key, long messageId) {
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("UPDATE younglings.event_channel SET welcome_message_id = ? WHERE event_id = ? AND channel_key = ?")) {
+            s.setLong(1, messageId);
+            s.setLong(2, eventId);
+            s.setString(3, key);
+            s.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to note the welcome message", e);
+        }
+    }
+
     public void saveChannel(long eventId, String key, long channelId, String name, boolean owned, String parent) {
         String sql = """
                 INSERT INTO younglings.event_channel (event_id, channel_key, channel_id, name, owned, parent_key) VALUES (?, ?, ?, ?, ?, ?)
