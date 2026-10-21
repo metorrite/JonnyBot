@@ -21,6 +21,11 @@ public interface AdminRouteExtension {
      */
     DataObject route(Guild guild, Member actor, String method, String[] parts, Supplier<DataObject> body);
 
+    /** A refusal with the status and message the website should see, for extensions outside this package (which can't reach {@code ApiError}). */
+    static RuntimeException refuse(int status, String message) {
+        return new TicketAdminApi.ApiError(status, message);
+    }
+
     /** Throws a 405 unless {@code actual} is {@code expected}. */
     static void requireMethod(String actual, String expected) {
         if (!actual.equals(expected)) throw new TicketAdminApi.ApiError(405, "Method not allowed");
