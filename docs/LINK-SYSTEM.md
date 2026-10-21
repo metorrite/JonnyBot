@@ -59,7 +59,18 @@ Paraphrased from the guide pages named in brackets; no Jagex text is copied.
 | How to show a code and a text box? [Simple UI tutorial, Input Field, Text, Button] | Attach a GroupBox to `TOPLEVEL_V2__PLUGIN_BUILD_LAYER_TOP` with a stylesheet (invisible without one); `ui.Text` needs a font; `ui.Button` fires `ONBUTTONPRESSED`. `ui.InputField` fires `ONCONTENTCHANGED` with a cause (`SUBMIT` on Enter, Escape, focus loss), `Setup(visibility, filter, maxLength)` sets a filter (`ALPHANUMERIC`, `NUMERIC`, ...) and length. Masked fields (`HIDDEN`) cannot be read back. | Code box: `ALPHANUMERIC`, max 9, visible. Discord username-or-id box: filter `NONE` (usernames contain `.` and `_`), max 32, checked by the rules in 4.2. No documented clipboard or "open URL" function, so the player **types** the address and code: both must be short and unambiguous. |
 | Character identity [Player] | `Player.GetTrackingID()` returns a 64-bit per-character value or nil (needs `trackingAccess`; arrives a few seconds after login). Stability across name changes is not documented. Display name comes from the player entity (`Player.GetEntity()`). | Tracking id is optional but strongly recommended; the service keys characters on it when present (RSN recycling, section 11). Plugin waits up to 10 s for it before pairing. Ask Jagex whether it survives name changes (T-119). |
 
-Still unknown, for T-119: HTTP rate limits and timeouts; dependency HTTP context; PersistentDB scope; tracking id stability; whether any Jagex-signed proof of the logged-in player is coming.
+Still unknown, for T-119: HTTP rate limits and timeouts; dependency HTTP context; tracking id stability; whether any Jagex-signed proof of the logged-in player is coming.
+
+### 3.1a Settled by the full read of the guide (2026-10-21, T-129)
+
+The whole guide is now in the local API library `CLAUDE_RESOURCES/rs-api-library` (open `site/index.html`; facts and their impact in `notes/findings.md`). Four results changed the plugins:
+
+| Finding | Library page | What the plugins do |
+|---|---|---|
+| PersistentDB is shared by **every character played on the PC** (per plugin, and beta vs live), not per account | `docs/core-persistentdb.md` | RS Link keeps one token per character with prefixed keys and moves older keys (9.3). RuneSync tags every queued event with its character and saves one queue per character. |
+| Any plugin that depends on RS Link can call **everything it exports**; exports are cloned per importer | `docs/guides.md` ("Depending on other plugins") | Exports are read-only and only touch a status copy and a request inbox (10). |
+| Any plugin can read text off components on screen, except **restricted** ones | `docs/ui-core.md` ("Reading game interfaces", "Restricted components") | The pairing code label is restricted, so another plugin can't read the code and confirm it with its own Discord (4.1). |
+| mod.io needs **Windows, Linux, Android and iOS**; phones have no keyboard, mouse or console | `docs/submission.md` ("Step 4"), `docs/core-input.md` | Linking by sign-in needs no typing in the game; the DM fallback (typing) sits behind a button on devices without a keyboard; RuneSync uses no keyboard, mouse or console (4.2, section 10). |
 
 ### 3.2 Discord
 
@@ -230,7 +241,17 @@ One character (tracking id if known, else the RSN) linked to one Discord account
 
 ### 9.3 Plugin side storage
 
-PersistentDB keys: `token.<characterKey>` where `characterKey` is the tracking id as a string if granted, otherwise the RSN lookup form; plus `ui.*` for panel settings. Saved right after pairing and after unlink. Never exported.
+PersistentDB is shared by every character played on the PC (3.1a), so RS Link keeps **one token per character** (`lib/store.lua`, RS Link 0.2.0):
+
+| Key | Holds |
+|---|---|
+| `token.t:<tracking id>` | the token, when trackingAccess is granted (survives renames) |
+| `token.n:<rsn lookup form>` | the token otherwise |
+| `trackingFor.<rsn lookup form>` | the tracking id that name last had, so the token is still found if trackingAccess is later turned off |
+
+The `t:`/`n:` prefixes stop a name made only of digits from colliding with a tracking id. Older keys are moved on first use: RS Link 0.1.0's `token.<tracking id>` and `token.<rsn lookup form>` (only to the character they name), and an early build's single `token` key (to the first character that logs in). When trackingAccess is granted later, a `token.n:` token moves to `token.t:`. Saved right after pairing; deleted from every place on unlink, 401 or forget-me. Never exported. RuneSync applies the same rule to its saved event queue (`queue.v2.<character>`).
+
+On logout or a character switch RS Link forgets the character, drops any answer still in flight for it, and tells dependents `false` before the next character's value (10).
 
 ### 9.4 Unlink
 
@@ -245,18 +266,23 @@ PersistentDB keys: `token.<characterKey>` where `characterKey` is the tracking i
 
 ## 10. Plugin library for dependents
 
-Exported from RS Link's `main.lua`. Functions only; none returns the token, the Discord id or the Discord name.
+Exported from RS Link's `main.lua`. **Read-only** functions only (T-129): none returns the token, the Discord id or the Discord name, and none can pair, unlink or change anything. Any plugin that depends on RS Link can call all of them (3.1a), so:
+
+- They only read a status copy and post requests to an inbox (`lib/bridge.lua`); RS Link's own tick validates and answers each request. They never call into RS Link's core.
+- They use **no globals**, so even a plugin using Lua's `debug` library to inspect their hidden variables (if the client exposes it) reaches only the bridge, not RS Link's environment, storage or token.
+- `main.lua` refuses to start if anything other than these functions is exported. `tools/check_exports.py` and `tests/run.lua` (run with `tools/run_tests.py`) check all of this.
 
 ```lua
 -- In the dependent's plugin.json: "requiredDependencies": { "RSLink": "RS Link" }  (object form, see 3.1; or optionalDependencies)
 
-RSLink:ApiVersion()                 -- 1
-RSLink:IsLinked()                   -- true / false / nil (nil = not known yet this session)
+RSLink:ApiVersion()                 -- 2 (RS Link 0.2.0; 1 = 0.1.0)
+RSLink:IsLinked()                   -- true / false / nil; always the character logged in NOW (nil = nobody in game or not known yet)
 RSLink:GetVerification()            -- "implicit" today; later values in section 12
 RSLink:GetAlias("MyPlugin", function(alias, err) end)
 RSLink:GetAssertion("MyPlugin", function(assertion, err) end)   -- signed, for the dependent's own server
-RSLink:OnLinkChanged("MyPlugin", function(linked) end)          -- one callback per name, replaced on re-subscribe
-RSLink:OpenLinkPanel()              -- opens the pairing panel for the player
+RSLink:OnLinkChanged("MyPlugin", function(linked) end)          -- one callback per name, replaced on re-subscribe;
+                                                                -- also false at logout / character switch
+RSLink:OpenLinkPanel()              -- shows the panel (no pairing starts by itself); at most once per 5 s
 ```
 
 Rules for the implementation (T-116):
@@ -264,6 +290,9 @@ Rules for the implementation (T-116):
 - Aliases are cached per plugin name for the session.
 - `err` values: `"not_linked"`, `"offline"`, `"rate_limited"`, `"bad_name"`.
 - Plugin names for aliases: trimmed, 1 to 64 of letters, digits, `.`, `_`, `-`; compared lowercase.
+- Answers that arrive after a logout are dropped (aliases waiting for them get `"offline"`), so a dependent never receives the last character's alias for the next one.
+
+Panel (T-129): every control is at least 36 units tall for touch; "Link Discord" shows the address and code and needs no typing in the game; on a device without a keyboard (`Keyboard.IsAvailable()` false) the DM fallback is behind "Use a DM code instead"; the code label is restricted (`config.RESTRICT_CODE_LABEL`, in case a client ever hides restricted labels from the player too).
 
 ## 11. RSN changes, recycling and forged claims
 
