@@ -14,6 +14,7 @@ import com.younglings.bot.events.EventScoring.Standing;
 import com.younglings.bot.events.EventService;
 import com.younglings.bot.events.EventTemplate;
 import com.younglings.bot.events.EventTemplates;
+import com.younglings.bot.events.HubModerationRepository;
 import com.younglings.bot.events.PrizePlan;
 import com.younglings.bot.runescape.PlayerLink;
 import com.younglings.bot.runescape.PlayerLinkService;
@@ -52,10 +53,15 @@ public class HubEventsApi {
     private final ClanProfileService profiles;
     private final AllianceRepository alliances;
     private final PlayerLinkService links;
+    private final HubModerationRepository moderation;
     private final TtlCache cache = new TtlCache();
+    static final int MIN_REASON = 10;
+    static final int MAX_REASON = 500;
+    static final int MAX_REPORTS_PER_EVENT_PER_DAY = 20;
 
     public HubEventsApi(EventRepository events, EventService service, EventTemplates templates, GuildSettingsService guildSettings, ClanProfileService profiles,
-                        AllianceRepository alliances, PlayerLinkService links) {
+                        AllianceRepository alliances, PlayerLinkService links, HubModerationRepository moderation) {
+        this.moderation = moderation;
         this.events = events;
         this.service = service;
         this.templates = templates;
@@ -67,7 +73,10 @@ public class HubEventsApi {
 
     /** Every listed event the viewer may see, soonest first, each with how they may see it. */
     public DataObject list(JDA jda, String viewer) {
-        List<Event> shared = cache.get("shared", LIST_TTL_MILLIS, () -> events.sharedBeyondServer(MAX_SHARED).stream().filter(e -> EventListing.listed(e, Instant.now())).toList());
+        List<Event> shared = cache.get("shared", LIST_TTL_MILLIS, () -> {
+            Set<Long> barred = moderation.barredIds();
+            return events.sharedBeyondServer(MAX_SHARED).stream().filter(e -> EventListing.listed(e, Instant.now()) && !barred.contains(e.guildId())).toList();
+        });
         Long viewerId = idOf(viewer);
         Set<Long> viewerGuilds = guildsOf(jda, viewerId);
         DataArray out = DataArray.empty();
@@ -84,7 +93,7 @@ public class HubEventsApi {
     public DataObject one(JDA jda, String rawId, String viewer) {
         if (rawId == null || !rawId.matches("\\d{1,18}")) return null;
         Optional<Event> found = events.eventById(Long.parseLong(rawId));
-        if (found.isEmpty() || !EventListing.listed(found.get(), Instant.now())) return null;
+        if (found.isEmpty() || !listedNow(found.get())) return null;
         Event e = found.get();
         Access access = accessOf(e, guildsOf(jda, idOf(viewer)), new LinkedHashMap<>());
         if (access == null) return null;
@@ -111,7 +120,7 @@ public class HubEventsApi {
         if (userId == null) return new Answer(400, DataObject.empty().put("error", "Sign in with Discord first."));
         if (rawId == null || !rawId.matches("\\d{1,18}")) return new Answer(404, DataObject.empty().put("error", "No such event"));
         Optional<Event> found = events.eventById(Long.parseLong(rawId));
-        if (found.isEmpty() || !EventListing.listed(found.get(), Instant.now())) return new Answer(404, DataObject.empty().put("error", "No such event"));
+        if (found.isEmpty() || !listedNow(found.get())) return new Answer(404, DataObject.empty().put("error", "No such event"));
         Event e = found.get();
         Guild host = jda == null ? null : jda.getGuildById(e.guildId());
         if (host == null) return new Answer(503, DataObject.empty().put("error", "The host's server can't be reached right now. Try again in a minute."));
@@ -138,6 +147,32 @@ public class HubEventsApi {
         } catch (RuntimeException ex) {
             return false;
         }
+    }
+
+    /** Whether an event is on the hub right now: listed, and its server not barred from listing. */
+    private boolean listedNow(Event e) {
+        return EventListing.listed(e, Instant.now()) && !moderation.barredIds().contains(e.guildId());
+    }
+
+    /**
+     * Records a report about a listed event for the bot's owner (T-218). Anyone who can see the hub may report; {@code reporter} is whatever the website chose
+     * to record (the signed-in name, or nothing). A flood guard keeps it to {@value #MAX_REPORTS_PER_EVENT_PER_DAY} a day per event.
+     */
+    public Answer report(JDA jda, String rawId, DataObject body) {
+        if (rawId == null || !rawId.matches("\\d{1,18}")) return new Answer(404, DataObject.empty().put("error", "No such event"));
+        Optional<Event> found = events.eventById(Long.parseLong(rawId));
+        if (found.isEmpty() || !listedNow(found.get())) return new Answer(404, DataObject.empty().put("error", "No such event"));
+        String reason = body.getString("reason", "").strip();
+        if (reason.length() < MIN_REASON || reason.length() > MAX_REASON) {
+            return new Answer(400, DataObject.empty().put("error", "Say what is wrong, in " + MIN_REASON + " to " + MAX_REASON + " characters."));
+        }
+        String reporter = body.hasKey("reporter") && !body.isNull("reporter") ? body.getString("reporter", "").strip() : null;
+        if (reporter != null && reporter.length() > 100) reporter = reporter.substring(0, 100);
+        Event e = found.get();
+        if (!moderation.addReport(e.id(), e.guildId(), reason, reporter == null || reporter.isEmpty() ? null : reporter, MAX_REPORTS_PER_EVENT_PER_DAY)) {
+            return new Answer(429, DataObject.empty().put("error", "This event has been reported a lot today already. It will be looked at."));
+        }
+        return new Answer(202, DataObject.empty().put("ok", true));
     }
 
     /** How the viewer may see a listed event, or null. */

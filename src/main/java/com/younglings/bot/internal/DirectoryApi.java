@@ -53,6 +53,7 @@ import java.util.Optional;
  *   <li>{@code GET site-switches}: whether the owner has opened the JonnyBot website, the hub and the dashboard (the website gates read it)</li>
  *   <li>{@code GET hub-events?viewer=} and {@code GET hub-events/{id}?viewer=}: the events hub's engine events ({@link HubEventsApi})</li>
  *   <li>{@code POST hub-events/{id}/join} {@code {userId}}: join one as the signed-in person (the website says who; T-217)</li>
+ *   <li>{@code POST hub-events/{id}/report} {@code {reason, reporter?}}: report a listed event for the bot's owner to review (T-218)</li>
  *   <li>{@code GET leaderboards?period=week|month}: clans that opted in, ranked by XP their members gained</li>
  *   <li>{@code GET sites/{slug}}: a clan's website from the builder (look and pages), only while it is published and its server is in the beta</li>
  * </ul>
@@ -136,6 +137,20 @@ public class DirectoryApi {
                 return;
             }
             HubEventsApi.Answer answer = hubEvents.join(jda, parts[1], body.getString("userId", ""));
+            send(exchange, answer.status(), answer.body());
+        } else if (head.equals("hub-events") && parts.length == 3 && parts[2].equals("report")) {
+            if (!method.equals("POST")) {
+                send(exchange, 405, DataObject.empty().put("error", "Method not allowed"));
+                return;
+            }
+            DataObject body;
+            try (InputStream in = exchange.getRequestBody()) {
+                body = DataObject.fromJson(in);
+            } catch (RuntimeException e) {
+                send(exchange, 400, DataObject.empty().put("error", "That report couldn't be read."));
+                return;
+            }
+            HubEventsApi.Answer answer = hubEvents.report(jda, parts[1], body);
             send(exchange, answer.status(), answer.body());
         } else if (head.equals("alliances") && parts.length == 2 && parts[1].matches("\\d{1,18}")) {
             if (!get(exchange, method)) return;
