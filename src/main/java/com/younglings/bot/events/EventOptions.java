@@ -209,6 +209,9 @@ public final class EventOptions {
         list.add(Option.number("maxParticipants", "Most players", "0 for no limit. A full event gets a waitlist.", Step.PLAYERS, 0, 0, EventRules.MAX_PARTICIPANTS));
         list.add(Option.choice("scope", "Who can see it", "Only your clan sees it by default.", Step.PLAYERS, Scope.PRIVATE.name(),
                 List.of(new Choice("PRIVATE", "Clan only"), new Choice("ALLIANCE", "Clan and allies"), new Choice("PUBLIC", "Everyone"))));
+        list.add(Option.choice("config.standings.visibility", "Who sees the standings", "Staff always see them. Players always see their own points.", Step.PLAYERS, EventStandings.DEFAULT.name(),
+                List.of(new Choice("PARTICIPANTS", "Everyone taking part"), new Choice("SERVER", "Everyone in the server"), new Choice("STAFF", "Staff only"),
+                        new Choice("HIDDEN_UNTIL_END", "Hidden until the event ends"))));
         list.add(Option.choice("config.teamPolicy", "Who may join and share a team", "Decides whether clan members, other members of this server and players from other servers may take part and play together.", Step.PLAYERS,
                 EventSettings.DEFAULT_POLICY, List.of(new Choice("everyone", "Everyone, mixed freely"), new Choice("home", "Only this server"),
                         new Choice("clanVsOutsiders", "Clan members apart from everyone else"), new Choice("separate", "Every kind on its own teams"))));
