@@ -207,8 +207,8 @@ public final class EventOptions {
         list.add(Option.choice("scoringMode", "Who plays", "Teams add up points per team.", Step.PLAYERS, ScoringMode.INDIVIDUAL.name(),
                 List.of(new Choice("INDIVIDUAL", "Solo players"), new Choice("TEAM", "Teams"))));
         list.add(Option.number("maxParticipants", "Most players", "0 for no limit. A full event gets a waitlist.", Step.PLAYERS, 0, 0, EventRules.MAX_PARTICIPANTS));
-        list.add(Option.choice("scope", "Who can see it", "Only your clan sees it by default.", Step.PLAYERS, Scope.PRIVATE.name(),
-                List.of(new Choice("PRIVATE", "Clan only"), new Choice("ALLIANCE", "Clan and allies"), new Choice("PUBLIC", "Everyone"))));
+        list.add(Option.choice("scope", "Who can see and join it", "Only this server by default. Open events are listed on the events hub, where anyone can find them and join after joining this Discord.", Step.PLAYERS, Scope.PRIVATE.name(),
+                List.of(new Choice("PRIVATE", "Only this server"), new Choice("ALLIANCE", "This server and its alliances"), new Choice("PUBLIC", "Open to everyone"))));
         list.add(Option.choice("config.standings.visibility", "Who sees the standings", "Staff always see them. Players always see their own points.", Step.PLAYERS, EventStandings.DEFAULT.name(),
                 List.of(new Choice("PARTICIPANTS", "Everyone taking part"), new Choice("SERVER", "Everyone in the server"), new Choice("STAFF", "Staff only"),
                         new Choice("HIDDEN_UNTIL_END", "Hidden until the event ends"))));

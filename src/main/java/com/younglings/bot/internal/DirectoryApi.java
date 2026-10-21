@@ -49,6 +49,7 @@ import java.util.Optional;
  *   <li>{@code POST clans/{slug}/report} {@code {reason, reporter?}}: report a listing for the bot's owner to review</li>
  *   <li>{@code GET events}: shared upcoming events of every listed clan, soonest first</li>
  *   <li>{@code GET site-switches}: whether the owner has opened the JonnyBot website, the hub and the dashboard (the website gates read it)</li>
+ *   <li>{@code GET hub-events?viewer=} and {@code GET hub-events/{id}?viewer=}: the events hub's engine events ({@link HubEventsApi})</li>
  *   <li>{@code GET leaderboards?period=week|month}: clans that opted in, ranked by XP their members gained</li>
  * </ul>
  */
@@ -72,8 +73,12 @@ public class DirectoryApi {
     private final SiteSwitchAdminApi siteSwitches;
     private final TtlCache cache = new TtlCache();
 
-    public DirectoryApi(ClanProfileRepository repository, ClanProfileService service, SiteStatsRepository stats, AllianceRepository alliances, SiteSwitchAdminApi siteSwitches) {
+    private final HubEventsApi hubEvents;
+
+    public DirectoryApi(ClanProfileRepository repository, ClanProfileService service, SiteStatsRepository stats, AllianceRepository alliances, SiteSwitchAdminApi siteSwitches,
+                        HubEventsApi hubEvents) {
         this.siteSwitches = siteSwitches;
+        this.hubEvents = hubEvents;
         this.repository = repository;
         this.service = service;
         this.stats = stats;
@@ -120,6 +125,11 @@ public class DirectoryApi {
         } else if (head.equals("site-switches") && parts.length == 1) {
             if (!get(exchange, method)) return;
             send(exchange, 200, siteSwitches.states());
+        } else if (head.equals("hub-events")) {
+            String viewer = queryParam(exchange, "viewer");
+            DataObject answer = parts.length == 1 ? hubEvents.list(jda, viewer) : parts.length == 2 ? hubEvents.one(jda, parts[1], viewer) : null;
+            if (answer == null) send(exchange, 404, DataObject.empty().put("error", "No such event"));
+            else send(exchange, 200, answer);
         } else if (head.equals("events") && parts.length == 1) {
             if (!get(exchange, method)) return;
             send(exchange, 200, cache.get("events", LIST_TTL_MILLIS, () -> allEvents(jda)));

@@ -373,7 +373,31 @@ public class EventRepository {
         return events("SELECT * FROM younglings.event WHERE guild_id = ? AND id = ?", guildId, id).stream().findFirst();
     }
 
+    /** An event by id whatever server it belongs to: only for pages that aren't about one server (the events hub), which check the event is listed. */
+    public Optional<Event> eventById(long id) {
+        return events("SELECT * FROM younglings.event WHERE id = ? AND id = ?", id, id).stream().findFirst();
+    }
+
     /** The server's events, newest first, optionally only those in the given stages. */
+    /**
+     * Events of every server that a host has opened beyond its own server (visibility alliance or everyone), not drafts, cancelled or archived ones, soonest
+     * first. {@link EventListing#listed} has the last word (taken-down and long-finished ones).
+     */
+    public List<Event> sharedBeyondServer(int limit) {
+        List<Event> list = new ArrayList<>();
+        String sql = "SELECT * FROM younglings.event WHERE scope IN ('ALLIANCE', 'PUBLIC') AND status NOT IN ('DRAFT', 'CANCELLED') AND NOT archived "
+                + "ORDER BY starts_at NULLS LAST, id LIMIT ?";
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
+            s.setInt(1, limit);
+            try (ResultSet rs = s.executeQuery()) {
+                while (rs.next()) list.add(mapEvent(rs));
+            }
+            return list;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read the shared events", e);
+        }
+    }
+
     public List<Event> events(long guildId, List<Status> statuses, int limit) {
         List<Event> list = new ArrayList<>();
         String filter = statuses == null || statuses.isEmpty() ? "" : " AND status = ANY (?)";

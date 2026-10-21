@@ -40,6 +40,14 @@ public interface EventTemplate {
     }
 
     /**
+     * Whether a player needs a linked RuneScape name to take part, because the event reads their game data (XP, kill counts) rather than proof they send.
+     * The events hub says so before someone joins (T-216). The default is no.
+     */
+    default boolean needsRsn() {
+        return false;
+    }
+
+    /**
      * The options this template adds to the ones every event has: what each is called, where it is kept in the settings, its standard value and whether it is
      * required (see {@link EventOptions}). The quick, standard and guided setups are drawn from this, so a template that lists its options here gets them in
      * all three with no other edit. The default is none.
