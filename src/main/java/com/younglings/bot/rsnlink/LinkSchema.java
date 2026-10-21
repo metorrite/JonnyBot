@@ -139,6 +139,20 @@ public final class LinkSchema {
                 note text
             );
             CREATE INDEX IF NOT EXISTS dispute_open ON %1$s.dispute (status, opened_at);
+            """,
+            // v2 (T-115, DM fallback): who a DM pairing is for, sealed like discord_user.discord_enc, and every DM attempt per target for
+            // the per-target caps. Kept two days.
+            """
+            ALTER TABLE %1$s.pairing ADD COLUMN IF NOT EXISTS target_discord_enc bytea;
+            ALTER TABLE %1$s.pairing ADD COLUMN IF NOT EXISTS target_key_version smallint;
+            CREATE TABLE IF NOT EXISTS %1$s.dm_send (
+                id bigserial PRIMARY KEY,
+                target_lookup bytea NOT NULL,
+                at timestamptz NOT NULL,
+                outcome text NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS dm_send_target ON %1$s.dm_send (target_lookup, at);
+            CREATE INDEX IF NOT EXISTS dm_send_at ON %1$s.dm_send (at);
             """
     );
 

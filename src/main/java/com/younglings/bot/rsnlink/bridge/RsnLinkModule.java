@@ -4,10 +4,11 @@ import com.sun.net.httpserver.HttpExchange;
 import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.internal.InternalRouteModule;
 import com.younglings.bot.rsnlink.LinkDatabase;
-import com.younglings.bot.rsnlink.LinkDmSender;
 import com.younglings.bot.rsnlink.LinkHttp;
 import com.younglings.bot.rsnlink.LinkService;
 import com.younglings.bot.rsnlink.LinkSettings;
+import io.github.freya022.botcommands.api.core.annotations.BEventListener;
+import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.utils.data.DataObject;
 import org.slf4j.Logger;
@@ -29,7 +30,8 @@ import java.util.concurrent.TimeUnit;
  *   <li>reads the {@code LINK_*} settings; with no {@code LINK_DATABASE_URL} the service is off and its routes answer 503;</li>
  *   <li>prepares the link database's schema;</li>
  *   <li>mounts {@code /internal/rsnlink/} on the internal API (behind {@code X-Internal-Secret});</li>
- *   <li>runs the hourly retention sweep.</li>
+ *   <li>runs the hourly retention sweep;</li>
+ *   <li>gives the DM fallback (T-115) JonnyBot's gateway connection to send codes with.</li>
  * </ul>
  * A misconfigured service (keys missing or short) refuses to start and says which variables are wrong, but the bot keeps running.
  */
@@ -39,6 +41,7 @@ public class RsnLinkModule implements InternalRouteModule {
 
     private final LinkService service;
     private final LinkHttp http;
+    private final JdaLinkDmSender dmSender = new JdaLinkDmSender();
 
     public RsnLinkModule(BotConfig config) {
         LinkService made = null;
@@ -49,7 +52,7 @@ public class RsnLinkModule implements InternalRouteModule {
                 log.info("RSN link service is off (LINK_DATABASE_URL not set).");
             } else {
                 LinkDatabase database = new LinkDatabase(settings.databaseUrl(), 4);
-                made = new LinkService(settings, database, LinkDmSender.NONE, List.of(), Clock.systemUTC(), new SecureRandom());
+                made = new LinkService(settings, database, dmSender, List.of(), Clock.systemUTC(), new SecureRandom());
                 made.start();
                 routes = new LinkHttp(made);
                 startSweeps(made);
@@ -66,6 +69,12 @@ public class RsnLinkModule implements InternalRouteModule {
         }
         this.service = made;
         this.http = routes;
+    }
+
+    /** The DM fallback needs the gateway connection, which exists only once JDA is ready. */
+    @BEventListener
+    public void onJdaReady(InjectedJDAEvent event) {
+        dmSender.attach(event.getJda());
     }
 
     /** The running service, or null when it is off. For the bot-side pieces that plug into it (the DM fallback, the abuse view). */
