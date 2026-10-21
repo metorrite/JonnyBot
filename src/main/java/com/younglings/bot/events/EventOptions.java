@@ -333,6 +333,11 @@ public final class EventOptions {
      * day, and the start a day from now running for a week. What is still empty (a boss night's boss) is what {@link #missing} reports.
      */
     public static DataObject standard(EventTemplate template, Instant now) {
+        return standard(template, now, EventDefaults.NONE);
+    }
+
+    /** As above, with the server's own defaults ({@link EventDefaults}) laid over the built-in ones. */
+    public static DataObject standard(EventTemplate template, Instant now, EventDefaults defaults) {
         DataObject answers = DataObject.empty().put("template", template.key());
         for (Option o : of(template)) {
             if (o.standard() != null) set(answers, o.path(), o.standard());
@@ -340,6 +345,7 @@ public final class EventOptions {
         Instant starts = now.plus(Duration.ofHours(STANDARD_STARTS_IN_HOURS));
         answers.put("startsAt", starts.toString()).put("endsAt", starts.plus(Duration.ofDays(STANDARD_DAYS)).toString());
         answers.put("name", standardName(template.label(), starts));
+        (defaults == null ? EventDefaults.NONE : defaults).applyTo(answers, template);
         return answers;
     }
 
@@ -480,11 +486,16 @@ public final class EventOptions {
 
     /** The step list, the options and the standard answers for {@code template}, as the website needs them to draw the setup. */
     public static DataObject schema(EventTemplate template, Instant now) {
+        return schema(template, now, EventDefaults.NONE);
+    }
+
+    /** As above, with the server's own defaults in the standard answers. */
+    public static DataObject schema(EventTemplate template, Instant now, EventDefaults defaults) {
         DataArray steps = DataArray.empty();
         for (Step s : Step.values()) steps.add(DataObject.empty().put("key", s.name()).put("label", s.label).put("blurb", s.blurb));
         DataArray options = DataArray.empty();
         of(template).forEach(o -> options.add(o.json()));
         return DataObject.empty().put("template", template.key()).put("label", template.label()).put("description", template.description()).put("steps", steps).put("options", options)
-                .put("standard", standard(template, now)).put("startsInHours", STANDARD_STARTS_IN_HOURS).put("days", STANDARD_DAYS);
+                .put("standard", standard(template, now, defaults)).put("startsInHours", STANDARD_STARTS_IN_HOURS).put("days", STANDARD_DAYS);
     }
 }

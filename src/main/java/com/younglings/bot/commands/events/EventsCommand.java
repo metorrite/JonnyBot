@@ -2,6 +2,7 @@ package com.younglings.bot.commands.events;
 
 import com.younglings.bot.discord.Containers;
 import com.younglings.bot.events.BingoBoardImage;
+import com.younglings.bot.events.EventDefaultsRepository;
 import com.younglings.bot.events.BingoBoardView;
 import com.younglings.bot.events.BingoTemplate;
 import com.younglings.bot.events.EventBoardPanels;
@@ -53,8 +54,10 @@ public class EventsCommand {
     private final EventBoardPanels panels;
     private final AdminRoleFilter adminRoleFilter;
     private final EventSignups signups;
+    private final EventDefaultsRepository eventDefaults;
 
-    public EventsCommand(EventService service, EventRepository repository, MemberEventsApi view, EventBoardPanels panels, AdminRoleFilter adminRoleFilter, EventSignups signups) {
+    public EventsCommand(EventService service, EventRepository repository, MemberEventsApi view, EventBoardPanels panels, AdminRoleFilter adminRoleFilter, EventSignups signups, EventDefaultsRepository eventDefaults) {
+        this.eventDefaults = eventDefaults;
         this.adminRoleFilter = adminRoleFilter;
         this.signups = signups;
         this.service = service;
@@ -274,7 +277,8 @@ public class EventsCommand {
         }
         long guildId = guild.getIdLong();
         try {
-            EventQuickCreate.Plan plan = EventQuickCreate.plan(kind, name, days == null ? 7 : days, startsInHours == null ? 24 : startsInHours, detail, Instant.now(), look == null ? null : look.id);
+            EventQuickCreate.Plan plan = EventQuickCreate.plan(kind, name, days == null ? 7 : days, startsInHours == null ? 24 : startsInHours, detail, Instant.now(), look == null ? null : look.id,
+                    eventDefaults.get(guildId));
             long id = service.createEvent(guildId, event.getUser().getIdLong(), plan.input());
             service.moveStage(guildId, id, Status.SIGNUPS);
             Containers.reply(event, Containers.SUCCESS, false,

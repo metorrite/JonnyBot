@@ -2,6 +2,8 @@ package com.younglings.bot.internal;
 
 import com.younglings.bot.events.EventBlueprintRepository.Blueprint;
 import com.younglings.bot.events.EventDraftRepository.Draft;
+import com.younglings.bot.events.BingoLooks;
+import com.younglings.bot.events.EventDefaults;
 import com.younglings.bot.events.EventOptions;
 import com.younglings.bot.events.EventSetup;
 import com.younglings.bot.events.EventTemplate;
@@ -42,13 +44,14 @@ public class EventSetupApi {
 
     /** Whether {@code first} (the part after {@code events/}) is one of this class's routes. */
     public static boolean handles(String first) {
-        return first.equals("setup") || first.equals("drafts") || first.equals("saved-templates");
+        return first.equals("setup") || first.equals("drafts") || first.equals("saved-templates") || first.equals("defaults");
     }
 
     public DataObject route(Guild guild, Member actor, String method, String[] parts, Supplier<DataObject> body) {
         return switch (parts[1]) {
             case "setup" -> setupRoute(guild, actor, method, parts, body);
             case "drafts" -> draftRoute(guild, actor, method, parts, body);
+            case "defaults" -> defaultsRoute(guild, actor, method, parts, body);
             default -> templateRoute(guild, actor, method, parts, body);
         };
     }
@@ -58,7 +61,7 @@ public class EventSetupApi {
     private DataObject setupRoute(Guild guild, Member actor, String method, String[] parts, Supplier<DataObject> body) {
         if (parts.length == 4 && parts[2].equals("schema")) {
             AdminRouteExtension.requireMethod(method, "GET");
-            return setup.schema(parts[3], Instant.now());
+            return setup.schema(guild.getIdLong(), parts[3], Instant.now());
         }
         if (parts.length == 3 && parts[2].equals("standard")) {
             AdminRouteExtension.requireMethod(method, "POST");
@@ -77,6 +80,31 @@ public class EventSetupApi {
             return created(id);
         }
         return null;
+    }
+
+    // ---------- the server's own defaults for new events ----------
+
+    private DataObject defaultsRoute(Guild guild, Member actor, String method, String[] parts, Supplier<DataObject> body) {
+        if (parts.length != 2) return null;
+        if (method.equals("PUT")) {
+            setup.saveDefaults(guild.getIdLong(), actor.getIdLong(), body.get());
+            log.info("Dashboard: {} changed the event defaults of server {}", actor.getId(), guild.getId());
+        } else {
+            AdminRouteExtension.requireMethod(method, "GET");
+        }
+        return defaultsJson(setup.defaults(guild.getIdLong()));
+    }
+
+    /** The saved defaults plus what the dashboard needs to draw them: every name with its built-in pattern, the looks, and the built-in values. */
+    static DataObject defaultsJson(EventDefaults d) {
+        DataArray names = DataArray.empty();
+        for (EventDefaults.NameKey k : EventDefaults.nameKeys()) {
+            names.add(DataObject.empty().put("key", k.key()).put("label", k.label()).put("builtIn", k.builtIn()).put("pattern", d.names().getOrDefault(k.key(), "")));
+        }
+        DataArray looks = DataArray.empty();
+        for (String id : BingoLooks.ids()) looks.add(DataObject.empty().put("id", id).put("label", BingoLooks.label(id)));
+        return DataObject.empty().put("defaults", d.json()).put("names", names).put("looks", looks)
+                .put("builtIn", DataObject.empty().put("look", BingoLooks.DEFAULT_FOR_NEW).put("gate", "TEAMS").put("setupMode", "STANDARD"));
     }
 
     private static DataObject created(long id) {
