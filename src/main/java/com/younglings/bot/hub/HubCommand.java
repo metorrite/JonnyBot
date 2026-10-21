@@ -15,6 +15,8 @@ import java.util.Optional;
  * where it may be used) then apply to it with no further code.
  */
 public enum HubCommand {
+    TAG("tag", "Custom tags", "tag", "The server's saved replies: members bring one up with /tag use, staff make and delete them. The full editor is on the Custom tags page, which also switches tags on.",
+            "Everyone (making and deleting needs staff)", false),
     SIGNUP("signup", "Signups", "signup", "Create and manage signups: queues, groups and submission forms, with a public panel members use.",
             "Admins only", true, CommandTag.FUNCTIONAL, CommandTag.CLAN_MANAGEMENT),
     POLL("poll", "Polls", "poll", "Create a poll, or end one you started.",
