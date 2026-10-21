@@ -15,6 +15,9 @@ import com.younglings.bot.clanprofile.ClanProfile;
 import com.younglings.bot.clanprofile.ClanProfile.Focus;
 import com.younglings.bot.clanprofile.ClanProfileRepository;
 import com.younglings.bot.clanprofile.ClanProfileService;
+import com.younglings.bot.clanprofile.ClanRecruiting;
+import com.younglings.bot.clanprofile.ClanRecruitingRepository;
+import com.younglings.bot.forms.WebFormRepository;
 import com.younglings.bot.clanprofile.ProfileRules;
 import com.younglings.bot.clanprofile.PublicEvents;
 import com.younglings.bot.clanprofile.PublicEvents.EventInfo;
@@ -81,12 +84,14 @@ public class DirectoryApi {
     private final SiteSwitchAdminApi siteSwitches;
     private final ClanSiteService sites;
     private final SiteApi siteApi;
+    private final ClanRecruitingRepository recruiting;
+    private final WebFormRepository forms;
     private final TtlCache cache = new TtlCache();
 
     private final HubEventsApi hubEvents;
 
     public DirectoryApi(ClanProfileRepository repository, ClanProfileService service, SiteStatsRepository stats, AllianceRepository alliances, SiteSwitchAdminApi siteSwitches,
-                        HubEventsApi hubEvents, ClanSiteService sites, SiteApi siteApi) {
+                        HubEventsApi hubEvents, ClanSiteService sites, SiteApi siteApi, ClanRecruitingRepository recruiting, WebFormRepository forms) {
         this.siteSwitches = siteSwitches;
         this.hubEvents = hubEvents;
         this.repository = repository;
@@ -95,6 +100,8 @@ public class DirectoryApi {
         this.alliances = alliances;
         this.sites = sites;
         this.siteApi = siteApi;
+        this.recruiting = recruiting;
+        this.forms = forms;
     }
 
     /** Called after the shared secret has been checked. */
@@ -254,7 +261,8 @@ public class DirectoryApi {
                 .put("memberCount", clan == null ? null : service.memberCount(p.guildId())).put("onLeaderboards", listed && p.leaderboardOptIn());
         if (full) {
             json.put("description", p.description()).put("requirements", p.requirements()).put("applyUrl", p.applyUrl()).put("timezone", p.timezone())
-                    .put("updatedAt", p.updatedAt() == null ? null : p.updatedAt().toString());
+                    .put("updatedAt", p.updatedAt() == null ? null : p.updatedAt().toString())
+                    .put("recruitingPost", recruitingJson(p));
             json.put("alliances", alliancesJson(p.guildId()));
         }
         return json;
@@ -339,6 +347,22 @@ public class DirectoryApi {
         } catch (RuntimeException e) {
             return DataArray.empty();
         }
+    }
+
+    // ---------- recruiting ----------
+
+    /**
+     * The clan's recruiting post: what it is looking for, its invite, and the address of the application form the hub's Apply button opens.
+     * The form only while the clan is recruiting and the form is switched on; its address is the public form page the clan already shares.
+     */
+    private DataObject recruitingJson(ClanProfile p) {
+        ClanRecruiting r = recruiting.of(p.guildId());
+        boolean open = p.recruiting() != ClanProfile.Recruiting.CLOSED;
+        String formPath = null;
+        if (open && r.applyFormId() != null) {
+            formPath = forms.get(r.applyFormId()).filter(f -> f.guildId() == p.guildId() && f.enabled()).map(f -> "/forms/" + f.guildId() + "/" + f.id()).orElse(null);
+        }
+        return DataObject.empty().put("post", r.post()).put("applyFormPath", formPath).put("inviteUrl", open && ClanRecruiting.validInvite(r.inviteUrl()) ? r.inviteUrl() : null);
     }
 
     // ---------- events ----------
