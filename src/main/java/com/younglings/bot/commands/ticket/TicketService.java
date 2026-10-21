@@ -72,9 +72,11 @@ public class TicketService {
     private final MemberAccess memberAccess;
     private final HelpPingService helpPings;
     private final HelpExtrasRepository extras;
+    private final TicketRelatedNotice relatedNotice;
 
     public TicketService(TicketRepository repository, PlayerLinkService linkService, AdminRoleFilter adminRoleFilter, MemberAccess memberAccess,
-                         HelpPingService helpPings, HelpExtrasRepository extras) {
+                         HelpPingService helpPings, HelpExtrasRepository extras, TicketRelatedNotice relatedNotice) {
+        this.relatedNotice = relatedNotice;
         this.repository = repository;
         this.linkService = linkService;
         this.adminRoleFilter = adminRoleFilter;
@@ -179,7 +181,10 @@ public class TicketService {
                                 .submit()
                                 .thenApply(message -> {
                                     repository.setWelcomeMessage(ticket.id(), message.getIdLong());
-                                    return repository.getTicket(ticket.id());
+                                    Ticket made = repository.getTicket(ticket.id());
+                                    // group content: tell helpers and staff when someone else asked about the same boss (does nothing unless switched on)
+                                    relatedNotice.announce(made, panel, channel);
+                                    return made;
                                 });
                     });
                 })

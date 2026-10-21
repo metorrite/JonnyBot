@@ -33,6 +33,18 @@ public class HelpExtrasRepository {
                     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 );
                 """,
+                "ALTER TABLE younglings.help_extras ADD COLUMN IF NOT EXISTS related_tickets BOOLEAN NOT NULL DEFAULT FALSE;",
+                "ALTER TABLE younglings.help_extras ADD COLUMN IF NOT EXISTS group_bosses TEXT NOT NULL DEFAULT 'Vorago, Solak';",
+                // tickets linked as being about the same group content (stored once, smaller id first)
+                """
+                CREATE TABLE IF NOT EXISTS younglings.help_ticket_link (
+                    ticket_a BIGINT NOT NULL,
+                    ticket_b BIGINT NOT NULL,
+                    linked_by BIGINT NOT NULL,
+                    linked_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    PRIMARY KEY (ticket_a, ticket_b)
+                );
+                """,
                 // the event a ticket was turned into, so the button can't make a second one
                 """
                 CREATE TABLE IF NOT EXISTS younglings.help_ticket_event (
@@ -46,11 +58,11 @@ public class HelpExtrasRepository {
 
     public HelpExtras get(long guildId) {
         try (Connection c = connectionSupplier.getConnection();
-             PreparedStatement s = c.prepareStatement("SELECT event_button, event_start_hours, event_days FROM younglings.help_extras WHERE guild_id = ?")) {
+             PreparedStatement s = c.prepareStatement("SELECT event_button, event_start_hours, event_days, related_tickets, group_bosses FROM younglings.help_extras WHERE guild_id = ?")) {
             s.setLong(1, guildId);
             try (ResultSet rs = s.executeQuery()) {
                 if (!rs.next()) return HelpExtras.defaults(guildId);
-                return new HelpExtras(guildId, rs.getBoolean("event_button"), rs.getInt("event_start_hours"), rs.getInt("event_days"));
+                return new HelpExtras(guildId, rs.getBoolean("event_button"), rs.getInt("event_start_hours"), rs.getInt("event_days"), rs.getBoolean("related_tickets"), rs.getString("group_bosses"));
             }
         } catch (SQLException e) {
             log.error("Failed to read the help extras of guild {}", guildId, e);
@@ -60,15 +72,17 @@ public class HelpExtrasRepository {
 
     public void save(HelpExtras extras) {
         String sql = """
-                INSERT INTO younglings.help_extras (guild_id, event_button, event_start_hours, event_days, updated_at) VALUES (?, ?, ?, ?, NOW())
+                INSERT INTO younglings.help_extras (guild_id, event_button, event_start_hours, event_days, related_tickets, group_bosses, updated_at) VALUES (?, ?, ?, ?, ?, ?, NOW())
                 ON CONFLICT (guild_id) DO UPDATE SET event_button = EXCLUDED.event_button, event_start_hours = EXCLUDED.event_start_hours,
-                    event_days = EXCLUDED.event_days, updated_at = NOW()
+                    event_days = EXCLUDED.event_days, related_tickets = EXCLUDED.related_tickets, group_bosses = EXCLUDED.group_bosses, updated_at = NOW()
                 """;
         try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
             s.setLong(1, extras.guildId());
             s.setBoolean(2, extras.eventButton());
             s.setInt(3, extras.eventStartHours());
             s.setInt(4, extras.eventDays());
+            s.setBoolean(5, extras.relatedTickets());
+            s.setString(6, extras.groupBosses());
             s.executeUpdate();
         } catch (SQLException e) {
             log.error("Failed to save the help extras of guild {}", extras.guildId(), e);
@@ -109,6 +123,36 @@ public class HelpExtrasRepository {
             s.executeUpdate();
         } catch (SQLException e) {
             throw new RuntimeException("Failed to record the event of a ticket", e);
+        }
+    }
+
+    /** Links two tickets; false if they were already linked. */
+    public boolean link(long ticketA, long ticketB, long linkedBy) {
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("INSERT INTO younglings.help_ticket_link (ticket_a, ticket_b, linked_by) VALUES (?, ?, ?) ON CONFLICT DO NOTHING")) {
+            s.setLong(1, Math.min(ticketA, ticketB));
+            s.setLong(2, Math.max(ticketA, ticketB));
+            s.setLong(3, linkedBy);
+            return s.executeUpdate() == 1;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to link two tickets", e);
+        }
+    }
+
+    /** The tickets linked to this one. */
+    public List<Long> linkedTo(long ticketId) {
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("SELECT CASE WHEN ticket_a = ? THEN ticket_b ELSE ticket_a END AS other FROM younglings.help_ticket_link WHERE ticket_a = ? OR ticket_b = ? ORDER BY 1")) {
+            s.setLong(1, ticketId);
+            s.setLong(2, ticketId);
+            s.setLong(3, ticketId);
+            List<Long> out = new java.util.ArrayList<>();
+            try (ResultSet rs = s.executeQuery()) {
+                while (rs.next()) out.add(rs.getLong(1));
+            }
+            return out;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read linked tickets", e);
         }
     }
 

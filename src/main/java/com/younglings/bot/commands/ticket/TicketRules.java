@@ -58,6 +58,11 @@ public final class TicketRules {
     private static final EnumSet<Permission> BOT = EnumSet.of(Permission.VIEW_CHANNEL, Permission.MESSAGE_SEND, Permission.MESSAGE_HISTORY,
             Permission.MESSAGE_ATTACH_FILES, Permission.MESSAGE_EMBED_LINKS, Permission.MANAGE_CHANNEL, Permission.MESSAGE_MANAGE);
 
+    /** What a member of a ticket may do in its channel: the rights a requester has in their own ticket. */
+    public static EnumSet<Permission> participantPermissions() {
+        return EnumSet.copyOf(PARTICIPANT);
+    }
+
     /** The ticket's own permission overwrites: hidden from everyone, visible to the requester, the helper/staff roles, and the bot. */
     public static List<Overwrite> overwrites(long everyoneRoleId, long requesterId, long botId, Set<Long> participantRoleIds) {
         List<Overwrite> overwrites = new ArrayList<>();
