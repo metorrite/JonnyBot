@@ -75,7 +75,8 @@ public class BingoTemplate implements EventTemplate {
                         EventOptions.Step.RULES, "auto", List.of(new EventOptions.Choice("auto", "Automatic"), new EventOptions.Choice(UNLOCK_LOCKED, "In order"),
                                 new EventOptions.Choice(UNLOCK_FREE, "Any order (the shape only earns bonuses)"))).showWhen(EventOptions.When.isNot("config.board.layout", "grid")),
                 EventOptions.Option.choice("config.board.pool", "Tiles come from", "You can edit, lock and swap any tile afterwards.", EventOptions.Step.RULES, BingoBoard.POOL_DROPS,
-                        List.of(new EventOptions.Choice(BingoBoard.POOL_DROPS, "Boss drops"), new EventOptions.Choice(BingoBoard.POOL_CLASSIC, "Kills, skilling and goals"))),
+                        List.of(new EventOptions.Choice(BingoBoard.POOL_DROPS, "Boss drops"), new EventOptions.Choice(BingoBoard.POOL_CLASSIC, "Kills, skilling and goals"),
+                                new EventOptions.Choice(BingoBoard.POOL_CUSTOM, "Your tile pool", "The tiles set up on the dashboard's Bingo tile pool page. Only for events made on the dashboard."))),
                 EventOptions.Option.choice("config.board.look", "Look", "What the board picture in Discord is drawn on. You can change it any time before the event ends.", EventOptions.Step.RULES,
                         BingoLooks.DEFAULT_FOR_NEW, looks).widget("look"),
                 EventOptions.Option.of("config.board.title", "Board title", "Replaces the event's name at the top of the board picture. Leave empty to use the name.", EventOptions.Step.RULES,
@@ -118,6 +119,23 @@ public class BingoTemplate implements EventTemplate {
             return BingoBoard.poolIds().contains(id) ? id : BingoBoard.POOL_DROPS;
         } catch (RuntimeException e) {
             return BingoBoard.POOL_DROPS;
+        }
+    }
+
+    /**
+     * The tiles a board is made from: the event's own copy of the server's tile pool when it uses one ({@code board.pool = "custom"}), else the built-in pool
+     * of that name. A custom pool with no (or unreadable) tiles is an empty pool, which {@link #configProblems} reports.
+     */
+    static List<BingoBoard.TileSpec> poolSpecs(DataObject config) {
+        String id = poolOf(config);
+        if (!BingoBoard.POOL_CUSTOM.equals(id)) return BingoBoard.pool(id);
+        try {
+            DataObject board = config.getObject("board");
+            if (!board.hasKey("tiles") || board.isNull("tiles")) return List.of();
+            DataArray tiles = board.getArray("tiles");
+            return BingoTilePool.configProblems(tiles).isEmpty() ? BingoTilePool.fromConfig(tiles) : List.of();
+        } catch (RuntimeException e) {
+            return List.of();
         }
     }
 
@@ -177,8 +195,8 @@ public class BingoTemplate implements EventTemplate {
         long lineBonus = number(config, "lineBonus", DEFAULT_LINE_BONUS);
         long blackoutBonus = number(config, "blackoutBonus", DEFAULT_BLACKOUT_BONUS);
         List<String> problems = new ArrayList<>(layout.isPresent()
-                ? BingoBoard.layoutProblems(layout.get(), BingoBoard.pool(poolOf(config)).size(), lineBonus, blackoutBonus)
-                : BingoBoard.problems(size(config), BingoBoard.pool(poolOf(config)).size(), lineBonus, blackoutBonus));
+                ? BingoBoard.layoutProblems(layout.get(), poolSpecs(config).size(), lineBonus, blackoutBonus)
+                : BingoBoard.problems(size(config), poolSpecs(config).size(), lineBonus, blackoutBonus));
         try {
             if (config.hasKey("board") && !config.isNull("board")) {
                 DataObject board = config.getObject("board");
@@ -203,6 +221,14 @@ public class BingoTemplate implements EventTemplate {
         try {
             if (config.hasKey("board") && !config.isNull("board") && config.getObject("board").hasKey("pool")
                     && !BingoBoard.poolIds().contains(config.getObject("board").getString("pool", ""))) problems.add("Choose a tile pool from the list.");
+            if (BingoBoard.POOL_CUSTOM.equals(poolOf(config))) {
+                DataObject board = config.getObject("board");
+                if (!board.hasKey("tiles") || board.isNull("tiles")) {
+                    problems.add("Your own tile pool is copied into an event when it is made on the dashboard. Make this event there, or choose another pool.");
+                } else {
+                    problems.addAll(BingoTilePool.configProblems(board.getArray("tiles")));
+                }
+            }
         } catch (RuntimeException e) {
             problems.add("The board settings couldn't be read.");
         }
@@ -218,9 +244,9 @@ public class BingoTemplate implements EventTemplate {
         String pool = poolOf(config);
         var layout = layoutOf(config);
         Board generated = layout.isPresent()
-                ? BingoBoard.generateLayout(layout.get(), seed, BingoBoard.pool(pool), null, Set.of(), number(config, "lineBonus", DEFAULT_LINE_BONUS), number(config, "blackoutBonus", DEFAULT_BLACKOUT_BONUS),
+                ? BingoBoard.generateLayout(layout.get(), seed, poolSpecs(config), null, Set.of(), number(config, "lineBonus", DEFAULT_LINE_BONUS), number(config, "blackoutBonus", DEFAULT_BLACKOUT_BONUS),
                         BingoBoardOptions.of(config))
-                : BingoBoard.generate(board.getInt("size", DEFAULT_SIZE), seed, BingoBoard.pool(pool), null, Set.of(),
+                : BingoBoard.generate(board.getInt("size", DEFAULT_SIZE), seed, poolSpecs(config), null, Set.of(),
                         number(config, "lineBonus", DEFAULT_LINE_BONUS), number(config, "blackoutBonus", DEFAULT_BLACKOUT_BONUS), BingoBoardOptions.of(config));
         return withBoard(config, generated, pool, unlockedInOrder(config));
     }
@@ -232,12 +258,12 @@ public class BingoTemplate implements EventTemplate {
         var layout = layoutOf(config);
         // the same size (or shape) and seed give the same tiles, so the objectives can be rebuilt from the settings alone
         if (layout.isPresent()) {
-            Board rebuilt = BingoBoard.generateLayout(layout.get(), board.getLong("seed", 0), BingoBoard.pool(poolOf(config)), null, Set.of(),
+            Board rebuilt = BingoBoard.generateLayout(layout.get(), board.getLong("seed", 0), poolSpecs(config), null, Set.of(),
                     number(config, "lineBonus", DEFAULT_LINE_BONUS), number(config, "blackoutBonus", DEFAULT_BLACKOUT_BONUS), BingoBoardOptions.of(config));
             return layoutObjectives(layout.get(), rebuilt.tiles(), unlockedInOrder(config), null);
         }
         int size = board.getInt("size", DEFAULT_SIZE);
-        Board rebuilt = BingoBoard.generate(size, board.getLong("seed", 0), BingoBoard.pool(poolOf(config)), null, Set.of(),
+        Board rebuilt = BingoBoard.generate(size, board.getLong("seed", 0), poolSpecs(config), null, Set.of(),
                 number(config, "lineBonus", DEFAULT_LINE_BONUS), number(config, "blackoutBonus", DEFAULT_BLACKOUT_BONUS), BingoBoardOptions.of(config));
         return rebuilt.tiles().stream().filter(t -> !BingoBoardOptions.FREE_KEY.equals(t.key())).map(BingoTemplate::objective).toList();
     }
@@ -314,7 +340,7 @@ public class BingoTemplate implements EventTemplate {
         // a board of a different size can't keep tiles in place: only a same-size re-roll honours locks
         boolean sameSize = !shapeChanged && size == board.getInt("size", DEFAULT_SIZE) && previous.size() == size * size;
         String pool = poolOf(config);
-        Board generated = BingoBoard.generate(size, seed, BingoBoard.pool(pool), sameSize ? previous : null, sameSize ? lockedKeys : Set.of(),
+        Board generated = BingoBoard.generate(size, seed, poolSpecs(config), sameSize ? previous : null, sameSize ? lockedKeys : Set.of(),
                 number(config, "lineBonus", DEFAULT_LINE_BONUS), number(config, "blackoutBonus", DEFAULT_BLACKOUT_BONUS), BingoBoardOptions.of(config));
         Set<String> boardKeys = generated.tiles().stream().map(Tile::key).collect(Collectors.toSet());
         List<ObjectiveSpec> objectives = new ArrayList<>();
@@ -340,7 +366,7 @@ public class BingoTemplate implements EventTemplate {
         }
         boolean keepLocks = !shapeChanged && previous.size() == layout.tiles();
         String pool = poolOf(config);
-        Board generated = BingoBoard.generateLayout(layout, seed, BingoBoard.pool(pool), keepLocks ? previous : null, keepLocks ? lockedKeys : Set.of(),
+        Board generated = BingoBoard.generateLayout(layout, seed, poolSpecs(config), keepLocks ? previous : null, keepLocks ? lockedKeys : Set.of(),
                 number(config, "lineBonus", DEFAULT_LINE_BONUS), number(config, "blackoutBonus", DEFAULT_BLACKOUT_BONUS), BingoBoardOptions.of(config));
         boolean inOrder = unlockedInOrder(config);
         Map<String, ObjectiveSpec> kept = new java.util.HashMap<>();
@@ -435,6 +461,12 @@ public class BingoTemplate implements EventTemplate {
         }
         // the look is the organiser's choice and survives a re-roll, a new shape or a swapped tile
         BingoLooks.of(config).ifPresent(look -> stored.put("look", look));
+        // a server's own pool is kept in the event, so the same seed always rebuilds the same board
+        try {
+            if (BingoBoard.POOL_CUSTOM.equals(pool) && config.getObject("board").hasKey("tiles")) stored.put("tiles", config.getObject("board").getArray("tiles"));
+        } catch (RuntimeException ignored) {
+            // reported by problems()
+        }
         // and so are the board options (title, fog, names, accent, points curve, free centre)
         try {
             if (config.hasKey("board") && !config.isNull("board")) BingoBoardOptions.copy(config.getObject("board"), stored);

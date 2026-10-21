@@ -36,9 +36,12 @@ public class EventSetup {
     private final EventDraftRepository drafts;
     private final EventBlueprintRepository blueprints;
     private final EventDefaultsRepository defaults;
+    private final BingoPools pools;
 
-    public EventSetup(EventService service, EventTemplates templates, EventDraftRepository drafts, EventBlueprintRepository blueprints, EventDefaultsRepository defaults) {
+    public EventSetup(EventService service, EventTemplates templates, EventDraftRepository drafts, EventBlueprintRepository blueprints, EventDefaultsRepository defaults,
+                      BingoPools pools) {
         this.defaults = defaults;
+        this.pools = pools;
         this.service = service;
         this.templates = templates;
         this.drafts = drafts;
@@ -104,6 +107,8 @@ public class EventSetup {
         }
         if (!prizeProblems.isEmpty()) throw new EventProblem(400, "The prizes can't be saved yet.", prizeProblems.stream().distinct().toList());
 
+        // a bingo event that uses the server's own tile pool gets a copy of it now, so changing the pool later never changes this event
+        if (input.config() != null) input = input.withConfig(pools.expand(guildId, input.template(), input.config()));
         long id = service.createEvent(guildId, actorId, input);
         if (!prizes.isEmpty()) {
             try {

@@ -98,9 +98,11 @@ class EventsAdminApiTest {
         EventBoardPanels panels = Mockito.mock(EventBoardPanels.class);
         Mockito.when(panels.refresh(ArgumentMatchers.anyLong(), ArgumentMatchers.anyLong())).thenReturn("Posted the board.");
         links = Mockito.mock(com.younglings.bot.runescape.PlayerLinkRepository.class);
-        var eventSetup = new com.younglings.bot.events.EventSetup(service, templates, new com.younglings.bot.events.EventDraftRepository(supplier), new com.younglings.bot.events.EventBlueprintRepository(supplier), new com.younglings.bot.events.EventDefaultsRepository(supplier));
+        var eventSetup = new com.younglings.bot.events.EventSetup(service, templates, new com.younglings.bot.events.EventDraftRepository(supplier), new com.younglings.bot.events.EventBlueprintRepository(supplier),
+                new com.younglings.bot.events.EventDefaultsRepository(supplier), new com.younglings.bot.events.BingoPools(Mockito.mock(com.younglings.bot.events.BingoTileRepository.class)));
         api = new EventsAdminApi(service, repository, templates, signups, new BingoTemplate(), panels, links, new com.younglings.bot.events.BingoTiles(new com.younglings.bot.internal.WikiCatalog()),
-                new EventSetupApi(eventSetup), new com.younglings.bot.events.EventTeams(service, repository, links));
+                new EventSetupApi(eventSetup), new com.younglings.bot.events.EventTeams(service, repository, links),
+                new com.younglings.bot.events.BingoPools(Mockito.mock(com.younglings.bot.events.BingoTileRepository.class)));
 
         guild = Mockito.mock(Guild.class);
         Mockito.when(guild.getIdLong()).thenReturn(G);
