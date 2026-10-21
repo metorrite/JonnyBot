@@ -274,6 +274,15 @@ public class BotConfig {
         return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
     }
 
+    /**
+     * A setting of the RSN link service ({@code com.younglings.bot.rsnlink}), which reads its own {@code LINK_*} variables so it can move to a
+     * separate service unchanged. Only names starting with {@code LINK_} are served; null when unset.
+     */
+    public String getLinkSetting(String name) {
+        if (!name.startsWith("LINK_")) throw new IllegalArgumentException("Only LINK_ settings are served here");
+        return envOrDotenv(name);
+    }
+
     /** What the JonnyBot face's address was before it was configurable. */
     public static final String DEFAULT_JONNYBOT_URL = "https://jonnybot.rsyounglings.com";
 
