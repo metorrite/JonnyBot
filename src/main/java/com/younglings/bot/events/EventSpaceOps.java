@@ -238,7 +238,7 @@ public class EventSpaceOps {
         }
         // from here the event counts as set up (or part way), so it can't be deleted while its roles and channels exist
         events.markSpace(eventId, actorId, false, "Setting up…");
-        job.total = (int) (plan.newRoles() + plan.newChannels() + (removeUnneeded ? plan.count(Action.REMOVE) : 0)) + 1;
+        job.total = (int) (plan.newRoles() + plan.newChannels() + plan.count(Action.REPAIR) + (removeUnneeded ? plan.count(Action.REMOVE) : 0)) + 1;
         try {
             make(guild, event, gathered, plan, actorId, removeUnneeded, job);
         } catch (RuntimeException e) {
@@ -258,7 +258,16 @@ public class EventSpaceOps {
 
         Map<String, Long> roleIds = new LinkedHashMap<>();
         for (RoleItem r : plan.roles()) {
-            if (r.action() == Action.KEEP) roleIds.put(r.key(), r.id());
+            if (r.action() == Action.KEEP || r.action() == Action.REPAIR) roleIds.put(r.key(), r.id());
+        }
+        for (RoleItem r : plan.roles()) {
+            if (r.action() != Action.REPAIR || r.id() == null) continue;
+            Role role = guild.getRoleById(r.id());
+            if (role == null) continue;
+            job.message = "Putting the role " + r.name() + " back…";
+            role.getManager().setName(r.name()).reason("Putting back a role of the event " + event.name()).complete();
+            space.saveRole(eventId, r.key(), role.getIdLong(), r.name());
+            job.step("Put the role " + r.name() + " back.");
         }
         for (RoleItem r : plan.roles()) {
             if (r.action() != Action.CREATE) continue;
@@ -284,7 +293,7 @@ public class EventSpaceOps {
 
         Map<String, Category> categories = new HashMap<>();
         for (ChannelItem c : plan.channels()) {
-            if (c.kind() == Kind.CATEGORY && c.action() == Action.KEEP && c.id() != null) {
+            if (c.kind() == Kind.CATEGORY && (c.action() == Action.KEEP || c.action() == Action.REPAIR) && c.id() != null) {
                 Category category = guild.getCategoryById(c.id());
                 if (category != null) categories.put(c.key(), category);
             }
@@ -319,6 +328,23 @@ public class EventSpaceOps {
             space.saveChannel(eventId, c.key(), made.getIdLong(), made.getName(), true, c.parent());
             useAsEngineChannel(guildId, eventId, c.kind(), made.getIdLong());
             job.step("Made the channel #" + c.name() + ".");
+        }
+
+        for (ChannelItem c : plan.channels()) {
+            if (c.action() != Action.REPAIR || c.id() == null) continue;
+            if (!(guild.getGuildChannelById(c.id()) instanceof IPermissionContainer container)) continue;
+            job.message = "Putting #" + c.name() + " back…";
+            var manager = container.getManager();
+            if (c.kind() != Kind.PLAYER && !container.getName().equals(c.name())) manager.setName(c.name());
+            EventSpace.Drift drift = EventSpace.drift(EventSpace.overwrites(c.access(), idsOf), EventSpaces.overwritesOf(container));
+            for (Overwrite o : drift.put()) {
+                if (o.isRole()) manager.putRolePermissionOverride(o.id(), o.allow(), o.deny());
+                else manager.putMemberPermissionOverride(o.id(), o.allow(), o.deny());
+            }
+            for (long id : drift.remove()) manager.removePermissionOverride(id);
+            manager.reason("Putting back a channel of the event " + event.name()).complete();
+            space.saveChannel(eventId, c.key(), c.id(), c.name(), true, c.parent());
+            job.step("Put #" + c.name() + " back.");
         }
 
         if (removeUnneeded) {
