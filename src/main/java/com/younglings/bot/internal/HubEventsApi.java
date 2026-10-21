@@ -99,6 +99,47 @@ public class HubEventsApi {
         return card;
     }
 
+    /** An answer with its HTTP status, for the routes that change something. */
+    public record Answer(int status, DataObject body) {}
+
+    /**
+     * Joins a listed event as {@code rawUser} (the Discord id the website signed in), by the same rules as joining from the host's own pages: the person has
+     * to be in the host's Discord (D10), so someone who isn't gets 403 with {@code notInServer} and the host's invite link to try again after joining.
+     */
+    public Answer join(JDA jda, String rawId, String rawUser) {
+        Long userId = idOf(rawUser);
+        if (userId == null) return new Answer(400, DataObject.empty().put("error", "Sign in with Discord first."));
+        if (rawId == null || !rawId.matches("\\d{1,18}")) return new Answer(404, DataObject.empty().put("error", "No such event"));
+        Optional<Event> found = events.eventById(Long.parseLong(rawId));
+        if (found.isEmpty() || !EventListing.listed(found.get(), Instant.now())) return new Answer(404, DataObject.empty().put("error", "No such event"));
+        Event e = found.get();
+        Guild host = jda == null ? null : jda.getGuildById(e.guildId());
+        if (host == null) return new Answer(503, DataObject.empty().put("error", "The host's server can't be reached right now. Try again in a minute."));
+        // an alliance event is only for members of allied servers (or of the host): the same rule as seeing it
+        if (accessOf(e, guildsOf(jda, userId), new LinkedHashMap<>()) == null && !inServer(host, userId)) return new Answer(404, DataObject.empty().put("error", "No such event"));
+        if (!inServer(host, userId)) {
+            String invite = host(jda, e.guildId()).getString("inviteUrl", null);
+            return new Answer(403, DataObject.empty().put("notInServer", true).put("inviteUrl", invite)
+                    .put("error", "To take part you need to be in the " + host.getName() + " Discord server. Join it, then press Join again."));
+        }
+        try {
+            var joined = service.join(e.guildId(), e.id(), e.guildId(), userId, null, false, null);
+            return new Answer(200, DataObject.empty().put("joined", true).put("waiting", joined.waiting()).put("position", joined.position()));
+        } catch (com.younglings.bot.events.EventProblem p) {
+            return new Answer(p.status() >= 400 && p.status() < 500 ? p.status() : 409, DataObject.empty().put("error", p.getMessage()));
+        }
+    }
+
+    /** Whether someone is in a server, asking Discord when they aren't in the cache. */
+    private static boolean inServer(Guild guild, long userId) {
+        if (guild.getMemberById(userId) != null) return true;
+        try {
+            return guild.retrieveMemberById(userId).complete() != null;
+        } catch (RuntimeException ex) {
+            return false;
+        }
+    }
+
     /** How the viewer may see a listed event, or null. */
     private Access accessOf(Event e, Set<Long> viewerGuilds, Map<Long, Boolean> alliedCache) {
         if (viewerGuilds.contains(e.guildId())) return Access.MINE;
