@@ -285,6 +285,12 @@ public class BotConfig {
         return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
     }
 
+    /** A RuneSync server setting ({@code RUNESYNC_*}, e.g. {@code RUNESYNC_MIN_CLIENT_VERSION}); null when unset. */
+    public String getRuneSyncSetting(String name) {
+        if (!name.startsWith("RUNESYNC_")) throw new IllegalArgumentException("Only RUNESYNC_ settings are served here");
+        return envOrDotenv(name);
+    }
+
     /**
      * A setting of the RSN link service ({@code com.younglings.bot.rsnlink}), which reads its own {@code LINK_*} variables so it can move to a
      * separate service unchanged. Only names starting with {@code LINK_} are served; null when unset.
