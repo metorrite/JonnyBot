@@ -48,6 +48,15 @@ public class ModService {
      */
     public CompletableFuture<Outcome> execute(Guild guild, Member actor, User target, Member targetMember, ModAction action, String reason,
                                               Integer durationMinutes, int deleteDays) {
+        return execute(guild, actor, target, targetMember, action, reason, durationMinutes, deleteDays, ModCase.COMMAND);
+    }
+
+    /**
+     * The same, for another feature acting on its own (the honeypot passes {@code actor} null and its own {@code source}, which is written on the
+     * case): the same policy, DM, Discord call and case.
+     */
+    public CompletableFuture<Outcome> execute(Guild guild, Member actor, User target, Member targetMember, ModAction action, String reason,
+                                              Integer durationMinutes, int deleteDays, String source) {
         String text = cleanReason(reason);
         ModSettings settings = cases.settings(guild.getIdLong());
         String refusal = ModPolicy.refusal(action, guild, actor, target.getIdLong(), targetMember, new HashSet<>(settings.protectedRoleIds()),
@@ -72,7 +81,7 @@ public class ModService {
                 return Outcome.refused("Discord refused: " + cause.getMessage());
             }
             ModCase written = cases.record(guild.getIdLong(), target.getIdLong(), target.getName(), actor == null ? guild.getSelfMember().getIdLong() : actor.getIdLong(),
-                    actor == null ? guild.getSelfMember().getEffectiveName() : actor.getEffectiveName(), action, text, action == ModAction.TIMEOUT ? durationMinutes : null, ModCase.COMMAND);
+                    actor == null ? guild.getSelfMember().getEffectiveName() : actor.getEffectiveName(), action, text, action == ModAction.TIMEOUT ? durationMinutes : null, source);
             log.info("Moderation: {} {} {} in {} (case {})", actor == null ? "bot" : actor.getId(), action, target.getId(), guild.getId(), written.caseNo());
             return new Outcome(true, summary(action, target, durationMinutes, written.caseNo()), written);
         });
