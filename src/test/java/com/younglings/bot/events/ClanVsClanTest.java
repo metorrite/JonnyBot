@@ -120,6 +120,24 @@ class ClanVsClanTest {
     }
 
     @Test
+    void theSetupAsksForTheInnerGameAndShowsEachGamesOwnOptionsOnlyForIt() {
+        ClanVsClanTemplate template = new ClanVsClanTemplate(new BingoTemplate(), new CompetitionTemplate(), new BossNightTemplate(), new ScavengerHuntTemplate(), null, null, null, null, null);
+        var options = template.options();
+        List<String> paths = options.stream().map(EventOptions.Option::path).toList();
+        assertTrue(paths.containsAll(List.of("config.cvcGame", "config.cvc.scoring", "config.cvc.topN", "config.cvc.minPlayers", "config.cvc.reviewByOtherClan", "config.boss", "config.skillId")));
+        assertEquals(paths.size(), new java.util.HashSet<>(paths).size(), "each setting is asked once");
+        var boss = options.stream().filter(o -> o.path().equals("config.boss")).findFirst().orElseThrow();
+        assertTrue(!boss.required().always() && boss.required().when() != null, "the boss is only required when the clans play a boss night");
+        assertTrue(boss.showWhen().holds(DataObject.fromJson("{\"config\":{\"cvcGame\":\"boss-night\"}}")));
+        assertTrue(!boss.showWhen().holds(DataObject.fromJson("{\"config\":{\"cvcGame\":\"bingo\"}}")));
+        assertEquals(EventRules.ScoringMode.TEAM, template.fixedScoringMode());
+        assertTrue(template.configProblems(DataObject.fromJson("{\"cvcGame\":\"boss-night\",\"kills\":0}")).stream().anyMatch(p -> p.contains("Kills that count")), "the inner game's own checks run");
+        assertTrue(template.configProblems(DataObject.fromJson("{\"cvcGame\":\"competition\",\"kills\":0}")).isEmpty(), "another game's settings aren't checked");
+        // the whole schema the website draws the setup from builds
+        assertTrue(EventOptions.of(template).size() > options.size());
+    }
+
+    @Test
     void settingsHaveSafeDefaultsAndTheGameDecidesWhatTheEventPlays() {
         assertEquals(Settings.DEFAULT, ClanVsClan.settings(DataObject.empty()));
         assertEquals("competition", ClanVsClan.game(ClanVsClan.KEY, "{\"cvcGame\":\"competition\"}"));
