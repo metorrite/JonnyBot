@@ -3,11 +3,12 @@ package com.younglings.bot.rsclans;
 import com.younglings.bot.plugin.PluginEventSink;
 import com.younglings.bot.plugin.PluginEventType;
 import com.younglings.bot.plugin.PluginPayload;
+import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
-import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.events.session.ReadyEvent;
 import net.dv8tion.jda.api.utils.data.DataArray;
 import net.dv8tion.jda.api.utils.data.DataObject;
 import org.slf4j.Logger;
@@ -21,7 +22,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -47,7 +47,7 @@ public class RsClansFeedPoller {
     private final RsClansHubClient hub;
     private final Relay relay;
     private volatile JDA jda;
-    private ScheduledExecutorService executor;
+    private final ScheduledExecutorService executor = BotScheduler.lane("rsclans-feed");
 
     public RsClansFeedPoller(RsClansHubClient hub, RsClansFeedCursor cursor, List<PluginEventSink> sinks) {
         this.hub = hub;
@@ -55,21 +55,23 @@ public class RsClansFeedPoller {
         if (hub.enabled()) start();
     }
 
+    /**
+     * Registers the bot's servers once the guild cache is loaded (on ready, not when JDA is built), on the feed's lane: one HTTP call per server
+     * must not hold up JDA's event thread.
+     */
     @BEventListener
-    public void onJdaReady(InjectedJDAEvent event) {
-        jda = event.getJda();
+    public void onReady(ReadyEvent event) {
+        jda = event.getJDA();
         if (!hub.enabled()) return;
-        int registered = 0;
-        for (Guild g : jda.getGuilds()) if (hub.putGuild(g.getIdLong(), g.getName())) registered++;
-        log.info("RSClans hub: registered {} of {} servers", registered, jda.getGuilds().size());
+        executor.execute(() -> {
+            List<Guild> guilds = event.getJDA().getGuilds();
+            int registered = 0;
+            for (Guild g : guilds) if (hub.putGuild(g.getIdLong(), g.getName())) registered++;
+            log.info("RSClans hub: registered {} of {} servers", registered, guilds.size());
+        });
     }
 
     private void start() {
-        executor = Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r, "rsclans-feed");
-            t.setDaemon(true);
-            return t;
-        });
         executor.scheduleWithFixedDelay(() -> {
             try {
                 relay.poll();
