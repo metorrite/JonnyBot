@@ -68,6 +68,17 @@ class MessagesTest {
         verify(repository, never()).save(eq(5L), eq("klingon"));
     }
 
+    /**
+     * Every key line in the English file is really loaded. A value ending in a lone backslash (say a trailing "\ " whose space an editor
+     * stripped) joins the next line onto it, silently swallowing that key; write a trailing space as   instead.
+     */
+    @Test
+    void noKeyIsSwallowedByTheLineBeforeIt() throws IOException {
+        List<String> lines = Files.readAllLines(Path.of("src/main/resources/i18n/messages_en.properties"));
+        long written = lines.stream().filter(l -> l.matches("[a-z0-9_.]+=.*")).count();
+        assertEquals(written, messages().catalogue("en").size(), "a line ending in a backslash swallowed the key after it");
+    }
+
     /** Every language pack must have exactly English's keys and placeholders, and every key the code asks for must exist in English. */
     @Test
     void theCataloguesAreConsistentAndEveryKeyUsedInCodeExists() throws IOException {

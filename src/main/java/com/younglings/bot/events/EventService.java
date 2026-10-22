@@ -17,6 +17,7 @@ import com.younglings.bot.events.PrizeRules.AwardStatus;
 import com.younglings.bot.events.PrizeRules.BuyInStatus;
 import com.younglings.bot.events.PrizeRules.PrizeKind;
 import com.younglings.bot.events.TeamRules.Kind;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.points.PointsRules;
 import com.younglings.bot.points.PointsService;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -77,27 +78,27 @@ public class EventService {
     // ---------- events ----------
 
     public long createEvent(long guildId, long actorId, EventInput in) {
-        EventTemplate template = templates.byKey(in.template()).orElseThrow(() -> new EventProblem(400, "That kind of event doesn't exist."));
+        EventTemplate template = templates.byKey(in.template()).orElseThrow(() -> new EventProblem(400, Text.of(guildId, "events.problem.that_kind_of_event_doesn_t")));
         DataObject config = in.config() == null ? DataObject.empty() : in.config();
         List<String> problems = new ArrayList<>(EventRules.eventProblems(in.name(), in.description(), in.maxParticipants(), in.startsAt(), in.endsAt()));
         problems.addAll(template.configProblems(config));
         problems.addAll(EventSettings.problems(config));
         String quota = QueueRules.quotaProblem(in.maxParticipants(), QueueRules.quotaSetting(config).host(), List.of());
         if (quota != null) problems.add(quota);
-        if (!problems.isEmpty()) throw new EventProblem(400, "The event can't be created yet.", problems);
+        if (!problems.isEmpty()) throw new EventProblem(400, Text.of(guildId, "events.problem.the_event_can_t_be_created"), problems);
         try {
             config = template.prepare(config);
         } catch (IllegalArgumentException e) {
-            throw new EventProblem(400, "The event can't be created yet.", List.of(e.getMessage()));
+            throw new EventProblem(400, Text.of(guildId, "events.problem.the_event_can_t_be_created"), List.of(e.getMessage()));
         }
         List<ObjectiveSpec> starterObjectives = template.starterObjectives(config);
         List<String> bonusProblems = EventBonuses.problems(config, starterObjectives.stream().map(ObjectiveSpec::key).collect(java.util.stream.Collectors.toSet()));
-        if (!bonusProblems.isEmpty()) throw new EventProblem(400, "The event can't be created yet.", bonusProblems);
-        if (repository.countOpen(guildId) >= MAX_OPEN_EVENTS) throw new EventProblem(409, "A server can have " + MAX_OPEN_EVENTS + " unfinished events. Finish or cancel one first.");
+        if (!bonusProblems.isEmpty()) throw new EventProblem(400, Text.of(guildId, "events.problem.the_event_can_t_be_created"), bonusProblems);
+        if (repository.countOpen(guildId) >= MAX_OPEN_EVENTS) throw new EventProblem(409, Text.of(guildId, "events.problem.a_server_can_have_unfinished_events", MAX_OPEN_EVENTS));
         List<String> starterProblems = checkObjectives(starterObjectives);
         if (!starterProblems.isEmpty()) {
             log.error("Template {} produced invalid starter objectives: {}", template.key(), starterProblems);
-            throw new EventProblem(500, "That template couldn't set itself up.");
+            throw new EventProblem(500, Text.of(guildId, "events.problem.that_template_couldn_t_set_itself"));
         }
         ScoringMode mode = template.fixedScoringMode() != null ? template.fixedScoringMode() : in.scoringMode();
         long id = repository.createEvent(guildId, template.key(), in.name().strip(), clean(in.description()), in.scope(), mode, in.startsAt(), in.endsAt(),
@@ -108,13 +109,13 @@ public class EventService {
     }
 
     public Event event(long guildId, long id) {
-        return repository.event(guildId, id).orElseThrow(() -> new EventProblem(404, "That event doesn't exist in this server."));
+        return repository.event(guildId, id).orElseThrow(() -> new EventProblem(404, Text.of(guildId, "events.problem.that_event_doesn_t_exist_in")));
     }
 
     public void updateEvent(long guildId, long id, EventInput in) {
         Event existing = event(guildId, id);
-        if (!EventRules.editable(existing.status())) throw new EventProblem(409, "An event can only be changed while it is a draft or taking signups.");
-        EventTemplate template = templates.byKey(existing.template()).orElseThrow(() -> new EventProblem(409, "This event's template no longer exists."));
+        if (!EventRules.editable(existing.status())) throw new EventProblem(409, Text.of(guildId, "events.problem.an_event_can_only_be_changed"));
+        EventTemplate template = templates.byKey(existing.template()).orElseThrow(() -> new EventProblem(409, Text.of(guildId, "events.problem.this_event_template_no_longer_exists")));
         DataObject config = in.config() == null ? DataObject.fromJson(existing.config()) : DataObject.fromJson(in.config().toString());
         if (in.config() != null) {
             DataObject kept = DataObject.fromJson(existing.config());
@@ -132,10 +133,10 @@ public class EventService {
         // seat quotas (T-220): the host's and the co-hosts' together may not be more than the player limit
         String quota = QueueRules.quotaProblem(in.maxParticipants(), QueueRules.quotaSetting(config).host(), repository.cohostQuotas(id).values());
         if (quota != null) problems.add(quota);
-        if (!problems.isEmpty()) throw new EventProblem(400, "The event can't be saved yet.", problems);
+        if (!problems.isEmpty()) throw new EventProblem(400, Text.of(guildId, "events.problem.the_event_can_t_be_saved"), problems);
         ScoringMode mode = template.fixedScoringMode() != null ? template.fixedScoringMode() : in.scoringMode();
         if (!repository.updateEvent(guildId, id, in.name().strip(), clean(in.description()), in.scope(), mode, in.startsAt(), in.endsAt(), in.maxParticipants(), config.toString())) {
-            throw new EventProblem(409, "The event moved on while you were editing it.");
+            throw new EventProblem(409, Text.of(guildId, "events.problem.the_event_moved_on_while_you"));
         }
         changes.publish(EventChanges.Kind.SETUP, guildId, id);
     }
@@ -143,19 +144,19 @@ public class EventService {
     public void moveStage(long guildId, long id, Status to) {
         Event event = event(guildId, id);
         if (!EventRules.canMove(event.status(), to)) {
-            throw new EventProblem(409, "An event can't go from " + label(event.status()) + " to " + label(to) + ".");
+            throw new EventProblem(409, Text.of(guildId, "events.problem.an_event_can_t_go_from", label(event.status()), label(to)));
         }
-        if (to == Status.RUNNING && repository.objectives(id).isEmpty()) throw new EventProblem(409, "Add at least one objective before the event starts.");
+        if (to == Status.RUNNING && repository.objectives(id).isEmpty()) throw new EventProblem(409, Text.of(guildId, "events.problem.add_at_least_one_objective_before"));
         if (to == Status.RUNNING) {
             // an event that follows the setup checklist, or asks for verification before the start, can't start until that is settled
             EventSettings settings = settingsOf(event);
             boolean gated = settings.setupMode() != EventPrep.Mode.OFF || (settings.verification().required() && settings.verification().gate() == EventRoster.Gate.START);
             if (gated) {
                 EventPrep.Prep prep = prepOf(event);
-                if (!prep.ready()) throw new EventProblem(409, "The event isn't ready to start yet.", prep.blockers());
+                if (!prep.ready()) throw new EventProblem(409, Text.of(guildId, "events.problem.the_event_isn_t_ready_to"), prep.blockers());
             }
         }
-        if (!repository.moveStage(guildId, id, event.status(), to)) throw new EventProblem(409, "Someone else already moved this event.");
+        if (!repository.moveStage(guildId, id, event.status(), to)) throw new EventProblem(409, Text.of(guildId, "events.problem.someone_else_already_moved_this_event"));
         changes.publish(EventChanges.Kind.STAGE, guildId, id);
     }
 
@@ -163,14 +164,14 @@ public class EventService {
     public void deleteEvent(long guildId, long id) {
         event(guildId, id);
         // deleting the event would forget which roles and channels are its own, leaving them behind on Discord
-        if (repository.setup(id).spaceApplied()) throw new EventProblem(409, "This event has roles and channels on Discord. Remove them on its Channels tab first, then delete it.");
-        if (!repository.deleteEvent(guildId, id)) throw new EventProblem(409, "Cancel or finish the event before deleting it.");
+        if (repository.setup(id).spaceApplied()) throw new EventProblem(409, Text.of(guildId, "events.problem.this_event_has_roles_and_channels"));
+        if (!repository.deleteEvent(guildId, id)) throw new EventProblem(409, Text.of(guildId, "events.problem.cancel_or_finish_the_event_before"));
     }
 
     /** Hides a finished event from the dashboard's list ({@code archived} true) or brings it back. */
     public void archive(long guildId, long id, boolean archived) {
         event(guildId, id);
-        if (!repository.setArchived(guildId, id, archived)) throw new EventProblem(409, "Only a finished or cancelled event can be archived.");
+        if (!repository.setArchived(guildId, id, archived)) throw new EventProblem(409, Text.of(guildId, "events.problem.only_a_finished_or_cancelled_event"));
     }
 
     public int archiveFinished(long guildId) {
@@ -185,10 +186,10 @@ public class EventService {
 
     public void setObjectives(long guildId, long id, List<ObjectiveSpec> objectives) {
         Event event = event(guildId, id);
-        if (!EventRules.editable(event.status())) throw new EventProblem(409, "Objectives can only be changed while the event is a draft or taking signups.");
+        if (!EventRules.editable(event.status())) throw new EventProblem(409, Text.of(guildId, "events.problem.objectives_can_only_be_changed_while"));
         List<String> problems = new ArrayList<>(checkObjectives(objectives));
         problems.addAll(EventBonuses.problems(DataObject.fromJson(event.config()), objectives.stream().map(ObjectiveSpec::key).collect(java.util.stream.Collectors.toSet())));
-        if (!problems.isEmpty()) throw new EventProblem(400, "The objectives can't be saved yet. A bonus (like a bingo line) needs every objective it lists, so keep those or re-roll the board.", problems.stream().distinct().toList());
+        if (!problems.isEmpty()) throw new EventProblem(400, Text.of(guildId, "events.problem.the_objectives_can_t_be_saved"), problems.stream().distinct().toList());
         repository.replaceObjectives(id, objectives);
         changes.publish(EventChanges.Kind.SETUP, guildId, id);
     }
@@ -204,11 +205,11 @@ public class EventService {
     /** Adds a team. A captain, if one is named, is put on the team and made its captain (they have to be a player who may be on a team). */
     public long addTeam(long guildId, long id, String name, Long captainId) {
         Event event = event(guildId, id);
-        if (!EventRules.editable(event.status())) throw new EventProblem(409, "Teams can only be changed while the event is a draft or taking signups.");
+        if (!EventRules.editable(event.status())) throw new EventProblem(409, Text.of(guildId, "events.problem.teams_can_only_be_changed_while"));
         String problem = EventRules.teamNameProblem(name);
         if (problem != null) throw new EventProblem(400, problem);
         OptionalLong team = repository.addTeam(id, name.strip(), null, EventRules.MAX_TEAMS);
-        if (team.isEmpty()) throw new EventProblem(409, "There is already a team with that name, or the event has the most teams allowed (" + EventRules.MAX_TEAMS + ").");
+        if (team.isEmpty()) throw new EventProblem(409, Text.of(guildId, "events.problem.there_is_already_a_team_with", EventRules.MAX_TEAMS));
         if (captainId != null) {
             try {
                 setTeam(guildId, id, captainId, team.getAsLong());
@@ -225,20 +226,20 @@ public class EventService {
 
     public void removeTeam(long guildId, long id, long teamId) {
         Event event = event(guildId, id);
-        if (!EventRules.editable(event.status())) throw new EventProblem(409, "Teams can only be changed while the event is a draft or taking signups.");
-        if (!repository.removeTeam(id, teamId)) throw new EventProblem(404, "That team doesn't exist.");
+        if (!EventRules.editable(event.status())) throw new EventProblem(409, Text.of(guildId, "events.problem.teams_can_only_be_changed_while"));
+        if (!repository.removeTeam(id, teamId)) throw new EventProblem(404, Text.of(guildId, "events.problem.that_team_doesn_t_exist"));
         repository.touchTeams(id);
         changes.publish(EventChanges.Kind.TEAMS, guildId, id);
     }
 
     public void renameTeam(long guildId, long id, long teamId, String name) {
         Event event = event(guildId, id);
-        if (!EventRules.editable(event.status())) throw new EventProblem(409, "Teams can only be changed while the event is a draft or taking signups.");
+        if (!EventRules.editable(event.status())) throw new EventProblem(409, Text.of(guildId, "events.problem.teams_can_only_be_changed_while"));
         String problem = EventRules.teamNameProblem(name);
         if (problem != null) throw new EventProblem(400, problem);
         int renamed = repository.renameTeam(id, teamId, name.strip());
-        if (renamed < 0) throw new EventProblem(409, "There is already a team with that name.");
-        if (renamed == 0) throw new EventProblem(404, "That team doesn't exist.");
+        if (renamed < 0) throw new EventProblem(409, Text.of(guildId, "events.problem.there_is_already_a_team_with_2"));
+        if (renamed == 0) throw new EventProblem(404, Text.of(guildId, "events.problem.that_team_doesn_t_exist"));
         repository.touchTeams(id);
         changes.publish(EventChanges.Kind.TEAMS, guildId, id);
     }
@@ -246,9 +247,9 @@ public class EventService {
     /** Names a team's captain, who has to be a player on that team; null for none. */
     public void setCaptain(long guildId, long id, long teamId, Long captainId) {
         Event event = event(guildId, id);
-        if (event.status() == Status.DONE || event.status() == Status.CANCELLED) throw new EventProblem(409, "This event is over.");
-        if (repository.teams(id).stream().noneMatch(t -> t.id() == teamId)) throw new EventProblem(404, "That team doesn't exist.");
-        if (!repository.setCaptain(id, teamId, captainId)) throw new EventProblem(409, "A captain has to be a player on that team.");
+        if (event.status() == Status.DONE || event.status() == Status.CANCELLED) throw new EventProblem(409, Text.of(guildId, "events.problem.this_event_is_over"));
+        if (repository.teams(id).stream().noneMatch(t -> t.id() == teamId)) throw new EventProblem(404, Text.of(guildId, "events.problem.that_team_doesn_t_exist"));
+        if (!repository.setCaptain(id, teamId, captainId)) throw new EventProblem(409, Text.of(guildId, "events.problem.a_captain_has_to_be_a"));
         changes.publish(EventChanges.Kind.TEAMS, guildId, id);
     }
 
@@ -264,14 +265,14 @@ public class EventService {
     /** Replaces an event's settings and objectives together (used when a template regenerates what it built, like a bingo board). Only while the event is being built. */
     public void reconfigure(long guildId, long id, DataObject config, List<ObjectiveSpec> objectives) {
         Event event = event(guildId, id);
-        if (!EventRules.editable(event.status())) throw new EventProblem(409, "This can only be changed while the event is a draft or taking signups.");
+        if (!EventRules.editable(event.status())) throw new EventProblem(409, Text.of(guildId, "events.problem.this_can_only_be_changed_while"));
         keepOrganisers(DataObject.fromJson(event.config()), config);
         List<String> problems = new ArrayList<>(checkObjectives(objectives));
         problems.addAll(EventSettings.problems(config));
         problems.addAll(EventBonuses.problems(config, objectives.stream().map(ObjectiveSpec::key).collect(java.util.stream.Collectors.toSet())));
-        if (!problems.isEmpty()) throw new EventProblem(400, "That can't be saved yet.", problems.stream().distinct().toList());
+        if (!problems.isEmpty()) throw new EventProblem(400, Text.of(guildId, "events.problem.that_can_t_be_saved_yet"), problems.stream().distinct().toList());
         if (!repository.updateEvent(guildId, id, event.name(), event.description(), event.scope(), event.scoringMode(), event.startsAt(), event.endsAt(), event.maxParticipants(), config.toString())) {
-            throw new EventProblem(409, "The event moved on while you were editing it.");
+            throw new EventProblem(409, Text.of(guildId, "events.problem.the_event_moved_on_while_you"));
         }
         repository.replaceObjectives(id, objectives);
         changes.publish(EventChanges.Kind.SETUP, guildId, id);
@@ -283,15 +284,15 @@ public class EventService {
      */
     public void changeLook(long guildId, long id, String look) {
         Event event = event(guildId, id);
-        if (!ClanVsClan.plays(event, BingoTemplate.KEY)) throw new EventProblem(409, "Only a bingo has a board to change the look of.");
-        if (event.status() == Status.DONE || event.status() == Status.CANCELLED) throw new EventProblem(409, "This event is over, so its board can't change.");
-        if (look != null && !BingoLooks.valid(look)) throw new EventProblem(400, "Choose a board look from the list.");
+        if (!ClanVsClan.plays(event, BingoTemplate.KEY)) throw new EventProblem(409, Text.of(guildId, "events.problem.only_a_bingo_has_a_board"));
+        if (event.status() == Status.DONE || event.status() == Status.CANCELLED) throw new EventProblem(409, Text.of(guildId, "events.problem.this_event_is_over_so_its"));
+        if (look != null && !BingoLooks.valid(look)) throw new EventProblem(400, Text.of(guildId, "events.problem.choose_a_board_look_from_the"));
         DataObject config = DataObject.fromJson(event.config());
         DataObject board = DataObject.fromJson((config.hasKey("board") && !config.isNull("board") ? config.getObject("board") : DataObject.empty()).toString());
         if (look == null) board.remove("look");
         else board.put("look", look);
         config.put("board", board);
-        if (!repository.setConfig(guildId, id, config.toString())) throw new EventProblem(404, "That event doesn't exist in this server.");
+        if (!repository.setConfig(guildId, id, config.toString())) throw new EventProblem(404, Text.of(guildId, "events.problem.that_event_doesn_t_exist_in"));
         changes.publish(EventChanges.Kind.SETUP, guildId, id);
     }
 
@@ -339,12 +340,12 @@ public class EventService {
      */
     public void setChannelSettings(long guildId, long id, DataObject channels) {
         Event event = event(guildId, id);
-        if (event.status() == Status.DONE || event.status() == Status.CANCELLED) throw new EventProblem(409, "This event is over, so its channels can't change.");
+        if (event.status() == Status.DONE || event.status() == Status.CANCELLED) throw new EventProblem(409, Text.of(guildId, "events.problem.this_event_is_over_so_its_2"));
         DataObject config = DataObject.fromJson(event.config());
         config.put("channels", DataObject.fromJson(channels.toString()));
         List<String> problems = EventSpace.problems(config);
-        if (!problems.isEmpty()) throw new EventProblem(400, "The channels can't be saved yet.", problems);
-        if (!repository.setConfig(guildId, id, config.toString())) throw new EventProblem(404, "That event doesn't exist in this server.");
+        if (!problems.isEmpty()) throw new EventProblem(400, Text.of(guildId, "events.problem.the_channels_can_t_be_saved"), problems);
+        if (!repository.setConfig(guildId, id, config.toString())) throw new EventProblem(404, Text.of(guildId, "events.problem.that_event_doesn_t_exist_in"));
         changes.publish(EventChanges.Kind.SETUP, guildId, id);
     }
 
@@ -357,8 +358,8 @@ public class EventService {
         DataObject config = DataObject.fromJson(event.config());
         config.put("wrapup", DataObject.fromJson(wrapup.toString()));
         List<String> problems = EventWrapup.problems(config);
-        if (!problems.isEmpty()) throw new EventProblem(400, "The wrap-up settings can't be saved yet.", problems);
-        if (!repository.setConfig(guildId, id, config.toString())) throw new EventProblem(404, "That event doesn't exist in this server.");
+        if (!problems.isEmpty()) throw new EventProblem(400, Text.of(guildId, "events.problem.the_wrap_up_settings_can_t"), problems);
+        if (!repository.setConfig(guildId, id, config.toString())) throw new EventProblem(404, Text.of(guildId, "events.problem.that_event_doesn_t_exist_in"));
         changes.publish(EventChanges.Kind.SETUP, guildId, id);
     }
 
@@ -386,11 +387,11 @@ public class EventService {
      */
     public List<Long> changeOrganisers(long guildId, long id, java.util.Collection<Long> add, java.util.Collection<Long> remove) {
         Event event = event(guildId, id);
-        if (event.status() == Status.DONE || event.status() == Status.CANCELLED) throw new EventProblem(409, "This event is over, so its organisers can't change.");
+        if (event.status() == Status.DONE || event.status() == Status.CANCELLED) throw new EventProblem(409, Text.of(guildId, "events.problem.this_event_is_over_so_its_3"));
         java.util.Set<Long> ids = new java.util.LinkedHashSet<>(settingsOf(event).organisers());
         ids.addAll(add);
         ids.removeAll(remove);
-        if (ids.size() > EventSettings.MAX_ORGANISERS) throw new EventProblem(400, "An event can have up to " + EventSettings.MAX_ORGANISERS + " organisers.");
+        if (ids.size() > EventSettings.MAX_ORGANISERS) throw new EventProblem(400, Text.of(guildId, "events.problem.an_event_can_have_up_to", EventSettings.MAX_ORGANISERS));
         DataObject config = DataObject.fromJson(event.config());
         if (ids.isEmpty()) {
             config.remove("organisers");
@@ -399,7 +400,7 @@ public class EventService {
             ids.forEach(i -> array.add(Long.toString(i)));
             config.put("organisers", array);
         }
-        if (!repository.setConfig(guildId, id, config.toString())) throw new EventProblem(404, "That event doesn't exist in this server.");
+        if (!repository.setConfig(guildId, id, config.toString())) throw new EventProblem(404, Text.of(guildId, "events.problem.that_event_doesn_t_exist_in"));
         return new ArrayList<>(ids);
     }
 
@@ -431,30 +432,29 @@ public class EventService {
      */
     public Joined join(long guildId, long id, long userGuildId, long userId, Long teamId, boolean staff, Kind kindOverride, boolean applyQuota) {
         Event event = event(guildId, id);
-        if (!EventRules.acceptsJoins(event.status())) throw new EventProblem(409, "This event isn't taking signups.");
+        if (!EventRules.acceptsJoins(event.status())) throw new EventProblem(409, Text.of(guildId, "events.problem.this_event_isn_t_taking_signups"));
         var barred = repository.ban(id, userId);
         if (barred.isPresent()) {
-            throw new EventProblem(403, staff ? "That player was removed from this event and barred from it: " + barred.get().reason() + " Lift the ban first, on the Teams and players tab."
-                    : "You can't take part in this event: " + barred.get().reason());
+            throw new EventProblem(403, staff ? Text.of(guildId, "events.problem.that_player_was_removed_from_this", barred.get().reason()) : Text.of(guildId, "events.problem.you_can_t_take_part_in", barred.get().reason()));
         }
         EventSettings settings = settingsOf(event);
-        if (!staff && (repository.setup(id).signupsClosed() || !settings.selfSignupOpen(Instant.now()))) throw new EventProblem(409, "Signups have closed. Ask an organiser to add you.");
+        if (!staff && (repository.setup(id).signupsClosed() || !settings.selfSignupOpen(Instant.now()))) throw new EventProblem(409, Text.of(guildId, "events.problem.signups_have_closed_ask_an_organiser"));
         Kind kind = kindOverride != null ? kindOverride : kinds.kindOf(guildId, userGuildId, userId);
-        if (!TeamRules.mayJoin(settings.teamPolicy(), kind)) throw new EventProblem(409, "This event isn't open to " + describe(kind) + ".");
+        if (!TeamRules.mayJoin(settings.teamPolicy(), kind)) throw new EventProblem(409, Text.of(guildId, "events.problem.this_event_isn_t_open_to", describe(kind)));
         if (teamId != null) {
             checkTeam(id, settings, teamId, kind, userId);
             // a new player hasn't been verified, so before the event runs they can't be put straight onto a team when it needs verification by now
             if (teamMoment(event) == EventRoster.Gate.TEAMS && !EventRoster.counts(EventRoster.Verification.PENDING, settings.verification(), EventRoster.Gate.TEAMS)) {
-                throw new EventProblem(409, "This event needs players verified before they can be on a team. Add them without a team, verify them, then put them on one.");
+                throw new EventProblem(409, Text.of(guildId, "events.problem.this_event_needs_players_verified_before"));
             }
         }
         if (teamId == null) teamId = templateTeam(event, userGuildId, userId, staff);
         if (event.scoringMode() == ScoringMode.TEAM && teamId == null && event.status() == Status.RUNNING) {
-            throw new EventProblem(400, "Pick a team: this event is scored by team and it has already started.");
+            throw new EventProblem(400, Text.of(guildId, "events.problem.pick_a_team_this_event_is"));
         }
         Integer originQuota = applyQuota && event.maxParticipants() > 0 ? quotas(event, settings, Instant.now()).limitFor(userGuildId) : null;
         var waiting = repository.join(id, userId, userGuildId, teamId, kind, settings.buyIn().enabled() ? BuyInStatus.DUE : BuyInStatus.NONE, event.maxParticipants(), originQuota);
-        if (waiting.isEmpty()) throw new EventProblem(409, "That player is already in the event.");
+        if (waiting.isEmpty()) throw new EventProblem(409, Text.of(guildId, "events.problem.that_player_is_already_in_the"));
         repository.setSource(id, userId, staff ? EventRepository.RosterSource.STAFF : EventRepository.RosterSource.SELF);
         repository.touchRoster(id);
         repository.clearRefusal(id, userId);
@@ -553,9 +553,9 @@ public class EventService {
     }
 
     private void checkTeam(long id, EventSettings settings, long teamId, Kind kind, long userId) {
-        if (repository.teams(id).stream().noneMatch(t -> t.id() == teamId)) throw new EventProblem(404, "That team doesn't exist.");
+        if (repository.teams(id).stream().noneMatch(t -> t.id() == teamId)) throw new EventProblem(404, Text.en("events.problem.that_team_doesn_t_exist"));
         List<Kind> mates = repository.participants(id).stream().filter(p -> p.userId() != userId && p.teamId() != null && p.teamId() == teamId).map(EventRepository.Participant::kind).toList();
-        if (!TeamRules.mayShareTeam(settings.teamPolicy(), kind, mates)) throw new EventProblem(409, "This event doesn't let " + describe(kind) + " share a team with that team's players.");
+        if (!TeamRules.mayShareTeam(settings.teamPolicy(), kind, mates)) throw new EventProblem(409, Text.en("events.problem.this_event_doesn_t_let_share", describe(kind)));
     }
 
     private static String describe(Kind kind) {
@@ -569,9 +569,9 @@ public class EventService {
     /** Removes a player and gives their place to the next person waiting. A player who has paid a buy-in must be refunded first, so nothing is lost. */
     public void leave(long guildId, long id, long userId) {
         Event event = event(guildId, id);
-        var player = repository.participant(id, userId).orElseThrow(() -> new EventProblem(404, "That player isn't in the event."));
-        if (player.buyIn() == BuyInStatus.PAID) throw new EventProblem(409, "They have paid a buy-in. Refund it first, then remove them.");
-        if (!repository.leave(id, userId)) throw new EventProblem(404, "That player isn't in the event.");
+        var player = repository.participant(id, userId).orElseThrow(() -> new EventProblem(404, Text.of(guildId, "events.problem.that_player_isn_t_in_the")));
+        if (player.buyIn() == BuyInStatus.PAID) throw new EventProblem(409, Text.of(guildId, "events.problem.they_have_paid_a_buy_in"));
+        if (!repository.leave(id, userId)) throw new EventProblem(404, Text.of(guildId, "events.problem.that_player_isn_t_in_the"));
         repository.touchRoster(id);
         repository.touchTeams(id);
         if (!player.waiting()) fillSeats(event);
@@ -588,10 +588,10 @@ public class EventService {
      */
     public void ban(long guildId, long id, long userId, String reason, long actorId) {
         Event event = event(guildId, id);
-        if (event.status() == Status.DONE || event.status() == Status.CANCELLED) throw new EventProblem(409, "This event is over.");
+        if (event.status() == Status.DONE || event.status() == Status.CANCELLED) throw new EventProblem(409, Text.of(guildId, "events.problem.this_event_is_over"));
         String cleanReason = clean(reason);
-        if (cleanReason.isEmpty()) throw new EventProblem(400, "Say why, so it can be shown to them and to the next organiser.");
-        if (cleanReason.length() > MAX_BAN_REASON) throw new EventProblem(400, "Keep the reason to " + MAX_BAN_REASON + " characters or fewer.");
+        if (cleanReason.isEmpty()) throw new EventProblem(400, Text.of(guildId, "events.problem.say_why_so_it_can_be"));
+        if (cleanReason.length() > MAX_BAN_REASON) throw new EventProblem(400, Text.of(guildId, "events.problem.keep_the_reason_to_characters_or", MAX_BAN_REASON));
         if (repository.participant(id, userId).isPresent()) leave(guildId, id, userId);
         repository.addBan(id, userId, cleanReason, actorId);
         repository.clearRefusal(id, userId);
@@ -601,7 +601,7 @@ public class EventService {
     /** Lets a barred player take part again. They are not put back on the roster: they sign up again like anyone. */
     public void unban(long guildId, long id, long userId) {
         event(guildId, id);
-        if (!repository.removeBan(id, userId)) throw new EventProblem(404, "That player isn't barred from this event.");
+        if (!repository.removeBan(id, userId)) throw new EventProblem(404, Text.of(guildId, "events.problem.that_player_isn_t_barred_from"));
         changes.publish(EventChanges.Kind.ROSTER, guildId, id);
     }
 
@@ -692,7 +692,7 @@ public class EventService {
      */
     public int assignTeams(long guildId, long id, Map<Long, Long> assignments, java.util.function.LongFunction<String> names) {
         Event event = event(guildId, id);
-        if (event.status() == Status.DONE || event.status() == Status.CANCELLED) throw new EventProblem(409, "This event is over.");
+        if (event.status() == Status.DONE || event.status() == Status.CANCELLED) throw new EventProblem(409, Text.of(guildId, "events.problem.this_event_is_over"));
         if (assignments.isEmpty()) return 0;
         EventSettings settings = settingsOf(event);
         Map<Long, Participant> players = new HashMap<>();
@@ -736,7 +736,7 @@ public class EventService {
                 }
             }
         }
-        if (!problems.isEmpty()) throw new EventProblem(400, "Those teams can't be set yet.", problems.stream().distinct().toList());
+        if (!problems.isEmpty()) throw new EventProblem(400, Text.of(guildId, "events.problem.those_teams_can_t_be_set"), problems.stream().distinct().toList());
         int changed = repository.setTeams(id, assignments);
         repository.touchTeams(id);
         changes.publish(EventChanges.Kind.TEAMS, guildId, id);
@@ -746,9 +746,9 @@ public class EventService {
     /** Records how strong an organiser thinks a player is, 1 (weakest) to 5 (strongest), or clears it with null. */
     public void setRating(long guildId, long id, long userId, Integer rating) {
         Event event = event(guildId, id);
-        if (event.status() == Status.DONE || event.status() == Status.CANCELLED) throw new EventProblem(409, "This event is over.");
-        if (rating != null && !TeamBuilder.validRating(rating)) throw new EventProblem(400, "A rating is from " + TeamBuilder.MIN_RATING + " (weakest) to " + TeamBuilder.MAX_RATING + " (strongest).");
-        if (!repository.setRating(id, userId, rating)) throw new EventProblem(404, "That player isn't in the event.");
+        if (event.status() == Status.DONE || event.status() == Status.CANCELLED) throw new EventProblem(409, Text.of(guildId, "events.problem.this_event_is_over"));
+        if (rating != null && !TeamBuilder.validRating(rating)) throw new EventProblem(400, Text.of(guildId, "events.problem.a_rating_is_from_weakest_to", TeamBuilder.MIN_RATING, TeamBuilder.MAX_RATING));
+        if (!repository.setRating(id, userId, rating)) throw new EventProblem(404, Text.of(guildId, "events.problem.that_player_isn_t_in_the"));
     }
 
     /**
@@ -758,22 +758,22 @@ public class EventService {
      */
     public void finaliseTeams(long guildId, long id, long actorId) {
         Event event = event(guildId, id);
-        if (event.scoringMode() != ScoringMode.TEAM) throw new EventProblem(409, "This event is scored by player, so it has no teams to finalise.");
-        if (!EventRules.editable(event.status())) throw new EventProblem(409, "Teams can only be finalised while the event is a draft or taking signups.");
+        if (event.scoringMode() != ScoringMode.TEAM) throw new EventProblem(409, Text.of(guildId, "events.problem.this_event_is_scored_by_player"));
+        if (!EventRules.editable(event.status())) throw new EventProblem(409, Text.of(guildId, "events.problem.teams_can_only_be_finalised_while"));
         EventSettings settings = settingsOf(event);
         EventRepository.Setup setup = repository.setup(id);
-        if (settings.setupMode() != EventPrep.Mode.OFF && !setup.rosterConfirmed()) throw new EventProblem(409, "Confirm the roster first, so the teams are made from the final list of players.");
+        if (settings.setupMode() != EventPrep.Mode.OFF && !setup.rosterConfirmed()) throw new EventProblem(409, Text.of(guildId, "events.problem.confirm_the_roster_first_so_the"));
         List<String> problems = TeamBuilder.problems(teamFactsOf(event, settings, repository.participants(id), setup).teams());
-        if (!problems.isEmpty()) throw new EventProblem(409, "The teams can't be final yet.", problems);
-        if (!repository.finaliseTeams(id, actorId)) throw new EventProblem(409, "The teams are already final.");
+        if (!problems.isEmpty()) throw new EventProblem(409, Text.of(guildId, "events.problem.the_teams_can_t_be_final"), problems);
+        if (!repository.finaliseTeams(id, actorId)) throw new EventProblem(409, Text.of(guildId, "events.problem.the_teams_are_already_final"));
         changes.publish(EventChanges.Kind.TEAMS, guildId, id);
     }
 
     /** Takes back "the teams are final", so they can be reworked. */
     public void reopenTeams(long guildId, long id) {
         Event event = event(guildId, id);
-        if (!EventRules.editable(event.status())) throw new EventProblem(409, "Teams can only be reopened while the event is a draft or taking signups.");
-        if (!repository.reopenTeams(id)) throw new EventProblem(409, "The teams aren't final.");
+        if (!EventRules.editable(event.status())) throw new EventProblem(409, Text.of(guildId, "events.problem.teams_can_only_be_reopened_while"));
+        if (!repository.reopenTeams(id)) throw new EventProblem(409, Text.of(guildId, "events.problem.the_teams_aren_t_final"));
         changes.publish(EventChanges.Kind.TEAMS, guildId, id);
     }
 
@@ -783,16 +783,16 @@ public class EventService {
      */
     public void closeSignups(long guildId, long id, long actorId) {
         Event event = event(guildId, id);
-        if (event.status() != Status.SIGNUPS) throw new EventProblem(409, "Signups can only be closed while the event is taking them.");
-        if (!repository.closeSignups(id, actorId)) throw new EventProblem(409, "Signups are already closed.");
+        if (event.status() != Status.SIGNUPS) throw new EventProblem(409, Text.of(guildId, "events.problem.signups_can_only_be_closed_while"));
+        if (!repository.closeSignups(id, actorId)) throw new EventProblem(409, Text.of(guildId, "events.problem.signups_are_already_closed"));
         changes.publish(EventChanges.Kind.ROSTER, guildId, id);
     }
 
     /** Opens signups again. The roster has to be confirmed again once they are closed. */
     public void reopenSignups(long guildId, long id) {
         Event event = event(guildId, id);
-        if (!EventPrep.canReopenSignups(event.status(), repository.setup(id).signupsClosed())) throw new EventProblem(409, "Signups aren't closed, or the event has moved on, so they can't be reopened.");
-        if (!repository.reopenSignups(id)) throw new EventProblem(409, "Signups aren't closed.");
+        if (!EventPrep.canReopenSignups(event.status(), repository.setup(id).signupsClosed())) throw new EventProblem(409, Text.of(guildId, "events.problem.signups_aren_t_closed_or_the"));
+        if (!repository.reopenSignups(id)) throw new EventProblem(409, Text.of(guildId, "events.problem.signups_aren_t_closed"));
         changes.publish(EventChanges.Kind.ROSTER, guildId, id);
     }
 
@@ -800,24 +800,24 @@ public class EventService {
     public void confirmRoster(long guildId, long id, long actorId) {
         Event event = event(guildId, id);
         EventRepository.Setup setup = repository.setup(id);
-        if (event.status() != Status.SIGNUPS) throw new EventProblem(409, "The roster can only be confirmed while the event is taking signups.");
-        if (!setup.signupsClosed()) throw new EventProblem(409, "Close signups first, so the roster can't change under you.");
-        if (setup.rosterConfirmed() && !setup.rosterChangedSinceConfirmed()) throw new EventProblem(409, "The roster is already confirmed.");
-        if (!repository.confirmRoster(id, actorId)) throw new EventProblem(409, "The roster is already confirmed.");
+        if (event.status() != Status.SIGNUPS) throw new EventProblem(409, Text.of(guildId, "events.problem.the_roster_can_only_be_confirmed"));
+        if (!setup.signupsClosed()) throw new EventProblem(409, Text.of(guildId, "events.problem.close_signups_first_so_the_roster"));
+        if (setup.rosterConfirmed() && !setup.rosterChangedSinceConfirmed()) throw new EventProblem(409, Text.of(guildId, "events.problem.the_roster_is_already_confirmed"));
+        if (!repository.confirmRoster(id, actorId)) throw new EventProblem(409, Text.of(guildId, "events.problem.the_roster_is_already_confirmed"));
         changes.publish(EventChanges.Kind.ROSTER, guildId, id);
     }
 
     /** An organiser's decision on a player's verification: verified, turned down (with a reason), waived, or back to pending. Only for an event that asks for it. */
     public void setVerification(long guildId, long id, long userId, EventRoster.Verification to, long actorId, String note) {
         Event event = event(guildId, id);
-        if (event.status() == Status.DONE || event.status() == Status.CANCELLED) throw new EventProblem(409, "This event is over.");
-        if (!settingsOf(event).verification().required()) throw new EventProblem(409, "This event doesn't ask for verification. Turn it on in the event's settings first.");
-        if (!EventRoster.settable(to)) throw new EventProblem(400, "Choose verified, waived, turned down or pending.");
+        if (event.status() == Status.DONE || event.status() == Status.CANCELLED) throw new EventProblem(409, Text.of(guildId, "events.problem.this_event_is_over"));
+        if (!settingsOf(event).verification().required()) throw new EventProblem(409, Text.of(guildId, "events.problem.this_event_doesn_t_ask_for"));
+        if (!EventRoster.settable(to)) throw new EventProblem(400, Text.of(guildId, "events.problem.choose_verified_waived_turned_down_or"));
         String cleanNote = clean(note);
-        if (cleanNote.length() > EventRules.MAX_NOTE) throw new EventProblem(400, "Keep the note to " + EventRules.MAX_NOTE + " characters or fewer.");
-        if (to == EventRoster.Verification.REJECTED && cleanNote.isEmpty()) throw new EventProblem(400, "Say why they were turned down, so they can fix it.");
-        repository.participant(id, userId).orElseThrow(() -> new EventProblem(404, "That player isn't in the event."));
-        if (!repository.setVerification(id, userId, to, actorId, cleanNote)) throw new EventProblem(404, "That player isn't in the event.");
+        if (cleanNote.length() > EventRules.MAX_NOTE) throw new EventProblem(400, Text.of(guildId, "events.problem.keep_the_note_to_characters_or", EventRules.MAX_NOTE));
+        if (to == EventRoster.Verification.REJECTED && cleanNote.isEmpty()) throw new EventProblem(400, Text.of(guildId, "events.problem.say_why_they_were_turned_down"));
+        repository.participant(id, userId).orElseThrow(() -> new EventProblem(404, Text.of(guildId, "events.problem.that_player_isn_t_in_the")));
+        if (!repository.setVerification(id, userId, to, actorId, cleanNote)) throw new EventProblem(404, Text.of(guildId, "events.problem.that_player_isn_t_in_the"));
         repository.touchRoster(id);
         changes.publish(EventChanges.Kind.ROSTER, guildId, id);
     }
@@ -830,14 +830,14 @@ public class EventService {
     /** Puts a player on a team, or takes them off it (null). A player who holds no place, or hasn't passed the verification the event needs, can't be put on one. */
     public void setTeam(long guildId, long id, long userId, Long teamId) {
         Event event = event(guildId, id);
-        if (event.status() == Status.DONE || event.status() == Status.CANCELLED) throw new EventProblem(409, "This event is over.");
-        var player = repository.participant(id, userId).orElseThrow(() -> new EventProblem(404, "That player isn't in the event."));
+        if (event.status() == Status.DONE || event.status() == Status.CANCELLED) throw new EventProblem(409, Text.of(guildId, "events.problem.this_event_is_over"));
+        var player = repository.participant(id, userId).orElseThrow(() -> new EventProblem(404, Text.of(guildId, "events.problem.that_player_isn_t_in_the")));
         if (teamId != null) {
             String block = teamBlock(event, player);
             if (block != null) throw new EventProblem(409, block);
             checkTeam(id, settingsOf(event), teamId, player.kind(), userId);
         }
-        if (!repository.setTeam(id, userId, teamId)) throw new EventProblem(404, "That player isn't in the event.");
+        if (!repository.setTeam(id, userId, teamId)) throw new EventProblem(404, Text.of(guildId, "events.problem.that_player_isn_t_in_the"));
         repository.touchTeams(id);
         changes.publish(EventChanges.Kind.TEAMS, guildId, id);
     }
@@ -847,10 +847,10 @@ public class EventService {
     /** Moves a player's buy-in along: due, paid, refunded. Only allowed moves; the same change twice is refused. */
     public void setBuyIn(long guildId, long id, long userId, BuyInStatus to) {
         Event event = event(guildId, id);
-        if (!settingsOf(event).buyIn().enabled()) throw new EventProblem(409, "This event has no buy-in.");
-        var player = repository.participant(id, userId).orElseThrow(() -> new EventProblem(404, "That player isn't in the event."));
-        if (!PrizeRules.canMoveBuyIn(player.buyIn(), to)) throw new EventProblem(409, "A buy-in can't go from " + player.buyIn().name().toLowerCase(Locale.ROOT) + " to " + to.name().toLowerCase(Locale.ROOT) + ".");
-        if (!repository.moveBuyIn(id, userId, player.buyIn(), to)) throw new EventProblem(409, "Someone else already changed that buy-in.");
+        if (!settingsOf(event).buyIn().enabled()) throw new EventProblem(409, Text.of(guildId, "events.problem.this_event_has_no_buy_in"));
+        var player = repository.participant(id, userId).orElseThrow(() -> new EventProblem(404, Text.of(guildId, "events.problem.that_player_isn_t_in_the")));
+        if (!PrizeRules.canMoveBuyIn(player.buyIn(), to)) throw new EventProblem(409, Text.of(guildId, "events.problem.a_buy_in_can_t_go", player.buyIn().name().toLowerCase(Locale.ROOT), to.name().toLowerCase(Locale.ROOT)));
+        if (!repository.moveBuyIn(id, userId, player.buyIn(), to)) throw new EventProblem(409, Text.of(guildId, "events.problem.someone_else_already_changed_that_buy"));
     }
 
     /** The pot so far: paid buy-ins less refunds. Zero when the event has no buy-in. */
@@ -869,14 +869,14 @@ public class EventService {
     public void setPrizes(long guildId, long id, List<PrizePlan.Prize> prizes) {
         Event event = event(guildId, id);
         if (event.status() == Status.DONE || event.status() == Status.CANCELLED || !repository.awards(id).isEmpty()) {
-            throw new EventProblem(409, "Prizes can't be changed once awards have been worked out or the event is over.");
+            throw new EventProblem(409, Text.of(guildId, "events.problem.prizes_can_t_be_changed_once"));
         }
         List<String> problems = new ArrayList<>();
         for (PrizePlan.Prize p : prizes) problems.addAll(PrizePlan.problems(p));
         problems.addAll(PrizePlan.setProblems(prizes));
         boolean usesPot = prizes.stream().anyMatch(p -> p.percentOfPot() > 0);
         if (usesPot && !settingsOf(event).buyIn().enabled()) problems.add("A prize can only be a share of the pot when the event has a buy-in.");
-        if (!problems.isEmpty()) throw new EventProblem(400, "The prizes can't be saved yet.", problems.stream().distinct().toList());
+        if (!problems.isEmpty()) throw new EventProblem(400, Text.of(guildId, "events.problem.the_prizes_can_t_be_saved"), problems.stream().distinct().toList());
         repository.replacePrizes(id, prizes);
     }
 
@@ -886,9 +886,9 @@ public class EventService {
      */
     public List<AwardRow> generateAwards(long guildId, long id) {
         Event event = event(guildId, id);
-        if (event.status() != Status.SCORING && event.status() != Status.DONE) throw new EventProblem(409, "Awards are worked out once the event is in scoring or done.");
+        if (event.status() != Status.SCORING && event.status() != Status.DONE) throw new EventProblem(409, Text.of(guildId, "events.problem.awards_are_worked_out_once_the"));
         List<PrizePlan.Prize> prizes = repository.prizes(id);
-        if (prizes.isEmpty()) throw new EventProblem(409, "This event has no prizes yet.");
+        if (prizes.isEmpty()) throw new EventProblem(409, Text.of(guildId, "events.problem.this_event_has_no_prizes_yet"));
         var participants = repository.participants(id);
         List<Place> places = new ArrayList<>();
         for (Standing s : standings(guildId, id)) {
@@ -921,10 +921,10 @@ public class EventService {
      */
     public void moveAward(long guildId, long id, long awardId, AwardStatus to, long actorId, String note) {
         Event event = event(guildId, id);
-        AwardRow award = repository.award(id, awardId).orElseThrow(() -> new EventProblem(404, "That award doesn't exist."));
-        if (!PrizeRules.canMoveAward(award.status(), to)) throw new EventProblem(409, "An award can't go from " + award.status().name().toLowerCase(Locale.ROOT) + " to " + to.name().toLowerCase(Locale.ROOT) + ".");
+        AwardRow award = repository.award(id, awardId).orElseThrow(() -> new EventProblem(404, Text.of(guildId, "events.problem.that_award_doesn_t_exist")));
+        if (!PrizeRules.canMoveAward(award.status(), to)) throw new EventProblem(409, Text.of(guildId, "events.problem.an_award_can_t_go_from", award.status().name().toLowerCase(Locale.ROOT), to.name().toLowerCase(Locale.ROOT)));
         String cleanNote = clean(note);
-        if (cleanNote.length() > EventRules.MAX_NOTE) throw new EventProblem(400, "Keep the note to " + EventRules.MAX_NOTE + " characters or fewer.");
+        if (cleanNote.length() > EventRules.MAX_NOTE) throw new EventProblem(400, Text.of(guildId, "events.problem.keep_the_note_to_characters_or", EventRules.MAX_NOTE));
         if (award.kind() == PrizeKind.CLAN_POINTS && award.amount() > 0) {
             String reason = "Event prize: " + event.name();
             PointsService.Result result;
@@ -935,15 +935,15 @@ public class EventService {
             } else {
                 result = null;
             }
-            if (result != null && result.outcome() == PointsService.Outcome.INSUFFICIENT) throw new EventProblem(409, "They have already spent those points, so they can't be taken back.");
+            if (result != null && result.outcome() == PointsService.Outcome.INSUFFICIENT) throw new EventProblem(409, Text.of(guildId, "events.problem.they_have_already_spent_those_points"));
             if (result != null && result.outcome() == PointsService.Outcome.INVALID) throw new EventProblem(400, result.message());
         }
-        if (!repository.moveAward(id, awardId, award.status(), to, actorId, cleanNote)) throw new EventProblem(409, "Someone else already changed that award.");
+        if (!repository.moveAward(id, awardId, award.status(), to, actorId, cleanNote)) throw new EventProblem(409, Text.of(guildId, "events.problem.someone_else_already_changed_that_award"));
     }
 
     public List<EventRepository.AwardStep> awardHistory(long guildId, long id, long awardId) {
         event(guildId, id);
-        repository.award(id, awardId).orElseThrow(() -> new EventProblem(404, "That award doesn't exist."));
+        repository.award(id, awardId).orElseThrow(() -> new EventProblem(404, Text.of(guildId, "events.problem.that_award_doesn_t_exist")));
         return repository.awardHistory(awardId);
     }
 
@@ -956,21 +956,21 @@ public class EventService {
      */
     public Recorded recordProgress(long guildId, long id, String objectiveKey, long userId, long amount, Source source, String sourceKey, Long actorId, String note) {
         Event event = event(guildId, id);
-        if (!EventRules.acceptsProgress(event.status())) throw new EventProblem(409, "This event isn't running, so progress doesn't count right now.");
-        if (amount == 0) throw new EventProblem(400, "The amount can't be zero.");
-        if (amount < 0 && source != Source.MANUAL) throw new EventProblem(400, "Only an organiser can take progress back.");
+        if (!EventRules.acceptsProgress(event.status())) throw new EventProblem(409, Text.of(guildId, "events.problem.this_event_isn_t_running_so"));
+        if (amount == 0) throw new EventProblem(400, Text.of(guildId, "events.problem.the_amount_can_t_be_zero"));
+        if (amount < 0 && source != Source.MANUAL) throw new EventProblem(400, Text.of(guildId, "events.problem.only_an_organiser_can_take_progress"));
         String cleanNote = clean(note);
-        if (cleanNote.length() > EventRules.MAX_NOTE) throw new EventProblem(400, "Keep the note to " + EventRules.MAX_NOTE + " characters or fewer.");
+        if (cleanNote.length() > EventRules.MAX_NOTE) throw new EventProblem(400, Text.of(guildId, "events.problem.keep_the_note_to_characters_or", EventRules.MAX_NOTE));
 
         List<ObjectiveSpec> objectives = repository.objectives(id);
-        ObjectiveSpec objective = objectives.stream().filter(o -> o.key().equals(objectiveKey)).findFirst().orElseThrow(() -> new EventProblem(404, "That objective doesn't exist."));
-        if (!EventRules.evidenceAllows(objective.evidence(), source)) throw new EventProblem(409, "\"" + objective.label() + "\" doesn't accept progress that way.");
-        Participant player = repository.participant(id, userId).orElseThrow(() -> new EventProblem(404, "That player isn't in the event."));
-        if (player.waiting()) throw new EventProblem(409, "That player is on the waitlist, so progress doesn't count yet.");
-        if (source != Source.MANUAL && !mayPlay(event, player)) throw new EventProblem(409, "That player hasn't been verified for this event, so progress doesn't count. An organiser can verify or waive them.");
+        ObjectiveSpec objective = objectives.stream().filter(o -> o.key().equals(objectiveKey)).findFirst().orElseThrow(() -> new EventProblem(404, Text.of(guildId, "events.problem.that_objective_doesn_t_exist")));
+        if (!EventRules.evidenceAllows(objective.evidence(), source)) throw new EventProblem(409, Text.of(guildId, "events.problem.doesn_t_accept_progress_that_way", objective.label()));
+        Participant player = repository.participant(id, userId).orElseThrow(() -> new EventProblem(404, Text.of(guildId, "events.problem.that_player_isn_t_in_the")));
+        if (player.waiting()) throw new EventProblem(409, Text.of(guildId, "events.problem.that_player_is_on_the_waitlist"));
+        if (source != Source.MANUAL && !mayPlay(event, player)) throw new EventProblem(409, Text.of(guildId, "events.problem.that_player_hasn_t_been_verified"));
 
         boolean byTeam = event.scoringMode() == ScoringMode.TEAM;
-        if (byTeam && player.teamId() == null) throw new EventProblem(409, "Put that player in a team first: this event is scored by team.");
+        if (byTeam && player.teamId() == null) throw new EventProblem(409, Text.of(guildId, "events.problem.put_that_player_in_a_team"));
         long subject = byTeam ? player.teamId() : userId;
 
         long total = repository.total(id, objectiveKey, subject, byTeam);
@@ -981,17 +981,17 @@ public class EventService {
             for (ObjectiveSpec o : objectives) byKey.put(o.key(), o);
             Map<String, Long> totals = new HashMap<>();
             for (String prerequisite : objective.prerequisites()) totals.put(prerequisite, repository.total(id, prerequisite, subject, byTeam));
-            if (!EventScoring.available(objective, totals, byKey)) throw new EventProblem(409, "\"" + objective.label() + "\" isn't unlocked yet: finish what it needs first.");
+            if (!EventScoring.available(objective, totals, byKey)) throw new EventProblem(409, Text.of(guildId, "events.problem.isn_t_unlocked_yet_finish_what", objective.label()));
             long remaining = capacity - total;
-            if (remaining <= 0) throw new EventProblem(409, "\"" + objective.label() + "\" is already complete" + (byTeam ? " for that team." : " for that player."));
+            if (remaining <= 0) throw new EventProblem(409, Text.of(guildId, byTeam ? "events.problem.already_complete_for_team" : "events.problem.already_complete_for_player", objective.label()));
             effective = Math.min(amount, remaining);
         } else {
             effective = -Math.min(-amount, total); // never reverse more than there is
-            if (effective == 0) throw new EventProblem(409, "There is no progress to take back.");
+            if (effective == 0) throw new EventProblem(409, Text.of(guildId, "events.problem.there_is_no_progress_to_take"));
         }
 
         OptionalLong row = repository.addProgress(id, objectiveKey, userId, player.teamId(), effective, source, sourceKey, actorId, cleanNote);
-        if (row.isEmpty()) throw new EventProblem(409, "That has already been counted.");
+        if (row.isEmpty()) throw new EventProblem(409, Text.of(guildId, "events.problem.that_has_already_been_counted"));
         long after = Math.max(0, total + effective);
         changes.publish(EventChanges.Kind.PROGRESS, guildId, id);
         return new Recorded(row.getAsLong(), after, EventScoring.completions(objective, after));
@@ -1002,20 +1002,20 @@ public class EventService {
     /** A player's proof for an objective, waiting for an organiser. */
     public long submitClaim(long guildId, long id, String objectiveKey, long userId, long amount, String note, String proofUrl) {
         Event event = event(guildId, id);
-        if (!EventRules.acceptsProgress(event.status())) throw new EventProblem(409, "This event isn't running, so claims aren't open.");
+        if (!EventRules.acceptsProgress(event.status())) throw new EventProblem(409, Text.of(guildId, "events.problem.this_event_isn_t_running_so_2"));
         ObjectiveSpec objective = repository.objectives(id).stream().filter(o -> o.key().equals(objectiveKey)).findFirst()
-                .orElseThrow(() -> new EventProblem(404, "That objective doesn't exist."));
-        if (!EventRules.evidenceAllows(objective.evidence(), Source.CLAIM)) throw new EventProblem(409, "\"" + objective.label() + "\" can't be claimed with proof.");
-        Participant claimant = repository.participant(id, userId).orElseThrow(() -> new EventProblem(404, "That player isn't in the event."));
-        if (!mayPlay(event, claimant)) throw new EventProblem(409, "You haven't been verified for this event yet, so claims aren't open to you. " + EventRoster.askText(settingsOf(event).verification()));
-        if (amount < 1 || amount > objective.target()) throw new EventProblem(400, "Claim between 1 and " + objective.target() + ".");
+                .orElseThrow(() -> new EventProblem(404, Text.of(guildId, "events.problem.that_objective_doesn_t_exist")));
+        if (!EventRules.evidenceAllows(objective.evidence(), Source.CLAIM)) throw new EventProblem(409, Text.of(guildId, "events.problem.can_t_be_claimed_with_proof", objective.label()));
+        Participant claimant = repository.participant(id, userId).orElseThrow(() -> new EventProblem(404, Text.of(guildId, "events.problem.that_player_isn_t_in_the")));
+        if (!mayPlay(event, claimant)) throw new EventProblem(409, Text.of(guildId, "events.problem.you_haven_t_been_verified_for", EventRoster.askText(settingsOf(event).verification())));
+        if (amount < 1 || amount > objective.target()) throw new EventProblem(400, Text.of(guildId, "events.problem.claim_between_1_and", objective.target()));
         String cleanNote = clean(note);
-        if (cleanNote.length() > EventRules.MAX_NOTE) throw new EventProblem(400, "Keep the note to " + EventRules.MAX_NOTE + " characters or fewer.");
-        if (cleanNote.length() < 3 && (proofUrl == null || proofUrl.isBlank())) throw new EventProblem(400, "Say what you did, or attach proof.");
+        if (cleanNote.length() > EventRules.MAX_NOTE) throw new EventProblem(400, Text.of(guildId, "events.problem.keep_the_note_to_characters_or", EventRules.MAX_NOTE));
+        if (cleanNote.length() < 3 && (proofUrl == null || proofUrl.isBlank())) throw new EventProblem(400, Text.of(guildId, "events.problem.say_what_you_did_or_attach"));
         String linkProblem = EventRules.proofUrlProblem(proofUrl);
         if (linkProblem != null) throw new EventProblem(400, linkProblem);
         if (repository.pendingClaimsFor(id, userId) >= MAX_PENDING_CLAIMS_PER_PLAYER) {
-            throw new EventProblem(409, "You already have " + MAX_PENDING_CLAIMS_PER_PLAYER + " claims waiting. Wait for the organisers to look at them first.");
+            throw new EventProblem(409, Text.of(guildId, "events.problem.you_already_have_claims_waiting_wait", MAX_PENDING_CLAIMS_PER_PLAYER));
         }
         return repository.addClaim(id, objectiveKey, userId, amount, cleanNote, proofUrl == null || proofUrl.isBlank() ? null : proofUrl.strip());
     }
@@ -1026,18 +1026,18 @@ public class EventService {
      */
     public long submitVerification(long guildId, long id, long userId, String note, String proofUrl) {
         Event event = event(guildId, id);
-        if (event.status() == Status.DONE || event.status() == Status.CANCELLED) throw new EventProblem(409, "This event is over.");
-        if (!settingsOf(event).verification().required()) throw new EventProblem(409, "This event doesn't ask for verification.");
-        Participant player = repository.participant(id, userId).orElseThrow(() -> new EventProblem(404, "That player isn't in the event."));
+        if (event.status() == Status.DONE || event.status() == Status.CANCELLED) throw new EventProblem(409, Text.of(guildId, "events.problem.this_event_is_over"));
+        if (!settingsOf(event).verification().required()) throw new EventProblem(409, Text.of(guildId, "events.problem.this_event_doesn_t_ask_for_2"));
+        Participant player = repository.participant(id, userId).orElseThrow(() -> new EventProblem(404, Text.of(guildId, "events.problem.that_player_isn_t_in_the")));
         if (player.verification() == EventRoster.Verification.VERIFIED || player.verification() == EventRoster.Verification.WAIVED) {
-            throw new EventProblem(409, "You're already verified for this event.");
+            throw new EventProblem(409, Text.of(guildId, "events.problem.you_re_already_verified_for_this"));
         }
         String cleanNote = clean(note);
-        if (cleanNote.length() > EventRules.MAX_NOTE) throw new EventProblem(400, "Keep the note to " + EventRules.MAX_NOTE + " characters or fewer.");
-        if (proofUrl == null || proofUrl.isBlank()) throw new EventProblem(400, "Attach the proof the organisers asked for.");
+        if (cleanNote.length() > EventRules.MAX_NOTE) throw new EventProblem(400, Text.of(guildId, "events.problem.keep_the_note_to_characters_or", EventRules.MAX_NOTE));
+        if (proofUrl == null || proofUrl.isBlank()) throw new EventProblem(400, Text.of(guildId, "events.problem.attach_the_proof_the_organisers_asked"));
         String linkProblem = EventRules.proofUrlProblem(proofUrl);
         if (linkProblem != null) throw new EventProblem(400, linkProblem);
-        if (repository.pendingVerificationClaimsFor(id, userId) > 0) throw new EventProblem(409, "Your verification is already waiting for the organisers.");
+        if (repository.pendingVerificationClaimsFor(id, userId) > 0) throw new EventProblem(409, Text.of(guildId, "events.problem.your_verification_is_already_waiting_for"));
         return repository.addClaim(id, EventRepository.ClaimKind.VERIFICATION, VERIFICATION_KEY, userId, 1, cleanNote, proofUrl.strip());
     }
 
@@ -1048,23 +1048,23 @@ public class EventService {
      */
     public Claim decideClaim(long guildId, long id, long claimId, boolean approve, String note, long actorId) {
         Event event = event(guildId, id);
-        Claim claim = repository.claim(id, claimId).orElseThrow(() -> new EventProblem(404, "That claim doesn't exist."));
-        if (claim.status() != ClaimStatus.PENDING) throw new EventProblem(409, "Someone has already decided that claim.");
+        Claim claim = repository.claim(id, claimId).orElseThrow(() -> new EventProblem(404, Text.of(guildId, "events.problem.that_claim_doesn_t_exist")));
+        if (claim.status() != ClaimStatus.PENDING) throw new EventProblem(409, Text.of(guildId, "events.problem.someone_has_already_decided_that_claim"));
         String cleanNote = clean(note);
-        if (cleanNote.length() > EventRules.MAX_NOTE) throw new EventProblem(400, "Keep the note to " + EventRules.MAX_NOTE + " characters or fewer.");
-        if (!approve && cleanNote.isEmpty()) throw new EventProblem(400, "Say why it was denied, so the player can fix it.");
+        if (cleanNote.length() > EventRules.MAX_NOTE) throw new EventProblem(400, Text.of(guildId, "events.problem.keep_the_note_to_characters_or", EventRules.MAX_NOTE));
+        if (!approve && cleanNote.isEmpty()) throw new EventProblem(400, Text.of(guildId, "events.problem.say_why_it_was_denied_so"));
         boolean verification = claim.kind() == EventRepository.ClaimKind.VERIFICATION;
-        if (verification && (event.status() == Status.DONE || event.status() == Status.CANCELLED)) throw new EventProblem(409, "This event is over.");
+        if (verification && (event.status() == Status.DONE || event.status() == Status.CANCELLED)) throw new EventProblem(409, Text.of(guildId, "events.problem.this_event_is_over"));
         if (ClanVsClan.is(event.template()) && ClanVsClan.settings(DataObject.fromJson(event.config())).reviewByOtherClan()) {
             // clans review each other's proof: nobody decides proof from their own clan's team
             Long claimTeam = repository.participant(id, claim.userId()).map(Participant::teamId).orElse(null);
             Long actorTeam = repository.participant(id, actorId).map(Participant::teamId).orElse(null);
-            if (claimTeam != null && claimTeam.equals(actorTeam)) throw new EventProblem(403, "In this event the clans review each other's proof, so someone from another clan decides this one.");
+            if (claimTeam != null && claimTeam.equals(actorTeam)) throw new EventProblem(403, Text.of(guildId, "events.problem.in_this_event_the_clans_review"));
         }
-        if (!verification && approve && !EventRules.acceptsProgress(event.status())) throw new EventProblem(409, "The event isn't running, so an approval couldn't be counted. Reopen it first.");
+        if (!verification && approve && !EventRules.acceptsProgress(event.status())) throw new EventProblem(409, Text.of(guildId, "events.problem.the_event_isn_t_running_so"));
 
         if (!repository.decideClaim(id, claimId, approve ? ClaimStatus.APPROVED : ClaimStatus.DENIED, actorId, cleanNote.isEmpty() ? null : cleanNote)) {
-            throw new EventProblem(409, "Someone has already decided that claim.");
+            throw new EventProblem(409, Text.of(guildId, "events.problem.someone_has_already_decided_that_claim"));
         }
         if (verification) {
             try {

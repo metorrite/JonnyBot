@@ -9,6 +9,7 @@ import com.younglings.bot.events.EventSpace.Overwrite;
 import com.younglings.bot.events.EventSpace.Plan;
 import com.younglings.bot.events.EventSpace.Principal;
 import com.younglings.bot.events.EventSpace.RoleItem;
+import com.younglings.bot.i18n.Text;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -193,13 +194,13 @@ public class EventSpaceOps {
      */
     public Job startSetup(Guild guild, Event event, long actorId, boolean removeUnneeded) {
         Plan plan = spaces.preview(guild, event).plan();
-        if (!plan.blockers().isEmpty()) throw new EventProblem(409, "The roles and channels can't be set up yet.", plan.blockers());
+        if (!plan.blockers().isEmpty()) throw new EventProblem(409, Text.of(guild, "events.problem.the_roles_and_channels_can_t"), plan.blockers());
         return start(event.id(), "setup", job -> runSetup(guild, event.guildId(), event.id(), actorId, removeUnneeded, job));
     }
 
     /** Starts removing everything JonnyBot made for the event, in the background. */
     public Job startRemoval(Guild guild, Event event) {
-        if (!space.hasSpace(event.id()) && !events.setup(event.id()).spaceApplied()) throw new EventProblem(409, "There is nothing to remove: no roles or channels were made for this event.");
+        if (!space.hasSpace(event.id()) && !events.setup(event.id()).spaceApplied()) throw new EventProblem(409, Text.of(guild, "events.problem.there_is_nothing_to_remove_no"));
         return start(event.id(), "removal", job -> runRemoval(guild, event.guildId(), event.id(), job));
     }
 
@@ -208,7 +209,7 @@ public class EventSpaceOps {
         Job job = new Job(kind);
         synchronized (jobs) {
             Job running = jobs.get(eventId);
-            if (running != null && running.running()) throw new EventProblem(409, "This event's roles and channels are busy: " + running.kind() + " is still running. Wait for it to finish.");
+            if (running != null && running.running()) throw new EventProblem(409, Text.en("events.problem.this_event_roles_and_channels_are", running.kind()));
             jobs.put(eventId, job);
         }
         executor.execute(() -> {
@@ -325,7 +326,7 @@ public class EventSpaceOps {
             }
             if (c.action() != Action.CREATE) continue;
             Category parent = categories.get(c.parent());
-            if (parent == null) throw new EventProblem(500, "The category for #" + c.name() + " wasn't made.");
+            if (parent == null) throw new EventProblem(500, Text.of(guildId, "events.problem.the_category_for_wasn_t_made", c.name()));
             job.message = "Making the channel #" + c.name() + "…";
             ChannelAction<net.dv8tion.jda.api.entities.channel.concrete.TextChannel> action = guild.createTextChannel(c.name(), parent).setTopic(topicOf(c, event, teamNames));
             for (Overwrite o : EventSpace.overwrites(c.access(), idsOf)) action = o.isRole() ? action.addRolePermissionOverride(o.id(), o.allow(), o.deny()) : action.addMemberPermissionOverride(o.id(), o.allow(), o.deny());

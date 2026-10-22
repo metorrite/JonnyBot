@@ -14,6 +14,7 @@ import com.younglings.bot.events.EventRules;
 import com.younglings.bot.events.EventService;
 import com.younglings.bot.events.EventSettings;
 import com.younglings.bot.events.QueueRules;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
@@ -84,9 +85,9 @@ public class EventCohostApi implements AdminRouteExtension {
         if (parts.length == 4 && parts[3].equals("settings")) {
             AdminRouteExtension.requireMethod(method, "PUT");
             DataObject in = body.get();
-            if (!in.hasKey("announceStart") || !(in.opt("announceStart").orElse(null) instanceof Boolean on)) throw new EventProblem(400, "Say whether to announce the start (true or false).");
+            if (!in.hasKey("announceStart") || !(in.opt("announceStart").orElse(null) instanceof Boolean on)) throw new EventProblem(400, Text.of(guild, "events.problem.say_whether_to_announce_the_start"));
             DataObject config = DataObject.fromJson(event.config()).put(CohostPanels.ANNOUNCE_START, on);
-            if (!events.setConfig(event.guildId(), event.id(), config.toString())) throw new EventProblem(404, "That event doesn't exist in this server.");
+            if (!events.setConfig(event.guildId(), event.id(), config.toString())) throw new EventProblem(404, Text.of(guild, "events.problem.that_event_doesn_t_exist_in"));
             log.info("Dashboard: {} turned the co-host start announcement {} for event {}", actor.getId(), on ? "on" : "off", event.id());
             return hostView(guild, events.eventById(event.id()).orElse(event));
         }
@@ -105,22 +106,22 @@ public class EventCohostApi implements AdminRouteExtension {
     }
 
     void invite(Guild guild, Member actor, Event event, long target) {
-        if (event.status() == EventRules.Status.DONE || event.status() == EventRules.Status.CANCELLED) throw new EventProblem(409, "This event is over.");
-        if (target == event.guildId()) throw new EventProblem(400, "Your own server is the host.");
-        if (!allied(event.guildId(), target)) throw new EventProblem(403, "You can only invite a server that is in an alliance with yours (both accepted).");
+        if (event.status() == EventRules.Status.DONE || event.status() == EventRules.Status.CANCELLED) throw new EventProblem(409, Text.of(guild, "events.problem.this_event_is_over"));
+        if (target == event.guildId()) throw new EventProblem(400, Text.of(guild, "events.problem.your_own_server_is_the_host"));
+        if (!allied(event.guildId(), target)) throw new EventProblem(403, Text.of(guild, "events.problem.you_can_only_invite_a_server"));
         long active = cohosts.forEvent(event.id()).stream().filter(c -> c.status() == Status.INVITED || c.status() == Status.ACCEPTED).count();
         boolean already = cohosts.get(event.id(), target).map(c -> c.status() == Status.INVITED || c.status() == Status.ACCEPTED).orElse(false);
-        if (already) throw new EventProblem(409, "That server is already invited or co-hosting.");
-        if (active >= MAX_COHOSTS) throw new EventProblem(409, "An event can have at most " + MAX_COHOSTS + " co-hosts.");
+        if (already) throw new EventProblem(409, Text.of(guild, "events.problem.that_server_is_already_invited_or"));
+        if (active >= MAX_COHOSTS) throw new EventProblem(409, Text.of(guild, "events.problem.an_event_can_have_at_most", MAX_COHOSTS));
         cohosts.invite(event.id(), target, actor.getIdLong());
         log.info("Dashboard: {} invited server {} to co-host event {}", actor.getId(), target, event.id());
     }
 
     void remove(Member actor, Event event, long target) {
-        if (events.setup(event.id()).signupsClosed()) throw new EventProblem(409, "Signups have closed, so the co-hosts stay. Remove their players by hand on the Teams and players tab if you need to.");
-        Cohost c = cohosts.get(event.id(), target).orElseThrow(() -> new EventProblem(404, "That server isn't a co-host of this event."));
+        if (events.setup(event.id()).signupsClosed()) throw new EventProblem(409, Text.of(actor.getGuild(), "events.problem.signups_have_closed_so_the_co"));
+        Cohost c = cohosts.get(event.id(), target).orElseThrow(() -> new EventProblem(404, Text.of(actor.getGuild(), "events.problem.that_server_isn_t_a_co")));
         if (!cohosts.decide(event.id(), target, c.status(), Status.REMOVED, actor.getIdLong()) || c.status() == Status.REMOVED || c.status() == Status.DECLINED) {
-            throw new EventProblem(409, "That server isn't invited or co-hosting any more.");
+            throw new EventProblem(409, Text.of(actor.getGuild(), "events.problem.that_server_isn_t_invited_or"));
         }
         log.info("Dashboard: {} removed server {} as a co-host of event {}", actor.getId(), target, event.id());
         service.syncTemplateTeams(event, false); // a clan-vs-clan event takes the clan's empty team away (T-222)
@@ -134,7 +135,7 @@ public class EventCohostApi implements AdminRouteExtension {
      * new quotas allow are filled from the waitlist at once.
      */
     void saveQueue(Member actor, Event event, DataObject body) {
-        if (event.status() != EventRules.Status.SIGNUPS && event.status() != EventRules.Status.DRAFT) throw new EventProblem(409, "The queue can only change while the event takes signups.");
+        if (event.status() != EventRules.Status.SIGNUPS && event.status() != EventRules.Status.DRAFT) throw new EventProblem(409, Text.of(actor.getGuild(), "events.problem.the_queue_can_only_change_while"));
         DataObject config = DataObject.fromJson(event.config());
         if (body.hasKey("queue") && !body.isNull("queue")) config.put("queue", body.getString("queue", "").strip().toUpperCase(java.util.Locale.ROOT));
         Integer hostQuota = optionalCount(body, "hostQuota");
@@ -152,14 +153,14 @@ public class EventCohostApi implements AdminRouteExtension {
             DataObject given = body.getObject("quotas");
             for (String key : given.keys()) {
                 long id = idOf(key, "server");
-                if (!accepted.contains(id)) throw new EventProblem(400, "Seat quotas are only for servers that accepted co-hosting this event.");
+                if (!accepted.contains(id)) throw new EventProblem(400, Text.of(actor.getGuild(), "events.problem.seat_quotas_are_only_for_servers"));
                 quotas.put(id, optionalCount(given, key));
             }
         }
         String problem = QueueRules.quotaProblem(event.maxParticipants(), hostQuota, quotas.values());
         if (problem != null) throw new EventProblem(400, problem);
 
-        if (!events.setConfig(event.guildId(), event.id(), config.toString())) throw new EventProblem(404, "That event doesn't exist in this server.");
+        if (!events.setConfig(event.guildId(), event.id(), config.toString())) throw new EventProblem(404, Text.of(actor.getGuild(), "events.problem.that_event_doesn_t_exist_in"));
         cohosts.setQuotas(event.id(), quotas);
         int moved = service.fillSeats(events.eventById(event.id()).orElse(event));
         log.info("Dashboard: {} set the fill queue of event {} ({}, host quota {}, co-host quotas {}, release {} h); {} moved in", actor.getId(), event.id(),
@@ -170,12 +171,12 @@ public class EventCohostApi implements AdminRouteExtension {
     private static int count(DataObject body, String key) {
         try {
             int n = body.getInt(key);
-            if (n < 0) throw new EventProblem(400, "Numbers here can't be negative.");
+            if (n < 0) throw new EventProblem(400, Text.en("events.problem.numbers_here_can_t_be_negative"));
             return n;
         } catch (EventProblem e) {
             throw e;
         } catch (RuntimeException e) {
-            throw new EventProblem(400, "Use whole numbers for quotas and hours.");
+            throw new EventProblem(400, Text.en("events.problem.use_whole_numbers_for_quotas_and"));
         }
     }
 

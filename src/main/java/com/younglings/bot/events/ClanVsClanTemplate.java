@@ -7,6 +7,7 @@ import com.younglings.bot.events.EventRepository.Participant;
 import com.younglings.bot.events.EventRules.ObjectiveSpec;
 import com.younglings.bot.events.EventRules.ScoringMode;
 import com.younglings.bot.events.EventRules.Status;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.runescape.ClanMemberRepository.ClanMemberRow;
 import com.younglings.bot.runescape.ClanSyncService;
 import com.younglings.bot.runescape.PlayerLink;
@@ -274,7 +275,7 @@ public class ClanVsClanTemplate implements EventTemplate {
             case ClanVsClan.TeamChoice.NoClan n -> {
                 List<String> names = new ArrayList<>();
                 for (long clan : teams.keySet()) names.add(teamName(clan));
-                throw new EventProblem(403, "Only members of " + String.join(", ", names) + " can join this event. Link your RuneScape name with /rs if you are one.");
+                throw new EventProblem(403, Text.of(event.guildId(), "events.problem.only_members_of_can_join_this", String.join(", ", names)));
             }
         };
     }

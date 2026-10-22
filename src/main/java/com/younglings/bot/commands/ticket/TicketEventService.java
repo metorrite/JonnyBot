@@ -3,6 +3,7 @@ package com.younglings.bot.commands.ticket;
 import com.younglings.bot.discord.Containers;
 import com.younglings.bot.events.EventProblem;
 import com.younglings.bot.events.EventService;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.permission.AdminRoleFilter;
 import com.younglings.bot.ticket.HelpExtras;
 import com.younglings.bot.ticket.HelpExtrasRepository;
@@ -57,27 +58,27 @@ public class TicketEventService {
         Ticket ticket = tickets.getTicket(ticketId);
         Panel panel = ticket == null || ticket.panelId() == null ? null : tickets.getPanel(ticket.panelId());
         if (ticket == null || panel == null || ticket.guildId() != guild.getIdLong()) {
-            Containers.replyEphemeral(event, Containers.WARNING, "This ticket is no longer available.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "ticket.this_ticket_is_no_longer_available"));
             return;
         }
         if (ticket.status() == Status.CLOSED) {
-            Containers.replyEphemeral(event, Containers.INFO, "This ticket is closed.");
+            Containers.replyEphemeral(event, Containers.INFO, Text.of(event, "ticket.this_ticket_is_closed"));
             return;
         }
         HelpExtras settings = extras.get(guild.getIdLong());
         if (!settings.eventButton() || !panel.isHelpPanel()) {
-            Containers.replyEphemeral(event, Containers.WARNING, "Making events from tickets isn't switched on in this server. An admin can do that on the dashboard's PvM Help page.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "ticket.making_events_from_tickets_isn_t"));
             return;
         }
         Set<Long> memberRoles = member.getRoles().stream().map(r -> r.getIdLong()).collect(Collectors.toSet());
         boolean admin = member.hasPermission(Permission.MANAGE_SERVER) || adminRoleFilter.isAuthorized(guild, member);
         if (!mayMake(member.getIdLong(), memberRoles, admin, tickets.getRoles(panel.id()), tickets.getHelpers(ticketId))) {
-            Containers.replyEphemeral(event, Containers.WARNING, "Only a helper on this ticket, the ticket's helpers and staff, or an admin can make it an event.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "ticket.only_a_helper_on_this_ticket"));
             return;
         }
         var existing = extras.eventOf(ticketId);
         if (existing.isPresent()) {
-            Containers.replyEphemeral(event, Containers.INFO, "This ticket already became event **#" + existing.getAsLong() + "**. Sign up with `/events join id:" + existing.getAsLong() + "`.");
+            Containers.replyEphemeral(event, Containers.INFO, Text.of(event, "ticket.this_ticket_already_became_event_sign", existing.getAsLong(), existing.getAsLong()));
             return;
         }
         TicketEventPlan.Plan plan;
@@ -88,7 +89,7 @@ public class TicketEventService {
             return;
         }
         if (!extras.claimEvent(ticketId, member.getIdLong())) {
-            Containers.replyEphemeral(event, Containers.INFO, "Someone is already making an event from this ticket.");
+            Containers.replyEphemeral(event, Containers.INFO, Text.of(event, "ticket.someone_is_already_making_an_event"));
             return;
         }
         event.deferReply().queue();
@@ -111,22 +112,22 @@ public class TicketEventService {
                     notAdded.add(user);
                 }
             }
-            event.getHook().sendMessageComponents(Containers.toast(Containers.SUCCESS, lines(plan, eventId, added, notAdded))).useComponentsV2(true).queue();
+            event.getHook().sendMessageComponents(Containers.toast(Containers.SUCCESS, lines(event.getGuild().getIdLong(), plan, eventId, added, notAdded))).useComponentsV2(true).queue();
             log.info("{} made event {} from ticket {}", member.getId(), eventId, ticketId);
         } catch (EventProblem | IllegalArgumentException e) {
             // nothing was made (or it can't be used): free the ticket so the button can be pressed again
             if (extras.eventOf(ticketId).isEmpty()) extras.forgetEvent(ticketId);
-            event.getHook().sendMessageComponents(Containers.toast(Containers.WARNING, "I couldn't make the event: " + e.getMessage())).useComponentsV2(true).queue();
+            event.getHook().sendMessageComponents(Containers.toast(Containers.WARNING, Text.of(event, "ticket.i_couldn_t_make_the_event", e.getMessage()))).useComponentsV2(true).queue();
         }
     }
 
-    static String[] lines(TicketEventPlan.Plan plan, long eventId, List<Long> added, List<Long> notAdded) {
+    static String[] lines(long guildId, TicketEventPlan.Plan plan, long eventId, List<Long> added, List<Long> notAdded) {
         List<String> lines = new ArrayList<>();
-        lines.add("### 🎉 Event made from this ticket: " + plan.input().name());
-        lines.add(plan.summary() + ". Signups are open: others can join with `/events join id:" + eventId + "`.");
-        if (!added.isEmpty()) lines.add("On the roster: " + added.stream().map(id -> "<@" + id + ">").collect(Collectors.joining(", ")) + ".");
-        if (!notAdded.isEmpty()) lines.add("Couldn't be added (they can join themselves): " + notAdded.stream().map(id -> "<@" + id + ">").collect(Collectors.joining(", ")) + ".");
-        lines.add("-# Staff: prizes, teams and the exact start time are on the dashboard's Event manager.");
+        lines.add(Text.of(guildId, "ticket.event.made_from_this_ticket", plan.input().name()));
+        lines.add(Text.of(guildId, "ticket.event.signups_are_open", plan.summary(), eventId));
+        if (!added.isEmpty()) lines.add(Text.of(guildId, "ticket.event.on_the_roster", added.stream().map(id -> "<@" + id + ">").collect(Collectors.joining(", "))));
+        if (!notAdded.isEmpty()) lines.add(Text.of(guildId, "ticket.event.couldnt_be_added", notAdded.stream().map(id -> "<@" + id + ">").collect(Collectors.joining(", "))));
+        lines.add(Text.of(guildId, "ticket.event.staff_prizes_teams"));
         return lines.toArray(String[]::new);
     }
 }

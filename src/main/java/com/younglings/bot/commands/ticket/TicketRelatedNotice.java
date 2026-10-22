@@ -1,6 +1,7 @@
 package com.younglings.bot.commands.ticket;
 
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.ticket.HelpExtras;
 import com.younglings.bot.ticket.HelpExtrasRepository;
 import com.younglings.bot.ticket.TicketModels.Field;
@@ -58,11 +59,11 @@ public class TicketRelatedNotice {
             if (siblings.isEmpty()) return;
 
             List<ContainerChildComponent> children = new ArrayList<>();
-            children.add(TextDisplay.of(RelatedTickets.notice(me, siblings)));
+            children.add(TextDisplay.of(RelatedTickets.notice(ticket.guildId(), me, siblings)));
             List<Button> buttons = new ArrayList<>();
             for (RelatedTickets.Candidate s : siblings) {
-                buttons.add(Button.secondary(RelatedTickets.linkId(ticket.id(), s.ticketId()), "Link with " + RelatedTickets.number(s.number())));
-                buttons.add(Button.danger(RelatedTickets.mergeId(ticket.id(), s.ticketId()), "Merge into " + RelatedTickets.number(s.number())));
+                buttons.add(Button.secondary(RelatedTickets.linkId(ticket.id(), s.ticketId()), Text.of(ticket.guildId(), "ticket.related.link_with", RelatedTickets.number(s.number()))));
+                buttons.add(Button.danger(RelatedTickets.mergeId(ticket.id(), s.ticketId()), Text.of(ticket.guildId(), "ticket.related.merge_into", RelatedTickets.number(s.number()))));
             }
             children.add(ActionRow.of(buttons));
             channel.sendMessageComponents(Containers.card(Containers.INFO, children)).useComponentsV2(true)

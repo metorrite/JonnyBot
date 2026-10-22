@@ -5,6 +5,7 @@ import com.younglings.bot.commands.signup.SignupEntry;
 import com.younglings.bot.commands.signup.SignupService;
 import com.younglings.bot.events.EventRepository.Event;
 import com.younglings.bot.events.EventRules.Status;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
@@ -122,16 +123,16 @@ public class EventSignups {
     /** Posts the event's signup in its chosen channels. Only while the event is taking signups, and only once. Returns the signup's id. */
     public long open(Guild guild, long eventId, long actorId) {
         Event event = service.event(guild.getIdLong(), eventId);
-        if (event.status() != Status.SIGNUPS) throw new EventProblem(409, "Open the event's signups first.");
-        if (event.signupId() != null) throw new EventProblem(409, "This event already has a signup.");
+        if (event.status() != Status.SIGNUPS) throw new EventProblem(409, Text.of(guild, "events.problem.open_the_event_signups_first"));
+        if (event.signupId() != null) throw new EventProblem(409, Text.of(guild, "events.problem.this_event_already_has_a_signup"));
         EventSettings settings = settingsOf(event);
-        if (settings.signupChannelId() == null || settings.signupAdminChannelId() == null) throw new EventProblem(409, "Choose a signup channel and a staff channel in the event's settings first.");
+        if (settings.signupChannelId() == null || settings.signupAdminChannelId() == null) throw new EventProblem(409, Text.of(guild, "events.problem.choose_a_signup_channel_and_a"));
         TextChannel panel = guild.getTextChannelById(settings.signupChannelId());
         TextChannel staff = guild.getTextChannelById(settings.signupAdminChannelId());
-        if (panel == null || staff == null) throw new EventProblem(400, "One of the signup channels no longer exists.");
+        if (panel == null || staff == null) throw new EventProblem(400, Text.of(guild, "events.problem.one_of_the_signup_channels_no"));
         for (TextChannel channel : List.of(panel, staff)) {
             if (!guild.getSelfMember().hasPermission(channel, Permission.VIEW_CHANNEL, Permission.MESSAGE_SEND)) {
-                throw new EventProblem(400, "JonnyBot needs to see and send messages in #" + channel.getName() + ".");
+                throw new EventProblem(400, Text.of(guild, "events.problem.jonnybot_needs_to_see_and_send", channel.getName()));
             }
         }
         long signupId = signups.createQueueSignup(guild, panel, staff, event.name(), event.description().isBlank() ? null : event.description(), null, actorId);

@@ -15,6 +15,7 @@ import com.younglings.bot.events.EventStandings;
 import com.younglings.bot.events.EventService;
 import com.younglings.bot.events.EventRoster;
 import com.younglings.bot.events.EventSettings;
+import com.younglings.bot.i18n.Text;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
@@ -65,7 +66,7 @@ public class MemberEventsApi {
         long eventId = eventIdOf(body);
         long guildId = guild.getIdLong();
         Event event = service.event(guildId, eventId);
-        if (event.status() != Status.SIGNUPS) throw new EventProblem(409, "You can only leave while an event is taking signups. Ask an organiser if you need out of one that has started.");
+        if (event.status() != Status.SIGNUPS) throw new EventProblem(409, Text.of(guildId, "events.problem.you_can_only_leave_while_an"));
         service.leave(guildId, eventId, userId);
         return mine(guild, userId);
     }
@@ -74,7 +75,7 @@ public class MemberEventsApi {
         try {
             return Long.parseLong(body.getString("eventId", "").strip());
         } catch (NumberFormatException e) {
-            throw new EventProblem(400, "Say which event.");
+            throw new EventProblem(400, Text.en("events.problem.say_which_event"));
         }
     }
 
@@ -140,7 +141,7 @@ public class MemberEventsApi {
         if (guild.getMemberById(userId) == null) throw new EventProblem(403, notInServerMessage(guild));
         Event event = service.event(guildId, eventId);
         Participant me = repository.participant(eventId, userId).orElse(null);
-        if (me == null && event.status() != Status.SIGNUPS) throw new EventProblem(404, "That event doesn't exist, or you aren't in it.");
+        if (me == null && event.status() != Status.SIGNUPS) throw new EventProblem(404, Text.of(guildId, "events.problem.that_event_doesn_t_exist_or"));
         EventSettings settings = settingsOf(event);
         var setup = repository.setup(eventId);
         boolean teamEvent = event.scoringMode() == com.younglings.bot.events.EventRules.ScoringMode.TEAM;
