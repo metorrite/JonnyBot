@@ -56,6 +56,11 @@ public class BingoTiles {
         return new Ref(boss.map(Boss::name).orElse(bossRaw), drop != null ? drop.item() : itemRaw, hasIcon(key) ? key : null);
     }
 
+    /** Whether some boss in the catalogue drops an item with this name (any case): the bingo editor's "auto with RuneSync" hint (T-141). */
+    public boolean knowsItem(String item) {
+        return item != null && dropsByName.containsKey(item.strip().toLowerCase(Locale.ROOT));
+    }
+
     public String iconKeyFor(String label) {
         return resolve(label).iconKey();
     }
