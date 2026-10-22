@@ -1,0 +1,71 @@
+package com.younglings.bot.internal;
+
+import com.younglings.bot.alliance.AllianceRepository;
+import com.younglings.bot.clanprofile.ClanProfile;
+import com.younglings.bot.clanprofile.ClanProfileService;
+import com.younglings.bot.configure.GuildSettings;
+import com.younglings.bot.configure.GuildSettingsService;
+import com.younglings.bot.events.EventRepository;
+import com.younglings.bot.events.EventService;
+import com.younglings.bot.events.EventTemplates;
+import com.younglings.bot.events.HubModerationRepository;
+import com.younglings.bot.runescape.PlayerLinkService;
+import net.dv8tion.jda.api.JDA;
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.utils.data.DataObject;
+import org.junit.jupiter.api.Test;
+
+import java.util.Optional;
+import java.util.Set;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+/** The public events hub names a host by its clan profile or server name, never by its Discord id (T-182). */
+class HubEventsHostTest {
+    private static final long GUILD = 1234567890123456789L;
+
+    private final ClanProfileService profiles = mock(ClanProfileService.class);
+    private final GuildSettingsService settings = mock(GuildSettingsService.class);
+    private final HubEventsApi api = new HubEventsApi(mock(EventRepository.class), mock(EventService.class), mock(EventTemplates.class), settings, profiles,
+            mock(AllianceRepository.class), mock(PlayerLinkService.class), mock(HubModerationRepository.class));
+
+    HubEventsHostTest() {
+        GuildSettings stored = mock(GuildSettings.class);
+        when(stored.inviteUrl()).thenReturn("https://discord.gg/abc");
+        when(settings.getEffective(GUILD)).thenReturn(stored);
+    }
+
+    private static void noDiscordId(DataObject host) {
+        assertFalse(host.hasKey("guildId"), host.toString());
+        assertFalse(host.toString().contains(Long.toString(GUILD)), "the server's id appears in " + host);
+    }
+
+    @Test
+    void aServerWithoutAListedProfileIsNamedByItsServerName() {
+        when(profiles.publicView(GUILD, false)).thenReturn(Optional.empty());
+        JDA jda = mock(JDA.class);
+        Guild guild = mock(Guild.class);
+        when(guild.getName()).thenReturn("Some Server");
+        when(jda.getGuildById(GUILD)).thenReturn(guild);
+
+        DataObject host = api.host(jda, GUILD);
+        assertEquals("Some Server", host.getString("name"));
+        assertEquals("https://discord.gg/abc", host.getString("inviteUrl"));
+        noDiscordId(host);
+    }
+
+    @Test
+    void aListedClanIsNamedByItsProfile() {
+        ClanProfile p = new ClanProfile(GUILD, ClanProfile.Visibility.PUBLIC, "younglings", "Younglings", null, null, null, null, null, Set.of(),
+                ClanProfile.Recruiting.OPEN, null, null, false, null, null, null, null, null, null);
+        when(profiles.publicView(GUILD, false)).thenReturn(Optional.of(p));
+
+        DataObject host = api.host(mock(JDA.class), GUILD);
+        assertEquals("Younglings", host.getString("name"));
+        assertEquals("younglings", host.getString("slug"));
+        noDiscordId(host);
+    }
+}
