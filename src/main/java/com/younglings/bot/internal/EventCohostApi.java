@@ -11,6 +11,8 @@ import com.younglings.bot.events.EventRepository.Event;
 import com.younglings.bot.events.EventRepository.Participant;
 import com.younglings.bot.events.EventRules;
 import com.younglings.bot.events.EventService;
+import com.younglings.bot.events.EventSettings;
+import com.younglings.bot.events.QueueRules;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
@@ -76,6 +78,11 @@ public class EventCohostApi implements AdminRouteExtension {
             invite(guild, actor, event, target);
             return hostView(guild, event);
         }
+        if (parts.length == 4 && parts[3].equals("queue")) {
+            AdminRouteExtension.requireMethod(method, "PUT");
+            saveQueue(actor, event, body.get());
+            return hostView(guild, events.eventById(event.id()).orElse(event));
+        }
         if (parts.length == 4) {
             AdminRouteExtension.requireMethod(method, "DELETE");
             long target = idOf(parts[3], "server");
@@ -106,15 +113,90 @@ public class EventCohostApi implements AdminRouteExtension {
         log.info("Dashboard: {} removed server {} as a co-host of event {}", actor.getId(), target, event.id());
     }
 
+    /**
+     * The fill queue (T-220): {@code {queue, hostQuota, releaseHours, quotas: {guildId: n|null}}}. The policy and the host's quota are kept in the
+     * event's settings, each accepted co-host's quota with the co-host. Quotas need a player limit and may not add up to more than it. Places that the
+     * new quotas allow are filled from the waitlist at once.
+     */
+    void saveQueue(Member actor, Event event, DataObject body) {
+        if (event.status() != EventRules.Status.SIGNUPS && event.status() != EventRules.Status.DRAFT) throw new EventProblem(409, "The queue can only change while the event takes signups.");
+        DataObject config = DataObject.fromJson(event.config());
+        if (body.hasKey("queue") && !body.isNull("queue")) config.put("queue", body.getString("queue", "").strip().toUpperCase(java.util.Locale.ROOT));
+        Integer hostQuota = optionalCount(body, "hostQuota");
+        int releaseHours = body.hasKey("releaseHours") && !body.isNull("releaseHours") ? count(body, "releaseHours") : QueueRules.quotaSetting(config).releaseHours();
+        config.put("queueQuota", DataObject.empty().put("host", hostQuota == null ? 0 : hostQuota).put("releaseHours", releaseHours));
+        List<String> problems = new java.util.ArrayList<>(EventSettings.problems(config));
+        if (!problems.isEmpty()) throw new EventProblem(400, problems.get(0), problems);
+
+        java.util.Map<Long, Integer> quotas = new java.util.LinkedHashMap<>();
+        Set<Long> accepted = new LinkedHashSet<>();
+        for (Cohost c : cohosts.forEvent(event.id())) if (c.status() == Status.ACCEPTED) accepted.add(c.guildId());
+        java.util.Map<Long, Integer> current = events.cohostQuotas(event.id());
+        for (long id : accepted) quotas.put(id, current.get(id));
+        if (body.hasKey("quotas") && !body.isNull("quotas")) {
+            DataObject given = body.getObject("quotas");
+            for (String key : given.keys()) {
+                long id = idOf(key, "server");
+                if (!accepted.contains(id)) throw new EventProblem(400, "Seat quotas are only for servers that accepted co-hosting this event.");
+                quotas.put(id, optionalCount(given, key));
+            }
+        }
+        String problem = QueueRules.quotaProblem(event.maxParticipants(), hostQuota, quotas.values());
+        if (problem != null) throw new EventProblem(400, problem);
+
+        if (!events.setConfig(event.guildId(), event.id(), config.toString())) throw new EventProblem(404, "That event doesn't exist in this server.");
+        cohosts.setQuotas(event.id(), quotas);
+        int moved = service.fillSeats(events.eventById(event.id()).orElse(event));
+        log.info("Dashboard: {} set the fill queue of event {} ({}, host quota {}, co-host quotas {}, release {} h); {} moved in", actor.getId(), event.id(),
+                config.getString("queue", "FIRST_COME"), hostQuota, quotas, releaseHours, moved);
+    }
+
+    /** A whole number 0 or more from the body, or a refusal. */
+    private static int count(DataObject body, String key) {
+        try {
+            int n = body.getInt(key);
+            if (n < 0) throw new EventProblem(400, "Numbers here can't be negative.");
+            return n;
+        } catch (EventProblem e) {
+            throw e;
+        } catch (RuntimeException e) {
+            throw new EventProblem(400, "Use whole numbers for quotas and hours.");
+        }
+    }
+
+    /** A quota from the body: missing, null or 0 is "no quota". */
+    private static Integer optionalCount(DataObject body, String key) {
+        if (!body.hasKey(key) || body.isNull(key)) return null;
+        int n = count(body, key);
+        return n == 0 ? null : n;
+    }
+
+    /** What the Co-hosts card shows about the fill queue: the policy, the quotas, their sum against the player limit, and the release. */
+    private DataObject queueView(Event event) {
+        DataObject config = DataObject.fromJson(event.config());
+        EventSettings settings = EventSettings.parse(config);
+        QueueRules.QuotaSetting setting = QueueRules.quotaSetting(config);
+        java.util.Map<Long, Integer> cohostQuotas = events.cohostQuotas(event.id());
+        int sum = (setting.host() == null ? 0 : setting.host()) + cohostQuotas.values().stream().mapToInt(Integer::intValue).sum();
+        boolean released = QueueRules.released(java.time.Instant.now(), settings.signupClosesAt(), events.setup(event.id()).signupsClosed(), setting.releaseHours());
+        java.time.Instant releaseAt = QueueRules.releaseAt(settings.signupClosesAt(), setting.releaseHours());
+        return DataObject.empty().put("policy", settings.queue().name()).put("hostQuota", setting.host()).put("releaseHours", setting.releaseHours())
+                .put("quotaSum", sum).put("maxParticipants", event.maxParticipants()).put("released", sum > 0 && released)
+                .put("releaseAt", releaseAt == null ? null : releaseAt.toString())
+                .put("canChange", event.status() == EventRules.Status.SIGNUPS || event.status() == EventRules.Status.DRAFT);
+    }
+
     private DataObject hostView(Guild guild, Event event) {
         List<Participant> players = events.participants(event.id());
+        java.util.Map<Long, Integer> quotas = events.cohostQuotas(event.id());
         DataArray list = DataArray.empty();
         Set<Long> taken = new LinkedHashSet<>();
         for (Cohost c : cohosts.forEvent(event.id())) {
             if (c.status() == Status.REMOVED) continue;
             taken.add(c.guildId());
             long count = players.stream().filter(p -> p.guildId() == c.guildId()).count();
-            list.add(DataObject.empty().put("guildId", Long.toString(c.guildId())).put("name", nameOf(guild, c.guildId())).put("status", c.status().name()).put("players", count));
+            list.add(DataObject.empty().put("guildId", Long.toString(c.guildId())).put("name", nameOf(guild, c.guildId())).put("status", c.status().name()).put("players", count)
+                    .put("quota", quotas.get(c.guildId())));
         }
         DataArray candidates = DataArray.empty();
         for (long id : alliedServers(event.guildId())) {
@@ -123,7 +205,7 @@ public class EventCohostApi implements AdminRouteExtension {
             }
         }
         return DataObject.empty().put("cohosts", list).put("candidates", candidates).put("max", MAX_COHOSTS)
-                .put("canRemove", !events.setup(event.id()).signupsClosed());
+                .put("canRemove", !events.setup(event.id()).signupsClosed()).put("queue", queueView(event));
     }
 
     // ---------- a co-host ----------
@@ -182,7 +264,8 @@ public class EventCohostApi implements AdminRouteExtension {
                 yours.add(DataObject.empty().put("userId", Long.toString(p.userId())).put("name", m == null ? "A member who left" : m.getEffectiveName()).put("waiting", p.waiting()));
             }
             boolean canRemove = e.status() == EventRules.Status.SIGNUPS && !events.setup(e.id()).rosterConfirmed();
-            hosting.add(base.put("players", players.stream().filter(p -> !p.waiting()).count()).put("yours", yours).put("canRemove", canRemove));
+            hosting.add(base.put("players", players.stream().filter(p -> !p.waiting()).count()).put("yours", yours).put("canRemove", canRemove)
+                    .put("quota", events.cohostQuotas(e.id()).get(me)));
         }
         return DataObject.empty().put("invitations", invitations).put("events", hosting);
     }

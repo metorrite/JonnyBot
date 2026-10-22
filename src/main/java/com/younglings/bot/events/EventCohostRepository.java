@@ -47,7 +47,25 @@ public class EventCohostRepository {
                     PRIMARY KEY (event_id, guild_id)
                 );
                 """,
-                "CREATE INDEX IF NOT EXISTS event_cohost_guild ON younglings.event_cohost (guild_id, status);"));
+                "CREATE INDEX IF NOT EXISTS event_cohost_guild ON younglings.event_cohost (guild_id, status);",
+                // T-220: the co-host's seat quota (null = no quota), read with the roster by EventRepository#cohostQuotas
+                "ALTER TABLE younglings.event_cohost ADD COLUMN IF NOT EXISTS quota INT NULL;"));
+    }
+
+    /** Sets each listed co-host's seat quota (null clears it). Servers that aren't co-hosts of the event are left alone. */
+    public void setQuotas(long eventId, java.util.Map<Long, Integer> quotas) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("UPDATE younglings.event_cohost SET quota = ? WHERE event_id = ? AND guild_id = ?")) {
+            for (var q : quotas.entrySet()) {
+                if (q.getValue() == null) s.setNull(1, Types.INTEGER);
+                else s.setInt(1, q.getValue());
+                s.setLong(2, eventId);
+                s.setLong(3, q.getKey());
+                s.addBatch();
+            }
+            s.executeBatch();
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to save the co-hosts' seat quotas", e);
+        }
     }
 
     private static Cohost map(ResultSet rs) throws SQLException {
