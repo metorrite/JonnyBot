@@ -124,7 +124,7 @@ class EventOrganisersTest {
 
     @Test
     void theButtonsCarryTheEventAndTheClaim() {
-        var row = EventClaimListener.buttons(EVENT, CLAIM);
+        var row = EventClaimListener.buttons(1L, EVENT, CLAIM);
         assertEquals(2, row.getComponents().size());
         assertNotNull(row.getComponents().get(0));
     }
