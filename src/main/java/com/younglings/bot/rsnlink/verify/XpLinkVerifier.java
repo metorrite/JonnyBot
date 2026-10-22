@@ -2,6 +2,7 @@ package com.younglings.bot.rsnlink.verify;
 
 import com.younglings.bot.rsnlink.LinkVerifier;
 import com.younglings.bot.rsnlink.Verification;
+import com.younglings.bot.util.BotScheduler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -11,7 +12,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -29,13 +29,9 @@ public final class XpLinkVerifier implements LinkVerifier, AutoCloseable {
     private final ScheduledExecutorService owned;
     private volatile Raiser raiser;
 
-    /** The real one: its own worker thread, ticking every 20 seconds. */
+    /** The real one: its own lane of the shared scheduler (one task at a time, T-184), ticking every 20 seconds. */
     public static XpLinkVerifier start(VerifySettings settings, VerifyStore store, PublicData data, Clock clock) {
-        ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(runnable -> {
-            Thread thread = new Thread(runnable, "rsnlink-verify");
-            thread.setDaemon(true);
-            return thread;
-        });
+        ScheduledExecutorService executor = BotScheduler.lane("rsnlink-verify");
         XpLinkVerifier made = new XpLinkVerifier(settings, store, data, clock, executor, executor);
         executor.scheduleWithFixedDelay(made::tick, 20, 20, TimeUnit.SECONDS);
         executor.scheduleWithFixedDelay(made::sweep, 10, 60, TimeUnit.MINUTES);
