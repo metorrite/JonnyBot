@@ -84,7 +84,15 @@ public final class BotScheduler {
                 if (draining) return;
                 draining = true;
             }
-            WORKERS.execute(this::drain);
+            try {
+                WORKERS.execute(this::drain);
+            } catch (RejectedExecutionException e) {
+                // every worker busy: leave the work queued and the lane free, so the next thing due starts it instead of the lane sticking
+                synchronized (this) {
+                    draining = false;
+                }
+                log.error("No free worker for {}: {} task(s) wait for its next one", name, queue.size(), e);
+            }
         }
 
         private void drain() {
@@ -145,7 +153,6 @@ public final class BotScheduler {
                 }
                 futures.remove(future);
             }), delay, unit));
-            futures.add(future);
             return future;
         }
 
@@ -167,7 +174,6 @@ public final class BotScheduler {
                     }
                 });
             }, initialDelay, period, unit));
-            futures.add(future);
             return future;
         }
 
@@ -187,7 +193,6 @@ public final class BotScheduler {
                 if (!future.isDone() && !shutdown) future.timer.set(TIMER.schedule(fire[0], delay, unit));
             });
             future.timer.set(TIMER.schedule(fire[0], initialDelay, unit));
-            futures.add(future);
             return future;
         }
 
@@ -235,11 +240,15 @@ public final class BotScheduler {
         final AtomicReference<ScheduledFuture<?>> timer = new AtomicReference<>();
         final CompletableFuture<V> result = new CompletableFuture<>();
 
+        /** Tracked by its lane from the start, before the timer can fire it, so a task that finishes at once is never re-added after it ends. */
         LaneFuture(Lane lane) {
             this.lane = lane;
+            lane.futures.add(this);
         }
 
         void fail(Throwable t) {
+            // the single-thread scheduler stopped such a task silently; say so, since nothing reads a repeating task's future
+            log.error("A repeating task on {} failed and won't run again", lane.name, t);
             ScheduledFuture<?> next = timer.get();
             if (next != null) next.cancel(false);
             result.completeExceptionally(t);

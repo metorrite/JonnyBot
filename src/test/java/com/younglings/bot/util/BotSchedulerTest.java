@@ -3,6 +3,7 @@ package com.younglings.bot.util;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -11,6 +12,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** A lane keeps what each service's own single-thread scheduler promised, on shared threads (T-184). */
@@ -117,6 +119,25 @@ class BotSchedulerTest {
         });
         assertTrue(done.await(2, TimeUnit.SECONDS));
         assertEquals("t184-named", seen.get());
+    }
+
+    @Test
+    void aShutDownLaneStopsItsRepeatingTasksRefusesNewWorkAndTerminates() throws Exception {
+        ScheduledExecutorService lane = BotScheduler.lane("t184-shutdown");
+        AtomicInteger runs = new AtomicInteger();
+        CountDownLatch once = new CountDownLatch(1);
+        ScheduledFuture<?> future = lane.scheduleAtFixedRate(() -> {
+            runs.incrementAndGet();
+            once.countDown();
+        }, 0, 10, TimeUnit.MILLISECONDS);
+        assertTrue(once.await(2, TimeUnit.SECONDS));
+        lane.shutdown();
+        assertTrue(lane.awaitTermination(2, TimeUnit.SECONDS));
+        assertTrue(future.isCancelled());
+        int after = runs.get();
+        Thread.sleep(60);
+        assertEquals(after, runs.get(), "it kept running after shutdown");
+        assertThrows(RejectedExecutionException.class, () -> lane.execute(() -> {}));
     }
 
     @Test
