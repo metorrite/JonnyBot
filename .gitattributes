@@ -1,0 +1,15 @@
+# One line ending everywhere: LF in the repository and in working copies, so a file never flips between CRLF and LF depending on which tool
+# touched it (and a script that edits files as text matches the same bytes on every machine). Windows tools read LF fine.
+* text=auto eol=lf
+
+# Never touched: binary files and Windows-only scripts.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.woff2 binary
+*.jar binary
+*.ps1 text eol=crlf
+*.bat text eol=crlf

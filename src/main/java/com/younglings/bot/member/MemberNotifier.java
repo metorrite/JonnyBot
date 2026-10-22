@@ -1,10 +1,13 @@
 package com.younglings.bot.member;
 
+import com.younglings.bot.alerts.AutoPostRouter;
+import com.younglings.bot.branding.BrandingService;
 import com.younglings.bot.member.MemberProfileRepository.Goal;
 import com.younglings.bot.runescape.PlayerLinkRepository;
 import com.younglings.bot.runescape.RuneScapeSkillCatalog;
 import com.younglings.bot.runescape.RuneScapeXpTable;
 import com.younglings.bot.runescape.SkillValue;
+import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -18,9 +21,7 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -36,15 +37,13 @@ public class MemberNotifier {
 
     private final MemberProfileRepository repository;
     private final PlayerLinkRepository links;
-    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor((ThreadFactory) r -> {
-        Thread t = new Thread(r, "member-notifier");
-        t.setDaemon(true);
-        return t;
-    });
+    private final BrandingService branding;
+    private final ScheduledExecutorService executor = BotScheduler.lane("member-notifier");
 
-    public MemberNotifier(MemberProfileRepository repository, PlayerLinkRepository links) {
+    public MemberNotifier(MemberProfileRepository repository, PlayerLinkRepository links, BrandingService branding) {
         this.repository = repository;
         this.links = links;
+        this.branding = branding;
     }
 
     @BEventListener
@@ -55,7 +54,14 @@ public class MemberNotifier {
         log.info("Member notifier started: goals every 15 minutes, event reminders every 5.");
     }
 
+    /** What the goal message calls the website: the server's display name (clan name, else the Discord server's name). */
+    private String websiteName(JDA jda, long guildId) {
+        Guild guild = jda.getGuildById(guildId);
+        return guild == null ? "clan" : branding.displayName(guild);
+    }
+
     private void run(String what, Runnable task) {
+        if (AutoPostRouter.skip("member notifications (" + what + ")")) return; // these are DMs to real people
         try {
             task.run();
         } catch (Exception e) {
@@ -76,7 +82,7 @@ public class MemberNotifier {
             if (!repository.wantsGoalDms(goal.guildId(), goal.userId())) continue;
 
             String message = "🎉 **Goal reached!** " + goal.rsn() + " is now level **" + goal.targetLevel() + " " + RuneScapeSkillCatalog.nameFor(goal.skillId())
-                    + "**. Set your next goal on the Younglings website.";
+                    + "**. Set your next goal on the " + websiteName(jda, goal.guildId()) + " website.";
             jda.retrieveUserById(goal.userId()).flatMap(user -> user.openPrivateChannel()).flatMap(channel -> channel.sendMessage(message))
                     .queue(ok -> {}, error -> log.debug("Couldn't DM goal notice to {}: {}", goal.userId(), error.getMessage()));
         }

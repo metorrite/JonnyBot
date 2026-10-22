@@ -2,6 +2,7 @@ package com.younglings.bot.commands;
 
 import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.tracking.TrackingGroup;
 import com.younglings.bot.tracking.TrackingSendNowService;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
@@ -39,7 +40,7 @@ public class DevClanReportCommand {
     @JDASlashCommand(name = "dev", subcommand = "clanreport", description = "Recomputes points and posts the Clan Report to its channels now")
     public void onDevClanReport(GuildSlashEvent event) {
         if (botConfig.getLiveEnvironment()) {
-            Containers.replyEphemeral(event, Containers.WARNING, "This command is dev-only.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "commands.this_command_is_dev_only"));
             return;
         }
 

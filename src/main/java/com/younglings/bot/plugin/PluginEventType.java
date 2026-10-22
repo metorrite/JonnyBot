@@ -7,7 +7,7 @@ import java.util.Set;
 
 /** The kinds of event the plugin can report in schema v1, the category each belongs to, and what each must carry. */
 public enum PluginEventType {
-    DROP(PluginCategory.DROPS), KILL(PluginCategory.KILLS), LEVEL_UP(PluginCategory.ACHIEVEMENTS), QUEST_COMPLETE(PluginCategory.ACHIEVEMENTS),
+    XP(PluginCategory.XP), CLUE(PluginCategory.ACHIEVEMENTS), DROP(PluginCategory.DROPS), KILL(PluginCategory.KILLS), LEVEL_UP(PluginCategory.ACHIEVEMENTS), QUEST_COMPLETE(PluginCategory.ACHIEVEMENTS),
     ACHIEVEMENT(PluginCategory.ACHIEVEMENTS), COLLECTION_LOG(PluginCategory.ACHIEVEMENTS), PRESENCE(PluginCategory.PRESENCE);
 
     private static final int MAX_TEXT = 200;
@@ -37,6 +37,8 @@ public enum PluginEventType {
     /** What is wrong with this event's {@code data}, or null when it is acceptable. Extra fields are allowed and kept. */
     public String dataProblem(DataObject data) {
         return switch (this) {
+            case XP -> firstProblem(text(data, "skill", true), range(data, "level", 1, 150), longValue(data, "xp", true));
+            case CLUE -> firstProblem(text(data, "tier", true), integer(data, "count", true, 1));
             case DROP -> firstProblem(text(data, "itemName", true), integer(data, "itemId", false, 0), integer(data, "quantity", false, 1), longValue(data, "value", false));
             case KILL -> firstProblem(text(data, "bossName", true), integer(data, "killCount", false, 0), integer(data, "durationSeconds", false, 0));
             case LEVEL_UP -> firstProblem(text(data, "skill", true), range(data, "level", 1, 150));

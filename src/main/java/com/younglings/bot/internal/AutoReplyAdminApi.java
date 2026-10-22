@@ -2,6 +2,7 @@ package com.younglings.bot.internal;
 
 import com.younglings.bot.autoreply.AutoReply;
 import com.younglings.bot.autoreply.AutoReplyRepository;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
@@ -55,7 +56,7 @@ public class AutoReplyAdminApi implements AdminRouteExtension {
 
     DataObject save(Guild guild, Member actor, String rawId, DataObject body) {
         Long id = rawId == null ? null : parseId(rawId);
-        if (id != null && repository.get(guild.getIdLong(), id).isEmpty()) throw new ApiError(404, "That reply doesn't exist.");
+        if (id != null && repository.get(guild.getIdLong(), id).isEmpty()) throw new ApiError(404, Text.of(guild, "dashboard.that_reply_doesn_t_exist"));
         List<String> problems = new ArrayList<>();
 
         String trigger = body.getString("trigger", "").strip();
@@ -78,7 +79,7 @@ public class AutoReplyAdminApi implements AdminRouteExtension {
             problems.add("There is already a reply for that trigger.");
         }
 
-        if (!problems.isEmpty()) throw new ApiError(400, "That reply can't be saved yet.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.that_reply_can_t_be_saved"), problems);
 
         AutoReply saved = repository.save(new AutoReply(id, guild.getIdLong(), trigger, match, reply, cooldown, enabled));
         log.info("Dashboard: {} saved automatic reply {} ({} on \"{}\")", actor.getId(), saved.id(), saved.match(), trigger);
@@ -87,13 +88,13 @@ public class AutoReplyAdminApi implements AdminRouteExtension {
 
     DataObject delete(Guild guild, Member actor, String rawId) {
         long id = parseId(rawId);
-        if (!repository.delete(guild.getIdLong(), id)) throw new ApiError(404, "That reply doesn't exist.");
+        if (!repository.delete(guild.getIdLong(), id)) throw new ApiError(404, Text.of(guild, "dashboard.that_reply_doesn_t_exist"));
         log.info("Dashboard: {} deleted automatic reply {}", actor.getId(), id);
         return list(guild);
     }
 
     private static long parseId(String raw) {
-        if (raw == null || !raw.strip().matches("\\d{1,18}")) throw new ApiError(400, "That isn't a valid reply.");
+        if (raw == null || !raw.strip().matches("\\d{1,18}")) throw new ApiError(400, Text.en("dashboard.that_isn_t_a_valid_reply"));
         return Long.parseLong(raw.strip());
     }
 

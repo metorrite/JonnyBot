@@ -1,5 +1,8 @@
 package com.younglings.bot.automod;
 
+import com.younglings.bot.moderation.ModAction;
+import com.younglings.bot.moderation.ModCase;
+import com.younglings.bot.moderation.ModService;
 import com.younglings.bot.BotListener;
 import com.younglings.bot.automod.AutomodRepository.Config;
 import com.younglings.bot.automod.AutomodRules.Rule;
@@ -35,11 +38,15 @@ public class AutomodListener extends ListenerAdapter implements BotListener {
     private final AutomodRepository repository;
     private final WarningRepository warnings;
     private final AutopunishService autopunish;
+    private final PhishingList phishing;
+    private final ModService mod;
     private final Map<String, AutomodRules.History> histories = new ConcurrentHashMap<>();
     private int seen;
 
-    public AutomodListener(AutomodRepository repository, WarningRepository warnings, AutopunishService autopunish) {
+    public AutomodListener(AutomodRepository repository, WarningRepository warnings, AutopunishService autopunish, PhishingList phishing, ModService mod) {
+        this.mod = mod;
         this.repository = repository;
+        this.phishing = phishing;
         this.warnings = warnings;
         this.autopunish = autopunish;
     }
@@ -61,13 +68,17 @@ public class AutomodListener extends ListenerAdapter implements BotListener {
             AutomodRules.History history = histories.computeIfAbsent(event.getGuild().getId() + ":" + event.getAuthor().getId(), k -> new AutomodRules.History());
             var mentions = message.getMentions();
             int pinged = mentions.getUsers().size() + mentions.getRoles().size() + (mentions.mentionsEveryone() ? 1 : 0);
-            Rule broken = AutomodRules.firstViolation(config.rules(), message.getContentRaw(), pinged, history, now);
+            int images = (int) message.getAttachments().stream().filter(a -> a.isImage() || (a.getContentType() != null && a.getContentType().startsWith("image/"))).count();
+            AutomodRules.Facts facts = new AutomodRules.Facts(message.getContentRaw(), pinged, images, message.getStickers().size(), phishing::isListed);
+            Rule broken = AutomodRules.firstViolation(config.rules(), facts, history, now);
             sweep(now);
             if (broken == null) return;
 
             message.delete().queue(ok -> {}, error -> log.debug("Couldn't delete a message in {}: {}", channel.getId(), error.getMessage()));
-            String note = "Please stop " + broken.reason() + ", " + event.getAuthor().getAsMention() + ".";
-            if (config.rules().get(broken).warn()) note = warn(event, member, broken) + " " + note;
+            AutomodRules.RuleConfig ruleConfig = config.rules().get(broken);
+            String note = ruleConfig.note(broken, event.getAuthor().getAsMention());
+            if (ruleConfig.warn()) note = warn(event, member, broken) + " " + note;
+            logTo(event, ruleConfig, broken, channel, message.getContentDisplay());
             if (channel.canTalk()) {
                 channel.sendMessage(note).setAllowedMentions(EnumSet.of(Message.MentionType.USER))
                         .queue(sent -> sent.delete().queueAfter(NOTICE_SECONDS, TimeUnit.SECONDS, ok -> {}, error -> {}), error -> {});
@@ -77,11 +88,24 @@ public class AutomodListener extends ListenerAdapter implements BotListener {
         }
     }
 
+    /** Tells the rule's own log channel (when it has one) what was removed. Never pings anyone, and the quoted text is cut short. */
+    private void logTo(MessageReceivedEvent event, AutomodRules.RuleConfig ruleConfig, Rule rule, GuildMessageChannel from, String content) {
+        if (ruleConfig.logChannelId() == 0) return;
+        GuildMessageChannel log = event.getGuild().getChannelById(GuildMessageChannel.class, ruleConfig.logChannelId());
+        if (log == null || !log.canTalk()) return;
+        String quoted = content.length() > 500 ? content.substring(0, 500) + "…" : content;
+        quoted = quoted.isBlank() ? "(no text)" : quoted.replace("\n", "\n> ");
+        String text = "**Automod, " + rule.label() + ":** removed a message from " + event.getAuthor().getAsMention() + " in " + from.getAsMention() + ".\n> " + quoted;
+        log.sendMessage(text).setAllowedMentions(EnumSet.noneOf(Message.MentionType.class)).queue(ok -> {}, error -> {});
+    }
+
     /** Records a warning for the break and applies any Autopunish rule it reaches. Returns a short note for the channel (empty when nothing more happened). */
     private String warn(MessageReceivedEvent event, Member member, Rule rule) {
         long guildId = event.getGuild().getIdLong();
         warnings.add(guildId, member.getIdLong(), event.getJDA().getSelfUser().getIdLong(), "Automod: " + rule.label());
         int total = warnings.countFor(guildId, member.getIdLong());
+        mod.recordOnly(event.getGuild(), member.getIdLong(), member.getUser().getName(), event.getJDA().getSelfUser().getIdLong(), event.getGuild().getSelfMember().getEffectiveName(),
+                ModAction.WARN, "Automod: " + rule.label(), null, ModCase.AUTOMOD);
         member.getUser().openPrivateChannel()
                 .flatMap(dm -> dm.sendMessage("You have been warned in **" + event.getGuild().getName() + "** by automod for " + rule.reason() + "."))
                 .queue(ok -> {}, error -> {});

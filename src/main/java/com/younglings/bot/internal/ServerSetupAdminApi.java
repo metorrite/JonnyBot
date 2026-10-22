@@ -2,6 +2,8 @@ package com.younglings.bot.internal;
 
 import com.younglings.bot.configure.GuildSettings;
 import com.younglings.bot.configure.GuildSettingsService;
+import com.younglings.bot.configure.InviteLink;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.runescape.ClanVerificationService;
 import com.younglings.bot.runescape.PlayerLinkService;
@@ -53,7 +55,8 @@ public class ServerSetupAdminApi {
                 .put("verifiedClanRoleId", idOrNull(s.verifiedClanRoleId()))
                 .put("verifiedNonClanRoleId", idOrNull(s.verifiedNonClanRoleId()))
                 .put("unverifiedRoleId", idOrNull(s.unverifiedRoleId()))
-                .put("onboardingRoleId", idOrNull(s.onboardingRoleId()));
+                .put("onboardingRoleId", idOrNull(s.onboardingRoleId()))
+                .put("inviteUrl", s.inviteUrl());
     }
 
     DataObject save(Guild guild, Member actor, DataObject body) {
@@ -69,6 +72,17 @@ public class ServerSetupAdminApi {
         Field verifiedNonClanRole = id(body, "verifiedNonClanRoleId", problems);
         Field unverifiedRole = id(body, "unverifiedRoleId", problems);
         Field onboardingRole = id(body, "onboardingRoleId", problems);
+
+        String invite = null;
+        boolean settingInvite = body.hasKey("inviteUrl");
+        if (settingInvite) {
+            String raw = body.isNull("inviteUrl") ? "" : body.getString("inviteUrl", "").strip();
+            if (!raw.isEmpty()) {
+                var cleaned = InviteLink.normalize(raw);
+                if (cleaned.isEmpty()) problems.add("Invite link: use a link like https://discord.gg/abc123 or https://discord.com/invite/abc123.");
+                else invite = cleaned.get();
+            }
+        }
 
         checkRole(guild, "Verified clan member role", verifiedClanRole, true, problems);
         checkRole(guild, "Verified, not in the clan role", verifiedNonClanRole, true, problems);
@@ -90,7 +104,7 @@ public class ServerSetupAdminApi {
             }
         }
 
-        if (!problems.isEmpty()) throw new ApiError(400, "Those settings can't be saved yet.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.those_settings_can_t_be_saved"), problems);
 
         if (clan.present()) {
             settings.updateClanName(guildId, newClan);
@@ -107,6 +121,7 @@ public class ServerSetupAdminApi {
                     unverifiedRole.present() ? unverifiedRole.value() : current.unverifiedRoleId());
         }
         if (onboardingRole.present()) settings.updateOnboardingRole(guildId, onboardingRole.value());
+        if (settingInvite) settings.updateInviteUrl(guildId, invite);
 
         log.info("Dashboard: {} saved the server setup (clan {})", actor.getId(), clan.present() ? (newClan == null ? "cleared" : "set") : "unchanged");
         return get(guild);

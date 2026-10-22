@@ -1,6 +1,7 @@
 package com.younglings.bot.autorole;
 
 import com.younglings.bot.internal.MemberApi;
+import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
@@ -10,9 +11,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.time.Instant;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
@@ -29,11 +28,7 @@ public class AutoroleService {
     private static final Logger log = LoggerFactory.getLogger(AutoroleService.class);
 
     private final AutoroleRepository repository;
-    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor((ThreadFactory) runnable -> {
-        Thread thread = new Thread(runnable, "autorole");
-        thread.setDaemon(true);
-        return thread;
-    });
+    private final ScheduledExecutorService executor = BotScheduler.lane("autorole");
 
     public AutoroleService(AutoroleRepository repository) {
         this.repository = repository;
@@ -43,7 +38,7 @@ public class AutoroleService {
     public void onJoin(Member member) {
         Guild guild = member.getGuild();
         AutoroleConfig config = repository.get(guild.getIdLong());
-        if (!config.enabled() || config.rolesFor(member.getUser().isBot()).isEmpty()) return;
+        if (!config.enabled() || !config.anythingFor(member.getUser().isBot())) return;
 
         if (config.delaySeconds() <= 0) {
             give(member, config);
@@ -84,6 +79,11 @@ public class AutoroleService {
         }
     }
 
+    /** Whether the bot may take {@code role} away from members: an ordinary role, below the bot's own. (Taking a powerful role away is harmless, so it is allowed.) */
+    public static boolean canTakeAway(Guild guild, Role role) {
+        return !role.isPublicRole() && !role.isManaged() && guild.getSelfMember().canInteract(role);
+    }
+
     private void give(Member member, AutoroleConfig config) {
         if (!config.enabled()) return;
         Guild guild = member.getGuild();
@@ -98,8 +98,19 @@ public class AutoroleService {
                 toAdd.add(role);
             }
         }
-        if (toAdd.isEmpty()) return;
-        guild.modifyMemberRoles(member, toAdd, List.of()).reason("Autorole").queue(
+        List<Role> toRemove = new ArrayList<>();
+        for (long roleId : config.removalsFor(member.getUser().isBot())) {
+            Role role = guild.getRoleById(roleId);
+            if (role == null) {
+                log.warn("Autorole: role {} to take away in guild {} no longer exists", roleId, guild.getId());
+            } else if (!canTakeAway(guild, role)) {
+                log.warn("Autorole: @{} in guild {} can't be taken away (managed, or above the bot's role)", role.getName(), guild.getId());
+            } else if (member.getRoles().contains(role) && !toAdd.contains(role)) {
+                toRemove.add(role);
+            }
+        }
+        if (toAdd.isEmpty() && toRemove.isEmpty()) return;
+        guild.modifyMemberRoles(member, toAdd, toRemove).reason("Autorole").queue(
                 done -> {},
                 error -> log.warn("Autorole: couldn't give {} their roles in guild {}", member.getId(), guild.getId(), error));
     }

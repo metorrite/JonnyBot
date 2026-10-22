@@ -33,7 +33,7 @@ public class EmbedService {
      */
     public void postEmbed(Guild guild, TextChannel channel, EmbedType type, Consumer<List<String>> onDone) {
         MessageCreateData message = switch (type) {
-            case TEAMFORMING -> teamformingService.buildPublicPanelMessage();
+            case TEAMFORMING -> teamformingService.buildPublicPanelMessage(guild);
         };
 
         List<String> createdRoles = switch (type) {

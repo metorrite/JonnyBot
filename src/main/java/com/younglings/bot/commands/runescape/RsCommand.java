@@ -1,6 +1,7 @@
 package com.younglings.bot.commands.runescape;
 
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
 import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.JDASlashCommand;
@@ -24,7 +25,7 @@ public class RsCommand {
     @JDASlashCommand(name = "rs", description = "Link your RuneScape 3 name, check verification status, or manage your linked account(s)")
     public void onRs(GuildSlashEvent event) {
         if (event.getGuild() == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "This command can only be used in a server.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "runescape.this_command_can_only_be_used"));
             return;
         }
 

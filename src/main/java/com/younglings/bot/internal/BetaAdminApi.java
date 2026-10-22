@@ -2,6 +2,7 @@ package com.younglings.bot.internal;
 
 import com.younglings.bot.beta.BetaAccessService;
 import com.younglings.bot.beta.BetaGuildRepository;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.notice.BotOwners;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -15,8 +16,8 @@ import org.slf4j.LoggerFactory;
 import java.util.function.Supplier;
 
 /**
- * The list of trusted servers whose admin team may use JonnyBot's website while it is closed to the public. Anyone who may open
- * the clan's dashboard can read it; changing it is for the bot's owner, because it decides who gets in. Reached only through
+ * The list of trusted servers whose admin team may use JonnyBot's website while it is closed to the public. Reading and changing it is
+ * for the bot's owner, because it decides who gets in. Reached only through
  * {@link TicketAdminApi}, which has already checked the asker and audit-logs every change.
  */
 @BService
@@ -50,20 +51,24 @@ public class BetaAdminApi implements AdminRouteExtension {
     }
 
     DataObject list(Guild guild, Member actor) {
+        boolean owner = owners.isOwner(guild.getJDA(), actor.getIdLong());
         DataArray guilds = DataArray.empty();
-        for (var beta : repository.all()) {
-            Guild known = guild.getJDA().getGuildById(beta.guildId());
-            guilds.add(DataObject.empty().put("guildId", Long.toString(beta.guildId())).put("label", beta.label())
-                    .put("botPresent", known != null).put("name", known == null ? null : known.getName()));
+        // The list names other servers, so only the owner sees it (like the premium list); anyone else gets it empty.
+        if (owner) {
+            for (var beta : repository.all()) {
+                Guild known = guild.getJDA().getGuildById(beta.guildId());
+                guilds.add(DataObject.empty().put("guildId", Long.toString(beta.guildId())).put("label", beta.label())
+                        .put("botPresent", known != null).put("name", known == null ? null : known.getName()));
+            }
         }
-        return DataObject.empty().put("guilds", guilds).put("canEdit", owners.isOwner(guild.getJDA(), actor.getIdLong()));
+        return DataObject.empty().put("guilds", guilds).put("canEdit", owner);
     }
 
     DataObject save(Guild guild, Member actor, String rawId, DataObject body) {
         requireOwner(guild, actor);
         long id = parseId(rawId);
         String label = body.getString("label", "").strip();
-        if (label.length() > MAX_LABEL) throw new ApiError(400, "Keep the label under " + MAX_LABEL + " characters.");
+        if (label.length() > MAX_LABEL) throw new ApiError(400, Text.of(guild, "dashboard.keep_the_label_under_characters", MAX_LABEL));
 
         repository.upsert(id, label, actor.getIdLong());
         access.listChanged();
@@ -74,21 +79,21 @@ public class BetaAdminApi implements AdminRouteExtension {
     DataObject remove(Guild guild, Member actor, String rawId) {
         requireOwner(guild, actor);
         long id = parseId(rawId);
-        if (!repository.delete(id)) throw new ApiError(404, "That server isn't on the list.");
+        if (!repository.delete(id)) throw new ApiError(404, Text.of(guild, "dashboard.that_server_isn_t_on_the"));
         access.listChanged();
         return list(guild, actor);
     }
 
     private static long parseId(String raw) {
-        if (raw == null || !raw.strip().matches("\\d{15,20}")) throw new ApiError(400, "A Discord server ID is 17 to 20 digits.");
+        if (raw == null || !raw.strip().matches("\\d{15,20}")) throw new ApiError(400, Text.en("dashboard.a_discord_server_id_is_17"));
         try {
             return Long.parseLong(raw.strip());
         } catch (NumberFormatException e) {
-            throw new ApiError(400, "That isn't a valid server ID.");
+            throw new ApiError(400, Text.en("dashboard.that_isn_t_a_valid_server"));
         }
     }
 
     private void requireOwner(Guild guild, Member actor) {
-        if (!owners.isOwner(guild.getJDA(), actor.getIdLong())) throw new ApiError(403, "Only the bot's owner can change the beta list.");
+        if (!owners.isOwner(guild.getJDA(), actor.getIdLong())) throw new ApiError(403, Text.of(guild, "dashboard.only_the_bot_owner_can_change"));
     }
 }

@@ -1,8 +1,14 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.afk.AfkNicknames;
+import com.younglings.bot.afk.AfkRepository;
+import com.younglings.bot.afk.AfkService;
+import com.younglings.bot.fun.FunCommandSync;
+import com.younglings.bot.hub.CommandTag;
 import com.younglings.bot.hub.HubCommand;
 import com.younglings.bot.hub.HubService;
 import com.younglings.bot.hub.HubSettings;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.permission.DashboardAccess;
 import com.younglings.bot.permission.PermissionGroup;
@@ -38,27 +44,34 @@ public class HubAdminApi {
     private final HubService hub;
     private final PermissionGroupService groups;
     private final DashboardAccess access;
+    private final FunCommandSync funSync;
+    private final AfkService afk;
 
-    public HubAdminApi(HubService hub, PermissionGroupService groups, DashboardAccess access) {
+    public HubAdminApi(HubService hub, PermissionGroupService groups, DashboardAccess access, AfkService afk, FunCommandSync funSync) {
+        this.afk = afk;
         this.hub = hub;
         this.groups = groups;
         this.access = access;
+        this.funSync = funSync;
     }
 
     DataObject get(Guild guild) {
         DataArray commands = DataArray.empty();
-        for (HubCommand command : HubCommand.values()) commands.add(commandJson(guild.getIdLong(), command));
+        for (HubCommand command : HubCommand.values()) commands.add(commandJson(guild, command));
 
         // the permission choices a "who can use it" list can name: every group of the server (its roles are picked separately)
         DataArray choices = DataArray.empty();
         for (PermissionGroup group : groups.groups(guild.getIdLong())) {
             choices.add(DataObject.empty().put("ref", "group:" + group.key()).put("name", group.name()).put("builtin", group.builtin()));
         }
-        return DataObject.empty().put("commands", commands).put("groups", choices).put("maxList", MAX_LIST);
+        // every tag a command can carry, in the order the filter chips show them
+        DataArray tagChoices = DataArray.empty();
+        for (CommandTag tag : CommandTag.values()) tagChoices.add(DataObject.empty().put("key", tag.key()).put("label", tag.label()));
+        return DataObject.empty().put("commands", commands).put("groups", choices).put("tags", tagChoices).put("maxList", MAX_LIST);
     }
 
     DataObject save(Guild guild, Member actor, String key, DataObject body) {
-        HubCommand command = HubCommand.ofKey(key).orElseThrow(() -> new ApiError(404, "There is no such command."));
+        HubCommand command = HubCommand.ofKey(key).orElseThrow(() -> new ApiError(404, Text.of(guild, "dashboard.there_is_no_such_command")));
         HubSettings current = hub.get(guild.getIdLong(), command);
         List<String> problems = new ArrayList<>();
 
@@ -69,17 +82,32 @@ public class HubAdminApi {
 
         boolean accessChanged = customAccess != current.customAccess() || !Set.copyOf(refs).equals(Set.copyOf(current.allowedRefs()));
         if (accessChanged && access.tierOf(guild, actor) != DashboardAccess.Tier.ADMIN) {
-            throw new ApiError(403, "Only an Admin can change who may use a command.");
+            throw new ApiError(403, Text.of(guild, "dashboard.only_an_admin_can_change_who"));
         }
 
         String extras = current.extras();
         if (command == HubCommand.SIGNUP && body.hasKey("signup")) extras = signupExtras(guild, body.getObject("signup"), problems);
+        List<Long> clearAfk = List.of();
+        if (command == HubCommand.AFK && body.hasKey("afk") && !body.isNull("afk")) {
+            DataObject a = body.getObject("afk");
+            List<Long> ignored = channelIds(guild, "Channels where away status is ignored", a.hasKey("ignoreChannelIds") && !a.isNull("ignoreChannelIds") ? a.getArray("ignoreChannelIds") : DataArray.empty(), problems);
+            extras = HubService.writeAfk(new HubService.AfkPolicy(a.getBoolean("nicknameTag", false), ignored));
+            clearAfk = userIds(a, "clearUserIds", problems);
+        }
 
-        if (!problems.isEmpty()) throw new ApiError(400, "Those settings can't be saved yet.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.those_settings_can_t_be_saved"), problems);
 
         hub.save(new HubSettings(guild.getIdLong(), command.key(), enabled, customAccess, refs, channels, extras));
+        // a fun command is only registered with Discord in a server that has it on, so switching it changes that server's command list
+        if (command.registeredPerServer() && enabled != current.enabled()) funSync.sync(guild);
+        for (long userId : clearAfk) {
+            if (!afk.clear(guild.getIdLong(), userId)) continue;
+            Member away = guild.getMemberById(userId);
+            if (away != null) AfkNicknames.markBack(guild, away);
+            log.info("Dashboard: {} took {} off the away list", actor.getId(), userId);
+        }
         log.info("Dashboard: {} saved the Hub settings for /{}", actor.getId(), command.slashName());
-        return commandJson(guild.getIdLong(), command);
+        return commandJson(guild, command);
     }
 
     // ---------- reading the request ----------
@@ -120,6 +148,18 @@ public class HubAdminApi {
         return List.copyOf(out);
     }
 
+    private static List<Long> userIds(DataObject body, String key, List<String> problems) {
+        List<Long> out = new ArrayList<>();
+        if (!body.hasKey(key) || body.isNull(key)) return out;
+        DataArray input = body.getArray(key);
+        for (int i = 0; i < input.length() && i < MAX_LIST; i++) {
+            String raw = input.getString(i, "").strip();
+            if (raw.matches("\\d{1,20}")) out.add(Long.parseLong(raw));
+            else problems.add("Away list: something there isn't a member.");
+        }
+        return out;
+    }
+
     private String signupExtras(Guild guild, DataObject b, List<String> problems) {
         Long adminChannel = null;
         if (!b.isNull("adminChannelId") && !b.getString("adminChannelId", "").isBlank()) {
@@ -145,7 +185,8 @@ public class HubAdminApi {
 
     // ---------- writing the answer ----------
 
-    private DataObject commandJson(long guildId, HubCommand command) {
+    private DataObject commandJson(Guild guild, HubCommand command) {
+        long guildId = guild.getIdLong();
         HubSettings s = hub.get(guildId, command);
         DataArray refs = DataArray.empty();
         s.allowedRefs().forEach(refs::add);
@@ -154,6 +195,7 @@ public class HubAdminApi {
         DataObject json = DataObject.empty()
                 .put("key", command.key()).put("title", command.title()).put("slashName", command.slashName())
                 .put("description", command.description()).put("defaultAccess", command.defaultAccess())
+                .put("tags", DataArray.fromCollection(command.tags().stream().map(CommandTag::key).toList()))
                 .put("enabled", s.enabled()).put("customAccess", s.customAccess()).put("allowedRefs", refs).put("channelIds", channels);
         if (command == HubCommand.SIGNUP) {
             HubService.SignupPolicy p = hub.signupPolicy(guildId);
@@ -161,6 +203,17 @@ public class HubAdminApi {
             p.publicChannelIds().forEach(id -> publics.add(Long.toString(id)));
             json.put("signup", DataObject.empty().put("adminChannelId", p.adminChannelId() == null ? null : Long.toString(p.adminChannelId()))
                     .put("lockAdminChannel", p.lockAdminChannel()).put("publicChannelIds", publics));
+        }
+        if (command == HubCommand.AFK) {
+            HubService.AfkPolicy p = hub.afkPolicy(guildId);
+            DataArray ignored = DataArray.empty();
+            p.ignoreChannelIds().forEach(id -> ignored.add(Long.toString(id)));
+            DataArray away = DataArray.empty();
+            for (AfkRepository.Afk entry : afk.all(guildId)) {
+                Member who = guild.getMemberById(entry.userId());
+                away.add(DataObject.empty().put("userId", Long.toString(entry.userId())).put("name", who == null ? "Someone who left" : who.getEffectiveName()).put("reason", entry.reason()).put("since", entry.since().toString()));
+            }
+            json.put("afk", DataObject.empty().put("nicknameTag", p.nicknameTag()).put("ignoreChannelIds", ignored).put("away", away));
         }
         return json;
     }

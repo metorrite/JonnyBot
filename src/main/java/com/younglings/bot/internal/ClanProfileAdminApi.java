@@ -7,6 +7,7 @@ import com.younglings.bot.clanprofile.ClanProfile.Visibility;
 import com.younglings.bot.clanprofile.ClanProfileRepository;
 import com.younglings.bot.clanprofile.ClanProfileService;
 import com.younglings.bot.clanprofile.ProfileRules;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
@@ -148,7 +149,7 @@ public class ClanProfileAdminApi implements AdminRouteExtension {
         } else if (problems.isEmpty() && visibility != Visibility.PRIVATE && current.suspended()) {
             problems.add(ProfileRules.visibilityProblem(current, clan, visibility));
         }
-        if (!problems.isEmpty()) throw new ApiError(400, "The clan profile can't be saved yet.", problems.stream().filter(p -> p != null).distinct().toList());
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.the_clan_profile_can_t_be"), problems.stream().filter(p -> p != null).distinct().toList());
 
         repository.saveContent(new ClanProfile(guildId, visibility, slug, name.strip(), tagline.strip(), description.strip(), blank(logoUrl), colour, blank(timezone),
                 focus, recruiting, requirements.strip(), blank(applyUrl), leaderboardOptIn, null, null, null, null, null, null));
@@ -158,7 +159,7 @@ public class ClanProfileAdminApi implements AdminRouteExtension {
 
     DataObject verify(Guild guild, Member actor) {
         var result = service.verify(guild.getIdLong(), actor.getIdLong());
-        if (!result.ok()) throw new ApiError(400, "The clan couldn't be verified.", List.of(result.problem()));
+        if (!result.ok()) throw new ApiError(400, Text.of(guild, "dashboard.the_clan_couldn_t_be_verified"), List.of(result.problem()));
         log.info("Dashboard: {} verified the clan for guild {}", actor.getId(), guild.getId());
         return get(guild);
     }

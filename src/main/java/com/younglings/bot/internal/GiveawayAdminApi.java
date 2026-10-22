@@ -3,6 +3,7 @@ package com.younglings.bot.internal;
 import com.younglings.bot.giveaway.Giveaway;
 import com.younglings.bot.giveaway.GiveawayRepository;
 import com.younglings.bot.giveaway.GiveawayService;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
@@ -70,6 +71,7 @@ public class GiveawayAdminApi implements AdminRouteExtension {
                     .put("channelId", Long.toString(g.channelId())).put("channelName", channel == null ? null : channel.getName())
                     .put("winnerCount", g.winnerCount()).put("endsAt", g.endsAt().toString()).put("entries", repository.entryCount(g.id()))
                     .put("requiredRoleId", g.requiredRoleId() == null ? null : Long.toString(g.requiredRoleId()))
+                    .put("winnerRoleId", g.winnerRoleId() == null ? null : Long.toString(g.winnerRoleId())).put("dmWinners", g.dmWinners()).put("reactionEntry", g.reactionEntry())
                     .put("winners", DataArray.fromCollection(g.winners().stream().map(String::valueOf).toList())));
         }
         return DataObject.empty().put("giveaways", giveaways).put("maxWinners", Giveaway.MAX_WINNERS).put("maxPrize", Giveaway.MAX_PRIZE);
@@ -97,10 +99,20 @@ public class GiveawayAdminApi implements AdminRouteExtension {
                 if (role == null) problems.add("That role doesn't exist in this server.");
             }
         }
-        if (!problems.isEmpty()) throw new ApiError(400, "That giveaway can't be started yet.", problems);
+        Long winnerRoleId = null;
+        if (body.hasKey("winnerRoleId") && !body.isNull("winnerRoleId") && !body.getString("winnerRoleId", "").isBlank()) {
+            String raw = body.getString("winnerRoleId").strip();
+            Role role = raw.matches("\\d{1,20}") ? guild.getRoleById(Long.parseLong(raw)) : null;
+            if (role == null) problems.add("The winner role doesn't exist in this server.");
+            else if (!MemberApi.safeToAssign(guild, role)) problems.add("\"" + role.getName() + "\" can't be given to winners: it is managed, above JonnyBot's own role, or carries powerful permissions.");
+            else winnerRoleId = role.getIdLong();
+        }
+        boolean dmWinners = body.getBoolean("dmWinners", false);
+        boolean reactionEntry = body.getBoolean("reactionEntry", false);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.that_giveaway_can_t_be_started"), problems);
 
         try {
-            Giveaway g = service.start(guild, Long.parseLong(channelText), prize, actor.getIdLong(), winners, Instant.now().plus(duration), roleId);
+            Giveaway g = service.start(guild, Long.parseLong(channelText), prize, actor.getIdLong(), winners, Instant.now().plus(duration), roleId, winnerRoleId, dmWinners, reactionEntry);
             log.info("Dashboard: {} started giveaway {} ({}) in channel {}", actor.getId(), g.id(), prize, channelText);
             return list(guild);
         } catch (GiveawayService.GiveawayException e) {
@@ -131,7 +143,7 @@ public class GiveawayAdminApi implements AdminRouteExtension {
     }
 
     private Giveaway find(Guild guild, String rawId) {
-        if (rawId == null || !rawId.strip().matches("\\d{1,18}")) throw new ApiError(400, "That isn't a valid giveaway.");
-        return repository.get(guild.getIdLong(), Long.parseLong(rawId.strip())).orElseThrow(() -> new ApiError(404, "That giveaway doesn't exist."));
+        if (rawId == null || !rawId.strip().matches("\\d{1,18}")) throw new ApiError(400, Text.of(guild, "dashboard.that_isn_t_a_valid_giveaway"));
+        return repository.get(guild.getIdLong(), Long.parseLong(rawId.strip())).orElseThrow(() -> new ApiError(404, Text.of(guild, "dashboard.that_giveaway_doesn_t_exist")));
     }
 }

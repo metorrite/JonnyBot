@@ -77,11 +77,15 @@ public class InternalApiServer {
     private final MemberApi memberApi;
     private final ImageUploadService imageUploads;
     private final CitadelWinners citadelWinners;
+    private final FormsPublicApi formsApi;
+    private final java.util.List<InternalRouteModule> routeModules;
     private JDA jda;
 
     public InternalApiServer(BotConfig botConfig, TicketAdminApi ticketAdminApi, SiteApi siteApi, DirectoryApi directoryApi, PluginApi pluginApi, MemberApi memberApi, ImageUploadService imageUploads,
-                             CitadelWinners citadelWinners) {
+                             CitadelWinners citadelWinners, FormsPublicApi formsApi, java.util.List<InternalRouteModule> routeModules) {
+        this.formsApi = formsApi;
         this.citadelWinners = citadelWinners;
+        this.routeModules = java.util.List.copyOf(routeModules);
         this.imageUploads = imageUploads;
         this.botConfig = botConfig;
         this.ticketAdminApi = ticketAdminApi;
@@ -126,7 +130,9 @@ public class InternalApiServer {
             server.createContext("/internal/plugin/", exchange -> handlePlugin(exchange, secret));
             server.createContext("/internal/me/", exchange -> handleMe(exchange, secret, guildId));
             server.createContext("/internal/image/", exchange -> handleImage(exchange, secret));
+            server.createContext("/internal/forms/", exchange -> handleForms(exchange, secret));
             server.createContext("/internal/wheel-gif/", exchange -> handleWheelGif(exchange, secret));
+            for (InternalRouteModule module : routeModules) server.createContext(module.prefix(), exchange -> handleModule(exchange, secret, module));
 
             // A fixed crew with a bounded queue. When it's full the accepting thread runs the work itself, which slows
             // new connections down (back-pressure) instead of letting an unbounded backlog build up behind a flood.
@@ -251,6 +257,21 @@ public class InternalApiServer {
         }
     }
 
+    /** A self-contained module (see {@link InternalRouteModule}): only the secret is checked here. */
+    private void handleModule(HttpExchange exchange, String secret, InternalRouteModule module) throws IOException {
+        try {
+            String provided = exchange.getRequestHeaders().getFirst(SECRET_HEADER);
+            if (provided == null || !constantTimeEquals(provided, secret)) {
+                sendJson(exchange, 401, DataObject.empty().put("error", "Unauthorized"));
+                return;
+            }
+            module.handle(exchange);
+        } catch (Exception e) {
+            log.error("Internal API request to {} failed: {}", module.prefix(), e.getClass().getSimpleName());
+            sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));
+        }
+    }
+
     /** The public clan directory: not about any one server, so only the secret is checked here; {@link DirectoryApi} does the rest. */
     private void handleDirectory(HttpExchange exchange, String secret) throws IOException {
         try {
@@ -262,6 +283,20 @@ public class InternalApiServer {
             directoryApi.handle(exchange, jda);
         } catch (Exception e) {
             log.error("Internal API directory request failed", e);
+            sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));
+        }
+    }
+
+    private void handleForms(HttpExchange exchange, String secret) throws IOException {
+        try {
+            String provided = exchange.getRequestHeaders().getFirst(SECRET_HEADER);
+            if (provided == null || !constantTimeEquals(provided, secret)) {
+                sendJson(exchange, 401, DataObject.empty().put("error", "Unauthorized"));
+                return;
+            }
+            formsApi.handle(exchange, jda);
+        } catch (Exception e) {
+            log.error("Internal API forms request failed", e);
             sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));
         }
     }
@@ -438,6 +473,7 @@ public class InternalApiServer {
 
     private DataObject buildOnlineMembers(Guild guild) {
         DataArray members = DataArray.empty();
+        if (!com.younglings.bot.config.PrivilegedIntents.presence()) return DataObject.empty().put("members", members).put("unavailable", true);
 
         for (Member member : guild.getMembers()) {
             if (member.getUser().isBot()) continue;
@@ -461,7 +497,7 @@ public class InternalApiServer {
             members.add(entry);
         }
 
-        return DataObject.empty().put("members", members);
+        return DataObject.empty().put("members", members).put("unavailable", false);
     }
 
     private DataObject buildScheduledEvents(Guild guild) {

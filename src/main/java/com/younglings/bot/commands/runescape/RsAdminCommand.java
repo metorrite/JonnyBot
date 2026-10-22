@@ -1,6 +1,7 @@
 package com.younglings.bot.commands.runescape;
 
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.permission.AdminRoleFilter;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
 import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
@@ -43,7 +44,7 @@ public class RsAdminCommand {
         }
 
         if (!adminRoleFilter.isSupportTier(guild, member)) {
-            Containers.replyEphemeral(event, Containers.WARNING, "You need the Admin or Support role to use this.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "runescape.you_need_the_admin_or_support"));
             return;
         }
 

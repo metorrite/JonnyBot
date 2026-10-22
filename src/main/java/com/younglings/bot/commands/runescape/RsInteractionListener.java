@@ -1,5 +1,6 @@
 package com.younglings.bot.commands.runescape;
 
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.runescape.XpText;
 import com.younglings.bot.configure.WebsiteLink;
 import com.younglings.bot.configure.GuildSettingsService;
@@ -177,7 +178,7 @@ public class RsInteractionListener extends ListenerAdapter {
                     if (!links.isEmpty()) {
                         event.editComponents(List.of(buildAccountPanel(guild, event.getUser().getIdLong()))).useComponentsV2(true).queue();
                     } else {
-                        Containers.edit(event, Containers.WARNING, "That request is no longer pending, and no link was created — it may have been rejected. Run `/rs` again to start over.");
+                        Containers.edit(event, Containers.WARNING, Text.of(event, "runescape.that_request_is_no_longer_pending"));
                     }
                     return;
                 }
@@ -188,7 +189,7 @@ public class RsInteractionListener extends ListenerAdapter {
                 String rsn = id.split(":", 2)[1];
                 PlayerLink link = ownLinkOrNull(guild, event.getUser().getIdLong(), rsn);
                 if (link == null) {
-                    Containers.replyEphemeral(event, Containers.WARNING, "That's not one of your linked accounts.");
+                    Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "runescape.that_not_one_of_your_linked"));
                     return;
                 }
                 event.editComponents(List.of(buildProfilePanel(guild, link))).useComponentsV2(true).queue();
@@ -206,7 +207,7 @@ public class RsInteractionListener extends ListenerAdapter {
                 String[] parts = id.split(":", 2)[1].split("\\|");
                 String rsn = parts[0];
                 if (ownLinkOrNull(guild, event.getUser().getIdLong(), rsn) == null) {
-                    Containers.replyEphemeral(event, Containers.WARNING, "That's not one of your linked accounts.");
+                    Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "runescape.that_not_one_of_your_linked"));
                     return;
                 }
                 editActivityPage(event, guild, rsn, Integer.parseInt(parts[1]));
@@ -215,7 +216,7 @@ public class RsInteractionListener extends ListenerAdapter {
             case "rs_activity_jump" -> {
                 String rsn = id.split(":", 2)[1];
                 if (ownLinkOrNull(guild, event.getUser().getIdLong(), rsn) == null) {
-                    Containers.replyEphemeral(event, Containers.WARNING, "That's not one of your linked accounts.");
+                    Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "runescape.that_not_one_of_your_linked"));
                     return;
                 }
                 TextInput pageInput = TextInput.create("page_number", TextInputStyle.SHORT)
@@ -236,7 +237,7 @@ public class RsInteractionListener extends ListenerAdapter {
             case "rs_chart" -> {
                 String rsn = id.split(":", 2)[1];
                 if (ownLinkOrNull(guild, event.getUser().getIdLong(), rsn) == null) {
-                    Containers.replyEphemeral(event, Containers.WARNING, "That's not one of your linked accounts.");
+                    Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "runescape.that_not_one_of_your_linked"));
                     return;
                 }
                 event.replyComponents(List.of(chartListener.buildChartContainer(guild, rsn, Set.of(), RsChartInteractionListener.ChartStyle.LINE)))
@@ -246,10 +247,10 @@ public class RsInteractionListener extends ListenerAdapter {
             case "rs_recap" -> doMonthlyRecap(event, guild, id.split(":", 2)[1]);
 
             case "rs_clan_join" -> Containers.replyEphemeral(event, Containers.INFO,
-                    "🚧 Coming soon — how to join **" + clanNameOrFallback(guild) + "** in-game will go here.");
+                    Text.of(event, "runescape.coming_soon_how_to_join_in", clanNameOrFallback(guild)));
 
             case "rs_clan_info" -> Containers.replyEphemeral(event, Containers.INFO,
-                    "🚧 Coming soon — clan information will go here.");
+                    Text.of(event, "runescape.coming_soon_clan_information_will_go"));
 
             case "rs_clan_stats" -> doClanStats(event, guild);
 
@@ -260,7 +261,7 @@ public class RsInteractionListener extends ListenerAdapter {
             case "rs_unlink" -> {
                 String rsn = id.split(":", 2)[1];
                 if (ownLinkOrNull(guild, event.getUser().getIdLong(), rsn) == null) {
-                    Containers.replyEphemeral(event, Containers.WARNING, "That's not one of your linked accounts.");
+                    Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "runescape.that_not_one_of_your_linked"));
                     return;
                 }
                 Container confirm = Containers.card(Containers.WARNING,
@@ -277,10 +278,10 @@ public class RsInteractionListener extends ListenerAdapter {
                 PlayerLink link = ownLinkOrNull(guild, event.getUser().getIdLong(), rsn);
                 boolean unlinked = link != null && linkService.unlink(guild.getIdLong(), link.discordUserId(), link.linkId());
                 Containers.edit(event, unlinked ? Containers.SUCCESS : Containers.WARNING,
-                        unlinked ? "Unlinked **" + rsn + "** from JonnyBot. Run `/rs` again any time to relink." : "Couldn't unlink — that link may already be gone.");
+                        unlinked ? Text.of(event, "runescape.unlinked_from_jonnybot_run_rs_again", rsn) : Text.of(event, "runescape.couldn_t_unlink_that_link_may"));
             }
 
-            case "rs_unlink_cancel" -> Containers.edit(event, Containers.INFO, "Cancelled — nothing was unlinked.");
+            case "rs_unlink_cancel" -> Containers.edit(event, Containers.INFO, Text.of(event, "runescape.cancelled_nothing_was_unlinked"));
 
             case "rs_verify_approve" -> handleVerifyApprove(event, id);
             case "rs_verify_reject" -> handleVerifyReject(event, id);
@@ -290,12 +291,12 @@ public class RsInteractionListener extends ListenerAdapter {
                 boolean cancelled = linkService.cancelOwn(attemptId, event.getUser().getIdLong());
 
                 if (!cancelled) {
-                    Containers.replyEphemeral(event, Containers.WARNING, "That request is no longer active.");
+                    Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "runescape.that_request_is_no_longer_active"));
                     return;
                 }
                 revokeOnboardingRole(event.getGuild(), event.getUser().getIdLong());
                 reviewCards.update(event.getGuild(), attemptId, Containers.INFO, VerificationReviewCards.outcome("CANCELLED", event.getUser().getIdLong(), event.getUser().getIdLong()));
-                Containers.replyEphemeral(event, Containers.SUCCESS, "Cancelled — run `/rs` again to start over with a different name.");
+                Containers.replyEphemeral(event, Containers.SUCCESS, Text.of(event, "runescape.cancelled_run_rs_again_to_start"));
             }
         }
     }
@@ -505,7 +506,7 @@ public class RsInteractionListener extends ListenerAdapter {
 
     private void handleVerifyApprove(ButtonInteractionEvent event, String id) {
         if (!isAdmin(event)) {
-            Containers.replyEphemeral(event, Containers.WARNING, "You need the Admin role (or higher) to use this.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "runescape.you_need_the_admin_role_or"));
             return;
         }
 
@@ -514,8 +515,7 @@ public class RsInteractionListener extends ListenerAdapter {
         try {
             attempt = completeApproval(event.getGuild(), attemptId, event.getUser().getIdLong());
         } catch (PlayerLinkRepository.RsnTakenException taken) {
-            Containers.replyEphemeral(event, Containers.WARNING, "That name is already registered with JonnyBot to <@" + taken.ownerDiscordUserId()
-                    + "> in another server, so it can't be linked here. Reject this request, or ask them to unlink it first.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "runescape.that_name_is_already_registered_with", taken.ownerDiscordUserId()));
             return;
         }
         if (attempt == null) {
@@ -537,7 +537,7 @@ public class RsInteractionListener extends ListenerAdapter {
         VerificationAttempt attempt = linkService.getAttempt(attemptId);
         PlayerLinkRepository.Resolution resolution = linkService.getResolution(attemptId);
         if (attempt == null || resolution == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "This request no longer exists.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "runescape.this_request_no_longer_exists"));
             return;
         }
 
@@ -548,7 +548,7 @@ public class RsInteractionListener extends ListenerAdapter {
 
     private void handleVerifyReject(ButtonInteractionEvent event, String id) {
         if (!isAdmin(event)) {
-            Containers.replyEphemeral(event, Containers.WARNING, "You need the Admin role (or higher) to use this.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "runescape.you_need_the_admin_role_or"));
             return;
         }
 
@@ -576,8 +576,8 @@ public class RsInteractionListener extends ListenerAdapter {
 
         LinkSubmission result = submitLinkRequest(event.getGuild(), event.getMember(), event.getUser().getIdLong(), rsn);
         switch (result.status()) {
-            case ALREADY_YOURS -> Containers.replyEphemeral(event, Containers.WARNING, "**" + name + "** is already linked to your account.");
-            case TAKEN -> Containers.replyEphemeral(event, Containers.WARNING, "**" + name + "** is already linked to another Discord account.");
+            case ALREADY_YOURS -> Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "runescape.is_already_linked_to_your_account", name));
+            case TAKEN -> Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "runescape.is_already_linked_to_another_discord", name));
             case PENDING_EXISTS, SUBMITTED ->
                     event.replyComponents(List.of(buildPendingStatusPanel(result.attempt()))).useComponentsV2(true).setEphemeral(true).queue();
         }
@@ -656,7 +656,7 @@ public class RsInteractionListener extends ListenerAdapter {
     private void handleActivityJumpModal(ModalInteractionEvent event, String rsn) {
         Guild guild = event.getGuild();
         if (ownLinkOrNull(guild, event.getUser().getIdLong(), rsn) == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "That's not one of your linked accounts.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "runescape.that_not_one_of_your_linked"));
             return;
         }
 
@@ -665,7 +665,7 @@ public class RsInteractionListener extends ListenerAdapter {
         try {
             pageNumber = Integer.parseInt(raw);
         } catch (NumberFormatException e) {
-            Containers.replyEphemeral(event, Containers.WARNING, "'" + raw + "' isn't a valid page number.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "runescape.isn_t_a_valid_page_number", raw));
             return;
         }
         editActivityPage(event, guild, rsn, pageNumber - 1); // Pagination.paginate clamps an out-of-range index
@@ -858,12 +858,19 @@ public class RsInteractionListener extends ListenerAdapter {
     private void doSelfPoll(ButtonInteractionEvent event, Guild guild, String rsn) {
         PlayerLink link = ownLinkOrNull(guild, event.getUser().getIdLong(), rsn);
         if (link == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "That's not one of your linked accounts.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "runescape.that_not_one_of_your_linked"));
             return;
         }
         if (!linkService.canSelfPoll(link)) {
             long minutesLeft = Math.max(1, linkService.selfPollCooldownRemaining(link).toMinutes());
-            Containers.replyEphemeral(event, Containers.WARNING, "You can update again in about " + minutesLeft + " minute(s).");
+            // The cooldown is for polling a player. Looking at the clan list polls nobody (and is limited to once a minute for the whole server),
+            // so someone who has just joined the clan still gets their Member role now instead of waiting out the cooldown.
+            if (detectClanJoin(guild, link)) {
+                Containers.replyEphemeral(event, Containers.SUCCESS, Text.of(event, "runescape.is_in_the_clan_your_roles", rsn),
+                        Text.of(event, "runescape.your_stats_can_be_updated_again", minutesLeft));
+                return;
+            }
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "runescape.you_can_update_again_in_about", minutesLeft));
             return;
         }
 
@@ -911,7 +918,7 @@ public class RsInteractionListener extends ListenerAdapter {
 
     private void doMonthlyRecap(ButtonInteractionEvent event, Guild guild, String rsn) {
         if (ownLinkOrNull(guild, event.getUser().getIdLong(), rsn) == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "That's not one of your linked accounts.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "runescape.that_not_one_of_your_linked"));
             return;
         }
 
@@ -973,13 +980,13 @@ public class RsInteractionListener extends ListenerAdapter {
         PlayerLinkRepository.StatsSnapshotRow latest = statsService.getLatestSnapshot(rsn);
         if (latest == null) {
             Containers.replyEphemeral(event, Containers.WARNING,
-                    "No synced data for **" + rsn + "** yet — use **Update** first.");
+                    Text.of(event, "runescape.no_synced_data_for_yet_use", rsn));
             return;
         }
 
         List<SkillValue> skills = statsService.getSkillsForSnapshot(latest.snapshotId());
         if (skills.isEmpty()) {
-            Containers.replyEphemeral(event, Containers.WARNING, "No skill data in this snapshot.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "runescape.no_skill_data_in_this_snapshot"));
             return;
         }
 
@@ -1032,7 +1039,7 @@ public class RsInteractionListener extends ListenerAdapter {
         Container container = buildActivityContainer(guild, rsn, 0);
         if (container == null) {
             Containers.replyEphemeral(event, Containers.WARNING,
-                    "No recorded activity for **" + rsn + "** yet — activity is captured the next time their stats are updated.");
+                    Text.of(event, "runescape.no_recorded_activity_for_yet_activity", rsn));
             return;
         }
         event.replyComponents(List.of(container)).useComponentsV2(true).setEphemeral(ephemeralFor(event.getUser().getIdLong())).queue();
@@ -1156,7 +1163,7 @@ public class RsInteractionListener extends ListenerAdapter {
     private void doClanLeaderboard(ComponentInteraction event, Guild guild) {
         List<PlayerLink> links = linkService.getAllLinks(guild.getIdLong());
         if (links.isEmpty()) {
-            Containers.replyEphemeral(event, Containers.INFO, "No linked players yet.");
+            Containers.replyEphemeral(event, Containers.INFO, Text.of(event, "runescape.no_linked_players_yet"));
             return;
         }
 
@@ -1171,8 +1178,7 @@ public class RsInteractionListener extends ListenerAdapter {
 
         if (entries.isEmpty()) {
             Containers.replyEphemeral(event, Containers.INFO,
-                    "No stats have been synced yet — click **Update** on your profile, or an admin can trigger " +
-                    "one from the admin panel, to get started.");
+                    Text.of(event, "runescape.no_stats_have_been_synced_yet"));
             return;
         }
 

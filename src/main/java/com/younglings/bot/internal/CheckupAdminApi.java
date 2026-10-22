@@ -5,6 +5,7 @@ import com.younglings.bot.checkup.ServerCheckup.ChannelInfo;
 import com.younglings.bot.checkup.ServerCheckup.Finding;
 import com.younglings.bot.checkup.ServerCheckup.Level;
 import com.younglings.bot.checkup.ServerCheckup.RoleInfo;
+import com.younglings.bot.config.PrivilegedIntents;
 import com.younglings.bot.configure.GuildSettingsService;
 import com.younglings.bot.tracking.TrackingGroup;
 import com.younglings.bot.tracking.TrackingRepository;
@@ -72,7 +73,12 @@ public class CheckupAdminApi implements AdminRouteExtension {
             list.add(DataObject.empty().put("level", f.level().name()).put("area", f.area()).put("title", f.title())
                     .put("detail", f.detail()).put("page", f.page()));
         }
-        return DataObject.empty().put("findings", list).put("errors", errors).put("warnings", warnings).put("ok", ok);
+        return DataObject.empty().put("findings", list).put("errors", errors).put("warnings", warnings).put("ok", ok).put("intents", intents());
+    }
+
+    /** Which of Discord's privileged intents the bot is running with (the others were refused in the Developer Portal). */
+    static DataObject intents() {
+        return DataObject.empty().put("members", PrivilegedIntents.members()).put("presence", PrivilegedIntents.presence()).put("messageContent", PrivilegedIntents.messageContent());
     }
 
     /** Discord as the checkup sees it. */

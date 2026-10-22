@@ -2,6 +2,7 @@ package com.younglings.bot.internal;
 
 import com.younglings.bot.configure.GuildSettingsService;
 import com.younglings.bot.configure.WebsiteLink;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.announcement.PostMarkup;
 import com.younglings.bot.announcement.PostTextConverter;
@@ -69,7 +70,7 @@ public class ClanAdminApi {
             guildSettings.updateWebsiteUrl(guild.getIdLong(), null);
         } else {
             var url = WebsiteLink.normalize(raw);
-            if (url.isEmpty()) throw new ApiError(400, "That doesn't look like a web address. Try something like https://example.com (up to " + WebsiteLink.MAX_LENGTH + " characters).");
+            if (url.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.that_doesn_t_look_like_a", WebsiteLink.MAX_LENGTH));
             guildSettings.updateWebsiteUrl(guild.getIdLong(), url.get());
         }
         log.info("Dashboard: {} set the clan website to {}", actor.getId(), raw.isEmpty() ? "none" : "a new address");
@@ -104,7 +105,7 @@ public class ClanAdminApi {
 
     DataObject saveNewsChannels(Guild guild, Member actor, DataObject body) {
         DataArray input = body.isNull("channels") ? DataArray.empty() : body.getArray("channels");
-        if (input.length() > 6) throw new ApiError(400, "At most 6 news channels.");
+        if (input.length() > 6) throw new ApiError(400, Text.of(guild, "dashboard.at_most_6_news_channels"));
 
         List<SiteNewsService.NewsChannel> chosen = new ArrayList<>();
         Set<Long> seen = new HashSet<>();
@@ -114,16 +115,16 @@ public class ClanAdminApi {
             try {
                 channelId = Long.parseLong(item.getString("channelId", ""));
             } catch (NumberFormatException e) {
-                throw new ApiError(400, "A chosen channel isn't valid.");
+                throw new ApiError(400, Text.of(guild, "dashboard.a_chosen_channel_isn_t_valid"));
             }
             if (!seen.add(channelId)) continue;
             var channel = guild.getChannelById(net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel.class, channelId);
-            if (channel == null) throw new ApiError(400, "A chosen channel isn't a text channel in this server.");
+            if (channel == null) throw new ApiError(400, Text.of(guild, "dashboard.a_chosen_channel_isn_t_a"));
             if (!guild.getSelfMember().hasPermission(channel, net.dv8tion.jda.api.Permission.VIEW_CHANNEL, net.dv8tion.jda.api.Permission.MESSAGE_HISTORY)) {
-                throw new ApiError(400, "JonnyBot can't read #" + channel.getName() + " — give it View Channel and Read Message History there first.");
+                throw new ApiError(400, Text.of(guild, "dashboard.jonnybot_can_t_read_give_it", channel.getName()));
             }
             String label = item.getString("label", "").strip();
-            if (label.length() > 40) throw new ApiError(400, "Labels are up to 40 characters.");
+            if (label.length() > 40) throw new ApiError(400, Text.of(guild, "dashboard.labels_are_up_to_40_characters"));
             chosen.add(new SiteNewsService.NewsChannel(channelId, label.isEmpty() ? null : label, i));
         }
 
@@ -179,24 +180,24 @@ public class ClanAdminApi {
         try {
             group = TrackingGroup.valueOf(key);
         } catch (IllegalArgumentException e) {
-            throw new ApiError(404, "That isn't a tracking group.");
+            throw new ApiError(404, Text.of(guild, "dashboard.that_isn_t_a_tracking_group"));
         }
         long guildId = guild.getIdLong();
 
         Set<Long> wanted = new HashSet<>();
         if (!body.isNull("channelIds")) {
             DataArray array = body.getArray("channelIds");
-            if (array.length() > 5) throw new ApiError(400, "At most 5 channels per group.");
+            if (array.length() > 5) throw new ApiError(400, Text.of(guild, "dashboard.at_most_5_channels_per_group"));
             for (int i = 0; i < array.length(); i++) {
                 long id;
                 try {
                     id = Long.parseLong(array.getString(i));
                 } catch (NumberFormatException e) {
-                    throw new ApiError(400, "A chosen channel isn't valid.");
+                    throw new ApiError(400, Text.of(guild, "dashboard.a_chosen_channel_isn_t_valid"));
                 }
                 var channel = guild.getChannelById(net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel.class, id);
-                if (channel == null) throw new ApiError(400, "A chosen channel isn't a text channel in this server.");
-                if (!channel.canTalk()) throw new ApiError(400, "JonnyBot can't post in #" + channel.getName() + " — give it View Channel and Send Messages there first.");
+                if (channel == null) throw new ApiError(400, Text.of(guild, "dashboard.a_chosen_channel_isn_t_a"));
+                if (!channel.canTalk()) throw new ApiError(400, Text.of(guild, "dashboard.jonnybot_can_t_post_in_give", channel.getName()));
                 wanted.add(id);
             }
         }
@@ -219,12 +220,12 @@ public class ClanAdminApi {
     /** Posts markup text as a message in a channel; with {@code dryRun} it only checks it and reports any problems. */
     DataObject post(Guild guild, Member actor, DataObject body) {
         String raw = body.getString("text", "");
-        if (raw.isBlank()) throw new ApiError(400, "Write something to post.");
-        if (raw.length() > 3500) throw new ApiError(400, "That's too long — keep it under 3500 characters.");
+        if (raw.isBlank()) throw new ApiError(400, Text.of(guild, "dashboard.write_something_to_post"));
+        if (raw.length() > 3500) throw new ApiError(400, Text.of(guild, "dashboard.that_too_long_keep_it_under"));
         String text = body.getBoolean("convert", false) ? PostTextConverter.convert(raw) : raw.strip();
 
         PostMarkup.Parsed parsed = PostMarkup.parse(text, true);
-        if (parsed.hasErrors()) throw new ApiError(400, "Nothing was posted — fix these first.", parsed.errors().stream().map(p -> "line " + p.line() + ": " + p.message()).toList());
+        if (parsed.hasErrors()) throw new ApiError(400, Text.of(guild, "dashboard.nothing_was_posted_fix_these_first"), parsed.errors().stream().map(p -> "line " + p.line() + ": " + p.message()).toList());
 
         DataArray warnings = DataArray.empty();
         parsed.problems().stream().filter(p -> p.severity() != PostMarkup.Severity.ERROR).forEach(p -> warnings.add("line " + p.line() + ": " + p.message()));
@@ -234,18 +235,18 @@ public class ClanAdminApi {
         try {
             channelId = Long.parseLong(body.getString("channelId", ""));
         } catch (NumberFormatException e) {
-            throw new ApiError(400, "Choose a channel.");
+            throw new ApiError(400, Text.of(guild, "dashboard.choose_a_channel"));
         }
         var channel = guild.getChannelById(net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel.class, channelId);
-        if (channel == null) throw new ApiError(400, "That isn't a text channel in this server.");
-        if (!channel.canTalk()) throw new ApiError(400, "JonnyBot can't post in #" + channel.getName() + ".");
+        if (channel == null) throw new ApiError(400, Text.of(guild, "dashboard.that_isn_t_a_text_channel"));
+        if (!channel.canTalk()) throw new ApiError(400, Text.of(guild, "dashboard.jonnybot_can_t_post_in", channel.getName()));
 
         try {
             channel.sendMessageComponents(java.util.List.of(parsed.toContainer(com.younglings.bot.discord.Containers.PRIMARY))).useComponentsV2(true)
                     .setAllowedMentions(java.util.EnumSet.noneOf(net.dv8tion.jda.api.entities.Message.MentionType.class)).complete();
         } catch (Exception e) {
             log.warn("Dashboard post to {} failed", channelId, e);
-            throw new ApiError(502, "Discord wouldn't let the message be posted there.");
+            throw new ApiError(502, Text.of(guild, "dashboard.discord_wouldn_t_let_the_message"));
         }
         log.info("Dashboard: {} posted a message in #{}", actor.getId(), channel.getName());
         return DataObject.empty().put("ok", true).put("posted", true).put("warnings", warnings);
@@ -265,10 +266,10 @@ public class ClanAdminApi {
             try {
                 channelId = Long.parseLong(body.getString("pollChannelId"));
             } catch (NumberFormatException e) {
-                throw new ApiError(400, "That channel isn't valid.");
+                throw new ApiError(400, Text.of(guild, "dashboard.that_channel_isn_t_valid"));
             }
             var channel = guild.getChannelById(net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel.class, channelId);
-            if (channel == null || !channel.canTalk()) throw new ApiError(400, "JonnyBot can't post in that channel — it needs View Channel and Send Messages there.");
+            if (channel == null || !channel.canTalk()) throw new ApiError(400, Text.of(guild, "dashboard.jonnybot_can_t_post_in_that"));
         }
         communitySettings.setPollChannel(guild.getIdLong(), channelId);
         log.info("Dashboard: {} set the member-poll channel to {}", actor.getId(), channelId);
@@ -290,7 +291,7 @@ public class ClanAdminApi {
 
     DataObject saveSelfRoles(Guild guild, Member actor, DataObject body) {
         DataArray input = body.isNull("roles") ? DataArray.empty() : body.getArray("roles");
-        if (input.length() > MAX_SELF_ROLES) throw new ApiError(400, "At most " + MAX_SELF_ROLES + " self-assignable roles.");
+        if (input.length() > MAX_SELF_ROLES) throw new ApiError(400, Text.of(guild, "dashboard.at_most_self_assignable_roles", MAX_SELF_ROLES));
 
         List<SelfRole> chosen = new ArrayList<>();
         Set<Long> seen = new HashSet<>();
@@ -300,21 +301,22 @@ public class ClanAdminApi {
             try {
                 roleId = Long.parseLong(item.getString("roleId", ""));
             } catch (NumberFormatException e) {
-                throw new ApiError(400, "A chosen role isn't valid.");
+                throw new ApiError(400, Text.of(guild, "dashboard.a_chosen_role_isn_t_valid"));
             }
             if (!seen.add(roleId)) continue;
 
             Role role = guild.getRoleById(roleId);
-            if (role == null) throw new ApiError(400, "A chosen role no longer exists in this server.");
+            if (role == null) throw new ApiError(400, Text.of(guild, "dashboard.a_chosen_role_no_longer_exists"));
             if (!MemberApi.safeToAssign(guild, role)) {
                 var dangerous = MemberApi.dangerousIn(role.getPermissions());
-                throw new ApiError(400, "\"" + role.getName() + "\" can't be self-assignable: " + (dangerous.isEmpty()
-                        ? "it is managed, the @everyone role, or above JonnyBot's own role."
-                        : "it carries powerful permissions (" + dangerous.iterator().next().getName() + (dangerous.size() > 1 ? " and more" : "") + ")."));
+                throw new ApiError(400, dangerous.isEmpty()
+                        ? Text.of(guild, "dashboard.not_self_assignable_managed", role.getName())
+                        : Text.of(guild, dangerous.size() > 1 ? "dashboard.not_self_assignable_powerful_more" : "dashboard.not_self_assignable_powerful",
+                                role.getName(), dangerous.iterator().next().getName()));
             }
             String label = item.getString("label", "").strip();
             String description = item.getString("description", "").strip();
-            if (label.length() > 40 || description.length() > 120) throw new ApiError(400, "Labels are up to 40 characters and descriptions up to 120.");
+            if (label.length() > 40 || description.length() > 120) throw new ApiError(400, Text.of(guild, "dashboard.labels_are_up_to_40_characters_2"));
             chosen.add(new SelfRole(roleId, label.isEmpty() ? null : label, description.isEmpty() ? null : description, i));
         }
 
@@ -350,9 +352,9 @@ public class ClanAdminApi {
                 try {
                     id = Long.parseLong(item.getString("id", ""));
                 } catch (NumberFormatException e) {
-                    throw new ApiError(400, "A rank isn't valid.");
+                    throw new ApiError(400, Text.of(guild, "dashboard.a_rank_isn_t_valid"));
                 }
-                if (existing.stream().noneMatch(r -> r.id() == id)) throw new ApiError(400, "A rank doesn't belong to this server.");
+                if (existing.stream().noneMatch(r -> r.id() == id)) throw new ApiError(400, Text.of(guild, "dashboard.a_rank_doesn_t_belong_to"));
                 updates.add(new long[]{id, pointsValue(item, "threshold")});
             }
         }
@@ -368,9 +370,9 @@ public class ClanAdminApi {
         try {
             value = json.isNull(key) ? 0 : Long.parseLong(String.valueOf(json.toMap().get(key)).replaceAll("\\.0+$", ""));
         } catch (NumberFormatException e) {
-            throw new ApiError(400, "\"" + key + "\" must be a whole number.");
+            throw new ApiError(400, Text.en("dashboard.must_be_a_whole_number_2", key));
         }
-        if (value < 0 || value > MAX_POINTS) throw new ApiError(400, "\"" + key + "\" must be between 0 and " + MAX_POINTS + ".");
+        if (value < 0 || value > MAX_POINTS) throw new ApiError(400, Text.en("dashboard.must_be_between_0_and", key, MAX_POINTS));
         return value;
     }
 }

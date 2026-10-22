@@ -20,7 +20,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -35,12 +34,15 @@ import java.util.Optional;
  * fetched by its address but is never listed.
  * <ul>
  *   <li>{@code GET clans}: every listed clan</li>
- *   <li>{@code GET clans/{slug}}: one clan, listed or unlisted</li>
+ *   <li>{@code GET clans/{slug}}: one clan, listed or unlisted, with every {@link DirectoryRouteModule}'s section</li>
  *   <li>{@code GET clans/{slug}/events}: that clan's shared upcoming events</li>
  *   <li>{@code POST clans/{slug}/report} {@code {reason, reporter?}}: report a listing for the bot's owner to review</li>
  *   <li>{@code GET events}: shared upcoming events of every listed clan, soonest first</li>
  *   <li>{@code GET leaderboards?period=week|month}: clans that opted in, ranked by XP their members gained</li>
  * </ul>
+ * Everything else is a {@link DirectoryRouteModule}: alliances ({@link DirectoryAllianceRoutes}), site switches
+ * ({@link DirectorySiteSwitchRoutes}), the events hub ({@link DirectoryHubEventRoutes}), clan websites ({@link DirectoryClanSiteRoutes})
+ * and recruiting posts ({@link DirectoryRecruitingSection}). A new feature adds a module; it does not edit this class.
  */
 @BService
 public class DirectoryApi {
@@ -58,12 +60,15 @@ public class DirectoryApi {
     private final ClanProfileRepository repository;
     private final ClanProfileService service;
     private final SiteStatsRepository stats;
+    private final List<DirectoryRouteModule> modules;
     private final TtlCache cache = new TtlCache();
 
-    public DirectoryApi(ClanProfileRepository repository, ClanProfileService service, SiteStatsRepository stats) {
+    public DirectoryApi(ClanProfileRepository repository, ClanProfileService service, SiteStatsRepository stats, List<DirectoryRouteModule> modules) {
         this.repository = repository;
         this.service = service;
         this.stats = stats;
+        this.modules = modules;
+        log.info("Directory API ready with {} module(s): {}", modules.size(), modules.stream().map(m -> m.getClass().getSimpleName()).toList());
     }
 
     /** Called after the shared secret has been checked. */
@@ -111,6 +116,10 @@ public class DirectoryApi {
             }
             send(exchange, 200, cache.get("leaderboard:" + period.get().key(), LEADERBOARD_TTL_MILLIS, () -> leaderboard(period.get())));
         } else {
+            DirectoryRequest request = new DirectoryRequest(exchange, jda, method, parts, this::viewable, p -> publicJson(p, true));
+            for (DirectoryRouteModule module : modules) {
+                if (module.route(request)) return;
+            }
             send(exchange, 404, DataObject.empty().put("error", "Not found"));
         }
     }
@@ -137,7 +146,15 @@ public class DirectoryApi {
 
     /** A profile anyone may open by its address: listed, or unlisted. */
     private Optional<ClanProfile> viewable(String slug) {
-        return repository.bySlug(slug).filter(p -> service.publicView(p.guildId(), true).isPresent());
+        return repository.bySlug(slug).filter(p -> listed(p, true));
+    }
+
+    /**
+     * Whether a profile already loaded may be shown (listed, or also unlisted when {@code allowUnlisted}). Uses the loaded profile instead of
+     * fetching it again, so a list of clans costs one clan-name read per clan, not a profile and a clan name (T-180).
+     */
+    private boolean listed(ClanProfile p, boolean allowUnlisted) {
+        return service.publicView(p, service.clanNameOf(p.guildId()), allowUnlisted).isPresent();
     }
 
     // ---------- clans ----------
@@ -145,16 +162,21 @@ public class DirectoryApi {
     private DataObject buildList() {
         DataArray clans = DataArray.empty();
         for (ClanProfile p : repository.shared()) {
-            if (service.publicView(p.guildId(), false).isEmpty()) continue;
-            clans.add(publicJson(p, false));
+            String clan = service.clanNameOf(p.guildId());
+            if (service.publicView(p, clan, false).isEmpty()) continue;
+            clans.add(publicJson(p, false, clan));
         }
         return DataObject.empty().put("clans", clans).put("generatedAt", Instant.now().toString());
     }
 
     private DataObject publicJson(ClanProfile p, boolean full) {
+        return publicJson(p, full, service.clanNameOf(p.guildId()));
+    }
+
+    /** {@code clan}: the server's clan name ({@link ClanProfileService#clanNameOf}), passed in by a caller that already read it. */
+    private DataObject publicJson(ClanProfile p, boolean full, String clan) {
         DataArray focus = DataArray.empty();
         for (Focus f : Focus.values()) if (p.focus().contains(f)) focus.add(DataObject.empty().put("key", f.name()).put("label", f.label()));
-        String clan = service.clanNameOf(p.guildId());
         boolean listed = ProfileRules.listing(p, clan) == ProfileRules.Listing.LISTED;
         DataObject json = DataObject.empty().put("slug", p.slug()).put("name", p.displayName()).put("tagline", p.tagline()).put("logoUrl", p.logoUrl())
                 .put("colour", p.colour()).put("focus", focus).put("recruiting", DataObject.empty().put("key", p.recruiting().name()).put("label", p.recruiting().label()))
@@ -163,6 +185,7 @@ public class DirectoryApi {
         if (full) {
             json.put("description", p.description()).put("requirements", p.requirements()).put("applyUrl", p.applyUrl()).put("timezone", p.timezone())
                     .put("updatedAt", p.updatedAt() == null ? null : p.updatedAt().toString());
+            for (DirectoryRouteModule module : modules) module.addToClan(p, json);
         }
         return json;
     }
@@ -208,7 +231,7 @@ public class DirectoryApi {
         record Row(ClanProfile clan, EventInfo event) {}
         List<Row> rows = new ArrayList<>();
         for (ClanProfile p : repository.shared()) {
-            if (service.publicView(p.guildId(), false).isEmpty()) continue;
+            if (!listed(p, false)) continue;
             Guild guild = jda.getGuildById(p.guildId());
             if (guild == null) continue;
             for (EventInfo e : PublicEvents.feed(eventsOf(guild), repository.sharedEvents(p.guildId()), Instant.now(), EVENTS_PER_CLAN)) rows.add(new Row(p, e));
@@ -228,9 +251,11 @@ public class DirectoryApi {
         Instant now = Instant.now();
         OffsetDateTime since = period.since(now).atOffset(java.time.ZoneOffset.UTC);
         List<ClanLeaderboard.Entry> entries = new ArrayList<>();
+        java.util.Map<String, ClanProfile> bySlug = new java.util.HashMap<>();
         for (ClanProfile p : repository.shared()) {
-            if (!p.leaderboardOptIn() || service.publicView(p.guildId(), false).isEmpty()) continue;
+            if (!p.leaderboardOptIn() || !listed(p, false)) continue;
             if (entries.size() >= MAX_LEADERBOARD_CLANS) break;
+            bySlug.put(p.slug(), p);
             var gains = stats.xpGains(p.guildId(), since);
             long total = 0;
             for (var g : gains) total += g.xp();
@@ -239,7 +264,7 @@ public class DirectoryApi {
         DataArray array = DataArray.empty();
         int rank = 1;
         for (ClanLeaderboard.Entry e : ClanLeaderboard.rank(entries)) {
-            ClanProfile p = repository.bySlug(e.slug()).orElse(null);
+            ClanProfile p = bySlug.get(e.slug());
             array.add(DataObject.empty().put("rank", rank++).put("slug", e.slug()).put("name", e.name()).put("logoUrl", p == null ? null : p.logoUrl())
                     .put("colour", p == null ? null : p.colour()).put("xpGained", e.xpGained()).put("members", e.members()).put("perMember", e.perMember()));
         }
@@ -259,7 +284,7 @@ public class DirectoryApi {
             return;
         }
         DataObject body;
-        try (InputStream in = exchange.getRequestBody()) {
+        try (java.io.InputStream in = exchange.getRequestBody()) {
             body = DataObject.fromJson(in);
         } catch (RuntimeException e) {
             send(exchange, 400, DataObject.empty().put("error", "That report couldn't be read."));

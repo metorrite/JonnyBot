@@ -72,12 +72,17 @@ public class MemberApi {
     private final SiteStatsRepository stats;
     private final RsInteractionListener rsLinks;
     private final MemberEventsApi events;
+    private final HighlightMemberApi highlights;
+    private final ChatLevelMemberApi chatLevel;
     // Per member: a handful of quick clicks is normal, a sustained flood is not. Reads are far cheaper than writes.
     private final RateLimiter writes = new RateLimiter(8, 1_500);
     private final RateLimiter reads = new RateLimiter(40, 500);
 
     public MemberApi(MemberProfileRepository repository, PlayerLinkRepository links, PollService pollService, SignupService signupService, MemberAccess memberAccess,
-                     Debouncer debouncer, SiteCache cache, CommunitySettings community, SiteStatsRepository stats, RsInteractionListener rsLinks, MemberEventsApi events) {
+                     Debouncer debouncer, SiteCache cache, CommunitySettings community, SiteStatsRepository stats, RsInteractionListener rsLinks, MemberEventsApi events,
+                     HighlightMemberApi highlights, ChatLevelMemberApi chatLevel) {
+        this.highlights = highlights;
+        this.chatLevel = chatLevel;
         this.rsLinks = rsLinks;
         this.events = events;
         this.community = community;
@@ -138,6 +143,9 @@ public class MemberApi {
                 case "polls" -> method.equals("GET") ? myPolls(guild, userId) : method.equals("POST") ? createPoll(guild, userId, body) : null;
                 case "coffer" -> method.equals("GET") ? myCoffer(guild, userId) : null;
                 case "events" -> method.equals("GET") ? events.mine(guild, userId) : null;
+                case "events/detail" -> method.equals("GET") ? events.detail(guild, userId, parseId(query(exchange, "eventId"), "eventId")) : null;
+                case "events/join" -> method.equals("POST") ? events.join(guild, userId, body) : null;
+                case "events/leave" -> method.equals("POST") ? events.leave(guild, userId, body) : null;
                 case "link" -> switch (method) {
                     case "GET" -> linkStatus(guild, userId);
                     case "POST" -> submitLink(guild, userId, body);
@@ -145,6 +153,14 @@ public class MemberApi {
                     default -> null;
                 };
                 case "polls/vote" -> method.equals("POST") ? votePoll(guild, userId, body) : null;
+                case "highlights" -> switch (method) {
+                    case "GET" -> highlights.get(guild, userId);
+                    case "POST" -> highlights.add(guild, userId, body);
+                    case "DELETE" -> highlights.remove(guild, userId, query(exchange, "id"));
+                    default -> null;
+                };
+                case "highlights/ignore" -> method.equals("POST") ? highlights.ignore(guild, userId, body) : null;
+                case "level" -> method.equals("GET") ? chatLevel.get(guild, userId) : null;
                 case "signups" -> method.equals("GET") ? mySignups(guild, userId) : null;
                 case "signups/join" -> method.equals("POST") ? joinSignup(guild, userId, body) : null;
                 case "signups/leave" -> method.equals("POST") ? leaveSignup(guild, userId, body) : null;
@@ -158,6 +174,11 @@ public class MemberApi {
             }
         } catch (Rejected e) {
             InternalApiServer.sendJson(exchange, e.status, DataObject.empty().put("error", e.getMessage()));
+        } catch (HighlightMemberApi.Refused e) {
+            InternalApiServer.sendJson(exchange, e.status, DataObject.empty().put("error", e.getMessage()));
+        } catch (com.younglings.bot.events.EventProblem e) {
+            // the event engine's own refusals already say why in words a member can read
+            InternalApiServer.sendJson(exchange, e.status(), DataObject.empty().put("error", e.getMessage()));
         } catch (Exception e) {
             log.error("Member API request {} failed", exchange.getRequestURI().getPath(), e);
             InternalApiServer.sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));

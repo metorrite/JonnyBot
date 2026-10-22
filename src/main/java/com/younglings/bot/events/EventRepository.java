@@ -1,5 +1,6 @@
 package com.younglings.bot.events;
 
+import com.younglings.bot.internal.SiteInvalidator;
 import com.younglings.bot.database.SchemaBootstrapper;
 import com.younglings.bot.events.EventRules.Evidence;
 import com.younglings.bot.events.EventRules.ObjectiveSpec;
@@ -26,7 +27,9 @@ import java.sql.Types;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
 
@@ -44,8 +47,47 @@ public class EventRepository {
 
     public record Team(long id, long eventId, String name, Long captainId) {}
 
-    /** {@code waiting} is true while the player is on the waitlist of a full event; {@code buyIn} is their buy-in stage. */
-    public record Participant(long eventId, long userId, long guildId, Long teamId, Kind kind, boolean waiting, BuyInStatus buyIn, Instant joinedAt) {}
+    /**
+     * {@code waiting} is true while the player is on the waitlist of a full event; {@code buyIn} is their buy-in stage. {@code verification} is what is
+     * stored (PENDING until someone decides); how it reads depends on whether the event asks for verification, see {@link EventRoster#effective}.
+     */
+    public record Participant(long eventId, long userId, long guildId, Long teamId, Kind kind, boolean waiting, BuyInStatus buyIn, Instant joinedAt,
+                              EventRoster.Verification verification, Long verifiedBy, Instant verifiedAt, String verificationNote, Integer rating, RosterSource source) {}
+
+    /**
+     * Where an event is in its setup: when signups were closed, the roster confirmed and the teams called final, and by whom, and when its roles and channels
+     * were set up (and whether everything wanted is still there, with a note on what is missing if not). Nothing set until an organiser does it.
+     */
+    public record Setup(Instant signupsClosedAt, Long signupsClosedBy, Instant rosterConfirmedAt, Long rosterConfirmedBy, Instant teamsFinalisedAt, Long teamsFinalisedBy,
+                        Instant spaceAppliedAt, Long spaceAppliedBy, boolean spaceComplete, String spaceNote, Instant rosterChangedAt, Instant teamsChangedAt) {
+        public static final Setup NONE = new Setup(null, null, null, null, null, null, null, null, false, "", null, null);
+
+        /** Someone joined, left or was removed (or a verification was decided) after the roster was confirmed: what was confirmed is out of date. */
+        public boolean rosterChangedSinceConfirmed() {
+            return rosterConfirmedAt != null && rosterChangedAt != null && rosterChangedAt.isAfter(rosterConfirmedAt);
+        }
+
+        /** A team was added, renamed or removed, or a player was moved, after the teams were called final: what was called final is out of date. */
+        public boolean teamsChangedSinceFinal() {
+            return teamsFinalisedAt != null && teamsChangedAt != null && teamsChangedAt.isAfter(teamsFinalisedAt);
+        }
+
+        public boolean spaceApplied() {
+            return spaceAppliedAt != null;
+        }
+
+        public boolean signupsClosed() {
+            return signupsClosedAt != null;
+        }
+
+        public boolean rosterConfirmed() {
+            return rosterConfirmedAt != null;
+        }
+
+        public boolean teamsFinalised() {
+            return teamsFinalisedAt != null;
+        }
+    }
 
     /** What one person is owed for one prize at one place, and where that stands. */
     public record AwardRow(long id, long eventId, long prizeId, int place, long userId, PrizeKind kind, String description, long amount, AwardStatus status,
@@ -59,8 +101,12 @@ public class EventRepository {
 
     public enum ClaimStatus { PENDING, APPROVED, DENIED }
 
+    /** What a claim is for: OBJECTIVE is proof for a tile or objective, VERIFICATION is a player's proof for the event's pre-start verification (no objective, no points). */
+    public enum ClaimKind { OBJECTIVE, VERIFICATION }
+
     public record Claim(long id, long eventId, String objectiveKey, long userId, long amount, String note, String proofUrl, ClaimStatus status,
-                        Long decidedBy, String decisionNote, Long progressId, Instant createdAt, Instant decidedAt) {}
+                        Long decidedBy, String decisionNote, Long progressId, Instant createdAt, Instant decidedAt, ClaimKind kind,
+                        Long receiptChannelId, Long receiptMessageId) {}
 
     private final ConnectionSupplier connectionSupplier;
 
@@ -159,10 +205,38 @@ public class EventRepository {
                 );
                 """,
                 "CREATE INDEX IF NOT EXISTS event_claim_event ON younglings.event_claim (event_id, status, id);",
+                // /submit: what the claim is for, and the receipt message in the player's own (or team's) channel that is edited when staff decide
+                "ALTER TABLE younglings.event_claim ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'OBJECTIVE';",
+                "ALTER TABLE younglings.event_claim ADD COLUMN IF NOT EXISTS receipt_channel_id BIGINT NULL;",
+                "ALTER TABLE younglings.event_claim ADD COLUMN IF NOT EXISTS receipt_message_id BIGINT NULL;",
                 // the dedicated signup attached to the event (a signup panel in Discord), until it is closed
                 "ALTER TABLE younglings.event ADD COLUMN IF NOT EXISTS signup_id BIGINT NULL;",
                 "ALTER TABLE younglings.event ADD COLUMN IF NOT EXISTS archived BOOLEAN NOT NULL DEFAULT FALSE;",
                 "ALTER TABLE younglings.event_participant ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'HOME_CLAN';",
+                // each team's or player's own bingo board message ("t:<teamId>" or "u:<userId>"), with a fingerprint of the tiles it shows so an unchanged board isn't sent again
+                """
+                CREATE TABLE IF NOT EXISTS younglings.event_board_panel (
+                    event_id BIGINT NOT NULL REFERENCES younglings.event (id) ON DELETE CASCADE,
+                    subject TEXT NOT NULL,
+                    channel_id BIGINT NOT NULL,
+                    message_id BIGINT NOT NULL,
+                    state_hash TEXT NOT NULL DEFAULT '',
+                    PRIMARY KEY (event_id, subject)
+                );
+                """,
+                // where the player came from: SIGNUP follows the Discord signup both ways, SELF joined by themselves, STAFF was added by staff
+                "ALTER TABLE younglings.event_participant ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'STAFF';",
+                // players an organiser removed and barred from this event again, with the reason
+                """
+                CREATE TABLE IF NOT EXISTS younglings.event_ban (
+                    event_id BIGINT NOT NULL REFERENCES younglings.event (id) ON DELETE CASCADE,
+                    user_id BIGINT NOT NULL,
+                    reason TEXT NOT NULL,
+                    banned_by BIGINT NOT NULL,
+                    banned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    PRIMARY KEY (event_id, user_id)
+                );
+                """,
                 "ALTER TABLE younglings.event_participant ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'ACTIVE';",
                 "ALTER TABLE younglings.event_participant ADD COLUMN IF NOT EXISTS buy_in_status TEXT NOT NULL DEFAULT 'NONE';",
                 """
@@ -205,6 +279,34 @@ public class EventRepository {
                     at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 );
                 """,
+                // where an event is in its setup (signups closed, roster confirmed); a row only exists once an organiser has done one of them
+                """
+                CREATE TABLE IF NOT EXISTS younglings.event_setup (
+                    event_id BIGINT PRIMARY KEY REFERENCES younglings.event (id) ON DELETE CASCADE,
+                    signups_closed_at TIMESTAMPTZ NULL,
+                    signups_closed_by BIGINT NULL,
+                    roster_confirmed_at TIMESTAMPTZ NULL,
+                    roster_confirmed_by BIGINT NULL
+                );
+                """,
+                // verification: PENDING means nobody has decided yet, and only matters when the event asks for verification
+                "ALTER TABLE younglings.event_participant ADD COLUMN IF NOT EXISTS verification TEXT NOT NULL DEFAULT 'PENDING';",
+                "ALTER TABLE younglings.event_participant ADD COLUMN IF NOT EXISTS verified_by BIGINT NULL;",
+                "ALTER TABLE younglings.event_participant ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ NULL;",
+                "ALTER TABLE younglings.event_participant ADD COLUMN IF NOT EXISTS verification_note TEXT NOT NULL DEFAULT '';",
+                // what an organiser thinks of a player's strength (1 to 5), for balancing teams; null = not rated
+                "ALTER TABLE younglings.event_participant ADD COLUMN IF NOT EXISTS rating SMALLINT NULL;",
+                // when the teams were called final, and by whom
+                "ALTER TABLE younglings.event_setup ADD COLUMN IF NOT EXISTS teams_finalised_at TIMESTAMPTZ NULL;",
+                "ALTER TABLE younglings.event_setup ADD COLUMN IF NOT EXISTS teams_finalised_by BIGINT NULL;",
+                // when the event's roles and channels were set up, whether everything wanted is still there, and what is missing if not
+                "ALTER TABLE younglings.event_setup ADD COLUMN IF NOT EXISTS space_applied_at TIMESTAMPTZ NULL;",
+                "ALTER TABLE younglings.event_setup ADD COLUMN IF NOT EXISTS space_applied_by BIGINT NULL;",
+                "ALTER TABLE younglings.event_setup ADD COLUMN IF NOT EXISTS space_complete BOOLEAN NOT NULL DEFAULT FALSE;",
+                "ALTER TABLE younglings.event_setup ADD COLUMN IF NOT EXISTS space_note TEXT NOT NULL DEFAULT '';",
+                // when the roster or the teams last changed, so a roster confirmed or teams called final earlier can be seen to be out of date
+                "ALTER TABLE younglings.event_setup ADD COLUMN IF NOT EXISTS roster_changed_at TIMESTAMPTZ NULL;",
+                "ALTER TABLE younglings.event_setup ADD COLUMN IF NOT EXISTS teams_changed_at TIMESTAMPTZ NULL;",
                 // Discord signups the event's rules turned away, and why, so staff can see them and the player is told once
                 """
                 CREATE TABLE IF NOT EXISTS younglings.event_signup_refusal (
@@ -258,7 +360,9 @@ public class EventRepository {
             s.setLong(11, createdBy);
             try (ResultSet rs = s.executeQuery()) {
                 rs.next();
-                return rs.getLong(1);
+                long created = rs.getLong(1);
+                SiteInvalidator.signal(SiteInvalidator.Area.EVENTS);
+                return created;
             }
         } catch (SQLException e) {
             throw new RuntimeException("Failed to create the event", e);
@@ -269,7 +373,51 @@ public class EventRepository {
         return events("SELECT * FROM younglings.event WHERE guild_id = ? AND id = ?", guildId, id).stream().findFirst();
     }
 
+    /** An event by id whatever server it belongs to: only for pages that aren't about one server (the events hub), which check the event is listed. */
+    public Optional<Event> eventById(long id) {
+        return events("SELECT * FROM younglings.event WHERE id = ? AND id = ?", id, id).stream().findFirst();
+    }
+
     /** The server's events, newest first, optionally only those in the given stages. */
+    /**
+     * Events of every server that a host has opened beyond its own server (visibility alliance or everyone), not drafts, cancelled or archived ones, soonest
+     * first. {@link EventListing#listed} has the last word (taken-down and long-finished ones).
+     */
+    /**
+     * Finished clan-vs-clan events open to everyone that {@code guildId}'s clan may have taken part in, newest first (T-223). The caller checks the event's
+     * {@code cvcTeams} for the clan; the text match here only narrows the rows read.
+     */
+    public List<Event> finishedClanVsClan(long guildId, int limit) {
+        List<Event> list = new ArrayList<>();
+        String sql = "SELECT * FROM younglings.event WHERE template = 'clan-vs-clan' AND scope = 'PUBLIC' AND status = 'DONE' AND config LIKE ? "
+                + "ORDER BY ends_at DESC NULLS LAST, id DESC LIMIT ?";
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
+            s.setString(1, "%\"" + guildId + "\"%");
+            s.setInt(2, limit);
+            try (ResultSet rs = s.executeQuery()) {
+                while (rs.next()) list.add(mapEvent(rs));
+            }
+            return list;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read the clan's clan-vs-clan events", e);
+        }
+    }
+
+    public List<Event> sharedBeyondServer(int limit) {
+        List<Event> list = new ArrayList<>();
+        String sql = "SELECT * FROM younglings.event WHERE scope IN ('ALLIANCE', 'PUBLIC') AND status NOT IN ('DRAFT', 'CANCELLED') AND NOT archived "
+                + "ORDER BY starts_at NULLS LAST, id LIMIT ?";
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
+            s.setInt(1, limit);
+            try (ResultSet rs = s.executeQuery()) {
+                while (rs.next()) list.add(mapEvent(rs));
+            }
+            return list;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read the shared events", e);
+        }
+    }
+
     public List<Event> events(long guildId, List<Status> statuses, int limit) {
         List<Event> list = new ArrayList<>();
         String filter = statuses == null || statuses.isEmpty() ? "" : " AND status = ANY (?)";
@@ -285,6 +433,31 @@ public class EventRepository {
             return list;
         } catch (SQLException e) {
             throw new RuntimeException("Failed to read the events", e);
+        }
+    }
+
+    /** How busy an event is, for the event list: players in, players waiting for a place, and proof (or verification) waiting for an organiser. */
+    public record ListCounts(int players, int waiting, int proofWaiting) {
+        public static final ListCounts NONE = new ListCounts(0, 0, 0);
+    }
+
+    /** The counts for every event of the server, keyed by event id, in one query. */
+    public Map<Long, ListCounts> listCounts(long guildId) {
+        String sql = """
+                SELECT e.id,
+                       (SELECT COUNT(*) FROM younglings.event_participant p WHERE p.event_id = e.id AND p.status = 'ACTIVE'),
+                       (SELECT COUNT(*) FROM younglings.event_participant p WHERE p.event_id = e.id AND p.status = 'WAITING'),
+                       (SELECT COUNT(*) FROM younglings.event_claim k WHERE k.event_id = e.id AND k.status = 'PENDING')
+                FROM younglings.event e WHERE e.guild_id = ?""";
+        Map<Long, ListCounts> counts = new HashMap<>();
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
+            s.setLong(1, guildId);
+            try (ResultSet rs = s.executeQuery()) {
+                while (rs.next()) counts.put(rs.getLong(1), new ListCounts(rs.getInt(2), rs.getInt(3), rs.getInt(4)));
+            }
+            return counts;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to count the events' players and proof", e);
         }
     }
 
@@ -319,7 +492,9 @@ public class EventRepository {
             s.setString(8, config);
             s.setLong(9, guildId);
             s.setLong(10, id);
-            return s.executeUpdate() == 1;
+            boolean updated = s.executeUpdate() == 1;
+            if (updated) SiteInvalidator.signal(SiteInvalidator.Area.EVENTS);
+            return updated;
         } catch (SQLException e) {
             throw new RuntimeException("Failed to update the event", e);
         }
@@ -332,7 +507,9 @@ public class EventRepository {
             s.setBoolean(1, archived);
             s.setLong(2, guildId);
             s.setLong(3, id);
-            return s.executeUpdate() == 1;
+            boolean changed = s.executeUpdate() == 1;
+            if (changed) SiteInvalidator.signal(SiteInvalidator.Area.EVENTS);
+            return changed;
         } catch (SQLException e) {
             throw new RuntimeException("Failed to archive the event", e);
         }
@@ -356,7 +533,9 @@ public class EventRepository {
             s.setString(1, config);
             s.setLong(2, guildId);
             s.setLong(3, id);
-            return s.executeUpdate() == 1;
+            boolean saved = s.executeUpdate() == 1;
+            if (saved) SiteInvalidator.signal(SiteInvalidator.Area.EVENTS);
+            return saved;
         } catch (SQLException e) {
             throw new RuntimeException("Failed to save the event's settings", e);
         }
@@ -370,7 +549,9 @@ public class EventRepository {
             s.setLong(2, guildId);
             s.setLong(3, id);
             s.setString(4, from.name());
-            return s.executeUpdate() == 1;
+            boolean moved = s.executeUpdate() == 1;
+            if (moved) SiteInvalidator.signal(SiteInvalidator.Area.EVENTS);
+            return moved;
         } catch (SQLException e) {
             throw new RuntimeException("Failed to move the event", e);
         }
@@ -399,6 +580,159 @@ public class EventRepository {
         }
     }
 
+    /** Events (in every server) in {@code status}, for sweeps that act on all of them. */
+    public List<Event> eventsInStatus(Status status) {
+        List<Event> list = new ArrayList<>();
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("SELECT * FROM younglings.event WHERE status = ? ORDER BY id")) {
+            s.setString(1, status.name());
+            try (ResultSet rs = s.executeQuery()) {
+                while (rs.next()) list.add(mapEvent(rs));
+            }
+            return list;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read the events", e);
+        }
+    }
+
+    // ---------- setup: closing signups, confirming the roster ----------
+
+    public Setup setup(long eventId) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(
+                "SELECT signups_closed_at, signups_closed_by, roster_confirmed_at, roster_confirmed_by, teams_finalised_at, teams_finalised_by, space_applied_at, space_applied_by, space_complete, space_note, roster_changed_at, teams_changed_at FROM younglings.event_setup WHERE event_id = ?")) {
+            s.setLong(1, eventId);
+            try (ResultSet rs = s.executeQuery()) {
+                if (!rs.next()) return Setup.NONE;
+                Timestamp closed = rs.getTimestamp("signups_closed_at");
+                Timestamp confirmed = rs.getTimestamp("roster_confirmed_at");
+                Timestamp finalised = rs.getTimestamp("teams_finalised_at");
+                Timestamp applied = rs.getTimestamp("space_applied_at");
+                Timestamp rosterChanged = rs.getTimestamp("roster_changed_at");
+                Timestamp teamsChanged = rs.getTimestamp("teams_changed_at");
+                return new Setup(closed == null ? null : closed.toInstant(), nullableLong(rs, "signups_closed_by"), confirmed == null ? null : confirmed.toInstant(),
+                        nullableLong(rs, "roster_confirmed_by"), finalised == null ? null : finalised.toInstant(), nullableLong(rs, "teams_finalised_by"),
+                        applied == null ? null : applied.toInstant(), nullableLong(rs, "space_applied_by"), rs.getBoolean("space_complete"), rs.getString("space_note"),
+                        rosterChanged == null ? null : rosterChanged.toInstant(), teamsChanged == null ? null : teamsChanged.toInstant());
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read the event's setup", e);
+        }
+    }
+
+    /** Marks signups closed. False when they already were (so closing twice does nothing and can't say it worked). */
+    public boolean closeSignups(long eventId, long by) {
+        String sql = """
+                INSERT INTO younglings.event_setup (event_id, signups_closed_at, signups_closed_by) VALUES (?, NOW(), ?)
+                ON CONFLICT (event_id) DO UPDATE SET signups_closed_at = NOW(), signups_closed_by = EXCLUDED.signups_closed_by
+                WHERE younglings.event_setup.signups_closed_at IS NULL
+                """;
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
+            s.setLong(1, eventId);
+            s.setLong(2, by);
+            return s.executeUpdate() == 1;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to close the signups", e);
+        }
+    }
+
+    /** Opens signups again, which also takes back a confirmed roster and final teams (both were made from a roster that is about to change). False when they weren't closed. */
+    public boolean reopenSignups(long eventId) {
+        String sql = """
+                UPDATE younglings.event_setup SET signups_closed_at = NULL, signups_closed_by = NULL, roster_confirmed_at = NULL, roster_confirmed_by = NULL,
+                       teams_finalised_at = NULL, teams_finalised_by = NULL
+                WHERE event_id = ? AND signups_closed_at IS NOT NULL
+                """;
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
+            s.setLong(1, eventId);
+            return s.executeUpdate() == 1;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to reopen the signups", e);
+        }
+    }
+
+    /** Marks the roster confirmed. False unless signups are closed and it wasn't confirmed already. */
+    /** Notes that the roster changed just now (a player joined, left, was removed or verified), so a confirmation from before can be seen to be out of date. */
+    public void touchRoster(long eventId) {
+        touch(eventId, "roster_changed_at");
+    }
+
+    /** Notes that the teams changed just now (a team added, renamed or removed, or a player moved). */
+    public void touchTeams(long eventId) {
+        touch(eventId, "teams_changed_at");
+    }
+
+    private void touch(long eventId, String column) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(
+                "INSERT INTO younglings.event_setup (event_id, " + column + ") VALUES (?, clock_timestamp()) ON CONFLICT (event_id) DO UPDATE SET " + column + " = clock_timestamp()")) {
+            s.setLong(1, eventId);
+            s.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to note a change to the event's setup", e);
+        }
+    }
+
+    public boolean confirmRoster(long eventId, long by) {
+        String sql = """
+                UPDATE younglings.event_setup SET roster_confirmed_at = NOW(), roster_confirmed_by = ?
+                WHERE event_id = ? AND signups_closed_at IS NOT NULL AND (roster_confirmed_at IS NULL OR roster_changed_at > roster_confirmed_at)
+                """;
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
+            s.setLong(1, by);
+            s.setLong(2, eventId);
+            return s.executeUpdate() == 1;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to confirm the roster", e);
+        }
+    }
+
+    /** Records that the event's roles and channels were set up (or brought up to date), whether everything wanted is there, and what is missing if not. */
+    public void markSpace(long eventId, Long by, boolean complete, String note) {
+        String sql = """
+                INSERT INTO younglings.event_setup (event_id, space_applied_at, space_applied_by, space_complete, space_note) VALUES (?, NOW(), ?, ?, ?)
+                ON CONFLICT (event_id) DO UPDATE SET space_applied_at = COALESCE(younglings.event_setup.space_applied_at, NOW()),
+                       space_applied_by = COALESCE(younglings.event_setup.space_applied_by, EXCLUDED.space_applied_by),
+                       space_complete = EXCLUDED.space_complete, space_note = EXCLUDED.space_note
+                """;
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
+            s.setLong(1, eventId);
+            if (by == null) s.setNull(2, Types.BIGINT);
+            else s.setLong(2, by);
+            s.setBoolean(3, complete);
+            s.setString(4, note == null ? "" : note);
+            s.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to record the event's roles and channels", e);
+        }
+    }
+
+    /** Forgets that the event's roles and channels were set up (they were removed). */
+    public void clearSpace(long eventId) {
+        String sql = "UPDATE younglings.event_setup SET space_applied_at = NULL, space_applied_by = NULL, space_complete = FALSE, space_note = '' WHERE event_id = ?";
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
+            s.setLong(1, eventId);
+            s.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to clear the event's roles and channels", e);
+        }
+    }
+
+    /** Records an organiser's decision on a player's verification. False when the player isn't in the event. */
+    public boolean setVerification(long eventId, long userId, EventRoster.Verification to, Long by, String note) {
+        String sql = """
+                UPDATE younglings.event_participant SET verification = ?, verified_by = ?, verified_at = NOW(), verification_note = ?
+                WHERE event_id = ? AND user_id = ?
+                """;
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
+            s.setString(1, to.name());
+            if (by == null) s.setNull(2, Types.BIGINT); else s.setLong(2, by);
+            s.setString(3, note == null ? "" : note);
+            s.setLong(4, eventId);
+            s.setLong(5, userId);
+            return s.executeUpdate() == 1;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to save the verification", e);
+        }
+    }
+
     /** Events hosted in {@code guildId} that {@code userId} is a player of (waiting or not), newest first. Drafts are never shown to players. */
     public List<Event> eventsForUser(long guildId, long userId, int limit) {
         List<Event> list = new ArrayList<>();
@@ -414,6 +748,73 @@ public class EventRepository {
             return list;
         } catch (SQLException e) {
             throw new RuntimeException("Failed to read a player's events", e);
+        }
+    }
+
+    /** A player an organiser removed and barred from taking part again, with the reason (shown to staff, and to the player if they try to come back). */
+    public record Ban(long userId, String reason, long bannedBy, Instant at) {}
+
+    /** Where a player on the roster came from: {@code SIGNUP} follows the event's Discord signup both ways, {@code SELF} joined on their own, {@code STAFF} was added by staff. */
+    public enum RosterSource { SIGNUP, SELF, STAFF }
+
+    public void setSource(long eventId, long userId, RosterSource source) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("UPDATE younglings.event_participant SET source = ? WHERE event_id = ? AND user_id = ?")) {
+            s.setString(1, source.name());
+            s.setLong(2, eventId);
+            s.setLong(3, userId);
+            s.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to note where a player came from", e);
+        }
+    }
+
+    public Optional<Ban> ban(long eventId, long userId) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("SELECT user_id, reason, banned_by, banned_at FROM younglings.event_ban WHERE event_id = ? AND user_id = ?")) {
+            s.setLong(1, eventId);
+            s.setLong(2, userId);
+            try (ResultSet rs = s.executeQuery()) {
+                return rs.next() ? Optional.of(new Ban(rs.getLong(1), rs.getString(2), rs.getLong(3), rs.getTimestamp(4).toInstant())) : Optional.empty();
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read a ban", e);
+        }
+    }
+
+    public List<Ban> bans(long eventId) {
+        List<Ban> list = new ArrayList<>();
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("SELECT user_id, reason, banned_by, banned_at FROM younglings.event_ban WHERE event_id = ? ORDER BY banned_at")) {
+            s.setLong(1, eventId);
+            try (ResultSet rs = s.executeQuery()) {
+                while (rs.next()) list.add(new Ban(rs.getLong(1), rs.getString(2), rs.getLong(3), rs.getTimestamp(4).toInstant()));
+            }
+            return list;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read the bans", e);
+        }
+    }
+
+    /** Bars a player from the event (or changes the reason of a ban that is already there). */
+    public void addBan(long eventId, long userId, String reason, long bannedBy) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("""
+                INSERT INTO younglings.event_ban (event_id, user_id, reason, banned_by) VALUES (?, ?, ?, ?)
+                ON CONFLICT (event_id, user_id) DO UPDATE SET reason = EXCLUDED.reason, banned_by = EXCLUDED.banned_by, banned_at = NOW()""")) {
+            s.setLong(1, eventId);
+            s.setLong(2, userId);
+            s.setString(3, reason);
+            s.setLong(4, bannedBy);
+            s.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to ban a player", e);
+        }
+    }
+
+    public boolean removeBan(long eventId, long userId) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("DELETE FROM younglings.event_ban WHERE event_id = ? AND user_id = ?")) {
+            s.setLong(1, eventId);
+            s.setLong(2, userId);
+            return s.executeUpdate() > 0;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to lift a ban", e);
         }
     }
 
@@ -460,6 +861,35 @@ public class EventRepository {
         }
     }
 
+    /** Every own-board message of the event, by subject ("t:<teamId>" or "u:<userId>"). */
+    public java.util.Map<String, EventBoards.Posted> boardPanels(long eventId) {
+        java.util.Map<String, EventBoards.Posted> map = new java.util.LinkedHashMap<>();
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("SELECT subject, channel_id, message_id, state_hash FROM younglings.event_board_panel WHERE event_id = ?")) {
+            s.setLong(1, eventId);
+            try (ResultSet rs = s.executeQuery()) {
+                while (rs.next()) map.put(rs.getString(1), new EventBoards.Posted(rs.getLong(2), rs.getLong(3), rs.getString(4)));
+            }
+            return map;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read the event's own boards", e);
+        }
+    }
+
+    public void setBoardPanel(long eventId, String subject, long channelId, long messageId, String hash) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("""
+                INSERT INTO younglings.event_board_panel (event_id, subject, channel_id, message_id, state_hash) VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT (event_id, subject) DO UPDATE SET channel_id = EXCLUDED.channel_id, message_id = EXCLUDED.message_id, state_hash = EXCLUDED.state_hash""")) {
+            s.setLong(1, eventId);
+            s.setString(2, subject);
+            s.setLong(3, channelId);
+            s.setLong(4, messageId);
+            s.setString(5, hash);
+            s.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to remember a board message", e);
+        }
+    }
+
     /** The message an event's live board is kept in. */
     public record Panel(long channelId, long messageId) {}
 
@@ -484,6 +914,20 @@ public class EventRepository {
             s.executeUpdate();
         } catch (SQLException e) {
             throw new RuntimeException("Failed to save an event's board message", e);
+        }
+    }
+
+    /** Remembers the receipt message posted for a claim in the player's own channel, so it can be updated when staff decide. */
+    public void setClaimReceipt(long eventId, long claimId, long channelId, long messageId) {
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("UPDATE younglings.event_claim SET receipt_channel_id = ?, receipt_message_id = ? WHERE event_id = ? AND id = ?")) {
+            s.setLong(1, channelId);
+            s.setLong(2, messageId);
+            s.setLong(3, eventId);
+            s.setLong(4, claimId);
+            s.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to update a claim's receipt", e);
         }
     }
 
@@ -691,12 +1135,23 @@ public class EventRepository {
      * same moment can't both get it.
      */
     public Optional<Boolean> join(long eventId, long userId, long guildId, Long teamId, Kind kind, BuyInStatus buyIn, int maxParticipants) {
+        return join(eventId, userId, guildId, teamId, kind, buyIn, maxParticipants, null);
+    }
+
+    /**
+     * As above, with a seat quota for the server the player came through ({@code guildId}, T-220): with {@code originQuota} set, the player only gets a
+     * place while that server's players hold fewer than that many; otherwise they wait. Null means no quota.
+     */
+    public Optional<Boolean> join(long eventId, long userId, long guildId, Long teamId, Kind kind, BuyInStatus buyIn, int maxParticipants, Integer originQuota) {
         String sql = """
                 INSERT INTO younglings.event_participant (event_id, user_id, guild_id, team_id, kind, status, buy_in_status)
                 SELECT ?, ?, ?, ?, ?,
-                       CASE WHEN ? = 0 OR (SELECT COUNT(*) FROM younglings.event_participant WHERE event_id = ? AND status = 'ACTIVE') < ? THEN 'ACTIVE' ELSE 'WAITING' END, ?
+                       CASE WHEN ? = 0 OR ((SELECT COUNT(*) FROM younglings.event_participant WHERE event_id = ? AND status = 'ACTIVE') < ?
+                                           AND (? < 0 OR (SELECT COUNT(*) FROM younglings.event_participant WHERE event_id = ? AND status = 'ACTIVE' AND guild_id = ?) < ?))
+                            THEN 'ACTIVE' ELSE 'WAITING' END, ?
                 ON CONFLICT DO NOTHING RETURNING status
                 """;
+        int quota = originQuota == null ? -1 : originQuota;
         try (Connection c = connectionSupplier.getConnection()) {
             c.setAutoCommit(false);
             try {
@@ -710,12 +1165,17 @@ public class EventRepository {
                     s.setInt(6, maxParticipants);
                     s.setLong(7, eventId);
                     s.setInt(8, maxParticipants);
-                    s.setString(9, buyIn.name());
+                    s.setInt(9, quota);
+                    s.setLong(10, eventId);
+                    s.setLong(11, guildId);
+                    s.setInt(12, quota);
+                    s.setString(13, buyIn.name());
                     Optional<Boolean> result;
                     try (ResultSet rs = s.executeQuery()) {
                         result = rs.next() ? Optional.of(rs.getString(1).equals("WAITING")) : Optional.empty();
                     }
                     c.commit();
+                    if (result.isPresent()) SiteInvalidator.signal(SiteInvalidator.Area.EVENTS);
                     return result;
                 }
             } catch (SQLException | RuntimeException e) {
@@ -738,6 +1198,26 @@ public class EventRepository {
     }
 
     /** Moves a waiting player into a place, if there is one free. False when they weren't waiting or the event filled up first. */
+    /**
+     * The seat quotas of an event's accepted co-hosts ({@code event_cohost.quota}, T-220), by server; a co-host without one isn't listed. The table and
+     * column belong to {@link EventCohostRepository}; they are read here so the queue can see them with the roster.
+     */
+    public java.util.Map<Long, Integer> cohostQuotas(long eventId) {
+        java.util.Map<Long, Integer> quotas = new java.util.LinkedHashMap<>();
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(
+                "SELECT guild_id, quota FROM younglings.event_cohost WHERE event_id = ? AND status = 'ACCEPTED' AND quota IS NOT NULL ORDER BY guild_id")) {
+            s.setLong(1, eventId);
+            try (ResultSet rs = s.executeQuery()) {
+                while (rs.next()) quotas.put(rs.getLong(1), rs.getInt(2));
+            }
+            return quotas;
+        } catch (SQLException e) {
+            // 42P01/42703: the co-host table or its quota column isn't there (a database EventCohostRepository hasn't set up yet), so nobody has a quota
+            if ("42P01".equals(e.getSQLState()) || "42703".equals(e.getSQLState())) return quotas;
+            throw new RuntimeException("Failed to read the co-hosts' seat quotas", e);
+        }
+    }
+
     public boolean promote(long eventId, long userId, int maxParticipants) {
         String sql = """
                 UPDATE younglings.event_participant SET status = 'ACTIVE'
@@ -927,25 +1407,164 @@ public class EventRepository {
     }
 
     public boolean leave(long eventId, long userId) {
-        try (Connection c = connectionSupplier.getConnection();
-             PreparedStatement s = c.prepareStatement("DELETE FROM younglings.event_participant WHERE event_id = ? AND user_id = ?")) {
-            s.setLong(1, eventId);
-            s.setLong(2, userId);
-            return s.executeUpdate() == 1;
+        try (Connection c = connectionSupplier.getConnection()) {
+            c.setAutoCommit(false);
+            try (PreparedStatement s = c.prepareStatement("DELETE FROM younglings.event_participant WHERE event_id = ? AND user_id = ?")) {
+                s.setLong(1, eventId);
+                s.setLong(2, userId);
+                boolean removed = s.executeUpdate() == 1;
+                clearStrayCaptains(c, eventId);
+                c.commit();
+                if (removed) SiteInvalidator.signal(SiteInvalidator.Area.EVENTS);
+                return removed;
+            } catch (SQLException | RuntimeException e) {
+                c.rollback();
+                throw e;
+            } finally {
+                c.setAutoCommit(true);
+            }
         } catch (SQLException e) {
             throw new RuntimeException("Failed to remove the player", e);
         }
     }
 
+    /** A team's captain has to be on it: whoever isn't any more (moved, taken off, or gone from the event) stops being captain. */
+    private static void clearStrayCaptains(Connection c, long eventId) throws SQLException {
+        try (PreparedStatement s = c.prepareStatement("""
+                UPDATE younglings.event_team t SET captain_id = NULL
+                WHERE t.event_id = ? AND t.captain_id IS NOT NULL
+                  AND NOT EXISTS (SELECT 1 FROM younglings.event_participant p WHERE p.event_id = t.event_id AND p.user_id = t.captain_id AND p.team_id = t.id)""")) {
+            s.setLong(1, eventId);
+            s.executeUpdate();
+        }
+    }
+
     public boolean setTeam(long eventId, long userId, Long teamId) {
-        try (Connection c = connectionSupplier.getConnection();
-             PreparedStatement s = c.prepareStatement("UPDATE younglings.event_participant SET team_id = ? WHERE event_id = ? AND user_id = ?")) {
-            if (teamId == null) s.setNull(1, Types.BIGINT); else s.setLong(1, teamId);
+        try (Connection c = connectionSupplier.getConnection()) {
+            c.setAutoCommit(false);
+            try (PreparedStatement s = c.prepareStatement("UPDATE younglings.event_participant SET team_id = ? WHERE event_id = ? AND user_id = ?")) {
+                if (teamId == null) s.setNull(1, Types.BIGINT); else s.setLong(1, teamId);
+                s.setLong(2, eventId);
+                s.setLong(3, userId);
+                boolean changed = s.executeUpdate() == 1;
+                clearStrayCaptains(c, eventId);
+                c.commit();
+                return changed;
+            } catch (SQLException | RuntimeException e) {
+                c.rollback();
+                throw e;
+            } finally {
+                c.setAutoCommit(true);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to change the team", e);
+        }
+    }
+
+    /**
+     * Puts many players on teams (or takes them off, a null team) in one go: all of it or none of it. Returns how many players were changed; a player who isn't
+     * in the event, or a team that doesn't exist for it, fails the whole change.
+     */
+    public int setTeams(long eventId, Map<Long, Long> teamOf) {
+        try (Connection c = connectionSupplier.getConnection()) {
+            c.setAutoCommit(false);
+            try {
+                lockParticipants(c, eventId);
+                int changed = 0;
+                try (PreparedStatement s = c.prepareStatement("UPDATE younglings.event_participant SET team_id = ? WHERE event_id = ? AND user_id = ?")) {
+                    for (Map.Entry<Long, Long> e : teamOf.entrySet()) {
+                        if (e.getValue() == null) s.setNull(1, Types.BIGINT); else s.setLong(1, e.getValue());
+                        s.setLong(2, eventId);
+                        s.setLong(3, e.getKey());
+                        changed += s.executeUpdate();
+                    }
+                }
+                if (changed != teamOf.size()) throw new SQLException("A player in the change isn't in the event");
+                clearStrayCaptains(c, eventId);
+                c.commit();
+                return changed;
+            } catch (SQLException | RuntimeException e) {
+                c.rollback();
+                throw e;
+            } finally {
+                c.setAutoCommit(true);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to change the teams", e);
+        }
+    }
+
+    /** Renames a team: 1 when done, 0 when the event has no such team, -1 when another team of the event already has that name. */
+    public int renameTeam(long eventId, long teamId, String name) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("UPDATE younglings.event_team SET name = ? WHERE event_id = ? AND id = ?")) {
+            s.setString(1, name);
+            s.setLong(2, eventId);
+            s.setLong(3, teamId);
+            return s.executeUpdate();
+        } catch (SQLException e) {
+            if ("23505".equals(e.getSQLState())) return -1;
+            throw new RuntimeException("Failed to rename the team", e);
+        }
+    }
+
+    /** Names a team's captain, who has to be an active player on that team (null for none). False when the team isn't there or the player isn't on it. */
+    public boolean setCaptain(long eventId, long teamId, Long captainId) {
+        String sql = """
+                UPDATE younglings.event_team SET captain_id = ?
+                WHERE event_id = ? AND id = ?
+                  AND (?::BIGINT IS NULL OR EXISTS (SELECT 1 FROM younglings.event_participant p WHERE p.event_id = ? AND p.user_id = ? AND p.team_id = ? AND p.status = 'ACTIVE'))
+                """;
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
+            // the captain is wanted three times (to set, to see whether there is one, and to find them on the team); the event and the team twice
+            for (int index : new int[]{1, 4, 6}) {
+                if (captainId == null) s.setNull(index, Types.BIGINT); else s.setLong(index, captainId);
+            }
+            s.setLong(2, eventId);
+            s.setLong(3, teamId);
+            s.setLong(5, eventId);
+            s.setLong(7, teamId);
+            return s.executeUpdate() == 1;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to set the captain", e);
+        }
+    }
+
+    /** Records how strong an organiser thinks a player is (1 to 5), or clears it with null. False when the player isn't in the event. */
+    public boolean setRating(long eventId, long userId, Integer rating) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("UPDATE younglings.event_participant SET rating = ? WHERE event_id = ? AND user_id = ?")) {
+            if (rating == null) s.setNull(1, Types.SMALLINT); else s.setInt(1, rating);
             s.setLong(2, eventId);
             s.setLong(3, userId);
             return s.executeUpdate() == 1;
         } catch (SQLException e) {
-            throw new RuntimeException("Failed to change the team", e);
+            throw new RuntimeException("Failed to save the rating", e);
+        }
+    }
+
+    /** Calls the teams final. False when they already were (so doing it twice can't say it worked). */
+    public boolean finaliseTeams(long eventId, long by) {
+        String sql = """
+                INSERT INTO younglings.event_setup (event_id, teams_finalised_at, teams_finalised_by) VALUES (?, NOW(), ?)
+                ON CONFLICT (event_id) DO UPDATE SET teams_finalised_at = NOW(), teams_finalised_by = EXCLUDED.teams_finalised_by
+                WHERE younglings.event_setup.teams_finalised_at IS NULL OR younglings.event_setup.teams_changed_at > younglings.event_setup.teams_finalised_at
+                """;
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
+            s.setLong(1, eventId);
+            s.setLong(2, by);
+            return s.executeUpdate() == 1;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to finalise the teams", e);
+        }
+    }
+
+    /** Takes back "the teams are final". False when they weren't. */
+    public boolean reopenTeams(long eventId) {
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("UPDATE younglings.event_setup SET teams_finalised_at = NULL, teams_finalised_by = NULL WHERE event_id = ? AND teams_finalised_at IS NOT NULL")) {
+            s.setLong(1, eventId);
+            return s.executeUpdate() == 1;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to reopen the teams", e);
         }
     }
 
@@ -1023,7 +1642,11 @@ public class EventRepository {
     // ---------- claims ----------
 
     public long addClaim(long eventId, String objectiveKey, long userId, long amount, String note, String proofUrl) {
-        String sql = "INSERT INTO younglings.event_claim (event_id, objective_key, user_id, amount, note, proof_url) VALUES (?, ?, ?, ?, ?, ?) RETURNING id";
+        return addClaim(eventId, ClaimKind.OBJECTIVE, objectiveKey, userId, amount, note, proofUrl);
+    }
+
+    public long addClaim(long eventId, ClaimKind kind, String objectiveKey, long userId, long amount, String note, String proofUrl) {
+        String sql = "INSERT INTO younglings.event_claim (event_id, objective_key, user_id, amount, note, proof_url, kind) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id";
         try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
             s.setLong(1, eventId);
             s.setString(2, objectiveKey);
@@ -1031,6 +1654,7 @@ public class EventRepository {
             s.setLong(4, amount);
             s.setString(5, note);
             if (proofUrl == null) s.setNull(6, Types.VARCHAR); else s.setString(6, proofUrl);
+            s.setString(7, kind.name());
             try (ResultSet rs = s.executeQuery()) {
                 rs.next();
                 return rs.getLong(1);
@@ -1044,6 +1668,11 @@ public class EventRepository {
         return claims("SELECT * FROM younglings.event_claim WHERE event_id = ? AND id = ?", eventId, id, null).stream().findFirst();
     }
 
+    /** A player's own claims in an event, newest first. */
+    public List<Claim> claimsOf(long eventId, long userId, int limit) {
+        return claims("SELECT * FROM younglings.event_claim WHERE event_id = ? AND user_id = ? ORDER BY id DESC LIMIT ?", eventId, userId, limit);
+    }
+
     public List<Claim> pendingClaims(long eventId, int limit) {
         return claims("SELECT * FROM younglings.event_claim WHERE event_id = ? AND status = 'PENDING' ORDER BY id LIMIT ?", eventId, null, limit);
     }
@@ -1052,9 +1681,18 @@ public class EventRepository {
         return claims("SELECT * FROM younglings.event_claim WHERE event_id = ? AND status <> 'PENDING' ORDER BY decided_at DESC, id DESC LIMIT ?", eventId, null, limit);
     }
 
+    /** The proof for tiles and objectives a player has waiting (verification proof is counted by {@link #pendingVerificationClaimsFor}). */
     public int pendingClaimsFor(long eventId, long userId) {
+        return countPending(eventId, userId, "OBJECTIVE");
+    }
+
+    public int pendingVerificationClaimsFor(long eventId, long userId) {
+        return countPending(eventId, userId, "VERIFICATION");
+    }
+
+    private int countPending(long eventId, long userId, String kind) {
         try (Connection c = connectionSupplier.getConnection();
-             PreparedStatement s = c.prepareStatement("SELECT COUNT(*) FROM younglings.event_claim WHERE event_id = ? AND user_id = ? AND status = 'PENDING'")) {
+             PreparedStatement s = c.prepareStatement("SELECT COUNT(*) FROM younglings.event_claim WHERE event_id = ? AND user_id = ? AND status = 'PENDING' AND kind = '" + kind + "'")) {
             s.setLong(1, eventId);
             s.setLong(2, userId);
             try (ResultSet rs = s.executeQuery()) {
@@ -1123,8 +1761,11 @@ public class EventRepository {
             if (userId != null) s.setLong(2, userId);
             try (ResultSet rs = s.executeQuery()) {
                 while (rs.next()) {
+                    Timestamp verifiedAt = rs.getTimestamp("verified_at");
                     list.add(new Participant(eventId, rs.getLong("user_id"), rs.getLong("guild_id"), nullableLong(rs, "team_id"), Kind.valueOf(rs.getString("kind")),
-                            rs.getString("status").equals("WAITING"), BuyInStatus.valueOf(rs.getString("buy_in_status")), rs.getTimestamp("joined_at").toInstant()));
+                            rs.getString("status").equals("WAITING"), BuyInStatus.valueOf(rs.getString("buy_in_status")), rs.getTimestamp("joined_at").toInstant(),
+                            EventRoster.Verification.valueOf(rs.getString("verification")), nullableLong(rs, "verified_by"), verifiedAt == null ? null : verifiedAt.toInstant(),
+                            rs.getString("verification_note"), nullableInt(rs, "rating"), RosterSource.valueOf(rs.getString("source"))));
                 }
             }
             return list;
@@ -1149,7 +1790,8 @@ public class EventRepository {
                     Timestamp decided = rs.getTimestamp("decided_at");
                     list.add(new Claim(rs.getLong("id"), eventId, rs.getString("objective_key"), rs.getLong("user_id"), rs.getLong("amount"), rs.getString("note"),
                             rs.getString("proof_url"), ClaimStatus.valueOf(rs.getString("status")), noBy ? null : by, rs.getString("decision_note"),
-                            noProgress ? null : progress, rs.getTimestamp("created_at").toInstant(), decided == null ? null : decided.toInstant()));
+                            noProgress ? null : progress, rs.getTimestamp("created_at").toInstant(), decided == null ? null : decided.toInstant(),
+                            ClaimKind.valueOf(rs.getString("kind")), nullableLong(rs, "receipt_channel_id"), nullableLong(rs, "receipt_message_id")));
                 }
             }
             return list;
@@ -1161,6 +1803,11 @@ public class EventRepository {
     /** A nullable BIGINT column, read so that SQL NULL stays null (wasNull() only speaks for the column read just before it). */
     private static Long nullableLong(ResultSet rs, String column) throws SQLException {
         long value = rs.getLong(column);
+        return rs.wasNull() ? null : value;
+    }
+
+    private static Integer nullableInt(ResultSet rs, String column) throws SQLException {
+        int value = rs.getInt(column);
         return rs.wasNull() ? null : value;
     }
 

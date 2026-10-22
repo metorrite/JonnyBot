@@ -1,5 +1,6 @@
 package com.younglings.bot.runescape;
 
+import com.younglings.bot.internal.SiteInvalidator;
 import io.github.freya022.botcommands.api.core.db.ConnectionSupplier;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import org.slf4j.Logger;
@@ -540,6 +541,7 @@ public class PlayerLinkRepository {
                 }
                 connection.commit();
                 log.info("Renamed account '{}' to '{}' (link {} in guild {})", oldRsn, newRsn, linkId, guildId);
+                SiteInvalidator.signal(SiteInvalidator.Area.ROSTER);
             } catch (SQLException | RuntimeException e) {
                 connection.rollback();
                 throw e;
@@ -624,6 +626,7 @@ public class PlayerLinkRepository {
                 }
                 connection.commit();
                 log.info("Unlinked player_link {} in guild {}", linkId, guildId);
+                SiteInvalidator.signal(SiteInvalidator.Area.ROSTER);
             } catch (SQLException | RuntimeException e) {
                 connection.rollback();
                 throw e;
@@ -963,6 +966,37 @@ public class PlayerLinkRepository {
         } catch (SQLException e) {
             log.error("Failed to get latest snapshot for '{}'", rsn, e);
             throw new RuntimeException("Failed to get latest stats snapshot", e);
+        }
+    }
+
+    /**
+     * The most recent snapshot of each of these names at once (a name that has never been polled is missing from the answer), keyed by the lower-cased name. One
+     * query for a whole roster instead of one per player.
+     */
+    public java.util.Map<String, StatsSnapshotRow> getLatestSnapshots(java.util.Collection<String> rsns) {
+        java.util.Map<String, StatsSnapshotRow> results = new java.util.HashMap<>();
+        if (rsns.isEmpty()) return results;
+        String sql = """
+                SELECT DISTINCT ON (LOWER(rsn)) LOWER(rsn) AS key, snapshot_id, snapshot_at, total_level, total_xp, combat_level,
+                       quests_complete, quests_started, quests_not_started
+                FROM younglings.player_stats_snapshot
+                WHERE LOWER(rsn) = ANY (?)
+                ORDER BY LOWER(rsn), snapshot_at DESC
+                """;
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setArray(1, connection.createArrayOf("text", rsns.stream().map(r -> r.toLowerCase(java.util.Locale.ROOT)).distinct().toArray()));
+
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) results.put(rs.getString("key"), mapSnapshotRow(rs));
+            }
+            return results;
+
+        } catch (SQLException e) {
+            log.error("Failed to get the latest snapshots of {} names", rsns.size(), e);
+            throw new RuntimeException("Failed to get the latest stats snapshots", e);
         }
     }
 

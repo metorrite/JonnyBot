@@ -4,6 +4,7 @@ import com.younglings.bot.combat.CombatAchievementModels.Achievement;
 import com.younglings.bot.combat.CombatAchievementRepository;
 import com.younglings.bot.commands.ticket.HelpRules;
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
 import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.JDASlashCommand;
@@ -43,12 +44,12 @@ public class CombatAchievementCommand {
                      @SlashOption(description = "Only this tier (narrows the suggestions)", autocomplete = TIERS) @Nullable String tier) {
         String bossName = canonicalBoss(boss);
         if (bossName == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "I don't know a boss or activity called **" + boss.strip() + "**. Start typing it and pick one of the suggestions.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "combat.i_don_t_know_a_boss", boss.strip()));
             return;
         }
         Integer tierNumber = tierNumber(tier);
         if (tier != null && !tier.isBlank() && tierNumber == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "**" + tier.strip() + "** isn't a tier. Choose Easy, Medium, Hard, Elite, Master or Grandmaster.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "combat.isn_t_a_tier_choose_easy", tier.strip()));
             return;
         }
 
@@ -65,11 +66,10 @@ public class CombatAchievementCommand {
         if (matches.size() == 1) {
             event.replyComponents(CombatAchievementView.card(matches.getFirst())).useComponentsV2(true).queue();
         } else if (matches.isEmpty()) {
-            Containers.replyEphemeral(event, Containers.WARNING, "**" + where + "** has no achievement called **" + wanted + "**. Start typing it and pick one of the suggestions.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "combat.has_no_achievement_called_start_typing", where, wanted));
         } else {
             String list = String.join("\n", matches.stream().limit(SUGGESTIONS_SHOWN).map(a -> "• **" + a.name() + "** (" + a.tier() + ")").toList());
-            Containers.replyEphemeral(event, Containers.INFO, "Several **" + where + "** achievements match **" + wanted + "**. Try one of these:\n" + list
-                    + (matches.size() > SUGGESTIONS_SHOWN ? "\n…and more." : ""));
+            Containers.replyEphemeral(event, Containers.INFO, Text.of(event, "combat.several_achievements_match_try_one_of", where, wanted, list, (matches.size() > SUGGESTIONS_SHOWN ? Text.of(event, "combat.and_more") : "")));
         }
     }
 

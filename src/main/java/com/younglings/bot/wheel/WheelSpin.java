@@ -28,15 +28,22 @@ public final class WheelSpin {
 
     /** A GIF over this size won't upload to Discord (about 10 MB for most servers), so a bigger spin is redrawn smaller. */
     static final int GIF_LIMIT_BYTES = 9 * 1024 * 1024;
-    private static final int HOLD_MS = 4000;
+    /**
+     * The timing, the same as the website's wheel GIF (src/lib/wheelGif.ts) so the two look alike: a short pause on the still wheel, a 3.5 second spin
+     * that starts fast and settles on the winner, and a short hold with the winner named. About five seconds in all.
+     */
+    static final int INITIAL_PAUSE_MS = 300;
+    static final int HOLD_MS = 1200;
     private static final double TURNS = 3;
-    private static final double SPIN_SECONDS = 4.5;
+    static final double SPIN_SECONDS = 3.5;
     /** The slow-down curve: the wheel starts fast and the speed falls away to nothing as it settles on the winner. */
-    private static final double EASE_POWER = 2.4;
+    private static final double EASE_POWER = 2.6;
     /** The most the wheel may turn between two frames, so fast turning still reads as turning. */
-    private static final double MAX_STEP_RADIANS = 0.2;
+    private static final double MAX_STEP_RADIANS = 0.1;
+    /** GIF players show no frame for less than 20 ms, so that is the fastest a frame can usefully be. */
     private static final int MIN_FRAME_MS = 20;
-    private static final int MAX_FRAME_MS = 110;
+    /** Slow frames stay short enough that the last stretch still creeps instead of jumping. */
+    private static final int MAX_FRAME_MS = 60;
 
     private WheelSpin() {}
 
@@ -100,10 +107,10 @@ public final class WheelSpin {
         return frames;
     }
 
-    private static List<Integer> delays(double startAngle, double endAngle) {
+    static List<Integer> delays(double startAngle, double endAngle) {
         List<Double> times = times(startAngle, endAngle);
         List<Integer> delays = new ArrayList<>();
-        for (int i = 0; i + 1 < times.size(); i++) delays.add((int) Math.round((times.get(i + 1) - times.get(i)) * 1000));
+        for (int i = 0; i + 1 < times.size(); i++) delays.add(i == 0 ? INITIAL_PAUSE_MS : (int) Math.round((times.get(i + 1) - times.get(i)) * 1000));
         delays.add(MIN_FRAME_MS); // the last turning frame, then the one that holds
         delays.add(HOLD_MS);
         return delays;

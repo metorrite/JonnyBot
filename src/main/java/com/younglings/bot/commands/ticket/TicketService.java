@@ -1,9 +1,11 @@
 package com.younglings.bot.commands.ticket;
 
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.permission.AdminRoleFilter;
 import com.younglings.bot.permission.MemberAccess;
 import com.younglings.bot.runescape.PlayerLink;
 import com.younglings.bot.runescape.PlayerLinkService;
+import com.younglings.bot.ticket.HelpExtrasRepository;
 import com.younglings.bot.ticket.TicketModels.Answer;
 import com.younglings.bot.ticket.TicketModels.Field;
 import com.younglings.bot.ticket.TicketModels.HelpSettings;
@@ -70,14 +72,26 @@ public class TicketService {
     private final AdminRoleFilter adminRoleFilter;
     private final MemberAccess memberAccess;
     private final HelpPingService helpPings;
+    private final HelpExtrasRepository extras;
+    private final TicketRelatedNotice relatedNotice;
+    private final GuestKillCount guestKills;
 
     public TicketService(TicketRepository repository, PlayerLinkService linkService, AdminRoleFilter adminRoleFilter, MemberAccess memberAccess,
-                         HelpPingService helpPings) {
+                         HelpPingService helpPings, HelpExtrasRepository extras, TicketRelatedNotice relatedNotice, GuestKillCount guestKills) {
+        this.relatedNotice = relatedNotice;
+        this.guestKills = guestKills;
         this.repository = repository;
         this.linkService = linkService;
         this.adminRoleFilter = adminRoleFilter;
         this.memberAccess = memberAccess;
         this.helpPings = helpPings;
+        this.extras = extras;
+    }
+
+    /** The optional buttons this server switched on, for a ticket of this panel (help panels only; ordinary and Informational panels never get them). */
+    TicketView.Extras extrasFor(long guildId, Panel panel) {
+        if (panel == null || !panel.isHelpPanel()) return TicketView.Extras.NONE;
+        return new TicketView.Extras(extras.get(guildId).eventButton());
     }
 
     // ================= the form =================
@@ -114,14 +128,13 @@ public class TicketService {
 
     /** Why this person can't open a ticket on this panel right now, or empty if they can. */
     public Optional<String> cannotOpen(Guild guild, long userId, Panel panel, List<Field> fields) {
-        if (!panel.enabled()) return Optional.of("This ticket type isn't accepting new tickets right now.");
-        if (fields.size() > TicketRules.MAX_FIELDS) return Optional.of("This ticket form is set up incorrectly — an admin needs to fix it.");
-        if (fields.isEmpty()) return Optional.of("This ticket form has no questions yet — an admin needs to set it up.");
+        if (!panel.enabled()) return Optional.of(Text.of(guild, "ticket.not_accepting"));
+        if (fields.size() > TicketRules.MAX_FIELDS) return Optional.of(Text.of(guild, "ticket.form_set_up_incorrectly"));
+        if (fields.isEmpty()) return Optional.of(Text.of(guild, "ticket.form_has_no_questions"));
 
         int open = repository.countOpenFor(guild.getIdLong(), panel.id(), userId);
         if (open >= panel.perUserLimit()) {
-            return Optional.of(panel.perUserLimit() == 1 ? "You already have an open ticket of this type — close it first."
-                    : "You already have " + open + " open tickets of this type — close one first.");
+            return Optional.of(panel.perUserLimit() == 1 ? Text.of(guild, "ticket.already_open_one") : Text.of(guild, "ticket.already_open_many", open));
         }
         return Optional.empty();
     }
@@ -163,14 +176,17 @@ public class TicketService {
                         Ticket withChannel = repository.getTicket(ticket.id());
                         long[] mentioned = java.util.stream.LongStream.concat(java.util.stream.LongStream.of(requester.getIdLong()),
                                 pingUsers.stream().mapToLong(Long::longValue)).toArray();
-                        return channel.sendMessage(TicketView.opening(panel, withChannel, rsnsOf(guild.getIdLong(), requester.getIdLong()), List.of(), plan.role(), pingUsers).toCreate())
+                        return channel.sendMessage(TicketView.opening(panel, withChannel, rsnsOf(guild.getIdLong(), requester.getIdLong()), List.of(), plan.role(), pingUsers, extrasFor(guild.getIdLong(), panel)).toCreate())
                                 .setAllowedMentions(EnumSet.noneOf(Message.MentionType.class))
                                 .mentionUsers(mentioned)
                                 .mentionRoles(plan.role() == null ? new long[0] : new long[]{plan.role()})
                                 .submit()
                                 .thenApply(message -> {
                                     repository.setWelcomeMessage(ticket.id(), message.getIdLong());
-                                    return repository.getTicket(ticket.id());
+                                    Ticket made = repository.getTicket(ticket.id());
+                                    // group content: tell helpers and staff when someone else asked about the same boss (does nothing unless switched on)
+                                    relatedNotice.announce(made, panel, channel);
+                                    return made;
                                 });
                     });
                 })
@@ -195,17 +211,49 @@ public class TicketService {
         if (!panel.isHelpPanel()) return new PingPlan(role, CompletableFuture.completedFuture(List.of()), null);
 
         HelpSettings settings = repository.getHelpSettings(guild.getIdLong());
-        HelpRules.Pings pings = HelpRules.pingsFor(settings, memberAccess.isMemberTier(guild, requester));
+        // clan members first, then longtime guests, then new guests, when the server switched priority tiers on
+        HelpPriority.Tier priority = priorityOf(guild, requester);
+        HelpRules.Pings pings = HelpPriority.pingsFor(settings, extras.get(guild.getIdLong()), priority);
         CompletableFuture<List<Long>> users = pings.pingOnOpen()
                 ? helpPings.usersFor(guild, settings, HelpRules.tierOf(fields, rawValues))
                 : CompletableFuture.completedFuture(List.of());
         return new PingPlan(null, users, pings.escalationHours() == null ? 0 : pings.escalationHours());
     }
 
-    /** The reason a guest's form can't open a ticket yet (a Master or Grandmaster request with no earlier attempts), or empty if it can. */
+    private HelpPriority.Tier priorityOf(Guild guild, Member requester) {
+        return HelpPriority.tierOf(memberAccess.isMemberTier(guild, requester), requester.getTimeJoined(), Instant.now(), extras.get(guild.getIdLong()));
+    }
+
+    /**
+     * The reason a guest's form can't open a ticket yet, or empty if it can: a Master or Grandmaster request with no earlier attempts, or (with priority tiers on and
+     * a kill count named for the tier) a new guest whose tracked kills fall short and who hasn't described their attempts. Missing data never blocks anyone: it only
+     * asks for the description.
+     */
     public Optional<String> attemptsProblem(Guild guild, Member requester, Panel panel, List<Field> fields, Map<Long, String> rawValues) {
         if (panel.helpKind() != com.younglings.bot.ticket.TicketModels.HelpKind.CA) return Optional.empty();
-        return HelpRules.attemptsProblem(repository.getHelpSettings(guild.getIdLong()), panel, fields, rawValues, memberAccess.isMemberTier(guild, requester));
+        HelpSettings settings = repository.getHelpSettings(guild.getIdLong());
+        boolean member = memberAccess.isMemberTier(guild, requester);
+        Optional<String> plain = HelpRules.attemptsProblem(settings, panel, fields, rawValues, member);
+        if (plain.isPresent() || member) return plain;
+
+        com.younglings.bot.ticket.HelpExtras e = extras.get(guild.getIdLong());
+        if (!e.priorityTiers()) return Optional.empty();
+        HelpPriority.Tier tier = priorityOf(guild, requester);
+        String tierLabel = HelpRules.tierOf(fields, rawValues);
+        if (tier != HelpPriority.Tier.NEW_GUEST || tierLabel == null || e.kcRequirement(tierLabel) == null) return Optional.empty();
+        String boss = TicketEventPlan.answerFor(fields, rawAnswers(fields, rawValues), com.younglings.bot.ticket.TicketModels.FieldPurpose.BOSS);
+        java.util.OptionalInt tracked = guestKills.count(guild.getIdLong(), requester.getIdLong(), boss);
+        if (!HelpPriority.needsAttemptsForKc(e, tier, tierLabel, tracked)) return Optional.empty();
+        String note = tracked.isPresent() ? " We can see " + tracked.getAsInt() + " tracked kills of " + boss + " and " + e.kcRequirement(tierLabel) + " are wanted for new guests."
+                : " Kill counts of " + e.kcRequirement(tierLabel) + " are wanted for new guests and we can't see yours.";
+        return HelpRules.attemptsProblem(HelpPriority.requiringAttemptsFor(settings, tierLabel), panel, fields, rawValues, false).map(message -> message + note);
+    }
+
+    /** The boss question's answer, as the form sent it, in the shape the answer helpers read. */
+    private static List<Answer> rawAnswers(List<Field> fields, Map<Long, String> rawValues) {
+        List<Answer> answers = new ArrayList<>();
+        for (Field field : fields) answers.add(new Answer(field.label(), rawValues.get(field.id())));
+        return answers;
     }
 
     private static String displayAnswer(Field field, String raw) {
@@ -246,7 +294,7 @@ public class TicketService {
                         var container = TicketView.welcome(panel, ticket, rsns, helpers, pingRole);
                         message.editMessageComponents(container).useComponentsV2(true).queue(null, error -> log.warn("Couldn't update ticket {}'s message", ticket.id(), error));
                     } else {
-                        message.editMessage(TicketView.opening(panel, ticket, rsns, helpers, pingRole, pingUsers).toEdit()).queue(null, error -> log.warn("Couldn't update ticket {}'s message", ticket.id(), error));
+                        message.editMessage(TicketView.opening(panel, ticket, rsns, helpers, pingRole, pingUsers, extrasFor(guild.getIdLong(), panel)).toEdit()).queue(null, error -> log.warn("Couldn't update ticket {}'s message", ticket.id(), error));
                     }
                 },
                 error -> log.warn("Couldn't find ticket {}'s opening message", ticket.id()));
@@ -349,7 +397,7 @@ public class TicketService {
         }
         if (settings.transcriptDm()) {
             guild.getJDA().retrieveUserById(ticket.requesterId()).queue(user -> user.openPrivateChannel()
-                    .flatMap(dm -> dm.sendMessage("Here's the record of your ticket.").addFiles(FileUpload.fromData(bytes, fileName)))
+                    .flatMap(dm -> dm.sendMessage(Text.of(guild, "ticket.transcript_dm")).addFiles(FileUpload.fromData(bytes, fileName)))
                     .queue(null, new ErrorHandler().ignore(ErrorResponse.CANNOT_SEND_TO_USER)
                             .handle(Throwable.class, error -> log.debug("Couldn't DM ticket {}'s transcript", ticket.id(), error))), error -> {});
         }

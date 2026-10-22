@@ -1,6 +1,7 @@
 package com.younglings.bot.runescape;
 
 import com.younglings.bot.config.BotConfig;
+import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -13,9 +14,7 @@ import java.time.Duration;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -45,12 +44,7 @@ public class ClanSyncScheduler {
 
     private final ClanSyncService clanSyncService;
     private final BotConfig botConfig;
-    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(
-            (ThreadFactory) runnable -> {
-                Thread thread = new Thread(runnable, "clan-sync-scheduler");
-                thread.setDaemon(true);
-                return thread;
-            });
+    private final ScheduledExecutorService executor = BotScheduler.lane("clan-sync-scheduler");
 
     public ClanSyncScheduler(ClanSyncService clanSyncService, BotConfig botConfig) {
         this.clanSyncService = clanSyncService;
@@ -78,17 +72,28 @@ public class ClanSyncScheduler {
     }
 
     private void runForAllGuilds(JDA jda) {
-        for (Guild guild : jda.getGuilds()) {
-            if (clanSyncService.getClanName(guild.getIdLong()) == null) continue; // nothing configured to sync
-
+        for (var group : groupByClan(jda.getGuilds(), clanSyncService::getClanName).values()) {
             try {
-                var result = clanSyncService.syncAndPoll(guild);
-                log.info("Scheduled clan sync for guild {}: {} in roster ({} new, {} departed), {}/{} updated successfully.",
-                        guild.getIdLong(), result.rosterSize(), result.newMembers(), result.departedMembers(),
-                        result.polled(), result.rosterSize());
+                var results = clanSyncService.syncAndPollGroup(group);
+                results.forEach((guildId, result) -> log.info("Scheduled clan sync for guild {}: {} in roster ({} new, {} departed), {}/{} updated successfully.",
+                        guildId, result.rosterSize(), result.newMembers(), result.departedMembers(), result.polled(), result.rosterSize()));
             } catch (Exception e) {
-                log.error("Scheduled clan sync failed for guild {}", guild.getIdLong(), e);
+                log.error("Scheduled clan sync failed for the clan of guild {}", group.get(0).getIdLong(), e);
             }
         }
+    }
+
+    /**
+     * The servers that have set up a clan, grouped by clan (by {@link ClanSyncService#clanKey}), so a clan that is set up in two servers is fetched and
+     * polled once. A server with no clan is left out.
+     */
+    static java.util.Map<String, java.util.List<Guild>> groupByClan(java.util.Collection<Guild> guilds, java.util.function.Function<Long, String> clanNameOf) {
+        java.util.Map<String, java.util.List<Guild>> groups = new java.util.LinkedHashMap<>();
+        for (Guild guild : guilds) {
+            String clan = clanNameOf.apply(guild.getIdLong());
+            if (clan == null) continue; // nothing configured to sync
+            groups.computeIfAbsent(ClanSyncService.clanKey(clan), k -> new java.util.ArrayList<>()).add(guild);
+        }
+        return groups;
     }
 }

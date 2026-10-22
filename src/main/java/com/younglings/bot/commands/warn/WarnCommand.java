@@ -1,5 +1,9 @@
 package com.younglings.bot.commands.warn;
 
+import com.younglings.bot.i18n.Text;
+import com.younglings.bot.moderation.ModAction;
+import com.younglings.bot.moderation.ModCase;
+import com.younglings.bot.moderation.ModService;
 import com.younglings.bot.discord.Containers;
 import com.younglings.bot.warning.AutopunishService;
 import com.younglings.bot.warning.WarnPolicy;
@@ -23,8 +27,10 @@ import java.util.List;
 public class WarnCommand {
     private final WarningRepository repository;
     private final AutopunishService autopunish;
+    private final ModService mod;
 
-    public WarnCommand(WarningRepository repository, AutopunishService autopunish) {
+    public WarnCommand(WarningRepository repository, AutopunishService autopunish, ModService mod) {
+        this.mod = mod;
         this.repository = repository;
         this.autopunish = autopunish;
     }
@@ -45,6 +51,7 @@ public class WarnCommand {
         long guildId = event.getGuild().getIdLong();
         long id = repository.add(guildId, member.getIdLong(), event.getUser().getIdLong(), text);
         int total = repository.countFor(guildId, member.getIdLong());
+        mod.recordOnly(event.getGuild(), member.getIdLong(), member.getUser().getName(), event.getUser().getIdLong(), moderator.getEffectiveName(), ModAction.WARN, text, null, ModCase.WARN);
         member.getUser().openPrivateChannel()
                 .flatMap(channel -> channel.sendMessage("You have been warned in **" + event.getGuild().getName() + "**: " + text))
                 .queue(ok -> {}, error -> {});
@@ -60,7 +67,7 @@ public class WarnCommand {
     public void onList(GuildSlashEvent event, @SlashOption(description = "Whose warnings") Member member) {
         List<Warning> warnings = repository.forUser(event.getGuild().getIdLong(), member.getIdLong());
         if (warnings.isEmpty()) {
-            Containers.replyEphemeral(event, Containers.INFO, member.getAsMention() + " has no warnings.");
+            Containers.replyEphemeral(event, Containers.INFO, Text.of(event, "warn.has_no_warnings", member.getAsMention()));
             return;
         }
         List<String> lines = new java.util.ArrayList<>();
@@ -76,9 +83,9 @@ public class WarnCommand {
     @JDASlashCommand(name = "warn", subcommand = "remove", description = "Take back a warning")
     public void onRemove(GuildSlashEvent event, @SlashOption(description = "Its number, from /warn list") long id) {
         if (repository.delete(event.getGuild().getIdLong(), id)) {
-            Containers.replyEphemeral(event, Containers.SUCCESS, "Removed warning #" + id + ".");
+            Containers.replyEphemeral(event, Containers.SUCCESS, Text.of(event, "warn.removed_warning", id));
         } else {
-            Containers.replyEphemeral(event, Containers.WARNING, "This server has no warning #" + id + ".");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "warn.this_server_has_no_warning", id));
         }
     }
 }

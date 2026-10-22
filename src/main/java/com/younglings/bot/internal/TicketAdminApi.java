@@ -1,5 +1,7 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.access.AccessArea;
+import com.younglings.bot.access.AccessGrantService;
 import com.younglings.bot.beta.BetaAccessService;
 
 import com.sun.net.httpserver.HttpExchange;
@@ -8,6 +10,7 @@ import com.younglings.bot.commands.ticket.HelpPanels;
 import com.younglings.bot.commands.ticket.HelpRules;
 import com.younglings.bot.commands.ticket.TicketRules;
 import com.younglings.bot.commands.ticket.TicketService;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminJson.BadRequest;
 import com.younglings.bot.permission.DashboardAccess;
 import com.younglings.bot.permission.DashboardAccess.Tier;
@@ -79,10 +82,12 @@ public class TicketAdminApi {
     private final ImageAdminApi imageAdmin;
     private final List<AdminRouteExtension> extensions;
     private final BetaAccessService betaAccess;
+    private final AccessGrantService accessGrants;
 
     public TicketAdminApi(DashboardAccess access, TicketRepository repository, TicketService service, ClanAdminApi clanAdmin, CommunityAdminApi communityAdmin, AdminOpsApi ops, AdminToolsStore auditStore,
                           HelpOnboarding onboarding, HelpPanels helpPanels, WelcomeAdminApi welcomeAdmin, ServerSetupAdminApi serverSetup, PermissionsAdminApi permissions, HubAdminApi hubAdmin, OverviewAdminApi overviewAdmin, ImageAdminApi imageAdmin, BetaAccessService betaAccess,
-                          List<AdminRouteExtension> extensions) {
+                          AccessGrantService accessGrants, List<AdminRouteExtension> extensions) {
+        this.accessGrants = accessGrants;
         this.extensions = extensions;
         log.info("Admin API ready with {} route extension(s): {}", extensions.size(), extensions.stream().map(e -> e.getClass().getSimpleName()).toList());
         this.betaAccess = betaAccess;
@@ -129,20 +134,28 @@ public class TicketAdminApi {
 
             Member actor = actorOf(exchange, guild);
             Tier tier = actor == null ? Tier.NONE : access.tierOf(guild, actor);
+            boolean coordinator = actor != null && tier == Tier.NONE && access.isEventCoordinator(guild, actor);
 
             // whoami is the one route that answers "no" with a 200: the website uses it to decide what to show.
             if (parts.length == 1 && parts[0].equals("whoami")) {
                 requireMethod(method, "GET");
                 DataObject who = whoami(guild, actor, tier);
+                // An Event coordinator is not allowed in the dashboard as such (allowed stays false); the website lets them into the event manager only.
+                if (coordinator) who.put("coordinator", true).put("guildId", guild.getId()).put("guildName", guild.getName()).put("guildIconUrl", guild.getIconUrl());
                 if (actor != null && tier != Tier.NONE) who.put("isOwner", overviewAdmin.isOwner(guild, actor.getIdLong()));
                 // Whether this person may use JonnyBot's website while it is closed: the clan's own admins, or admins of a trusted beta server.
                 // Worked out from the asker's id alone, because a beta tester usually isn't a member of the clan's server.
                 long askerId = actorIdOf(exchange);
-                who.put("beta", tier != Tier.NONE || (askerId != 0 && betaAccess.managesAnyBetaGuild(guild.getJDA(), askerId)));
+                boolean beta = tier != Tier.NONE || (askerId != 0 && betaAccess.managesAnyBetaGuild(guild.getJDA(), askerId));
+                who.put("beta", beta);
+                // Per restricted area: the beta rule above, or a grant on the owner's access list for that area. Fails closed.
+                DataObject areas = DataObject.empty();
+                for (AccessArea area : AccessArea.values()) areas.put(area.key(), beta || accessGrants.allows(guild.getJDA(), area, askerId));
+                who.put("areas", areas);
                 InternalApiServer.sendJson(exchange, 200, who);
                 return;
             }
-            if (tier == Tier.NONE) {
+            if (tier == Tier.NONE && !(coordinator && DashboardAccess.coordinatorMayUse(method, parts))) {
                 InternalApiServer.sendJson(exchange, 403, DataObject.empty().put("error", "You don't have access to the dashboard."));
                 return;
             }
@@ -186,9 +199,10 @@ public class TicketAdminApi {
                     Member member = memberIn(guild, actorId);
                     if (member == null) continue;
                     Tier tier = access.tierOf(guild, member);
-                    if (tier == Tier.NONE) continue;
+                    boolean coordinator = tier == Tier.NONE && access.isEventCoordinator(guild, member);
+                    if (tier == Tier.NONE && !coordinator) continue;
                     guilds.add(DataObject.empty().put("id", guild.getId()).put("name", guild.getName()).put("iconUrl", guild.getIconUrl())
-                            .put("memberCount", guild.getMemberCount()).put("tier", tier.name()));
+                            .put("memberCount", guild.getMemberCount()).put("tier", coordinator ? "COORDINATOR" : tier.name()));
                 }
             }
             InternalApiServer.sendJson(exchange, 200, DataObject.empty().put("guilds", guilds));
@@ -231,12 +245,12 @@ public class TicketAdminApi {
             json.put("id", actor.getId()).put("displayName", actor.getEffectiveName()).put("avatarUrl", actor.getEffectiveAvatarUrl());
         }
         // which server this answer is about; only given to someone allowed in, so it never names a server to a stranger
-        if (tier != Tier.NONE) json.put("guildName", guild.getName()).put("guildIconUrl", guild.getIconUrl());
+        if (tier != Tier.NONE) json.put("guildId", guild.getId()).put("guildName", guild.getName()).put("guildIconUrl", guild.getIconUrl());
         return json;
     }
 
     private static void requireMethod(String actual, String expected) {
-        if (!actual.equals(expected)) throw new ApiError(405, "Method not allowed");
+        if (!actual.equals(expected)) throw new ApiError(405, Text.en("dashboard.method_not_allowed"));
     }
 
     // ---------- routing ----------
@@ -247,7 +261,7 @@ public class TicketAdminApi {
             requireMethod(method, "GET");
             return structure(guild);
         }
-        if (!method.equals("GET") && !adminWrites.tryAcquire(actor.getId())) throw new ApiError(429, "You're doing that too fast — give it a moment.");
+        if (!method.equals("GET") && !adminWrites.tryAcquire(actor.getId())) throw new ApiError(429, Text.of(guild, "dashboard.you_re_doing_that_too_fast"));
 
         DataObject opsResult = opsRoute(exchange, guild, actor, method, parts);
         if (opsResult != null) return opsResult;
@@ -417,6 +431,9 @@ public class TicketAdminApi {
             }
             case "health" -> {
                 requireMethod(method, "GET");
+                // The whole bot's health (gateway, database, memory, polling of every server) is for the bot's owner only; a server's own
+                // summary is on the Overview.
+                if (!overviewAdmin.isOwner(guild, actor.getIdLong())) throw new ApiError(403, Text.of(guild, "dashboard.only_the_bot_owner_can_see_3"));
                 return ops.health(guild);
             }
             case "polling" -> {
@@ -500,7 +517,7 @@ public class TicketAdminApi {
                 byte[] bytes = in.readAllBytes();
                 body = bytes.length == 0 ? DataObject.empty() : DataObject.fromJson(bytes);
             } catch (Exception e) {
-                throw new ApiError(400, "The request body isn't valid JSON.");
+                throw new ApiError(400, Text.of(guild, "dashboard.the_request_body_isn_t_valid"));
             }
             return communityAdmin.signupAction(guild, actor, idOf(parts[1]), parts[2], body);
         }
@@ -520,7 +537,7 @@ public class TicketAdminApi {
                 case "GET" -> panelDetail(guild, panelId);
                 case "PUT" -> savePanel(exchange, guild, actor, panelId);
                 case "DELETE" -> deletePanel(guild, actor, panelId);
-                default -> throw new ApiError(405, "Method not allowed");
+                default -> throw new ApiError(405, Text.of(guild, "dashboard.method_not_allowed"));
             };
         }
         if (parts.length == 4 && parts[3].equals("post")) {
@@ -534,7 +551,7 @@ public class TicketAdminApi {
         try {
             return Long.parseLong(raw);
         } catch (NumberFormatException e) {
-            throw new ApiError(400, "That isn't a valid id.");
+            throw new ApiError(400, Text.en("dashboard.that_isn_t_a_valid_id"));
         }
     }
 
@@ -542,7 +559,7 @@ public class TicketAdminApi {
         try (var in = exchange.getRequestBody()) {
             return DataObject.fromJson(in);
         } catch (Exception e) {
-            throw new ApiError(400, "The request body isn't valid JSON.");
+            throw new ApiError(400, Text.en("dashboard.the_request_body_isn_t_valid"));
         }
     }
 
@@ -632,7 +649,7 @@ public class TicketAdminApi {
         if (updated.closeDelaySeconds() < 0 || updated.closeDelaySeconds() > 300) problems.add("The close delay must be between 0 and 300 seconds.");
         if (updated.transcriptRetentionDays() != null && (updated.transcriptRetentionDays() < 1 || updated.transcriptRetentionDays() > 3650)) problems.add("Transcript retention must be between 1 and 3650 days.");
         if (!com.younglings.bot.ticket.TicketInactivity.validDays(updated.autoCloseDays())) problems.add("Tickets can close themselves after between 1 and " + com.younglings.bot.ticket.TicketInactivity.MAX_DAYS + " days of silence, or never.");
-        if (!problems.isEmpty()) throw new ApiError(400, "Those settings can't be saved.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.those_settings_can_t_be_saved_2"), problems);
 
         repository.saveSettings(updated);
         log.info("Dashboard: {} updated ticket settings", actor.getId());
@@ -662,7 +679,7 @@ public class TicketAdminApi {
     private DataObject helpSettingsResponse(Guild guild) {
         DataArray panels = DataArray.empty();
         for (Panel panel : repository.getPanels(guild.getIdLong())) {
-            if (!panel.isHelpPanel()) continue;
+            if (panel.helpKind() == com.younglings.bot.ticket.TicketModels.HelpKind.NONE) continue;
             panels.add(DataObject.empty()
                     .put("id", Long.toString(panel.id()))
                     .put("name", panel.name())
@@ -673,7 +690,7 @@ public class TicketAdminApi {
         return TicketAdminJson.helpSettingsJson(repository.getHelpSettings(guild.getIdLong())).put("panels", panels);
     }
 
-    /** Creates the standard PvM Help and CA Help panels where the server doesn't have them; ones already there are left as they are. */
+    /** Creates the standard PvM Help, CA Help and Informational panels where the server doesn't have them; ones already there are left as they are. */
     private DataObject createHelpPanels(Guild guild, Member actor) {
         HelpPanels.Result result = helpPanels.createMissing(guild.getIdLong());
         log.info("Dashboard: {} created {} help panel(s); {} already existed", actor.getId(), result.created().size(), result.existing().size());
@@ -688,7 +705,7 @@ public class TicketAdminApi {
         List<String> problems = new ArrayList<>(HelpRules.validate(updated));
         if (updated.helperRoleId() != null && guild.getRoleById(updated.helperRoleId()) == null) problems.add("The PVM Helper role no longer exists in this server.");
         if (updated.helperPlusRoleId() != null && guild.getRoleById(updated.helperPlusRoleId()) == null) problems.add("The PVM Helper+ role no longer exists in this server.");
-        if (!problems.isEmpty()) throw new ApiError(400, "Those settings can't be saved.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.those_settings_can_t_be_saved_2"), problems);
 
         repository.saveHelpSettings(updated);
         onboarding.refreshPosted(guild); // new guidelines show up on the message members read
@@ -698,17 +715,17 @@ public class TicketAdminApi {
 
     private DataObject postGuidelines(HttpExchange exchange, Guild guild, Member actor) {
         Long channelId = TicketAdminJson.idOrNull(body(exchange), "channelId");
-        if (channelId == null) throw new ApiError(400, "Choose a channel to post in.");
+        if (channelId == null) throw new ApiError(400, Text.of(guild, "dashboard.choose_a_channel_to_post_in"));
         GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, channelId);
-        if (channel == null) throw new ApiError(400, "That isn't a text channel in this server.");
-        if (!channel.canTalk()) throw new ApiError(400, "JonnyBot can't post in #" + channel.getName() + " — it needs permission to view and send messages there.");
-        if (repository.getHelpSettings(guild.getIdLong()).helperRoleId() == null) throw new ApiError(400, "Choose the PVM Helper role first — the button on that message hands it out.");
+        if (channel == null) throw new ApiError(400, Text.of(guild, "dashboard.that_isn_t_a_text_channel"));
+        if (!channel.canTalk()) throw new ApiError(400, Text.of(guild, "dashboard.jonnybot_can_t_post_in_it", channel.getName()));
+        if (repository.getHelpSettings(guild.getIdLong()).helperRoleId() == null) throw new ApiError(400, Text.of(guild, "dashboard.choose_the_pvm_helper_role_first"));
 
         try {
             onboarding.post(guild, channel).get(15, TimeUnit.SECONDS);
         } catch (Exception e) {
             log.warn("Posting the helper guidelines to {} failed", channelId, e);
-            throw new ApiError(502, "Discord wouldn't let the guidelines be posted there.");
+            throw new ApiError(502, Text.of(guild, "dashboard.discord_wouldn_t_let_the_guidelines"));
         }
         log.info("Dashboard: {} posted the helper guidelines in {}", actor.getId(), channelId);
         return helpSettingsResponse(guild);
@@ -739,7 +756,7 @@ public class TicketAdminApi {
 
         List<String> problems = new ArrayList<>(TicketRules.validatePanel(definition.panel(), List.of()));
         problems.addAll(guildProblems(guild, definition));
-        if (!problems.isEmpty()) throw new ApiError(400, "Those defaults can't be saved yet.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.those_defaults_can_t_be_saved"), problems);
 
         repository.savePanelDefaults(guild.getIdLong(), TicketAdminJson.defaultsJson(definition).toString());
         log.info("Dashboard: {} updated the default settings for new ticket panels", actor.getId());
@@ -760,7 +777,7 @@ public class TicketAdminApi {
 
     private PanelDefinition ownedDefinition(Guild guild, long panelId) {
         Panel panel = repository.getPanel(panelId);
-        if (panel == null || panel.guildId() != guild.getIdLong()) throw new ApiError(404, "That panel doesn't exist.");
+        if (panel == null || panel.guildId() != guild.getIdLong()) throw new ApiError(404, Text.of(guild, "dashboard.that_panel_doesn_t_exist"));
         return repository.getDefinition(panelId);
     }
 
@@ -775,13 +792,13 @@ public class TicketAdminApi {
         List<String> problems = new ArrayList<>(TicketRules.validatePanel(definition.panel(), definition.fields()));
         problems.addAll(HelpRules.validatePanelHelp(definition.panel(), definition.fields()));
         problems.addAll(guildProblems(guild, definition));
-        if (!problems.isEmpty()) throw new ApiError(400, "That panel can't be saved yet.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.that_panel_can_t_be_saved"), problems);
 
         long savedId;
         try {
             savedId = repository.saveDefinition(definition);
         } catch (IllegalArgumentException e) {
-            throw new ApiError(400, "That panel can't be saved yet.", List.of(e.getMessage()));
+            throw new ApiError(400, Text.of(guild, "dashboard.that_panel_can_t_be_saved"), List.of(e.getMessage()));
         }
         log.info("Dashboard: {} {} ticket panel {} (\"{}\")", actor.getId(), panelId == 0 ? "created" : "updated", savedId, definition.panel().name());
 
@@ -832,7 +849,7 @@ public class TicketAdminApi {
     private DataObject deletePanel(Guild guild, Member actor, long panelId) {
         Panel panel = ownedDefinition(guild, panelId).panel();
         if (!repository.listTickets(guild.getIdLong(), Status.OPEN, panelId, 1, 0).isEmpty()) {
-            throw new ApiError(409, "This panel still has open tickets — close them first.");
+            throw new ApiError(409, Text.of(guild, "dashboard.this_panel_still_has_open_tickets"));
         }
         repository.deletePanel(guild.getIdLong(), panelId);
         log.info("Dashboard: {} deleted ticket panel {} (\"{}\")", actor.getId(), panelId, panel.name());
@@ -848,17 +865,17 @@ public class TicketAdminApi {
     private DataObject postPanel(HttpExchange exchange, Guild guild, Member actor, long panelId) {
         Panel panel = ownedDefinition(guild, panelId).panel();
         Long channelId = TicketAdminJson.idOrNull(body(exchange), "channelId");
-        if (channelId == null) throw new ApiError(400, "Choose a channel to post in.");
+        if (channelId == null) throw new ApiError(400, Text.of(guild, "dashboard.choose_a_channel_to_post_in"));
 
         GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, channelId);
-        if (channel == null) throw new ApiError(400, "That isn't a text channel in this server.");
-        if (!channel.canTalk()) throw new ApiError(400, "JonnyBot can't post in #" + channel.getName() + " — it needs permission to view and send messages there.");
+        if (channel == null) throw new ApiError(400, Text.of(guild, "dashboard.that_isn_t_a_text_channel"));
+        if (!channel.canTalk()) throw new ApiError(400, Text.of(guild, "dashboard.jonnybot_can_t_post_in_it", channel.getName()));
 
         try {
             service.postPanel(panel, channel).get(15, TimeUnit.SECONDS);
         } catch (Exception e) {
             log.warn("Posting ticket panel {} to {} failed", panelId, channelId, e);
-            throw new ApiError(502, "Discord wouldn't let the panel be posted there.");
+            throw new ApiError(502, Text.of(guild, "dashboard.discord_wouldn_t_let_the_panel"));
         }
         log.info("Dashboard: {} posted ticket panel {} in {}", actor.getId(), panelId, channelId);
         return TicketAdminJson.panelJson(repository.getPanel(panelId));
@@ -889,7 +906,7 @@ public class TicketAdminApi {
             try {
                 status = Status.valueOf(statusRaw.toUpperCase());
             } catch (IllegalArgumentException e) {
-                throw new ApiError(400, "Status must be OPEN, CLOSED or ALL.");
+                throw new ApiError(400, Text.of(guild, "dashboard.status_must_be_open_closed_or"));
             }
         }
         String panelRaw = query(exchange, "panel");
@@ -910,7 +927,7 @@ public class TicketAdminApi {
 
     private DataObject ticketDetail(Guild guild, String rawId) {
         Ticket ticket = repository.getTicket(idOf(rawId));
-        if (ticket == null || ticket.guildId() != guild.getIdLong()) throw new ApiError(404, "That ticket doesn't exist.");
+        if (ticket == null || ticket.guildId() != guild.getIdLong()) throw new ApiError(404, Text.of(guild, "dashboard.that_ticket_doesn_t_exist"));
 
         DataArray helpers = DataArray.empty();
         for (long helperId : repository.getHelpers(ticket.id())) {

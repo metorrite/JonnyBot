@@ -1,6 +1,7 @@
 package com.younglings.bot.commands.configure;
 
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
 import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.JDASlashCommand;
@@ -32,12 +33,12 @@ public class ConfigureCommand {
         Member member = event.getMember();
 
         if (guild == null || member == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "This command can only be used in a server.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "configure.this_command_can_only_be_used"));
             return;
         }
 
         if (!member.hasPermission(Permission.ADMINISTRATOR)) {
-            Containers.replyEphemeral(event, Containers.WARNING, "You need the Administrator permission to configure this bot.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "configure.you_need_the_administrator_permission_to"));
             return;
         }
 

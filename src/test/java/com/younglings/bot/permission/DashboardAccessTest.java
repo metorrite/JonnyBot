@@ -1,11 +1,16 @@
 package com.younglings.bot.permission;
 
 import com.younglings.bot.permission.DashboardAccess.Tier;
+import com.younglings.bot.config.BotConfig;
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Member;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class DashboardAccessTest {
     @Test
@@ -41,5 +46,41 @@ class DashboardAccessTest {
     @Test
     void withNoHomeServerConfiguredNothingIsWidened() {
         assertFalse(DashboardAccess.managesOtherServer(null, OTHER, true, true));
+    }
+
+    @Test
+    void anEventCoordinatorMayReachOnlyTheEventManagersRoutes() {
+        assertTrue(DashboardAccess.coordinatorMayUse("GET", new String[]{"events"}));
+        assertTrue(DashboardAccess.coordinatorMayUse("POST", new String[]{"events", "12", "players"}));
+        assertTrue(DashboardAccess.coordinatorMayUse("GET", new String[]{"structure"}));
+        for (String route : new String[]{"permissions", "welcome", "premium-guilds", "beta-guilds", "access-grants", "points", "tickets", "members", "audit", "settings", "hub", "image", "public-events"}) {
+            assertFalse(DashboardAccess.coordinatorMayUse("GET", new String[]{route}), route + " is not for coordinators");
+            assertFalse(DashboardAccess.coordinatorMayUse("PUT", new String[]{route, "1"}), route + " is not for coordinators");
+        }
+        assertFalse(DashboardAccess.coordinatorMayUse("PUT", new String[]{"structure"}), "structure is read only");
+        assertFalse(DashboardAccess.coordinatorMayUse("GET", new String[0]));
+    }
+
+    @Test
+    void aCoordinatorIsOnlyEverACoordinatorWhenTheyHaveNoTier() {
+        AdminRoleFilter filter = mock(AdminRoleFilter.class);
+        PermissionGroupService groups = mock(PermissionGroupService.class);
+        BotConfig config = mock(BotConfig.class);
+        Guild guild = mock(Guild.class);
+        Member member = mock(Member.class);
+        when(guild.getIdLong()).thenReturn(HOME);
+        when(config.getGuildId()).thenReturn(HOME);
+        DashboardAccess access = new DashboardAccess(filter, groups, config);
+
+        when(groups.isMember(guild, member, PermissionGroup.EVENT_COORDINATOR)).thenReturn(true);
+        assertTrue(access.isEventCoordinator(guild, member));
+        assertEquals(Tier.NONE, access.tierOf(guild, member), "a coordinator has no tier, so tier-only code refuses them");
+
+        when(filter.isAuthorized(guild, member)).thenReturn(true);
+        assertFalse(access.isEventCoordinator(guild, member), "an Admin is not a coordinator: the tier already covers events");
+
+        when(filter.isAuthorized(guild, member)).thenReturn(false);
+        when(groups.isMember(guild, member, PermissionGroup.EVENT_COORDINATOR)).thenReturn(false);
+        assertFalse(access.isEventCoordinator(guild, member));
     }
 }

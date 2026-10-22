@@ -2,6 +2,7 @@ package com.younglings.bot.commands.embed;
 
 import com.younglings.bot.discord.Containers;
 import com.younglings.bot.embed.PostedEmbed;
+import com.younglings.bot.i18n.Text;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
 import net.dv8tion.jda.api.components.buttons.Button;
@@ -70,7 +71,7 @@ public class EmbedInteractionListener extends ListenerAdapter {
             case "embed_remove:_" -> {
                 Modal modal = buildRemoveModal(event.getGuild());
                 if (modal == null) {
-                    Containers.replyEphemeral(event, Containers.WARNING, "Nothing is currently tracked as posted.");
+                    Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "embed.nothing_is_currently_tracked_as_posted"));
                     return;
                 }
                 event.replyModal(modal).queue();
@@ -88,10 +89,10 @@ public class EmbedInteractionListener extends ListenerAdapter {
 
             case "embed_remove_all_confirm:_" -> {
                 int count = embedService.removeAll(event.getGuild());
-                Containers.edit(event, Containers.SUCCESS, "Removed " + count + " posted embed(s).");
+                Containers.edit(event, Containers.SUCCESS, Text.of(event, "embed.removed_posted_embed", count));
             }
 
-            case "embed_remove_all_cancel:_" -> Containers.editThenDelete(event, Containers.WARNING, Duration.ofSeconds(3), "Cancelled.");
+            case "embed_remove_all_cancel:_" -> Containers.editThenDelete(event, Containers.WARNING, Duration.ofSeconds(3), Text.of(event, "embed.cancelled"));
         }
     }
 
@@ -104,7 +105,7 @@ public class EmbedInteractionListener extends ListenerAdapter {
                 Guild guild = event.getGuild();
                 TextChannel channel = guild.getTextChannelById(channelId);
                 if (channel == null) {
-                    Containers.replyEphemeral(event, Containers.WARNING, "That channel isn't a usable text channel.");
+                    Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "embed.that_channel_isn_t_a_usable"));
                     return;
                 }
 
@@ -130,9 +131,7 @@ public class EmbedInteractionListener extends ListenerAdapter {
                 EmbedType type = EmbedType.valueOf(event.getValue("embed_remove_type").getAsStringList().getFirst());
 
                 boolean removed = embedService.removeOne(event.getGuild(), channelId, type);
-                Containers.replyThenDelete(event, removed ? Containers.SUCCESS : Containers.WARNING, removed
-                                ? "Removed the **" + type.displayName() + "** embed from that channel."
-                                : "No **" + type.displayName() + "** embed is tracked in that channel.");
+                Containers.replyThenDelete(event, removed ? Containers.SUCCESS : Containers.WARNING, removed ? Text.of(event, "embed.removed_the_embed_from_that_channel", type.displayName()) : Text.of(event, "embed.no_embed_is_tracked_in_that", type.displayName()));
             }
         }
     }

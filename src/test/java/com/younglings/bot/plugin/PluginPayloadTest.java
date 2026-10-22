@@ -140,4 +140,24 @@ class PluginPayloadTest {
         assertNull(PluginPayload.normaliseRsn("bad!name"));
         assertNull(PluginPayload.normaliseRsn(null));
     }
+
+    @Test
+    void skillXpAndClueEventsAreChecked() {
+        var good = PluginPayload.parse(batch(event("xp-event-01", "XP", "2026-10-11T11:59:00Z", "{\"skill\":\"Mining\",\"xp\":5600000000,\"level\":120}"),
+                event("clue-evt-01", "clue", "2026-10-11T11:59:00Z", "{\"tier\":\"hard\",\"count\":57}")), NOW);
+
+        assertEquals(2, good.events().size());
+        assertEquals(PluginCategory.XP, good.events().get(0).type().category());
+        assertEquals(PluginCategory.ACHIEVEMENTS, good.events().get(1).type().category());
+
+        var bad = PluginPayload.parse(batch(event("xp-nolvl-01", "XP", "2026-10-11T11:59:00Z", "{\"skill\":\"Mining\",\"xp\":10}"),
+                event("xp-neg-001", "XP", "2026-10-11T11:59:00Z", "{\"skill\":\"Mining\",\"xp\":-1,\"level\":5}"),
+                event("xp-lvl-001", "XP", "2026-10-11T11:59:00Z", "{\"skill\":\"Mining\",\"xp\":1,\"level\":999}"),
+                event("xp-skill-01", "XP", "2026-10-11T11:59:00Z", "{\"xp\":1,\"level\":5}"),
+                event("clue-zero-1", "CLUE", "2026-10-11T11:59:00Z", "{\"tier\":\"hard\",\"count\":0}"),
+                event("clue-tier-1", "CLUE", "2026-10-11T11:59:00Z", "{\"count\":3}")), NOW);
+
+        assertEquals(0, bad.events().size());
+        assertEquals(6, bad.rejects().size());
+    }
 }

@@ -1,6 +1,7 @@
 package com.younglings.bot.internal;
 
 import com.younglings.bot.commands.poll.PollService;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.notice.BotOwners;
 import com.younglings.bot.notice.Notice;
@@ -95,8 +96,18 @@ public class OverviewAdminApi {
 
     // ---------- notices ----------
 
+    /** The banner every dashboard page shows while this bot is not live: its automatic posts are kept out of the servers' channels. Never stored; it is there while it is true. */
+    public static DataObject devModeNotice() {
+        Long dev = com.younglings.bot.alerts.AutoPostRouter.devChannelId();
+        String where = dev == null ? "only written to the log" : "sent to one test channel without pings";
+        return DataObject.empty().put("id", "dev-mode").put("severity", "warning").put("createdAt", java.time.Instant.now().toString())
+                .put("body", "Dev mode: this bot is not the live one, so its automatic alerts (clan sync, rename alerts, reminders, feeds and other scheduled posts) are " + where
+                        + " and nobody is pinged. Things you run yourself still work normally.");
+    }
+
     private DataArray noticeList() {
         DataArray array = DataArray.empty();
+        if (com.younglings.bot.alerts.AutoPostRouter.diverting()) array.add(devModeNotice());
         for (Notice notice : notices.all()) {
             array.add(DataObject.empty().put("id", Long.toString(notice.id())).put("severity", notice.severity()).put("body", notice.body()).put("createdAt", notice.createdAt().toString()));
         }
@@ -111,10 +122,10 @@ public class OverviewAdminApi {
         requireOwner(guild, actor);
         String text = body.getString("body", "").trim();
         String severity = body.getString("severity", "info").trim().toLowerCase();
-        if (text.isEmpty()) throw new ApiError(400, "Write the message first.");
-        if (text.length() > Notice.MAX_BODY) throw new ApiError(400, "Keep it under " + Notice.MAX_BODY + " characters.");
-        if (!Notice.SEVERITIES.contains(severity)) throw new ApiError(400, "Pick info, warning or issue.");
-        if (notices.all().size() >= Notice.MAX_ACTIVE) throw new ApiError(400, "There are already " + Notice.MAX_ACTIVE + " notices up. Remove one first.");
+        if (text.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.write_the_message_first"));
+        if (text.length() > Notice.MAX_BODY) throw new ApiError(400, Text.of(guild, "dashboard.keep_it_under_characters", Notice.MAX_BODY));
+        if (!Notice.SEVERITIES.contains(severity)) throw new ApiError(400, Text.of(guild, "dashboard.pick_info_warning_or_issue"));
+        if (notices.all().size() >= Notice.MAX_ACTIVE) throw new ApiError(400, Text.of(guild, "dashboard.there_are_already_notices_up_remove", Notice.MAX_ACTIVE));
 
         notices.add(severity, text, actor.getIdLong());
         return listNotices();
@@ -126,13 +137,13 @@ public class OverviewAdminApi {
         try {
             id = Long.parseLong(rawId);
         } catch (NumberFormatException e) {
-            throw new ApiError(400, "That isn't a notice.");
+            throw new ApiError(400, Text.of(guild, "dashboard.that_isn_t_a_notice"));
         }
-        if (!notices.delete(id)) throw new ApiError(404, "That notice is already gone.");
+        if (!notices.delete(id)) throw new ApiError(404, Text.of(guild, "dashboard.that_notice_is_already_gone"));
         return listNotices();
     }
 
     private void requireOwner(Guild guild, Member actor) {
-        if (!isOwner(guild, actor.getIdLong())) throw new ApiError(403, "Only the bot's owner can post notices.");
+        if (!isOwner(guild, actor.getIdLong())) throw new ApiError(403, Text.of(guild, "dashboard.only_the_bot_owner_can_post"));
     }
 }

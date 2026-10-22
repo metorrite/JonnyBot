@@ -5,11 +5,14 @@ import com.younglings.bot.automod.AutomodRepository.Config;
 import com.younglings.bot.automod.AutomodRules;
 import com.younglings.bot.automod.AutomodRules.Rule;
 import com.younglings.bot.automod.AutomodRules.RuleConfig;
+import com.younglings.bot.automod.PhishingList;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel;
 import net.dv8tion.jda.api.utils.data.DataArray;
 import net.dv8tion.jda.api.utils.data.DataObject;
 import org.slf4j.Logger;
@@ -33,9 +36,11 @@ public class AutomodAdminApi implements AdminRouteExtension {
     private static final int MAX_EXEMPT = 25;
 
     private final AutomodRepository repository;
+    private final PhishingList phishing;
 
-    public AutomodAdminApi(AutomodRepository repository) {
+    public AutomodAdminApi(AutomodRepository repository, PhishingList phishing) {
         this.repository = repository;
+        this.phishing = phishing;
     }
 
     @Override
@@ -54,14 +59,16 @@ public class AutomodAdminApi implements AdminRouteExtension {
             DataArray words = DataArray.empty();
             rc.words().forEach(words::add);
             rules.add(DataObject.empty().put("key", rule.name()).put("label", rule.label()).put("enabled", rc.enabled()).put("warn", rc.warn())
-                    .put("limit", rc.limit()).put("seconds", rc.seconds()).put("words", words));
+                    .put("limit", rc.limit()).put("seconds", rc.seconds()).put("words", words)
+                    .put("response", rc.response()).put("logChannelId", rc.logChannelId() == 0 ? null : Long.toString(rc.logChannelId())));
         }
         DataArray roles = DataArray.empty();
         c.exemptRoles().forEach(id -> roles.add(Long.toString(id)));
         DataArray channels = DataArray.empty();
         c.exemptChannels().forEach(id -> channels.add(Long.toString(id)));
         return DataObject.empty().put("enabled", c.enabled()).put("rules", rules).put("exemptRoles", roles).put("exemptChannels", channels)
-                .put("canDelete", guild.getSelfMember().hasPermission(Permission.MESSAGE_MANAGE)).put("maxWords", AutomodRules.MAX_WORDS).put("maxDomains", AutomodRules.MAX_DOMAINS);
+                .put("canDelete", guild.getSelfMember().hasPermission(Permission.MESSAGE_MANAGE)).put("maxWords", AutomodRules.MAX_WORDS).put("maxDomains", AutomodRules.MAX_DOMAINS)
+                .put("maxResponse", RuleConfig.MAX_RESPONSE).put("phishingListSize", phishing.size());
     }
 
     DataObject save(Guild guild, Member actor, DataObject body) {
@@ -83,7 +90,17 @@ public class AutomodAdminApi implements AdminRouteExtension {
                 DataArray array = item.getArray("words");
                 for (int w = 0; w < array.length(); w++) words.addAll(AutomodRules.cleanList(array.getString(w)));
             }
-            RuleConfig rc = new RuleConfig(item.getBoolean("enabled", false), item.getBoolean("warn", false), item.getInt("limit", 0), item.getInt("seconds", 0), new ArrayList<>(new LinkedHashSet<>(words)));
+            String response = item.hasKey("response") && !item.isNull("response") ? item.getString("response", "").strip() : "";
+            long logChannel = 0;
+            String rawLog = item.hasKey("logChannelId") && !item.isNull("logChannelId") ? item.getString("logChannelId", "").strip() : "";
+            if (!rawLog.isEmpty()) {
+                GuildMessageChannel logTarget = rawLog.matches("\\d{1,20}") ? guild.getChannelById(GuildMessageChannel.class, Long.parseLong(rawLog)) : null;
+                if (logTarget == null) problems.add(rule.label() + ": the log channel isn't in this server.");
+                else if (!logTarget.canTalk()) problems.add(rule.label() + ": JonnyBot can't post in #" + logTarget.getName() + ".");
+                else logChannel = logTarget.getIdLong();
+            }
+            RuleConfig rc = new RuleConfig(item.getBoolean("enabled", false), item.getBoolean("warn", false), item.getInt("limit", 0), item.getInt("seconds", 0),
+                    new ArrayList<>(new LinkedHashSet<>(words)), response, logChannel);
             problems.addAll(AutomodRules.problems(rule, rc));
             rules.put(rule, rc);
         }
@@ -92,7 +109,7 @@ public class AutomodAdminApi implements AdminRouteExtension {
         boolean enabled = body.getBoolean("enabled", false);
         if (enabled && !guild.getSelfMember().hasPermission(Permission.MESSAGE_MANAGE)) problems.add("JonnyBot needs the Manage Messages permission to delete messages.");
         if (enabled && rules.values().stream().noneMatch(RuleConfig::enabled)) problems.add("Switch at least one rule on, or turn automod off.");
-        if (!problems.isEmpty()) throw new ApiError(400, "Automod can't be saved yet.", problems.stream().distinct().toList());
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.automod_can_t_be_saved_yet"), problems.stream().distinct().toList());
         repository.save(new Config(guild.getIdLong(), enabled, roles, channels, rules));
         log.info("Dashboard: {} saved the automod settings", actor.getId());
         return get(guild);

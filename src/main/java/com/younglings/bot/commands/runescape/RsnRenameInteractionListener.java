@@ -1,6 +1,7 @@
 package com.younglings.bot.commands.runescape;
 
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.runescape.PlayerLink;
 import com.younglings.bot.runescape.PlayerLinkService;
 import com.younglings.bot.runescape.RsnRenameRepository;
@@ -47,11 +48,11 @@ public class RsnRenameInteractionListener extends ListenerAdapter {
 
             RsnRenameRepository.RenameCandidate candidate = renameService.getCandidate(candidateId);
             if (candidate == null) {
-                Containers.edit(event, Containers.WARNING, "This rename report no longer exists.");
+                Containers.edit(event, Containers.WARNING, Text.of(event, "runescape.this_rename_report_no_longer_exists"));
                 return;
             }
             if (!"PENDING".equals(candidate.status())) {
-                Containers.edit(event, Containers.INFO, "Already handled — this was resolved as **" + candidate.status() + "**.");
+                Containers.edit(event, Containers.INFO, Text.of(event, "runescape.already_handled_this_was_resolved_as", candidate.status()));
                 return;
             }
 
@@ -60,7 +61,7 @@ public class RsnRenameInteractionListener extends ListenerAdapter {
                     : renameService.reject(candidateId, event.getUser().getIdLong());
 
             if (!ok) {
-                Containers.edit(event, Containers.WARNING, "Couldn't process this — it may have just been handled elsewhere.");
+                Containers.edit(event, Containers.WARNING, Text.of(event, "runescape.couldn_t_process_this_it_may"));
                 return;
             }
 
@@ -73,9 +74,7 @@ public class RsnRenameInteractionListener extends ListenerAdapter {
             }
 
             Containers.edit(event, isConfirm ? Containers.SUCCESS : Containers.DANGER,
-                    isConfirm
-                            ? "Confirmed: **" + candidate.oldRsn() + "** → **" + candidate.newRsn() + "**. The linked account (if any) has been updated."
-                            : "Rejected — **" + candidate.oldRsn() + "** and **" + candidate.newRsn() + "** will be treated as unrelated.");
+                    isConfirm ? Text.of(event, "runescape.confirmed_the_linked_account_if_any", candidate.oldRsn(), candidate.newRsn()) : Text.of(event, "runescape.rejected_and_will_be_treated_as", candidate.oldRsn(), candidate.newRsn()));
 
         } catch (Exception e) {
             log.error("Unhandled exception in rsnrename button interaction '{}'", id, e);

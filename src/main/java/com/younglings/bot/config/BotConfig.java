@@ -48,6 +48,17 @@ public class BotConfig {
         return Boolean.parseBoolean(isLive);
     }
 
+    /**
+     * The channel a bot that is not live sends its automatic alerts to instead of the servers' own channels ({@code DEV_ALERT_CHANNEL_ID}); null when
+     * unset, in which case they are only logged. See {@code AutoPostRouter}.
+     */
+    public Long getDevAlertChannelId() {
+        String raw = System.getenv("DEV_ALERT_CHANNEL_ID");
+        if (raw == null || raw.isBlank()) raw = dotenv.get("DEV_ALERT_CHANNEL_ID");
+        if (raw == null || !raw.strip().matches("\\d{15,20}")) return null;
+        return Long.parseLong(raw.strip());
+    }
+
     public String getToken() {
         String token = System.getenv("DISCORD_TOKEN");
 
@@ -80,7 +91,14 @@ public class BotConfig {
         return databaseUrl;
     }
 
+    /**
+     * The bot's status (one value for the whole bot: Discord has no per-server status). {@code BOT_STATUS} in the environment wins, so it
+     * can be changed on the host without a new build; otherwise {@code bot.activity} from the properties file.
+     */
     public Activity getActivity() {
+        String fromEnv = System.getenv("BOT_STATUS");
+        if (fromEnv == null || fromEnv.isBlank()) fromEnv = dotenv.get("BOT_STATUS");
+        if (fromEnv != null && !fromEnv.isBlank()) return Activity.customStatus(fromEnv.strip());
         return Activity.customStatus(properties.getProperty("bot.activity", "Online"));
     }
 
@@ -267,6 +285,72 @@ public class BotConfig {
         return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
     }
 
+    /** A RuneSync server setting ({@code RUNESYNC_*}, e.g. {@code RUNESYNC_MIN_CLIENT_VERSION}); null when unset. */
+    public String getRuneSyncSetting(String name) {
+        if (!name.startsWith("RUNESYNC_")) throw new IllegalArgumentException("Only RUNESYNC_ settings are served here");
+        return envOrDotenv(name);
+    }
+
+    /**
+     * A setting of the RSN link service ({@code com.younglings.bot.rsnlink}), which reads its own {@code LINK_*} variables so it can move to a
+     * separate service unchanged. Only names starting with {@code LINK_} are served; null when unset.
+     */
+    public String getLinkSetting(String name) {
+        if (!name.startsWith("LINK_")) throw new IllegalArgumentException("Only LINK_ settings are served here");
+        return envOrDotenv(name);
+    }
+
+    /**
+     * A setting of the RuneClans hub client ({@code com.younglings.bot.runeclans}): {@code RUNECLANS_HUB_ENABLED}, {@code RUNECLANS_HUB_URL},
+     * {@code RUNECLANS_HUB_API_KEY}. Prefixed {@code RUNECLANS_} so they can't be mistaken for the event hub's settings. Null when unset.
+     * The old {@code RSCLANS_} names (before the hub was renamed to runeclans-hub) still work for one release: used only when the new name is
+     * unset, with a deprecation warning.
+     */
+    public String getRuneClansSetting(String name) {
+        return runeClansSettingFrom(name, this::envOrDotenv, legacy -> {
+            if (LEGACY_WARNED.add(legacy)) {
+                org.slf4j.LoggerFactory.getLogger(BotConfig.class).warn("{} is deprecated and will be removed in the next release; rename it to {}", legacy, name);
+            }
+        });
+    }
+
+    /**
+     * {@link #getRuneClansSetting}'s rule, apart from where settings come from (T-284): the new name wins; else the old {@code RSCLANS_} name,
+     * reported to {@code usedLegacy}; else null.
+     */
+    static String runeClansSettingFrom(String name, java.util.function.Function<String, String> lookup, java.util.function.Consumer<String> usedLegacy) {
+        if (!name.startsWith("RUNECLANS_")) throw new IllegalArgumentException("Only RUNECLANS_ settings are served here");
+        String value = lookup.apply(name);
+        if (value != null) return value;
+        String legacy = "RSCLANS_" + name.substring("RUNECLANS_".length());
+        value = lookup.apply(legacy);
+        if (value != null) usedLegacy.accept(legacy);
+        return value;
+    }
+
+    private static final java.util.Set<String> LEGACY_WARNED = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    /** What the JonnyBot face's address was before it was configurable. */
+    public static final String DEFAULT_JONNYBOT_URL = "https://jonnybot.rsyounglings.com";
+
+    /**
+     * The address of JonnyBot's own website (the {@code jonnybot} face of the site host map), no trailing slash. Sent as contact information in the
+     * User-Agent of every request the bot makes to a third party, so they can tell who is calling. {@code JONNYBOT_SITE_URL}; unset, it is
+     * {@value #DEFAULT_JONNYBOT_URL}, exactly as before.
+     */
+    public String getJonnybotUrl() {
+        String url = System.getenv("JONNYBOT_SITE_URL");
+        if (url == null || url.isBlank()) url = dotenv.get("JONNYBOT_SITE_URL");
+        return jonnybotUrlFrom(url);
+    }
+
+    /** The configured address cleaned up, or the default when there is none. Separate so it can be tested without the environment. */
+    static String jonnybotUrlFrom(String configured) {
+        if (configured == null || configured.isBlank()) return DEFAULT_JONNYBOT_URL;
+        String url = configured.trim();
+        return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
+    }
+
     /** Port the internal API listens on. Defaults to 8081 if unset. */
     public int getInternalApiPort() {
         String raw = System.getenv("INTERNAL_API_PORT");
@@ -352,6 +436,14 @@ public class BotConfig {
         return positiveMinutes("RUNESCAPE_PREMIUM_POLL_WINDOW_MINUTES", 60);
     }
 
+    /**
+     * How many of the plugin's raw XP units make one point of experience. The game client reports skill experience in tenths, so the default is 10;
+     * {@code PLUGIN_XP_SCALE} changes it if that ever turns out to be different. Always at least 1.
+     */
+    public long getPluginXpScale() {
+        return positiveNumber("PLUGIN_XP_SCALE", 10);
+    }
+
     private long positiveMinutes(String name, long fallback) {
         return positiveNumber(name, fallback);
     }
@@ -386,6 +478,16 @@ public class BotConfig {
     }
 
     /**
+     * Whether servers may pick one of the machine-drafted language packs (T-099) on the dashboard's Language page. Off by default: the
+     * drafts haven't been checked by a speaker yet, so until {@code LANGUAGE_PACKS_ENABLED=true} only English is offered (a server that
+     * already chose a pack keeps it).
+     */
+    public boolean getLanguagePacksEnabled() {
+        String raw = envOrDotenv("LANGUAGE_PACKS_ENABLED");
+        return raw != null && raw.trim().equalsIgnoreCase("true");
+    }
+
+    /**
      * Whether the data-retention sweep only reports what it would delete. On by default, so nothing is ever removed until the
      * operator has seen what a sweep would do and sets {@code GUILD_DATA_RETENTION_DRY_RUN=false}.
      */
@@ -400,6 +502,36 @@ public class BotConfig {
         return raw == null || raw.isBlank() ? null : raw;
     }
 
+
+    /**
+     * Every secret this process was started with, for {@code SnapshotRedactor} to mask wherever it turns up: the value of any
+     * environment or {@code .env} entry whose name looks like a secret (token, secret, password, key, database url), plus the
+     * password and user inside a connection string. Names are never returned, only values.
+     */
+    public java.util.Set<String> secretValues() {
+        java.util.Set<String> found = new java.util.HashSet<>();
+        java.util.Map<String, String> all = new java.util.HashMap<>(System.getenv());
+        dotenv.entries().forEach(entry -> all.putIfAbsent(entry.getKey(), entry.getValue()));
+        all.forEach((name, value) -> {
+            if (value == null || value.isBlank()) return;
+            String upper = name.toUpperCase(java.util.Locale.ROOT);
+            boolean secretLooking = upper.contains("TOKEN") || upper.contains("SECRET") || upper.contains("PASSWORD") || upper.contains("PASSWD")
+                    || upper.contains("API_KEY") || upper.endsWith("_KEY") || upper.contains("DATABASE_URL") || upper.contains("PRIVATE")
+                    || upper.contains("CREDENTIAL") || upper.contains("PGPASSWORD");
+            if (!secretLooking) return;
+            found.add(value.strip());
+            // A connection string also hides its password and user on their own.
+            try {
+                java.net.URI uri = java.net.URI.create(value.strip());
+                if (uri.getUserInfo() != null) {
+                    for (String part : uri.getUserInfo().split(":", 2)) if (!part.isBlank()) found.add(part);
+                }
+            } catch (IllegalArgumentException ignored) {
+                // Not a URI; the whole value is already covered.
+            }
+        });
+        return found;
+    }
     public List<Long> getOwnerIds() {
         String rawOwnerIds = System.getenv("OWNER_IDS");
 

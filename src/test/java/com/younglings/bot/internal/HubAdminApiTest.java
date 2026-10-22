@@ -20,6 +20,7 @@ import org.mockito.ArgumentCaptor;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -34,6 +35,8 @@ class HubAdminApiTest {
     private HubService hub;
     private PermissionGroupService groups;
     private DashboardAccess access;
+    private com.younglings.bot.afk.AfkService afk;
+    private com.younglings.bot.fun.FunCommandSync funSync;
     private HubAdminApi api;
     private Guild guild;
     private Member actor;
@@ -43,13 +46,17 @@ class HubAdminApiTest {
         hub = mock(HubService.class);
         groups = mock(PermissionGroupService.class);
         access = mock(DashboardAccess.class);
-        api = new HubAdminApi(hub, groups, access);
+        afk = mock(com.younglings.bot.afk.AfkService.class);
+        funSync = mock(com.younglings.bot.fun.FunCommandSync.class);
+        api = new HubAdminApi(hub, groups, access, afk, funSync);
 
         guild = mock(Guild.class);
         actor = mock(Member.class);
         when(guild.getIdLong()).thenReturn(GUILD);
         when(access.tierOf(guild, actor)).thenReturn(DashboardAccess.Tier.ADMIN);
         when(hub.get(GUILD, HubCommand.SIGNUP)).thenReturn(HubSettings.defaults(GUILD, "signup"));
+        when(hub.get(GUILD, HubCommand.AFK)).thenReturn(HubSettings.defaults(GUILD, "afk"));
+        when(hub.afkPolicy(GUILD)).thenReturn(HubService.AfkPolicy.NONE);
         when(hub.signupPolicy(GUILD)).thenReturn(HubService.SignupPolicy.NONE);
         when(groups.groups(GUILD)).thenReturn(List.of(
                 new PermissionGroup(1, GUILD, "admin", "Admin", true, true, List.of()),
@@ -180,5 +187,62 @@ class HubAdminApiTest {
         api.save(guild, actor, "signup", DataObject.fromJson("{\"signup\": {\"adminChannelId\": \"77\", \"lockAdminChannel\": true, \"publicChannelIds\": [\"80\"]}}"));
 
         assertEquals(HubService.writeSignup(new HubService.SignupPolicy(77L, true, List.of(80L))), saved().extras());
+    }
+
+    @Test
+    void awayStatusSettingsAreSavedAndChosenMembersTakenOffTheList() {
+        channel(7, true);
+        when(afk.clear(GUILD, 99L)).thenReturn(true);
+        DataObject body = DataObject.fromJson("{\"afk\": {\"nicknameTag\": true, \"ignoreChannelIds\": [\"7\"], \"clearUserIds\": [\"99\"]}}");
+
+        api.save(guild, actor, "afk", body);
+
+        HubService.AfkPolicy policy = HubService.parseAfk(saved().extras());
+        assertEquals(true, policy.nicknameTag());
+        assertEquals(List.of(7L), policy.ignoreChannelIds());
+        verify(afk).clear(GUILD, 99L);
+    }
+
+    @Test
+    void anIgnoredChannelThatDoesNotExistRefusesTheWholeSave() {
+        DataObject body = DataObject.fromJson("{\"afk\": {\"nicknameTag\": true, \"ignoreChannelIds\": [\"8\"], \"clearUserIds\": [\"99\"]}}");
+
+        var thrown = assertThrows(TicketAdminApi.ApiError.class, () -> api.save(guild, actor, "afk", body));
+
+        assertEquals(400, thrown.status);
+        verify(hub, never()).save(any());
+        verify(afk, never()).clear(GUILD, 99L);
+    }
+
+    @Test
+    void everyCommandCarriesTagsAndTheAnswerListsTheTagChoices() {
+        for (HubCommand command : HubCommand.values()) {
+            assertFalse(command.tags().isEmpty(), command.key() + " has no tag, so the Commands page filters could never find it");
+            when(hub.get(GUILD, command)).thenReturn(HubSettings.defaults(GUILD, command.key()));
+        }
+        DataObject answer = api.get(guild);
+
+        assertEquals(com.younglings.bot.hub.CommandTag.values().length, answer.getArray("tags").length());
+        assertEquals("clan-management", answer.getArray("tags").getObject(5).getString("key"));
+        DataObject warn = answer.getArray("commands").stream(net.dv8tion.jda.api.utils.data.DataArray::getObject)
+                .filter(c -> c.getString("key").equals("warn")).findFirst().orElseThrow();
+        assertEquals(List.of("moderation", "admin"), warn.getArray("tags").toList());
+    }
+
+    @Test
+    void switchingAFunCommandOnResyncsTheServersCommandListButAnOrdinaryCommandDoesNot() {
+        when(hub.get(GUILD, HubCommand.FLIP)).thenReturn(HubSettings.defaults(GUILD, HubCommand.FLIP));
+        assertEquals(false, hub.get(GUILD, HubCommand.FLIP).enabled(), "fun commands start off");
+
+        api.save(guild, actor, "flip", DataObject.fromJson("{\"enabled\": true}"));
+        verify(funSync).sync(guild);
+
+        api.save(guild, actor, "signup", DataObject.fromJson("{\"enabled\": false}"));
+        verify(funSync, org.mockito.Mockito.times(1)).sync(any());
+
+        // saving a fun command without changing on/off does not touch Discord
+        when(hub.get(GUILD, HubCommand.ROLL)).thenReturn(HubSettings.defaults(GUILD, HubCommand.ROLL));
+        api.save(guild, actor, "roll", DataObject.fromJson("{\"enabled\": false}"));
+        verify(funSync, org.mockito.Mockito.times(1)).sync(any());
     }
 }

@@ -7,6 +7,7 @@ import com.younglings.bot.events.CustomTemplate;
 import com.younglings.bot.events.EventBoardPanels;
 import com.younglings.bot.events.EventChanges;
 import com.younglings.bot.events.EventKinds;
+import com.younglings.bot.events.EventProblem;
 import com.younglings.bot.events.EventRepository;
 import com.younglings.bot.events.EventService;
 import com.younglings.bot.events.EventSignups;
@@ -84,10 +85,24 @@ class EventsAdminApiTest {
         service = new EventService(repository, templates, kinds, points, new EventChanges());
         EventSignups signups = Mockito.mock(EventSignups.class);
         Mockito.when(signups.stateOf(ArgumentMatchers.any())).thenReturn(new EventSignups.State(false, false, 0, false));
+        // closing and reopening do the engine's part here; pausing the Discord signup is the mocked part
+        Mockito.when(signups.closeSignups(ArgumentMatchers.any(), ArgumentMatchers.anyLong(), ArgumentMatchers.anyLong())).thenAnswer(invocation -> {
+            long eventId = invocation.getArgument(1);
+            service.closeSignups(G, eventId, invocation.getArgument(2));
+            return new EventSignups.Closed(0, (int) repository.participants(eventId).stream().filter(p -> !p.waiting()).count(), 0, List.of());
+        });
+        Mockito.doAnswer(invocation -> {
+            service.reopenSignups(G, invocation.getArgument(1));
+            return null;
+        }).when(signups).reopenSignups(ArgumentMatchers.any(), ArgumentMatchers.anyLong());
         EventBoardPanels panels = Mockito.mock(EventBoardPanels.class);
         Mockito.when(panels.refresh(ArgumentMatchers.anyLong(), ArgumentMatchers.anyLong())).thenReturn("Posted the board.");
         links = Mockito.mock(com.younglings.bot.runescape.PlayerLinkRepository.class);
-        api = new EventsAdminApi(service, repository, templates, signups, new BingoTemplate(), panels, links, new com.younglings.bot.events.BingoTiles(new com.younglings.bot.internal.WikiCatalog()));
+        var eventSetup = new com.younglings.bot.events.EventSetup(service, templates, new com.younglings.bot.events.EventDraftRepository(supplier), new com.younglings.bot.events.EventBlueprintRepository(supplier),
+                new com.younglings.bot.events.EventDefaultsRepository(supplier), new com.younglings.bot.events.BingoPools(Mockito.mock(com.younglings.bot.events.BingoTileRepository.class)));
+        api = new EventsAdminApi(service, repository, templates, signups, new BingoTemplate(), panels, links, new com.younglings.bot.events.BingoTiles(new com.younglings.bot.internal.WikiCatalog()),
+                new EventSetupApi(eventSetup), new com.younglings.bot.events.EventTeams(service, repository, links),
+                new com.younglings.bot.events.BingoPools(Mockito.mock(com.younglings.bot.events.BingoTileRepository.class)));
 
         guild = Mockito.mock(Guild.class);
         Mockito.when(guild.getIdLong()).thenReturn(G);
@@ -152,6 +167,33 @@ class EventsAdminApiTest {
         var events = call("GET", "events", null).getArray("events");
         assertEquals(1, count(events));
         assertEquals("Mine one", events.getObject(0).getString("name"));
+    }
+
+    @Test
+    void theListSaysHowManyPlayersAreInHowManyWaitAndHowMuchProofIsWaiting() {
+        String id = create("{\"name\":\"Busy one\",\"maxParticipants\":2,\"config\":{\"queue\":\"FIRST_COME\"}}");
+        String quiet = create("{\"name\":\"Quiet one\"}");
+        call("PUT", "events/" + id + "/objectives", "{\"objectives\":[{\"key\":\"cape\",\"label\":\"Cape\",\"points\":100,\"evidence\":\"proof\"}]}");
+        call("POST", "events/" + id + "/status", "{\"status\":\"signups\"}");
+        for (String user : List.of("101", "102", "103")) call("POST", "events/" + id + "/participants", "{\"userId\":\"" + user + "\"}");
+        call("POST", "events/" + id + "/status", "{\"status\":\"running\"}");
+        call("POST", "events/" + id + "/claims", "{\"userId\":\"101\",\"objective\":\"cape\",\"amount\":1,\"note\":\"here it is\",\"proofUrl\":\"https://example.com/p.png\"}");
+
+        var events = call("GET", "events", null).getArray("events");
+        DataObject busy = null;
+        DataObject other = null;
+        for (int i = 0; i < events.length(); i++) {
+            if (events.getObject(i).getString("id").equals(id)) busy = events.getObject(i);
+            if (events.getObject(i).getString("id").equals(quiet)) other = events.getObject(i);
+        }
+        assertNotNull(busy);
+        assertNotNull(other);
+        assertEquals(2, busy.getInt("players"));
+        assertEquals(1, busy.getInt("waiting"));
+        assertEquals(1, busy.getInt("proofWaiting"));
+        assertEquals(0, other.getInt("players"));
+        assertEquals(0, other.getInt("waiting"));
+        assertEquals(0, other.getInt("proofWaiting"));
     }
 
     @Test
@@ -290,6 +332,380 @@ class EventsAdminApiTest {
         assertEquals(1, count(history));
     }
 
+    // ---------- building the teams ----------
+
+    private static DataObject playerOf(DataObject detail, String userId) {
+        var players = detail.getArray("participants");
+        for (int i = 0; i < players.length(); i++) if (players.getObject(i).getString("userId").equals(userId)) return players.getObject(i);
+        throw new AssertionError("no player " + userId);
+    }
+
+    private static String teamIdNamed(DataObject detail, String name) {
+        var teams = detail.getArray("teams");
+        for (int i = 0; i < teams.length(); i++) if (teams.getObject(i).getString("name").equals(name)) return teams.getObject(i).getString("id");
+        throw new AssertionError("no team " + name);
+    }
+
+    @Test
+    void theTeamBuilderRoutesRateSuggestMoveNameAndFinaliseTheTeams() {
+        Mockito.when(links.getAllLinks(G)).thenReturn(List.of(new com.younglings.bot.runescape.PlayerLink(1, G, 101, "Main", "x", null, null), new com.younglings.bot.runescape.PlayerLink(2, G, 102, "Second", "x", null, null)));
+        Mockito.when(links.getLatestSnapshots(ArgumentMatchers.anyCollection())).thenReturn(java.util.Map.of(
+                "main", new com.younglings.bot.runescape.PlayerLinkRepository.StatsSnapshotRow(1L, java.time.OffsetDateTime.now(), 2800, 5_000_000_000L, 138, 0, 0, 0),
+                "second", new com.younglings.bot.runescape.PlayerLinkRepository.StatsSnapshotRow(2L, java.time.OffsetDateTime.now(), 1500, 100_000_000L, 120, 0, 0, 0)));
+        String id = create("{\"name\":\"Builder\",\"scoringMode\":\"team\",\"config\":{\"setup\":{\"mode\":\"STANDARD\"}}}");
+        call("PUT", "events/" + id + "/objectives", "{\"objectives\":[{\"key\":\"zuk\",\"label\":\"Kill Zuk\",\"points\":50,\"evidence\":\"either\"}]}");
+        call("POST", "events/" + id + "/status", "{\"status\":\"signups\"}");
+        for (String user : List.of("101", "102", "103", "104")) call("POST", "events/" + id + "/participants", "{\"userId\":\"" + user + "\"}");
+        call("POST", "events/" + id + "/teams", "{\"name\":\"Red\"}");
+        call("POST", "events/" + id + "/teams", "{\"name\":\"Blue\"}");
+
+        // what is known about each player: strength from the linked account, and a rating suggested from it
+        var detail = call("GET", "events/" + id, null);
+        var main = playerOf(detail, "101");
+        assertEquals("Main", main.getObject("strength").getString("rsn"));
+        assertEquals(2800, main.getObject("strength").getInt("totalLevel"));
+        assertEquals(5_000_000_000L, main.getObject("strength").getLong("totalXp"));
+        assertEquals(5, main.getInt("suggestedRating"), "the most XP of the two with stats");
+        assertEquals(1, playerOf(detail, "102").getInt("suggestedRating"));
+        assertTrue(playerOf(detail, "103").isNull("strength"));
+        assertTrue(playerOf(detail, "103").isNull("suggestedRating"));
+        assertEquals(3, playerOf(detail, "103").getInt("effectiveRating"), "nothing known counts as average");
+        assertTrue(playerOf(detail, "101").isNull("teamBlock"));
+
+        // an organiser's rating wins, can be cleared, and is checked
+        detail = call("PUT", "events/" + id + "/participants/102/rating", "{\"rating\":4}");
+        assertEquals(4, playerOf(detail, "102").getInt("rating"));
+        assertEquals(4, playerOf(detail, "102").getInt("effectiveRating"));
+        assertEquals(400, failure("PUT", "events/" + id + "/participants/102/rating", "{\"rating\":9}").status);
+        detail = call("PUT", "events/" + id + "/participants/102/rating", "{\"rating\":null}");
+        assertTrue(playerOf(detail, "102").isNull("rating"));
+        assertEquals(1, playerOf(detail, "102").getInt("effectiveRating"), "back to the one worked out from their stats");
+        assertEquals(404, failure("PUT", "events/" + id + "/participants/999/rating", "{\"rating\":3}").status);
+
+        // a suggestion changes nothing until it is applied through the bulk route
+        var suggestion = call("POST", "events/" + id + "/teams/suggest", "{}");
+        assertEquals(4, count(suggestion.getArray("moves")));
+        assertTrue(suggestion.getArray("notes").isEmpty());
+        detail = call("GET", "events/" + id, null);
+        for (String user : List.of("101", "102", "103", "104")) assertTrue(playerOf(detail, user).isNull("teamId"));
+        StringBuilder assignments = new StringBuilder("{\"assignments\":[");
+        for (int i = 0; i < suggestion.getArray("moves").length(); i++) {
+            var move = suggestion.getArray("moves").getObject(i);
+            assignments.append(i > 0 ? "," : "").append("{\"userId\":\"").append(move.getString("userId")).append("\",\"teamId\":\"").append(move.getString("teamId")).append("\"}");
+        }
+        detail = call("PUT", "events/" + id + "/teams/assign", assignments.append("]}").toString());
+        for (String user : List.of("101", "102", "103", "104")) assertFalse(playerOf(detail, user).isNull("teamId"), user + " has a team now");
+        assertEquals(400, failure("PUT", "events/" + id + "/teams/assign", "{\"assignments\":[{\"userId\":\"101\",\"teamId\":\"424242\"}]}").status, "all or nothing");
+        assertEquals(400, failure("PUT", "events/" + id + "/teams/assign", "{}").status);
+
+        // naming a team and its captain (who has to be on it)
+        String red = teamIdNamed(detail, "Red");
+        String onRed = null;
+        for (String user : List.of("101", "102", "103", "104")) if (red.equals(playerOf(detail, user).getString("teamId"))) onRed = user;
+        assertNotNull(onRed);
+        detail = call("PUT", "events/" + id + "/teams/" + red, "{\"name\":\"Crimson\",\"captainId\":\"" + onRed + "\"}");
+        assertEquals(red, teamIdNamed(detail, "Crimson"), "Red was renamed");
+        var teamList = detail.getArray("teams");
+        for (int i = 0; i < teamList.length(); i++) if (teamList.getObject(i).getString("id").equals(red)) assertEquals(onRed, teamList.getObject(i).getString("captainId"));
+        String blueOnlyPlayer = null;
+        for (String user : List.of("101", "102", "103", "104")) if (!red.equals(playerOf(detail, user).getString("teamId"))) blueOnlyPlayer = user;
+        String crimson = teamIdNamed(detail, "Crimson");
+        assertEquals(409, failure("PUT", "events/" + id + "/teams/" + crimson, "{\"captainId\":\"" + blueOnlyPlayer + "\"}").status, "a captain has to be on the team");
+        assertEquals(409, failure("PUT", "events/" + id + "/teams/" + crimson, "{\"name\":\"Blue\"}").status, "names are unique");
+        assertEquals(400, failure("PUT", "events/" + id + "/teams/abc", "{}").status);
+
+        // final: the roster first, then the word
+        assertEquals(409, failure("POST", "events/" + id + "/teams/finalise", "{}").status, "confirm the roster first");
+        call("POST", "events/" + id + "/signup/close", "{}");
+        call("POST", "events/" + id + "/roster/confirm", "{}");
+        assertEquals("ACTIVE", stepState(call("GET", "events/" + id, null), "teams"));
+        detail = call("POST", "events/" + id + "/teams/finalise", "{}");
+        assertFalse(detail.getObject("setup").isNull("teamsFinalisedAt"));
+        assertEquals("Tester", detail.getObject("setup").getString("teamsFinalisedBy"));
+        assertEquals("DONE", stepState(detail, "teams"));
+        assertTrue(detail.getObject("prep").getBoolean("ready"));
+        assertEquals(409, failure("POST", "events/" + id + "/teams/finalise", "{}").status, "already final");
+        detail = call("POST", "events/" + id + "/teams/reopen", "{}");
+        assertTrue(detail.getObject("setup").isNull("teamsFinalisedAt"));
+        assertEquals(409, failure("POST", "events/" + id + "/teams/reopen", "{}").status);
+        assertEquals(405, failure("GET", "events/" + id + "/teams/finalise", null).status);
+        call("POST", "events/" + id + "/teams/finalise", "{}");
+        call("POST", "events/" + id + "/status", "{\"status\":\"running\"}");
+        assertEquals(409, failure("POST", "events/" + id + "/teams/reopen", "{}").status, "not once the event has started");
+    }
+
+    @Test
+    void aPlayerWhoNeedsVerificationBeforeTeamsIsFlaggedAndRefusedUntilWaived() {
+        String id = create("{\"name\":\"Verified teams\",\"scoringMode\":\"team\",\"config\":{\"verification\":{\"required\":true,\"gate\":\"TEAMS\"}}}");
+        call("POST", "events/" + id + "/status", "{\"status\":\"signups\"}");
+        call("POST", "events/" + id + "/participants", "{\"userId\":\"101\"}");
+        call("POST", "events/" + id + "/teams", "{\"name\":\"Red\"}");
+        var detail = call("GET", "events/" + id, null);
+        assertTrue(playerOf(detail, "101").getString("teamBlock").contains("hasn't been verified"), playerOf(detail, "101").getString("teamBlock"));
+        String red = teamIdNamed(detail, "Red");
+        assertEquals(409, failure("PUT", "events/" + id + "/participants/101", "{\"teamId\":\"" + red + "\"}").status);
+        assertEquals(400, failure("PUT", "events/" + id + "/teams/assign", "{\"assignments\":[{\"userId\":\"101\",\"teamId\":\"" + red + "\"}]}").status);
+        assertTrue(call("POST", "events/" + id + "/teams/suggest", "{}").getArray("moves").isEmpty(), "they can't be placed, so nothing is suggested");
+
+        detail = call("PUT", "events/" + id + "/participants/101/verification", "{\"state\":\"waived\"}");
+        assertTrue(playerOf(detail, "101").isNull("teamBlock"));
+        detail = call("PUT", "events/" + id + "/participants/101", "{\"teamId\":\"" + red + "\"}");
+        assertEquals(red, playerOf(detail, "101").getString("teamId"));
+    }
+
+    @Test
+    void aSoloEventHasNoTeamBuilderData() {
+        String id = create("{\"name\":\"Solo\"}");
+        call("POST", "events/" + id + "/status", "{\"status\":\"signups\"}");
+        call("POST", "events/" + id + "/participants", "{\"userId\":\"101\"}");
+        var player = playerOf(call("GET", "events/" + id, null), "101");
+        assertTrue(player.isNull("strength"));
+        assertTrue(player.isNull("teamBlock"));
+        assertEquals(409, failure("POST", "events/" + id + "/teams/suggest", "{}").status);
+        assertEquals(409, failure("POST", "events/" + id + "/teams/finalise", "{}").status);
+    }
+
+    // ---------- closing signups, the roster and verification ----------
+
+    private static String stepState(DataObject detail, String key) {
+        var steps = detail.getObject("prep").getArray("steps");
+        for (int i = 0; i < steps.length(); i++) if (steps.getObject(i).getString("key").equals(key)) return steps.getObject(i).getString("state");
+        return null;
+    }
+
+    private static DataObject player(DataObject detail, String userId) {
+        var players = detail.getArray("participants");
+        for (int i = 0; i < players.length(); i++) if (players.getObject(i).getString("userId").equals(userId)) return players.getObject(i);
+        throw new AssertionError("no player " + userId);
+    }
+
+    /** An event with one objective ("anything") that is taking signups, built from {@code config}. */
+    private String signupsOpen(String name, String config) {
+        String id = create("{\"name\":\"" + name + "\",\"config\":" + config + "}");
+        call("PUT", "events/" + id + "/objectives", "{\"objectives\":[{\"label\":\"Anything\",\"points\":1}]}");
+        call("POST", "events/" + id + "/status", "{\"status\":\"signups\"}");
+        return id;
+    }
+
+    @Test
+    void aStandardEventStartsOnlyAfterItsSignupsAreClosedAndItsRosterConfirmed() {
+        String id = signupsOpen("Standard night", "{\"setup\":{\"mode\":\"STANDARD\"}}");
+        call("POST", "events/" + id + "/participants", "{\"userId\":\"501\"}");
+        call("POST", "events/" + id + "/participants", "{\"userId\":\"502\"}");
+
+        var open = call("GET", "events/" + id, null);
+        assertFalse(open.getObject("prep").getBoolean("ready"));
+        assertEquals("ACTIVE", stepState(open, "signups"));
+        ApiError early = failure("POST", "events/" + id + "/status", "{\"status\":\"running\"}");
+        assertEquals(409, early.status);
+        assertTrue(early.problems.contains("Close signups."), early.problems.toString());
+        assertEquals(409, failure("POST", "events/" + id + "/roster/confirm", "{}").status, "close signups first");
+
+        // closing stops a player joining for themselves, but staff can still add a late entry
+        var closed = call("POST", "events/" + id + "/signup/close", "{}");
+        assertEquals(2, closed.getObject("closed").getInt("active"));
+        assertNotNull(closed.getObject("setup").getString("signupsClosedAt"));
+        assertEquals("DONE", stepState(closed, "signups"));
+        EventProblem refused = assertThrows(EventProblem.class, () -> service.join(G, Long.parseLong(id), G, 503, null, false, null));
+        assertEquals(409, refused.status());
+        assertTrue(refused.getMessage().contains("Signups have closed"), refused.getMessage());
+        call("POST", "events/" + id + "/participants", "{\"userId\":\"504\"}");
+        assertEquals(3, count(call("GET", "events/" + id, null).getArray("participants")));
+        assertEquals(409, failure("POST", "events/" + id + "/signup/close", "{}").status, "already closed");
+
+        // the roster has to be confirmed too, and only then can it start
+        assertEquals(409, failure("POST", "events/" + id + "/status", "{\"status\":\"running\"}").status);
+        var confirmed = call("POST", "events/" + id + "/roster/confirm", "{}");
+        assertNotNull(confirmed.getObject("setup").getString("rosterConfirmedAt"));
+        assertTrue(confirmed.getObject("prep").getBoolean("ready"));
+        assertEquals(409, failure("POST", "events/" + id + "/roster/confirm", "{}").status, "already confirmed");
+        assertEquals("RUNNING", call("POST", "events/" + id + "/status", "{\"status\":\"running\"}").getObject("event").getString("status"));
+    }
+
+    @Test
+    void reopeningSignupsLetsPlayersJoinAgainAndTheRosterHasToBeConfirmedAgain() {
+        String id = signupsOpen("Reopen night", "{\"setup\":{\"mode\":\"STANDARD\"}}");
+        call("POST", "events/" + id + "/participants", "{\"userId\":\"501\"}");
+        assertEquals(409, failure("POST", "events/" + id + "/signup/reopen", "{}").status, "they aren't closed");
+        call("POST", "events/" + id + "/signup/close", "{}");
+        call("POST", "events/" + id + "/roster/confirm", "{}");
+
+        var reopened = call("POST", "events/" + id + "/signup/reopen", "{}");
+        assertTrue(reopened.getObject("setup").isNull("signupsClosedAt"));
+        assertTrue(reopened.getObject("setup").isNull("rosterConfirmedAt"), "a reopened roster is checked again");
+        assertFalse(reopened.getObject("prep").getBoolean("ready"));
+        service.join(G, Long.parseLong(id), G, 503, null, false, null);
+
+        call("POST", "events/" + id + "/signup/close", "{}");
+        call("POST", "events/" + id + "/roster/confirm", "{}");
+        call("POST", "events/" + id + "/status", "{\"status\":\"running\"}");
+        assertEquals(409, failure("POST", "events/" + id + "/signup/reopen", "{}").status, "an event that has started doesn't take signups again");
+    }
+
+    @Test
+    void anEventNotFollowingTheSetupStartsAsBeforeWithoutClosingAnything() {
+        String id = signupsOpen("Quick night", "{}");
+        call("POST", "events/" + id + "/participants", "{\"userId\":\"501\"}");
+        assertTrue(call("GET", "events/" + id, null).getObject("prep").getBoolean("ready"));
+        assertEquals("RUNNING", call("POST", "events/" + id + "/status", "{\"status\":\"running\"}").getObject("event").getString("status"));
+    }
+
+    @Test
+    void verificationLeavesPlayersPendingUntilAnOrganiserDecidesAndUnverifiedPlayersCantClaim() {
+        String id = signupsOpen("Verified night", "{\"verification\":{\"required\":true,\"gate\":\"TEAMS\",\"instructions\":\"Bank screenshot\"}}");
+        for (String user : new String[]{"501", "502", "503"}) call("POST", "events/" + id + "/participants", "{\"userId\":\"" + user + "\"}");
+        var detail = call("GET", "events/" + id, null);
+        assertEquals(3, detail.getObject("verification").getInt("pending"));
+        assertEquals("PENDING", player(detail, "501").getString("verification"));
+        assertEquals("Bank screenshot", detail.getObject("verification").getString("instructions"));
+
+        call("PUT", "events/" + id + "/participants/501/verification", "{\"state\":\"verified\"}");
+        assertEquals(400, failure("PUT", "events/" + id + "/participants/502/verification", "{\"state\":\"rejected\"}").status, "a reason is needed");
+        call("PUT", "events/" + id + "/participants/502/verification", "{\"state\":\"rejected\",\"note\":\"Too blurry to read\"}");
+        call("PUT", "events/" + id + "/participants/503/verification", "{\"state\":\"waived\"}");
+        assertEquals(400, failure("PUT", "events/" + id + "/participants/501/verification", "{\"state\":\"maybe\"}").status);
+        assertEquals(404, failure("PUT", "events/" + id + "/participants/999/verification", "{\"state\":\"verified\"}").status, "not in the event");
+        var after = call("GET", "events/" + id, null);
+        var counts = after.getObject("verification");
+        assertEquals(1, counts.getInt("verified"));
+        assertEquals(1, counts.getInt("waived"));
+        assertEquals(1, counts.getInt("rejected"));
+        assertEquals(0, counts.getInt("pending"));
+        assertEquals("Too blurry to read", player(after, "502").getString("verificationNote"));
+        assertEquals(1, after.getObject("prep").getArray("warnings").length(), "the turned-down player is flagged");
+
+        // gate at the teams: the event can start, and from then on only verified or waived players earn points
+        call("POST", "events/" + id + "/status", "{\"status\":\"running\"}");
+        assertEquals(409, failure("POST", "events/" + id + "/claims", "{\"userId\":\"502\",\"objective\":\"anything\",\"note\":\"I killed it\"}").status);
+        call("POST", "events/" + id + "/claims", "{\"userId\":\"501\",\"objective\":\"anything\",\"note\":\"I killed it\"}");
+        call("POST", "events/" + id + "/claims", "{\"userId\":\"503\",\"objective\":\"anything\",\"note\":\"I killed it\"}");
+        call("POST", "events/" + id + "/progress", "{\"userId\":\"502\",\"objective\":\"anything\",\"amount\":1}"); // an organiser may still record it by hand
+    }
+
+    @Test
+    void aVerificationGateAtTheStartHoldsTheEventBackUntilEveryoneIsDecidedAbout() {
+        String id = signupsOpen("Gate at start", "{\"verification\":{\"required\":true,\"gate\":\"START\"}}");
+        call("POST", "events/" + id + "/participants", "{\"userId\":\"501\"}");
+        ApiError blocked = failure("POST", "events/" + id + "/status", "{\"status\":\"running\"}");
+        assertEquals(409, blocked.status);
+        assertTrue(blocked.problems.get(0).startsWith("1 player still needs verification"), blocked.problems.toString());
+        call("PUT", "events/" + id + "/participants/501/verification", "{\"state\":\"waived\",\"note\":\"Known player\"}");
+        assertEquals("RUNNING", call("POST", "events/" + id + "/status", "{\"status\":\"running\"}").getObject("event").getString("status"));
+    }
+
+    @Test
+    void verificationCanOnlyBeDecidedForAnEventThatAsksForIt() {
+        String id = signupsOpen("No verification", "{}");
+        call("POST", "events/" + id + "/participants", "{\"userId\":\"501\"}");
+        ApiError refused = failure("PUT", "events/" + id + "/participants/501/verification", "{\"state\":\"verified\"}");
+        assertEquals(409, refused.status);
+        assertEquals("NOT_REQUIRED", player(call("GET", "events/" + id, null), "501").getString("verification"));
+    }
+
+    @Test
+    void theSetupModeAndVerificationAreSavedWithTheEventsSettingsAndBadOnesAreRefused() {
+        String id = create("{\"name\":\"Settings night\",\"config\":{\"setup\":{\"mode\":\"FULL\"},\"verification\":{\"required\":true,\"gate\":\"SIGNUP\"}}}");
+        var config = call("GET", "events/" + id, null).getObject("event").getObject("config");
+        assertEquals("FULL", config.getObject("setup").getString("mode"));
+        assertEquals("SIGNUP", config.getObject("verification").getString("gate"));
+        call("PUT", "events/" + id, "{\"name\":\"Settings night\",\"config\":{\"setup\":{\"mode\":\"OFF\"}}}");
+        assertEquals("OFF", call("GET", "events/" + id, null).getObject("event").getObject("config").getObject("setup").getString("mode"));
+        assertEquals(400, failure("POST", "events", "{\"name\":\"Bad mode\",\"config\":{\"setup\":{\"mode\":\"sometimes\"}}}").status);
+        assertEquals(400, failure("POST", "events", "{\"name\":\"Bad gate\",\"config\":{\"verification\":{\"required\":true,\"gate\":\"later\"}}}").status);
+    }
+
+    // ---------- setting an event up: standard, quick, guided drafts and saved templates ----------
+
+    @Test
+    void theSetupRoutesGiveTheSchemaAndMakeStandardAndQuickEvents() {
+        var schema = call("GET", "events/setup/schema/bingo", null);
+        assertEquals("bingo", schema.getString("template"));
+        assertEquals(7, schema.getArray("steps").length());
+        assertTrue(schema.getArray("options").length() > 15);
+        assertTrue(schema.getObject("standard").getString("name").startsWith("Bingo \u00b7 "));
+        assertEquals(400, failure("GET", "events/setup/schema/spiral", null).status);
+        assertEquals(405, failure("POST", "events/setup/schema/bingo", "{}").status);
+
+        // one call, nothing to fill in
+        var made = call("POST", "events/setup/standard", "{\"template\":\"scavenger-hunt\"}");
+        var detail = call("GET", "events/" + made.getString("id"), null);
+        assertEquals("DRAFT", detail.getObject("event").getString("status"));
+        assertEquals(8, count(detail.getArray("objectives")));
+        assertEquals("STANDARD", detail.getObject("event").getObject("config").getObject("setup").getString("mode"));
+
+        // a few answers over the standard ones; a boss night can't skip its boss
+        var quick = call("POST", "events/setup/standard", "{\"template\":\"boss-night\",\"overrides\":{\"name\":\"Zuk night\",\"config.boss\":\"TzKal-Zuk\"}}");
+        assertEquals("Zuk night", call("GET", "events/" + quick.getString("id"), null).getObject("event").getString("name"));
+        ApiError refused = failure("POST", "events/setup/standard", "{\"template\":\"boss-night\"}");
+        assertEquals(400, refused.status);
+        assertFalse(refused.problems.isEmpty());
+        assertEquals(400, failure("POST", "events/setup/standard", "{\"template\":\"nope\"}").status);
+
+        // every answer at once
+        var full = call("POST", "events/setup/create", "{\"answers\":{\"template\":\"custom\",\"name\":\"Full setup\",\"scoringMode\":\"TEAM\",\"config\":{\"buyIn\":{\"enabled\":true,\"amount\":2000000,\"showPot\":true}},"
+                + "\"prizes\":[{\"place\":1,\"kind\":\"IN_GAME\",\"description\":\"Zaros godsword\",\"split\":\"EACH\"}]}}");
+        var fullDetail = call("GET", "events/" + full.getString("id"), null);
+        assertEquals("TEAM", fullDetail.getObject("event").getString("scoringMode"));
+        assertEquals(1, count(fullDetail.getArray("prizes")));
+        assertEquals(400, failure("POST", "events/setup/create", "{}").status);
+        assertEquals(404, failure("GET", "events/setup/nothing", null).status);
+    }
+
+    @Test
+    void aDraftIsStartedSavedAsItGoesAndFinishedIntoAnEvent() {
+        var started = call("POST", "events/drafts", "{\"template\":\"bingo\",\"stream\":\"guided\"}").getObject("draft");
+        String id = started.getString("id");
+        assertEquals("BASICS", started.getString("step"));
+        assertEquals(0, started.getArray("missing").length());
+        assertEquals(1, count(call("GET", "events/drafts", null).getArray("drafts")));
+
+        // the name is blanked: it is reported as missing and the event can't be made, but the draft stays
+        var answers = started.getObject("answers");
+        answers.put("name", "");
+        var saved = call("PUT", "events/drafts/" + id, "{\"step\":\"basics\",\"answers\":" + answers + "}").getObject("draft");
+        assertEquals("name", saved.getArray("missing").getObject(0).getString("path"));
+        assertEquals(1, saved.getInt("missingCount"));
+        ApiError early = failure("POST", "events/drafts/" + id + "/create", "{}");
+        assertEquals(400, early.status);
+        assertEquals(1, count(call("GET", "events/drafts", null).getArray("drafts")));
+
+        // the answers on screen are saved with the finish
+        answers.put("name", "Saturday bingo");
+        var made = call("POST", "events/drafts/" + id + "/create", "{\"step\":\"review\",\"answers\":" + answers + "}");
+        assertEquals("Saturday bingo", call("GET", "events/" + made.getString("id"), null).getObject("event").getString("name"));
+        assertEquals(0, count(call("GET", "events/drafts", null).getArray("drafts")), "finishing removes the draft");
+        assertEquals(404, failure("GET", "events/drafts/" + id, null).status);
+
+        var other = call("POST", "events/drafts", "{\"template\":\"custom\"}").getObject("draft");
+        assertEquals(0, count(call("DELETE", "events/drafts/" + other.getString("id"), null).getArray("drafts")));
+        assertEquals(400, failure("POST", "events/drafts", "{\"template\":\"nope\"}").status);
+        assertEquals(400, failure("GET", "events/drafts/abc", null).status);
+    }
+
+    @Test
+    void anEventCanBeSavedAsATemplateAndSimilarEventsMadeFromIt() {
+        String source = create("{\"name\":\"Source event\",\"template\":\"scavenger-hunt\",\"config\":{\"steps\":6}}");
+        var saved = call("POST", "events/saved-templates", "{\"eventId\":\"" + source + "\",\"name\":\"Clue hunt\",\"description\":\"Six clues\"}");
+        assertEquals(1, count(saved.getArray("templates")));
+        var template = saved.getObject("saved");
+        assertEquals("Clue hunt", template.getString("name"));
+        assertEquals("Scavenger hunt", template.getString("templateLabel"));
+        assertTrue(template.getBoolean("available"));
+        assertEquals(409, failure("POST", "events/saved-templates", "{\"eventId\":\"" + source + "\",\"name\":\"clue HUNT\"}").status, "names are unique");
+        assertEquals(400, failure("POST", "events/saved-templates", "{\"name\":\"No event\"}").status);
+
+        var made = call("POST", "events/saved-templates/" + template.getString("id") + "/create", "{\"name\":\"Clue hunt, round two\"}");
+        var detail = call("GET", "events/" + made.getString("id"), null);
+        assertEquals("Clue hunt, round two", detail.getObject("event").getString("name"));
+        assertEquals(6, count(detail.getArray("objectives")));
+        assertEquals(400, failure("POST", "events/saved-templates/" + template.getString("id") + "/create", "{\"startsAt\":\"soon\"}").status);
+
+        var renamed = call("PUT", "events/saved-templates/" + template.getString("id"), "{\"name\":\"Six clues\",\"description\":\"\"}");
+        assertEquals("Six clues", renamed.getArray("templates").getObject(0).getString("name"));
+        assertEquals(0, count(call("DELETE", "events/saved-templates/" + template.getString("id"), null).getArray("templates")));
+        assertEquals(404, failure("POST", "events/saved-templates/" + template.getString("id") + "/create", "{}").status);
+    }
+
     // ---------- bingo ----------
 
     @Test
@@ -342,6 +758,89 @@ class EventsAdminApiTest {
         assertEquals(409, failure("POST", "events/" + id + "/bingo", "{\"seed\":5}").status);
         assertEquals(409, failure("POST", "events/" + id + "/bingo", "{\"replace\":{\"number\":3,\"label\":\"Another\",\"points\":5}}").status);
         assertEquals("Posted the board.", call("POST", "events/" + id + "/board", "{}").getString("message"));
+    }
+
+    @Test
+    void aShapedBingoListsItsShapeEnforcesItsOrderAndCanChangeShape() {
+        var shapes = call("GET", "events/bingo-layouts", null).getArray("layouts");
+        var ids = new ArrayList<String>();
+        for (int i = 0; i < shapes.length(); i++) ids.add(shapes.getObject(i).getString("id"));
+        assertEquals(List.of("path", "pyramid", "convergence", "tree"), ids);
+        var pyramid = shapes.getObject(1);
+        assertEquals(15, pyramid.getInt("tiles"));
+        assertEquals(5, pyramid.getArray("rows").length());
+        assertEquals(2, pyramid.getObject("requires").getArray("1").length());
+
+        // a pyramid of classic tasks opens in order: the apex needs the two tiles beneath it
+        String id = create("{\"name\":\"Pyramid night\",\"template\":\"bingo\",\"config\":{\"board\":{\"layout\":\"pyramid\",\"pool\":\"classic\",\"seed\":3}}}");
+        var detail = call("GET", "events/" + id, null);
+        assertEquals("pyramid", detail.getObject("layout").getString("id"));
+        assertEquals("locked", detail.getObject("layout").getString("unlock"));
+        assertEquals(15, count(detail.getArray("objectives")));
+        var keys = detail.getObject("event").getObject("config").getObject("board").getArray("keys");
+        assertEquals(15, keys.length());
+        assertEquals(5, detail.getObject("event").getObject("config").getArray("bonuses").length(), "four tiers and the blackout");
+        var apex = detail.getArray("objectives").getObject(0);
+        assertEquals(2, apex.getArray("prerequisites").length());
+        assertEquals(keys.getString(1), apex.getArray("prerequisites").getString(0));
+        assertEquals(0, detail.getArray("objectives").getObject(14).getArray("prerequisites").length(), "the base needs nothing");
+
+        // the engine itself refuses progress on a tile that isn't open yet
+        call("POST", "events/" + id + "/status", "{\"status\":\"signups\"}");
+        call("POST", "events/" + id + "/participants", "{\"userId\":\"" + ACTOR + "\"}");
+        call("POST", "events/" + id + "/status", "{\"status\":\"running\"}");
+        assertEquals(409, failure("POST", "events/" + id + "/progress", "{\"userId\":\"" + ACTOR + "\",\"objective\":\"" + keys.getString(0) + "\",\"amount\":1}").status);
+        call("POST", "events/" + id + "/progress", "{\"userId\":\"" + ACTOR + "\",\"objective\":\"" + keys.getString(14) + "\",\"amount\":1}");
+
+        // a draft can re-roll within its shape and switch to another, which leaves no tiles of the old board behind
+        String draft = create("{\"name\":\"Switching\",\"template\":\"bingo\",\"config\":{\"board\":{\"layout\":\"pyramid\",\"pool\":\"classic\",\"seed\":1}}}");
+        var tree = call("POST", "events/" + draft + "/bingo", "{\"layout\":\"tree\",\"seed\":7}");
+        assertEquals("tree", tree.getObject("layout").getString("id"));
+        assertEquals(16, count(tree.getArray("objectives")));
+        var grid = call("POST", "events/" + draft + "/bingo", "{\"layout\":\"grid\",\"size\":4,\"seed\":7}");
+        assertTrue(grid.isNull("layout"));
+        assertEquals(16, count(grid.getArray("objectives")));
+        assertEquals(400, failure("POST", "events/" + draft + "/bingo", "{\"layout\":\"spiral\"}").status);
+    }
+
+    @Test
+    void aBingosLookIsChosenAtCreationKeptThroughARerollAndChangedUntilTheEventIsOver() {
+        var looks = call("GET", "events/bingo-layouts", null).getArray("looks");
+        assertEquals(2, looks.length());
+        assertEquals("classic", looks.getObject(0).getString("id"));
+        assertEquals("runescape", looks.getObject(1).getString("id"));
+        assertFalse(looks.getObject(1).getString("label").isEmpty());
+
+        String id = create("{\"name\":\"Look night\",\"template\":\"bingo\",\"config\":{\"board\":{\"size\":3,\"seed\":4,\"look\":\"runescape\"}}}");
+        assertEquals("runescape", lookOf(call("GET", "events/" + id, null)));
+
+        var changed = call("POST", "events/" + id + "/look", "{\"look\":\"classic\"}");
+        assertEquals("classic", lookOf(changed));
+        assertEquals(9, count(changed.getArray("objectives")), "only the picture changed");
+        assertEquals("classic", lookOf(call("POST", "events/" + id + "/bingo", "{\"seed\":8}")), "a re-roll keeps the look");
+
+        assertEquals(400, failure("POST", "events/" + id + "/look", "{\"look\":\"neon\"}").status);
+        assertEquals("classic", lookOf(call("GET", "events/" + id, null)), "a refused change leaves it alone");
+        assertEquals(400, failure("POST", "events", "{\"name\":\"Bad look\",\"template\":\"bingo\",\"config\":{\"board\":{\"size\":3,\"look\":\"neon\"}}}").status);
+        assertNull(lookOf(call("POST", "events/" + id + "/look", "{\"look\":\"\"}")), "an empty look goes back to how the board was first drawn");
+
+        // it is only a picture, so it may change while the event runs, but not once the event is over
+        call("POST", "events/" + id + "/look", "{\"look\":\"runescape\"}");
+        call("POST", "events/" + id + "/status", "{\"status\":\"signups\"}");
+        call("POST", "events/" + id + "/status", "{\"status\":\"running\"}");
+        assertEquals("classic", lookOf(call("POST", "events/" + id + "/look", "{\"look\":\"classic\"}")));
+        call("POST", "events/" + id + "/status", "{\"status\":\"scoring\"}");
+        call("POST", "events/" + id + "/status", "{\"status\":\"done\"}");
+        assertEquals(409, failure("POST", "events/" + id + "/look", "{\"look\":\"runescape\"}").status);
+
+        String notBingo = create("{\"name\":\"Not a bingo\"}");
+        assertEquals(409, failure("POST", "events/" + notBingo + "/look", "{\"look\":\"classic\"}").status);
+    }
+
+    /** The look in an event's settings, or null when it has none. */
+    private static String lookOf(DataObject detail) {
+        var board = detail.getObject("event").getObject("config").getObject("board");
+        return board.hasKey("look") && !board.isNull("look") ? board.getString("look") : null;
     }
 
     @Test
@@ -534,5 +1033,32 @@ class EventsAdminApiTest {
         assertTrue(listed(after, one, true) && listed(after, two, true));
         assertTrue(listed(after, open, false));
         assertEquals(0, call("POST", "events/archive-finished", null).getInt("archivedCount"));
+    }
+
+    @Test
+    void aPlayerWithANineteenDigitDiscordIdCanBeMovedRatedAndRemovedLikeAnyOther() {
+        String player = "1006494212210053150";
+        String id = create("{\"name\":\"Long ids\",\"scoringMode\":\"team\"}");
+        call("POST", "events/" + id + "/status", "{\"status\":\"signups\"}");
+        call("POST", "events/" + id + "/participants", "{\"userId\":\"" + player + "\"}");
+        call("POST", "events/" + id + "/teams", "{\"name\":\"Red\"}");
+        String red = teamIdNamed(call("GET", "events/" + id, null), "Red");
+
+        var detail = call("PUT", "events/" + id + "/participants/" + player, "{\"teamId\":\"" + red + "\"}");
+        assertEquals(red, playerOf(detail, player).getString("teamId"));
+        detail = call("PUT", "events/" + id + "/participants/" + player + "/rating", "{\"rating\":4}");
+        assertEquals(4, playerOf(detail, player).getInt("rating"));
+        detail = call("PUT", "events/" + id + "/participants/" + player, "{\"teamId\":null}");
+        assertTrue(playerOf(detail, player).isNull("teamId"));
+        call("DELETE", "events/" + id + "/participants/" + player, null);
+        assertTrue(repository.participant(Long.parseLong(id), Long.parseLong(player)).isEmpty(), "removed");
+    }
+
+    @Test
+    void anIdThatIsNotADiscordIdIsRefusedNotCrashedOn() {
+        String id = create("{\"name\":\"Bad ids\"}");
+        assertEquals(400, failure("PUT", "events/" + id + "/participants/99999999999999999999", "{\"teamId\":null}").status, "20 digits don't fit a long");
+        assertEquals(400, failure("DELETE", "events/" + id + "/participants/12ab", null).status);
+        assertEquals(400, failure("GET", "events/9223372036854775808", null).status, "past the largest id there is");
     }
 }

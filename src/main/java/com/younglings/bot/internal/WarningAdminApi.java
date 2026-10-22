@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.warning.Autopunish;
 import com.younglings.bot.warning.WarningRepository;
@@ -99,7 +100,7 @@ public class WarningAdminApi implements AdminRouteExtension {
             };
             if (!self.hasPermission(needed)) problems.add("JonnyBot needs the " + needed.getName() + " permission to " + r.action().name().toLowerCase(java.util.Locale.ROOT) + " members.");
         }
-        if (!problems.isEmpty()) throw new ApiError(400, "The autopunish rules can't be saved yet.", problems.stream().distinct().toList());
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.the_autopunish_rules_can_t_be"), problems.stream().distinct().toList());
         repository.saveAutopunishRules(guild.getIdLong(), rules.stream().sorted(java.util.Comparator.comparingInt(Autopunish.Rule::threshold)).toList());
         log.info("Dashboard: {} saved {} autopunish rule(s)", actor.getId(), rules.size());
         return autopunish(guild);
@@ -111,8 +112,8 @@ public class WarningAdminApi implements AdminRouteExtension {
     }
 
     DataObject delete(Guild guild, Member actor, String rawId) {
-        if (rawId == null || !rawId.strip().matches("\\d{1,18}")) throw new ApiError(400, "That isn't a valid warning.");
-        if (!repository.delete(guild.getIdLong(), Long.parseLong(rawId.strip()))) throw new ApiError(404, "That warning doesn't exist.");
+        if (rawId == null || !rawId.strip().matches("\\d{1,18}")) throw new ApiError(400, Text.of(guild, "dashboard.that_isn_t_a_valid_warning"));
+        if (!repository.delete(guild.getIdLong(), Long.parseLong(rawId.strip()))) throw new ApiError(404, Text.of(guild, "dashboard.that_warning_doesn_t_exist"));
         log.info("Dashboard: {} removed warning {}", actor.getId(), rawId.strip());
         return list(guild);
     }

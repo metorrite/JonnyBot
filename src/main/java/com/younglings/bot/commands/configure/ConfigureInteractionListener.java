@@ -7,6 +7,7 @@ import com.younglings.bot.configure.GuildSettings;
 import com.younglings.bot.configure.GuildSettingsService;
 import com.younglings.bot.discord.Containers;
 import com.younglings.bot.discord.DiscordLinks;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.permission.PermissionGroup;
 import com.younglings.bot.permission.PermissionGroupService;
 import com.younglings.bot.runescape.ClanVerificationService;
@@ -76,7 +77,7 @@ public class ConfigureInteractionListener extends ListenerAdapter {
 
         try {
             if (!member.hasPermission(Permission.ADMINISTRATOR)) {
-                Containers.replyEphemeral(event, Containers.WARNING, "You need the Administrator permission to configure this bot.");
+                Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "configure.you_need_the_administrator_permission_to"));
                 return;
             }
 
@@ -110,7 +111,7 @@ public class ConfigureInteractionListener extends ListenerAdapter {
 
         try {
             if (!member.hasPermission(Permission.ADMINISTRATOR)) {
-                Containers.replyEphemeral(event, Containers.WARNING, "You need the Administrator permission to configure this bot.");
+                Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "configure.you_need_the_administrator_permission_to"));
                 return;
             }
             if (id.equals("configure_clan_name_modal:_")) {
@@ -143,7 +144,7 @@ public class ConfigureInteractionListener extends ListenerAdapter {
 
         try {
             if (!member.hasPermission(Permission.ADMINISTRATOR)) {
-                Containers.replyEphemeral(event, Containers.WARNING, "You need the Administrator permission to configure this bot.");
+                Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "configure.you_need_the_administrator_permission_to"));
                 return;
             }
 
@@ -188,7 +189,7 @@ public class ConfigureInteractionListener extends ListenerAdapter {
 
         try {
             if (!member.hasPermission(Permission.ADMINISTRATOR)) {
-                Containers.replyEphemeral(event, Containers.WARNING, "You need the Administrator permission to configure this bot.");
+                Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "configure.you_need_the_administrator_permission_to"));
                 return;
             }
 
@@ -256,7 +257,7 @@ public class ConfigureInteractionListener extends ListenerAdapter {
         String raw = event.getValue("link_value").getAsString();
         Long channelId = raw.isBlank() ? null : DiscordLinks.parseChannelId(raw);
         if (!raw.isBlank() && channelId == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "Couldn't find a channel ID in that — paste the full link, or just the ID by itself.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "configure.couldn_t_find_a_channel_id"));
             return;
         }
 
@@ -280,7 +281,7 @@ public class ConfigureInteractionListener extends ListenerAdapter {
         String raw = event.getValue("link_value").getAsString();
         Long roleId = raw.isBlank() ? null : DiscordLinks.parseId(raw);
         if (!raw.isBlank() && roleId == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "Couldn't find a role ID in that — paste just the ID by itself.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "configure.couldn_t_find_a_role_id"));
             return;
         }
 
@@ -377,7 +378,7 @@ public class ConfigureInteractionListener extends ListenerAdapter {
 
         var url = WebsiteLink.normalize(raw);
         if (url.isEmpty()) {
-            Containers.replyEphemeral(event, Containers.WARNING, "That doesn't look like a web address. Try something like `https://example.com` (up to " + WebsiteLink.MAX_LENGTH + " characters).");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "configure.that_doesn_t_look_like_a", WebsiteLink.MAX_LENGTH));
             return;
         }
         settingsService.updateWebsiteUrl(guild.getIdLong(), url.get());
@@ -387,7 +388,7 @@ public class ConfigureInteractionListener extends ListenerAdapter {
     private void doClanToggle(ButtonInteractionEvent event, Guild guild) {
         GuildSettings settings = settingsService.getEffective(guild.getIdLong());
         if (settings.savedClanName() == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "Set a clan first — there's nothing to turn on or off yet.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "configure.set_a_clan_first_there_nothing"));
             return;
         }
         settingsService.setClanEnabled(guild.getIdLong(), !settings.clanEnabled());

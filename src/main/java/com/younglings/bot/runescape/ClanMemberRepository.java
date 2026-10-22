@@ -1,5 +1,6 @@
 package com.younglings.bot.runescape;
 
+import com.younglings.bot.internal.SiteInvalidator;
 import io.github.freya022.botcommands.api.core.db.ConnectionSupplier;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import org.slf4j.Logger;
@@ -54,6 +55,7 @@ public class ClanMemberRepository {
             statement.setLong(5, kills);
             statement.executeUpdate();
 
+            SiteInvalidator.signal(SiteInvalidator.Area.ROSTER);
         } catch (SQLException e) {
             log.error("Failed to upsert clan member '{}'", rsn, e);
             throw new RuntimeException("Failed to upsert clan member", e);
@@ -70,6 +72,7 @@ public class ClanMemberRepository {
             statement.setString(2, rsn);
             statement.executeUpdate();
 
+            SiteInvalidator.signal(SiteInvalidator.Area.ROSTER);
         } catch (SQLException e) {
             log.error("Failed to mark clan member '{}' inactive", rsn, e);
             throw new RuntimeException("Failed to mark clan member inactive", e);
@@ -131,6 +134,21 @@ public class ClanMemberRepository {
         }
     }
 
+    /** How many members the roster has (only the active ones when {@code activeOnly}), without reading the rows. */
+    public int count(long guildId, boolean activeOnly) {
+        String sql = "SELECT COUNT(*) FROM younglings.clan_member WHERE guild_id = ?" + (activeOnly ? " AND active = TRUE" : "");
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setLong(1, guildId);
+            try (ResultSet rs = statement.executeQuery()) {
+                return rs.next() ? rs.getInt(1) : 0;
+            }
+        } catch (SQLException e) {
+            log.error("Failed to count the clan members for guild {}", guildId, e);
+            throw new RuntimeException("Failed to count the clan members", e);
+        }
+    }
+
     public List<ClanMemberRow> getAll(long guildId, boolean activeOnly) {
         String sql = "SELECT id, guild_id, rsn, clan_rank, first_seen, last_seen, active, total_xp, kills, clan_joined_at FROM younglings.clan_member WHERE guild_id = ?"
                 + (activeOnly ? " AND active = TRUE" : "") + " ORDER BY LOWER(rsn)";
@@ -172,7 +190,9 @@ public class ClanMemberRepository {
             statement.setObject(1, joinedAt);
             statement.setLong(2, guildId);
             statement.setString(3, rsn);
-            return statement.executeUpdate() > 0;
+            boolean changed = statement.executeUpdate() > 0;
+            if (changed) SiteInvalidator.signal(SiteInvalidator.Area.ROSTER);
+            return changed;
 
         } catch (SQLException e) {
             log.error("Failed to set clan join date for '{}'", rsn, e);

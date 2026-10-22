@@ -37,6 +37,23 @@ public class CompetitionTemplate implements EventTemplate {
         return "Competition";
     }
 
+    /** XP gained is read from the player's RuneScape name. */
+    @Override
+    public boolean needsRsn() {
+        return true;
+    }
+
+    @Override
+    public List<EventOptions.Option> options() {
+        List<EventOptions.Choice> skills = new ArrayList<>();
+        skills.add(new EventOptions.Choice(String.valueOf(OVERALL), "Overall (total XP)"));
+        for (int id = 0; id < RuneScapeSkillCatalog.skillCount(); id++) skills.add(new EventOptions.Choice(String.valueOf(id), RuneScapeSkillCatalog.nameFor(id)));
+        return List.of(
+                EventOptions.Option.choice("config.skillId", "Skill", "Whose XP counts: one skill, or total XP.", EventOptions.Step.RULES, (long) OVERALL, skills).numericChoices().widget("skill").inQuick(),
+                EventOptions.Option.number("config.xpPerPoint", "XP per point", "How much XP earns one point. A larger number keeps points small.", EventOptions.Step.RULES,
+                        DEFAULT_XP_PER_POINT, 1, EventRules.MAX_TARGET));
+    }
+
     @Override
     public String description() {
         return "Who gains the most XP in a skill (or overall) while the event runs. Progress comes from players' linked RuneScape accounts, so nobody has to send screenshots.";

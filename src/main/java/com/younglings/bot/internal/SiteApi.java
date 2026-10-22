@@ -20,6 +20,7 @@ import com.younglings.bot.runescape.RuneScapeXpTable;
 import com.younglings.bot.runescape.SkillValue;
 import com.younglings.bot.runescape.WeeklyDigestRepository;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
+import com.younglings.bot.config.PrivilegedIntents;
 import net.dv8tion.jda.api.OnlineStatus;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
@@ -154,6 +155,26 @@ public class SiteApi {
         }
     }
 
+    /** The routes a hosted clan website (website builder) may read: clan-level pages only, never one member's profile or "me". */
+    public static final java.util.Set<String> TENANT_ROUTES = java.util.Set.of("members", "overview", "leaderboard", "recap");
+
+    /**
+     * One answer for a hosted clan website, for any server (the clan site's own routes above are for the home server). Only
+     * {@link #TENANT_ROUTES}; a recap is always the clan's, never one member's. Cached per server: the key ends in {@code #g<id>}, so the
+     * home server's keys are unchanged and {@link SiteCache#invalidate} by route still clears these.
+     */
+    public DataObject tenant(Guild guild, String route, HttpExchange exchange) {
+        if (!TENANT_ROUTES.contains(route)) return null;
+        String cacheKey = route + "?" + exchange.getRequestURI().getRawQuery() + "#g" + guild.getIdLong();
+        return cache.get(cacheKey, ttlMillis(route), () -> switch (route) {
+            case "members" -> members(guild);
+            case "overview" -> overview(guild);
+            case "leaderboard" -> leaderboard(guild, query(exchange, "month"), query(exchange, "period"));
+            case "recap" -> recap.build(guild, "clan", null, query(exchange, "period"));
+            default -> null;
+        });
+    }
+
     /** How long an answer may be reused. Live things are short; heavy aggregates are longer. Writes drop their own entries early. */
     private static long ttlMillis(String route) {
         return switch (route) {
@@ -187,7 +208,13 @@ public class SiteApi {
      * role (the roles set to "display separately"), groups ordered by that role's position, everyone else
      * under a trailing "Online" group, and alphabetical (ignoring case) inside each group.
      */
+    /** The online answer while the Presence intent is off: nothing can be known, which is not the same as nobody being online. */
+    static DataObject onlineUnavailable() {
+        return DataObject.empty().put("total", 0).put("groups", DataArray.empty()).put("unavailable", true);
+    }
+
     DataObject online(Guild guild) {
+        if (!PrivilegedIntents.presence()) return onlineUnavailable();
         record Group(long id, String name, int colorRaw, int position) {}
         // Which online members can be linked to a clan profile: they have a linked RuneScape name that is a current member and haven't opted out.
         long guildId = guild.getIdLong();
@@ -242,7 +269,7 @@ public class SiteApi {
                     .put("members", memberArray));
         });
 
-        return DataObject.empty().put("total", total).put("groups", groupArray);
+        return DataObject.empty().put("total", total).put("groups", groupArray).put("unavailable", false);
     }
 
     // ---------- events ----------

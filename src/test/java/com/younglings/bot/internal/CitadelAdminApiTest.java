@@ -127,6 +127,20 @@ class CitadelAdminApiTest {
     }
 
     @Test
+    void theVideoOptionIsOffUntilChosenAndKeptWhenOtherThingsChange() {
+        channel(true);
+        when(settings.get(7L)).thenReturn(new WheelSettingsRepository.Settings(false, null, WheelMessage.DEFAULT));
+        assertEquals(false, api.wheelSettings(guild).getBoolean("video"));
+
+        api.saveWheelSettings(guild, actor(), DataObject.empty().put("video", true));
+        verify(settings).save(7L, new WheelSettingsRepository.Settings(false, null, WheelMessage.DEFAULT, true));
+
+        when(settings.get(7L)).thenReturn(new WheelSettingsRepository.Settings(false, null, WheelMessage.DEFAULT, true));
+        api.saveWheelSettings(guild, actor(), DataObject.empty().put("channelId", "9"));
+        verify(settings).save(7L, new WheelSettingsRepository.Settings(false, 9L, WheelMessage.DEFAULT, true));
+    }
+
+    @Test
     void autoPostNeedsAChannelAndAMessageThatSaysWhoWon() {
         when(settings.get(7L)).thenReturn(new WheelSettingsRepository.Settings(false, null, WheelMessage.DEFAULT));
         assertEquals(400, assertThrows(ApiError.class, () -> api.saveWheelSettings(guild, actor(), DataObject.empty().put("autoPost", true))).status);
