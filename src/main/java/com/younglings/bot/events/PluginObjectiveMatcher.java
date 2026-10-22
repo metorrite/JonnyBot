@@ -96,6 +96,40 @@ public final class PluginObjectiveMatcher {
         return hits;
     }
 
+    /**
+     * What the bingo editor says under a tile while it is typed (T-141): whether RuneSync can tick it by itself, in words. {@code auto} is
+     * true only when a report RuneSync sends today would match this label under {@link #match}'s rules; {@code text} says why or why not.
+     * Null for event types that don't use tile labels (competitions and boss nights) and for an empty label.
+     */
+    public record Hint(boolean auto, String text) {}
+
+    /** The event types RuneSync reports today (see the RuneSync plugin's README, "What RuneSync sends"). */
+    private static final String NOT_YET = "RuneSync doesn't report %s yet, so this tile needs proof or an organiser for now.";
+
+    public static Hint explain(String template, String rawLabel, Labels labels, Function<String, Boolean> knownItem) {
+        if (CompetitionTemplate.KEY.equals(template) || BossNightTemplate.KEY.equals(template)) return null;
+        String label = rawLabel == null ? "" : rawLabel.strip().toLowerCase(Locale.ROOT);
+        if (label.isEmpty()) return null;
+        if (label.contains("clue") || label.contains("treasure trail")) {
+            String rest = CLUE_FILLER.matcher(label.replaceAll("[^a-z ]", " ")).replaceAll(" ").strip().replaceAll("\\s+", " ");
+            if (rest.isEmpty()) return new Hint(true, "Auto with RuneSync: any clue scroll the member completes (read from their game messages).");
+            if (CLUE_TIERS.contains(rest)) return new Hint(true, "Auto with RuneSync: a " + rest + " clue scroll the member completes.");
+            return new Hint(false, "Looks like a clue tile, but only one tier (easy, medium, hard, elite, master) or none can be in the name.");
+        }
+        if (LEVEL_FIRST.matcher(label).matches() || SKILL_FIRST.matcher(label).matches()) return new Hint(false, String.format(NOT_YET, "level-ups"));
+        if (label.startsWith("collection log:") || label.startsWith("log:")) return new Hint(false, String.format(NOT_YET, "collection log entries"));
+        if (label.startsWith("quest:")) return new Hint(false, String.format(NOT_YET, "quests"));
+        if (label.startsWith("achievement:")) return new Hint(false, String.format(NOT_YET, "achievements"));
+        BingoTiles.Ref ref = labels.apply(rawLabel.strip());
+        String item = ref.item() == null ? rawLabel.strip() : ref.item();
+        if (Boolean.TRUE.equals(knownItem.apply(item))) {
+            String from = ref.boss() == null ? "" : " from " + ref.boss();
+            return new Hint(true, "Auto with RuneSync: a drop of " + item + from + " (loot from an NPC the member kills).");
+        }
+        return new Hint(false, "Not an item JonnyBot knows. RuneSync ticks it only if a drop's name is exactly \"" + item
+                + "\". Pick the boss and item from the lists, or write \"Boss: item\".");
+    }
+
     /** A clue tile for this tier: only clue words and at most one tier are left in the label, and that tier (if any) is the one reported. */
     static boolean clueTile(String label, String tier) {
         if (!label.contains("clue") && !label.contains("treasure trail")) return false;
