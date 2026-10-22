@@ -224,7 +224,15 @@ public class PluginApi {
         }
         if (route.equals("config")) {
             String client = query(exchange, "client");
-            runeSync.checkIn(userId, client == null ? null : URLDecoder.decode(client, StandardCharsets.UTF_8), "true".equals(query(exchange, "paused")), Instant.now());
+            String clientName = null;
+            if (client != null) {
+                try {
+                    clientName = URLDecoder.decode(client, StandardCharsets.UTF_8);
+                } catch (IllegalArgumentException e) {
+                    // a malformed %-escape: the device card just won't name the client
+                }
+            }
+            runeSync.checkIn(userId, clientName, "true".equals(query(exchange, "paused")), Instant.now());
             send(exchange, 200, runeSync.config(userId));
             return;
         }
