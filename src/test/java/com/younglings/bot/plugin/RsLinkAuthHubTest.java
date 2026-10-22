@@ -1,7 +1,7 @@
 package com.younglings.bot.plugin;
 
-import com.younglings.bot.rsclans.RsClansHubClient;
-import com.younglings.bot.rsclans.RsClansSettings;
+import com.younglings.bot.runeclans.RuneClansHubClient;
+import com.younglings.bot.runeclans.RuneClansSettings;
 import net.dv8tion.jda.api.utils.data.DataObject;
 import org.junit.jupiter.api.Test;
 
@@ -13,19 +13,19 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
-/** With the RSClans hub on, RsLinkAuth's two calls go to the hub's /v1/link routes; anything else is refused. */
+/** With the RuneClans hub on, RsLinkAuth's two calls go to the hub's /v1/link routes; anything else is refused. */
 class RsLinkAuthHubTest {
     @Test
     void internalPathsMapToTheHub() throws Exception {
-        Map<String, String> env = Map.of("RSCLANS_HUB_ENABLED", "true", "RSCLANS_HUB_URL", "http://localhost:8090", "RSCLANS_HUB_API_KEY", "rsh_" + "k".repeat(43));
+        Map<String, String> env = Map.of("RUNECLANS_HUB_ENABLED", "true", "RUNECLANS_HUB_URL", "http://localhost:8090", "RUNECLANS_HUB_API_KEY", "rsh_" + "k".repeat(43));
         List<String> calls = new ArrayList<>();
-        RsClansHubClient.Transport fake = (method, path, body) -> {
+        RuneClansHubClient.Transport fake = (method, path, body) -> {
             calls.add(method + " " + path);
-            return new RsClansHubClient.Answer(200, DataObject.empty().put("ok", true));
+            return new RuneClansHubClient.Answer(200, DataObject.empty().put("ok", true));
         };
-        Constructor<RsClansHubClient> make = RsClansHubClient.class.getDeclaredConstructor(RsClansSettings.class, RsClansHubClient.Transport.class);
+        Constructor<RuneClansHubClient> make = RuneClansHubClient.class.getDeclaredConstructor(RuneClansSettings.class, RuneClansHubClient.Transport.class);
         make.setAccessible(true);
-        RsClansHubClient hub = make.newInstance(RsClansSettings.from(env::get), fake);
+        RuneClansHubClient hub = make.newInstance(RuneClansSettings.from(env::get), fake);
 
         RsLinkAuth.Transport t = RsLinkAuth.hubTransport(hub);
         assertEquals(200, t.call("GET", "/internal/rsnlink/v1/keys", null).status());

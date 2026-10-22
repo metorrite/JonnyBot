@@ -1,4 +1,4 @@
-package com.younglings.bot.rsclans;
+package com.younglings.bot.runeclans;
 
 import com.younglings.bot.plugin.PluginEventSink;
 import com.younglings.bot.plugin.PluginPayload;
@@ -19,24 +19,24 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** The RSClans hub client: off by default, settings checked, and the feed relay passing hub events to the bot's own consumers. */
-class RsClansHubClientTest {
+/** The RuneClans hub client: off by default, settings checked, and the feed relay passing hub events to the bot's own consumers. */
+class RuneClansHubClientTest {
     /** A key-shaped value made at runtime (secret scanners flag literal ones). */
     private static final String KEY = "rsh_" + "k".repeat(43);
 
-    private static RsClansSettings on() {
-        Map<String, String> env = Map.of("RSCLANS_HUB_ENABLED", "true", "RSCLANS_HUB_URL", "http://localhost:8090/", "RSCLANS_HUB_API_KEY", KEY);
-        return RsClansSettings.from(env::get);
+    private static RuneClansSettings on() {
+        Map<String, String> env = Map.of("RUNECLANS_HUB_ENABLED", "true", "RUNECLANS_HUB_URL", "http://localhost:8090/", "RUNECLANS_HUB_API_KEY", KEY);
+        return RuneClansSettings.from(env::get);
     }
 
     @Test
     void offUnlessSwitchedOnAndComplete() {
-        assertFalse(RsClansSettings.from(k -> null).enabled());
-        assertFalse(RsClansSettings.from(Map.of("RSCLANS_HUB_URL", "http://localhost:8090", "RSCLANS_HUB_API_KEY", KEY)::get).enabled());
-        RsClansSettings bad = RsClansSettings.from(Map.of("RSCLANS_HUB_ENABLED", "true", "RSCLANS_HUB_URL", "http://example.org")::get);
+        assertFalse(RuneClansSettings.from(k -> null).enabled());
+        assertFalse(RuneClansSettings.from(Map.of("RUNECLANS_HUB_URL", "http://localhost:8090", "RUNECLANS_HUB_API_KEY", KEY)::get).enabled());
+        RuneClansSettings bad = RuneClansSettings.from(Map.of("RUNECLANS_HUB_ENABLED", "true", "RUNECLANS_HUB_URL", "http://example.org")::get);
         assertFalse(bad.enabled());
-        assertTrue(bad.problem().contains("RSCLANS_HUB_URL") && bad.problem().contains("RSCLANS_HUB_API_KEY"));
-        RsClansSettings good = on();
+        assertTrue(bad.problem().contains("RUNECLANS_HUB_URL") && bad.problem().contains("RUNECLANS_HUB_API_KEY"));
+        RuneClansSettings good = on();
         assertTrue(good.enabled());
         assertEquals("http://localhost:8090", good.baseUrl());
         assertFalse(good.toString().contains(KEY));
@@ -44,7 +44,7 @@ class RsClansHubClientTest {
 
     @Test
     void offClientNeverCalls() {
-        RsClansHubClient off = new RsClansHubClient(RsClansSettings.OFF, (m, p, b) -> {
+        RuneClansHubClient off = new RuneClansHubClient(RuneClansSettings.OFF, (m, p, b) -> {
             throw new AssertionError("called while off");
         });
         assertNull(off.call("GET", "/v1/me", null));
@@ -64,15 +64,15 @@ class RsClansHubClientTest {
         String anonymous = "a1_" + "b".repeat(26);
         List<String> paths = new ArrayList<>();
         AtomicReference<DataArray> nextPage = new AtomicReference<>(DataArray.empty().add(event("1", known, "DROP")));
-        RsClansHubClient hub = new RsClansHubClient(on(), (method, path, body) -> {
+        RuneClansHubClient hub = new RuneClansHubClient(on(), (method, path, body) -> {
             paths.add(method + " " + path);
             if (path.startsWith("/v1/feed")) {
                 DataArray page = nextPage.getAndSet(DataArray.empty());
-                return new RsClansHubClient.Answer(200, DataObject.empty().put("data", page).put("nextCursor", "c" + paths.size()).put("more", false));
+                return new RuneClansHubClient.Answer(200, DataObject.empty().put("data", page).put("nextCursor", "c" + paths.size()).put("more", false));
             }
-            if (path.equals("/v1/players/" + known)) return new RsClansHubClient.Answer(200, DataObject.empty().put("alias", known).put("discordId", "123456"));
-            if (path.equals("/v1/players/" + anonymous)) return new RsClansHubClient.Answer(200, DataObject.empty().put("alias", anonymous));
-            return new RsClansHubClient.Answer(404, DataObject.empty());
+            if (path.equals("/v1/players/" + known)) return new RuneClansHubClient.Answer(200, DataObject.empty().put("alias", known).put("discordId", "123456"));
+            if (path.equals("/v1/players/" + anonymous)) return new RuneClansHubClient.Answer(200, DataObject.empty().put("alias", anonymous));
+            return new RuneClansHubClient.Answer(404, DataObject.empty());
         });
         Map<String, String> store = new HashMap<>();
         List<String> received = new ArrayList<>();
@@ -80,7 +80,7 @@ class RsClansHubClientTest {
             for (PluginPayload.Event e : events) received.add(userId + " " + rsn + " " + e.type() + " " + e.key() + " " + e.sourceName());
         };
         List<Map.Entry<String, Long>> grants = new ArrayList<>();
-        RsClansFeedPoller.Relay relay = new RsClansFeedPoller.Relay(hub, () -> Optional.ofNullable(store.get("c")), c -> store.put("c", c), List.of(sink), grants::add);
+        RuneClansFeedPoller.Relay relay = new RuneClansFeedPoller.Relay(hub, () -> Optional.ofNullable(store.get("c")), c -> store.put("c", c), List.of(sink), grants::add);
 
         // first run: skip to the end, nothing passed on
         assertEquals(0, relay.poll());
@@ -98,10 +98,10 @@ class RsClansHubClientTest {
 
     @Test
     void hubEventsConvertLikeTheBotsOwn() {
-        PluginPayload.Event e = RsClansFeedPoller.Relay.toEvent(event("9", "a1_x", "KILL").getObject("data"));
+        PluginPayload.Event e = RuneClansFeedPoller.Relay.toEvent(event("9", "a1_x", "KILL").getObject("data"));
         assertNotNull(e);
         assertEquals("hub:9", e.key());
         assertEquals("NPC", e.sourceKind());
-        assertNull(RsClansFeedPoller.Relay.toEvent(DataObject.empty().put("type", "NOPE")));
+        assertNull(RuneClansFeedPoller.Relay.toEvent(DataObject.empty().put("type", "NOPE")));
     }
 }

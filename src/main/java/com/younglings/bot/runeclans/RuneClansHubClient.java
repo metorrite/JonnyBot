@@ -1,4 +1,4 @@
-package com.younglings.bot.rsclans;
+package com.younglings.bot.runeclans;
 
 import com.younglings.bot.config.BotConfig;
 import io.github.freya022.botcommands.api.core.service.annotations.BConfiguration;
@@ -17,13 +17,13 @@ import java.time.Duration;
 import java.util.Optional;
 
 /**
- * JonnyBot as a client of the RSClans hub's public API (rsclans-hub docs/API.md), with JonnyBot's own first-party key. Every call is a
- * small JSON request with {@code Authorization: Bearer <key>}; nothing here is used unless {@link #enabled()} (see {@link RsClansSettings}).
+ * JonnyBot as a client of the RuneClans hub's public API (runeclans-hub docs/API.md), with JonnyBot's own first-party key. Every call is a
+ * small JSON request with {@code Authorization: Bearer <key>}; nothing here is used unless {@link #enabled()} (see {@link RuneClansSettings}).
  * The key and any Discord id are never logged.
  */
 @BConfiguration
-public class RsClansHubClient {
-    private static final Logger log = LoggerFactory.getLogger(RsClansHubClient.class);
+public class RuneClansHubClient {
+    private static final Logger log = LoggerFactory.getLogger(RuneClansHubClient.class);
 
     /** One HTTP exchange with the hub; null when it can't be reached. Replaceable in tests. */
     public interface Transport {
@@ -37,19 +37,19 @@ public class RsClansHubClient {
         }
     }
 
-    private final RsClansSettings settings;
+    private final RuneClansSettings settings;
     private final Transport transport;
 
     /** The bot's instance. A factory, because the framework needs a service class to have exactly one constructor and tests use the other. */
     @BService
-    public static RsClansHubClient rsClansHubClient(BotConfig config) {
-        RsClansSettings settings = RsClansSettings.from(config::getRsClansSetting);
-        if (settings.problem() != null) log.error("RSClans hub client is off: {}", settings.problem());
-        else if (settings.enabled()) log.info("RSClans hub client is on ({}).", settings.baseUrl());
-        return new RsClansHubClient(settings, settings.enabled() ? http(settings) : (m, p, b) -> null);
+    public static RuneClansHubClient runeClansHubClient(BotConfig config) {
+        RuneClansSettings settings = RuneClansSettings.from(config::getRuneClansSetting);
+        if (settings.problem() != null) log.error("RuneClans hub client is off: {}", settings.problem());
+        else if (settings.enabled()) log.info("RuneClans hub client is on ({}).", settings.baseUrl());
+        return new RuneClansHubClient(settings, settings.enabled() ? http(settings) : (m, p, b) -> null);
     }
 
-    RsClansHubClient(RsClansSettings settings, Transport transport) {
+    RuneClansHubClient(RuneClansSettings settings, Transport transport) {
         this.settings = settings;
         this.transport = transport;
     }
@@ -101,12 +101,12 @@ public class RsClansHubClient {
         return URLEncoder.encode(s, StandardCharsets.UTF_8);
     }
 
-    private static Transport http(RsClansSettings settings) {
+    private static Transport http(RuneClansSettings settings) {
         HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
         return (method, path, body) -> {
             try {
                 HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(settings.baseUrl() + path)).timeout(Duration.ofSeconds(8))
-                        .header("Authorization", "Bearer " + settings.apiKey()).header("Content-Type", "application/json").header("User-Agent", "JonnyBot rsclans-client");
+                        .header("Authorization", "Bearer " + settings.apiKey()).header("Content-Type", "application/json").header("User-Agent", "JonnyBot runeclans-client");
                 request = body == null ? request.method(method, HttpRequest.BodyPublishers.noBody()) : request.method(method, HttpRequest.BodyPublishers.ofString(body));
                 HttpResponse<String> response = client.send(request.build(), HttpResponse.BodyHandlers.ofString());
                 DataObject json = null;

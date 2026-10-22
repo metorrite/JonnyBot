@@ -1,7 +1,7 @@
 package com.younglings.bot.plugin;
 
 import com.younglings.bot.config.BotConfig;
-import com.younglings.bot.rsclans.RsClansHubClient;
+import com.younglings.bot.runeclans.RuneClansHubClient;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.utils.data.DataArray;
 import net.dv8tion.jda.api.utils.data.DataObject;
@@ -70,15 +70,15 @@ public class RsLinkAuth {
 
     private final Verifier verifier;
 
-    public RsLinkAuth(BotConfig config, RsClansHubClient hub) {
+    public RsLinkAuth(BotConfig config, RuneClansHubClient hub) {
         this.verifier = new Verifier(hub.enabled() ? hubTransport(hub) : httpTransport(config), Clock.systemUTC());
     }
 
     /**
-     * The same two calls against the RSClans hub when {@code RSCLANS_HUB_ENABLED} is on: its public key set at {@code /v1/link/keys} and its
+     * The same two calls against the RuneClans hub when {@code RUNECLANS_HUB_ENABLED} is on: its public key set at {@code /v1/link/keys} and its
      * first-party {@code /v1/link/resolve}, with JonnyBot's API key instead of the internal secret. The answers have the same shape.
      */
-    static Transport hubTransport(RsClansHubClient hub) {
+    static Transport hubTransport(RuneClansHubClient hub) {
         return (method, path, body) -> {
             String hubPath = switch (path) {
                 case "/internal/rsnlink/v1/keys" -> "/v1/link/keys";
@@ -86,7 +86,7 @@ public class RsLinkAuth {
                 default -> null;
             };
             if (hubPath == null) return null;
-            RsClansHubClient.Answer a = hub.call(method, hubPath, body);
+            RuneClansHubClient.Answer a = hub.call(method, hubPath, body);
             return a == null ? null : new Answer(a.status(), a.json());
         };
     }

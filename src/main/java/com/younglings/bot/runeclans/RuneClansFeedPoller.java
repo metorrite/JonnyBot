@@ -1,4 +1,4 @@
-package com.younglings.bot.rsclans;
+package com.younglings.bot.runeclans;
 
 import com.younglings.bot.plugin.PluginEventSink;
 import com.younglings.bot.plugin.PluginEventType;
@@ -28,28 +28,28 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
- * With {@code RSCLANS_HUB_ENABLED} on, plugin events reach the bot from the RSClans hub instead of its own ingest (rsclans-hub HUB-DESIGN.md
+ * With {@code RUNECLANS_HUB_ENABLED} on, plugin events reach the bot from the RuneClans hub instead of its own ingest (runeclans-hub HUB-DESIGN.md
  * section 7): every 30 seconds it reads JonnyBot's change feed and hands each {@code plugin.event} to the same {@link PluginEventSink}s
  * (points, event tiles) the bot's own ingest uses. It also, when the bot connects, registers the servers it is in, and when a player grants
  * JonnyBot with identity, adds them to those of its servers they are a member of.
  * <ul>
- *   <li>The cursor is stored ({@link RsClansFeedCursor}); on the very first run the feed is skipped to its end, so switching on never replays
+ *   <li>The cursor is stored ({@link RuneClansFeedCursor}); on the very first run the feed is skipped to its end, so switching on never replays
  *       old events into points.</li>
  *   <li>An event is passed on only when the player granted JonnyBot identity (that is how the bot knows whose it is); others are skipped.</li>
  *   <li>Off by default: with the flag off nothing here runs.</li>
  * </ul>
  */
 @BService
-public class RsClansFeedPoller {
-    private static final Logger log = LoggerFactory.getLogger(RsClansFeedPoller.class);
+public class RuneClansFeedPoller {
+    private static final Logger log = LoggerFactory.getLogger(RuneClansFeedPoller.class);
     static final int PAGE = 200;
 
-    private final RsClansHubClient hub;
+    private final RuneClansHubClient hub;
     private final Relay relay;
     private volatile JDA jda;
-    private final ScheduledExecutorService executor = BotScheduler.lane("rsclans-feed");
+    private final ScheduledExecutorService executor = BotScheduler.lane("runeclans-feed");
 
-    public RsClansFeedPoller(RsClansHubClient hub, RsClansFeedCursor cursor, List<PluginEventSink> sinks) {
+    public RuneClansFeedPoller(RuneClansHubClient hub, RuneClansFeedCursor cursor, List<PluginEventSink> sinks) {
         this.hub = hub;
         this.relay = new Relay(hub, cursor::load, cursor::save, sinks, this::addToGuilds);
         if (hub.enabled()) start();
@@ -67,7 +67,7 @@ public class RsClansFeedPoller {
             List<Guild> guilds = event.getJDA().getGuilds();
             int registered = 0;
             for (Guild g : guilds) if (hub.putGuild(g.getIdLong(), g.getName())) registered++;
-            log.info("RSClans hub: registered {} of {} servers", registered, guilds.size());
+            log.info("RuneClans hub: registered {} of {} servers", registered, guilds.size());
         });
     }
 
@@ -76,7 +76,7 @@ public class RsClansFeedPoller {
             try {
                 relay.poll();
             } catch (RuntimeException e) {
-                log.warn("RSClans feed poll failed: {}", e.getClass().getSimpleName());
+                log.warn("RuneClans feed poll failed: {}", e.getClass().getSimpleName());
             }
         }, 20, 30, TimeUnit.SECONDS);
     }
@@ -94,7 +94,7 @@ public class RsClansFeedPoller {
     static final class Relay {
         private static final Duration IDS_KEPT = Duration.ofMinutes(10);
 
-        private final RsClansHubClient hub;
+        private final RuneClansHubClient hub;
         private final Supplier<Optional<String>> loadCursor;
         private final Consumer<String> saveCursor;
         private final List<PluginEventSink> sinks;
@@ -103,7 +103,7 @@ public class RsClansFeedPoller {
 
         private record CachedId(Optional<Long> id, Instant until) {}
 
-        Relay(RsClansHubClient hub, Supplier<Optional<String>> loadCursor, Consumer<String> saveCursor, List<PluginEventSink> sinks,
+        Relay(RuneClansHubClient hub, Supplier<Optional<String>> loadCursor, Consumer<String> saveCursor, List<PluginEventSink> sinks,
               Consumer<Map.Entry<String, Long>> granted) {
             this.hub = hub;
             this.loadCursor = loadCursor;
@@ -119,7 +119,7 @@ public class RsClansFeedPoller {
             String cursor = stored.orElse(null);
             int passed = 0;
             for (int pages = 0; pages < 50; pages++) {
-                RsClansHubClient.Answer a = hub.feed(cursor, PAGE);
+                RuneClansHubClient.Answer a = hub.feed(cursor, PAGE);
                 if (a == null || !a.ok() || a.json() == null) return passed;
                 DataArray data = a.json().getArray("data");
                 if (!firstRun) passed += handle(data);
@@ -127,7 +127,7 @@ public class RsClansFeedPoller {
                 if (cursor != null) saveCursor.accept(cursor);
                 if (!a.json().getBoolean("more", false)) break;
             }
-            if (firstRun) log.info("RSClans feed: started from its current end (nothing replayed)");
+            if (firstRun) log.info("RuneClans feed: started from its current end (nothing replayed)");
             return passed;
         }
 
@@ -177,7 +177,7 @@ public class RsClansFeedPoller {
             return id;
         }
 
-        /** A hub event (rsclans-hub API.md section 4) as the bot's own ingest would have stored it; the key is the hub's event id. */
+        /** A hub event (runeclans-hub API.md section 4) as the bot's own ingest would have stored it; the key is the hub's event id. */
         static PluginPayload.Event toEvent(DataObject e) {
             PluginEventType type = PluginEventType.parse(e.getString("type", null));
             Instant at;
