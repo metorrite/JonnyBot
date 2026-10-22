@@ -2,6 +2,7 @@ package com.younglings.bot.commands.ticket;
 
 import com.younglings.bot.announcement.PostMarkup;
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.ticket.TicketModels.Answer;
 import com.younglings.bot.ticket.TicketModels.Panel;
 import com.younglings.bot.ticket.TicketModels.Status;
@@ -107,14 +108,14 @@ final class TicketView {
         // The panel's embedded message, then whether anyone has joined and (once closed) how it ended.
         String supportTemplate = panel == null || panel.welcomeText() == null || panel.welcomeText().isBlank() ? Panel.DEFAULT_SUPPORT : panel.welcomeText();
         StringBuilder support = new StringBuilder(truncate(TicketText.fill(supportTemplate, panel, ticket, rsns, helperIds, pingRoleId, pingUserIds), 1500));
-        if (panel != null && panel.usesHelpers()) support.append("\n\n").append(helpersLine(panel.helperCap(), helperIds, closed));
+        if (panel != null && panel.usesHelpers()) support.append("\n\n").append(helpersLine(ticket.guildId(), panel.helperCap(), helperIds, closed));
         if (closed) {
-            support.append("\n\n🔒 Closed");
-            if (ticket.closedBy() != null) support.append(" by <@").append(ticket.closedBy()).append(">");
+            support.append("\n\n").append(Text.of(ticket.guildId(), "ticket.view.closed"));
+            if (ticket.closedBy() != null) support.append(Text.of(ticket.guildId(), "ticket.view.closed_by", "<@" + ticket.closedBy() + ">"));
             if (ticket.closeReason() != null && !ticket.closeReason().isBlank()) support.append("\n").append(truncate(ticket.closeReason(), 500));
         }
         EmbedBuilder message = new EmbedBuilder().setColor(color).setDescription(support.toString())
-                .setFooter("Ticket #" + String.format("%04d", ticket.number()) + (panel != null ? " · " + panel.title() : ""));
+                .setFooter(Text.of(ticket.guildId(), "ticket.view.number", String.format("%04d", ticket.number())) + (panel != null ? " · " + panel.title() : ""));
 
         List<MessageEmbed> embeds = new ArrayList<>();
         embeds.add(message.build());
@@ -122,7 +123,7 @@ final class TicketView {
         // The info block: each question in bold with the answer in a code box underneath, as Ticket Tool shows them. The linked
         // RuneScape name comes first, since a helper wants it before anything else.
         StringBuilder info = new StringBuilder();
-        if (!rsns.isEmpty()) appendEntry(info, "RuneScape name", String.join(", ", rsns));
+        if (!rsns.isEmpty()) appendEntry(info, Text.of(ticket.guildId(), "ticket.view.runescape_name"), String.join(", ", rsns));
         for (Answer answer : ticket.answers()) {
             if (answer.answer() == null || answer.answer().isBlank()) continue;
             appendEntry(info, answer.label(), answer.answer());
@@ -131,11 +132,11 @@ final class TicketView {
 
         List<Button> buttons = new ArrayList<>();
         if (panel != null && panel.usesHelpers()) {
-            Button join = Button.success(JOIN_PREFIX + ticket.id(), "Join as helper");
+            Button join = Button.success(JOIN_PREFIX + ticket.id(), Text.of(ticket.guildId(), "ticket.view.join_as_helper"));
             buttons.add(closed ? join.asDisabled() : join);
         }
-        if (extras.eventButton() && !closed) buttons.add(Button.secondary(EVENT_PREFIX + ticket.id(), "Make it an event").withEmoji(Emoji.fromUnicode("🎉")));
-        Button close = Button.danger(CLOSE_PREFIX + ticket.id(), "Close").withEmoji(Emoji.fromUnicode("🔒"));
+        if (extras.eventButton() && !closed) buttons.add(Button.secondary(EVENT_PREFIX + ticket.id(), Text.of(ticket.guildId(), "ticket.view.make_it_an_event")).withEmoji(Emoji.fromUnicode("🎉")));
+        Button close = Button.danger(CLOSE_PREFIX + ticket.id(), Text.of(ticket.guildId(), "ticket.view.close")).withEmoji(Emoji.fromUnicode("🔒"));
         buttons.add(closed ? close.asDisabled() : close);
 
         return new Opening(content, embeds, ActionRow.of(buttons));
@@ -150,16 +151,16 @@ final class TicketView {
 
     static Container welcome(Panel panel, Ticket ticket, List<String> rsns, List<Long> helperIds, Long pingRoleId) {
         boolean closed = ticket.status() == Status.CLOSED;
-        String title = panel != null ? panel.title() : "Ticket";
+        String title = panel != null ? panel.title() : Text.of(ticket.guildId(), "ticket.view.ticket");
 
         List<ContainerChildComponent> children = new ArrayList<>();
-        children.add(TextDisplay.of("### 🎫 " + title + " · #" + String.format("%04d", ticket.number()) + (closed ? " — Closed" : "")));
+        children.add(TextDisplay.of("### 🎫 " + title + " · #" + String.format("%04d", ticket.number()) + (closed ? Text.of(ticket.guildId(), "ticket.view.closed_suffix") : "")));
 
         StringBuilder who = new StringBuilder();
         if (pingRoleId != null && !closed) who.append("🔔 <@&").append(pingRoleId).append(">\n");
-        who.append("Opened by <@").append(ticket.requesterId()).append(">");
-        if (!rsns.isEmpty()) who.append("\n**RuneScape name:** ").append(String.join(", ", rsns));
-        if (ticket.routingLabel() != null) who.append("\n**Type:** ").append(ticket.routingLabel());
+        who.append(Text.of(ticket.guildId(), "ticket.view.opened_by", "<@" + ticket.requesterId() + ">"));
+        if (!rsns.isEmpty()) who.append("\n").append(Text.of(ticket.guildId(), "ticket.view.runescape_name_line")).append(String.join(", ", rsns));
+        if (ticket.routingLabel() != null) who.append("\n").append(Text.of(ticket.guildId(), "ticket.view.type_line")).append(ticket.routingLabel());
         children.add(TextDisplay.of(who.toString()));
 
         StringBuilder answers = new StringBuilder();
@@ -172,31 +173,31 @@ final class TicketView {
 
         if (panel != null && !panel.welcomeText().isBlank()) children.add(TextDisplay.of(truncate(panel.welcomeText(), 800)));
 
-        if (panel != null && panel.usesHelpers()) children.add(TextDisplay.of(helpersLine(panel.helperCap(), helperIds, closed)));
+        if (panel != null && panel.usesHelpers()) children.add(TextDisplay.of(helpersLine(ticket.guildId(), panel.helperCap(), helperIds, closed)));
 
         if (closed) {
-            StringBuilder end = new StringBuilder("🔒 Closed");
-            if (ticket.closedBy() != null) end.append(" by <@").append(ticket.closedBy()).append(">");
+            StringBuilder end = new StringBuilder(Text.of(ticket.guildId(), "ticket.view.closed"));
+            if (ticket.closedBy() != null) end.append(Text.of(ticket.guildId(), "ticket.view.closed_by", "<@" + ticket.closedBy() + ">"));
             if (ticket.closeReason() != null && !ticket.closeReason().isBlank()) end.append("\n").append(truncate(ticket.closeReason(), 500));
             children.add(TextDisplay.of(end.toString()));
         }
 
         List<Button> buttons = new ArrayList<>();
         if (panel != null && panel.usesHelpers()) {
-            Button join = Button.success(JOIN_PREFIX + ticket.id(), "Join as helper");
+            Button join = Button.success(JOIN_PREFIX + ticket.id(), Text.of(ticket.guildId(), "ticket.view.join_as_helper"));
             buttons.add(closed ? join.asDisabled() : join);
         }
-        Button close = Button.danger(CLOSE_PREFIX + ticket.id(), "Close");
+        Button close = Button.danger(CLOSE_PREFIX + ticket.id(), Text.of(ticket.guildId(), "ticket.view.close"));
         buttons.add(closed ? close.asDisabled() : close);
         children.add(ActionRow.of(buttons));
 
         return Containers.card(closed ? Color.DARK_GRAY : Containers.PRIMARY, children);
     }
 
-    private static String helpersLine(int cap, List<Long> helperIds, boolean closed) {
-        if (helperIds.isEmpty()) return closed ? "*No helper joined.*" : "*Nobody has joined yet — press **Join as helper** to take this one.*";
+    private static String helpersLine(long guildId, int cap, List<Long> helperIds, boolean closed) {
+        if (helperIds.isEmpty()) return closed ? Text.of(guildId, "ticket.view.no_helper_joined") : Text.of(guildId, "ticket.view.nobody_has_joined_yet");
         List<String> mentions = helperIds.stream().map(id -> "<@" + id + ">").toList();
-        return "**Helping (" + helperIds.size() + "/" + cap + "):** " + String.join(", ", mentions);
+        return Text.of(guildId, "ticket.view.helping", helperIds.size(), cap, String.join(", ", mentions));
     }
 
     // ---------- transcript ----------
@@ -206,16 +207,16 @@ final class TicketView {
     /** A plain-text record of a ticket: who and when, then every message in order. */
     static String transcript(Ticket ticket, String panelTitle, String requesterName, List<String> helperNames, List<Line> lines) {
         StringBuilder out = new StringBuilder();
-        out.append("Ticket #").append(String.format("%04d", ticket.number()));
+        out.append(Text.of(ticket.guildId(), "ticket.view.number", String.format("%04d", ticket.number())));
         if (panelTitle != null) out.append(" — ").append(panelTitle);
         out.append("\n");
-        out.append("Opened by: ").append(requesterName).append("\n");
-        if (ticket.routingLabel() != null) out.append("Type: ").append(ticket.routingLabel()).append("\n");
-        out.append("Opened: ").append(ticket.createdAt().withOffsetSameInstant(ZoneOffset.UTC).format(STAMP)).append("\n");
-        if (ticket.closedAt() != null) out.append("Closed: ").append(ticket.closedAt().withOffsetSameInstant(ZoneOffset.UTC).format(STAMP)).append("\n");
-        if (ticket.closeReason() != null && !ticket.closeReason().isBlank()) out.append("Reason: ").append(ticket.closeReason()).append("\n");
-        out.append("Helpers: ").append(helperNames.isEmpty() ? "none" : String.join(", ", helperNames)).append("\n");
-        out.append("Messages: ").append(lines.size()).append("\n");
+        out.append(Text.of(ticket.guildId(), "ticket.transcript.opened_by", requesterName)).append("\n");
+        if (ticket.routingLabel() != null) out.append(Text.of(ticket.guildId(), "ticket.transcript.type", ticket.routingLabel())).append("\n");
+        out.append(Text.of(ticket.guildId(), "ticket.transcript.opened", ticket.createdAt().withOffsetSameInstant(ZoneOffset.UTC).format(STAMP))).append("\n");
+        if (ticket.closedAt() != null) out.append(Text.of(ticket.guildId(), "ticket.transcript.closed", ticket.closedAt().withOffsetSameInstant(ZoneOffset.UTC).format(STAMP))).append("\n");
+        if (ticket.closeReason() != null && !ticket.closeReason().isBlank()) out.append(Text.of(ticket.guildId(), "ticket.transcript.reason", ticket.closeReason())).append("\n");
+        out.append(Text.of(ticket.guildId(), "ticket.transcript.helpers", helperNames.isEmpty() ? Text.of(ticket.guildId(), "ticket.transcript.none") : String.join(", ", helperNames))).append("\n");
+        out.append(Text.of(ticket.guildId(), "ticket.transcript.messages", lines.size())).append("\n");
         out.append("=".repeat(60)).append("\n\n");
 
         for (Line line : lines) {
