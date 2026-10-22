@@ -30,6 +30,20 @@ class RuneClansHubClientTest {
     }
 
     @Test
+    void plainHttpOnlyForPrivateHosts() {
+        for (String ok : new String[]{"https://api.runeclans.com", "http://runeclans-hub.railway.internal:8090", "http://localhost:8090",
+                "http://127.0.0.1:8090", "http://[::1]:8090", "http://10.0.0.5:8090", "http://172.16.0.1", "http://172.31.255.1", "http://192.168.1.20"}) {
+            assertTrue(RuneClansSettings.allowedBaseUrl(ok), ok);
+        }
+        for (String bad : new String[]{"http://api.runeclans.com", "http://172.32.0.1", "http://172.15.0.1", "http://11.0.0.1", "http://8.8.8.8",
+                "http://railway.internal.example.org", "http://evil.com/.railway.internal", "ftp://localhost", "https://user:pw@api.runeclans.com", "not a url"}) {
+            assertFalse(RuneClansSettings.allowedBaseUrl(bad), bad);
+        }
+        Map<String, String> env = Map.of("RUNECLANS_HUB_ENABLED", "true", "RUNECLANS_HUB_URL", "http://runeclans-hub.railway.internal:8090", "RUNECLANS_HUB_API_KEY", KEY);
+        assertTrue(RuneClansSettings.from(env::get).enabled());
+    }
+
+    @Test
     void offUnlessSwitchedOnAndComplete() {
         assertFalse(RuneClansSettings.from(k -> null).enabled());
         assertFalse(RuneClansSettings.from(Map.of("RUNECLANS_HUB_URL", "http://localhost:8090", "RUNECLANS_HUB_API_KEY", KEY)::get).enabled());

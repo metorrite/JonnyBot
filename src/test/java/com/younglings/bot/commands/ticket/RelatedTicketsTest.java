@@ -48,7 +48,7 @@ class RelatedTicketsTest {
 
     @Test
     void theNoticeNamesTheOtherTicketsAndTheChoices() {
-        String text = RelatedTickets.notice(c(3, 3, 12, "Vorago"), List.of(c(1, 1, 10, "Vorago")));
+        String text = RelatedTickets.notice(1L, c(3, 3, 12, "Vorago"), List.of(c(1, 1, 10, "Vorago")));
         assertTrue(text.contains("#0001") && text.contains("<#101>") && text.contains("<@10>") && text.contains("Link") && text.contains("Merge"));
     }
 

@@ -1,5 +1,6 @@
 package com.younglings.bot.commands.ticket;
 
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.permission.AdminRoleFilter;
 import com.younglings.bot.permission.MemberAccess;
 import com.younglings.bot.runescape.PlayerLink;
@@ -127,14 +128,13 @@ public class TicketService {
 
     /** Why this person can't open a ticket on this panel right now, or empty if they can. */
     public Optional<String> cannotOpen(Guild guild, long userId, Panel panel, List<Field> fields) {
-        if (!panel.enabled()) return Optional.of("This ticket type isn't accepting new tickets right now.");
-        if (fields.size() > TicketRules.MAX_FIELDS) return Optional.of("This ticket form is set up incorrectly — an admin needs to fix it.");
-        if (fields.isEmpty()) return Optional.of("This ticket form has no questions yet — an admin needs to set it up.");
+        if (!panel.enabled()) return Optional.of(Text.of(guild, "ticket.not_accepting"));
+        if (fields.size() > TicketRules.MAX_FIELDS) return Optional.of(Text.of(guild, "ticket.form_set_up_incorrectly"));
+        if (fields.isEmpty()) return Optional.of(Text.of(guild, "ticket.form_has_no_questions"));
 
         int open = repository.countOpenFor(guild.getIdLong(), panel.id(), userId);
         if (open >= panel.perUserLimit()) {
-            return Optional.of(panel.perUserLimit() == 1 ? "You already have an open ticket of this type — close it first."
-                    : "You already have " + open + " open tickets of this type — close one first.");
+            return Optional.of(panel.perUserLimit() == 1 ? Text.of(guild, "ticket.already_open_one") : Text.of(guild, "ticket.already_open_many", open));
         }
         return Optional.empty();
     }
@@ -397,7 +397,7 @@ public class TicketService {
         }
         if (settings.transcriptDm()) {
             guild.getJDA().retrieveUserById(ticket.requesterId()).queue(user -> user.openPrivateChannel()
-                    .flatMap(dm -> dm.sendMessage("Here's the record of your ticket.").addFiles(FileUpload.fromData(bytes, fileName)))
+                    .flatMap(dm -> dm.sendMessage(Text.of(guild, "ticket.transcript_dm")).addFiles(FileUpload.fromData(bytes, fileName)))
                     .queue(null, new ErrorHandler().ignore(ErrorResponse.CANNOT_SEND_TO_USER)
                             .handle(Throwable.class, error -> log.debug("Couldn't DM ticket {}'s transcript", ticket.id(), error))), error -> {});
         }
