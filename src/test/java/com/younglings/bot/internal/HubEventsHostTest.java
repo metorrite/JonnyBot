@@ -29,7 +29,8 @@ class HubEventsHostTest {
     private final ClanProfileService profiles = mock(ClanProfileService.class);
     private final JoinLinks joinLinks = mock(JoinLinks.class);
     private final HubEventsApi api = new HubEventsApi(mock(EventRepository.class), mock(EventService.class), mock(EventTemplates.class), joinLinks, profiles,
-            mock(AllianceRepository.class), mock(PlayerLinkService.class), mock(HubModerationRepository.class));
+            mock(AllianceRepository.class), mock(PlayerLinkService.class), mock(HubModerationRepository.class),
+            mock(com.younglings.bot.events.EventCohostRepository.class), mock(com.younglings.bot.permission.DashboardAccess.class), mock(MemberEventsApi.class));
 
     HubEventsHostTest() {
         when(joinLinks.of(GUILD, null)).thenReturn("https://discord.gg/abc");
