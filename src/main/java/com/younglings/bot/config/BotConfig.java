@@ -300,6 +300,15 @@ public class BotConfig {
         return envOrDotenv(name);
     }
 
+    /**
+     * A setting of the RSClans hub client ({@code com.younglings.bot.rsclans}): {@code RSCLANS_HUB_ENABLED}, {@code RSCLANS_HUB_URL},
+     * {@code RSCLANS_HUB_API_KEY}. Prefixed {@code RSCLANS_} so they can't be mistaken for the event hub's settings. Null when unset.
+     */
+    public String getRsClansSetting(String name) {
+        if (!name.startsWith("RSCLANS_")) throw new IllegalArgumentException("Only RSCLANS_ settings are served here");
+        return envOrDotenv(name);
+    }
+
     /** What the JonnyBot face's address was before it was configurable. */
     public static final String DEFAULT_JONNYBOT_URL = "https://jonnybot.rsyounglings.com";
 
