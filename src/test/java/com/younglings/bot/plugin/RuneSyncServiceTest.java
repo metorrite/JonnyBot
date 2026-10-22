@@ -30,7 +30,8 @@ class RuneSyncServiceTest {
     private final PluginService plugins = mock(PluginService.class);
     private final RuneSyncRepository repository = mock(RuneSyncRepository.class);
     private final BotConfig config = mock(BotConfig.class);
-    private final RuneSyncService service = new RuneSyncService(plugins, repository, config);
+    private final RuneSyncPanelService panel = mock(RuneSyncPanelService.class);
+    private final RuneSyncService service = new RuneSyncService(plugins, repository, config, panel);
 
     @Test
     void configListsOnlyTheMembersConsentAndKeepsThePanelOff() {
@@ -42,6 +43,14 @@ class RuneSyncServiceTest {
         assertFalse(answer.getBoolean("panelAvailable"));
         assertEquals("0.0.0", answer.getString("minClientVersion"));
         assertEquals(60, answer.getInt("sendEverySeconds"));
+    }
+
+    @Test
+    void thePanelIsAvailableWhenOneOfTheMembersClansAllowsIt() {
+        when(panel.available(USER)).thenReturn(true);
+        assertTrue(service.config(USER).getBoolean("panelAvailable"));
+        when(panel.available(USER)).thenThrow(new RuntimeException("db down"));
+        assertFalse(service.config(USER).getBoolean("panelAvailable"));
     }
 
     @Test

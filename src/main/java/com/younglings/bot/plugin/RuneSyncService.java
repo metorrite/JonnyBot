@@ -45,6 +45,7 @@ public class RuneSyncService {
     private final PluginService plugins;
     private final RuneSyncRepository repository;
     private final BotConfig config;
+    private final RuneSyncPanelService panel;
     private final SecureRandom random = new SecureRandom();
 
     /** Why something couldn't be done, with the HTTP status to answer. */
@@ -61,18 +62,26 @@ public class RuneSyncService {
         }
     }
 
-    public RuneSyncService(PluginService plugins, RuneSyncRepository repository, BotConfig config) {
+    public RuneSyncService(PluginService plugins, RuneSyncRepository repository, BotConfig config, RuneSyncPanelService panel) {
         this.plugins = plugins;
         this.repository = repository;
         this.config = config;
+        this.panel = panel;
     }
 
     /**
      * What the plugin asks for on login and every ~10 minutes: which categories the member allows, whether the in-game clan panel may be
-     * shown (T-206 adds the clan switch; off until then), the oldest client version still accepted, and how often to send.
+     * shown (one of the member's clans switched it on, T-206), the oldest client version still accepted, and how often to send.
      */
     public DataObject config(long userId) {
-        return DataObject.empty().put("consent", categoryKeys(plugins.consent(userId))).put("panelAvailable", false)
+        boolean panelAvailable;
+        try {
+            panelAvailable = panel.available(userId);
+        } catch (RuntimeException e) {
+            log.warn("Couldn't tell whether user {} may see the clan panel", userId, e);
+            panelAvailable = false;
+        }
+        return DataObject.empty().put("consent", categoryKeys(plugins.consent(userId))).put("panelAvailable", panelAvailable)
                 .put("minClientVersion", minClientVersion()).put("sendEverySeconds", SEND_EVERY_SECONDS);
     }
 

@@ -8,6 +8,7 @@ import com.younglings.bot.plugin.PluginService;
 import com.younglings.bot.plugin.PluginService.PluginException;
 import com.younglings.bot.plugin.PluginTokens;
 import com.younglings.bot.plugin.RsLinkAuth;
+import com.younglings.bot.plugin.RuneSyncPanelService;
 import com.younglings.bot.plugin.RuneSyncService;
 import com.younglings.bot.plugin.RuneSyncService.RuneSyncException;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -34,7 +35,7 @@ import java.util.Set;
  *   <li><b>The plugin</b>, identified by its token in {@code X-Plugin-Token} or, for an upload from RuneSync, by an RS Link signed assertion in
  *       {@code Authorization: RSLink ...} (see {@link RsLinkAuth}): {@code POST ingest} (a batch of events, schema v1) and
  *       {@code GET whoami} (which names it may report for and what the player has allowed); and RuneSync's own routes (T-202):
- *       {@code GET runesync/config}, {@code PUT runesync/consent} and {@code POST runesync/diagnostics}.</li>
+ *       {@code GET runesync/config}, {@code PUT runesync/consent}, {@code POST runesync/diagnostics} and {@code GET runesync/panel}.</li>
  *   <li><b>The player</b>, identified by a {@code userId} the website takes from its verified sign-in (the same trust as {@code /internal/me/}):
  *       {@code GET me}, {@code GET me/runesync}, {@code POST me/tokens}, {@code DELETE me/tokens/{id}}, {@code PUT me/consent} and {@code DELETE me/data}.</li>
  * </ul>
@@ -49,6 +50,7 @@ public class PluginApi {
     private final PluginService service;
     private final RsLinkAuth rsLink;
     private final RuneSyncService runeSync;
+    private final RuneSyncPanelService panel;
     /** 60 requests a minute per token, with a short burst. */
     private final RateLimiter ingestLimit = new RateLimiter(60, 1_000);
     private final RateLimiter accountLimit = new RateLimiter(20, 3_000);
@@ -58,10 +60,11 @@ public class PluginApi {
     /** Who a plugin call is from: the Discord account, the RSN RS Link vouches for (null on the token path) and the key for rate limits. */
     private record Caller(long userId, String linkedRsn, String limitKey) {}
 
-    public PluginApi(PluginService service, RsLinkAuth rsLink, RuneSyncService runeSync) {
+    public PluginApi(PluginService service, RsLinkAuth rsLink, RuneSyncService runeSync, RuneSyncPanelService panel) {
         this.service = service;
         this.rsLink = rsLink;
         this.runeSync = runeSync;
+        this.panel = panel;
     }
 
     /** Called after the shared secret has been checked. */
@@ -196,6 +199,8 @@ public class PluginApi {
      *   <li>{@code POST} (or {@code PUT}) {@code runesync/consent} {@code {"categories": ["XP", ...]}}: the in-game toggles, written to the same
      *       record as the profile.</li>
      *   <li>{@code POST runesync/diagnostics} (a snapshot): stored redacted for 14 days, answers {@code {"id": "RS-7K2M9Q"}}.</li>
+     *   <li>{@code GET runesync/panel}: the in-game clan panel's data (T-206): for each of the member's clans that switched the panel on, its
+     *       open and running events, the member's own points and own progress. Cached 60 seconds per member.</li>
      * </ul>
      */
     private void runeSync(HttpExchange exchange, String method, String route) throws IOException {
@@ -204,6 +209,7 @@ public class PluginApi {
             case "config" -> Set.of("GET");
             case "consent" -> Set.of("PUT", "POST");
             case "diagnostics" -> Set.of("POST");
+            case "panel" -> Set.of("GET");
             default -> null;
         };
         if (methods == null) {
@@ -220,6 +226,10 @@ public class PluginApi {
         if (!runeSyncLimit.tryAcquire(caller.get().limitKey())) {
             exchange.getResponseHeaders().set("Retry-After", "10");
             send(exchange, 429, error("Too many requests. RuneSync asks for its settings every 10 minutes."));
+            return;
+        }
+        if (route.equals("panel")) {
+            send(exchange, 200, panel.panel(userId, Instant.now()));
             return;
         }
         if (route.equals("config")) {
