@@ -136,6 +136,10 @@ Every environment variable the bot reads. Each one can also go in the git-ignore
 | `RUNESYNC_MIN_CLIENT_VERSION` | RuneSync versions below this are told to update. | `0.0.0`: none are refused. |
 | `LINK_DATABASE_URL`, `LINK_ENC_KEY`, `LINK_ENC_KEY_OLD`, `LINK_LOOKUP_KEY`, `LINK_ALIAS_KEY`, `LINK_SIGNING_KEY`, `LINK_PUBLIC_BASE_URL` | The RSN link service (section 3 above, and LINK-SYSTEM.md section 6.1). | The link service is off. |
 | `LINK_INTERNAL_URL` | Where the plugin ingest reaches the link service to check RS Link assertions. | This bot's own internal API on `127.0.0.1:<INTERNAL_API_PORT>`. |
+| `RUNECLANS_HUB_ENABLED` | `true` makes the bot a client of the RuneClans hub (T-158): RS Link assertions are checked there, plugin events come from its change feed every 30 seconds, and the bot's servers are registered with it. Needs the two below; with either missing or malformed the client stays off and says why in the log. | Off: the bot's own RS Link and plugin ingest do everything. |
+| `RUNECLANS_HUB_URL` | The hub's address (`https://...`; plain http only for localhost). | The hub client is off. |
+| `RUNECLANS_HUB_API_KEY` | JonnyBot's first-party hub API key (`rsh_...`; scopes `link:resolve`, `players:read`, `feed:read`, `guilds:write`). Never logged. | The hub client is off. |
+| `RSCLANS_HUB_ENABLED`, `RSCLANS_HUB_URL`, `RSCLANS_HUB_API_KEY` | **Deprecated** old names of the three settings above (the hub is now runeclans-hub). Still read for one release when the new name is unset; the bot logs a warning. | |
 
 Tests read `JONNYBOT_TEST_DATABASE_URL`, `JONNYBOT_TEST_LINK_DATABASE_URL`, `STARTUP_CHECK_DATABASE_URL` and `STARTUP_CHECK_REQUIRED` (section 5); the bot itself never does.
 
