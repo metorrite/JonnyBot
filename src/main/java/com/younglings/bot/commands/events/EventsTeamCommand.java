@@ -11,6 +11,7 @@ import com.younglings.bot.events.EventRules.ScoringMode;
 import com.younglings.bot.events.EventService;
 import com.younglings.bot.events.EventTeams;
 import com.younglings.bot.events.TeamBuilder;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.permission.AdminRoleFilter;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
 import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
@@ -74,8 +75,8 @@ public class EventsTeamCommand {
         if (e == null) return;
         try {
             service.addTeam(event.getGuild().getIdLong(), eventId, name, captain == null ? null : captain.getIdLong());
-            Containers.replyEphemeral(event, Containers.SUCCESS, "Team **" + name.strip() + "** added to **" + e.name() + "**." + (captain == null ? "" : " " + captain.getAsMention() + " is its captain."),
-                    "-# Put players on it with `/events team assign`.");
+            Containers.replyEphemeral(event, Containers.SUCCESS, Text.of(event, "events.team_added_to", name.strip(), e.name(), (captain == null ? "" : Text.of(event, "events.team_captain_suffix", captain.getAsMention()))),
+                    Text.of(event, "events.put_players_on_it_with_events"));
         } catch (EventProblem p) {
             Containers.replyEphemeral(event, Containers.WARNING, refusal(p));
         }
@@ -91,7 +92,7 @@ public class EventsTeamCommand {
         try {
             EventRepository.Team found = teamNamed(eventId, team);
             service.renameTeam(event.getGuild().getIdLong(), eventId, found.id(), newName);
-            Containers.replyEphemeral(event, Containers.SUCCESS, "**" + found.name() + "** is now **" + newName.strip() + "**.");
+            Containers.replyEphemeral(event, Containers.SUCCESS, Text.of(event, "events.is_now", found.name(), newName.strip()));
         } catch (EventProblem p) {
             Containers.replyEphemeral(event, Containers.WARNING, refusal(p));
         }
@@ -107,8 +108,8 @@ public class EventsTeamCommand {
             EventRepository.Team found = teamNamed(eventId, team);
             long members = repository.participants(eventId).stream().filter(p -> p.teamId() != null && p.teamId() == found.id()).count();
             service.removeTeam(event.getGuild().getIdLong(), eventId, found.id());
-            Containers.replyEphemeral(event, Containers.SUCCESS, "Team **" + found.name() + "** was removed from **" + e.name() + "**.",
-                    members == 0 ? "-# It had no players." : "-# Its " + members + (members == 1 ? " player is" : " players are") + " without a team now.");
+            Containers.replyEphemeral(event, Containers.SUCCESS, Text.of(event, "events.team_was_removed_from", found.name(), e.name()),
+                    members == 0 ? Text.of(event, "events.it_had_no_players") : Text.of(event, members == 1 ? "events.its_one_player_without_a_team" : "events.its_players_without_a_team", members));
         } catch (EventProblem p) {
             Containers.replyEphemeral(event, Containers.WARNING, refusal(p));
         }
@@ -126,7 +127,7 @@ public class EventsTeamCommand {
         try {
             EventRepository.Team found = teamNamed(eventId, team);
             service.setTeam(event.getGuild().getIdLong(), eventId, player.getIdLong(), found.id());
-            Containers.replyEphemeral(event, Containers.SUCCESS, player.getAsMention() + " is on **" + found.name() + "** in **" + e.name() + "**.");
+            Containers.replyEphemeral(event, Containers.SUCCESS, Text.of(event, "events.is_on_in", player.getAsMention(), found.name(), e.name()));
         } catch (EventProblem p) {
             Containers.replyEphemeral(event, Containers.WARNING, refusal(p));
         }
@@ -140,7 +141,7 @@ public class EventsTeamCommand {
         if (e == null) return;
         try {
             service.setTeam(event.getGuild().getIdLong(), eventId, player.getIdLong(), null);
-            Containers.replyEphemeral(event, Containers.SUCCESS, player.getAsMention() + " has no team in **" + e.name() + "** now.");
+            Containers.replyEphemeral(event, Containers.SUCCESS, Text.of(event, "events.has_no_team_in_now", player.getAsMention(), e.name()));
         } catch (EventProblem p) {
             Containers.replyEphemeral(event, Containers.WARNING, refusal(p));
         }
@@ -156,7 +157,7 @@ public class EventsTeamCommand {
         try {
             EventRepository.Team found = teamNamed(eventId, team);
             service.setCaptain(event.getGuild().getIdLong(), eventId, found.id(), player == null ? null : player.getIdLong());
-            Containers.replyEphemeral(event, Containers.SUCCESS, player == null ? "**" + found.name() + "** has no captain now." : player.getAsMention() + " is the captain of **" + found.name() + "**.");
+            Containers.replyEphemeral(event, Containers.SUCCESS, player == null ? Text.of(event, "events.has_no_captain_now", found.name()) : Text.of(event, "events.is_the_captain_of", player.getAsMention(), found.name()));
         } catch (EventProblem p) {
             Containers.replyEphemeral(event, Containers.WARNING, refusal(p));
         }
@@ -170,7 +171,7 @@ public class EventsTeamCommand {
         Event e = organised(event, eventId);
         if (e == null) return;
         if (e.scoringMode() != ScoringMode.TEAM) {
-            Containers.replyEphemeral(event, Containers.INFO, "**" + e.name() + "** is scored by player, so it has no teams.");
+            Containers.replyEphemeral(event, Containers.INFO, Text.of(event, "events.is_scored_by_player_so_it", e.name()));
             return;
         }
         long guildId = event.getGuild().getIdLong();
@@ -194,7 +195,7 @@ public class EventsTeamCommand {
         if (e == null) return;
         try {
             service.finaliseTeams(event.getGuild().getIdLong(), eventId, event.getUser().getIdLong());
-            Containers.reply(event, Containers.SUCCESS, false, "**" + e.name() + "**: the teams are final.", "-# Players can still be moved with `/events team assign` if something changes; `/events team reopen` takes the \"final\" back.");
+            Containers.reply(event, Containers.SUCCESS, false, Text.of(event, "events.the_teams_are_final", e.name()), Text.of(event, "events.players_can_still_be_moved_with"));
         } catch (EventProblem p) {
             Containers.replyEphemeral(event, Containers.WARNING, refusal(p));
         }
@@ -206,7 +207,7 @@ public class EventsTeamCommand {
         if (e == null) return;
         try {
             service.reopenTeams(event.getGuild().getIdLong(), eventId);
-            Containers.replyEphemeral(event, Containers.SUCCESS, "**" + e.name() + "**: the teams are open again.", "-# Finalise them again with `/events team finalise` once you are happy.");
+            Containers.replyEphemeral(event, Containers.SUCCESS, Text.of(event, "events.the_teams_are_open_again", e.name()), Text.of(event, "events.finalise_them_again_with_events_team"));
         } catch (EventProblem p) {
             Containers.replyEphemeral(event, Containers.WARNING, refusal(p));
         }
@@ -246,7 +247,7 @@ public class EventsTeamCommand {
             return null;
         }
         if (!service.mayOrganise(found, event.getUser().getIdLong(), isStaff(guild, event.getMember()))) {
-            Containers.replyEphemeral(event, Containers.WARNING, "Only staff and this event's organisers can do that.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "events.only_staff_and_this_event_organisers"));
             return null;
         }
         return found;

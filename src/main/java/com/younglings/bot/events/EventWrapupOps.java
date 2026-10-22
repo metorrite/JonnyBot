@@ -10,6 +10,7 @@ import com.younglings.bot.events.EventSpaceRepository.ChannelRow;
 import com.younglings.bot.events.EventSpaceRepository.RoleRow;
 import com.younglings.bot.events.EventWrapup.Msg;
 import com.younglings.bot.events.EventWrapup.Step;
+import com.younglings.bot.i18n.Text;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -196,7 +197,7 @@ public class EventWrapupOps {
     /** Makes the event's channels read-only for the players. */
     public Job startLock(Guild guild, Event event) {
         requireOver(event);
-        if (ownedChannels(event.id()).isEmpty()) throw new EventProblem(409, "There are no channels JonnyBot made for this event.");
+        if (ownedChannels(event.id()).isEmpty()) throw new EventProblem(409, Text.of(guild, "events.problem.there_are_no_channels_jonnybot_made"));
         return ops.start(event.id(), "lock", job -> {
             int n = applyAccess(guild, event, true, job);
             wrapup.done(event.id(), Step.LOCK, null);
@@ -206,7 +207,7 @@ public class EventWrapupOps {
 
     /** Lets the players write in the channels again (for an event that was reopened). */
     public Job startUnlock(Guild guild, Event event) {
-        if (ownedChannels(event.id()).isEmpty()) throw new EventProblem(409, "There are no channels JonnyBot made for this event.");
+        if (ownedChannels(event.id()).isEmpty()) throw new EventProblem(409, Text.of(guild, "events.problem.there_are_no_channels_jonnybot_made"));
         return ops.start(event.id(), "unlock", job -> {
             int n = applyAccess(guild, event, false, job);
             job.finish("Unlocked " + n + (n == 1 ? " channel." : " channels."));
@@ -214,7 +215,7 @@ public class EventWrapupOps {
     }
 
     private void requireOver(Event event) {
-        if (event.status() != Status.DONE && event.status() != Status.CANCELLED) throw new EventProblem(409, "The event isn't over yet. Finish it first.");
+        if (event.status() != Status.DONE && event.status() != Status.CANCELLED) throw new EventProblem(409, Text.of(event.guildId(), "events.problem.the_event_isn_t_over_yet"));
     }
 
     private Function<Principal, List<Long>> idsOf(Guild guild, long eventId) {
@@ -289,7 +290,7 @@ public class EventWrapupOps {
     /** Takes back (deletes) the roles JonnyBot made for the event, so the players lose what they could see through them. */
     public Job startRoles(Guild guild, Event event) {
         requireOver(event);
-        if (space.roles(event.id()).isEmpty()) throw new EventProblem(409, "There are no roles JonnyBot made for this event.");
+        if (space.roles(event.id()).isEmpty()) throw new EventProblem(409, Text.of(guild, "events.problem.there_are_no_roles_jonnybot_made"));
         return ops.start(event.id(), "roles", job -> {
             List<RoleRow> roles = space.roles(event.id());
             job.total(roles.size());
@@ -329,7 +330,7 @@ public class EventWrapupOps {
     /** Moves the event's channels into an archive category where only staff can see them, and deletes the event's own categories. */
     public Job startArchive(Guild guild, Event event) {
         requireOver(event);
-        if (ownedChannels(event.id()).isEmpty()) throw new EventProblem(409, "There are no channels JonnyBot made for this event.");
+        if (ownedChannels(event.id()).isEmpty()) throw new EventProblem(409, Text.of(guild, "events.problem.there_are_no_channels_jonnybot_made"));
         return ops.start(event.id(), "archive", job -> {
             List<ChannelRow> rows = ownedChannels(event.id());
             job.total(rows.size() + 1);
@@ -385,7 +386,7 @@ public class EventWrapupOps {
             for (Overwrite o : EventSpace.overwrites(EventWrapup.archivedAccess(), idsOf)) action = o.isRole() ? action.addRolePermissionOverride(o.id(), o.allow(), o.deny()) : action.addMemberPermissionOverride(o.id(), o.allow(), o.deny());
             return action.reason("Archive for finished events").complete();
         }
-        throw new EventProblem(409, "There are too many archive categories already.");
+        throw new EventProblem(409, Text.of(guild, "events.problem.there_are_too_many_archive_categories"));
     }
 
     // ---------- reading messages ----------
@@ -422,7 +423,7 @@ public class EventWrapupOps {
     public Job startCompress(Guild guild, Event event, boolean all, boolean deleteOriginals) {
         requireOver(event);
         List<ChannelRow> chosen = compressible(event.id(), all);
-        if (chosen.isEmpty()) throw new EventProblem(409, all ? "There are no channels JonnyBot made for this event." : "There are no player or team channels to compress.");
+        if (chosen.isEmpty()) throw new EventProblem(409, all ? Text.of(guild, "events.problem.there_are_no_channels_jonnybot_made") : Text.of(guild, "events.problem.there_are_no_player_or_team"));
         return ops.start(event.id(), "compress", job -> {
             job.total(chosen.size() + 1);
             EventWrapup.Setting setting = service.settingsOf(event).wrapup();
@@ -605,7 +606,7 @@ public class EventWrapupOps {
                     + "<category>/<channel>.json and .txt   each channel on its own, the way the category was set up\n"
                     + "files/<channel>/   the images that fit (Discord's own links expire; later images stay as links in the files above)\n");
         } catch (IOException e) {
-            throw new EventProblem(500, "The export couldn't be put together: " + e.getMessage());
+            throw new EventProblem(500, Text.of(guild, "events.problem.the_export_couldn_t_be_put", e.getMessage()));
         }
         job.step("Packed the zip.");
         String name = EventWrapup.safeName(event.name()) + "-export-" + java.time.LocalDate.now() + ".zip";

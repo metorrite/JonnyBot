@@ -14,6 +14,7 @@ import com.younglings.bot.events.EventService;
 import com.younglings.bot.events.EventSettings;
 import com.younglings.bot.events.EventSubmissions;
 import com.younglings.bot.events.EventSubmit;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.permission.AdminRoleFilter;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
 import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
@@ -73,8 +74,7 @@ public class SubmitCommand {
             List<ObjectiveSpec> all = service.objectives(p.event.id());
             objective = findTile(p.event, all, tile);
             if (objective == null) {
-                Containers.replyEphemeral(event, Containers.WARNING, "I couldn't tell which tile you mean by \"" + tile + "\". Pick one from the list that appears as you type"
-                        + (com.younglings.bot.events.ClanVsClan.plays(p.event, BingoTemplate.KEY) ? ", or use the number drawn on the tile." : "."));
+                Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "events.i_couldn_t_tell_which_tile", tile, (com.younglings.bot.events.ClanVsClan.plays(p.event, BingoTemplate.KEY) ? Text.of(event, "events.or_use_the_number_drawn") : ".")));
                 return;
             }
             claimId = service.submitClaim(guildId, p.event.id(), objective.key(), p.userId, 1, note == null ? "" : note, screenshot.getUrl());
@@ -135,7 +135,7 @@ public class SubmitCommand {
             return null;
         }
         if (memberInEvent == null) {
-            Containers.replyEphemeral(event, Containers.INFO, "You aren't in **" + target.name() + "**, so there's nobody to send proof for. See `/events mine`.");
+            Containers.replyEphemeral(event, Containers.INFO, Text.of(event, "events.you_aren_t_in_so_there", target.name()));
             return null;
         }
         String problem = EventSubmissions.imageProblem(screenshot);
@@ -145,7 +145,7 @@ public class SubmitCommand {
         }
         TextChannel review = submissions.reviewChannel(guild, target);
         if (review == null) {
-            Containers.replyEphemeral(event, Containers.INFO, "This event doesn't have a review channel yet, so proof can't be sent. Ask an organiser.");
+            Containers.replyEphemeral(event, Containers.INFO, Text.of(event, "events.this_event_doesn_t_have_a_2"));
             return null;
         }
         return new Prepared(target, memberInEvent, userId, review);
@@ -156,7 +156,7 @@ public class SubmitCommand {
         submissions.deliver(event.getGuild(), p.event, claimId, event.getMember(), p.player, title, note, screenshot, verification, p.review)
                 .whenComplete((text, error) -> {
                     if (error != null) {
-                        event.getHook().editOriginal("I couldn't pass your screenshot to staff. Try again in a moment.").queue();
+                        event.getHook().editOriginal(Text.of(event, "events.i_couldn_t_pass_your_screenshot")).queue();
                         return;
                     }
                     event.getHook().editOriginal(text).queue();

@@ -3,6 +3,7 @@ package com.younglings.bot.events;
 import com.younglings.bot.events.EventRepository.Event;
 import com.younglings.bot.events.EventRepository.Participant;
 import com.younglings.bot.events.EventRules.ScoringMode;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.runescape.PlayerLink;
 import com.younglings.bot.runescape.PlayerLinkRepository;
 import com.younglings.bot.runescape.PlayerLinkRepository.StatsSnapshotRow;
@@ -76,7 +77,7 @@ public class EventTeams {
      */
     public TeamBuilder.Suggestion suggest(long guildId, long eventId) {
         Event event = service.event(guildId, eventId);
-        if (event.scoringMode() != ScoringMode.TEAM) throw new EventProblem(409, "This event is scored by player, so it has no teams.");
+        if (event.scoringMode() != ScoringMode.TEAM) throw new EventProblem(409, Text.of(guildId, "events.problem.this_event_is_scored_by_player_2"));
         List<TeamBuilder.Player> players = players(guildId, event);
         Map<Long, Participant> byId = new HashMap<>();
         repository.participants(eventId).forEach(p -> byId.put(p.userId(), p));
