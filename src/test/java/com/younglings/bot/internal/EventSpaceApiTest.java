@@ -100,6 +100,8 @@ class EventSpaceApiTest {
         Mockito.when(guild.getRoles()).thenReturn(List.of(ownerRole, adminRole, everyone));
         Mockito.when(guild.getRoleById(501L)).thenReturn(adminRole);
         Mockito.when(guild.getChannels()).thenReturn(List.of());
+        // the @everyone role, which the plan shuts out of every event channel (read since T-210 to spot changed overwrites)
+        Mockito.when(guild.getPublicRole()).thenReturn(everyone);
         // the bot holds every permission
         SelfMember self = Mockito.mock(SelfMember.class, invocation -> invocation.getMethod().getName().equals("hasPermission") ? Boolean.TRUE : Mockito.RETURNS_DEFAULTS.answer(invocation));
         Mockito.when(guild.getSelfMember()).thenReturn(self);
