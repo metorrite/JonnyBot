@@ -1,5 +1,6 @@
 package com.younglings.bot.commands.signup;
 
+import com.younglings.bot.discord.Mentions;
 import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.discord.Containers;
 import com.younglings.bot.discord.Pagination;
@@ -256,8 +257,8 @@ public class SignupInteractionListener extends ListenerAdapter {
 
                 long guildId = event.getGuild().getIdLong();
                 long channelId = channel.getIdLong();
-                channel.sendMessageComponents(List.of(Containers.toast(Containers.PRIMARY, "<@&" + session.groupRoleId() + ">")))
-                        .useComponentsV2(true)
+                Mentions.onlyRoles(channel.sendMessageComponents(List.of(Containers.toast(Containers.PRIMARY, "<@&" + session.groupRoleId() + ">")))
+                        .useComponentsV2(true), session.groupRoleId())
                         .queue(msg -> signupService.savePingMessage(signupId, guildId, channelId, msg.getIdLong()));
 
                 Containers.replyThenDelete(event, Containers.SUCCESS, "Group notified!");
