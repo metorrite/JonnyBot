@@ -5,7 +5,14 @@ import com.younglings.bot.alliance.AllianceRules;
 import com.younglings.bot.clanprofile.ClanProfile;
 import com.younglings.bot.clanprofile.ClanProfileService;
 import com.younglings.bot.clanprofile.JoinLinks;
+import com.younglings.bot.events.EventCohostRepository;
 import com.younglings.bot.events.EventListing;
+import com.younglings.bot.events.EventRepository.Participant;
+import com.younglings.bot.events.EventRoster;
+import com.younglings.bot.events.EventSettings;
+import com.younglings.bot.events.EventStandings;
+import com.younglings.bot.events.HubBoard;
+import com.younglings.bot.permission.DashboardAccess;
 import com.younglings.bot.events.EventListing.Access;
 import com.younglings.bot.events.EventRepository;
 import com.younglings.bot.events.EventRepository.Event;
@@ -59,8 +66,18 @@ public class HubEventsApi {
     static final int MAX_REASON = 500;
     static final int MAX_REPORTS_PER_EVENT_PER_DAY = 20;
 
+    private final EventCohostRepository cohosts;
+    private final DashboardAccess dashboardAccess;
+    private final MemberEventsApi memberEvents;
+    static final int MINE_SHOWN = 50;
+    private static final int MEMBER_EVENTS_PER_SERVER = 50;
+
     public HubEventsApi(EventRepository events, EventService service, EventTemplates templates, JoinLinks joinLinks, ClanProfileService profiles,
-                        AllianceRepository alliances, PlayerLinkService links, HubModerationRepository moderation) {
+                        AllianceRepository alliances, PlayerLinkService links, HubModerationRepository moderation, EventCohostRepository cohosts,
+                        DashboardAccess dashboardAccess, MemberEventsApi memberEvents) {
+        this.cohosts = cohosts;
+        this.dashboardAccess = dashboardAccess;
+        this.memberEvents = memberEvents;
         this.moderation = moderation;
         this.events = events;
         this.service = service;
@@ -86,29 +103,151 @@ public class HubEventsApi {
             if (access == null) continue;
             out.add(card(jda, e).put("access", access.name()));
         }
-        return DataObject.empty().put("events", out).put("generatedAt", Instant.now().toString());
+        // "Only this server" events of the viewer's own servers: only they see them (T-335)
+        Instant now = Instant.now();
+        for (long guildId : viewerGuilds) {
+            for (Event e : events.events(guildId, MEMBER_STATUSES, MEMBER_EVENTS_PER_SERVER)) {
+                if (e.scope() == com.younglings.bot.events.EventRules.Scope.PRIVATE && EventListing.shownToMembers(e, now)) out.add(card(jda, e).put("access", Access.MINE.name()));
+            }
+        }
+        return DataObject.empty().put("events", out).put("generatedAt", now.toString());
+    }
+
+    private static final List<Status> MEMBER_STATUSES = List.of(Status.SIGNUPS, Status.RUNNING, Status.SCORING, Status.DONE);
+
+    /**
+     * "My events" on RuneClans (T-337): every event the viewer plays in, in any server, newest first, each with their own place in it (waiting, team,
+     * verification, points and rank when the event shows ranks to its players). Only the viewer's own rows; nothing about other players.
+     */
+    public DataObject mine(JDA jda, String viewer) {
+        Long viewerId = idOf(viewer);
+        DataArray out = DataArray.empty();
+        if (viewerId == null) return DataObject.empty().put("events", out);
+        for (Event e : events.eventsForUserEverywhere(viewerId, MINE_SHOWN)) {
+            Participant me = events.participant(e.id(), viewerId).orElse(null);
+            if (me == null) continue;
+            out.add(card(jda, e).put("access", Access.MINE.name()).put("me", myPlace(e, me)));
+        }
+        return DataObject.empty().put("events", out);
+    }
+
+    /** The viewer's own place in an event: no other player's name or row. */
+    private DataObject myPlace(Event e, Participant me) {
+        boolean teamEvent = e.scoringMode() == com.younglings.bot.events.EventRules.ScoringMode.TEAM;
+        String team = me.teamId() == null ? null : events.teams(e.id()).stream().filter(t -> t.id() == me.teamId()).map(EventRepository.Team::name).findFirst().orElse(null);
+        EventSettings settings = settingsOf(e);
+        boolean scored = e.status() == Status.RUNNING || e.status() == Status.SCORING || e.status() == Status.DONE;
+        String subject = teamEvent ? (me.teamId() == null ? null : "t:" + me.teamId()) : "u:" + me.userId();
+        int rank = 0;
+        long points = 0;
+        int of = 0;
+        if (scored && subject != null) {
+            List<Standing> all = service.standings(e.guildId(), e.id());
+            boolean ranks = EventListing.standingsShownToMember(e, true);
+            for (int i = 0; i < all.size(); i++) {
+                if (!all.get(i).subject().equals(subject)) continue;
+                points = all.get(i).points();
+                if (ranks) rank = i + 1;
+            }
+            if (ranks) of = all.size();
+        }
+        return DataObject.empty().put("waiting", me.waiting()).put("team", team).put("teamEvent", teamEvent)
+                .put("verification", EventRoster.effective(me.verification(), settings.verification()).name())
+                .put("verificationRequired", settings.verification().required())
+                .put("rank", rank).put("of", of).put("points", points)
+                .put("canSubmit", !me.waiting() && e.status() == Status.RUNNING);
     }
 
     /** One listed event, with its full description, prizes and (when the host allowed it) standings; null when the viewer may not see it. */
     public DataObject one(JDA jda, String rawId, String viewer) {
         if (rawId == null || !rawId.matches("\\d{1,18}")) return null;
         Optional<Event> found = events.eventById(Long.parseLong(rawId));
-        if (found.isEmpty() || !listedNow(found.get())) return null;
+        if (found.isEmpty()) return null;
         Event e = found.get();
-        Access access = accessOf(e, guildsOf(jda, idOf(viewer)), new LinkedHashMap<>());
+        Long viewerId = idOf(viewer);
+        Set<Long> viewerGuilds = guildsOf(jda, viewerId);
+        boolean member = viewerGuilds.contains(e.guildId());
+        // members of the host server also see its "Only this server" events (and events taken off the public hub) on RuneClans (T-335)
+        if (!(listedNow(e) || (member && EventListing.shownToMembers(e, Instant.now())))) return null;
+        Access access = accessOf(e, viewerGuilds, new LinkedHashMap<>());
         if (access == null) return null;
+        Participant me = viewerId == null ? null : events.participant(e.id(), viewerId).orElse(null);
         DataObject card = card(jda, e).put("access", access.name()).put("description", e.description() == null ? "" : e.description());
         DataArray prizes = DataArray.empty();
         for (PrizePlan.Prize p : service.prizes(e.id())) {
             prizes.add(DataObject.empty().put("place", p.place()).put("placeTo", p.placeTo()).put("kind", p.kind().name()).put("description", p.description()).put("amount", p.amount()));
         }
         card.put("prizes", prizes);
+        card.put("signupClosesAt", Optional.ofNullable(settingsOf(e).signupClosesAt()).map(Instant::toString).orElse(null));
+        card.put("cohosts", cohostsOf(jda, e));
         boolean scored = e.status() == Status.RUNNING || e.status() == Status.SCORING || e.status() == Status.DONE;
-        if (scored && EventListing.standingsShown(e)) card.put("standings", standings(e));
         // a clan-vs-clan event shows its clans' standings (clan names only) whenever it is open to everyone (T-223)
-        else if (scored && EventListing.clanStandingsShown(e)) card.put("standings", standings(e));
+        boolean shown = scored && (EventListing.standingsShown(e) || EventListing.clanStandingsShown(e) || (member && EventListing.standingsShownToMember(e, me != null)));
+        List<Standing> all = scored ? service.standings(e.guildId(), e.id()) : List.of();
+        List<HubBoard.Subject> rows = shown ? named(e, all) : List.of();
+        if (shown) {
+            DataArray standings = DataArray.empty();
+            for (int i = 0; i < rows.size(); i++) standings.add(DataObject.empty().put("rank", i + 1).put("name", rows.get(i).name()).put("points", rows.get(i).points()));
+            card.put("standings", standings);
+        } else if (scored) {
+            card.put("standingsNote", member ? EventStandings.hiddenText(EventStandings.of(DataObject.fromJson(e.config()))) : "The host keeps the standings to their own server.");
+        }
         card.put("clanVsClan", com.younglings.bot.events.ClanVsClan.is(e.template()));
+
+        HubBoard.Subject mine = null;
+        boolean teamEvent = e.scoringMode() == com.younglings.bot.events.EventRules.ScoringMode.TEAM;
+        if (me != null && !me.waiting() && scored) {
+            String subject = teamEvent ? (me.teamId() == null ? null : "t:" + me.teamId()) : "u:" + me.userId();
+            Standing own = all.stream().filter(s -> s.subject().equals(subject)).findFirst().orElse(null);
+            if (subject != null) mine = new HubBoard.Subject(subject, "", own == null ? 0 : own.points(), own == null ? Map.of() : own.completions());
+        }
+        if (com.younglings.bot.events.ClanVsClan.plays(e, com.younglings.bot.events.BingoTemplate.KEY)) {
+            card.put("board", HubBoard.of(DataObject.fromJson(e.config()), service.objectives(e.id()), rows, mine, scored ? events.progress(e.id()) : List.of(), teamEvent));
+        }
+        if (me != null) card.put("me", myPlace(e, me).put("channels", channelsOf(jda, e, viewerId)));
+        card.put("manage", manageOf(jda, e, viewerId));
         return card;
+    }
+
+    /** The viewer's links to the event's channels (only the ones they can use), from the host's own player page. */
+    private DataArray channelsOf(JDA jda, Event e, long viewerId) {
+        Guild guild = jda == null ? null : jda.getGuildById(e.guildId());
+        if (guild == null) return DataArray.empty();
+        try {
+            DataObject detail = memberEvents.detail(guild, viewerId, e.id());
+            return detail.hasKey("channels") ? detail.getArray("channels") : DataArray.empty();
+        } catch (RuntimeException ex) {
+            return DataArray.empty();
+        }
+    }
+
+    /** Where staff of the host manage the event on the dashboard, only for someone who may use that server's event manager; else null. */
+    private DataObject manageOf(JDA jda, Event e, Long viewerId) {
+        if (viewerId == null || jda == null) return null;
+        Guild guild = jda.getGuildById(e.guildId());
+        net.dv8tion.jda.api.entities.Member member = guild == null ? null : guild.getMemberById(viewerId);
+        if (member == null) return null;
+        boolean may = dashboardAccess.tierOf(guild, member) != DashboardAccess.Tier.NONE || dashboardAccess.isEventCoordinator(guild, member);
+        return may ? DataObject.empty().put("guildId", guild.getId()).put("eventId", Long.toString(e.id())) : null;
+    }
+
+    /** The servers co-hosting the event (accepted only), named like the host: never by a Discord id. */
+    private DataArray cohostsOf(JDA jda, Event e) {
+        DataArray out = DataArray.empty();
+        for (EventCohostRepository.Cohost c : cohosts.forEvent(e.id())) {
+            if (c.status() != EventCohostRepository.Status.ACCEPTED) continue;
+            DataObject h = host(jda, c.guildId());
+            out.add(DataObject.empty().put("name", h.getString("name")).put("slug", h.opt("slug").orElse(null)).put("iconUrl", h.opt("iconUrl").orElse(null)));
+        }
+        return out;
+    }
+
+    private static EventSettings settingsOf(Event e) {
+        try {
+            return EventSettings.parse(DataObject.fromJson(e.config()));
+        } catch (RuntimeException ex) {
+            return EventSettings.defaults();
+        }
     }
 
     /** An answer with its HTTP status, for the routes that change something. */
@@ -242,15 +381,12 @@ public class HubEventsApi {
     }
 
     /** The top of the standings with RuneScape names only (a team's name for a team); a player with no linked name is "Player n". */
-    private DataArray standings(Event e) {
-        List<Standing> all = service.standings(e.guildId(), e.id());
+    private List<HubBoard.Subject> named(Event e, List<Standing> all) {
         Map<Long, String> teams = new LinkedHashMap<>();
         events.teams(e.id()).forEach(t -> teams.put(t.id(), t.name()));
-        DataArray rows = DataArray.empty();
-        int rank = 0;
+        List<HubBoard.Subject> rows = new ArrayList<>();
         int unnamed = 0;
         for (Standing s : new ArrayList<>(all).subList(0, Math.min(STANDINGS_SHOWN, all.size()))) {
-            rank++;
             long id = Long.parseLong(s.subject().substring(2));
             String name;
             if (s.subject().startsWith("t:")) {
@@ -259,7 +395,7 @@ public class HubEventsApi {
                 List<PlayerLink> mine = links.getLinksForUser(e.guildId(), id);
                 name = mine.isEmpty() ? "Player " + (++unnamed) : mine.get(0).rsn();
             }
-            rows.add(DataObject.empty().put("rank", rank).put("name", name).put("points", s.points()));
+            rows.add(new HubBoard.Subject(s.subject(), name, s.points(), s.completions()));
         }
         return rows;
     }

@@ -8,7 +8,9 @@ import java.io.IOException;
 /**
  * The events hub's engine events ({@link HubEventsApi}):
  * <ul>
- *   <li>{@code GET hub-events?viewer=} and {@code GET hub-events/{id}?viewer=}: the listing and one event (T-216)</li>
+ *   <li>{@code GET hub-events?viewer=} and {@code GET hub-events/{id}?viewer=}: the listing and one event (T-216; RuneClans' board, own place and
+ *       manage link, T-335/T-336)</li>
+ *   <li>{@code GET hub-events/mine?viewer=}: the events the viewer plays in, in every server, with their own place in each (RuneClans' My events, T-337)</li>
  *   <li>{@code POST hub-events/{id}/join} {@code {userId}}: join one as the signed-in person (the website says who; T-217)</li>
  *   <li>{@code POST hub-events/{id}/report} {@code {reason, reporter?}}: report a listed event for the bot's owner to review (T-218)</li>
  * </ul>
@@ -40,7 +42,7 @@ public class DirectoryHubEventRoutes implements DirectoryRouteModule {
         } else {
             if (!request.requireGet()) return true;
             String viewer = request.query("viewer");
-            DataObject answer = parts.length == 1 ? hubEvents.list(request.jda(), viewer) : parts.length == 2 ? hubEvents.one(request.jda(), parts[1], viewer) : null;
+            DataObject answer = parts.length == 2 && parts[1].equals("mine") ? hubEvents.mine(request.jda(), viewer) : parts.length == 1 ? hubEvents.list(request.jda(), viewer) : parts.length == 2 ? hubEvents.one(request.jda(), parts[1], viewer) : null;
             if (answer == null) request.sendError(404, "No such event");
             else request.send(200, answer);
         }

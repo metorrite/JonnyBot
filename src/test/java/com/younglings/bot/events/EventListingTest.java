@@ -40,6 +40,30 @@ class EventListingTest {
     }
 
     @Test
+    void membersOfTheHostSeeTheirOwnServersEventsWhateverTheVisibility() {
+        assertTrue(EventListing.shownToMembers(event(Scope.PRIVATE, Status.SIGNUPS), NOW), "only this server = its members");
+        assertTrue(EventListing.shownToMembers(event(Scope.PUBLIC, Status.SIGNUPS, false, "{\"hub\":{\"takedown\":{\"reason\":\"spam\"}}}", null), NOW),
+                "a takedown only takes it off the public hub");
+        assertFalse(EventListing.shownToMembers(event(Scope.PRIVATE, Status.DRAFT), NOW));
+        assertFalse(EventListing.shownToMembers(event(Scope.PRIVATE, Status.CANCELLED), NOW));
+        assertFalse(EventListing.shownToMembers(event(Scope.PRIVATE, Status.SIGNUPS, true, "{}", null), NOW), "archived");
+        assertFalse(EventListing.shownToMembers(event(Scope.PRIVATE, Status.DONE, false, "{}", NOW.minus(Duration.ofDays(15))), NOW), "finished long ago");
+    }
+
+    @Test
+    void membersSeeStandingsByTheEventsOwnRule() {
+        assertTrue(EventListing.standingsShownToMember(event(Scope.PRIVATE, Status.RUNNING), true), "players see them by default");
+        assertFalse(EventListing.standingsShownToMember(event(Scope.PRIVATE, Status.RUNNING), false), "other members don't by default");
+        String server = "{\"standings\":{\"visibility\":\"SERVER\"}}";
+        assertTrue(EventListing.standingsShownToMember(event(Scope.PRIVATE, Status.RUNNING, false, server, null), false));
+        String staff = "{\"standings\":{\"visibility\":\"STAFF\"}}";
+        assertFalse(EventListing.standingsShownToMember(event(Scope.PRIVATE, Status.RUNNING, false, staff, null), true));
+        String later = "{\"standings\":{\"visibility\":\"HIDDEN_UNTIL_END\"}}";
+        assertFalse(EventListing.standingsShownToMember(event(Scope.PRIVATE, Status.RUNNING, false, later, null), true));
+        assertTrue(EventListing.standingsShownToMember(event(Scope.PRIVATE, Status.DONE, false, later, null), true));
+    }
+
+    @Test
     void allianceEventsAreOnlyForAlliedViewers() {
         assertTrue(EventListing.visible(event(Scope.PUBLIC, Status.SIGNUPS), false));
         assertFalse(EventListing.visible(event(Scope.ALLIANCE, Status.SIGNUPS), false));

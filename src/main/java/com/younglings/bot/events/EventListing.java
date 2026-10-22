@@ -32,10 +32,28 @@ public final class EventListing {
 
     /** Whether the event belongs on the hub at all, before asking who is looking. */
     public static boolean listed(Event e, Instant now) {
-        if (e.scope() == Scope.PRIVATE || e.archived()) return false;
-        if (e.status() == Status.DRAFT || e.status() == Status.CANCELLED) return false;
+        if (e.scope() == Scope.PRIVATE) return false;
         if (takenDown(config(e))) return false;
+        return shownToMembers(e, now);
+    }
+
+    /**
+     * Whether members of the host server see the event on RuneClans (T-335), whatever its visibility: "Only this server" means exactly them. Not a draft,
+     * cancelled or archived, and (once finished) for {@link #FINISHED_SHOWN} after it ended. A JonnyBot takedown only takes it off the public hub.
+     */
+    public static boolean shownToMembers(Event e, Instant now) {
+        if (e.archived() || e.status() == Status.DRAFT || e.status() == Status.CANCELLED) return false;
         return e.status() != Status.DONE || e.endsAt() == null || e.endsAt().isAfter(now.minus(FINISHED_SHOWN));
+    }
+
+    /**
+     * Whether a member of the host server sees the standings on RuneClans (T-211 rules): a player of the event as the event shows its players, anyone else in
+     * the server only when the host shows them to the whole server.
+     */
+    public static boolean standingsShownToMember(Event e, boolean player) {
+        EventStandings.Visibility visibility = EventStandings.of(config(e));
+        if (!EventStandings.tableShown(visibility, e.status())) return false;
+        return player || visibility == EventStandings.Visibility.SERVER;
     }
 
     /**
