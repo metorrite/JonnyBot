@@ -2,6 +2,7 @@ package com.younglings.bot.giveaway;
 
 import com.younglings.bot.alerts.AutoPostRouter;
 import com.younglings.bot.internal.MemberApi;
+import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -24,9 +25,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 /** Posting giveaways, drawing winners when they end (on time, or when told to), and rerolling. */
@@ -43,11 +42,7 @@ public class GiveawayService {
 
     private final GiveawayRepository repository;
     private final Random random = new SecureRandom();
-    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor((ThreadFactory) runnable -> {
-        Thread thread = new Thread(runnable, "giveaways");
-        thread.setDaemon(true);
-        return thread;
-    });
+    private final ScheduledExecutorService executor = BotScheduler.lane("giveaways");
 
     public GiveawayService(GiveawayRepository repository) {
         this.repository = repository;
