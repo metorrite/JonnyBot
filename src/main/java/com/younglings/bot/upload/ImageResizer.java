@@ -32,7 +32,7 @@ final class ImageResizer {
     private static final Logger log = LoggerFactory.getLogger(ImageResizer.class);
 
     /** The longest side, by place, of pictures that are shown small. Places not listed (the big embed image) are never shrunk. */
-    private static final Map<String, Integer> MAX_SIDE = Map.of("thumbnail", 256, "author_icon", 128, "footer_icon", 128);
+    private static final Map<String, Integer> MAX_SIDE = Map.of("thumbnail", 256, "author_icon", 128, "footer_icon", 128, "logo", 512, "banner", 2400);
 
     /** Refuses to decode anything larger than this many pixels, so a tiny file that expands to gigabytes can't exhaust memory. */
     private static final long MAX_PIXELS = 40_000_000L;
