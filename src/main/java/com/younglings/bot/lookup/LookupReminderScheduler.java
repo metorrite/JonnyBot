@@ -1,5 +1,6 @@
 package com.younglings.bot.lookup;
 
+import com.younglings.bot.discord.Mentions;
 import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.tracking.TrackingPostingToggle;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
@@ -105,7 +106,7 @@ public class LookupReminderScheduler {
         Role role = reminder.roleId() == null ? null : guild.getRoleById(reminder.roleId());
         boolean ping = role != null && (role.isMentionable() || guild.getSelfMember().hasPermission(channel, Permission.MESSAGE_MENTION_EVERYONE));
         String content = (ping ? role.getAsMention() + " " : "") + text;
-        channel.sendMessage(content).setAllowedMentions(ping ? EnumSet.of(Message.MentionType.ROLE) : EnumSet.noneOf(Message.MentionType.class))
+        Mentions.onlyRoles(channel.sendMessage(content), ping ? new long[]{role.getIdLong()} : new long[0])
                 .queue(ok -> reminders.markPosted(reminder.guildId(), reminder.kind(), key),
                         err -> log.warn("Could not post the {} reminder in guild {}: {}", reminder.kind().key(), reminder.guildId(), err.toString()));
     }

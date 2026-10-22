@@ -148,7 +148,9 @@ class ServerReminderTest {
         service.post(guild, new ServerReminder(1, GUILD, 9L, "@everyone look", 70L, null, NOW, Status.ACTIVE, 7, "M", null, 0, null));
 
         verify(channel).sendMessage("<@&70> @everyone look");
-        verify(send).setAllowedMentions(java.util.EnumSet.of(net.dv8tion.jda.api.entities.Message.MentionType.ROLE));
+        // T-136: nothing pings by type (not even other roles in the text); the chosen role is the only one allowed
+        verify(send, org.mockito.Mockito.atLeastOnce()).setAllowedMentions(java.util.EnumSet.noneOf(net.dv8tion.jda.api.entities.Message.MentionType.class));
+        verify(send, never()).setAllowedMentions(java.util.EnumSet.of(net.dv8tion.jda.api.entities.Message.MentionType.ROLE));
         verify(send).mentionRoles(70L);
     }
 
