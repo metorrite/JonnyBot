@@ -1,13 +1,12 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -24,11 +23,7 @@ public class Debouncer {
     private static final Logger log = LoggerFactory.getLogger(Debouncer.class);
 
     private final ConcurrentHashMap<String, Boolean> pending = new ConcurrentHashMap<>();
-    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor((ThreadFactory) r -> {
-        Thread t = new Thread(r, "debouncer");
-        t.setDaemon(true);
-        return t;
-    });
+    private final ScheduledExecutorService executor = BotScheduler.lane("debouncer");
 
     /** Runs {@code work} once, {@code delayMillis} from now, unless a run for {@code key} is already waiting. */
     public void run(String key, long delayMillis, Runnable work) {

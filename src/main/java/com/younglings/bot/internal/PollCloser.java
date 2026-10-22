@@ -2,6 +2,7 @@ package com.younglings.bot.internal;
 
 import com.younglings.bot.alerts.AutoPostRouter;
 import com.younglings.bot.commands.poll.PollService;
+import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -11,9 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.OffsetDateTime;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -27,11 +26,7 @@ public class PollCloser {
     private final CommunitySettings settings;
     private final PollService polls;
     private final SiteCache cache;
-    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor((ThreadFactory) r -> {
-        Thread t = new Thread(r, "poll-closer");
-        t.setDaemon(true);
-        return t;
-    });
+    private final ScheduledExecutorService executor = BotScheduler.lane("poll-closer");
 
     public PollCloser(CommunitySettings settings, PollService polls, SiteCache cache) {
         this.settings = settings;

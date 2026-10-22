@@ -1,5 +1,6 @@
 package com.younglings.bot.clansite;
 
+import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -8,9 +9,7 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 /** Once a day, deletes clan websites that have been switched off for 30 days (design W11), so a clan's words aren't kept for ever. */
@@ -20,11 +19,7 @@ public class ClanSiteCleanup {
     static final Duration KEEP_SWITCHED_OFF = Duration.ofDays(30);
 
     private final ClanSiteRepository repository;
-    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor((ThreadFactory) runnable -> {
-        Thread thread = new Thread(runnable, "clan-site-cleanup");
-        thread.setDaemon(true);
-        return thread;
-    });
+    private final ScheduledExecutorService executor = BotScheduler.lane("clan-site-cleanup");
 
     public ClanSiteCleanup(ClanSiteRepository repository) {
         this.repository = repository;

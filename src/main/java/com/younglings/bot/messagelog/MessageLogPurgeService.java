@@ -1,14 +1,13 @@
 package com.younglings.bot.messagelog;
 
+import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -20,11 +19,7 @@ public class MessageLogPurgeService {
     private static final Logger log = LoggerFactory.getLogger(MessageLogPurgeService.class);
 
     private final MessageLogRepository repository;
-    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor((ThreadFactory) r -> {
-        Thread t = new Thread(r, "message-log-purge");
-        t.setDaemon(true);
-        return t;
-    });
+    private final ScheduledExecutorService executor = BotScheduler.lane("message-log-purge");
 
     public MessageLogPurgeService(MessageLogRepository repository) {
         this.repository = repository;

@@ -10,6 +10,7 @@ import com.younglings.bot.events.EventCohostRepository.Panel;
 import com.younglings.bot.events.EventCohostRepository.PendingJoin;
 import com.younglings.bot.events.EventRepository.Event;
 import com.younglings.bot.events.EventRules.Status;
+import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -37,10 +38,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -73,11 +72,7 @@ public class CohostPanels extends ListenerAdapter implements BotListener {
     private final EventCohostRepository cohosts;
     private final GuildSettingsService guildSettings;
     private final ClanProfileRepository profiles;
-    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor((ThreadFactory) runnable -> {
-        Thread thread = new Thread(runnable, "cohost-panels");
-        thread.setDaemon(true);
-        return thread;
-    });
+    private final ScheduledExecutorService executor = BotScheduler.lane("cohost-panels");
     private final Map<Long, ScheduledFuture<?>> redraws = new ConcurrentHashMap<>();
     private volatile JDA jda;
 

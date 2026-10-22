@@ -10,6 +10,7 @@ import com.younglings.bot.runescape.RuneScapeStatsService;
 import com.younglings.bot.runescape.polling.PollCoordinator;
 import com.younglings.bot.runescape.polling.PollPriority;
 import com.younglings.bot.runescape.polling.PollRequest;
+import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -22,9 +23,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -49,11 +48,7 @@ public class EventTracker {
     private final RuneScapeStatsService stats;
     private final PollCoordinator polls;
     private final BotConfig config;
-    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor((ThreadFactory) runnable -> {
-        Thread thread = new Thread(runnable, "event-tracker");
-        thread.setDaemon(true);
-        return thread;
-    });
+    private final ScheduledExecutorService executor = BotScheduler.lane("event-tracker");
 
     public EventTracker(EventRepository repository, EventService service, PlayerLinkRepository links, RuneScapeStatsService stats, PollCoordinator polls, BotConfig config) {
         this.repository = repository;

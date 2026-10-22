@@ -3,6 +3,7 @@ package com.younglings.bot.serverreminder;
 import com.younglings.bot.discord.Mentions;
 import com.younglings.bot.alerts.AutoPostRouter;
 import com.younglings.bot.serverreminder.ServerReminder.Status;
+import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -19,9 +20,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -42,11 +41,7 @@ public class ServerReminderService {
     }
 
     private final ServerReminderRepository repository;
-    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor((ThreadFactory) runnable -> {
-        Thread thread = new Thread(runnable, "server-reminders");
-        thread.setDaemon(true);
-        return thread;
-    });
+    private final ScheduledExecutorService executor = BotScheduler.lane("server-reminders");
 
     public ServerReminderService(ServerReminderRepository repository) {
         this.repository = repository;

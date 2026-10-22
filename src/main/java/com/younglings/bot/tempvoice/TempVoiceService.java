@@ -2,6 +2,7 @@ package com.younglings.bot.tempvoice;
 
 import com.younglings.bot.tempvoice.TempVoiceRules.Hub;
 import com.younglings.bot.tempvoice.TempVoiceRules.Temp;
+import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -21,9 +22,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -41,11 +40,7 @@ public class TempVoiceService {
     private final TempVoiceRepository repository;
     private volatile JDA jda;
     private final Map<String, Long> lastCreate = new ConcurrentHashMap<>();
-    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor((ThreadFactory) runnable -> {
-        Thread thread = new Thread(runnable, "temp-voice");
-        thread.setDaemon(true);
-        return thread;
-    });
+    private final ScheduledExecutorService executor = BotScheduler.lane("temp-voice");
 
     public TempVoiceService(TempVoiceRepository repository) {
         this.repository = repository;
