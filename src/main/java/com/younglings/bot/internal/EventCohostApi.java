@@ -2,6 +2,7 @@ package com.younglings.bot.internal;
 
 import com.younglings.bot.alliance.AllianceRepository;
 import com.younglings.bot.alliance.AllianceRules;
+import com.younglings.bot.events.CohostPanels;
 import com.younglings.bot.events.EventCohostRepository;
 import com.younglings.bot.events.EventCohostRepository.Cohost;
 import com.younglings.bot.events.EventCohostRepository.Status;
@@ -48,19 +49,21 @@ public class EventCohostApi implements AdminRouteExtension {
     private final EventRepository events;
     private final EventService service;
     private final AllianceRepository alliances;
+    private final CohostPanels panels;
 
-    public EventCohostApi(EventCohostRepository cohosts, EventRepository events, EventService service, AllianceRepository alliances) {
+    public EventCohostApi(EventCohostRepository cohosts, EventRepository events, EventService service, AllianceRepository alliances, CohostPanels panels) {
         this.cohosts = cohosts;
         this.events = events;
         this.service = service;
         this.alliances = alliances;
+        this.panels = panels;
     }
 
     @Override
     public DataObject route(Guild guild, Member actor, String method, String[] parts, Supplier<DataObject> body) {
         try {
             if (parts.length >= 3 && parts[0].equals("events") && parts[2].equals("cohosts")) return hostRoute(guild, actor, method, parts, body);
-            if (parts.length >= 1 && parts[0].equals("cohost-events")) return cohostRoute(guild, actor, method, parts);
+            if (parts.length >= 1 && parts[0].equals("cohost-events")) return cohostRoute(guild, actor, method, parts, body);
             return null;
         } catch (EventProblem e) {
             throw new ApiError(e.status() == 500 ? 500 : e.status(), e.getMessage(), e.problems());
@@ -77,6 +80,15 @@ public class EventCohostApi implements AdminRouteExtension {
             long target = idOf(body.get().getString("guildId", ""), "server");
             invite(guild, actor, event, target);
             return hostView(guild, event);
+        }
+        if (parts.length == 4 && parts[3].equals("settings")) {
+            AdminRouteExtension.requireMethod(method, "PUT");
+            DataObject in = body.get();
+            if (!in.hasKey("announceStart") || !(in.opt("announceStart").orElse(null) instanceof Boolean on)) throw new EventProblem(400, "Say whether to announce the start (true or false).");
+            DataObject config = DataObject.fromJson(event.config()).put(CohostPanels.ANNOUNCE_START, on);
+            if (!events.setConfig(event.guildId(), event.id(), config.toString())) throw new EventProblem(404, "That event doesn't exist in this server.");
+            log.info("Dashboard: {} turned the co-host start announcement {} for event {}", actor.getId(), on ? "on" : "off", event.id());
+            return hostView(guild, events.eventById(event.id()).orElse(event));
         }
         if (parts.length == 4 && parts[3].equals("queue")) {
             AdminRouteExtension.requireMethod(method, "PUT");
@@ -112,6 +124,8 @@ public class EventCohostApi implements AdminRouteExtension {
         }
         log.info("Dashboard: {} removed server {} as a co-host of event {}", actor.getId(), target, event.id());
         service.syncTemplateTeams(event, false); // a clan-vs-clan event takes the clan's empty team away (T-222)
+        panels.remove(event, target); // its signup panel comes down (T-221)
+        cohosts.deletePendingJoins(event.id(), target);
     }
 
     /**
@@ -206,12 +220,25 @@ public class EventCohostApi implements AdminRouteExtension {
             }
         }
         return DataObject.empty().put("cohosts", list).put("candidates", candidates).put("max", MAX_COHOSTS)
-                .put("canRemove", !events.setup(event.id()).signupsClosed()).put("queue", queueView(event));
+                .put("canRemove", !events.setup(event.id()).signupsClosed()).put("queue", queueView(event))
+                .put("announceStart", CohostPanels.announceStart(event));
     }
 
     // ---------- a co-host ----------
 
-    private DataObject cohostRoute(Guild guild, Member actor, String method, String[] parts) {
+    /**
+     * The co-host's panel channel from a request ({@code panelChannelId}, a text channel of this server JonnyBot can post in), or null when none was given.
+     */
+    private static Long panelChannel(Guild guild, DataObject body) {
+        if (body == null || !body.hasKey("panelChannelId") || body.isNull("panelChannelId") || body.getString("panelChannelId", "").isBlank()) return null;
+        long id = idOf(body.getString("panelChannelId", ""), "channel");
+        net.dv8tion.jda.api.entities.channel.concrete.TextChannel channel = guild.getTextChannelById(id);
+        if (channel == null) throw new ApiError(400, "That channel isn't a text channel in this server.");
+        if (!CohostPanels.canPost(channel)) throw new ApiError(400, "JonnyBot needs to see and send messages in #" + channel.getName() + ".");
+        return id;
+    }
+
+    private DataObject cohostRoute(Guild guild, Member actor, String method, String[] parts, Supplier<DataObject> body) {
         long me = guild.getIdLong();
         if (parts.length == 1) {
             AdminRouteExtension.requireMethod(method, "GET");
@@ -226,9 +253,24 @@ public class EventCohostApi implements AdminRouteExtension {
             if (event.status() == EventRules.Status.DONE || event.status() == EventRules.Status.CANCELLED) throw new ApiError(409, "That event is over.");
             Status to = parts[2].equals("accept") ? Status.ACCEPTED : Status.DECLINED;
             if (to == Status.ACCEPTED && !allied(event.guildId(), me)) throw new ApiError(403, "Your server is no longer in an alliance with the host.");
+            Long panelChannel = to == Status.ACCEPTED ? panelChannel(guild, body.get()) : null;
             if (!cohosts.decide(eventId, me, Status.INVITED, to, actor.getIdLong())) throw new ApiError(409, "That invitation isn't open any more.");
+            if (panelChannel != null) {
+                cohosts.setPanelChannel(eventId, me, panelChannel);
+                panels.post(event, me); // the signup panel goes up straight away while signups are open (T-221)
+            }
             log.info("Dashboard: {} {} co-hosting event {} for server {}", actor.getId(), to == Status.ACCEPTED ? "accepted" : "declined", eventId, me);
             service.syncTemplateTeams(event, false); // a clan-vs-clan event gives the accepting clan its team (T-222)
+            return cohostView(guild);
+        }
+        if (parts.length == 3 && parts[2].equals("panel")) {
+            AdminRouteExtension.requireMethod(method, "PUT");
+            if (mine.status() != Status.ACCEPTED) throw new ApiError(403, "Your server doesn't co-host that event.");
+            Long channel = panelChannel(guild, body.get());
+            panels.remove(event, me);
+            cohosts.setPanelChannel(eventId, me, channel);
+            if (channel != null) panels.post(event, me);
+            log.info("Dashboard: {} set the signup panel channel of server {} for event {} to {}", actor.getId(), me, eventId, channel);
             return cohostView(guild);
         }
         if (parts.length == 4 && parts[2].equals("players")) {
@@ -266,8 +308,11 @@ public class EventCohostApi implements AdminRouteExtension {
                 yours.add(DataObject.empty().put("userId", Long.toString(p.userId())).put("name", m == null ? "A member who left" : m.getEffectiveName()).put("waiting", p.waiting()));
             }
             boolean canRemove = e.status() == EventRules.Status.SIGNUPS && !events.setup(e.id()).rosterConfirmed();
+            var panel = cohosts.panel(e.id(), me).orElse(null);
             hosting.add(base.put("players", players.stream().filter(p -> !p.waiting()).count()).put("yours", yours).put("canRemove", canRemove)
-                    .put("quota", events.cohostQuotas(e.id()).get(me)));
+                    .put("quota", events.cohostQuotas(e.id()).get(me))
+                    .put("panelChannelId", panel == null || panel.channelId() == null ? null : Long.toString(panel.channelId()))
+                    .put("panelPosted", panel != null && panel.messageId() != null));
         }
         return DataObject.empty().put("invitations", invitations).put("events", hosting);
     }

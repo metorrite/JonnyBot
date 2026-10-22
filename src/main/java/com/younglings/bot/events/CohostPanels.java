@@ -1,0 +1,351 @@
+package com.younglings.bot.events;
+
+import com.younglings.bot.BotListener;
+import com.younglings.bot.alerts.AutoPostRouter;
+import com.younglings.bot.clanprofile.ClanProfile;
+import com.younglings.bot.clanprofile.ClanProfileRepository;
+import com.younglings.bot.configure.GuildSettingsService;
+import com.younglings.bot.discord.Containers;
+import com.younglings.bot.events.EventCohostRepository.Panel;
+import com.younglings.bot.events.EventCohostRepository.PendingJoin;
+import com.younglings.bot.events.EventRepository.Event;
+import com.younglings.bot.events.EventRules.Status;
+import io.github.freya022.botcommands.api.core.annotations.BEventListener;
+import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
+import io.github.freya022.botcommands.api.core.service.annotations.BService;
+import net.dv8tion.jda.api.JDA;
+import net.dv8tion.jda.api.Permission;
+import net.dv8tion.jda.api.components.actionrow.ActionRow;
+import net.dv8tion.jda.api.components.buttons.Button;
+import net.dv8tion.jda.api.components.container.Container;
+import net.dv8tion.jda.api.components.textdisplay.TextDisplay;
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
+import net.dv8tion.jda.api.events.guild.member.GuildMemberJoinEvent;
+import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
+import net.dv8tion.jda.api.exceptions.ErrorResponseException;
+import net.dv8tion.jda.api.hooks.ListenerAdapter;
+import net.dv8tion.jda.api.requests.ErrorResponse;
+import net.dv8tion.jda.api.utils.data.DataObject;
+import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.awt.Color;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
+
+/**
+ * Signup panels in co-host servers (T-221, design {@code docs/EVENTS-CROSS-SERVER.md} sections 3 and 5). When a co-host accepts it picks a panel
+ * channel; the host's event lifecycle opens the panel there while signups are open, shows it closed once they close, and deletes it when the event is
+ * over. Pressing Join on it:
+ * <ul>
+ *   <li>in the host's Discord already: joined at once, with the co-host as the server they came through (their origin);</li>
+ *   <li>not in it: an answer only they see with the host's invite, and a pending join that completes when they join the host's Discord (until signups
+ *       close). JonnyBot never adds or messages anyone outside the host's server (D10).</li>
+ * </ul>
+ * Optional, off by default: when the event starts, a short announcement in each co-host's panel channel. Like the other automatic posts, nothing is
+ * posted or changed on its own by a bot that isn't the live one ({@link AutoPostRouter}). The panel is its own small message rather than a generic signup,
+ * because a generic signup's Join only records an entry and can't answer with the host's invite at the moment it is pressed.
+ */
+@BService
+public class CohostPanels extends ListenerAdapter implements BotListener {
+    private static final Logger log = LoggerFactory.getLogger(CohostPanels.class);
+    static final String JOIN = "cohost_join:";
+    /** A pending join with no signup deadline and no start time lasts this long. */
+    static final Duration PENDING_FALLBACK = Duration.ofDays(30);
+    /** The host's switch in the event settings: announce the start in the co-hosts' panel channels (off unless switched on). */
+    public static final String ANNOUNCE_START = "cohostAnnounceStart";
+    private static final long REDRAW_DELAY_SECONDS = 5;
+
+    private final EventRepository events;
+    private final EventService service;
+    private final EventCohostRepository cohosts;
+    private final GuildSettingsService guildSettings;
+    private final ClanProfileRepository profiles;
+    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor((ThreadFactory) runnable -> {
+        Thread thread = new Thread(runnable, "cohost-panels");
+        thread.setDaemon(true);
+        return thread;
+    });
+    private final Map<Long, ScheduledFuture<?>> redraws = new ConcurrentHashMap<>();
+    private volatile JDA jda;
+
+    public CohostPanels(EventRepository events, EventService service, EventCohostRepository cohosts, GuildSettingsService guildSettings, ClanProfileRepository profiles,
+                        EventChanges changes) {
+        this.events = events;
+        this.service = service;
+        this.cohosts = cohosts;
+        this.guildSettings = guildSettings;
+        this.profiles = profiles;
+        changes.subscribe(change -> {
+            if (change.kind() == EventChanges.Kind.STAGE) executor.execute(() -> onStage(change.eventId()));
+            else if (change.kind() == EventChanges.Kind.ROSTER) redrawSoon(change.eventId());
+        });
+    }
+
+    @BEventListener
+    public void onJdaReady(InjectedJDAEvent event) {
+        this.jda = event.getJda();
+        executor.scheduleWithFixedDelay(() -> {
+            try {
+                cohosts.purgeExpiredPendingJoins(Instant.now());
+            } catch (RuntimeException e) {
+                log.warn("Purging expired pending joins failed", e);
+            }
+        }, 10, 24 * 60, TimeUnit.MINUTES);
+    }
+
+    // ---------- the rules (pure) ----------
+
+    /** When a pending join stops waiting: the signup deadline, else the start, else a month from now. */
+    static Instant pendingExpiry(Instant signupClosesAt, Instant startsAt, Instant now) {
+        if (signupClosesAt != null && signupClosesAt.isAfter(now)) return signupClosesAt;
+        if (startsAt != null && startsAt.isAfter(now)) return startsAt;
+        return now.plus(PENDING_FALLBACK);
+    }
+
+    /** Whether a co-host's panel takes joins now: the event takes signups, they haven't been closed, and the deadline hasn't passed. */
+    boolean open(Event event) {
+        return event.status() == Status.SIGNUPS && !events.setup(event.id()).signupsClosed() && service.settingsOf(event).selfSignupOpen(Instant.now());
+    }
+
+    // ---------- the panel ----------
+
+    /** The host as players see it: its listed clan's name, else its server's name. */
+    String hostName(long hostGuildId) {
+        String listed = profiles.get(hostGuildId).filter(p -> p.visibility() == ClanProfile.Visibility.PUBLIC).map(ClanProfile::displayName).filter(n -> n != null && !n.isBlank()).orElse(null);
+        if (listed != null) return listed;
+        Guild guild = jda == null ? null : jda.getGuildById(hostGuildId);
+        return guild == null ? "the host's server" : guild.getName();
+    }
+
+    /** The host's invite (its server settings, else its clan profile's apply link), or null. */
+    String inviteOf(long hostGuildId) {
+        String invite = guildSettings.getEffective(hostGuildId).inviteUrl();
+        if (invite == null || invite.isBlank()) invite = profiles.get(hostGuildId).map(ClanProfile::applyUrl).filter(u -> u != null && !u.isBlank()).orElse(null);
+        return invite;
+    }
+
+    Container panel(Event event) {
+        boolean open = open(event);
+        long players = events.participants(event.id()).stream().filter(p -> !p.waiting()).count();
+        StringBuilder text = new StringBuilder("## ").append(event.name()).append("\nHosted by **").append(hostName(event.guildId())).append("**, together with this server.");
+        if (event.startsAt() != null) text.append("\nStarts <t:").append(event.startsAt().getEpochSecond()).append(":F>");
+        text.append("\n").append(players).append(event.maxParticipants() > 0 ? " of " + event.maxParticipants() : "").append(players == 1 ? " player" : " players");
+        text.append("\n\n").append(open ? "Press **Join** to take part. You play from the host's Discord: if you aren't in it yet, you'll get its invite."
+                : event.status() == Status.SIGNUPS ? "Signups have closed." : "Signups are over.");
+        Button join = Button.success(JOIN + event.id(), open ? "Join" : "Signups closed").withDisabled(!open);
+        return Containers.card(open ? Containers.PRIMARY : Color.GRAY, TextDisplay.of(text.toString()), ActionRow.of(join));
+    }
+
+    private TextChannel channelOf(Panel p) {
+        Guild guild = jda == null ? null : jda.getGuildById(p.guildId());
+        return guild == null || p.channelId() == null ? null : guild.getTextChannelById(p.channelId());
+    }
+
+    /** Whether JonnyBot can post the panel in {@code channel}. */
+    public static boolean canPost(TextChannel channel) {
+        return channel != null && channel.getGuild().getSelfMember().hasPermission(channel, Permission.VIEW_CHANNEL, Permission.MESSAGE_SEND);
+    }
+
+    /** Posts (or redraws) one co-host's panel now; a staff action, so it isn't held back on a bot that isn't live. Nothing while signups aren't open yet. */
+    public void post(Event event, long cohostGuildId) {
+        cohosts.panel(event.id(), cohostGuildId).ifPresent(p -> show(event, p, true));
+    }
+
+    /** Takes one co-host's panel down (it was removed, or its channel changed). */
+    public void remove(Event event, long cohostGuildId) {
+        cohosts.panel(event.id(), cohostGuildId).ifPresent(this::delete);
+    }
+
+    private void show(Event event, Panel p, boolean postIfMissing) {
+        TextChannel channel = channelOf(p);
+        if (channel == null) return;
+        if (p.messageId() == null) {
+            if (!postIfMissing || event.status() != Status.SIGNUPS || !canPost(channel)) return;
+            channel.sendMessageComponents(List.of(panel(event))).useComponentsV2(true).queue(
+                    m -> cohosts.setPanelMessage(event.id(), p.guildId(), m.getIdLong()),
+                    e -> log.info("Couldn't post the co-host panel of event {} in server {}: {}", event.id(), p.guildId(), e.getMessage()));
+            return;
+        }
+        channel.editMessageComponentsById(p.messageId(), List.of(panel(event))).useComponentsV2(true).queue(ok -> { }, e -> {
+            if (e instanceof ErrorResponseException r && r.getErrorResponse() == ErrorResponse.UNKNOWN_MESSAGE) cohosts.setPanelMessage(event.id(), p.guildId(), null);
+            else log.debug("Couldn't redraw the co-host panel of event {} in server {}: {}", event.id(), p.guildId(), e.getMessage());
+        });
+    }
+
+    private void delete(Panel p) {
+        cohosts.setPanelMessage(p.eventId(), p.guildId(), null);
+        TextChannel channel = channelOf(p);
+        if (channel == null || p.messageId() == null) return;
+        channel.deleteMessageById(p.messageId()).queue(ok -> { }, e -> log.debug("Couldn't delete the co-host panel of event {}: {}", p.eventId(), e.getMessage()));
+    }
+
+    /** The event's lifecycle: panels go up while signups are open, show closed after, and go when it is over; the start may be announced. */
+    void onStage(long eventId) {
+        if (AutoPostRouter.diverting()) return;
+        try {
+            Event event = events.eventById(eventId).orElse(null);
+            if (event == null) return;
+            List<Panel> panels = cohosts.panels(eventId);
+            switch (event.status()) {
+                case SIGNUPS -> panels.forEach(p -> show(event, p, true));
+                case RUNNING, SCORING -> {
+                    panels.forEach(p -> show(event, p, false));
+                    cohosts.deletePendingJoins(eventId, null);
+                    if (event.status() == Status.RUNNING && announceStart(event)) panels.forEach(p -> announce(event, p));
+                }
+                case DRAFT, DONE, CANCELLED -> {
+                    panels.forEach(this::delete);
+                    cohosts.deletePendingJoins(eventId, null);
+                }
+            }
+        } catch (RuntimeException e) {
+            log.warn("Couldn't bring the co-host panels of event {} up to date", eventId, e);
+        }
+    }
+
+    /** The roster changed (someone joined, signups closed or opened again): redraw the panels a few seconds later, once. */
+    void redrawSoon(long eventId) {
+        ScheduledFuture<?> before = redraws.put(eventId, executor.schedule(() -> {
+            redraws.remove(eventId);
+            if (AutoPostRouter.diverting()) return;
+            try {
+                Event event = events.eventById(eventId).orElse(null);
+                if (event == null) return;
+                if (event.status() == Status.SIGNUPS && events.setup(eventId).signupsClosed()) cohosts.deletePendingJoins(eventId, null);
+                for (Panel p : cohosts.panels(eventId)) if (p.messageId() != null) show(event, p, false);
+            } catch (RuntimeException e) {
+                log.warn("Couldn't redraw the co-host panels of event {}", eventId, e);
+            }
+        }, REDRAW_DELAY_SECONDS, TimeUnit.SECONDS));
+        if (before != null) before.cancel(false);
+    }
+
+    public static boolean announceStart(Event event) {
+        try {
+            DataObject config = DataObject.fromJson(event.config());
+            return config.hasKey(ANNOUNCE_START) && !config.isNull(ANNOUNCE_START) && config.getBoolean(ANNOUNCE_START);
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    private void announce(Event event, Panel p) {
+        TextChannel channel = channelOf(p);
+        if (!canPost(channel)) return;
+        String invite = inviteOf(event.guildId());
+        String text = "**" + event.name() + "** has started, hosted by **" + hostName(event.guildId()) + "**." + (invite == null ? "" : " Players take part from its Discord: " + invite);
+        channel.sendMessageComponents(List.of(Containers.toast(Containers.INFO, text))).useComponentsV2(true).queue(ok -> { },
+                e -> log.debug("Couldn't announce the start of event {} in server {}: {}", event.id(), p.guildId(), e.getMessage()));
+    }
+
+    // ---------- Join on a co-host's panel ----------
+
+    @Override
+    public void onButtonInteraction(@NotNull ButtonInteractionEvent interaction) {
+        String id = interaction.getComponentId();
+        if (!id.startsWith(JOIN) || interaction.getGuild() == null) return;
+        long eventId;
+        try {
+            eventId = Long.parseLong(id.substring(JOIN.length()));
+        } catch (NumberFormatException e) {
+            return;
+        }
+        long origin = interaction.getGuild().getIdLong();
+        long userId = interaction.getUser().getIdLong();
+        Event event = events.eventById(eventId).orElse(null);
+        if (event == null) {
+            Containers.replyEphemeral(interaction, Containers.WARNING, "This event doesn't exist any more.");
+            return;
+        }
+        boolean accepted = cohosts.get(eventId, origin).map(c -> c.status() == EventCohostRepository.Status.ACCEPTED).orElse(false);
+        if (!accepted) {
+            Containers.replyEphemeral(interaction, Containers.WARNING, "This server doesn't co-host that event any more.");
+            return;
+        }
+        if (!open(event)) {
+            Containers.replyEphemeral(interaction, Containers.WARNING, "Signups for **" + event.name() + "** have closed.");
+            return;
+        }
+        Guild host = interaction.getJDA().getGuildById(event.guildId());
+        if (host == null) {
+            Containers.replyEphemeral(interaction, Containers.WARNING, "The host's server can't be reached right now. Try again in a moment.");
+            return;
+        }
+        interaction.deferReply(true).queue();
+        host.retrieveMemberById(userId).queue(member -> answer(interaction, joinNow(event, origin, userId)), error -> {
+            if (error instanceof ErrorResponseException r && (r.getErrorResponse() == ErrorResponse.UNKNOWN_MEMBER || r.getErrorResponse() == ErrorResponse.UNKNOWN_USER)) {
+                answer(interaction, joinLater(event, origin, userId, Instant.now()));
+            } else {
+                answer(interaction, "Couldn't check whether you're in the host's Discord. Try again in a moment.");
+            }
+        });
+    }
+
+    private static void answer(ButtonInteractionEvent interaction, String text) {
+        interaction.getHook().sendMessageComponents(List.of(Containers.toast(Containers.INFO, text))).useComponentsV2(true).setEphemeral(true).queue();
+    }
+
+    /** They are in the host's Discord: join with the co-host as the server they came through. */
+    String joinNow(Event event, long origin, long userId) {
+        try {
+            EventService.Joined joined = service.join(event.guildId(), event.id(), origin, userId, null, false, null);
+            cohosts.deletePendingJoin(event.id(), userId);
+            String where = "You play from **" + hostName(event.guildId()) + "**'s Discord.";
+            return joined.waiting() ? "**" + event.name() + "** is full, so you're on the waitlist (number " + joined.position() + "). " + where
+                    : "You're in **" + event.name() + "**! " + where;
+        } catch (EventProblem e) {
+            return e.getMessage();
+        }
+    }
+
+    /** They aren't in the host's Discord yet: remember it, and give them the invite. They join when they get there, until signups close. */
+    String joinLater(Event event, long origin, long userId, Instant now) {
+        cohosts.savePendingJoin(event.id(), userId, origin, pendingExpiry(service.settingsOf(event).signupClosesAt(), event.startsAt(), now));
+        String host = hostName(event.guildId());
+        String invite = inviteOf(event.guildId());
+        return "To take part you need to be in **" + host + "**'s Discord, where the event happens. "
+                + (invite == null ? "Ask your staff for an invite to it." : "Join it here: " + invite)
+                + "\nWhen you join it you're added to **" + event.name() + "** automatically, as long as signups are still open.";
+    }
+
+    /** Someone joined a server: any pending join for an event that server hosts completes now. */
+    @BEventListener
+    public void onMemberJoin(GuildMemberJoinEvent join) {
+        completePendingJoins(join.getGuild().getIdLong(), join.getUser().getIdLong(), Instant.now());
+    }
+
+    /** Completes a user's pending joins for events {@code hostGuildId} hosts. Returns how many joined. */
+    int completePendingJoins(long hostGuildId, long userId, Instant now) {
+        int joined = 0;
+        try {
+            for (PendingJoin p : cohosts.pendingJoins(userId, hostGuildId, now)) {
+                try {
+                    Event event = events.eventById(p.eventId()).orElse(null);
+                    if (event != null && open(event)) {
+                        service.join(event.guildId(), event.id(), p.originGuildId(), userId, null, false, null);
+                        joined++;
+                        log.info("User {} joined event {} on arriving in its host's Discord (pending since pressing Join in server {})", userId, event.id(), p.originGuildId());
+                    }
+                } catch (EventProblem e) {
+                    log.info("User {}'s pending join for event {} didn't go through: {}", userId, p.eventId(), e.getMessage());
+                } finally {
+                    cohosts.deletePendingJoin(p.eventId(), userId);
+                }
+            }
+        } catch (RuntimeException e) {
+            log.warn("Couldn't complete the pending joins of user {} in server {}", userId, hostGuildId, e);
+        }
+        return joined;
+    }
+}
