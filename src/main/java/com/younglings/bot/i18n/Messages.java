@@ -1,5 +1,6 @@
 package com.younglings.bot.i18n;
 
+import com.younglings.bot.config.BotConfig;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
 import org.slf4j.Logger;
@@ -9,9 +10,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -20,6 +24,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * {@code i18n/messages_en.properties}; a language pack is another {@code messages_<code>.properties} plus a line in
  * {@code i18n/languages.properties}. See docs/TRANSLATION.md. Placeholders are {@code {0}}, {@code {1}}, ... filled in order; there is
  * no other escaping, so apostrophes and braces in a message are plain text.
+ * <p>
+ * The packs listed under {@code drafts=} in languages.properties are machine-drafted (T-099): they are offered on the Language page only
+ * while {@code LANGUAGE_PACKS_ENABLED=true}, and may lack keys (English shows for those).
  */
 @BService
 public class Messages {
@@ -29,11 +36,16 @@ public class Messages {
     private final LanguageRepository languages;
     private final Map<String, Map<String, String>> catalogues;
     private final Map<String, String> names;
+    private final Set<String> drafts;
+    private final boolean packsEnabled;
     private final ConcurrentHashMap<Long, String> chosen = new ConcurrentHashMap<>();
 
-    public Messages(LanguageRepository languages) {
+    public Messages(LanguageRepository languages, BotConfig config) {
         this.languages = languages;
-        this.names = loadNames();
+        this.packsEnabled = config.getLanguagePacksEnabled();
+        Properties listed = read("i18n/languages.properties");
+        this.names = loadNames(listed);
+        this.drafts = drafts(listed);
         Map<String, Map<String, String>> loaded = new LinkedHashMap<>();
         for (String code : names.keySet()) {
             Map<String, String> catalogue = loadCatalogue(code);
@@ -52,22 +64,34 @@ public class Messages {
         return catalogue;
     }
 
-    /** Code to its name in its own language ("en" to "English"), for the languages that have a catalogue. English first. */
+    /**
+     * Code to its name in its own language ("en" to "English"), for the languages a server may pick: those with a catalogue, without the
+     * machine-drafted packs unless {@code LANGUAGE_PACKS_ENABLED}. English first.
+     */
     public Map<String, String> available() {
         Map<String, String> out = new LinkedHashMap<>();
         out.put(DEFAULT_LANGUAGE, names.getOrDefault(DEFAULT_LANGUAGE, "English"));
-        catalogues.keySet().stream().filter(c -> !c.equals(DEFAULT_LANGUAGE)).sorted().forEach(c -> out.put(c, names.get(c)));
+        catalogues.keySet().stream().filter(c -> !c.equals(DEFAULT_LANGUAGE) && isAvailable(c)).sorted().forEach(c -> out.put(c, names.get(c)));
         return out;
     }
 
+    /** Whether a server may pick this language now. */
     public boolean isAvailable(String code) {
-        return code != null && catalogues.containsKey(code);
+        return code != null && catalogues.containsKey(code) && (packsEnabled || !drafts.contains(code));
     }
 
-    /** The language a server chose, English when it chose none or chose one that is no longer available. */
+    /** Whether a language is one of the machine-drafted packs (shown as such, and allowed to lack keys). */
+    public boolean isDraft(String code) {
+        return drafts.contains(code);
+    }
+
+    /**
+     * The language a server chose, English when it chose none or one that no longer has a catalogue. A pack chosen while the packs were
+     * offered keeps working after {@code LANGUAGE_PACKS_ENABLED} is switched off; it just can't be picked anew.
+     */
     public String languageOf(long guildId) {
         String code = chosen.computeIfAbsent(guildId, id -> languages.find(id).orElse(DEFAULT_LANGUAGE));
-        return isAvailable(code) ? code : DEFAULT_LANGUAGE;
+        return catalogues.containsKey(code) ? code : DEFAULT_LANGUAGE;
     }
 
     /** Saves a server's language; the code must be one of {@link #available()}. */
@@ -96,6 +120,11 @@ public class Messages {
         return fill(template, args);
     }
 
+    /** Every language with a catalogue, offered or not, for the consistency test. */
+    Set<String> loadedLanguages() {
+        return catalogues.keySet();
+    }
+
     /** All keys of a language's catalogue, for the consistency test. */
     Map<String, String> catalogue(String language) {
         return catalogues.get(language);
@@ -107,12 +136,19 @@ public class Messages {
         return out;
     }
 
-    private static Map<String, String> loadNames() {
-        Properties properties = read("i18n/languages.properties");
+    /** The language codes listed (two letters, or like pt-BR) with their names; other lines, such as drafts=, are not languages. */
+    private static Map<String, String> loadNames(Properties properties) {
         Map<String, String> out = new LinkedHashMap<>();
-        if (properties != null) properties.stringPropertyNames().stream().sorted().forEach(code -> out.put(code, properties.getProperty(code)));
+        if (properties != null) properties.stringPropertyNames().stream().filter(code -> code.matches("[a-z]{2}(-[A-Z]{2})?")).sorted()
+                .forEach(code -> out.put(code, properties.getProperty(code)));
         out.putIfAbsent(DEFAULT_LANGUAGE, "English");
         return out;
+    }
+
+    private static Set<String> drafts(Properties properties) {
+        String listed = properties == null ? null : properties.getProperty("drafts");
+        if (listed == null || listed.isBlank()) return Set.of();
+        return Arrays.stream(listed.split(",")).map(String::strip).filter(c -> !c.isEmpty()).collect(Collectors.toUnmodifiableSet());
     }
 
     private static Map<String, String> loadCatalogue(String code) {

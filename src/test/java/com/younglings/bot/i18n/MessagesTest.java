@@ -1,5 +1,6 @@
 package com.younglings.bot.i18n;
 
+import com.younglings.bot.config.BotConfig;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -13,6 +14,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -27,7 +29,7 @@ class MessagesTest {
 
     private Messages messages() {
         when(repository.find(anyLong())).thenReturn(Optional.empty());
-        return new Messages(repository);
+        return new Messages(repository, mock(BotConfig.class));
     }
 
     @Test
@@ -47,7 +49,7 @@ class MessagesTest {
     @Test
     void aServerThatChoseALanguageNoLongerAvailableFallsBackToEnglish() {
         when(repository.find(7L)).thenReturn(Optional.of("xx"));
-        Messages m = new Messages(repository);
+        Messages m = new Messages(repository, mock(BotConfig.class));
         assertEquals("en", m.languageOf(7L));
         assertEquals("The fee is a percentage from 0 to 100.", m.text(7L, "split.fee.range"));
     }
@@ -68,6 +70,48 @@ class MessagesTest {
         verify(repository, never()).save(eq(5L), eq("klingon"));
     }
 
+    private Messages withPacks(boolean enabled) {
+        when(repository.find(anyLong())).thenReturn(Optional.empty());
+        BotConfig config = mock(BotConfig.class);
+        when(config.getLanguagePacksEnabled()).thenReturn(enabled);
+        return new Messages(repository, config);
+    }
+
+    @Test
+    void theMachineDraftedPacksAreHiddenUntilSwitchedOn() {
+        Messages off = withPacks(false);
+        assertEquals(List.of("en"), List.copyOf(off.available().keySet()));
+        assertFalse(off.isAvailable("de"));
+        assertThrows(IllegalArgumentException.class, () -> off.setLanguage(5L, "de"));
+
+        Messages on = withPacks(true);
+        assertEquals(List.of("en", "de", "fr", "pt-BR"), List.copyOf(on.available().keySet()));
+        for (String code : List.of("de", "fr", "pt-BR")) {
+            assertTrue(on.isDraft(code), code);
+            assertTrue(on.available().get(code).contains("machine-drafted"), on.available().get(code));
+        }
+        assertFalse(on.isDraft("en"));
+    }
+
+    @Test
+    void aDraftPackSpeaksItsLanguageAndFallsBackToEnglishForWhatItLacks() {
+        Messages m = withPacks(true);
+        assertEquals("### Beute teilen", m.text("de", "split.title"));
+        assertEquals("### Partage du butin", m.text("fr", "split.title"));
+        assertEquals("### Divisão do loot", m.text("pt-BR", "split.title"));
+        // the dashboard's messages aren't drafted while the dashboard itself is English
+        String key = m.catalogue("en").keySet().stream().filter(k -> k.startsWith("dashboard.")).findFirst().orElseThrow();
+        assertEquals(m.text("en", key), m.text("de", key));
+    }
+
+    @Test
+    void aServerThatPickedAPackKeepsItWhenThePacksAreSwitchedOff() {
+        when(repository.find(8L)).thenReturn(Optional.of("fr"));
+        Messages m = new Messages(repository, mock(BotConfig.class));
+        assertEquals("fr", m.languageOf(8L));
+        assertEquals("### Partage du butin", m.text(8L, "split.title"));
+    }
+
     /**
      * Every key line in the English file is really loaded. A value ending in a lone backslash (say a trailing "\ " whose space an editor
      * stripped) joins the next line onto it, silently swallowing that key; write a trailing space as   instead.
@@ -86,12 +130,13 @@ class MessagesTest {
         var english = m.catalogue("en");
         Pattern placeholder = Pattern.compile("\\{\\d+}");
         List<String> problems = new ArrayList<>();
-        for (String code : m.available().keySet()) {
+        for (String code : m.loadedLanguages()) {
             var catalogue = m.catalogue(code);
             for (var entry : english.entrySet()) {
                 String translated = catalogue.get(entry.getKey());
                 if (translated == null) {
-                    problems.add(code + " lacks " + entry.getKey());
+                    // a machine-drafted pack may lag behind English: the missing keys show in English (T-099)
+                    if (!m.isDraft(code)) problems.add(code + " lacks " + entry.getKey());
                     continue;
                 }
                 if (!placeholders(placeholder, entry.getValue()).equals(placeholders(placeholder, translated))) problems.add(code + " has different placeholders in " + entry.getKey());

@@ -1,5 +1,6 @@
 package com.younglings.bot.i18n;
 
+import com.younglings.bot.config.BotConfig;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.interactions.Interaction;
 import org.junit.jupiter.api.Test;
@@ -32,7 +33,7 @@ class TextTest {
     void aServerUsesTheBotsMessagesOnceItExists() {
         LanguageRepository languages = mock(LanguageRepository.class);
         when(languages.find(anyLong())).thenReturn(Optional.empty());
-        new Messages(languages); // installs itself
+        new Messages(languages, mock(BotConfig.class)); // installs itself
         Guild guild = mock(Guild.class);
         when(guild.getIdLong()).thenReturn(42L);
         Interaction event = mock(Interaction.class);

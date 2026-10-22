@@ -81,6 +81,7 @@ Every environment variable the bot reads. Each one can also go in the git-ignore
 | `OWNER_IDS` | Comma-separated Discord ids of the bot's owners (Super admin, owner-only commands). | Nobody is an owner. |
 | `ADMIN_ROLE_ID` | The env-default Admin role for the home server: it and every role above it may use admin commands. Servers set their own on the dashboard. | Fails closed: nobody passes the env-default admin check. |
 | `BOT_STATUS` | The bot's Discord status text. | `bot.activity` from `config.properties`. |
+| `LANGUAGE_PACKS_ENABLED` | `true` offers the machine-drafted language packs (T-099, docs/TRANSLATION.md) on the dashboard's Language page. | Off: only English can be picked (a server that already picked a pack keeps it). |
 
 **Internal API and website**
 

@@ -468,6 +468,16 @@ public class BotConfig {
     }
 
     /**
+     * Whether servers may pick one of the machine-drafted language packs (T-099) on the dashboard's Language page. Off by default: the
+     * drafts haven't been checked by a speaker yet, so until {@code LANGUAGE_PACKS_ENABLED=true} only English is offered (a server that
+     * already chose a pack keeps it).
+     */
+    public boolean getLanguagePacksEnabled() {
+        String raw = envOrDotenv("LANGUAGE_PACKS_ENABLED");
+        return raw != null && raw.trim().equalsIgnoreCase("true");
+    }
+
+    /**
      * Whether the data-retention sweep only reports what it would delete. On by default, so nothing is ever removed until the
      * operator has seen what a sweep would do and sets {@code GUILD_DATA_RETENTION_DRY_RUN=false}.
      */
