@@ -9,7 +9,10 @@ import net.dv8tion.jda.api.utils.data.DataObject;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Decides which objectives of an event one thing the plugin reported counts towards. Pure, so every rule can be tested.
@@ -17,7 +20,18 @@ import java.util.function.Function;
  *   <li>A {@code DROP} counts towards an objective for that item: a bingo tile or scavenger objective whose label is the item, or
  *       {@code "Boss: item"} (when the plugin says which monster dropped it, that has to be the tile's boss too).</li>
  *   <li>A {@code KILL} counts one kill towards a boss night for that boss.</li>
- *   <li>Everything else is not matched yet. Objectives that don't take automatic progress ({@code PROOF} or {@code ORGANISER} evidence) never match.</li>
+ *   <li>In a bingo or scavenger hunt (T-061), the other achievement types count towards objectives labelled for them:
+ *     <ul>
+ *       <li>{@code CLUE}: a clue tile such as "Elite clue", "Clue scroll (hard)" or "Any clue" (a label with no tier takes any tier);</li>
+ *       <li>{@code LEVEL_UP}: "99 Fletching", "Level 90 Herblore" or "Herblore 90", when the new level reaches it;</li>
+ *       <li>{@code COLLECTION_LOG}: "Collection log: item" or "Log: item" (a plain item label is left to {@code DROP}, so one item never
+ *           counts twice);</li>
+ *       <li>{@code QUEST_COMPLETE}: "Quest: name";</li>
+ *       <li>{@code ACHIEVEMENT}: "Achievement: name".</li>
+ *     </ul>
+ *   Each counts 1.</li>
+ *   <li>{@code XP} and {@code PRESENCE} are not matched. Objectives that don't take automatic progress ({@code PROOF} or {@code ORGANISER}
+ *       evidence) never match.</li>
  * </ul>
  */
 public final class PluginObjectiveMatcher {
@@ -26,6 +40,12 @@ public final class PluginObjectiveMatcher {
 
     /** What an objective label means, as {@link BingoTiles#resolve} works it out. */
     public interface Labels extends Function<String, BingoTiles.Ref> {}
+
+    private static final Set<String> CLUE_TIERS = Set.of("easy", "medium", "hard", "elite", "master");
+    /** The words a clue tile may have besides its tier: "Clue scroll (elite)", "Complete a hard clue", "Any treasure trail". */
+    private static final Pattern CLUE_FILLER = Pattern.compile("\\b(clue|clues|scroll|scrolls|treasure|trail|trails|complete|completed|an?|any|tier|casket|caskets)\\b");
+    private static final Pattern LEVEL_FIRST = Pattern.compile("^(?:level\\s+)?(\\d{1,3})\\s+([a-z][a-z ]*)$");
+    private static final Pattern SKILL_FIRST = Pattern.compile("^([a-z][a-z ]*?)\\s+(?:level\\s+)?(\\d{1,3})$");
 
     private PluginObjectiveMatcher() {}
 
@@ -57,8 +77,59 @@ public final class PluginObjectiveMatcher {
                 }
                 hits.add(new Hit(objective.key(), quantity));
             }
+            return hits;
+        }
+        if (CompetitionTemplate.KEY.equals(template) || BossNightTemplate.KEY.equals(template)) return hits;
+        for (ObjectiveSpec objective : objectives) {
+            if (!takesAutomatic(objective)) continue;
+            String label = objective.label() == null ? "" : objective.label().strip().toLowerCase(Locale.ROOT);
+            boolean counts = switch (type) {
+                case CLUE -> clueTile(label, text(data, "tier"));
+                case LEVEL_UP -> levelTile(label, text(data, "skill"), number(data, "level", 0));
+                case COLLECTION_LOG -> named(label, text(data, "itemName"), "collection log:", "log:");
+                case QUEST_COMPLETE -> named(label, text(data, "quest"), "quest:");
+                case ACHIEVEMENT -> named(label, text(data, "name"), "achievement:");
+                default -> false;
+            };
+            if (counts) hits.add(new Hit(objective.key(), 1));
         }
         return hits;
+    }
+
+    /** A clue tile for this tier: only clue words and at most one tier are left in the label, and that tier (if any) is the one reported. */
+    static boolean clueTile(String label, String tier) {
+        if (!label.contains("clue") && !label.contains("treasure trail")) return false;
+        String rest = CLUE_FILLER.matcher(label.replaceAll("[^a-z ]", " ")).replaceAll(" ").strip().replaceAll("\\s+", " ");
+        if (rest.isEmpty()) return true; // "Any clue": every tier
+        return CLUE_TIERS.contains(rest) && rest.equalsIgnoreCase(tier.strip());
+    }
+
+    /** A level tile ("99 fletching", "level 90 herblore", "herblore 90") the reported level of that skill reaches. */
+    static boolean levelTile(String label, String skill, long level) {
+        if (skill.isEmpty() || level <= 0) return false;
+        Matcher first = LEVEL_FIRST.matcher(label);
+        Matcher second = SKILL_FIRST.matcher(label);
+        String wantedSkill;
+        long wantedLevel;
+        if (first.matches()) {
+            wantedLevel = Long.parseLong(first.group(1));
+            wantedSkill = first.group(2);
+        } else if (second.matches()) {
+            wantedSkill = second.group(1);
+            wantedLevel = Long.parseLong(second.group(2));
+        } else {
+            return false;
+        }
+        return wantedSkill.strip().equalsIgnoreCase(skill.strip()) && level >= wantedLevel;
+    }
+
+    /** "prefix name" for one of the prefixes, where name is what was reported. */
+    private static boolean named(String label, String reported, String... prefixes) {
+        if (reported.isEmpty()) return false;
+        for (String prefix : prefixes) {
+            if (label.startsWith(prefix) && label.substring(prefix.length()).strip().equalsIgnoreCase(reported.strip())) return true;
+        }
+        return false;
     }
 
     private static boolean takesAutomatic(ObjectiveSpec objective) {
