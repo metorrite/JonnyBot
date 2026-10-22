@@ -180,6 +180,7 @@ public class HubEventsApi {
         card.put("prizes", prizes);
         card.put("signupClosesAt", Optional.ofNullable(settingsOf(e).signupClosesAt()).map(Instant::toString).orElse(null));
         card.put("cohosts", cohostsOf(jda, e));
+        if (me == null) card.put("joinWith", joinWithOf(jda, e, viewerGuilds));
         boolean scored = e.status() == Status.RUNNING || e.status() == Status.SCORING || e.status() == Status.DONE;
         // a clan-vs-clan event shows its clans' standings (clan names only) whenever it is open to everyone (T-223)
         boolean shown = scored && (EventListing.standingsShown(e) || EventListing.clanStandingsShown(e) || (member && EventListing.standingsShownToMember(e, me != null)));
@@ -258,6 +259,14 @@ public class HubEventsApi {
      * to be in the host's Discord (D10), so someone who isn't gets 403 with {@code notInServer} and the host's invite link to try again after joining.
      */
     public Answer join(JDA jda, String rawId, String rawUser) {
+        return join(jda, rawId, rawUser, null);
+    }
+
+    /**
+     * As above, joining through the server {@code via} names (T-341): null or {@code "host"} for the host, or a {@code cohost-<n>} key from the event's
+     * {@code joinWith} list, which must be an accepted co-host the person is in. The server they came through feeds the team-mixing rules and seat quotas.
+     */
+    public Answer join(JDA jda, String rawId, String rawUser, String via) {
         Long userId = idOf(rawUser);
         if (userId == null) return new Answer(400, DataObject.empty().put("error", "Sign in with Discord first."));
         if (rawId == null || !rawId.matches("\\d{1,18}")) return new Answer(404, DataObject.empty().put("error", "No such event"));
@@ -273,12 +282,73 @@ public class HubEventsApi {
             return new Answer(403, DataObject.empty().put("notInServer", true).put("inviteUrl", invite)
                     .put("error", "To take part you need to be in the " + host.getName() + " Discord server. Join it, then press Join again."));
         }
+        long origin = e.guildId();
+        if (via != null && !via.isBlank() && !via.equals("host")) {
+            Long cohost = cohostFor(jda, e, via, userId);
+            if (cohost == null) return new Answer(400, DataObject.empty().put("error", "You can only join through a co-hosting server you're in."));
+            origin = cohost;
+        }
         try {
-            var joined = service.join(e.guildId(), e.id(), e.guildId(), userId, null, false, null);
+            var joined = service.join(e.guildId(), e.id(), origin, userId, null, false, null);
             return new Answer(200, DataObject.empty().put("joined", true).put("waiting", joined.waiting()).put("position", joined.position()));
         } catch (com.younglings.bot.events.EventProblem p) {
             return new Answer(p.status() >= 400 && p.status() < 500 ? p.status() : 409, DataObject.empty().put("error", p.getMessage()));
         }
+    }
+
+    /**
+     * Takes the signed-in person out of an event they are in (T-337), by the same rule as leaving from the host's own pages: only while it is taking
+     * signups. A paid buy-in has to be refunded by an organiser first.
+     */
+    public Answer leave(JDA jda, String rawId, String rawUser) {
+        Long userId = idOf(rawUser);
+        if (userId == null) return new Answer(400, DataObject.empty().put("error", "Sign in with Discord first."));
+        if (rawId == null || !rawId.matches("\\d{1,18}")) return new Answer(404, DataObject.empty().put("error", "No such event"));
+        Optional<Event> found = events.eventById(Long.parseLong(rawId));
+        Participant me = found.isEmpty() ? null : events.participant(found.get().id(), userId).orElse(null);
+        if (me == null) return new Answer(404, DataObject.empty().put("error", "You aren't in this event."));
+        Event e = found.get();
+        if (e.status() != Status.SIGNUPS) {
+            return new Answer(409, DataObject.empty().put("error", "You can only leave while an event is taking sign-ups. Ask an organiser if you need out of one that has started."));
+        }
+        if (me.buyIn() == com.younglings.bot.events.PrizeRules.BuyInStatus.PAID) {
+            return new Answer(409, DataObject.empty().put("error", "You've paid a buy-in. Ask an organiser to refund it, then you can leave."));
+        }
+        try {
+            service.leave(e.guildId(), e.id(), userId);
+            return new Answer(200, DataObject.empty().put("left", true));
+        } catch (com.younglings.bot.events.EventProblem p) {
+            return new Answer(p.status() >= 400 && p.status() < 500 ? p.status() : 409, DataObject.empty().put("error", p.getMessage()));
+        }
+    }
+
+    /** The accepted co-hosts in a stable order, with the {@code cohost-<n>} key each is offered under (never its Discord id). */
+    private List<EventCohostRepository.Cohost> acceptedCohosts(Event e) {
+        return cohosts.forEvent(e.id()).stream().filter(c -> c.status() == EventCohostRepository.Status.ACCEPTED)
+                .sorted(java.util.Comparator.comparing(EventCohostRepository.Cohost::guildId)).toList();
+    }
+
+    /** The co-host server a {@code cohost-<n>} key names, if it is accepted and the person is in it; else null. */
+    private Long cohostFor(JDA jda, Event e, String key, long userId) {
+        if (!key.matches("cohost-\\d{1,3}")) return null;
+        int n = Integer.parseInt(key.substring("cohost-".length()));
+        List<EventCohostRepository.Cohost> accepted = acceptedCohosts(e);
+        if (n < 1 || n > accepted.size()) return null;
+        long guildId = accepted.get(n - 1).guildId();
+        Guild guild = jda == null ? null : jda.getGuildById(guildId);
+        return guild != null && inServer(guild, userId) ? guildId : null;
+    }
+
+    /** The servers the viewer may join through: the co-hosts they're in, keyed {@code cohost-<n>}. Empty for nobody signed in or no co-hosts. */
+    private DataArray joinWithOf(JDA jda, Event e, Set<Long> viewerGuilds) {
+        DataArray out = DataArray.empty();
+        if (viewerGuilds.isEmpty()) return out;
+        List<EventCohostRepository.Cohost> accepted = acceptedCohosts(e);
+        for (int i = 0; i < accepted.size(); i++) {
+            if (!viewerGuilds.contains(accepted.get(i).guildId())) continue;
+            out.add(DataObject.empty().put("key", "cohost-" + (i + 1)).put("name", host(jda, accepted.get(i).guildId()).getString("name")));
+        }
+        return out;
     }
 
     /** Whether someone is in a server, asking Discord when they aren't in the cache. */
