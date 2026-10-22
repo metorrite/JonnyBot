@@ -4,6 +4,7 @@ import com.younglings.bot.clanprofile.ClanProfile;
 import com.younglings.bot.clanprofile.ClanProfileRepository;
 import com.younglings.bot.clansite.ClanSite;
 import com.younglings.bot.clansite.ClanSiteBlock;
+import com.younglings.bot.clansite.ClanSiteLayoutRepository;
 import com.younglings.bot.clansite.ClanSiteService;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
@@ -16,7 +17,8 @@ import java.util.Optional;
 /**
  * Clan websites from the builder (T-065, T-066), only while published and the server is in the beta:
  * <ul>
- *   <li>{@code GET sites/{slug}}: the site's look, pages and content blocks; or {@code {"movedTo": slug}} for an address the clan gave up less
+ *   <li>{@code GET sites/{slug}}: the site's look, pages and content blocks, and its published builder v2 layout ({@code layout}, null for a
+ *   v1 site; T-301); or {@code {"movedTo": slug}} for an address the clan gave up less
  *   than {@link com.younglings.bot.clanprofile.ProfileRules#SLUG_GRACE} ago, so its old subdomain forwards (T-290)</li>
  *   <li>{@code GET sites/{slug}/data/{members|overview|leaderboard|recap}}: that site's clan data, the same answers the clan site's own
  *   routes give the home server ({@link SiteApi#TENANT_ROUTES}); a recap is always the clan's, never one member's</li>
@@ -27,11 +29,13 @@ public class DirectoryClanSiteRoutes implements DirectoryRouteModule {
     private final ClanSiteService sites;
     private final SiteApi siteApi;
     private final ClanProfileRepository profiles;
+    private final ClanSiteLayoutRepository layouts;
 
-    public DirectoryClanSiteRoutes(ClanSiteService sites, SiteApi siteApi, ClanProfileRepository profiles) {
+    public DirectoryClanSiteRoutes(ClanSiteService sites, SiteApi siteApi, ClanProfileRepository profiles, ClanSiteLayoutRepository layouts) {
         this.sites = sites;
         this.siteApi = siteApi;
         this.profiles = profiles;
+        this.layouts = layouts;
     }
 
     @Override
@@ -82,7 +86,8 @@ public class DirectoryClanSiteRoutes implements DirectoryRouteModule {
         }
         return DataObject.empty().put("slug", p.slug()).put("clan", request.clanJson(p)).put("template", site.template().name())
                 .put("theme", jsonObject(site.theme())).put("pages", jsonArray(site.pages())).put("blocks", blocks)
-                .put("publishedAt", site.publishedAt() == null ? null : site.publishedAt().toString());
+                .put("publishedAt", site.publishedAt() == null ? null : site.publishedAt().toString())
+                .put("layout", layouts.byGuild(site.guildId()).map(l -> l.published()).filter(raw -> raw != null && !raw.isBlank()).map(DirectoryClanSiteRoutes::jsonObject).orElse(null));
     }
 
     private static DataObject jsonObject(String raw) {

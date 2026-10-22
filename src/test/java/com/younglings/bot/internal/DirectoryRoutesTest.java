@@ -65,7 +65,7 @@ class DirectoryRoutesTest {
                 new DirectoryAllianceRoutes(alliances, repository, service),
                 new DirectorySiteSwitchRoutes(siteSwitches),
                 new DirectoryHubEventRoutes(hubEvents),
-                new DirectoryClanSiteRoutes(sites, siteApi, repository),
+                new DirectoryClanSiteRoutes(sites, siteApi, repository, mock(com.younglings.bot.clansite.ClanSiteLayoutRepository.class)),
                 new DirectorySlugRoutes(repository),
                 section));
         when(repository.bySlug("younglings")).thenReturn(Optional.of(clan));

@@ -54,6 +54,19 @@ public class ClanSiteRepository {
                     body TEXT NOT NULL DEFAULT '{}',
                     PRIMARY KEY (guild_id, page, position)
                 );
+                """,
+                // builder v2 layouts (T-301), read and written by ClanSiteLayoutRepository; made here so the cleanup above can rely on it
+                """
+                CREATE TABLE IF NOT EXISTS younglings.clan_site_layout (
+                    guild_id BIGINT PRIMARY KEY,
+                    draft TEXT NOT NULL,
+                    draft_rev INT NOT NULL DEFAULT 1,
+                    published TEXT NULL,
+                    published_rev INT NOT NULL DEFAULT 0,
+                    updated_by BIGINT NULL,
+                    updated_at TIMESTAMPTZ NULL,
+                    published_at TIMESTAMPTZ NULL
+                );
                 """
         ));
     }
@@ -113,16 +126,19 @@ public class ClanSiteRepository {
     }
 
     /**
-     * Deletes the sites switched off before {@code cutoff}, with their blocks (design W11: settings are kept 30 days after switching off).
+     * Deletes the sites switched off before {@code cutoff}, with their blocks and builder v2 layouts (design W11: settings are kept 30 days after switching off).
      * A site the bot's owner took down is kept, so switching off and on again can't clear a takedown. Returns how many were deleted.
      */
     public int deleteSwitchedOffBefore(Instant cutoff) {
         String where = "enabled = FALSE AND takedown_reason IS NULL AND updated_at IS NOT NULL AND updated_at < ?";
         try (Connection connection = connectionSupplier.getConnection();
              PreparedStatement blocks = connection.prepareStatement("DELETE FROM younglings.clan_site_block WHERE guild_id IN (SELECT guild_id FROM younglings.clan_site WHERE " + where + ")");
+             PreparedStatement layouts = connection.prepareStatement("DELETE FROM younglings.clan_site_layout WHERE guild_id IN (SELECT guild_id FROM younglings.clan_site WHERE " + where + ")");
              PreparedStatement site = connection.prepareStatement("DELETE FROM younglings.clan_site WHERE " + where)) {
             blocks.setTimestamp(1, Timestamp.from(cutoff));
             blocks.executeUpdate();
+            layouts.setTimestamp(1, Timestamp.from(cutoff));
+            layouts.executeUpdate();
             site.setTimestamp(1, Timestamp.from(cutoff));
             return site.executeUpdate();
         } catch (SQLException e) {
