@@ -48,7 +48,9 @@ class CohostPanelsTest {
         ClanProfileRepository profiles = mock(ClanProfileRepository.class);
         when(profiles.get(anyLong())).thenReturn(Optional.empty());
         when(guildSettings.getEffective(HOST).inviteUrl()).thenReturn("https://discord.gg/example");
-        panels = new CohostPanels(events, service, cohosts, guildSettings, profiles, new EventChanges());
+        panels = new CohostPanels(events, service, cohosts,
+                new com.younglings.bot.clanprofile.JoinLinks(guildSettings, mock(com.younglings.bot.clanprofile.ClanRecruitingRepository.class, Mockito.RETURNS_DEEP_STUBS)),
+                profiles, new EventChanges());
         event = new Event(EVENT, HOST, "bingo", "Joint Bingo", "", Status.SIGNUPS, Scope.ALLIANCE, ScoringMode.INDIVIDUAL, NOW.plusSeconds(86_400), null, 0, "{}", 1, NOW, null, false);
         when(events.eventById(EVENT)).thenReturn(Optional.of(event));
         EventRepository.Setup open = mock(EventRepository.Setup.class);
