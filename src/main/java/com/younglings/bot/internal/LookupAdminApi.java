@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.lookup.LookupReminder;
 import com.younglings.bot.lookup.LookupReminderRepository;
@@ -90,7 +91,7 @@ public class LookupAdminApi implements AdminRouteExtension {
             }
             toSave.add(new LookupReminder(guild.getIdLong(), kind, enabled, channelId, roleId, ""));
         }
-        if (!problems.isEmpty()) throw new ApiError(400, "Those reminders can't be saved yet.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.those_reminders_can_t_be_saved"), problems);
         toSave.forEach(repository::save);
         log.info("Dashboard: {} saved the timer reminders ({} changed)", actor.getId(), toSave.size());
         return get(guild);

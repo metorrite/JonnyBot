@@ -6,6 +6,7 @@ import com.younglings.bot.commands.signup.SignupService;
 import com.younglings.bot.commands.signup.SignupSession;
 import com.younglings.bot.commands.signup.SignupType;
 import com.younglings.bot.commands.signup.SubmissionField;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.runescape.PlayerLinkRepository;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -57,7 +58,7 @@ public class CommunityAdminApi {
         try {
             return Long.parseLong(raw);
         } catch (NumberFormatException e) {
-            throw new ApiError(400, "That isn't a valid id.");
+            throw new ApiError(400, Text.en("dashboard.that_isn_t_a_valid_id"));
         }
     }
 
@@ -97,7 +98,7 @@ public class CommunityAdminApi {
 
     DataObject endPoll(Guild guild, Member actor, long pollId) {
         var poll = polls.getSessionById(pollId);
-        if (poll == null || poll.guildId() != guild.getIdLong()) throw new ApiError(404, "That poll doesn't exist or has already ended.");
+        if (poll == null || poll.guildId() != guild.getIdLong()) throw new ApiError(404, Text.of(guild, "dashboard.that_poll_doesn_t_exist_or"));
         polls.closePoll(guild, pollId);
         cache.invalidate("polls");
         log.info("Dashboard: {} ended poll {}", actor.getId(), pollId);
@@ -132,9 +133,9 @@ public class CommunityAdminApi {
     private <C extends net.dv8tion.jda.api.entities.channel.middleman.GuildChannel> C postableChannel(Guild guild, String rawId, Class<C> type) {
         long channelId = id(rawId);
         C channel = guild.getChannelById(type, channelId);
-        if (channel == null) throw new ApiError(400, "That isn't a text channel in this server.");
+        if (channel == null) throw new ApiError(400, Text.of(guild, "dashboard.that_isn_t_a_text_channel"));
         if (channel instanceof GuildMessageChannel messageChannel && !messageChannel.canTalk()) {
-            throw new ApiError(400, "JonnyBot can't post in #" + channel.getName() + " — it needs permission to view and send messages there.");
+            throw new ApiError(400, Text.of(guild, "dashboard.jonnybot_can_t_post_in_it", channel.getName()));
         }
         return channel;
     }
@@ -144,15 +145,15 @@ public class CommunityAdminApi {
         try {
             type = SignupType.valueOf(body.getString("type", "QUEUE").toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
-            throw new ApiError(400, "Choose a signup type.");
+            throw new ApiError(400, Text.of(guild, "dashboard.choose_a_signup_type"));
         }
         String title = body.getString("title", "").strip();
-        if (title.isEmpty() || title.length() > 100) throw new ApiError(400, "The title must be 1 to 100 characters.");
+        if (title.isEmpty() || title.length() > 100) throw new ApiError(400, Text.of(guild, "dashboard.the_title_must_be_1_to"));
 
         Integer max = null;
         if (!body.isNull("max")) {
             int value = body.getInt("max");
-            if (value < 1 || value > 500) throw new ApiError(400, "The limit must be between 1 and 500.");
+            if (value < 1 || value > 500) throw new ApiError(400, Text.of(guild, "dashboard.the_limit_must_be_between_1"));
             max = value;
         }
         TextChannel signupChannel = postableChannel(guild, body.getString("signupChannelId", ""), TextChannel.class);
@@ -161,7 +162,7 @@ public class CommunityAdminApi {
         switch (type) {
             case QUEUE -> {
                 String note = body.getString("note", "").strip();
-                if (note.length() > 500) throw new ApiError(400, "The notification message can be at most 500 characters.");
+                if (note.length() > 500) throw new ApiError(400, Text.of(guild, "dashboard.the_notification_message_can_be_at"));
                 signups.createQueueSession(guild, signupChannel, adminChannel, title, note.isEmpty() ? null : note, max, actor.getIdLong());
             }
             case GROUP -> signups.createGroupSession(guild, signupChannel, adminChannel, title, actor.getIdLong());
@@ -172,11 +173,11 @@ public class CommunityAdminApi {
                     for (int i = 0; i < array.length() && i < 3; i++) {
                         DataObject f = array.getObject(i);
                         String label = f.getString("label", "").strip();
-                        if (label.isEmpty() || label.length() > 45) throw new ApiError(400, "Each question needs a label of 1 to 45 characters.");
+                        if (label.isEmpty() || label.length() > 45) throw new ApiError(400, Text.of(guild, "dashboard.each_question_needs_a_label_of"));
                         fields.add(new SubmissionField(label, SubmissionField.normalizeType(f.getString("type", "TEXT")), f.getBoolean("required", true)));
                     }
                 }
-                if (fields.isEmpty()) throw new ApiError(400, "A submission signup needs at least one question.");
+                if (fields.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.a_submission_signup_needs_at_least"));
                 signups.createSubmissionSession(guild, signupChannel, adminChannel, title, fields, max, actor.getIdLong());
             }
         }
@@ -187,7 +188,7 @@ public class CommunityAdminApi {
 
     private SignupSession ownSignup(Guild guild, long signupId) {
         SignupSession session = signups.getSessionById(signupId);
-        if (session == null || session.guildId() != guild.getIdLong()) throw new ApiError(404, "That signup doesn't exist any more.");
+        if (session == null || session.guildId() != guild.getIdLong()) throw new ApiError(404, Text.of(guild, "dashboard.that_signup_doesn_t_exist_any"));
         return session;
     }
 
@@ -213,20 +214,20 @@ public class CommunityAdminApi {
             }
             case "remove" -> {
                 long userId = id(body.getString("userId", ""));
-                if (!signups.removeUser(guild, signupId, userId)) throw new ApiError(404, "That person isn't on the signup.");
+                if (!signups.removeUser(guild, signupId, userId)) throw new ApiError(404, Text.of(guild, "dashboard.that_person_isn_t_on_the"));
                 refresh(guild, signupId);
             }
             case "skip" -> {
-                if (signups.skip(signupId) == null) throw new ApiError(409, "Nobody to skip.");
+                if (signups.skip(signupId) == null) throw new ApiError(409, Text.of(guild, "dashboard.nobody_to_skip"));
                 refresh(guild, signupId);
             }
             case "removefirst" -> {
-                if (signups.remove(signupId) == null) throw new ApiError(409, "Nobody to remove.");
+                if (signups.remove(signupId) == null) throw new ApiError(409, Text.of(guild, "dashboard.nobody_to_remove"));
                 refresh(guild, signupId);
             }
             case "pick" -> {
                 SignupEntry winner = signups.pickRandom(signupId);
-                if (winner == null) throw new ApiError(409, "Nobody has signed up yet.");
+                if (winner == null) throw new ApiError(409, Text.of(guild, "dashboard.nobody_has_signed_up_yet"));
                 SignupSession session = signups.getSessionById(signupId);
                 result.put("winner", entryName(guild, session, winner.userId(), winner.username()));
             }
@@ -234,7 +235,7 @@ public class CommunityAdminApi {
                 signups.deleteSignup(guild, signupId);
                 cache.invalidate("signups");
             }
-            default -> throw new ApiError(404, "Unknown action.");
+            default -> throw new ApiError(404, Text.of(guild, "dashboard.unknown_action"));
         }
         log.info("Dashboard: {} {} on signup {}", actor.getId(), action, signupId);
         return result;

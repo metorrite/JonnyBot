@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.starboard.StarboardConfig;
 import com.younglings.bot.starboard.StarboardRepository;
@@ -128,7 +129,7 @@ public class StarboardAdminApi implements AdminRouteExtension {
             }
         }
 
-        if (!problems.isEmpty()) throw new ApiError(400, "That starboard can't be saved yet.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.that_starboard_can_t_be_saved"), problems);
 
         repository.save(new StarboardConfig(guild.getIdLong(), enabled, channelId, emoji, threshold, selfStar, rules, skipHidden, only));
         log.info("Dashboard: {} saved the starboard ({}, {} x {})", actor.getId(), enabled ? "on" : "off", threshold, emoji);

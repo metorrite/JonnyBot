@@ -4,6 +4,7 @@ import com.younglings.bot.chatlevel.ChatLevelConfig;
 import com.younglings.bot.chatlevel.ChatLevelRepository;
 import com.younglings.bot.chatlevel.ChatLevelRepository.Standing;
 import com.younglings.bot.chatlevel.ChatLevels;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
@@ -163,7 +164,7 @@ public class ChatLevelAdminApi implements AdminRouteExtension {
                 else rewards.put(level, role.getIdLong());
             }
         }
-        if (!problems.isEmpty()) throw new ApiError(400, "Chat levels can't be saved yet.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.chat_levels_can_t_be_saved"), problems);
 
         repository.saveConfig(new ChatLevelConfig(guild.getIdLong(), enabled, min, max, cooldown, announce, announceChannel, message, removeOld, ignoredChannels, ignoredRoles, channelMult, roleMult));
         if (rewards != null) repository.saveRoles(guild.getIdLong(), rewards);
@@ -194,14 +195,14 @@ public class ChatLevelAdminApi implements AdminRouteExtension {
     DataObject reset(Guild guild, Member actor, DataObject body) {
         if (body.hasKey("userId") && !body.isNull("userId")) {
             String raw = body.getString("userId", "").strip();
-            if (!raw.matches("\\d{1,20}")) throw new ApiError(400, "That isn't a valid member.");
+            if (!raw.matches("\\d{1,20}")) throw new ApiError(400, Text.of(guild, "dashboard.that_isn_t_a_valid_member"));
             boolean gone = repository.reset(guild.getIdLong(), Long.parseLong(raw));
             log.info("Dashboard: {} reset the chat XP of {} ({})", actor.getId(), raw, gone ? "had XP" : "had none");
         } else if (body.getBoolean("all", false)) {
             int removed = repository.resetAll(guild.getIdLong());
             log.info("Dashboard: {} reset everyone's chat XP ({} members)", actor.getId(), removed);
         } else {
-            throw new ApiError(400, "Say whose XP to reset, or reset everyone's.");
+            throw new ApiError(400, Text.of(guild, "dashboard.say_whose_xp_to_reset_or"));
         }
         return top(guild);
     }

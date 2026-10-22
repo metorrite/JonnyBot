@@ -1,6 +1,7 @@
 package com.younglings.bot.internal;
 
 import com.younglings.bot.i18n.Messages;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
@@ -43,7 +44,7 @@ public class LanguageAdminApi implements AdminRouteExtension {
 
     DataObject save(Guild guild, Member actor, DataObject body) {
         String code = body.getString("language", "").strip();
-        if (!messages.isAvailable(code)) throw new ApiError(400, "That language isn't available.");
+        if (!messages.isAvailable(code)) throw new ApiError(400, Text.of(guild, "dashboard.that_language_isn_t_available"));
         messages.setLanguage(guild.getIdLong(), code);
         log.info("Dashboard: {} set the language of {} to {}", actor.getId(), guild.getId(), code);
         return get(guild);

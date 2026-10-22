@@ -3,6 +3,7 @@ package com.younglings.bot.internal;
 import com.younglings.bot.autorole.AutoroleConfig;
 import com.younglings.bot.autorole.AutoroleRepository;
 import com.younglings.bot.autorole.AutoroleService;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
@@ -69,7 +70,7 @@ public class AutoroleAdminApi implements AdminRouteExtension {
         for (long id : memberRemove) if (memberRoles.contains(id)) problems.add("People: a role can't be both given and taken away.");
         for (long id : botRemove) if (botRoles.contains(id)) problems.add("Bots: a role can't be both given and taken away.");
 
-        if (!problems.isEmpty()) throw new ApiError(400, "Those autoroles can't be saved yet.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.those_autoroles_can_t_be_saved"), problems);
 
         repository.save(new AutoroleConfig(guild.getIdLong(), enabled, delay, memberRoles, botRoles, memberRemove, botRemove));
         log.info("Dashboard: {} saved the autoroles ({}, {} for people, {} for bots, delay {}s)", actor.getId(), enabled ? "on" : "off", memberRoles.size(), botRoles.size(), delay);

@@ -4,6 +4,7 @@ import com.younglings.bot.accountgate.AccountGateConfig;
 import com.younglings.bot.accountgate.AccountGateConfig.Action;
 import com.younglings.bot.accountgate.AccountGateRepository;
 import com.younglings.bot.accountgate.NameRules;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.Permission;
@@ -134,7 +135,7 @@ public class AccountGateAdminApi implements AdminRouteExtension {
         if (nameRulesEnabled && nameRules.isEmpty()) problems.add("Add at least one name rule before switching name rules on.");
         if (nameRulesEnabled && nameAction == Action.ALERT && channelId == null) problems.add("Choose a channel for the alerts, or nothing will be reported.");
         if (enabled && channelId == null && action == Action.ALERT) problems.add("Choose a channel for the alerts, or nothing will be reported.");
-        if (!problems.isEmpty()) throw new ApiError(400, "The new-account settings can't be saved yet.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.the_new_account_settings_can_t"), problems);
 
         repository.save(new AccountGateConfig(guild.getIdLong(), enabled, days, action, channelId, nameRulesEnabled, nameAction, nameRules, exempt));
         log.info("Dashboard: {} saved the new-account settings ({}, {} days, {})", actor.getId(), enabled ? "on" : "off", days, action);

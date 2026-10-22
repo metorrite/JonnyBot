@@ -4,6 +4,7 @@ import com.younglings.bot.feed.FeedKind;
 import com.younglings.bot.feed.FeedRepository;
 import com.younglings.bot.feed.FeedService;
 import com.younglings.bot.feed.FeedSubscription;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
@@ -73,12 +74,12 @@ public class FeedAdminApi implements AdminRouteExtension {
         FeedSubscription before = null;
         String rawId = body.isNull("id") ? "" : body.getString("id", "").strip();
         if (!rawId.isEmpty()) {
-            if (!rawId.matches("\\d{1,18}")) throw new ApiError(400, "That isn't a valid feed.");
+            if (!rawId.matches("\\d{1,18}")) throw new ApiError(400, Text.of(guild, "dashboard.that_isn_t_a_valid_feed"));
             id = Long.parseLong(rawId);
-            before = repository.find(guild.getIdLong(), id).orElseThrow(() -> new ApiError(404, "That feed no longer exists."));
+            before = repository.find(guild.getIdLong(), id).orElseThrow(() -> new ApiError(404, Text.of(guild, "dashboard.that_feed_no_longer_exists")));
         }
         FeedKind kind = before != null ? before.kind() : FeedKind.parse(body.isNull("kind") ? "" : body.getString("kind", ""));
-        if (kind == null) throw new ApiError(400, "Choose YouTube or Reddit.");
+        if (kind == null) throw new ApiError(400, Text.of(guild, "dashboard.choose_youtube_or_reddit"));
 
         String source = FeedSubscription.normalizeSource(kind, body.isNull("source") ? "" : body.getString("source", ""));
         if (source == null) {
@@ -110,7 +111,7 @@ public class FeedAdminApi implements AdminRouteExtension {
                 problems.add("A server can follow at most " + FeedSubscription.MAX_PER_KIND_PER_GUILD + " " + kind.label() + " feeds.");
             }
         }
-        if (!problems.isEmpty()) throw new ApiError(400, "That feed can't be saved yet.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.that_feed_can_t_be_saved"), problems);
 
         FeedSubscription sub = new FeedSubscription(id, guild.getIdLong(), kind, source, flair, channel.getIdLong(), template, enabled);
         // following something else (or a different flair) starts over, so the old feed's posts are never mixed in
@@ -121,8 +122,8 @@ public class FeedAdminApi implements AdminRouteExtension {
     }
 
     DataObject delete(Guild guild, Member actor, String rawId) {
-        if (rawId == null || !rawId.strip().matches("\\d{1,18}")) throw new ApiError(400, "That isn't a valid feed.");
-        if (!repository.delete(guild.getIdLong(), Long.parseLong(rawId.strip()))) throw new ApiError(404, "That feed no longer exists.");
+        if (rawId == null || !rawId.strip().matches("\\d{1,18}")) throw new ApiError(400, Text.of(guild, "dashboard.that_isn_t_a_valid_feed"));
+        if (!repository.delete(guild.getIdLong(), Long.parseLong(rawId.strip()))) throw new ApiError(404, Text.of(guild, "dashboard.that_feed_no_longer_exists"));
         log.info("Dashboard: {} stopped following feed {}", actor.getId(), rawId.strip());
         return list(guild);
     }

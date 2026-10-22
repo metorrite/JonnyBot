@@ -3,6 +3,7 @@ package com.younglings.bot.internal;
 import com.younglings.bot.honeypot.HoneypotConfig;
 import com.younglings.bot.honeypot.HoneypotConfig.Action;
 import com.younglings.bot.honeypot.HoneypotRepository;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.Permission;
@@ -111,7 +112,7 @@ public class HoneypotAdminApi implements AdminRouteExtension {
         HoneypotConfig next = new HoneypotConfig(guild.getIdLong(), enabled, channelId, roleId, action, minutes, exempt, days);
         problems.addAll(next.problems());
         if (enabled && roleId != null && exempt.contains(roleId)) problems.add("The decoy role can't also be an exempt role.");
-        if (!problems.isEmpty()) throw new ApiError(400, "Those settings can't be saved yet.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.those_settings_can_t_be_saved"), problems);
 
         repository.save(next);
         log.info("Dashboard: {} saved the honeypot settings of {} (enabled {}, action {})", actor.getId(), guild.getId(), enabled, action);

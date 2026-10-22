@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.staffdigest.StaffDigestRepository.Settings;
 import com.younglings.bot.staffdigest.StaffDigestRules;
@@ -74,24 +75,24 @@ public class StaffDigestAdminApi implements AdminRouteExtension {
             try {
                 channelId = Long.parseUnsignedLong(channel);
             } catch (NumberFormatException e) {
-                throw new ApiError(400, "That channel isn't in this server.");
+                throw new ApiError(400, Text.of(guild, "dashboard.that_channel_isn_t_in_this"));
             }
-            if (guild.getChannelById(GuildMessageChannel.class, channelId) == null) throw new ApiError(400, "That channel isn't in this server.");
+            if (guild.getChannelById(GuildMessageChannel.class, channelId) == null) throw new ApiError(400, Text.of(guild, "dashboard.that_channel_isn_t_in_this"));
         }
-        if (enabled && channelId == null) throw new ApiError(400, "Pick the staff channel to post in.");
+        if (enabled && channelId == null) throw new ApiError(400, Text.of(guild, "dashboard.pick_the_staff_channel_to_post"));
         DayOfWeek weekday;
         try {
             weekday = DayOfWeek.of(body.getInt("weekday", 1));
         } catch (DateTimeException e) {
-            throw new ApiError(400, "Pick a day of the week.");
+            throw new ApiError(400, Text.of(guild, "dashboard.pick_a_day_of_the_week"));
         }
         int hour = body.getInt("hour", 9);
-        if (hour < 0 || hour > 23) throw new ApiError(400, "Pick an hour from 0 to 23.");
+        if (hour < 0 || hour > 23) throw new ApiError(400, Text.of(guild, "dashboard.pick_an_hour_from_0_to"));
         try {
             service.repository().save(guild.getIdLong(), enabled, channelId, weekday, hour);
         } catch (SQLException e) {
             log.warn("Could not save staff digest settings for {}", guild.getId(), e);
-            throw new ApiError(500, "That didn't save. Try again in a moment.");
+            throw new ApiError(500, Text.of(guild, "dashboard.that_didn_t_save_try_again"));
         }
         log.info("Dashboard: {} saved the staff digest in {} (on: {})", actor.getId(), guild.getId(), enabled);
         return view(guild);

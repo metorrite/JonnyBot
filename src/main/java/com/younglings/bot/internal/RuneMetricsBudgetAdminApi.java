@@ -2,6 +2,7 @@ package com.younglings.bot.internal;
 
 import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.configure.GuildSettingsService;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.notice.BotOwners;
 import com.younglings.bot.premium.PremiumGuildRepository;
@@ -57,7 +58,7 @@ public class RuneMetricsBudgetAdminApi implements AdminRouteExtension {
     public DataObject route(Guild guild, Member actor, String method, String[] parts, Supplier<DataObject> body) {
         if (parts.length != 1 || !parts[0].equals("runemetrics-budget")) return null;
         AdminRouteExtension.requireMethod(method, "GET");
-        if (!owners.isOwner(guild.getJDA(), actor.getIdLong())) throw new ApiError(403, "Only the bot's owner can see the RuneMetrics budget.");
+        if (!owners.isOwner(guild.getJDA(), actor.getIdLong())) throw new ApiError(403, Text.of(guild, "dashboard.only_the_bot_owner_can_see_2"));
         return overview(guild);
     }
 

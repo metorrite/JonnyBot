@@ -7,6 +7,7 @@ import com.younglings.bot.forms.WebForms.Form;
 import com.younglings.bot.forms.WebForms.Kind;
 import com.younglings.bot.forms.WebForms.Question;
 import com.younglings.bot.forms.WebForms.Submission;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.ticket.TicketModels.Panel;
 import com.younglings.bot.ticket.TicketRepository;
@@ -93,7 +94,7 @@ public class FormsAdminApi implements AdminRouteExtension {
     /** A new form: {@code {"template": "clan-application"}} starts from that template, anything else from a blank one. Always starts switched off. */
     DataObject create(Guild guild, DataObject body) {
         long guildId = guild.getIdLong();
-        if (repository.list(guildId).size() >= WebForms.MAX_FORMS_PER_SERVER) throw new ApiError(400, "A server can have at most " + WebForms.MAX_FORMS_PER_SERVER + " forms.");
+        if (repository.list(guildId).size() >= WebForms.MAX_FORMS_PER_SERVER) throw new ApiError(400, Text.of(guild, "dashboard.a_server_can_have_at_most", WebForms.MAX_FORMS_PER_SERVER));
         Form start = WebForms.template(body.getString("template", ""), guildId).orElseGet(() -> new Form(0, guildId, "New form", "", "", false, null, null, null, false, 0, List.of()));
         Form created = repository.create(start);
         log.info("Created web form {} in guild {}", created.id(), guildId);
@@ -106,20 +107,20 @@ public class FormsAdminApi implements AdminRouteExtension {
         List<String> problems = WebForms.problemsWith(form);
         problems.addAll(placementProblems(guild, form));
         if (!problems.isEmpty()) throw new ApiError(400, problems.getFirst(), problems);
-        if (!repository.save(form)) throw new ApiError(404, "That form is gone. Reload the page.");
+        if (!repository.save(form)) throw new ApiError(404, Text.of(guild, "dashboard.that_form_is_gone_reload_the"));
         return list(guild);
     }
 
     DataObject remove(Guild guild, long formId) {
         owned(guild, formId);
-        if (!repository.delete(guild.getIdLong(), formId)) throw new ApiError(404, "That form is gone. Reload the page.");
+        if (!repository.delete(guild.getIdLong(), formId)) throw new ApiError(404, Text.of(guild, "dashboard.that_form_is_gone_reload_the"));
         return list(guild);
     }
 
     // ---------- helpers ----------
 
     private Form owned(Guild guild, long formId) {
-        return repository.get(formId).filter(f -> f.guildId() == guild.getIdLong()).orElseThrow(() -> new ApiError(404, "That form does not exist."));
+        return repository.get(formId).filter(f -> f.guildId() == guild.getIdLong()).orElseThrow(() -> new ApiError(404, Text.of(guild, "dashboard.that_form_does_not_exist")));
     }
 
     /** The form as the dashboard sent it, with a stable id for every question and nothing taken on trust. */
@@ -129,7 +130,7 @@ public class FormsAdminApi implements AdminRouteExtension {
             DataArray raw = body.getArray("questions");
             for (int i = 0; i < raw.length() && i <= WebForms.MAX_QUESTIONS; i++) {
                 DataObject q = raw.getObject(i);
-                Kind kind = Kind.ofKey(q.getString("kind", "SHORT")).orElseThrow(() -> new ApiError(400, "A question has an unknown type."));
+                Kind kind = Kind.ofKey(q.getString("kind", "SHORT")).orElseThrow(() -> new ApiError(400, Text.of(guild, "dashboard.a_question_has_an_unknown_type")));
                 List<String> options = new ArrayList<>();
                 if (kind == Kind.CHOICE && q.hasKey("options")) {
                     DataArray rawOptions = q.getArray("options");
@@ -164,7 +165,7 @@ public class FormsAdminApi implements AdminRouteExtension {
         try {
             return Long.parseLong(raw.strip());
         } catch (NumberFormatException e) {
-            throw new ApiError(400, "That is not a valid id.");
+            throw new ApiError(400, Text.en("dashboard.that_is_not_a_valid_id"));
         }
     }
 

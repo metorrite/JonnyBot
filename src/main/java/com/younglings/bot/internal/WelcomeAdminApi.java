@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.welcome.WelcomeConfig;
 import com.younglings.bot.welcome.WelcomeConfig.EmbedField;
@@ -51,7 +52,7 @@ public class WelcomeAdminApi {
     /** Sends the draft in the request, saved or not, as if the acting admin had just joined. */
     DataObject test(Guild guild, Member actor, DataObject body) {
         WelcomeConfig config = parseAndCheck(guild, body);
-        if (config.channelId() == null) throw new ApiError(400, "Choose the welcome channel first.");
+        if (config.channelId() == null) throw new ApiError(400, Text.of(guild, "dashboard.choose_the_welcome_channel_first"));
         try {
             WelcomeService.TestResult result = service.sendTest(guild, actor, config);
             log.info("Dashboard: {} sent a welcome test in #{}", actor.getId(), result.channelName());
@@ -71,7 +72,7 @@ public class WelcomeAdminApi {
             if (channel == null) problems.add("That channel doesn't exist in this server.");
             else if (!channel.canTalk()) problems.add("JonnyBot can't post in #" + channel.getName() + ". It needs permission to view and send messages (and embed links) there.");
         }
-        if (!problems.isEmpty()) throw new ApiError(400, "That welcome message can't be saved yet.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.that_welcome_message_can_t_be"), problems);
         return config;
     }
 
@@ -80,20 +81,20 @@ public class WelcomeAdminApi {
         try {
             type = MessageType.valueOf(b.getString("messageType", "EMBED_TEXT"));
         } catch (IllegalArgumentException e) {
-            throw new ApiError(400, "Choose a message type.");
+            throw new ApiError(400, Text.of(guildId, "dashboard.choose_a_message_type"));
         }
 
         Long channelId = null;
         if (!b.isNull("channelId")) {
             String raw = b.getString("channelId", "").strip();
-            if (!raw.matches("\\d{1,20}")) throw new ApiError(400, "That isn't a valid channel.");
+            if (!raw.matches("\\d{1,20}")) throw new ApiError(400, Text.of(guildId, "dashboard.that_isn_t_a_valid_channel"));
             channelId = Long.parseLong(raw);
         }
 
         Integer color = null;
         if (!b.isNull("color")) {
             color = b.getInt("color", -1);
-            if (color < 0 || color > 0xFFFFFF) throw new ApiError(400, "The embed colour isn't a valid colour.");
+            if (color < 0 || color > 0xFFFFFF) throw new ApiError(400, Text.of(guildId, "dashboard.the_embed_colour_isn_t_a"));
         }
 
         List<EmbedField> fields = new ArrayList<>();

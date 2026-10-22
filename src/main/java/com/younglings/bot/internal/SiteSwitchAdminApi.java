@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.notice.BotOwners;
 import com.younglings.bot.siteaccess.SiteSwitch;
@@ -60,8 +61,8 @@ public class SiteSwitchAdminApi implements AdminRouteExtension {
     }
 
     DataObject set(Member actor, String key, DataObject body) {
-        SiteSwitch s = SiteSwitch.ofKey(key).orElseThrow(() -> new ApiError(404, "That is not a switch."));
-        if (!body.hasKey("enabled")) throw new ApiError(400, "Say whether the switch is on.");
+        SiteSwitch s = SiteSwitch.ofKey(key).orElseThrow(() -> new ApiError(404, Text.of(actor.getGuild(), "dashboard.that_is_not_a_switch")));
+        if (!body.hasKey("enabled")) throw new ApiError(400, Text.of(actor.getGuild(), "dashboard.say_whether_the_switch_is_on"));
         boolean enabled = body.getBoolean("enabled");
         repository.set(s.key(), enabled, actor.getIdLong());
         log.info("Dashboard: {} turned the {} switch {}", actor.getId(), s.key(), enabled ? "on" : "off");
@@ -77,6 +78,6 @@ public class SiteSwitchAdminApi implements AdminRouteExtension {
     }
 
     private void requireOwner(Guild guild, Member actor) {
-        if (!owners.isOwner(guild.getJDA(), actor.getIdLong())) throw new ApiError(403, "Only the bot's owner can change the site access switches.");
+        if (!owners.isOwner(guild.getJDA(), actor.getIdLong())) throw new ApiError(403, Text.of(guild, "dashboard.only_the_bot_owner_can_change_3"));
     }
 }

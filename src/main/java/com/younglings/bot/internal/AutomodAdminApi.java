@@ -6,6 +6,7 @@ import com.younglings.bot.automod.AutomodRules;
 import com.younglings.bot.automod.AutomodRules.Rule;
 import com.younglings.bot.automod.AutomodRules.RuleConfig;
 import com.younglings.bot.automod.PhishingList;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.Permission;
@@ -108,7 +109,7 @@ public class AutomodAdminApi implements AdminRouteExtension {
         boolean enabled = body.getBoolean("enabled", false);
         if (enabled && !guild.getSelfMember().hasPermission(Permission.MESSAGE_MANAGE)) problems.add("JonnyBot needs the Manage Messages permission to delete messages.");
         if (enabled && rules.values().stream().noneMatch(RuleConfig::enabled)) problems.add("Switch at least one rule on, or turn automod off.");
-        if (!problems.isEmpty()) throw new ApiError(400, "Automod can't be saved yet.", problems.stream().distinct().toList());
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.automod_can_t_be_saved_yet"), problems.stream().distinct().toList());
         repository.save(new Config(guild.getIdLong(), enabled, roles, channels, rules));
         log.info("Dashboard: {} saved the automod settings", actor.getId());
         return get(guild);

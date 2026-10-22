@@ -3,6 +3,7 @@ package com.younglings.bot.internal;
 import com.younglings.bot.autodelete.AutoDeleteRepository;
 import com.younglings.bot.autodelete.AutoDeleteRule;
 import com.younglings.bot.autodelete.AutoDeleteRule.Filter;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.Permission;
@@ -141,7 +142,7 @@ public class AutoDeleteAdminApi implements AdminRouteExtension {
                 problems.add("A server can have rules for at most " + AutoDeleteRule.MAX_RULES_PER_GUILD + " channels.");
             }
         }
-        if (!problems.isEmpty()) throw new ApiError(400, "That rule can't be saved yet.", problems.stream().distinct().toList());
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.that_rule_can_t_be_saved"), problems.stream().distinct().toList());
 
         repository.save(new AutoDeleteRule(guild.getIdLong(), channel.getIdLong(), filters, words, roleMode, roleIds, delay));
         log.info("Dashboard: {} set auto-delete for #{} to {}", actor.getId(), channel.getName(), filters);
@@ -149,8 +150,8 @@ public class AutoDeleteAdminApi implements AdminRouteExtension {
     }
 
     DataObject delete(Guild guild, Member actor, String rawChannelId) {
-        if (rawChannelId == null || !rawChannelId.strip().matches("\\d{1,20}")) throw new ApiError(400, "That isn't a valid channel.");
-        if (!repository.delete(guild.getIdLong(), Long.parseLong(rawChannelId.strip()))) throw new ApiError(404, "That channel has no auto-delete rule.");
+        if (rawChannelId == null || !rawChannelId.strip().matches("\\d{1,20}")) throw new ApiError(400, Text.of(guild, "dashboard.that_isn_t_a_valid_channel"));
+        if (!repository.delete(guild.getIdLong(), Long.parseLong(rawChannelId.strip()))) throw new ApiError(404, Text.of(guild, "dashboard.that_channel_has_no_auto_delete"));
         log.info("Dashboard: {} removed auto-delete for channel {}", actor.getId(), rawChannelId.strip());
         return list(guild);
     }

@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.points.PointsExtrasRepository;
 import com.younglings.bot.points.PointsExtrasRules;
@@ -50,11 +51,11 @@ public class PointsExtrasAdminApi implements AdminRouteExtension {
         AdminRouteExtension.requireMethod(method, "DELETE");
         long id = parseId(parts[1]);
         if (roles) {
-            if (!repository.deleteRoleReward(guild.getIdLong(), id)) throw new ApiError(404, "That role reward no longer exists.");
+            if (!repository.deleteRoleReward(guild.getIdLong(), id)) throw new ApiError(404, Text.of(guild, "dashboard.that_role_reward_no_longer_exists"));
             log.info("Dashboard: {} removed points role reward {}", actor.getId(), id);
             return roleList(guild);
         }
-        if (!repository.deleteTrigger(guild.getIdLong(), id)) throw new ApiError(404, "That trigger no longer exists.");
+        if (!repository.deleteTrigger(guild.getIdLong(), id)) throw new ApiError(404, Text.of(guild, "dashboard.that_trigger_no_longer_exists"));
         log.info("Dashboard: {} removed points keyword trigger {}", actor.getId(), id);
         return triggerList(guild);
     }
@@ -78,7 +79,7 @@ public class PointsExtrasAdminApi implements AdminRouteExtension {
         long id = optionalId(body);
         List<RoleReward> others = new ArrayList<>(repository.roleRewards(guildId));
         if (id != 0) {
-            if (others.stream().noneMatch(r -> r.id() == id)) throw new ApiError(404, "That role reward no longer exists.");
+            if (others.stream().noneMatch(r -> r.id() == id)) throw new ApiError(404, Text.of(guild, "dashboard.that_role_reward_no_longer_exists"));
             others.removeIf(r -> r.id() == id);
         }
         long threshold = body.getLong("threshold", 0);
@@ -88,9 +89,9 @@ public class PointsExtrasAdminApi implements AdminRouteExtension {
         if (role == null) problems.add("Choose a role.");
         else if (!RolePanelService.canGive(guild, role)) problems.add("@" + role.getName() + " can't be handed out (it is managed by an integration, sits above JonnyBot's role, or has powerful permissions).");
         problems.addAll(PointsExtrasRules.roleRewardProblems(threshold, role == null ? -1 : role.getIdLong(), others));
-        if (!problems.isEmpty()) throw new ApiError(400, "That role reward can't be saved yet.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.that_role_reward_can_t_be"), problems);
         boolean saved = repository.saveRoleReward(new RoleReward(id, guildId, threshold, role.getIdLong(), body.getBoolean("removeLower", false)));
-        if (!saved) throw new ApiError(400, "That role reward can't be saved yet.", List.of("Another role reward already starts at that number of points."));
+        if (!saved) throw new ApiError(400, Text.of(guild, "dashboard.that_role_reward_can_t_be"), List.of("Another role reward already starts at that number of points."));
         log.info("Dashboard: {} saved a points role reward: {} points gives @{}", actor.getId(), threshold, role.getName());
         return roleList(guild);
     }
@@ -112,7 +113,7 @@ public class PointsExtrasAdminApi implements AdminRouteExtension {
         long id = optionalId(body);
         List<Trigger> others = new ArrayList<>(repository.triggers(guildId));
         if (id != 0) {
-            if (others.stream().noneMatch(t -> t.id() == id)) throw new ApiError(404, "That trigger no longer exists.");
+            if (others.stream().noneMatch(t -> t.id() == id)) throw new ApiError(404, Text.of(guild, "dashboard.that_trigger_no_longer_exists"));
             others.removeIf(t -> t.id() == id);
         }
         String keyword = PointsExtrasRules.cleanKeyword(body.isNull("keyword") ? "" : body.getString("keyword", ""));
@@ -120,9 +121,9 @@ public class PointsExtrasAdminApi implements AdminRouteExtension {
         int cooldown = body.getInt("cooldownSeconds", -1);
         int cap = body.getInt("dailyCap", 0);
         List<String> problems = PointsExtrasRules.triggerProblems(keyword, points, cooldown, cap, others);
-        if (!problems.isEmpty()) throw new ApiError(400, "That trigger can't be saved yet.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.that_trigger_can_t_be_saved"), problems);
         boolean saved = repository.saveTrigger(new Trigger(id, guildId, keyword, points, cooldown, cap, body.getBoolean("enabled", true)));
-        if (!saved) throw new ApiError(400, "That trigger can't be saved yet.", List.of("There is already a trigger for that word or phrase."));
+        if (!saved) throw new ApiError(400, Text.of(guild, "dashboard.that_trigger_can_t_be_saved"), List.of("There is already a trigger for that word or phrase."));
         log.info("Dashboard: {} saved the points trigger \"{}\"", actor.getId(), keyword);
         return triggerList(guild);
     }
@@ -133,7 +134,7 @@ public class PointsExtrasAdminApi implements AdminRouteExtension {
     }
 
     private static long parseId(String raw) {
-        if (raw == null || !raw.strip().matches("\\d{1,18}")) throw new ApiError(400, "That isn't a valid item.");
+        if (raw == null || !raw.strip().matches("\\d{1,18}")) throw new ApiError(400, Text.en("dashboard.that_isn_t_a_valid_item"));
         return Long.parseLong(raw.strip());
     }
 }

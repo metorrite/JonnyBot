@@ -4,6 +4,7 @@ import com.younglings.bot.clanprofile.ClanRecruiting;
 import com.younglings.bot.clanprofile.ClanRecruitingRepository;
 import com.younglings.bot.forms.WebFormRepository;
 import com.younglings.bot.forms.WebForms.Form;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
@@ -70,7 +71,7 @@ public class ClanRecruitingAdminApi implements AdminRouteExtension {
         if (invite.isEmpty()) invite = null;
         else if (!ClanRecruiting.validInvite(invite)) problems.add("The invite must be a Discord invite link, like https://discord.gg/abc123.");
 
-        if (!problems.isEmpty()) throw new ApiError(400, "The recruiting post can't be saved yet.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.the_recruiting_post_can_t_be"), problems);
         repository.save(new ClanRecruiting(guild.getIdLong(), post, formId, invite, Instant.now()));
         return get(guild);
     }

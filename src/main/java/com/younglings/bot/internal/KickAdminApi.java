@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.kick.KickClient;
 import com.younglings.bot.kick.KickRepository;
@@ -87,17 +88,17 @@ public class KickAdminApi implements AdminRouteExtension {
     }
 
     DataObject saveSettings(Guild guild, DataObject body) {
-        OfflineAction action = OfflineAction.ofKey(body.getString("offlineAction", "")).orElseThrow(() -> new ApiError(400, "Choose what happens to the post when the stream ends."));
+        OfflineAction action = OfflineAction.ofKey(body.getString("offlineAction", "")).orElseThrow(() -> new ApiError(400, Text.of(guild, "dashboard.choose_what_happens_to_the_post")));
         boolean enabled = body.getBoolean("enabled", false);
-        if (enabled && !client.configured()) throw new ApiError(400, "Kick alerts cannot be switched on yet: the bot has no Kick app set up. The bot's owner has to add it first.");
+        if (enabled && !client.configured()) throw new ApiError(400, Text.of(guild, "dashboard.kick_alerts_cannot_be_switched_on"));
         repository.saveSettings(guild.getIdLong(), new Settings(enabled, action));
         return list(guild);
     }
 
     DataObject add(Guild guild, DataObject body) {
-        if (!client.configured()) throw new ApiError(400, "The bot has no Kick app set up yet, so streamers cannot be added. The bot's owner has to add it first.");
-        String login = KickRules.loginFrom(body.getString("login", "")).orElseThrow(() -> new ApiError(400, "That is not a Kick channel name. Use the name from the channel's address, like kick.com/name."));
-        if (repository.streamers(guild.getIdLong()).size() >= KickRules.MAX_STREAMERS_PER_SERVER) throw new ApiError(400, "A server can follow at most " + KickRules.MAX_STREAMERS_PER_SERVER + " streamers.");
+        if (!client.configured()) throw new ApiError(400, Text.of(guild, "dashboard.the_bot_has_no_kick_app"));
+        String login = KickRules.loginFrom(body.getString("login", "")).orElseThrow(() -> new ApiError(400, Text.of(guild, "dashboard.that_is_not_a_kick_channel")));
+        if (repository.streamers(guild.getIdLong()).size() >= KickRules.MAX_STREAMERS_PER_SERVER) throw new ApiError(400, Text.of(guild, "dashboard.a_server_can_follow_at_most", KickRules.MAX_STREAMERS_PER_SERVER));
         long channelId = checkedChannel(guild, body);
         Long role = checkedRole(guild, body);
         String message = checkedMessage(body);
@@ -107,28 +108,28 @@ public class KickAdminApi implements AdminRouteExtension {
             user = client.user(login);
         } catch (IOException e) {
             log.warn("Kick could not look up {}: {}", login, e.getMessage());
-            throw new ApiError(502, "Kick could not be reached just now. Try again in a moment.");
+            throw new ApiError(502, Text.of(guild, "dashboard.kick_could_not_be_reached_just"));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new ApiError(502, "Kick could not be reached just now. Try again in a moment.");
+            throw new ApiError(502, Text.of(guild, "dashboard.kick_could_not_be_reached_just"));
         }
-        if (user.isEmpty()) throw new ApiError(404, "There is no Kick channel called \"" + login + "\".");
-        if (repository.add(guild.getIdLong(), user.get().login(), user.get().name(), channelId, message, role).isEmpty()) throw new ApiError(409, user.get().name() + " is already followed.");
+        if (user.isEmpty()) throw new ApiError(404, Text.of(guild, "dashboard.there_is_no_kick_channel_called", login));
+        if (repository.add(guild.getIdLong(), user.get().login(), user.get().name(), channelId, message, role).isEmpty()) throw new ApiError(409, Text.of(guild, "dashboard.is_already_followed", user.get().name()));
         return list(guild);
     }
 
     DataObject update(Guild guild, long id, DataObject body) {
-        Streamer existing = repository.get(guild.getIdLong(), id).orElseThrow(() -> new ApiError(404, "That streamer is not followed any more."));
+        Streamer existing = repository.get(guild.getIdLong(), id).orElseThrow(() -> new ApiError(404, Text.of(guild, "dashboard.that_streamer_is_not_followed_any")));
         long channelId = body.hasKey("channelId") ? checkedChannel(guild, body) : existing.channelId();
         Long role = body.hasKey("pingRoleId") ? checkedRole(guild, body) : existing.pingRoleId();
         String message = body.hasKey("message") ? checkedMessage(body) : existing.message();
         boolean enabled = body.getBoolean("enabled", existing.enabled());
-        if (!repository.update(guild.getIdLong(), id, channelId, message, role, enabled)) throw new ApiError(404, "That streamer is not followed any more.");
+        if (!repository.update(guild.getIdLong(), id, channelId, message, role, enabled)) throw new ApiError(404, Text.of(guild, "dashboard.that_streamer_is_not_followed_any"));
         return list(guild);
     }
 
     DataObject remove(Guild guild, long id) {
-        if (!repository.delete(guild.getIdLong(), id)) throw new ApiError(404, "That streamer is not followed any more.");
+        if (!repository.delete(guild.getIdLong(), id)) throw new ApiError(404, Text.of(guild, "dashboard.that_streamer_is_not_followed_any"));
         return list(guild);
     }
 
@@ -137,7 +138,7 @@ public class KickAdminApi implements AdminRouteExtension {
     private static long checkedChannel(Guild guild, DataObject body) {
         long channelId = parseId(body.getString("channelId", ""));
         GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, channelId);
-        if (channel == null) throw new ApiError(400, "Choose a text channel from this server for the alerts.");
+        if (channel == null) throw new ApiError(400, Text.of(guild, "dashboard.choose_a_text_channel_from_this"));
         String problem = KickService.problemWith(channel);
         if (problem != null) throw new ApiError(400, problem);
         return channelId;
@@ -146,13 +147,13 @@ public class KickAdminApi implements AdminRouteExtension {
     private static Long checkedRole(Guild guild, DataObject body) {
         if (body.isNull("pingRoleId") || body.getString("pingRoleId", "").isBlank()) return null;
         Role role = guild.getRoleById(parseId(body.getString("pingRoleId", "")));
-        if (role == null) throw new ApiError(400, "Choose a role from this server to ping.");
+        if (role == null) throw new ApiError(400, Text.of(guild, "dashboard.choose_a_role_from_this_server"));
         return role.getIdLong();
     }
 
     private static String checkedMessage(DataObject body) {
         String message = body.isNull("message") ? "" : body.getString("message", "").strip();
-        if (message.length() > KickRules.MAX_MESSAGE_LENGTH) throw new ApiError(400, "Keep the message under " + KickRules.MAX_MESSAGE_LENGTH + " characters.");
+        if (message.length() > KickRules.MAX_MESSAGE_LENGTH) throw new ApiError(400, Text.en("dashboard.keep_the_message_under_characters", KickRules.MAX_MESSAGE_LENGTH));
         return message.isEmpty() ? null : message;
     }
 
@@ -160,7 +161,7 @@ public class KickAdminApi implements AdminRouteExtension {
         try {
             return Long.parseLong(raw.strip());
         } catch (NumberFormatException e) {
-            throw new ApiError(400, "That is not a valid id.");
+            throw new ApiError(400, Text.en("dashboard.that_is_not_a_valid_id"));
         }
     }
 }

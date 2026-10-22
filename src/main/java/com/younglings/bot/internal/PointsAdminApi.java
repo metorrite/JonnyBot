@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.points.PointsRepository;
 import com.younglings.bot.points.PointsRepository.Balance;
@@ -110,7 +111,7 @@ public class PointsAdminApi implements AdminRouteExtension {
                 reviewChannel = Long.parseLong(rawChannel);
             }
         }
-        if (!problems.isEmpty()) throw new ApiError(400, "The points settings can't be saved yet.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.the_points_settings_can_t_be"), problems);
         repository.saveSettings(new Settings(guild.getIdLong(), body.getBoolean("enabled", false), unit, reviewChannel));
         log.info("Dashboard: {} saved the points settings", actor.getId());
         return overview(guild);
@@ -118,16 +119,16 @@ public class PointsAdminApi implements AdminRouteExtension {
 
     DataObject award(Guild guild, Member actor, DataObject body) {
         String rawId = body.getString("userId", "").strip();
-        if (!rawId.matches("\\d{1,20}")) throw new ApiError(400, "Pick a member.");
+        if (!rawId.matches("\\d{1,20}")) throw new ApiError(400, Text.of(guild, "dashboard.pick_a_member"));
         long userId = Long.parseLong(rawId);
         Member target = guild.getMemberById(userId);
-        if (target == null) throw new ApiError(400, "That member isn't in this server.");
-        if (target.getUser().isBot()) throw new ApiError(400, "Bots can't hold points.");
+        if (target == null) throw new ApiError(400, Text.of(guild, "dashboard.that_member_isn_t_in_this"));
+        if (target.getUser().isBot()) throw new ApiError(400, Text.of(guild, "dashboard.bots_can_t_hold_points"));
         long points;
         try {
             points = body.getLong("points", 0);
         } catch (RuntimeException e) {
-            throw new ApiError(400, "The amount must be a whole number.");
+            throw new ApiError(400, Text.of(guild, "dashboard.the_amount_must_be_a_whole"));
         }
         var result = service.apply(guild.getIdLong(), userId, points, body.getString("reason", ""), Category.MANUAL, null, actor.getIdLong());
         if (result.outcome() != PointsService.Outcome.DONE) throw new ApiError(400, result.message());
@@ -166,13 +167,13 @@ public class PointsAdminApi implements AdminRouteExtension {
     }
 
     DataObject decide(Guild guild, Member actor, String rawId, boolean approve, DataObject body) {
-        if (rawId == null || !rawId.matches("\\d{1,18}")) throw new ApiError(400, "That isn't a valid submission.");
+        if (rawId == null || !rawId.matches("\\d{1,18}")) throw new ApiError(400, Text.of(guild, "dashboard.that_isn_t_a_valid_submission"));
         long points = 0;
         if (approve) {
             try {
                 points = body.getLong("points", 0);
             } catch (RuntimeException e) {
-                throw new ApiError(400, "The amount must be a whole number.");
+                throw new ApiError(400, Text.of(guild, "dashboard.the_amount_must_be_a_whole"));
             }
         }
         String note = body.isNull("note") ? "" : body.getString("note", "");
@@ -207,7 +208,7 @@ public class PointsAdminApi implements AdminRouteExtension {
         }
         if (parts.length == 3) {
             AdminRouteExtension.requireMethod(method, "PUT");
-            if (!parts[2].matches("\\d{1,18}")) throw new ApiError(400, "That isn't a valid reward.");
+            if (!parts[2].matches("\\d{1,18}")) throw new ApiError(400, Text.of(guild, "dashboard.that_isn_t_a_valid_reward"));
             return saveReward(guild, actor, Long.parseLong(parts[2]), body.get());
         }
         return null;
@@ -231,16 +232,16 @@ public class PointsAdminApi implements AdminRouteExtension {
             cost = body.getLong("cost", 0);
             if (!body.isNull("stock") && body.hasKey("stock")) stock = body.getLong("stock");
         } catch (RuntimeException e) {
-            throw new ApiError(400, "The cost and stock must be whole numbers.");
+            throw new ApiError(400, Text.of(guild, "dashboard.the_cost_and_stock_must_be"));
         }
         boolean active = body.getBoolean("active", true);
         String problem = PointsRules.rewardProblem(name, description, cost, stock);
         if (problem != null) throw new ApiError(400, problem);
         if (id == null) {
-            if (rewards.activeCount(guild.getIdLong()) >= PointsRules.MAX_REWARDS) throw new ApiError(400, "A server can have " + PointsRules.MAX_REWARDS + " active rewards. Archive one first.");
+            if (rewards.activeCount(guild.getIdLong()) >= PointsRules.MAX_REWARDS) throw new ApiError(400, Text.of(guild, "dashboard.a_server_can_have_active_rewards", PointsRules.MAX_REWARDS));
             rewards.addReward(guild.getIdLong(), name, description, cost, stock);
         } else if (!rewards.updateReward(guild.getIdLong(), id, name, description, cost, stock, active)) {
-            throw new ApiError(404, "That reward doesn't exist.");
+            throw new ApiError(404, Text.of(guild, "dashboard.that_reward_doesn_t_exist"));
         }
         log.info("Dashboard: {} saved a points reward", actor.getId());
         return rewardList(guild);
@@ -263,7 +264,7 @@ public class PointsAdminApi implements AdminRouteExtension {
     }
 
     DataObject handleRedemption(Guild guild, Member actor, String rawId, boolean fulfil) {
-        if (rawId == null || !rawId.matches("\\d{1,18}")) throw new ApiError(400, "That isn't a valid redemption.");
+        if (rawId == null || !rawId.matches("\\d{1,18}")) throw new ApiError(400, Text.of(guild, "dashboard.that_isn_t_a_valid_redemption"));
         var result = service.handle(guild.getIdLong(), Long.parseLong(rawId), fulfil, actor.getIdLong());
         switch (result.outcome()) {
             case NOT_FOUND -> throw new ApiError(404, result.message());

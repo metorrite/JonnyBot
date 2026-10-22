@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.suggestion.Suggestion;
 import com.younglings.bot.suggestion.SuggestionRepository;
@@ -95,7 +96,7 @@ public class SuggestionAdminApi implements AdminRouteExtension {
                 else if (!channel.canTalk()) problems.add("JonnyBot can't post in #" + channel.getName() + ". It needs permission to view the channel and send messages there.");
             }
         }
-        if (!problems.isEmpty()) throw new ApiError(400, "The suggestions channel can't be saved yet.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.the_suggestions_channel_can_t_be"), problems);
         repository.setChannel(guild.getIdLong(), channelId);
         log.info("Dashboard: {} set the suggestions channel to {}", actor.getId(), channelId);
         return list(guild);
@@ -107,10 +108,10 @@ public class SuggestionAdminApi implements AdminRouteExtension {
         try {
             status = Suggestion.Status.valueOf(body.getString("status", "").strip().toUpperCase(java.util.Locale.ROOT));
         } catch (IllegalArgumentException e) {
-            throw new ApiError(400, "Choose a decision: pending, approved, denied or implemented.");
+            throw new ApiError(400, Text.of(guild, "dashboard.choose_a_decision_pending_approved_denied"));
         }
         String note = body.isNull("note") ? "" : body.getString("note", "").strip();
-        if (note.length() > Suggestion.MAX_NOTE) throw new ApiError(400, "Keep the response to " + Suggestion.MAX_NOTE + " characters or fewer.");
+        if (note.length() > Suggestion.MAX_NOTE) throw new ApiError(400, Text.of(guild, "dashboard.keep_the_response_to_characters_or", Suggestion.MAX_NOTE));
         service.decide(guild, s, status, note, actor.getIdLong());
         log.info("Dashboard: {} marked suggestion {} as {}", actor.getId(), s.id(), status);
         return list(guild);
@@ -124,7 +125,7 @@ public class SuggestionAdminApi implements AdminRouteExtension {
     }
 
     private Suggestion find(Guild guild, String rawId) {
-        if (rawId == null || !rawId.strip().matches("\\d{1,18}")) throw new ApiError(400, "That isn't a valid suggestion.");
-        return repository.get(guild.getIdLong(), Long.parseLong(rawId.strip())).orElseThrow(() -> new ApiError(404, "That suggestion doesn't exist."));
+        if (rawId == null || !rawId.strip().matches("\\d{1,18}")) throw new ApiError(400, Text.of(guild, "dashboard.that_isn_t_a_valid_suggestion"));
+        return repository.get(guild.getIdLong(), Long.parseLong(rawId.strip())).orElseThrow(() -> new ApiError(404, Text.of(guild, "dashboard.that_suggestion_doesn_t_exist")));
     }
 }

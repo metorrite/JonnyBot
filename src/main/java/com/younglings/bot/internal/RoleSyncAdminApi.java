@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.permission.DashboardAccess;
 import com.younglings.bot.runescape.RoleSyncBackfill;
@@ -39,7 +40,7 @@ public class RoleSyncAdminApi implements AdminRouteExtension {
     @Override
     public DataObject route(Guild guild, Member actor, String method, String[] parts, Supplier<DataObject> body) {
         if (parts.length < 1 || !parts[0].equals("role-sync")) return null;
-        if (access.tierOf(guild, actor) != DashboardAccess.Tier.ADMIN) throw new ApiError(403, "Only an Admin can fix clan roles.");
+        if (access.tierOf(guild, actor) != DashboardAccess.Tier.ADMIN) throw new ApiError(403, Text.of(guild, "dashboard.only_an_admin_can_fix_clan"));
         if (parts.length == 1) {
             AdminRouteExtension.requireMethod(method, "GET");
             return status(guild);
@@ -80,7 +81,7 @@ public class RoleSyncAdminApi implements AdminRouteExtension {
                 try {
                     selected.add(Long.parseLong(raw.getString(i).strip()));
                 } catch (NumberFormatException e) {
-                    throw new ApiError(400, "That is not a valid id.");
+                    throw new ApiError(400, Text.of(guild, "dashboard.that_is_not_a_valid_id"));
                 }
             }
         }

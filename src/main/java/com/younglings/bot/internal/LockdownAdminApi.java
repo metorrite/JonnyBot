@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.lockdown.LockdownRepository.Config;
 import com.younglings.bot.lockdown.LockdownRepository.Lock;
@@ -67,7 +68,7 @@ public class LockdownAdminApi implements AdminRouteExtension {
     }
 
     private void requireAdmin(Guild guild, Member actor) {
-        if (access.tierOf(guild, actor) != DashboardAccess.Tier.ADMIN) throw new ApiError(403, "Only an Admin can lock channels or change the lockdown set.");
+        if (access.tierOf(guild, actor) != DashboardAccess.Tier.ADMIN) throw new ApiError(403, Text.of(guild, "dashboard.only_an_admin_can_lock_channels"));
     }
 
     DataObject get(Guild guild) {
@@ -124,7 +125,7 @@ public class LockdownAdminApi implements AdminRouteExtension {
             if (ids.size() > Config.MAX_ROLES) problems.add("At most " + Config.MAX_ROLES + " roles can keep talking.");
             roles = new ArrayList<>(ids);
         }
-        if (!problems.isEmpty()) throw new ApiError(400, "The lockdown set can't be saved yet.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.the_lockdown_set_can_t_be"), problems);
 
         service.saveConfig(new Config(guild.getIdLong(), channels, roles));
         log.info("Dashboard: {} saved the lockdown set ({} channels, {} roles keep talking)", actor.getId(), channels.size(), roles.size());
@@ -134,7 +135,7 @@ public class LockdownAdminApi implements AdminRouteExtension {
     private DataObject lock(Guild guild, Member actor, DataObject body) {
         StandardGuildMessageChannel channel = channel(guild, body);
         String reason = body.isNull("reason") ? "" : body.getString("reason", "").strip();
-        if (reason.length() > 200) throw new ApiError(400, "The reason can be at most 200 characters.");
+        if (reason.length() > 200) throw new ApiError(400, Text.of(guild, "dashboard.the_reason_can_be_at_most"));
         refuseUnless(service.lock(guild, channel, actor.getIdLong(), reason, false), channel, true);
         log.info("Dashboard: {} locked #{}", actor.getId(), channel.getName());
         return get(guild);
@@ -154,41 +155,41 @@ public class LockdownAdminApi implements AdminRouteExtension {
     }
 
     private DataObject start(Guild guild, Member actor, DataObject body) {
-        if (service.config(guild.getIdLong()).channelIds().isEmpty()) throw new ApiError(400, "Choose the channels of the lockdown set first.");
+        if (service.config(guild.getIdLong()).channelIds().isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.choose_the_channels_of_the_lockdown"));
         String reason = body.isNull("reason") ? "" : body.getString("reason", "").strip();
-        if (reason.length() > 200) throw new ApiError(400, "The reason can be at most 200 characters.");
+        if (reason.length() > 200) throw new ApiError(400, Text.of(guild, "dashboard.the_reason_can_be_at_most"));
         int[] result = service.start(guild, actor.getIdLong(), reason);
         log.info("Dashboard: {} started a lockdown ({} locked, {} already, {} failed)", actor.getId(), result[0], result[1], result[2]);
-        if (result[2] > 0) throw new ApiError(502, result[0] + " channels were locked, but " + result[2] + " couldn't be (a deleted channel, or JonnyBot lacks permission there).");
+        if (result[2] > 0) throw new ApiError(502, Text.of(guild, "dashboard.channels_were_locked_but_couldn_t", result[0], result[2]));
         return get(guild);
     }
 
     private DataObject end(Guild guild, Member actor) {
         int[] result = service.end(guild, actor.getIdLong());
         log.info("Dashboard: {} ended the lockdown ({} unlocked, {} failed)", actor.getId(), result[0], result[1]);
-        if (result[1] > 0) throw new ApiError(502, result[0] + " channels were unlocked, but " + result[1] + " couldn't be. Try them one by one.");
+        if (result[1] > 0) throw new ApiError(502, Text.of(guild, "dashboard.channels_were_unlocked_but_couldn_t", result[0], result[1]));
         return get(guild);
     }
 
     private static long parse(DataObject body) {
         String raw = body.isNull("channelId") ? "" : body.getString("channelId", "").strip();
-        if (!raw.matches("\\d{1,20}")) throw new ApiError(400, "Choose a channel.");
+        if (!raw.matches("\\d{1,20}")) throw new ApiError(400, Text.en("dashboard.choose_a_channel"));
         return Long.parseLong(raw);
     }
 
     private static StandardGuildMessageChannel channel(Guild guild, DataObject body) {
         StandardGuildMessageChannel channel = guild.getChannelById(StandardGuildMessageChannel.class, parse(body));
-        if (channel == null) throw new ApiError(404, "That channel doesn't exist or isn't a text channel.");
+        if (channel == null) throw new ApiError(404, Text.of(guild, "dashboard.that_channel_doesn_t_exist_or"));
         return channel;
     }
 
     private static void refuseUnless(Outcome outcome, StandardGuildMessageChannel channel, boolean locking) {
         switch (outcome) {
             case DONE -> { }
-            case ALREADY -> throw new ApiError(409, "#" + channel.getName() + " is already locked.");
-            case NOT_LOCKED -> throw new ApiError(409, "#" + channel.getName() + " isn't locked by JonnyBot, so there is nothing to put back.");
-            case NO_PERMISSION -> throw new ApiError(400, "JonnyBot needs to see, send messages in and manage permissions of #" + channel.getName() + " first.");
-            case FAILED -> throw new ApiError(502, "Discord refused part of that, so #" + channel.getName() + " was " + (locking ? "put back as it was" : "left locked") + ". Try again.");
+            case ALREADY -> throw new ApiError(409, Text.of(channel.getGuild(), "dashboard.is_already_locked", channel.getName()));
+            case NOT_LOCKED -> throw new ApiError(409, Text.of(channel.getGuild(), "dashboard.isn_t_locked_by_jonnybot_so", channel.getName()));
+            case NO_PERMISSION -> throw new ApiError(400, Text.of(channel.getGuild(), "dashboard.jonnybot_needs_to_see_send_messages", channel.getName()));
+            case FAILED -> throw new ApiError(502, Text.of(channel.getGuild(), locking ? "dashboard.lockdown_refused_put_back" : "dashboard.lockdown_refused_left_locked", channel.getName()));
         }
     }
 }

@@ -3,6 +3,7 @@ package com.younglings.bot.internal;
 import com.younglings.bot.branding.BrandingImages;
 import com.younglings.bot.branding.BrandingRepository;
 import com.younglings.bot.branding.BrandingService;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.premium.Premium;
 import com.younglings.bot.premium.PremiumFeatures;
@@ -102,7 +103,7 @@ public class BrandingAdminApi implements AdminRouteExtension {
         boolean removeBanner = body.getBoolean("removeBanner", false);
         boolean touchesProfile = setBio || setAvatar || setBanner || removeAvatar || removeBanner;
         if (touchesProfile && !premium.allows(guild.getIdLong(), PremiumFeatures.BRANDING_PROFILE)) {
-            throw new ApiError(403, "A server avatar, banner and bio are for premium servers.");
+            throw new ApiError(403, Text.of(guild, "dashboard.a_server_avatar_banner_and_bio"));
         }
         String bio = null;
         if (setBio) {
@@ -117,7 +118,7 @@ public class BrandingAdminApi implements AdminRouteExtension {
         } catch (IllegalArgumentException e) {
             problems.add(e.getMessage());
         }
-        if (!problems.isEmpty()) throw new ApiError(400, "That can't be saved yet.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.that_can_t_be_saved_yet"), problems);
 
         if (setName) repository.saveDisplayName(guild.getIdLong(), displayName.isEmpty() ? null : displayName);
         if (setNickname) {
@@ -127,7 +128,7 @@ public class BrandingAdminApi implements AdminRouteExtension {
                     guild.modifyNickname(self, next).reason("Changed from the JonnyBot dashboard").complete();
                 } catch (RuntimeException e) {
                     log.warn("Couldn't rename JonnyBot in guild {}: {}", guild.getId(), e.getMessage());
-                    throw new ApiError(502, "Discord didn't accept that nickname.", List.of(e.getMessage() == null ? "Try again in a moment." : e.getMessage()));
+                    throw new ApiError(502, Text.of(guild, "dashboard.discord_didn_t_accept_that_nickname"), List.of(e.getMessage() == null ? "Try again in a moment." : e.getMessage()));
                 }
             }
         }
@@ -147,7 +148,7 @@ public class BrandingAdminApi implements AdminRouteExtension {
             manager.complete();
         } catch (RuntimeException e) {
             log.warn("Couldn't change JonnyBot's profile in guild {}: {}", guild.getId(), e.getMessage());
-            throw new ApiError(502, "Discord didn't accept that.", List.of(e.getMessage() == null ? "Try again in a moment." : e.getMessage()));
+            throw new ApiError(502, Text.of(guild, "dashboard.discord_didn_t_accept_that"), List.of(e.getMessage() == null ? "Try again in a moment." : e.getMessage()));
         }
         // Only remembered once Discord has accepted it.
         if (setBio) repository.saveBio(guild.getIdLong(), bio.isEmpty() ? null : bio);

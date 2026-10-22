@@ -14,6 +14,7 @@ import com.younglings.bot.events.EventSpace.Plan;
 import com.younglings.bot.events.EventSpace.RoleItem;
 import com.younglings.bot.events.EventSpaceOps;
 import com.younglings.bot.events.EventSpaces;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
@@ -71,7 +72,7 @@ public class EventSpaceApi implements AdminRouteExtension {
             if (parts.length == 4 && parts[3].equals("remove")) {
                 AdminRouteExtension.requireMethod(method, "POST");
                 DataObject b = body.get();
-                if (!b.getBoolean("confirm", false)) throw new ApiError(400, "Say that you are sure: this deletes the event's roles and channels from Discord.");
+                if (!b.getBoolean("confirm", false)) throw new ApiError(400, Text.of(guild, "dashboard.say_that_you_are_sure_this"));
                 ops.startRemoval(guild, service.event(guild.getIdLong(), id));
                 log.info("Dashboard: {} started removing the roles and channels of event {}", actor.getId(), id);
                 return view(guild, id);
@@ -99,7 +100,7 @@ public class EventSpaceApi implements AdminRouteExtension {
     }
 
     private static long idOf(String raw) {
-        if (raw == null || !raw.matches("\\d{1,18}")) throw new ApiError(400, "That isn't a valid event.");
+        if (raw == null || !raw.matches("\\d{1,18}")) throw new ApiError(400, Text.en("dashboard.that_isn_t_a_valid_event"));
         return Long.parseLong(raw);
     }
 
@@ -108,7 +109,7 @@ public class EventSpaceApi implements AdminRouteExtension {
         Event event = service.event(guild.getIdLong(), id);
         DataObject config = DataObject.empty().put("channels", channels);
         java.util.List<String> problems = EventSpace.problems(config);
-        if (!problems.isEmpty()) throw new ApiError(400, "Those choices can't be used yet.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.those_choices_can_t_be_used"), problems);
         return view(guild, event, EventSpace.parse(config));
     }
 

@@ -2,6 +2,7 @@ package com.younglings.bot.internal;
 
 import com.younglings.bot.beta.BetaAccessService;
 import com.younglings.bot.beta.BetaGuildRepository;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.notice.BotOwners;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -67,7 +68,7 @@ public class BetaAdminApi implements AdminRouteExtension {
         requireOwner(guild, actor);
         long id = parseId(rawId);
         String label = body.getString("label", "").strip();
-        if (label.length() > MAX_LABEL) throw new ApiError(400, "Keep the label under " + MAX_LABEL + " characters.");
+        if (label.length() > MAX_LABEL) throw new ApiError(400, Text.of(guild, "dashboard.keep_the_label_under_characters", MAX_LABEL));
 
         repository.upsert(id, label, actor.getIdLong());
         access.listChanged();
@@ -78,21 +79,21 @@ public class BetaAdminApi implements AdminRouteExtension {
     DataObject remove(Guild guild, Member actor, String rawId) {
         requireOwner(guild, actor);
         long id = parseId(rawId);
-        if (!repository.delete(id)) throw new ApiError(404, "That server isn't on the list.");
+        if (!repository.delete(id)) throw new ApiError(404, Text.of(guild, "dashboard.that_server_isn_t_on_the"));
         access.listChanged();
         return list(guild, actor);
     }
 
     private static long parseId(String raw) {
-        if (raw == null || !raw.strip().matches("\\d{15,20}")) throw new ApiError(400, "A Discord server ID is 17 to 20 digits.");
+        if (raw == null || !raw.strip().matches("\\d{15,20}")) throw new ApiError(400, Text.en("dashboard.a_discord_server_id_is_17"));
         try {
             return Long.parseLong(raw.strip());
         } catch (NumberFormatException e) {
-            throw new ApiError(400, "That isn't a valid server ID.");
+            throw new ApiError(400, Text.en("dashboard.that_isn_t_a_valid_server"));
         }
     }
 
     private void requireOwner(Guild guild, Member actor) {
-        if (!owners.isOwner(guild.getJDA(), actor.getIdLong())) throw new ApiError(403, "Only the bot's owner can change the beta list.");
+        if (!owners.isOwner(guild.getJDA(), actor.getIdLong())) throw new ApiError(403, Text.of(guild, "dashboard.only_the_bot_owner_can_change"));
     }
 }

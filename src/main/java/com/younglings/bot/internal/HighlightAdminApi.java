@@ -4,6 +4,7 @@ import com.younglings.bot.config.PrivilegedIntents;
 import com.younglings.bot.highlight.HighlightConfig;
 import com.younglings.bot.highlight.HighlightRepository;
 import com.younglings.bot.highlight.HighlightRepository.Keyword;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
@@ -89,7 +90,7 @@ public class HighlightAdminApi implements AdminRouteExtension {
                 else roles.add(Long.parseLong(raw));
             }
         }
-        if (!problems.isEmpty()) throw new ApiError(400, "Highlights can't be saved yet.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.highlights_can_t_be_saved_yet"), problems);
 
         repository.saveConfig(new HighlightConfig(guild.getIdLong(), enabled, max, cooldown, excluded, roles));
         log.info("Dashboard: {} saved Highlights ({}, {} words each, {}s wait)", actor.getId(), enabled ? "on" : "off", max, cooldown);

@@ -1,6 +1,7 @@
 package com.younglings.bot.internal;
 
 import com.younglings.bot.config.BotConfig;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.SiteStatsRepository.MemberRow;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.runescape.PlayerLink;
@@ -207,7 +208,7 @@ public class AdminOpsApi {
      */
     DataObject pollPlayer(String rsn) {
         String name = rsn == null ? "" : rsn.trim();
-        if (name.isEmpty() || name.length() > 12) throw new ApiError(400, "That isn't a valid RuneScape name.");
+        if (name.isEmpty() || name.length() > 12) throw new ApiError(400, Text.en("dashboard.that_isn_t_a_valid_runescape"));
         polls.submit(com.younglings.bot.runescape.polling.PollRequest.interactive(name, "dashboard"));
         return DataObject.empty().put("queued", true).put("rsn", name);
     }
@@ -232,7 +233,7 @@ public class AdminOpsApi {
     // ---------- notes ----------
 
     DataObject notes(Guild guild, String rsn) {
-        if (rsn == null || rsn.isBlank()) throw new ApiError(400, "Say whose notes.");
+        if (rsn == null || rsn.isBlank()) throw new ApiError(400, Text.of(guild, "dashboard.say_whose_notes"));
         DataArray out = DataArray.empty();
         for (var n : store.notes(guild.getIdLong(), rsn.trim())) {
             out.add(DataObject.empty().put("id", n.id()).put("rsn", n.rsn()).put("note", n.note()).put("authorId", n.authorId()).put("authorName", n.authorName()).put("at", iso(n.at())));
@@ -243,16 +244,16 @@ public class AdminOpsApi {
     DataObject addNote(Guild guild, Member actor, DataObject body) {
         String rsn = body.getString("rsn", "").strip();
         String note = body.getString("note", "").strip();
-        if (rsn.isEmpty()) throw new ApiError(400, "Choose a member.");
-        if (note.isEmpty()) throw new ApiError(400, "Write the note first.");
-        if (note.length() > MAX_NOTE) throw new ApiError(400, "Notes are up to " + MAX_NOTE + " characters.");
-        if (stats.members(guild.getIdLong()).stream().noneMatch(m -> m.rsn().equalsIgnoreCase(rsn))) throw new ApiError(400, "That name isn't in the clan roster.");
+        if (rsn.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.choose_a_member"));
+        if (note.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.write_the_note_first"));
+        if (note.length() > MAX_NOTE) throw new ApiError(400, Text.of(guild, "dashboard.notes_are_up_to_characters", MAX_NOTE));
+        if (stats.members(guild.getIdLong()).stream().noneMatch(m -> m.rsn().equalsIgnoreCase(rsn))) throw new ApiError(400, Text.of(guild, "dashboard.that_name_isn_t_in_the"));
         store.addNote(guild.getIdLong(), rsn, note, actor.getId(), actor.getEffectiveName());
         return notes(guild, rsn);
     }
 
     DataObject deleteNote(Guild guild, long id, String rsn) {
-        if (!store.deleteNote(guild.getIdLong(), id)) throw new ApiError(404, "That note is already gone.");
+        if (!store.deleteNote(guild.getIdLong(), id)) throw new ApiError(404, Text.of(guild, "dashboard.that_note_is_already_gone"));
         return rsn == null || rsn.isBlank() ? DataObject.empty().put("ok", true) : notes(guild, rsn);
     }
 
@@ -274,21 +275,21 @@ public class AdminOpsApi {
         try {
             sendAt = OffsetDateTime.parse(body.getString("sendAt", ""));
         } catch (RuntimeException e) {
-            throw new ApiError(400, "Pick when it should be posted.");
+            throw new ApiError(400, Text.of(guild, "dashboard.pick_when_it_should_be_posted"));
         }
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        if (sendAt.isBefore(now.plusMinutes(1))) throw new ApiError(400, "Pick a time at least a minute from now.");
-        if (sendAt.isAfter(now.plusDays(365))) throw new ApiError(400, "That's more than a year away.");
+        if (sendAt.isBefore(now.plusMinutes(1))) throw new ApiError(400, Text.of(guild, "dashboard.pick_a_time_at_least_a"));
+        if (sendAt.isAfter(now.plusDays(365))) throw new ApiError(400, Text.of(guild, "dashboard.that_more_than_a_year_away"));
 
         long channelId;
         try {
             channelId = Long.parseLong(body.getString("channelId", ""));
         } catch (NumberFormatException e) {
-            throw new ApiError(400, "Choose a channel.");
+            throw new ApiError(400, Text.of(guild, "dashboard.choose_a_channel"));
         }
         GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, channelId);
-        if (channel == null) throw new ApiError(400, "That isn't a text channel in this server.");
-        if (!channel.canTalk()) throw new ApiError(400, "JonnyBot can't post in #" + channel.getName() + ".");
+        if (channel == null) throw new ApiError(400, Text.of(guild, "dashboard.that_isn_t_a_text_channel"));
+        if (!channel.canTalk()) throw new ApiError(400, Text.of(guild, "dashboard.jonnybot_can_t_post_in", channel.getName()));
 
         // The same markup checks the live post makes, without sending anything.
         clanAdmin.post(guild, actor, DataObject.empty().put("text", body.getString("text", "")).put("convert", body.getBoolean("convert", false)).put("dryRun", true));
@@ -298,7 +299,7 @@ public class AdminOpsApi {
     }
 
     DataObject cancelScheduled(Guild guild, long id) {
-        if (!store.cancel(guild.getIdLong(), id)) throw new ApiError(404, "That post has already been sent or cancelled.");
+        if (!store.cancel(guild.getIdLong(), id)) throw new ApiError(404, Text.of(guild, "dashboard.that_post_has_already_been_sent"));
         return scheduled(guild);
     }
 

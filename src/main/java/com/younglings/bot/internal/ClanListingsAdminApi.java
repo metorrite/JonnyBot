@@ -4,6 +4,7 @@ import com.younglings.bot.clanprofile.ClanProfile;
 import com.younglings.bot.clanprofile.ClanProfileRepository;
 import com.younglings.bot.clanprofile.ClanProfileService;
 import com.younglings.bot.clanprofile.ProfileRules;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.notice.BotOwners;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -97,8 +98,8 @@ public class ClanListingsAdminApi implements AdminRouteExtension {
         requireOwner(guild, actor);
         long target = parseId(rawGuildId);
         String reason = body.getString("reason", "").strip();
-        if (reason.isEmpty() || reason.length() > MAX_REASON) throw new ApiError(400, "Give a reason, in at most " + MAX_REASON + " characters. The clan will see it.");
-        if (repository.get(target).isEmpty()) throw new ApiError(404, "That server has no clan profile.");
+        if (reason.isEmpty() || reason.length() > MAX_REASON) throw new ApiError(400, Text.of(guild, "dashboard.give_a_reason_in_at_most", MAX_REASON));
+        if (repository.get(target).isEmpty()) throw new ApiError(404, Text.of(guild, "dashboard.that_server_has_no_clan_profile"));
         repository.setSuspended(target, reason);
         log.info("Dashboard: {} suspended the clan listing of guild {} ({})", actor.getId(), target, reason);
         return list(guild, actor);
@@ -107,7 +108,7 @@ public class ClanListingsAdminApi implements AdminRouteExtension {
     DataObject restore(Guild guild, Member actor, String rawGuildId) {
         requireOwner(guild, actor);
         long target = parseId(rawGuildId);
-        if (repository.get(target).isEmpty()) throw new ApiError(404, "That server has no clan profile.");
+        if (repository.get(target).isEmpty()) throw new ApiError(404, Text.of(guild, "dashboard.that_server_has_no_clan_profile"));
         repository.setSuspended(target, null);
         log.info("Dashboard: {} restored the clan listing of guild {}", actor.getId(), target);
         return list(guild, actor);
@@ -117,22 +118,22 @@ public class ClanListingsAdminApi implements AdminRouteExtension {
         requireOwner(guild, actor);
         long id = parseId(rawId);
         String status = body.getString("status", "").strip().toUpperCase(Locale.ROOT);
-        if (!status.equals("DISMISSED") && !status.equals("ACTIONED")) throw new ApiError(400, "Close a report as dismissed or actioned.");
-        if (!repository.resolveReport(id, status, actor.getIdLong())) throw new ApiError(404, "That report isn't open any more.");
+        if (!status.equals("DISMISSED") && !status.equals("ACTIONED")) throw new ApiError(400, Text.of(guild, "dashboard.close_a_report_as_dismissed_or"));
+        if (!repository.resolveReport(id, status, actor.getIdLong())) throw new ApiError(404, Text.of(guild, "dashboard.that_report_isn_t_open_any"));
         log.info("Dashboard: {} closed clan report {} as {}", actor.getId(), id, status);
         return list(guild, actor);
     }
 
     private void requireOwner(Guild guild, Member actor) {
-        if (!owners.isOwner(guild.getJDA(), actor.getIdLong())) throw new ApiError(403, "Only the bot's owner can moderate the directory.");
+        if (!owners.isOwner(guild.getJDA(), actor.getIdLong())) throw new ApiError(403, Text.of(guild, "dashboard.only_the_bot_owner_can_moderate"));
     }
 
     private static long parseId(String raw) {
-        if (raw == null || !raw.strip().matches("\\d{1,20}")) throw new ApiError(400, "That isn't a valid id.");
+        if (raw == null || !raw.strip().matches("\\d{1,20}")) throw new ApiError(400, Text.en("dashboard.that_isn_t_a_valid_id"));
         try {
             return Long.parseLong(raw.strip());
         } catch (NumberFormatException e) {
-            throw new ApiError(400, "That isn't a valid id.");
+            throw new ApiError(400, Text.en("dashboard.that_isn_t_a_valid_id"));
         }
     }
 }

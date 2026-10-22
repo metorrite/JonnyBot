@@ -2,6 +2,7 @@ package com.younglings.bot.internal;
 
 import com.younglings.bot.devtools.DevSnapshotRepository;
 import com.younglings.bot.devtools.DevSnapshotService;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.notice.BotOwners;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -41,7 +42,7 @@ public class DevSnapshotAdminApi implements AdminRouteExtension {
         boolean create = parts[1].equals("snapshot") && parts.length == 2;
         boolean stored = parts[1].equals("snapshots") && parts.length <= 3;
         if (!create && !stored) return null;
-        if (!owners.isOwner(guild.getJDA(), actor.getIdLong())) throw new ApiError(403, "Only the bot's owner can use dev snapshots.");
+        if (!owners.isOwner(guild.getJDA(), actor.getIdLong())) throw new ApiError(403, Text.of(guild, "dashboard.only_the_bot_owner_can_use"));
 
         if (create) {
             if (method.equals("POST")) {
@@ -56,14 +57,14 @@ public class DevSnapshotAdminApi implements AdminRouteExtension {
             return list();
         }
         String id = parts[2];
-        if (!DevSnapshotService.ID_PATTERN.matcher(id).matches()) throw new ApiError(400, "That isn't a snapshot id.");
+        if (!DevSnapshotService.ID_PATTERN.matcher(id).matches()) throw new ApiError(400, Text.of(guild, "dashboard.that_isn_t_a_snapshot_id"));
         if (method.equals("DELETE")) {
-            if (!repository.delete(id)) throw new ApiError(404, "That snapshot doesn't exist (snapshots are kept " + DevSnapshotRepository.KEEP_DAYS + " days).");
+            if (!repository.delete(id)) throw new ApiError(404, Text.of(guild, "dashboard.that_snapshot_doesn_t_exist_snapshots", DevSnapshotRepository.KEEP_DAYS));
             return DataObject.empty().put("deleted", id);
         }
         AdminRouteExtension.requireMethod(method, "GET");
-        var meta = repository.find(id).orElseThrow(() -> new ApiError(404, "That snapshot doesn't exist (snapshots are kept " + DevSnapshotRepository.KEEP_DAYS + " days)."));
-        byte[] zip = repository.zip(id).orElseThrow(() -> new ApiError(404, "That snapshot doesn't exist."));
+        var meta = repository.find(id).orElseThrow(() -> new ApiError(404, Text.of(guild, "dashboard.that_snapshot_doesn_t_exist_snapshots", DevSnapshotRepository.KEEP_DAYS)));
+        byte[] zip = repository.zip(id).orElseThrow(() -> new ApiError(404, Text.of(guild, "dashboard.that_snapshot_doesn_t_exist")));
         return meta(meta).put("filename", id + ".zip").put("zipBase64", Base64.getEncoder().encodeToString(zip));
     }
 

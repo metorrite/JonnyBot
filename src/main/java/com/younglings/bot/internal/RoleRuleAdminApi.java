@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.permission.DashboardAccess;
 import com.younglings.bot.rolerules.RoleRuleRepository;
@@ -43,7 +44,7 @@ public class RoleRuleAdminApi implements AdminRouteExtension {
     @Override
     public DataObject route(Guild guild, Member actor, String method, String[] parts, Supplier<DataObject> body) {
         if (parts.length < 1 || !parts[0].equals("role-rules")) return null;
-        if (access.tierOf(guild, actor) != DashboardAccess.Tier.ADMIN) throw new ApiError(403, "Only an Admin can use role rules.");
+        if (access.tierOf(guild, actor) != DashboardAccess.Tier.ADMIN) throw new ApiError(403, Text.of(guild, "dashboard.only_an_admin_can_use_role"));
         if (parts.length == 1) {
             if (method.equals("POST")) return save(guild, 0, body.get());
             AdminRouteExtension.requireMethod(method, "GET");
@@ -53,7 +54,7 @@ public class RoleRuleAdminApi implements AdminRouteExtension {
             long id = parseId(parts[1]);
             if (method.equals("PUT")) return save(guild, id, body.get());
             AdminRouteExtension.requireMethod(method, "DELETE");
-            if (!repository.delete(guild.getIdLong(), id)) throw new ApiError(404, "That rule is gone.");
+            if (!repository.delete(guild.getIdLong(), id)) throw new ApiError(404, Text.of(guild, "dashboard.that_rule_is_gone"));
             service.changed(guild.getIdLong());
             return list(guild);
         }
@@ -72,17 +73,17 @@ public class RoleRuleAdminApi implements AdminRouteExtension {
     DataObject save(Guild guild, long id, DataObject body) {
         long guildId = guild.getIdLong();
         List<Rule> existing = repository.list(guildId);
-        if (id == 0 && existing.size() >= RoleRuleRules.MAX_RULES_PER_SERVER) throw new ApiError(400, "A server can have at most " + RoleRuleRules.MAX_RULES_PER_SERVER + " rules.");
-        if (id != 0 && existing.stream().noneMatch(r -> r.id() == id)) throw new ApiError(404, "That rule is gone.");
+        if (id == 0 && existing.size() >= RoleRuleRules.MAX_RULES_PER_SERVER) throw new ApiError(400, Text.of(guild, "dashboard.a_server_can_have_at_most_2", RoleRuleRules.MAX_RULES_PER_SERVER));
+        if (id != 0 && existing.stream().noneMatch(r -> r.id() == id)) throw new ApiError(404, Text.of(guild, "dashboard.that_rule_is_gone"));
 
-        Event event = Event.ofKey(body.getString("event", "")).orElseThrow(() -> new ApiError(400, "Choose whether the rule fires when roles are gained or lost."));
+        Event event = Event.ofKey(body.getString("event", "")).orElseThrow(() -> new ApiError(400, Text.of(guild, "dashboard.choose_whether_the_rule_fires_when")));
         // a rule is only ever saved switched on after it has passed every check below
         Rule rule = new Rule(id, guildId, body.getString("name", "").strip(), event, roleList(body, "when"), roleList(body, "add"), roleList(body, "remove"), body.getBoolean("enabled", false));
         String problem = service.problemWith(guild, rule, existing);
         if (problem != null) throw new ApiError(400, problem);
 
         if (id == 0) repository.create(rule);
-        else if (!repository.save(rule)) throw new ApiError(404, "That rule is gone.");
+        else if (!repository.save(rule)) throw new ApiError(404, Text.of(guild, "dashboard.that_rule_is_gone"));
         service.changed(guildId);
         return list(guild);
     }
@@ -106,7 +107,7 @@ public class RoleRuleAdminApi implements AdminRouteExtension {
         try {
             return Long.parseLong(raw.strip());
         } catch (NumberFormatException e) {
-            throw new ApiError(400, "That is not a valid id.");
+            throw new ApiError(400, Text.en("dashboard.that_is_not_a_valid_id"));
         }
     }
 }

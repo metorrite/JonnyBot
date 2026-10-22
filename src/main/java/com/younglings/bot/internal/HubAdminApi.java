@@ -8,6 +8,7 @@ import com.younglings.bot.hub.CommandTag;
 import com.younglings.bot.hub.HubCommand;
 import com.younglings.bot.hub.HubService;
 import com.younglings.bot.hub.HubSettings;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.permission.DashboardAccess;
 import com.younglings.bot.permission.PermissionGroup;
@@ -70,7 +71,7 @@ public class HubAdminApi {
     }
 
     DataObject save(Guild guild, Member actor, String key, DataObject body) {
-        HubCommand command = HubCommand.ofKey(key).orElseThrow(() -> new ApiError(404, "There is no such command."));
+        HubCommand command = HubCommand.ofKey(key).orElseThrow(() -> new ApiError(404, Text.of(guild, "dashboard.there_is_no_such_command")));
         HubSettings current = hub.get(guild.getIdLong(), command);
         List<String> problems = new ArrayList<>();
 
@@ -81,7 +82,7 @@ public class HubAdminApi {
 
         boolean accessChanged = customAccess != current.customAccess() || !Set.copyOf(refs).equals(Set.copyOf(current.allowedRefs()));
         if (accessChanged && access.tierOf(guild, actor) != DashboardAccess.Tier.ADMIN) {
-            throw new ApiError(403, "Only an Admin can change who may use a command.");
+            throw new ApiError(403, Text.of(guild, "dashboard.only_an_admin_can_change_who"));
         }
 
         String extras = current.extras();
@@ -94,7 +95,7 @@ public class HubAdminApi {
             clearAfk = userIds(a, "clearUserIds", problems);
         }
 
-        if (!problems.isEmpty()) throw new ApiError(400, "Those settings can't be saved yet.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.those_settings_can_t_be_saved"), problems);
 
         hub.save(new HubSettings(guild.getIdLong(), command.key(), enabled, customAccess, refs, channels, extras));
         // a fun command is only registered with Discord in a server that has it on, so switching it changes that server's command list
