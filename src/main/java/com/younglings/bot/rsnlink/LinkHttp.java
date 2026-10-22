@@ -69,6 +69,7 @@ public final class LinkHttp {
                 case "v1/pair/dm/confirm" -> service.dmFlow().confirm(str(body, "pairingId"), str(body, "deviceSecret"), str(body, "code"));
                 case "resolve" -> service.resolve(str(body, "assertion"));
                 case "v1/session" -> service.session(bearer(exchange), str(body, "rsn"), str(body, "trackingId"));
+                case "v1/xp" -> service.xpReport(bearer(exchange), str(body, "rsn"), str(body, "trackingId"), str(body, "state"), xp10(body));
                 case "v1/alias" -> service.alias(bearer(exchange), str(body, "plugin"));
                 case "v1/unlink" -> service.unlink(bearer(exchange));
                 case "v1/forget-me" -> service.forgetMe(bearer(exchange), str(body, "confirm"));
@@ -125,6 +126,22 @@ public final class LinkHttp {
         if (!body.hasKey("client") || body.isNull("client") || !(body.opt("client").orElse(null) instanceof java.util.Map)) return null;
         DataObject c = body.getObject("client");
         return (c.getString("name", "") + " " + c.getString("version", "")).strip();
+    }
+
+    /**
+     * The {@code xp} object of an XP report: skill id (as a string, JSON keys are strings) to XP in tenths. At most one entry per skill;
+     * anything that isn't a whole number is dropped.
+     */
+    static java.util.Map<Integer, Long> xp10(DataObject body) {
+        java.util.Map<Integer, Long> out = new java.util.HashMap<>();
+        if (!body.hasKey("xp") || !(body.opt("xp").orElse(null) instanceof java.util.Map)) return out;
+        DataObject xp = body.getObject("xp");
+        for (String key : xp.keys()) {
+            if (out.size() >= 29 || !key.matches("\\d{1,2}")) continue;
+            Object v = xp.opt(key).orElse(null);
+            if (v instanceof Number n && n.doubleValue() == Math.rint(n.doubleValue())) out.put(Integer.parseInt(key), n.longValue());
+        }
+        return out;
     }
 
     public static String str(DataObject body, String key) {

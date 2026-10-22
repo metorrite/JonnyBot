@@ -7,6 +7,11 @@ import com.younglings.bot.rsnlink.LinkDatabase;
 import com.younglings.bot.rsnlink.LinkHttp;
 import com.younglings.bot.rsnlink.LinkService;
 import com.younglings.bot.rsnlink.LinkSettings;
+import com.younglings.bot.rsnlink.LinkVerifier;
+import com.younglings.bot.rsnlink.verify.HttpPublicData;
+import com.younglings.bot.rsnlink.verify.PgVerifyStore;
+import com.younglings.bot.rsnlink.verify.VerifySettings;
+import com.younglings.bot.rsnlink.verify.XpLinkVerifier;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -31,6 +36,7 @@ import java.util.concurrent.TimeUnit;
  *   <li>prepares the link database's schema;</li>
  *   <li>mounts {@code /internal/rsnlink/} on the internal API (behind {@code X-Internal-Secret});</li>
  *   <li>runs the hourly retention sweep;</li>
+ *   <li>when {@code LINK_VERIFY_ENABLED=true}, adds the "plugin knew it first" check (T-170) as a {@link LinkVerifier};</li>
  *   <li>gives the DM fallback (T-115) JonnyBot's gateway connection to send codes with.</li>
  * </ul>
  * A misconfigured service (keys missing or short) refuses to start and says which variables are wrong, but the bot keeps running.
@@ -52,8 +58,17 @@ public class RsnLinkModule implements InternalRouteModule {
                 log.info("RSN link service is off (LINK_DATABASE_URL not set).");
             } else {
                 LinkDatabase database = new LinkDatabase(settings.databaseUrl(), 4);
-                made = new LinkService(settings, database, dmSender, List.of(), Clock.systemUTC(), new SecureRandom());
+                VerifySettings verify = VerifySettings.fromEnv(config::getLinkSetting, "RS Link verification (" + config.getJonnybotUrl() + ")");
+                PgVerifyStore verifyStore = new PgVerifyStore(database::connection, settings.schema());
+                List<LinkVerifier> verifiers = verify.enabled()
+                        ? List.of(XpLinkVerifier.start(verify, verifyStore, new HttpPublicData(verify.userAgent()), Clock.systemUTC()))
+                        : List.of();
+                made = new LinkService(settings, database, dmSender, verifiers, Clock.systemUTC(), new SecureRandom());
                 made.start();
+                if (verify.enabled()) {
+                    verifyStore.migrate();
+                    log.info("RSN link verification is on (\"plugin knew it first\", T-170).");
+                }
                 routes = new LinkHttp(made);
                 startSweeps(made);
                 log.info("RSN link service is on (schema {}).", settings.schema());

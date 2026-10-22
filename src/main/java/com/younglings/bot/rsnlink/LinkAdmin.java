@@ -64,6 +64,8 @@ public final class LinkAdmin {
                     .put("dmsLastHour", countAt(c, "SELECT count(*) FROM {s}.dm_send WHERE outcome = 'sent' AND at >= ?", now.minus(LinkLimits.DM_TOTAL.window())))
                     .put("dmHourlyCap", LinkLimits.DM_TOTAL.max())
                     .put("dmBreakerOpen", store.countDmSentTotal(c, now.minus(LinkLimits.DM_TOTAL.window())) >= LinkLimits.DM_TOTAL.max())
+                    .put("verifiedLinks", count(c, "SELECT count(*) FROM {s}.link WHERE status IN ('active', 'disputed') AND verification <> 'implicit'"))
+                    .put("verify", service.verificationOverview())
                     .put("generatedAt", now.toString());
         });
     }
@@ -298,7 +300,7 @@ public final class LinkAdmin {
                         .put("verification", rs.getString(4)).put("linkedAt", rs.getTimestamp(5).toInstant().toString())
                         .put("endedAt", rs.getTimestamp(6) == null ? null : rs.getTimestamp(6).toInstant().toString()).put("rsn", rs.getString(7))
                         .put("lastSeenAt", rs.getTimestamp(8).toInstant().toString()).put("tracked", rs.getBoolean(9)).put("devices", rs.getInt(10))
-                        .put("discord", prefix(rs.getBytes(11)));
+                        .put("discord", prefix(rs.getBytes(11))).put("verify", service.verificationDetail(linkId));
             }
         }
     }
