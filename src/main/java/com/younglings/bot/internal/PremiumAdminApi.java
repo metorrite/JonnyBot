@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.notice.BotOwners;
 import com.younglings.bot.premium.Premium;
@@ -108,19 +109,19 @@ public class PremiumAdminApi implements AdminRouteExtension {
         requireOwner(guild, actor);
         long id = parseId(rawId);
         String label = body.getString("label", "").strip();
-        if (label.length() > MAX_LABEL) throw new ApiError(400, "Keep the label under " + MAX_LABEL + " characters.");
+        if (label.length() > MAX_LABEL) throw new ApiError(400, Text.of(guild, "dashboard.keep_the_label_under_characters", MAX_LABEL));
 
         String tier = PremiumFeatures.TIER_PREMIUM;
         if (body.hasKey("tier") && !body.isNull("tier") && !body.getString("tier", "").isBlank()) {
             tier = PremiumFeatures.cleanTier(body.getString("tier", ""));
-            if (tier == null) throw new ApiError(400, "A plan name is up to 20 lower-case letters, numbers or dashes.");
+            if (tier == null) throw new ApiError(400, Text.of(guild, "dashboard.a_plan_name_is_up_to"));
         }
         Instant expiresAt = parseEnd(body, Instant.now());
         String note = body.isNull("note") ? null : body.getString("note", "").strip();
         if (note != null && note.isEmpty()) note = null;
-        if (note != null && note.length() > MAX_NOTE) throw new ApiError(400, "Keep the note under " + MAX_NOTE + " characters.");
+        if (note != null && note.length() > MAX_NOTE) throw new ApiError(400, Text.of(guild, "dashboard.keep_the_note_under_characters", MAX_NOTE));
         String source = body.isNull("source") || body.getString("source", "").isBlank() ? "manual" : PremiumFeatures.cleanTier(body.getString("source", ""));
-        if (source == null) throw new ApiError(400, "The source is up to 20 lower-case letters, numbers or dashes.");
+        if (source == null) throw new ApiError(400, Text.of(guild, "dashboard.the_source_is_up_to_20"));
 
         boolean changed = premium.grant(id, label, tier, expiresAt, note, source, actor.getIdLong());
         log.info("Dashboard: {} {} server {} ({}) on plan '{}'{}", actor.getId(), changed ? "changed" : "put", id, label, tier, expiresAt == null ? "" : " until " + expiresAt);
@@ -130,7 +131,7 @@ public class PremiumAdminApi implements AdminRouteExtension {
     DataObject remove(Guild guild, Member actor, String rawId) {
         requireOwner(guild, actor);
         long id = parseId(rawId);
-        if (!premium.revoke(id, actor.getIdLong())) throw new ApiError(404, "That server isn't on a plan.");
+        if (!premium.revoke(id, actor.getIdLong())) throw new ApiError(404, Text.of(guild, "dashboard.that_server_isn_t_on_a"));
         return list(guild, actor);
     }
 
@@ -154,22 +155,22 @@ public class PremiumAdminApi implements AdminRouteExtension {
         try {
             end = raw.length() <= 10 ? LocalDate.parse(raw).plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC) : Instant.parse(raw);
         } catch (DateTimeParseException e) {
-            throw new ApiError(400, "The end date isn't a date. Use the form 2026-12-31.");
+            throw new ApiError(400, Text.en("dashboard.the_end_date_isn_t_a"));
         }
-        if (!end.isAfter(now)) throw new ApiError(400, "The end date has to be in the future.");
+        if (!end.isAfter(now)) throw new ApiError(400, Text.en("dashboard.the_end_date_has_to_be"));
         return end;
     }
 
     private static long parseId(String raw) {
-        if (raw == null || !raw.strip().matches("\\d{15,20}")) throw new ApiError(400, "A Discord server ID is 17 to 20 digits.");
+        if (raw == null || !raw.strip().matches("\\d{15,20}")) throw new ApiError(400, Text.en("dashboard.a_discord_server_id_is_17"));
         try {
             return Long.parseLong(raw.strip());
         } catch (NumberFormatException e) {
-            throw new ApiError(400, "That isn't a valid server ID.");
+            throw new ApiError(400, Text.en("dashboard.that_isn_t_a_valid_server"));
         }
     }
 
     private void requireOwner(Guild guild, Member actor) {
-        if (!owners.isOwner(guild.getJDA(), actor.getIdLong())) throw new ApiError(403, "Only the bot's owner can change the premium plan.");
+        if (!owners.isOwner(guild.getJDA(), actor.getIdLong())) throw new ApiError(403, Text.of(guild, "dashboard.only_the_bot_owner_can_change_2"));
     }
 }

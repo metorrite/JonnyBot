@@ -3,6 +3,7 @@ package com.younglings.bot.internal;
 import com.younglings.bot.customtag.CustomTag;
 import com.younglings.bot.customtag.CustomTag.Delivery;
 import com.younglings.bot.customtag.CustomTagRepository;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
@@ -76,13 +77,13 @@ public class CustomTagAdminApi implements AdminRouteExtension {
     }
 
     private static long parseId(String raw) {
-        if (raw == null || !raw.strip().matches("\\d{1,18}")) throw new ApiError(400, "That isn't a valid tag.");
+        if (raw == null || !raw.strip().matches("\\d{1,18}")) throw new ApiError(400, Text.en("dashboard.that_isn_t_a_valid_tag"));
         return Long.parseLong(raw.strip());
     }
 
     DataObject save(Guild guild, Member actor, String rawId, DataObject body) {
         Long id = rawId == null ? null : parseId(rawId);
-        if (id != null && repository.get(guild.getIdLong(), id).isEmpty()) throw new ApiError(404, "That tag doesn't exist.");
+        if (id != null && repository.get(guild.getIdLong(), id).isEmpty()) throw new ApiError(404, Text.of(guild, "dashboard.that_tag_doesn_t_exist"));
         List<String> problems = new ArrayList<>();
 
         String name = CustomTag.normalise(body.getString("name", ""));
@@ -120,7 +121,7 @@ public class CustomTagAdminApi implements AdminRouteExtension {
         if (id == null && repository.forGuild(guild.getIdLong()).size() >= CustomTag.MAX_PER_GUILD) problems.add("A server can have at most " + CustomTag.MAX_PER_GUILD + " tags.");
         final long self = id == null ? -1 : id;
         if (CustomTag.validName(name) && repository.forGuild(guild.getIdLong()).stream().anyMatch(t -> t.id() != self && t.name().equals(name))) problems.add("There is already a tag called \"" + name + "\".");
-        if (!problems.isEmpty()) throw new ApiError(400, "That tag can't be saved yet.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.that_tag_can_t_be_saved"), problems);
 
         long uses = id == null ? 0 : repository.get(guild.getIdLong(), id).map(CustomTag::uses).orElse(0L);
         CustomTag saved = repository.save(new CustomTag(id, guild.getIdLong(), name, content, embed, title, colour, delivery, roles, cooldown, enabled, uses));
@@ -130,7 +131,7 @@ public class CustomTagAdminApi implements AdminRouteExtension {
 
     DataObject delete(Guild guild, Member actor, String rawId) {
         long id = parseId(rawId);
-        if (!repository.delete(guild.getIdLong(), id)) throw new ApiError(404, "That tag doesn't exist.");
+        if (!repository.delete(guild.getIdLong(), id)) throw new ApiError(404, Text.of(guild, "dashboard.that_tag_doesn_t_exist"));
         log.info("Dashboard: {} deleted the tag {}", actor.getId(), id);
         return list(guild);
     }

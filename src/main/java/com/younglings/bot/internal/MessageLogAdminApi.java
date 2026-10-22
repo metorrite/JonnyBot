@@ -1,6 +1,7 @@
 package com.younglings.bot.internal;
 
 import com.younglings.bot.config.PrivilegedIntents;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.messagelog.MessageLogConfig;
 import com.younglings.bot.messagelog.MessageLogRepository;
@@ -106,7 +107,7 @@ public class MessageLogAdminApi implements AdminRouteExtension {
             }
         }
         if (enabled && edit == null && deleted == null && voice == null) problems.add("Choose at least one log channel before switching the logs on.");
-        if (!problems.isEmpty()) throw new ApiError(400, "The logs can't be saved yet.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.the_logs_can_t_be_saved"), problems);
 
         MessageLogConfig saved = new MessageLogConfig(guild.getIdLong(), enabled, days, excluded, edit, deleted, voice);
         repository.saveConfig(saved);

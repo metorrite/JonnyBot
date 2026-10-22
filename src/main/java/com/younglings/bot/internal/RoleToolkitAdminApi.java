@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.permission.PermissionGroup;
 import com.younglings.bot.permission.PermissionGroupService;
@@ -51,7 +52,7 @@ public class RoleToolkitAdminApi implements AdminRouteExtension {
     @Override
     public DataObject route(Guild guild, Member actor, String method, String[] parts, Supplier<DataObject> body) {
         if (parts.length < 1 || !parts[0].equals("role-toolkit")) return null;
-        if (!service.isAdmin(guild, actor)) throw new ApiError(403, "Only an Admin can use the role toolkit.");
+        if (!service.isAdmin(guild, actor)) throw new ApiError(403, Text.of(guild, "dashboard.only_an_admin_can_use_the"));
         if (parts.length == 1) {
             AdminRouteExtension.requireMethod(method, "GET");
             return overview(guild);
@@ -92,8 +93,8 @@ public class RoleToolkitAdminApi implements AdminRouteExtension {
     }
 
     DataObject saveAllow(Guild guild, String groupKey, DataObject body) {
-        if (groups.group(guild.getIdLong(), groupKey).isEmpty()) throw new ApiError(404, "That permission group does not exist.");
-        if (PermissionGroup.ADMIN.equals(groupKey)) throw new ApiError(400, "Admins can already manage every role the bot can hand out.");
+        if (groups.group(guild.getIdLong(), groupKey).isEmpty()) throw new ApiError(404, Text.of(guild, "dashboard.that_permission_group_does_not_exist"));
+        if (PermissionGroup.ADMIN.equals(groupKey)) throw new ApiError(400, Text.of(guild, "dashboard.admins_can_already_manage_every_role"));
         Set<Long> ids = new HashSet<>();
         List<String> problems = new java.util.ArrayList<>();
         if (body.hasKey("roleIds")) {
@@ -112,10 +113,10 @@ public class RoleToolkitAdminApi implements AdminRouteExtension {
     }
 
     DataObject plan(Guild guild, Member actor, DataObject body) {
-        Mode mode = Mode.ofKey(body.getString("mode", "")).orElseThrow(() -> new ApiError(400, "Choose whether to give or take the role."));
+        Mode mode = Mode.ofKey(body.getString("mode", "")).orElseThrow(() -> new ApiError(400, Text.of(guild, "dashboard.choose_whether_to_give_or_take")));
         Role source = guild.getRoleById(parseId(body.getString("sourceRoleId", "")));
         Role target = guild.getRoleById(parseId(body.getString("targetRoleId", "")));
-        if (source == null || target == null) throw new ApiError(400, "Choose two roles from this server.");
+        if (source == null || target == null) throw new ApiError(400, Text.of(guild, "dashboard.choose_two_roles_from_this_server"));
         try {
             Job job = service.planBulk(guild, actor, mode, source, target);
             return jobJson(guild, job, true);
@@ -125,7 +126,7 @@ public class RoleToolkitAdminApi implements AdminRouteExtension {
             throw new ApiError(403, e.getMessage());
         } catch (Exception e) {
             log.warn("Bulk dry run failed", e);
-            throw new ApiError(502, "Discord could not list the members of that role just now. Try again in a moment.");
+            throw new ApiError(502, Text.of(guild, "dashboard.discord_could_not_list_the_members"));
         }
     }
 
@@ -137,18 +138,18 @@ public class RoleToolkitAdminApi implements AdminRouteExtension {
                 if (problem != null) throw new ApiError(409, problem);
             }
             case "pause" -> {
-                if (!service.pause(job)) throw new ApiError(409, "Only a running job can be paused.");
+                if (!service.pause(job)) throw new ApiError(409, Text.of(guild, "dashboard.only_a_running_job_can_be"));
             }
             case "cancel" -> {
-                if (!service.cancel(job)) throw new ApiError(409, "This job is already finished.");
+                if (!service.cancel(job)) throw new ApiError(409, Text.of(guild, "dashboard.this_job_is_already_finished"));
             }
-            default -> throw new ApiError(404, "Not found");
+            default -> throw new ApiError(404, Text.of(guild, "dashboard.not_found"));
         }
         return jobJson(guild, job(guild, id), true);
     }
 
     private Job job(Guild guild, long id) {
-        return repository.get(guild.getIdLong(), id).orElseThrow(() -> new ApiError(404, "That job does not exist."));
+        return repository.get(guild.getIdLong(), id).orElseThrow(() -> new ApiError(404, Text.of(guild, "dashboard.that_job_does_not_exist")));
     }
 
     private DataObject jobJson(Guild guild, Job job, boolean withNames) {
@@ -173,7 +174,7 @@ public class RoleToolkitAdminApi implements AdminRouteExtension {
         try {
             return Long.parseLong(raw.strip());
         } catch (NumberFormatException e) {
-            throw new ApiError(400, "That is not a valid id.");
+            throw new ApiError(400, Text.en("dashboard.that_is_not_a_valid_id"));
         }
     }
 }

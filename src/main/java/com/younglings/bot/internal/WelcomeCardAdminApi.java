@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.welcome.WelcomeCardConfig;
 import com.younglings.bot.welcome.WelcomeCardRepository;
@@ -55,7 +56,7 @@ public class WelcomeCardAdminApi implements AdminRouteExtension {
         if (title.length() > WelcomeCardConfig.MAX_TITLE) problems.add("The title can be at most " + WelcomeCardConfig.MAX_TITLE + " characters.");
         if (description.length() > WelcomeCardConfig.MAX_DESCRIPTION) problems.add("The description can be at most " + WelcomeCardConfig.MAX_DESCRIPTION + " characters.");
         boolean enabled = body.hasKey("enabled") ? body.getBoolean("enabled", false) : current.enabled();
-        if (!problems.isEmpty()) throw new ApiError(400, "That welcome picture can't be saved yet.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.that_welcome_picture_can_t_be"), problems);
 
         repository.save(new WelcomeCardConfig(guild.getIdLong(), enabled, background, image, text, title, description));
         log.info("Dashboard: {} saved the welcome picture ({})", actor.getId(), enabled ? "on" : "off");

@@ -6,6 +6,7 @@ import com.younglings.bot.clanprofile.ClanProfileService;
 import com.younglings.bot.clanprofile.ProfileRules;
 import com.younglings.bot.clanprofile.PublicEvents;
 import com.younglings.bot.clanprofile.PublicEvents.EventInfo;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
@@ -74,19 +75,19 @@ public class ClanEventsAdminApi implements AdminRouteExtension {
     }
 
     DataObject setShared(Guild guild, Member actor, String rawId, DataObject body) {
-        if (rawId == null || !rawId.strip().matches("\\d{1,20}")) throw new ApiError(400, "That isn't a valid event.");
+        if (rawId == null || !rawId.strip().matches("\\d{1,20}")) throw new ApiError(400, Text.of(guild, "dashboard.that_isn_t_a_valid_event"));
         long id = Long.parseLong(rawId.strip());
         // `scope` (NONE, ALLIANCE or PUBLIC) is the full form; `shared` (true = PUBLIC, false = NONE) is kept for older callers.
         String scope;
         if (body.hasKey("scope")) {
             scope = body.getString("scope", "").strip().toUpperCase(java.util.Locale.ROOT);
-            if (!scope.equals("NONE") && !scope.equals("ALLIANCE") && !scope.equals("PUBLIC")) throw new ApiError(400, "Choose who may see the event: nobody, allies, or everyone.");
+            if (!scope.equals("NONE") && !scope.equals("ALLIANCE") && !scope.equals("PUBLIC")) throw new ApiError(400, Text.of(guild, "dashboard.choose_who_may_see_the_event"));
         } else if (body.hasKey("shared")) {
             scope = body.getBoolean("shared", false) ? "PUBLIC" : "NONE";
         } else {
-            throw new ApiError(400, "Say who may see the event.");
+            throw new ApiError(400, Text.of(guild, "dashboard.say_who_may_see_the_event"));
         }
-        if (DirectoryApi.eventsOf(guild).stream().noneMatch(e -> e.id() == id)) throw new ApiError(404, "That event doesn't exist in this server.");
+        if (DirectoryApi.eventsOf(guild).stream().noneMatch(e -> e.id() == id)) throw new ApiError(404, Text.of(guild, "dashboard.that_event_doesn_t_exist_in"));
         repository.setEventScope(guild.getIdLong(), id, scope.equals("NONE") ? null : scope, actor.getIdLong());
         log.info("Dashboard: {} set event {} to {}", actor.getId(), id, scope);
         return list(guild);

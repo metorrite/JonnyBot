@@ -4,6 +4,7 @@ import com.younglings.bot.events.EventListing;
 import com.younglings.bot.events.EventRepository;
 import com.younglings.bot.events.EventRepository.Event;
 import com.younglings.bot.events.HubModerationRepository;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.notice.BotOwners;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -60,8 +61,8 @@ public class HubModerationAdminApi implements AdminRouteExtension {
             case "events/relist" -> relist(actor, id);
             case "reports/resolve" -> {
                 String status = body.get().getString("status", "").strip().toUpperCase(Locale.ROOT);
-                if (!status.equals("DISMISSED") && !status.equals("ACTIONED")) throw new ApiError(400, "Close a report as dismissed or actioned.");
-                if (!moderation.resolve(id, status, actor.getIdLong())) throw new ApiError(404, "That report isn't open any more.");
+                if (!status.equals("DISMISSED") && !status.equals("ACTIONED")) throw new ApiError(400, Text.of(guild, "dashboard.close_a_report_as_dismissed_or"));
+                if (!moderation.resolve(id, status, actor.getIdLong())) throw new ApiError(404, Text.of(guild, "dashboard.that_report_isn_t_open_any"));
                 log.info("Dashboard: {} closed hub event report {} as {}", actor.getId(), id, status);
             }
             case "servers/bar" -> {
@@ -69,7 +70,7 @@ public class HubModerationAdminApi implements AdminRouteExtension {
                 log.info("Dashboard: {} barred server {} from listing events on the hub", actor.getId(), id);
             }
             case "servers/lift" -> {
-                if (!moderation.lift(id)) throw new ApiError(404, "That server isn't barred.");
+                if (!moderation.lift(id)) throw new ApiError(404, Text.of(guild, "dashboard.that_server_isn_t_barred"));
                 log.info("Dashboard: {} let server {} list events on the hub again", actor.getId(), id);
             }
             default -> {
@@ -106,7 +107,7 @@ public class HubModerationAdminApi implements AdminRouteExtension {
     }
 
     private void unlist(Member actor, long eventId, String reason) {
-        Event e = events.eventById(eventId).orElseThrow(() -> new ApiError(404, "That event doesn't exist."));
+        Event e = events.eventById(eventId).orElseThrow(() -> new ApiError(404, Text.of(actor.getGuild(), "dashboard.that_event_doesn_t_exist")));
         DataObject config = DataObject.fromJson(e.config());
         DataObject hub = config.hasKey("hub") && !config.isNull("hub") ? config.getObject("hub") : DataObject.empty();
         hub.put("takedown", DataObject.empty().put("reason", reason).put("at", Instant.now().toString()).put("by", actor.getId()));
@@ -117,9 +118,9 @@ public class HubModerationAdminApi implements AdminRouteExtension {
     }
 
     private void relist(Member actor, long eventId) {
-        Event e = events.eventById(eventId).orElseThrow(() -> new ApiError(404, "That event doesn't exist."));
+        Event e = events.eventById(eventId).orElseThrow(() -> new ApiError(404, Text.of(actor.getGuild(), "dashboard.that_event_doesn_t_exist")));
         DataObject config = DataObject.fromJson(e.config());
-        if (!EventListing.takenDown(config)) throw new ApiError(409, "That event isn't taken down.");
+        if (!EventListing.takenDown(config)) throw new ApiError(409, Text.of(actor.getGuild(), "dashboard.that_event_isn_t_taken_down"));
         config.getObject("hub").remove("takedown");
         events.setConfig(e.guildId(), e.id(), config.toString());
         log.info("Dashboard: {} put event {} of server {} back on the events hub", actor.getId(), eventId, e.guildId());
@@ -132,20 +133,20 @@ public class HubModerationAdminApi implements AdminRouteExtension {
 
     private static String reasonOf(DataObject body, String whoSees) {
         String reason = body.getString("reason", "").strip();
-        if (reason.isEmpty() || reason.length() > MAX_REASON) throw new ApiError(400, "Give a reason, in at most " + MAX_REASON + " characters. " + whoSees);
+        if (reason.isEmpty() || reason.length() > MAX_REASON) throw new ApiError(400, Text.en("dashboard.give_a_reason_in_at_most_2", MAX_REASON, whoSees));
         return reason;
     }
 
     private void requireOwner(Guild guild, Member actor) {
-        if (!owners.isOwner(guild.getJDA(), actor.getIdLong())) throw new ApiError(403, "Only the bot's owner can moderate the events hub.");
+        if (!owners.isOwner(guild.getJDA(), actor.getIdLong())) throw new ApiError(403, Text.of(guild, "dashboard.only_the_bot_owner_can_moderate_2"));
     }
 
     private static long parseId(String raw) {
-        if (raw == null || !raw.strip().matches("\\d{1,20}")) throw new ApiError(400, "That isn't a valid id.");
+        if (raw == null || !raw.strip().matches("\\d{1,20}")) throw new ApiError(400, Text.en("dashboard.that_isn_t_a_valid_id"));
         try {
             return Long.parseLong(raw.strip());
         } catch (NumberFormatException e) {
-            throw new ApiError(400, "That isn't a valid id.");
+            throw new ApiError(400, Text.en("dashboard.that_isn_t_a_valid_id"));
         }
     }
 }

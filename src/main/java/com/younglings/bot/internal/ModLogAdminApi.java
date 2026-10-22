@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.modlog.ModLogConfig;
 import com.younglings.bot.modlog.ModLogRepository;
@@ -70,7 +71,7 @@ public class ModLogAdminApi implements AdminRouteExtension {
             }
         }
         if (enabled && channelId == null) problems.add("Choose the moderation log channel before switching it on.");
-        if (!problems.isEmpty()) throw new ApiError(400, "The moderation log can't be saved yet.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.the_moderation_log_can_t_be"), problems);
 
         repository.save(new ModLogConfig(guild.getIdLong(), enabled, channelId, logBans, logTimeouts));
         log.info("Dashboard: {} saved the moderation log ({})", actor.getId(), enabled ? "on" : "off");

@@ -10,6 +10,7 @@ import com.younglings.bot.events.EventWrapup;
 import com.younglings.bot.events.EventWrapup.Step;
 import com.younglings.bot.events.EventWrapupOps;
 import com.younglings.bot.events.EventWrapupRepository;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
@@ -103,17 +104,17 @@ public class EventWrapupApi implements AdminRouteExtension {
     }
 
     private static void needConfirm(DataObject body, String what) {
-        if (!body.getBoolean("confirm", false)) throw new ApiError(400, "Say that you are sure. " + what);
+        if (!body.getBoolean("confirm", false)) throw new ApiError(400, Text.en("dashboard.say_that_you_are_sure", what));
     }
 
     private static long idOf(String raw) {
-        if (raw == null || !raw.matches("\\d{1,18}")) throw new ApiError(400, "That isn't a valid event.");
+        if (raw == null || !raw.matches("\\d{1,18}")) throw new ApiError(400, Text.en("dashboard.that_isn_t_a_valid_event"));
         return Long.parseLong(raw);
     }
 
     private DataObject file(long id) {
         EventWrapupOps.Export export = wrapupOps.export(id);
-        if (export == null) throw new ApiError(404, "There is no export waiting. Make one first (it is kept for an hour).");
+        if (export == null) throw new ApiError(404, Text.en("dashboard.there_is_no_export_waiting_make"));
         return DataObject.empty().put("name", export.name()).put("size", export.data().length).put("base64", Base64.getEncoder().encodeToString(export.data()));
     }
 

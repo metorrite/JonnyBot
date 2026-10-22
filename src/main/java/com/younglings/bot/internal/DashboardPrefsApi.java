@@ -1,6 +1,7 @@
 package com.younglings.bot.internal;
 
 import com.younglings.bot.database.SchemaBootstrapper;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import io.github.freya022.botcommands.api.core.db.ConnectionSupplier;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -68,7 +69,7 @@ public class DashboardPrefsApi implements AdminRouteExtension {
             if (method.equals("GET")) return viewAnswer(view(guildId, userId));
             AdminRouteExtension.requireMethod(method, "PUT");
             String mode = body.get().getString("mode", "");
-            if (!VIEW_MODES.contains(mode)) throw new ApiError(400, "The view is basic or advanced.");
+            if (!VIEW_MODES.contains(mode)) throw new ApiError(400, Text.of(guild, "dashboard.the_view_is_basic_or_advanced"));
             saveView(guildId, userId, mode);
             return viewAnswer(mode);
         }
@@ -76,7 +77,7 @@ public class DashboardPrefsApi implements AdminRouteExtension {
         if (method.equals("GET")) return answer(favorites(guildId, userId));
         AdminRouteExtension.requireMethod(method, "PUT");
         DataObject b = body.get();
-        if (!b.hasKey("paths") || b.isNull("paths")) throw new ApiError(400, "Send the list of pages.");
+        if (!b.hasKey("paths") || b.isNull("paths")) throw new ApiError(400, Text.of(guild, "dashboard.send_the_list_of_pages"));
         List<String> paths = clean(b.getArray("paths"));
         save(guildId, userId, paths);
         return answer(paths);
@@ -90,12 +91,12 @@ public class DashboardPrefsApi implements AdminRouteExtension {
             try {
                 path = array.getString(i).strip();
             } catch (RuntimeException e) {
-                throw new ApiError(400, "Every page has to be a path like /settings.");
+                throw new ApiError(400, Text.en("dashboard.every_page_has_to_be_a"));
             }
-            if (!path.matches(SHAPE)) throw new ApiError(400, "\"" + path + "\" isn't a dashboard page.");
+            if (!path.matches(SHAPE)) throw new ApiError(400, Text.en("dashboard.isn_t_a_dashboard_page", path));
             seen.add(path);
         }
-        if (seen.size() > MAX_FAVORITES) throw new ApiError(400, "You can star up to " + MAX_FAVORITES + " pages.");
+        if (seen.size() > MAX_FAVORITES) throw new ApiError(400, Text.en("dashboard.you_can_star_up_to_pages", MAX_FAVORITES));
         return new ArrayList<>(seen);
     }
 

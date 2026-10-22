@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.moderation.ModCase;
 import com.younglings.bot.moderation.ModCaseRepository;
@@ -58,7 +59,7 @@ public class ModerationAdminApi implements AdminRouteExtension {
         }
         if (parts.length == 3 && parts[1].equals("case")) {
             long number = id(parts[2]);
-            if (method.equals("GET")) return DataObject.empty().put("case", caseJson(cases.find(guild.getIdLong(), number).orElseThrow(() -> new ApiError(404, "There is no such case."))));
+            if (method.equals("GET")) return DataObject.empty().put("case", caseJson(cases.find(guild.getIdLong(), number).orElseThrow(() -> new ApiError(404, Text.of(guild, "dashboard.there_is_no_such_case")))));
             AdminRouteExtension.requireMethod(method, "PUT");
             return editCase(guild, actor, number, body.get());
         }
@@ -103,7 +104,7 @@ public class ModerationAdminApi implements AdminRouteExtension {
             if (out.size() > ModSettings.MAX_PROTECTED_ROLES) problems.add("At most " + ModSettings.MAX_PROTECTED_ROLES + " protected roles.");
             roles = List.copyOf(out);
         }
-        if (!problems.isEmpty()) throw new ApiError(400, "Those settings can't be saved yet.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.those_settings_can_t_be_saved"), problems);
 
         cases.saveSettings(new ModSettings(guild.getIdLong(), dm, showModerator, appeal, roles));
         log.info("Dashboard: {} saved the moderation settings of {}", actor.getId(), guild.getId());
@@ -112,15 +113,15 @@ public class ModerationAdminApi implements AdminRouteExtension {
 
     DataObject editCase(Guild guild, Member actor, long number, DataObject body) {
         String reason = body.getString("reason", "").strip();
-        if (reason.isEmpty()) throw new ApiError(400, "Write a reason.");
-        if (reason.length() > ModService.MAX_REASON) throw new ApiError(400, "A reason can be at most " + ModService.MAX_REASON + " characters.");
-        if (!cases.editReason(guild.getIdLong(), number, reason, actor.getIdLong())) throw new ApiError(404, "There is no such case.");
+        if (reason.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.write_a_reason"));
+        if (reason.length() > ModService.MAX_REASON) throw new ApiError(400, Text.of(guild, "dashboard.a_reason_can_be_at_most", ModService.MAX_REASON));
+        if (!cases.editReason(guild.getIdLong(), number, reason, actor.getIdLong())) throw new ApiError(404, Text.of(guild, "dashboard.there_is_no_such_case"));
         log.info("Dashboard: {} edited the reason of case {} in {}", actor.getId(), number, guild.getId());
         return DataObject.empty().put("case", caseJson(cases.find(guild.getIdLong(), number).orElseThrow()));
     }
 
     private static long id(String raw) {
-        if (!raw.matches("\\d{1,19}")) throw new ApiError(400, "That isn't a valid number.");
+        if (!raw.matches("\\d{1,19}")) throw new ApiError(400, Text.en("dashboard.that_isn_t_a_valid_number"));
         return Long.parseLong(raw);
     }
 

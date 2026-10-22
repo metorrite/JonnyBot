@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.permission.DashboardAccess;
 import com.younglings.bot.permission.PermissionGroup;
@@ -41,8 +42,8 @@ public class PermissionsAdminApi {
     }
 
     DataObject save(Guild guild, Member actor, DataObject body) {
-        if (access.tierOf(guild, actor) != DashboardAccess.Tier.ADMIN) throw new ApiError(403, "Only an Admin can change the permission groups.");
-        if (body.isNull("groups")) throw new ApiError(400, "No groups were sent.");
+        if (access.tierOf(guild, actor) != DashboardAccess.Tier.ADMIN) throw new ApiError(403, Text.of(guild, "dashboard.only_an_admin_can_change_the"));
+        if (body.isNull("groups")) throw new ApiError(400, Text.of(guild, "dashboard.no_groups_were_sent"));
 
         List<String> problems = new ArrayList<>();
         List<PermissionGroupService.Draft> drafts = new ArrayList<>();
@@ -75,7 +76,7 @@ public class PermissionsAdminApi {
         } catch (PermissionGroupService.InvalidGroupsException e) {
             problems.addAll(e.problems());
         }
-        if (!problems.isEmpty()) throw new ApiError(400, "Those permission groups can't be saved yet.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.those_permission_groups_can_t_be"), problems);
 
         log.info("Dashboard: {} saved the permission groups", actor.getId());
         return get(guild);

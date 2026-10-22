@@ -11,6 +11,7 @@ import com.younglings.bot.clanprofile.ClanProfileRepository;
 import com.younglings.bot.clanprofile.ClanProfileService;
 import com.younglings.bot.clanprofile.PublicEvents;
 import com.younglings.bot.clanprofile.PublicEvents.EventInfo;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
@@ -80,7 +81,7 @@ public class AllianceAdminApi implements AdminRouteExtension {
     }
 
     private static long allianceId(String raw) {
-        if (raw == null || !raw.matches("\\d{1,18}")) throw new ApiError(400, "That isn't a valid alliance.");
+        if (raw == null || !raw.matches("\\d{1,18}")) throw new ApiError(400, Text.en("dashboard.that_isn_t_a_valid_alliance"));
         return Long.parseLong(raw);
     }
 
@@ -105,7 +106,7 @@ public class AllianceAdminApi implements AdminRouteExtension {
     /** What the public hub page of this clan says about its alliances: HIDDEN (nothing, the default), NO_ALLIES (says there are none) or SHOWN (lists its allies). */
     DataObject saveVisibility(Guild guild, Member actor, DataObject body) {
         String raw = body.getString("visibility", "").strip().toUpperCase(java.util.Locale.ROOT);
-        if (!java.util.Set.of("HIDDEN", "NO_ALLIES", "SHOWN").contains(raw)) throw new ApiError(400, "Choose whether your clan page shows its alliances, says it has none, or says nothing.");
+        if (!java.util.Set.of("HIDDEN", "NO_ALLIES", "SHOWN").contains(raw)) throw new ApiError(400, Text.of(guild, "dashboard.choose_whether_your_clan_page_shows"));
         alliances.saveVisibility(guild.getIdLong(), Visibility.parse(raw));
         log.info("Dashboard: {} set the alliance visibility of the clan page to {}", actor.getId(), raw);
         return list(guild);
@@ -124,7 +125,7 @@ public class AllianceAdminApi implements AdminRouteExtension {
         String problem = AllianceRules.nameProblem(name);
         if (problem == null) problem = AllianceRules.serverLimitProblem(alliances.countFor(guild.getIdLong()));
         if (problem != null) throw new ApiError(400, problem);
-        if (alliances.create(name, guild.getIdLong(), actor.getIdLong()).isEmpty()) throw new ApiError(409, "There is already an alliance with that name.");
+        if (alliances.create(name, guild.getIdLong(), actor.getIdLong()).isEmpty()) throw new ApiError(409, Text.of(guild, "dashboard.there_is_already_an_alliance_with"));
         log.info("Dashboard: {} started the alliance {}", actor.getId(), name);
         return list(guild);
     }
@@ -132,41 +133,41 @@ public class AllianceAdminApi implements AdminRouteExtension {
     DataObject invite(Guild guild, Member actor, long id, DataObject body) {
         requireActive(guild, id);
         String slug = body.getString("slug", "").strip().toLowerCase(java.util.Locale.ROOT);
-        if (slug.isEmpty()) throw new ApiError(400, "Enter the clan's directory address (its slug).");
+        if (slug.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.enter_the_clan_directory_address_its"));
         Optional<ClanProfile> target = profiles.bySlug(slug);
         // only a clan that has chosen to be visible can be invited, so nobody can be pulled into an alliance by guessing a private server
-        if (target.isEmpty() || profileService.publicView(target.get().guildId(), true).isEmpty()) throw new ApiError(404, "No visible clan has that address. They need a public or unlisted profile first.");
+        if (target.isEmpty() || profileService.publicView(target.get().guildId(), true).isEmpty()) throw new ApiError(404, Text.of(guild, "dashboard.no_visible_clan_has_that_address"));
         List<Membership> members = alliances.membersOf(id);
         boolean involved = members.stream().anyMatch(m -> m.guildId() == target.get().guildId());
         String problem = AllianceRules.inviteProblem(target.get().guildId() == guild.getIdLong(), involved, members.size());
         if (problem == null && !involved) problem = AllianceRules.serverLimitProblem(alliances.countFor(target.get().guildId()));
         if (problem != null) throw new ApiError(400, problem);
-        if (!alliances.invite(id, target.get().guildId(), actor.getIdLong(), AllianceRules.MAX_MEMBERS)) throw new ApiError(400, "That clan couldn't be invited. The alliance may be full.");
+        if (!alliances.invite(id, target.get().guildId(), actor.getIdLong(), AllianceRules.MAX_MEMBERS)) throw new ApiError(400, Text.of(guild, "dashboard.that_clan_couldn_t_be_invited"));
         log.info("Dashboard: {} invited {} to alliance {}", actor.getId(), target.get().guildId(), id);
         return list(guild);
     }
 
     DataObject accept(Guild guild, Member actor, long id) {
-        if (!alliances.accept(id, guild.getIdLong())) throw new ApiError(404, "There is no invitation to accept.");
+        if (!alliances.accept(id, guild.getIdLong())) throw new ApiError(404, Text.of(guild, "dashboard.there_is_no_invitation_to_accept"));
         log.info("Dashboard: {} joined alliance {}", actor.getId(), id);
         return list(guild);
     }
 
     DataObject leave(Guild guild, Member actor, long id) {
-        if (!alliances.remove(id, guild.getIdLong())) throw new ApiError(404, "This server isn't part of that alliance.");
+        if (!alliances.remove(id, guild.getIdLong())) throw new ApiError(404, Text.of(guild, "dashboard.this_server_isn_t_part_of"));
         log.info("Dashboard: {} left alliance {}", actor.getId(), id);
         return list(guild);
     }
 
     DataObject remove(Guild guild, Member actor, long id, DataObject body) {
-        Alliance alliance = alliances.alliance(id).orElseThrow(() -> new ApiError(404, "That alliance doesn't exist."));
+        Alliance alliance = alliances.alliance(id).orElseThrow(() -> new ApiError(404, Text.of(guild, "dashboard.that_alliance_doesn_t_exist")));
         requireActive(guild, id);
-        if (alliance.createdByGuild() != guild.getIdLong()) throw new ApiError(403, "Only the clan that started the alliance can remove another clan. You can leave it yourself.");
+        if (alliance.createdByGuild() != guild.getIdLong()) throw new ApiError(403, Text.of(guild, "dashboard.only_the_clan_that_started_the"));
         String raw = body.getString("guildId", "").strip();
-        if (!raw.matches("\\d{1,20}")) throw new ApiError(400, "Choose a clan to remove.");
+        if (!raw.matches("\\d{1,20}")) throw new ApiError(400, Text.of(guild, "dashboard.choose_a_clan_to_remove"));
         long target = Long.parseLong(raw);
-        if (target == guild.getIdLong()) throw new ApiError(400, "Use leave to take your own server out.");
-        if (!alliances.remove(id, target)) throw new ApiError(404, "That clan isn't part of the alliance.");
+        if (target == guild.getIdLong()) throw new ApiError(400, Text.of(guild, "dashboard.use_leave_to_take_your_own"));
+        if (!alliances.remove(id, target)) throw new ApiError(404, Text.of(guild, "dashboard.that_clan_isn_t_part_of"));
         log.info("Dashboard: {} removed {} from alliance {}", actor.getId(), target, id);
         return list(guild);
     }
@@ -201,6 +202,6 @@ public class AllianceAdminApi implements AdminRouteExtension {
 
     private void requireActive(Guild guild, long id) {
         Optional<Membership> mine = alliances.membership(id, guild.getIdLong());
-        if (mine.isEmpty() || mine.get().status() != Status.ACTIVE) throw new ApiError(403, "This server isn't an active member of that alliance.");
+        if (mine.isEmpty() || mine.get().status() != Status.ACTIVE) throw new ApiError(403, Text.of(guild, "dashboard.this_server_isn_t_an_active"));
     }
 }

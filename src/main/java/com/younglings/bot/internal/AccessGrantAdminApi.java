@@ -5,6 +5,7 @@ import com.younglings.bot.access.AccessGrant;
 import com.younglings.bot.access.AccessGrantRepository;
 import com.younglings.bot.access.AccessGrantService;
 import com.younglings.bot.access.AccessLevel;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.notice.BotOwners;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -82,11 +83,11 @@ public class AccessGrantAdminApi implements AdminRouteExtension {
     }
 
     DataObject add(Guild guild, Member actor, DataObject body) {
-        AccessArea area = AccessArea.ofKey(body.getString("area", "")).orElseThrow(() -> new ApiError(400, "Choose an area."));
+        AccessArea area = AccessArea.ofKey(body.getString("area", "")).orElseThrow(() -> new ApiError(400, Text.of(guild, "dashboard.choose_an_area")));
         String note = body.getString("note", "").strip();
-        if (note.length() > MAX_NOTE) throw new ApiError(400, "Keep the note under " + MAX_NOTE + " characters.");
+        if (note.length() > MAX_NOTE) throw new ApiError(400, Text.of(guild, "dashboard.keep_the_note_under_characters", MAX_NOTE));
         Instant expires = parseExpiry(body.getString("expiresOn", ""));
-        if (repository.all().size() >= MAX_GRANTS) throw new ApiError(400, "The list is full. Remove some entries first.");
+        if (repository.all().size() >= MAX_GRANTS) throw new ApiError(400, Text.of(guild, "dashboard.the_list_is_full_remove_some"));
 
         String subject = body.getString("subject", "");
         long id;
@@ -96,11 +97,11 @@ public class AccessGrantAdminApi implements AdminRouteExtension {
             log.info("Dashboard: {} let user {} into {}", actor.getId(), userId, area.key());
         } else if (subject.equals("server")) {
             long guildId = parseId(body.getString("guildId", ""), "A Discord server ID is 17 to 20 digits.");
-            AccessLevel level = AccessLevel.ofKey(body.getString("level", "")).orElseThrow(() -> new ApiError(400, "Choose the least a person must be in that server."));
+            AccessLevel level = AccessLevel.ofKey(body.getString("level", "")).orElseThrow(() -> new ApiError(400, Text.of(guild, "dashboard.choose_the_least_a_person_must")));
             id = repository.add(area, null, guildId, level, note, actor.getIdLong(), expires);
             log.info("Dashboard: {} let server {} ({}) into {}", actor.getId(), guildId, level.key(), area.key());
         } else {
-            throw new ApiError(400, "Choose whether this is a person or a server.");
+            throw new ApiError(400, Text.of(guild, "dashboard.choose_whether_this_is_a_person"));
         }
         service.listChanged();
         log.debug("Access grant {} added", id);
@@ -112,9 +113,9 @@ public class AccessGrantAdminApi implements AdminRouteExtension {
         try {
             id = Long.parseLong(rawId.strip());
         } catch (NumberFormatException e) {
-            throw new ApiError(400, "That is not an entry.");
+            throw new ApiError(400, Text.of(guild, "dashboard.that_is_not_an_entry"));
         }
-        if (!repository.delete(id)) throw new ApiError(404, "That entry is not on the list.");
+        if (!repository.delete(id)) throw new ApiError(404, Text.of(guild, "dashboard.that_entry_is_not_on_the"));
         service.listChanged();
         return list(guild);
     }
@@ -124,10 +125,10 @@ public class AccessGrantAdminApi implements AdminRouteExtension {
         if (raw == null || raw.isBlank()) return null;
         try {
             Instant end = LocalDate.parse(raw.strip()).plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC);
-            if (!end.isAfter(Instant.now())) throw new ApiError(400, "The last day must not be in the past.");
+            if (!end.isAfter(Instant.now())) throw new ApiError(400, Text.en("dashboard.the_last_day_must_not_be"));
             return end;
         } catch (DateTimeException e) {
-            throw new ApiError(400, "Give the last day as year-month-day.");
+            throw new ApiError(400, Text.en("dashboard.give_the_last_day_as_year"));
         }
     }
 
@@ -141,6 +142,6 @@ public class AccessGrantAdminApi implements AdminRouteExtension {
     }
 
     private void requireOwner(Guild guild, Member actor) {
-        if (!owners.isOwner(guild.getJDA(), actor.getIdLong())) throw new ApiError(403, "Only the bot's owner can see or change the access list.");
+        if (!owners.isOwner(guild.getJDA(), actor.getIdLong())) throw new ApiError(403, Text.of(guild, "dashboard.only_the_bot_owner_can_see"));
     }
 }

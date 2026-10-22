@@ -3,6 +3,7 @@ package com.younglings.bot.internal;
 import com.younglings.bot.autopurge.AutoPurgeRepository;
 import com.younglings.bot.autopurge.AutoPurgeRule;
 import com.younglings.bot.autopurge.AutoPurgeService;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
@@ -111,7 +112,7 @@ public class AutoPurgeAdminApi implements AdminRouteExtension {
                 problems.add("A server can clean at most " + AutoPurgeRule.MAX_RULES_PER_GUILD + " channels.");
             }
         }
-        if (!problems.isEmpty()) throw new ApiError(400, "That rule can't be saved yet.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.that_rule_can_t_be_saved"), problems);
         channelOut[0] = channel;
         return new AutoPurgeRule(guild.getIdLong(), channel.getIdLong(), age, keepPinned, authors, attachments, text);
     }
@@ -138,8 +139,8 @@ public class AutoPurgeAdminApi implements AdminRouteExtension {
     }
 
     DataObject delete(Guild guild, Member actor, String rawChannelId) {
-        if (rawChannelId == null || !rawChannelId.strip().matches("\\d{1,20}")) throw new ApiError(400, "That isn't a valid channel.");
-        if (!repository.delete(guild.getIdLong(), Long.parseLong(rawChannelId.strip()))) throw new ApiError(404, "That channel has no auto-clean rule.");
+        if (rawChannelId == null || !rawChannelId.strip().matches("\\d{1,20}")) throw new ApiError(400, Text.of(guild, "dashboard.that_isn_t_a_valid_channel"));
+        if (!repository.delete(guild.getIdLong(), Long.parseLong(rawChannelId.strip()))) throw new ApiError(404, Text.of(guild, "dashboard.that_channel_has_no_auto_clean"));
         log.info("Dashboard: {} removed auto-clean for channel {}", actor.getId(), rawChannelId.strip());
         return list(guild);
     }

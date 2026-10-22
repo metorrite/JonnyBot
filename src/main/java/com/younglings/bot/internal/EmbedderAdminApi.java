@@ -3,6 +3,7 @@ package com.younglings.bot.internal;
 import com.younglings.bot.embedder.EmbedderRepository;
 import com.younglings.bot.embedder.EmbedderRepository.Stored;
 import com.younglings.bot.embedder.EmbedderService;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.welcome.WelcomeConfig;
 import com.younglings.bot.welcome.WelcomeValidator;
@@ -89,7 +90,7 @@ public class EmbedderAdminApi implements AdminRouteExtension {
 
     DataObject createDraft(Guild guild, Member actor, DataObject body) {
         if (repository.count(guild.getIdLong()) >= EmbedderService.MAX_MESSAGES_PER_GUILD) {
-            throw new ApiError(400, "This server already has " + EmbedderService.MAX_MESSAGES_PER_GUILD + " saved messages. Delete some first.");
+            throw new ApiError(400, Text.of(guild, "dashboard.this_server_already_has_saved_messages", EmbedderService.MAX_MESSAGES_PER_GUILD));
         }
         String name = name(body);
         String json = bodyJson(guild, body, false);
@@ -119,7 +120,7 @@ public class EmbedderAdminApi implements AdminRouteExtension {
 
     DataObject post(Guild guild, Member actor, long id, DataObject body) {
         Stored stored = require(guild, id);
-        if (stored.posted()) throw new ApiError(400, "That message is already posted. Save with the update option to change it, or clone it to post it again.");
+        if (stored.posted()) throw new ApiError(400, Text.of(guild, "dashboard.that_message_is_already_posted_save"));
         long channelId = channelId(body);
         WelcomeConfig config = checked(guild, stored.bodyJson(), true);
         long messageId;
@@ -137,7 +138,7 @@ public class EmbedderAdminApi implements AdminRouteExtension {
     DataObject clone(Guild guild, Member actor, long id, DataObject body) {
         Stored stored = require(guild, id);
         if (repository.count(guild.getIdLong()) >= EmbedderService.MAX_MESSAGES_PER_GUILD) {
-            throw new ApiError(400, "This server already has " + EmbedderService.MAX_MESSAGES_PER_GUILD + " saved messages. Delete some first.");
+            throw new ApiError(400, Text.of(guild, "dashboard.this_server_already_has_saved_messages", EmbedderService.MAX_MESSAGES_PER_GUILD));
         }
         long channelId = channelId(body);
         WelcomeConfig config = checked(guild, stored.bodyJson(), true);
@@ -171,25 +172,25 @@ public class EmbedderAdminApi implements AdminRouteExtension {
 
     private Stored require(Guild guild, long id) {
         Stored stored = repository.get(guild.getIdLong(), id);
-        if (stored == null) throw new ApiError(404, "That message doesn't exist.");
+        if (stored == null) throw new ApiError(404, Text.of(guild, "dashboard.that_message_doesn_t_exist"));
         return stored;
     }
 
     private static long parseId(String raw) {
-        if (!raw.matches("\\d{1,18}")) throw new ApiError(404, "That message doesn't exist.");
+        if (!raw.matches("\\d{1,18}")) throw new ApiError(404, Text.en("dashboard.that_message_doesn_t_exist"));
         return Long.parseLong(raw);
     }
 
     private static long channelId(DataObject body) {
         String raw = body.isNull("channelId") ? "" : body.getString("channelId", "").strip();
-        if (!raw.matches("\\d{1,20}")) throw new ApiError(400, "Choose a channel.");
+        if (!raw.matches("\\d{1,20}")) throw new ApiError(400, Text.en("dashboard.choose_a_channel"));
         return Long.parseLong(raw);
     }
 
     private static String name(DataObject body) {
         String name = body.getString("name", "").strip();
-        if (name.isEmpty()) throw new ApiError(400, "Give the message a name so you can find it again.");
-        if (name.length() > MAX_NAME) throw new ApiError(400, "The name can be at most " + MAX_NAME + " characters.");
+        if (name.isEmpty()) throw new ApiError(400, Text.en("dashboard.give_the_message_a_name_so"));
+        if (name.length() > MAX_NAME) throw new ApiError(400, Text.en("dashboard.the_name_can_be_at_most", MAX_NAME));
         return name;
     }
 
@@ -198,11 +199,11 @@ public class EmbedderAdminApi implements AdminRouteExtension {
      * Discord ({@code strict}) must pass the editor's checks; a draft still has to parse.
      */
     private String bodyJson(Guild guild, DataObject body, boolean strict) {
-        if (body.isNull("message")) throw new ApiError(400, "There's no message to save.");
+        if (body.isNull("message")) throw new ApiError(400, Text.of(guild, "dashboard.there_no_message_to_save"));
         WelcomeConfig config = WelcomeAdminApi.parse(guild.getIdLong(), body.getObject("message"));
         if (strict) problems(guild, config);
         String json = WelcomeAdminApi.toJson(guild, config).put("channelId", null).put("channelName", null).put("enabled", false).put("alsoDm", false).toString();
-        if (json.length() > MAX_BODY_JSON) throw new ApiError(400, "That message is too big to store.");
+        if (json.length() > MAX_BODY_JSON) throw new ApiError(400, Text.of(guild, "dashboard.that_message_is_too_big_to"));
         return json;
     }
 
@@ -219,7 +220,7 @@ public class EmbedderAdminApi implements AdminRouteExtension {
 
     private static void problems(Guild guild, WelcomeConfig config) {
         List<String> problems = WelcomeValidator.validate(config);
-        if (!problems.isEmpty()) throw new ApiError(400, "That message can't be sent yet.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.that_message_can_t_be_sent"), problems);
     }
 
     private static DataObject toJson(Guild guild, Stored stored) {

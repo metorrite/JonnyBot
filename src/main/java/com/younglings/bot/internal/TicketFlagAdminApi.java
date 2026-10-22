@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.ticket.TicketModels.Ticket;
 import com.younglings.bot.ticket.TicketRepository;
@@ -85,31 +86,31 @@ public class TicketFlagAdminApi implements AdminRouteExtension {
     }
 
     DataObject add(Guild guild, Member actor, long ticketId, DataObject body) {
-        if (!flags.enabled(guild.getIdLong())) throw new ApiError(400, "Ticket flags are switched off for this server.");
+        if (!flags.enabled(guild.getIdLong())) throw new ApiError(400, Text.of(guild, "dashboard.ticket_flags_are_switched_off_for"));
         Ticket ticket = ticket(guild, ticketId);
         String note = body.getString("note", "").strip();
-        if (note.isEmpty()) throw new ApiError(400, "Write a short note on what went wrong.");
-        if (note.length() > MAX_NOTE) throw new ApiError(400, "Keep the note under " + MAX_NOTE + " characters.");
-        if (flags.count(guild.getIdLong()) >= MAX_FLAGS_PER_GUILD) throw new ApiError(400, "This server has reached the limit of " + MAX_FLAGS_PER_GUILD + " flags. Remove some first.");
+        if (note.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.write_a_short_note_on_what"));
+        if (note.length() > MAX_NOTE) throw new ApiError(400, Text.of(guild, "dashboard.keep_the_note_under_characters", MAX_NOTE));
+        if (flags.count(guild.getIdLong()) >= MAX_FLAGS_PER_GUILD) throw new ApiError(400, Text.of(guild, "dashboard.this_server_has_reached_the_limit", MAX_FLAGS_PER_GUILD));
         long id = flags.add(guild.getIdLong(), ticket.id(), ticket.number(), ticket.requesterId(), actor.getUser().getIdLong(), note);
         log.info("Dashboard: {} flagged the player of ticket {} (flag {})", actor.getId(), ticket.id(), id);
         return forTicket(guild, ticketId);
     }
 
     DataObject delete(Guild guild, Member actor, long flagId) {
-        if (!flags.delete(guild.getIdLong(), flagId)) throw new ApiError(404, "That flag doesn't exist.");
+        if (!flags.delete(guild.getIdLong(), flagId)) throw new ApiError(404, Text.of(guild, "dashboard.that_flag_doesn_t_exist"));
         log.info("Dashboard: {} removed ticket flag {}", actor.getId(), flagId);
         return DataObject.empty().put("deleted", true);
     }
 
     private Ticket ticket(Guild guild, long ticketId) {
         Ticket ticket = tickets.getTicket(ticketId);
-        if (ticket == null || ticket.guildId() != guild.getIdLong()) throw new ApiError(404, "That ticket doesn't exist.");
+        if (ticket == null || ticket.guildId() != guild.getIdLong()) throw new ApiError(404, Text.of(guild, "dashboard.that_ticket_doesn_t_exist"));
         return ticket;
     }
 
     private static long id(String raw) {
-        if (!raw.matches("\\d{1,18}")) throw new ApiError(404, "That doesn't exist.");
+        if (!raw.matches("\\d{1,18}")) throw new ApiError(404, Text.en("dashboard.that_doesn_t_exist"));
         return Long.parseLong(raw);
     }
 

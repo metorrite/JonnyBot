@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.serverreminder.ServerReminder;
 import com.younglings.bot.serverreminder.ServerReminderService;
@@ -65,18 +66,18 @@ public class ServerReminderAdminApi implements AdminRouteExtension {
 
     DataObject create(Guild guild, Member actor, DataObject body) {
         String channelText = body.isNull("channelId") ? "" : body.getString("channelId", "").strip();
-        if (!channelText.matches("\\d{1,20}")) throw new ApiError(400, "Choose a channel.");
+        if (!channelText.matches("\\d{1,20}")) throw new ApiError(400, Text.of(guild, "dashboard.choose_a_channel"));
         Long roleId = null;
         if (body.hasKey("roleId") && !body.isNull("roleId") && !body.getString("roleId", "").isBlank()) {
             String raw = body.getString("roleId").strip();
-            if (!raw.matches("\\d{1,20}")) throw new ApiError(400, "That role isn't valid.");
+            if (!raw.matches("\\d{1,20}")) throw new ApiError(400, Text.of(guild, "dashboard.that_role_isn_t_valid"));
             roleId = Long.parseLong(raw);
         }
         Instant firstAt;
         try {
             firstAt = Instant.parse(body.getString("startAt", ""));
         } catch (DateTimeParseException e) {
-            throw new ApiError(400, "Choose when the first post should be.");
+            throw new ApiError(400, Text.of(guild, "dashboard.choose_when_the_first_post_should"));
         }
         Duration every = null;
         if (body.hasKey("everyMinutes") && !body.isNull("everyMinutes")) {
@@ -93,8 +94,8 @@ public class ServerReminderAdminApi implements AdminRouteExtension {
     }
 
     DataObject cancel(Guild guild, Member actor, String rawId) {
-        if (rawId == null || !rawId.strip().matches("\\d{1,18}")) throw new ApiError(400, "That isn't a valid reminder.");
-        if (!service.cancel(guild.getIdLong(), Long.parseLong(rawId.strip()))) throw new ApiError(404, "That reminder isn't active.");
+        if (rawId == null || !rawId.strip().matches("\\d{1,18}")) throw new ApiError(400, Text.of(guild, "dashboard.that_isn_t_a_valid_reminder"));
+        if (!service.cancel(guild.getIdLong(), Long.parseLong(rawId.strip()))) throw new ApiError(404, Text.of(guild, "dashboard.that_reminder_isn_t_active"));
         log.info("Dashboard: {} cancelled server reminder {}", actor.getId(), rawId.strip());
         return list(guild);
     }

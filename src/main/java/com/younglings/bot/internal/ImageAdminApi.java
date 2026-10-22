@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.upload.ImageUploadService;
 import com.younglings.bot.upload.UploadedImageRepository;
@@ -28,12 +29,12 @@ public class ImageAdminApi {
     }
 
     DataObject upload(Guild guild, Member actor, String scope, String slot, DataObject body) {
-        if (!ImageUploadService.isKnownSlot(scope, slot)) throw new ApiError(404, "Not found");
+        if (!ImageUploadService.isKnownSlot(scope, slot)) throw new ApiError(404, Text.of(guild, "dashboard.not_found"));
         byte[] data;
         try {
             data = Base64.getDecoder().decode(body.getString("data", ""));
         } catch (IllegalArgumentException e) {
-            throw new ApiError(400, "That file couldn't be read.");
+            throw new ApiError(400, Text.of(guild, "dashboard.that_file_couldn_t_be_read"));
         }
 
         try {
@@ -46,7 +47,7 @@ public class ImageAdminApi {
     }
 
     DataObject remove(Guild guild, Member actor, String scope, String slot) {
-        if (!ImageUploadService.isKnownSlot(scope, slot)) throw new ApiError(404, "Not found");
+        if (!ImageUploadService.isKnownSlot(scope, slot)) throw new ApiError(404, Text.of(guild, "dashboard.not_found"));
         boolean removed = images.remove(guild.getIdLong(), scope, slot);
         if (removed) log.info("Dashboard: {} removed the picture for {}/{}", actor.getId(), scope, slot);
         return DataObject.empty().put("removed", removed);

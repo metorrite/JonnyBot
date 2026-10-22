@@ -7,6 +7,7 @@ import com.younglings.bot.clansite.ClanSiteBlock;
 import com.younglings.bot.clansite.ClanSiteRepository;
 import com.younglings.bot.clansite.ClanSiteRules;
 import com.younglings.bot.clansite.ClanSiteService;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.notice.BotOwners;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -137,7 +138,7 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
     // ---------- writes ----------
 
     private void requireBeta(Guild guild) {
-        if (!sites.inBeta(guild.getIdLong())) throw new ApiError(403, "The clan website builder is in beta: it's open to servers on JonnyBot's beta list for now.");
+        if (!sites.inBeta(guild.getIdLong())) throw new ApiError(403, Text.of(guild, "dashboard.the_clan_website_builder_is_in"));
     }
 
     DataObject save(Guild guild, Member actor, DataObject body) {
@@ -148,7 +149,7 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
         if (template == null) problems.add("Pick one of the three templates.");
         String theme = ClanSiteRules.cleanTheme(body.optObject("theme").orElse(DataObject.empty()), problems);
         String pages = ClanSiteRules.cleanPages(body.optArray("pages").orElse(DataArray.empty()), problems);
-        if (!problems.isEmpty()) throw new ApiError(400, "The website can't be saved yet.", distinct(problems));
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.the_website_can_t_be_saved"), distinct(problems));
         boolean enabled = body.getBoolean("enabled", current.enabled());
         ClanSite saved = new ClanSite(guild.getIdLong(), enabled, enabled && current.published(), template, theme, pages, actor.getIdLong(), Instant.now(),
                 current.publishedAt(), current.takedownReason());
@@ -160,7 +161,7 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
         requireBeta(guild);
         List<String> problems = new ArrayList<>();
         List<ClanSiteBlock> blocks = ClanSiteRules.cleanBlocks(guild.getIdLong(), page, body.optArray("blocks").orElse(DataArray.empty()), problems);
-        if (!problems.isEmpty()) throw new ApiError(400, "Those blocks can't be saved yet.", distinct(problems));
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.those_blocks_can_t_be_saved"), distinct(problems));
         repository.replaceBlocks(guild.getIdLong(), page, blocks);
         return get(guild, actor);
     }
@@ -174,7 +175,7 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
             String profile = profileProblem(guild.getIdLong(), profiles.profileOf(guild.getIdLong()));
             if (profile != null) problems.add(profile);
             if (current.takedownReason() != null && !current.takedownReason().isBlank()) problems.add("This website was taken down by JonnyBot's owner: " + current.takedownReason());
-            if (!problems.isEmpty()) throw new ApiError(400, "The website can't be published yet.", problems);
+            if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.the_website_can_t_be_published"), problems);
         }
         repository.save(new ClanSite(current.guildId(), current.enabled(), publish, current.template(), current.theme(), current.pages(), actor.getIdLong(),
                 Instant.now(), publish ? Instant.now() : current.publishedAt(), current.takedownReason()));
@@ -183,9 +184,9 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
 
     /** The owner takes a site down (with a reason the clan sees) or lets it be published again ({@code reason} null). */
     DataObject takedown(Guild guild, Member actor, String reason) {
-        if (!owners.isOwner(guild.getJDA(), actor.getIdLong())) throw new ApiError(403, "Only JonnyBot's owner can take a clan website down.");
+        if (!owners.isOwner(guild.getJDA(), actor.getIdLong())) throw new ApiError(403, Text.of(guild, "dashboard.only_jonnybot_owner_can_take_a"));
         String clean = reason == null ? null : reason.trim();
-        if (clean != null && (clean.length() < 5 || clean.length() > MAX_REASON)) throw new ApiError(400, "Give a reason of 5 to " + MAX_REASON + " characters.");
+        if (clean != null && (clean.length() < 5 || clean.length() > MAX_REASON)) throw new ApiError(400, Text.of(guild, "dashboard.give_a_reason_of_5_to", MAX_REASON));
         ClanSite current = sites.of(guild.getIdLong());
         repository.save(new ClanSite(current.guildId(), current.enabled(), clean == null && current.published(), current.template(), current.theme(), current.pages(),
                 actor.getIdLong(), Instant.now(), current.publishedAt(), clean));

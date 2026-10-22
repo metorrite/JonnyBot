@@ -7,6 +7,7 @@ import com.younglings.bot.events.EventDefaults;
 import com.younglings.bot.events.EventOptions;
 import com.younglings.bot.events.EventSetup;
 import com.younglings.bot.events.EventTemplate;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
@@ -74,7 +75,7 @@ public class EventSetupApi {
         if (parts.length == 3 && parts[2].equals("create")) {
             AdminRouteExtension.requireMethod(method, "POST");
             DataObject b = body.get();
-            if (!b.hasKey("answers") || b.isNull("answers")) throw new ApiError(400, "Send the setup's answers.");
+            if (!b.hasKey("answers") || b.isNull("answers")) throw new ApiError(400, Text.of(guild, "dashboard.send_the_setup_answers"));
             long id = setup.create(guild.getIdLong(), actor.getIdLong(), b.getObject("answers"));
             log.info("Dashboard: {} created event {} from a full setup", actor.getId(), id);
             return created(id);
@@ -129,7 +130,7 @@ public class EventSetupApi {
                 case "GET" -> DataObject.empty().put("draft", draftJson(guild, setup.draft(guildId, id), true));
                 case "PUT" -> {
                     DataObject b = body.get();
-                    if (!b.hasKey("answers") || b.isNull("answers")) throw new ApiError(400, "Send the setup's answers.");
+                    if (!b.hasKey("answers") || b.isNull("answers")) throw new ApiError(400, Text.of(guild, "dashboard.send_the_setup_answers"));
                     yield DataObject.empty().put("draft", draftJson(guild, setup.saveDraft(guildId, id, b.getObject("answers"), text(b, "step")), true));
                 }
                 case "DELETE" -> {
@@ -137,7 +138,7 @@ public class EventSetupApi {
                     log.info("Dashboard: {} deleted setup draft {}", actor.getId(), id);
                     yield draftList(guild);
                 }
-                default -> throw new ApiError(405, "Method not allowed");
+                default -> throw new ApiError(405, Text.of(guild, "dashboard.method_not_allowed"));
             };
         }
         if (parts.length == 4 && parts[3].equals("create")) {
@@ -206,7 +207,7 @@ public class EventSetupApi {
                 try {
                     startsAt = Instant.parse(text(b, "startsAt"));
                 } catch (DateTimeParseException e) {
-                    throw new ApiError(400, "The start has to be a date and time.");
+                    throw new ApiError(400, Text.of(guild, "dashboard.the_start_has_to_be_a"));
                 }
             }
             long eventId = setup.createFromTemplate(guildId, actor.getIdLong(), id, text(b, "name"), startsAt, Instant.now());
@@ -240,11 +241,11 @@ public class EventSetupApi {
     }
 
     private static long idOf(String raw, String what) {
-        if (raw == null || !raw.matches("\\d{1,19}")) throw new ApiError(400, "That isn't a valid " + what + ".");
+        if (raw == null || !raw.matches("\\d{1,19}")) throw new ApiError(400, Text.en("dashboard.that_isn_t_a_valid", what));
         try {
             return Long.parseLong(raw);
         } catch (NumberFormatException e) {
-            throw new ApiError(400, "That isn't a valid " + what + ".");
+            throw new ApiError(400, Text.en("dashboard.that_isn_t_a_valid", what));
         }
     }
 

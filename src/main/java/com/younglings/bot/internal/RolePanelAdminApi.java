@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.rolepanel.RolePanel;
 import com.younglings.bot.rolepanel.RolePanel.RoleButton;
@@ -80,7 +81,7 @@ public class RolePanelAdminApi implements AdminRouteExtension {
 
     DataObject save(Guild guild, Member actor, String rawId, DataObject body) {
         Long id = rawId == null ? null : parseId(rawId);
-        RolePanel existing = id == null ? null : repository.get(guild.getIdLong(), id).orElseThrow(() -> new ApiError(404, "That panel doesn't exist."));
+        RolePanel existing = id == null ? null : repository.get(guild.getIdLong(), id).orElseThrow(() -> new ApiError(404, Text.of(guild, "dashboard.that_panel_doesn_t_exist")));
         List<String> problems = new ArrayList<>();
 
         String name = body.getString("name", "").strip();
@@ -165,7 +166,7 @@ public class RolePanelAdminApi implements AdminRouteExtension {
             buttons.add(new RoleButton(roleId, label, emoji.isEmpty() ? null : emoji, colour));
         }
 
-        if (!problems.isEmpty()) throw new ApiError(400, "That panel can't be saved yet.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.that_panel_can_t_be_saved"), problems);
 
         RolePanel saved = repository.save(new RolePanel(id, guild.getIdLong(), name, title, description, color, mode,
                 existing == null ? null : existing.channelId(), existing == null ? null : existing.messageId(), buttons, style, rule,
@@ -196,7 +197,7 @@ public class RolePanelAdminApi implements AdminRouteExtension {
             }
         }
         String channelText = body.getString("channelId", "").strip();
-        if (!channelText.matches("\\d{1,20}")) throw new ApiError(400, "Choose a channel to post in.");
+        if (!channelText.matches("\\d{1,20}")) throw new ApiError(400, Text.of(guild, "dashboard.choose_a_channel_to_post_in"));
         try {
             RolePanel posted = service.post(guild, panel, Long.parseLong(channelText));
             log.info("Dashboard: {} posted role panel {} in channel {}", actor.getId(), panel.id(), channelText);
@@ -207,11 +208,11 @@ public class RolePanelAdminApi implements AdminRouteExtension {
     }
 
     private RolePanel find(Guild guild, String rawId) {
-        return repository.get(guild.getIdLong(), parseId(rawId)).orElseThrow(() -> new ApiError(404, "That panel doesn't exist."));
+        return repository.get(guild.getIdLong(), parseId(rawId)).orElseThrow(() -> new ApiError(404, Text.of(guild, "dashboard.that_panel_doesn_t_exist")));
     }
 
     private static long parseId(String raw) {
-        if (raw == null || !raw.strip().matches("\\d{1,18}")) throw new ApiError(400, "That isn't a valid panel.");
+        if (raw == null || !raw.strip().matches("\\d{1,18}")) throw new ApiError(400, Text.en("dashboard.that_isn_t_a_valid_panel"));
         return Long.parseLong(raw.strip());
     }
 

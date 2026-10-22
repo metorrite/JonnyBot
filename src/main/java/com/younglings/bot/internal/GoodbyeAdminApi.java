@@ -2,6 +2,7 @@ package com.younglings.bot.internal;
 
 import com.younglings.bot.goodbye.GoodbyeConfig;
 import com.younglings.bot.goodbye.GoodbyeRepository;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
@@ -66,7 +67,7 @@ public class GoodbyeAdminApi implements AdminRouteExtension {
         if (content.length() > GoodbyeConfig.MAX_CONTENT) problems.add("The message can be at most " + GoodbyeConfig.MAX_CONTENT + " characters.");
         if (enabled && channelId == null) problems.add("Choose a channel before switching the goodbye message on.");
 
-        if (!problems.isEmpty()) throw new ApiError(400, "That goodbye message can't be saved yet.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.that_goodbye_message_can_t_be"), problems);
 
         repository.save(new GoodbyeConfig(guild.getIdLong(), enabled, channelId, content));
         log.info("Dashboard: {} saved the goodbye message ({})", actor.getId(), enabled ? "on" : "off");

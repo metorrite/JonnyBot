@@ -3,6 +3,7 @@ package com.younglings.bot.internal;
 import com.younglings.bot.giveaway.Giveaway;
 import com.younglings.bot.giveaway.GiveawayRepository;
 import com.younglings.bot.giveaway.GiveawayService;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
@@ -108,7 +109,7 @@ public class GiveawayAdminApi implements AdminRouteExtension {
         }
         boolean dmWinners = body.getBoolean("dmWinners", false);
         boolean reactionEntry = body.getBoolean("reactionEntry", false);
-        if (!problems.isEmpty()) throw new ApiError(400, "That giveaway can't be started yet.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.that_giveaway_can_t_be_started"), problems);
 
         try {
             Giveaway g = service.start(guild, Long.parseLong(channelText), prize, actor.getIdLong(), winners, Instant.now().plus(duration), roleId, winnerRoleId, dmWinners, reactionEntry);
@@ -142,7 +143,7 @@ public class GiveawayAdminApi implements AdminRouteExtension {
     }
 
     private Giveaway find(Guild guild, String rawId) {
-        if (rawId == null || !rawId.strip().matches("\\d{1,18}")) throw new ApiError(400, "That isn't a valid giveaway.");
-        return repository.get(guild.getIdLong(), Long.parseLong(rawId.strip())).orElseThrow(() -> new ApiError(404, "That giveaway doesn't exist."));
+        if (rawId == null || !rawId.strip().matches("\\d{1,18}")) throw new ApiError(400, Text.of(guild, "dashboard.that_isn_t_a_valid_giveaway"));
+        return repository.get(guild.getIdLong(), Long.parseLong(rawId.strip())).orElseThrow(() -> new ApiError(404, Text.of(guild, "dashboard.that_giveaway_doesn_t_exist")));
     }
 }

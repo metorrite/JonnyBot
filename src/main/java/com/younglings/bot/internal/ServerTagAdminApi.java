@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.servertag.ServerTagConfig;
 import com.younglings.bot.servertag.ServerTagConfig.Action;
@@ -109,7 +110,7 @@ public class ServerTagAdminApi implements AdminRouteExtension {
 
         ServerTagConfig next = new ServerTagConfig(guild.getIdLong(), enabled, flagged, action, minutes, channelId, exempt);
         problems.addAll(next.problems());
-        if (!problems.isEmpty()) throw new ApiError(400, "Those settings can't be saved yet.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.those_settings_can_t_be_saved"), problems);
 
         repository.save(next);
         log.info("Dashboard: {} saved the server-tag settings of {} (enabled {}, action {})", actor.getId(), guild.getId(), enabled, action);

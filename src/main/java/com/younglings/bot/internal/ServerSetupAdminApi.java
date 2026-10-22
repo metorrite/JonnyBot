@@ -3,6 +3,7 @@ package com.younglings.bot.internal;
 import com.younglings.bot.configure.GuildSettings;
 import com.younglings.bot.configure.GuildSettingsService;
 import com.younglings.bot.configure.InviteLink;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.runescape.ClanVerificationService;
 import com.younglings.bot.runescape.PlayerLinkService;
@@ -103,7 +104,7 @@ public class ServerSetupAdminApi {
             }
         }
 
-        if (!problems.isEmpty()) throw new ApiError(400, "Those settings can't be saved yet.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.those_settings_can_t_be_saved"), problems);
 
         if (clan.present()) {
             settings.updateClanName(guildId, newClan);

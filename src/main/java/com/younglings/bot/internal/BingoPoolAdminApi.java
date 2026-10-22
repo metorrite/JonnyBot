@@ -6,6 +6,7 @@ import com.younglings.bot.events.BingoTilePool.Difficulty;
 import com.younglings.bot.events.BingoTilePool.Entry;
 import com.younglings.bot.events.BingoTileRepository;
 import com.younglings.bot.events.BingoTileRepository.Stored;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
@@ -87,23 +88,23 @@ public class BingoPoolAdminApi implements AdminRouteExtension {
     }
 
     DataObject add(Guild guild, Member actor, DataObject body) {
-        if (repository.count(guild.getIdLong()) >= BingoTilePool.MAX_TILES_PER_SERVER) throw new ApiError(400, "The pool is full (" + BingoTilePool.MAX_TILES_PER_SERVER + " tiles). Remove some first.");
+        if (repository.count(guild.getIdLong()) >= BingoTilePool.MAX_TILES_PER_SERVER) throw new ApiError(400, Text.of(guild, "dashboard.the_pool_is_full_tiles_remove", BingoTilePool.MAX_TILES_PER_SERVER));
         Entry entry = parse(body, null);
-        if (repository.add(guild.getIdLong(), entry, "manual") < 0) throw new ApiError(400, "There is already a tile called \"" + entry.label() + "\".");
+        if (repository.add(guild.getIdLong(), entry, "manual") < 0) throw new ApiError(400, Text.of(guild, "dashboard.there_is_already_a_tile_called", entry.label()));
         log.info("Dashboard: {} added a bingo tile", actor.getId());
         return overview(guild);
     }
 
     DataObject update(Guild guild, Member actor, long id, DataObject body) {
-        Stored current = repository.list(guild.getIdLong()).stream().filter(s -> s.id() == id).findFirst().orElseThrow(() -> new ApiError(404, "That tile doesn't exist."));
+        Stored current = repository.list(guild.getIdLong()).stream().filter(s -> s.id() == id).findFirst().orElseThrow(() -> new ApiError(404, Text.of(guild, "dashboard.that_tile_doesn_t_exist")));
         Entry entry = parse(body, current.entry());
-        if (!repository.update(guild.getIdLong(), id, entry)) throw new ApiError(400, "There is already a tile called \"" + entry.label() + "\".");
+        if (!repository.update(guild.getIdLong(), id, entry)) throw new ApiError(400, Text.of(guild, "dashboard.there_is_already_a_tile_called", entry.label()));
         log.info("Dashboard: {} changed bingo tile {}", actor.getId(), id);
         return overview(guild);
     }
 
     DataObject delete(Guild guild, Member actor, long id) {
-        if (!repository.delete(guild.getIdLong(), id)) throw new ApiError(404, "That tile doesn't exist.");
+        if (!repository.delete(guild.getIdLong(), id)) throw new ApiError(404, Text.of(guild, "dashboard.that_tile_doesn_t_exist"));
         log.info("Dashboard: {} removed bingo tile {}", actor.getId(), id);
         return overview(guild);
     }
@@ -111,13 +112,13 @@ public class BingoPoolAdminApi implements AdminRouteExtension {
     /** Adds the pack's tiles that the pool does not have yet, up to the server's limit; a name already in the pool is left exactly as it is. */
     DataObject seed(Guild guild, Member actor, DataObject body) {
         String pack = body.getString("pack", "").strip();
-        if (BingoStarterPacks.all().stream().noneMatch(p -> p.id().equals(pack))) throw new ApiError(400, "Choose a starter pack from the list.");
+        if (BingoStarterPacks.all().stream().noneMatch(p -> p.id().equals(pack))) throw new ApiError(400, Text.of(guild, "dashboard.choose_a_starter_pack_from_the"));
         Set<Difficulty> only = EnumSet.noneOf(Difficulty.class);
         if (body.hasKey("difficulties") && !body.isNull("difficulties")) {
             DataArray array = body.getArray("difficulties");
             for (int i = 0; i < array.length(); i++) {
                 Difficulty d = Difficulty.parse(array.getString(i, ""));
-                if (d == null) throw new ApiError(400, "Choose difficulties from the list.");
+                if (d == null) throw new ApiError(400, Text.of(guild, "dashboard.choose_difficulties_from_the_list"));
                 only.add(d);
             }
         }
@@ -139,7 +140,7 @@ public class BingoPoolAdminApi implements AdminRouteExtension {
 
     DataObject clear(Guild guild, Member actor, DataObject body) {
         String pack = body.hasKey("pack") && !body.isNull("pack") ? body.getString("pack", "").strip() : null;
-        if (pack != null && BingoStarterPacks.all().stream().noneMatch(p -> p.id().equals(pack)) && !pack.equals("manual")) throw new ApiError(400, "Choose a starter pack from the list.");
+        if (pack != null && BingoStarterPacks.all().stream().noneMatch(p -> p.id().equals(pack)) && !pack.equals("manual")) throw new ApiError(400, Text.of(guild, "dashboard.choose_a_starter_pack_from_the"));
         int removed = repository.deleteBySource(guild.getIdLong(), pack == null || pack.isEmpty() ? null : pack);
         log.info("Dashboard: {} cleared {} bingo tiles ({})", actor.getId(), removed, pack == null ? "all" : pack);
         return overview(guild).put("removed", removed);
@@ -161,7 +162,7 @@ public class BingoPoolAdminApi implements AdminRouteExtension {
             DataArray array = body.getArray("tags");
             for (int i = 0; i < array.length(); i++) typed.add(array.getString(i, ""));
             tags = BingoTilePool.cleanTags(typed);
-            if (tags == null) throw new ApiError(400, "A tag is up to " + BingoTilePool.MAX_TAG + " letters, numbers, spaces or dashes, and a tile has at most " + BingoTilePool.MAX_TAGS + ".");
+            if (tags == null) throw new ApiError(400, Text.en("dashboard.a_tag_is_up_to_letters", BingoTilePool.MAX_TAG, BingoTilePool.MAX_TAGS));
         }
         boolean enabled = body.hasKey("enabled") ? body.getBoolean("enabled", true) : before == null || before.enabled();
         return new Entry(label, points, target, difficulty, tags, enabled);
@@ -170,12 +171,12 @@ public class BingoPoolAdminApi implements AdminRouteExtension {
     private static long number(DataObject body, String key, long fallback) {
         if (!body.hasKey(key) || body.isNull(key)) return fallback;
         Object raw = body.opt(key).orElse(null);
-        if (!(raw instanceof Number n) || n.doubleValue() != Math.rint(n.doubleValue())) throw new ApiError(400, key + " must be a whole number.");
+        if (!(raw instanceof Number n) || n.doubleValue() != Math.rint(n.doubleValue())) throw new ApiError(400, Text.en("dashboard.must_be_a_whole_number", key));
         return n.longValue();
     }
 
     private static long id(String raw) {
-        if (!raw.matches("\\d{1,18}")) throw new ApiError(404, "That tile doesn't exist.");
+        if (!raw.matches("\\d{1,18}")) throw new ApiError(404, Text.en("dashboard.that_tile_doesn_t_exist"));
         return Long.parseLong(raw);
     }
 

@@ -35,6 +35,7 @@ import com.younglings.bot.events.TeamRules;
 import com.younglings.bot.events.EventService;
 import com.younglings.bot.events.EventService.EventInput;
 import com.younglings.bot.events.EventTemplates;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
@@ -116,7 +117,7 @@ public class EventsAdminApi implements AdminRouteExtension {
         }
         if (parts.length >= 2 && EventSetupApi.handles(parts[1])) {
             DataObject answer = setupApi.route(guild, actor, method, parts, body);
-            if (answer == null) throw new ApiError(404, "That isn't something the event setup can do.");
+            if (answer == null) throw new ApiError(404, Text.of(guild, "dashboard.that_isn_t_something_the_event"));
             return answer;
         }
         if (parts.length == 2 && parts[1].equals("templates")) {
@@ -147,7 +148,7 @@ public class EventsAdminApi implements AdminRouteExtension {
                 case "GET" -> detail(guild, id);
                 case "PUT" -> update(guild, actor, id, body.get());
                 case "DELETE" -> delete(guild, actor, id);
-                default -> throw new ApiError(405, "Method not allowed");
+                default -> throw new ApiError(405, Text.of(guild, "dashboard.method_not_allowed"));
             };
         }
         String what = parts[2];
@@ -283,7 +284,7 @@ public class EventsAdminApi implements AdminRouteExtension {
             try {
                 to = EventRoster.Verification.valueOf(text(b, "state").toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException e) {
-                throw new ApiError(400, "Choose verified, waived, rejected or pending.");
+                throw new ApiError(400, Text.of(guild, "dashboard.choose_verified_waived_rejected_or_pending"));
             }
             service.setVerification(guild.getIdLong(), id, idOf(parts[3], "player"), to, actor.getIdLong(), text(b, "note"));
             log.info("Dashboard: {} set a player's verification to {} in event {}", actor.getId(), to, id);
@@ -298,7 +299,7 @@ public class EventsAdminApi implements AdminRouteExtension {
             Integer rating = null;
             if (b.hasKey("rating") && !b.isNull("rating")) {
                 long value = number(b, "rating", -1);
-                if (value < Integer.MIN_VALUE || value > Integer.MAX_VALUE) throw new ApiError(400, "A rating is from " + TeamBuilder.MIN_RATING + " to " + TeamBuilder.MAX_RATING + ".");
+                if (value < Integer.MIN_VALUE || value > Integer.MAX_VALUE) throw new ApiError(400, Text.of(guild, "dashboard.a_rating_is_from_to", TeamBuilder.MIN_RATING, TeamBuilder.MAX_RATING));
                 rating = (int) value;
             }
             service.setRating(guild.getIdLong(), id, idOf(parts[3], "player"), rating);
@@ -320,7 +321,7 @@ public class EventsAdminApi implements AdminRouteExtension {
             try {
                 to = BuyInStatus.valueOf(text(body.get(), "status").toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException e) {
-                throw new ApiError(400, "Choose a buy-in stage: due, paid or refunded.");
+                throw new ApiError(400, Text.of(guild, "dashboard.choose_a_buy_in_stage_due"));
             }
             service.setBuyIn(guild.getIdLong(), id, idOf(parts[3], "player"), to);
             log.info("Dashboard: {} set a buy-in to {} in event {}", actor.getId(), to, id);
@@ -333,7 +334,7 @@ public class EventsAdminApi implements AdminRouteExtension {
             try {
                 to = AwardStatus.valueOf(text(b, "status").toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException e) {
-                throw new ApiError(400, "Choose an award stage: paid, revoked or refunded.");
+                throw new ApiError(400, Text.of(guild, "dashboard.choose_an_award_stage_paid_revoked"));
             }
             service.moveAward(guild.getIdLong(), id, idOf(parts[3], "award"), to, actor.getIdLong(), text(b, "note"));
             log.info("Dashboard: {} moved an award to {} in event {}", actor.getId(), to, id);
@@ -397,7 +398,7 @@ public class EventsAdminApi implements AdminRouteExtension {
         try {
             to = Status.valueOf(text(body, "status").toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
-            throw new ApiError(400, "Choose a stage: draft, signups, running, scoring, done or cancelled.");
+            throw new ApiError(400, Text.of(guild, "dashboard.choose_a_stage_draft_signups_running"));
         }
         service.moveStage(guild.getIdLong(), id, to);
         log.info("Dashboard: {} moved event {} to {}", actor.getId(), id, to);
@@ -526,7 +527,7 @@ public class EventsAdminApi implements AdminRouteExtension {
                 if (link.rsn().equalsIgnoreCase(text)) userId = link.discordUserId();
             }
         }
-        if (userId == null) throw new ApiError(400, "I couldn't find \"" + text + "\". Use a Discord user id, or a RuneScape name linked with /rs.");
+        if (userId == null) throw new ApiError(400, Text.of(guild, "dashboard.i_couldn_t_find_use_a", text));
         Member member = guild.getMemberById(userId);
         if (member == null) {
             try {
@@ -535,7 +536,7 @@ public class EventsAdminApi implements AdminRouteExtension {
                 member = null;
             }
         }
-        if (member == null || member.getUser().isBot()) throw new ApiError(400, "\"" + text + "\" isn't a member of this server.");
+        if (member == null || member.getUser().isBot()) throw new ApiError(400, Text.of(guild, "dashboard.isn_t_a_member_of_this", text));
         return userId;
     }
 
@@ -551,7 +552,7 @@ public class EventsAdminApi implements AdminRouteExtension {
             DataArray array = body.getArray("remove");
             for (int i = 0; i < array.length() && i < 20; i++) {
                 String raw = array.getString(i).strip();
-                if (!raw.matches("\\d{1,20}")) throw new ApiError(400, "That isn't an organiser.");
+                if (!raw.matches("\\d{1,20}")) throw new ApiError(400, Text.of(guild, "dashboard.that_isn_t_an_organiser"));
                 remove.add(Long.parseLong(raw));
             }
         }
@@ -573,7 +574,7 @@ public class EventsAdminApi implements AdminRouteExtension {
             try {
                 evidence = Evidence.valueOf(text(o, "evidence").isEmpty() ? "EITHER" : text(o, "evidence").toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException e) {
-                throw new ApiError(400, "\"" + label + "\": choose how progress is recorded (auto, proof, either or organiser).");
+                throw new ApiError(400, Text.of(guild, "dashboard.choose_how_progress_is_recorded_auto", label));
             }
             List<String> prerequisites = new ArrayList<>();
             if (o.hasKey("prerequisites") && !o.isNull("prerequisites")) {
@@ -607,14 +608,14 @@ public class EventsAdminApi implements AdminRouteExtension {
             case "assign" -> {
                 AdminRouteExtension.requireMethod(method, "PUT");
                 DataObject b = body.get();
-                if (!b.hasKey("assignments") || b.isNull("assignments")) throw new ApiError(400, "Send the moves to make.");
+                if (!b.hasKey("assignments") || b.isNull("assignments")) throw new ApiError(400, Text.of(guild, "dashboard.send_the_moves_to_make"));
                 DataArray array = b.getArray("assignments");
-                if (array.length() > 1000) throw new ApiError(400, "That is too many moves at once.");
+                if (array.length() > 1000) throw new ApiError(400, Text.of(guild, "dashboard.that_is_too_many_moves_at"));
                 Map<Long, Long> moves = new LinkedHashMap<>();
                 for (int i = 0; i < array.length(); i++) {
                     DataObject move = array.getObject(i);
                     Long userId = optionalId(move, "userId");
-                    if (userId == null) throw new ApiError(400, "Every move needs a player.");
+                    if (userId == null) throw new ApiError(400, Text.of(guild, "dashboard.every_move_needs_a_player"));
                     moves.put(userId, optionalId(move, "teamId"));
                 }
                 int changed = service.assignTeams(guildId, id, moves, user -> {
@@ -625,7 +626,7 @@ public class EventsAdminApi implements AdminRouteExtension {
                 return detail(guild, id);
             }
             case "suggest" -> {
-                if (ClanVsClan.is(service.event(guildId, id).template())) throw new ApiError(409, "In a clan-vs-clan event each clan is a team, and players are put on their clan's team.");
+                if (ClanVsClan.is(service.event(guildId, id).template())) throw new ApiError(409, Text.of(guild, "dashboard.in_a_clan_vs_clan_event"));
                 AdminRouteExtension.requireMethod(method, "POST");
                 TeamBuilder.Suggestion suggestion = eventTeams.suggest(guildId, id);
                 DataArray moves = DataArray.empty();
@@ -665,15 +666,15 @@ public class EventsAdminApi implements AdminRouteExtension {
 
     DataObject addParticipant(Guild guild, Member actor, long id, DataObject body) {
         Long userId = optionalId(body, "userId");
-        if (userId == null) throw new ApiError(400, "Pick a player.");
+        if (userId == null) throw new ApiError(400, Text.of(guild, "dashboard.pick_a_player"));
         Member member = guild.getMemberById(userId);
-        if (member == null || member.getUser().isBot()) throw new ApiError(400, "That player isn't in this Discord server. They need to join the server before they can take part.");
+        if (member == null || member.getUser().isBot()) throw new ApiError(400, Text.of(guild, "dashboard.that_player_isn_t_in_this"));
         TeamRules.Kind kind = null;
         if (!text(body, "kind").isEmpty()) {
             try {
                 kind = TeamRules.Kind.valueOf(text(body, "kind").toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException e) {
-                throw new ApiError(400, "Choose the kind of player: home_clan, home_other or partner.");
+                throw new ApiError(400, Text.of(guild, "dashboard.choose_the_kind_of_player_home"));
             }
         }
         var joined = service.join(guild.getIdLong(), id, guild.getIdLong(), userId, optionalId(body, "teamId"), true, kind);
@@ -686,7 +687,7 @@ public class EventsAdminApi implements AdminRouteExtension {
 
     DataObject progress(Guild guild, Member actor, long id, DataObject body) {
         Long userId = optionalId(body, "userId");
-        if (userId == null) throw new ApiError(400, "Pick a player.");
+        if (userId == null) throw new ApiError(400, Text.of(guild, "dashboard.pick_a_player"));
         var recorded = service.recordProgress(guild.getIdLong(), id, text(body, "objective"), userId, number(body, "amount", 1), Source.MANUAL,
                 text(body, "sourceKey").isEmpty() ? null : "manual:" + text(body, "sourceKey"), actor.getIdLong(), text(body, "note"));
         log.info("Dashboard: {} recorded progress in event {}", actor.getId(), id);
@@ -741,7 +742,7 @@ public class EventsAdminApi implements AdminRouteExtension {
 
     DataObject submitClaim(Guild guild, Member actor, long id, DataObject body) {
         Long userId = optionalId(body, "userId");
-        if (userId == null) throw new ApiError(400, "Pick a player.");
+        if (userId == null) throw new ApiError(400, Text.of(guild, "dashboard.pick_a_player"));
         long claimId = service.submitClaim(guild.getIdLong(), id, text(body, "objective"), userId, number(body, "amount", 1), text(body, "note"), text(body, "proofUrl"));
         log.info("Dashboard: {} filed claim {} in event {}", actor.getId(), claimId, id);
         return claims(guild, id);
@@ -774,7 +775,7 @@ public class EventsAdminApi implements AdminRouteExtension {
 
     DataObject rerollBingo(Guild guild, Member actor, long id, DataObject body) {
         Event event = service.event(guild.getIdLong(), id);
-        if (!ClanVsClan.plays(event, BingoTemplate.KEY)) throw new ApiError(409, "This event isn't a bingo.");
+        if (!ClanVsClan.plays(event, BingoTemplate.KEY)) throw new ApiError(409, Text.of(guild, "dashboard.this_event_isn_t_a_bingo"));
         Set<String> locked = new HashSet<>();
         if (body.hasKey("lockedKeys") && !body.isNull("lockedKeys")) {
             DataArray keys = body.getArray("lockedKeys");
@@ -814,7 +815,7 @@ public class EventsAdminApi implements AdminRouteExtension {
                 kind = PrizeKind.valueOf(text(p, "kind").isEmpty() ? "IN_GAME" : text(p, "kind").toUpperCase(Locale.ROOT));
                 split = PrizePlan.Split.valueOf(text(p, "split").isEmpty() ? "EQUAL" : text(p, "split").toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException e) {
-                throw new ApiError(400, "Choose the prize kind (in game, clan points or other) and how a team shares it (equal, each or captain).");
+                throw new ApiError(400, Text.of(guild, "dashboard.choose_the_prize_kind_in_game"));
             }
             int place = (int) number(p, "place", 1);
             prizes.add(new PrizePlan.Prize(0, place, (int) number(p, "placeTo", place), kind, text(p, "description"), number(p, "amount", 0), (int) number(p, "percentOfPot", 0), split));
@@ -845,7 +846,7 @@ public class EventsAdminApi implements AdminRouteExtension {
             scope = body.hasKey("scope") ? Scope.valueOf(text(body, "scope").toUpperCase(Locale.ROOT)) : existing != null ? existing.scope() : Scope.PRIVATE;
             mode = body.hasKey("scoringMode") ? ScoringMode.valueOf(text(body, "scoringMode").toUpperCase(Locale.ROOT)) : existing != null ? existing.scoringMode() : ScoringMode.INDIVIDUAL;
         } catch (IllegalArgumentException e) {
-            throw new ApiError(400, "Choose who may see the event (private, alliance or public) and how it is scored (individual or team).");
+            throw new ApiError(400, Text.en("dashboard.choose_who_may_see_the_event_2"));
         }
         DataObject config = body.hasKey("config") && !body.isNull("config") ? body.getObject("config") : null;
         return new EventInput(body.hasKey("name") ? text(body, "name") : existing == null ? "" : existing.name(),
@@ -886,11 +887,11 @@ public class EventsAdminApi implements AdminRouteExtension {
 
     /** An id from the path. A Discord id can have 19 digits (the newest user ids do), which still fits a long; one that doesn't is refused, not crashed on. */
     static long idOf(String raw, String what) {
-        if (raw == null || !raw.matches("\\d{1,19}")) throw new ApiError(400, "That isn't a valid " + what + ".");
+        if (raw == null || !raw.matches("\\d{1,19}")) throw new ApiError(400, Text.en("dashboard.that_isn_t_a_valid", what));
         try {
             return Long.parseLong(raw);
         } catch (NumberFormatException e) {
-            throw new ApiError(400, "That isn't a valid " + what + ".");
+            throw new ApiError(400, Text.en("dashboard.that_isn_t_a_valid", what));
         }
     }
 
@@ -898,7 +899,7 @@ public class EventsAdminApi implements AdminRouteExtension {
         if (!body.hasKey(key) || body.isNull(key)) return null;
         String raw = body.getString(key, "").strip();
         if (raw.isEmpty()) return null;
-        if (!raw.matches("\\d{1,20}")) throw new ApiError(400, "That isn't a valid id.");
+        if (!raw.matches("\\d{1,20}")) throw new ApiError(400, Text.en("dashboard.that_isn_t_a_valid_id"));
         return Long.parseLong(raw);
     }
 
@@ -911,7 +912,7 @@ public class EventsAdminApi implements AdminRouteExtension {
         try {
             return body.getLong(key);
         } catch (RuntimeException e) {
-            throw new ApiError(400, "\"" + key + "\" must be a whole number.");
+            throw new ApiError(400, Text.en("dashboard.must_be_a_whole_number_2", key));
         }
     }
 
@@ -921,7 +922,7 @@ public class EventsAdminApi implements AdminRouteExtension {
         try {
             return Instant.parse(body.getString(key).strip());
         } catch (DateTimeParseException e) {
-            throw new ApiError(400, "\"" + key + "\" must be a date and time like 2026-10-20T19:00:00Z.");
+            throw new ApiError(400, Text.en("dashboard.must_be_a_date_and_time", key));
         }
     }
 

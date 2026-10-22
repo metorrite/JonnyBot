@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.rolekeep.RoleKeepRepository;
 import com.younglings.bot.rolekeep.RoleKeepRepository.Kept;
@@ -46,7 +47,7 @@ public class RoleKeepAdminApi implements AdminRouteExtension {
     @Override
     public DataObject route(Guild guild, Member actor, String method, String[] parts, Supplier<DataObject> body) {
         if (parts.length < 1 || !parts[0].equals("role-keeper")) return null;
-        if (access.tierOf(guild, actor) != com.younglings.bot.permission.DashboardAccess.Tier.ADMIN) throw new ApiError(403, "Only an Admin can use kept roles.");
+        if (access.tierOf(guild, actor) != com.younglings.bot.permission.DashboardAccess.Tier.ADMIN) throw new ApiError(403, Text.of(guild, "dashboard.only_an_admin_can_use_kept"));
         if (parts.length == 1) {
             AdminRouteExtension.requireMethod(method, "GET");
             return overview(guild);
@@ -62,7 +63,7 @@ public class RoleKeepAdminApi implements AdminRouteExtension {
             }
             if (parts.length == 3) {
                 AdminRouteExtension.requireMethod(method, "DELETE");
-                if (!repository.forgetById(guild.getIdLong(), parseId(parts[2]))) throw new ApiError(404, "That entry is gone.");
+                if (!repository.forgetById(guild.getIdLong(), parseId(parts[2]))) throw new ApiError(404, Text.of(guild, "dashboard.that_entry_is_gone"));
                 return overview(guild);
             }
         }
@@ -73,7 +74,7 @@ public class RoleKeepAdminApi implements AdminRouteExtension {
             }
             if (parts.length == 3) {
                 AdminRouteExtension.requireMethod(method, "DELETE");
-                Temp temp = repository.tempById(guild.getIdLong(), parseId(parts[2])).orElseThrow(() -> new ApiError(404, "That timed role is gone."));
+                Temp temp = repository.tempById(guild.getIdLong(), parseId(parts[2])).orElseThrow(() -> new ApiError(404, Text.of(guild, "dashboard.that_timed_role_is_gone")));
                 service.endTemp(guild, temp);
                 return overview(guild);
             }
@@ -113,7 +114,7 @@ public class RoleKeepAdminApi implements AdminRouteExtension {
     DataObject addKept(Guild guild, Member actor, DataObject body) {
         Member target = memberOf(guild, body);
         Role role = guild.getRoleById(parseId(body.getString("roleId", "")));
-        if (role == null) throw new ApiError(400, "Choose a role from this server.");
+        if (role == null) throw new ApiError(400, Text.of(guild, "dashboard.choose_a_role_from_this_server_2"));
         String problem = service.persist(guild, actor.getIdLong(), target, role);
         if (problem != null) throw new ApiError(400, problem);
         return overview(guild);
@@ -122,8 +123,8 @@ public class RoleKeepAdminApi implements AdminRouteExtension {
     DataObject addTemp(Guild guild, Member actor, DataObject body) {
         Member target = memberOf(guild, body);
         Role role = guild.getRoleById(parseId(body.getString("roleId", "")));
-        if (role == null) throw new ApiError(400, "Choose a role from this server.");
-        Duration length = RoleKeepRules.parseDuration(body.getString("duration", "")).orElseThrow(() -> new ApiError(400, "Give a length of time like 30m, 2h, 7d or 1w (1 minute to 365 days)."));
+        if (role == null) throw new ApiError(400, Text.of(guild, "dashboard.choose_a_role_from_this_server_2"));
+        Duration length = RoleKeepRules.parseDuration(body.getString("duration", "")).orElseThrow(() -> new ApiError(400, Text.of(guild, "dashboard.give_a_length_of_time_like")));
         String problem = service.giveTemp(guild, actor.getIdLong(), target, role, length);
         if (problem != null) throw new ApiError(400, problem);
         return overview(guild);
@@ -139,7 +140,7 @@ public class RoleKeepAdminApi implements AdminRouteExtension {
                 member = null;
             }
         }
-        if (member == null) throw new ApiError(404, "That person is not in this server.");
+        if (member == null) throw new ApiError(404, Text.of(guild, "dashboard.that_person_is_not_in_this"));
         return member;
     }
 
@@ -147,7 +148,7 @@ public class RoleKeepAdminApi implements AdminRouteExtension {
         try {
             return Long.parseLong(raw.strip());
         } catch (NumberFormatException e) {
-            throw new ApiError(400, "That is not a valid id.");
+            throw new ApiError(400, Text.en("dashboard.that_is_not_a_valid_id"));
         }
     }
 }

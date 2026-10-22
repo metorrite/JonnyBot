@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.ticket.HelpExtras;
 import com.younglings.bot.ticket.HelpExtrasRepository;
@@ -56,7 +57,7 @@ public class HelpExtrasAdminApi implements AdminRouteExtension {
                 body.hasKey("longtimeGuestEscalationHours") ? body.getInt("longtimeGuestEscalationHours", -1) : current.longtimeGuestEscalationHours(),
                 body.hasKey("kcRequirements") ? body.getString("kcRequirements", "").strip() : current.kcRequirements());
         var problems = next.problems();
-        if (!problems.isEmpty()) throw new ApiError(400, "Those settings can't be saved yet.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.those_settings_can_t_be_saved"), problems);
         repository.save(next);
         log.info("Dashboard: {} saved the help ticket extras (event button {})", actor.getId(), next.eventButton() ? "on" : "off");
         return get(guild);

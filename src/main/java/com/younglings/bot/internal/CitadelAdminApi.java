@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.tracking.CitadelWeek;
 import com.younglings.bot.tracking.CitadelWheelEntries;
@@ -104,7 +105,7 @@ public class CitadelAdminApi implements AdminRouteExtension {
                     return postLocked(guild, actor, end);
                 }
                 AdminRouteExtension.requireMethod(method, "GET");
-                if (winners.forWeek(guild.getIdLong(), end).isEmpty()) throw new ApiError(404, "That week hasn't been locked.");
+                if (winners.forWeek(guild.getIdLong(), end).isEmpty()) throw new ApiError(404, Text.of(guild, "dashboard.that_week_hasn_t_been_locked"));
                 return weekJson(guild, end, true);
             }
             case "prize" -> {
@@ -175,12 +176,12 @@ public class CitadelAdminApi implements AdminRouteExtension {
         } else {
             try {
                 LocalDate end = LocalDate.parse(endDate);
-                if (end.getDayOfWeek() != java.time.DayOfWeek.WEDNESDAY) throw new ApiError(400, "A Citadel week ends on a Wednesday.");
+                if (end.getDayOfWeek() != java.time.DayOfWeek.WEDNESDAY) throw new ApiError(400, Text.of(guild, "dashboard.a_citadel_week_ends_on_a"));
                 window = CitadelWeek.windowEndingOn(end);
             } catch (DateTimeException e) {
-                throw new ApiError(400, "Give the date the week ended, like 2026-10-14.");
+                throw new ApiError(400, Text.of(guild, "dashboard.give_the_date_the_week_ended"));
             }
-            if (window[1].isAfter(now.plusDays(7))) throw new ApiError(400, "That week hasn't happened yet.");
+            if (window[1].isAfter(now.plusDays(7))) throw new ApiError(400, Text.of(guild, "dashboard.that_week_hasn_t_happened_yet"));
         }
         var eligible = entries.forWeek(guild, window[0], window[1]);
         Map<LocalDate, List<Winner>> locked = new HashMap<>();
@@ -241,7 +242,7 @@ public class CitadelAdminApi implements AdminRouteExtension {
             }
         }
         if (autoPost && channelId == null) problems.add("Choose the channel before switching auto-posting on.");
-        if (!problems.isEmpty()) throw new ApiError(400, "Those wheel settings can't be saved yet.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.those_wheel_settings_can_t_be"), problems);
 
         settings.save(guild.getIdLong(), new WheelSettingsRepository.Settings(autoPost, channelId, message, video));
         log.info("Dashboard: {} saved the Citadel wheel settings (auto-post {}, video {})", actor.getId(), autoPost ? "on" : "off", video ? "on" : "off");
@@ -254,21 +255,21 @@ public class CitadelAdminApi implements AdminRouteExtension {
      */
     DataObject post(Guild guild, Member actor, DataObject body) {
         String winner = body.getString("winner", "").strip();
-        if (winner.isEmpty()) throw new ApiError(400, "Say who won.");
-        if (winner.length() > WheelEntries.MAX_NAME) throw new ApiError(400, "That name is too long.");
+        if (winner.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.say_who_won"));
+        if (winner.length() > WheelEntries.MAX_NAME) throw new ApiError(400, Text.of(guild, "dashboard.that_name_is_too_long"));
         List<String> drawn = new ArrayList<>();
         if (body.hasKey("entries") && !body.isNull("entries")) {
             DataArray array = body.getArray("entries");
-            if (array.length() > WheelEntries.MAX_ENTRIES) throw new ApiError(400, "The wheel holds up to " + WheelEntries.MAX_ENTRIES + " entries.");
+            if (array.length() > WheelEntries.MAX_ENTRIES) throw new ApiError(400, Text.of(guild, "dashboard.the_wheel_holds_up_to_entries", WheelEntries.MAX_ENTRIES));
             for (int i = 0; i < array.length(); i++) drawn.add(array.getString(i));
         }
-        if (drawn.stream().noneMatch(e -> e.equalsIgnoreCase(winner))) throw new ApiError(400, "The winner has to be one of the entries on the wheel.");
+        if (drawn.stream().noneMatch(e -> e.equalsIgnoreCase(winner))) throw new ApiError(400, Text.of(guild, "dashboard.the_winner_has_to_be_one"));
         OffsetDateTime[] window;
         try {
             LocalDate end = LocalDate.parse(body.getString("end", ""));
             window = CitadelWeek.windowEndingOn(end);
         } catch (DateTimeException e) {
-            throw new ApiError(400, "Say which week this was.");
+            throw new ApiError(400, Text.of(guild, "dashboard.say_which_week_this_was"));
         }
         GuildMessageChannel channel;
         try {
@@ -277,7 +278,7 @@ public class CitadelAdminApi implements AdminRouteExtension {
             throw new ApiError(409, e.getMessage());
         }
         LocalDate weekEnd = window[1].withOffsetSameInstant(ZoneOffset.UTC).toLocalDate();
-        if (!winners.forWeek(guild.getIdLong(), weekEnd).isEmpty()) throw new ApiError(409, "This week is locked. Post it from the locked winners.");
+        if (!winners.forWeek(guild.getIdLong(), weekEnd).isEmpty()) throw new ApiError(409, Text.of(guild, "dashboard.this_week_is_locked_post_it"));
         worker.execute(() -> {
             try {
                 poster.postFromDashboard(guild, window, winner, drawn);
@@ -295,7 +296,7 @@ public class CitadelAdminApi implements AdminRouteExtension {
         try {
             return LocalDate.parse(text == null ? "" : text.strip());
         } catch (DateTimeException e) {
-            throw new ApiError(400, "Say which week, by the date it ended, like 2026-10-14.");
+            throw new ApiError(400, Text.en("dashboard.say_which_week_by_the_date"));
         }
     }
 
@@ -303,7 +304,7 @@ public class CitadelAdminApi implements AdminRouteExtension {
         try {
             return Base64.getDecoder().decode(base64 == null ? "" : base64.strip());
         } catch (IllegalArgumentException e) {
-            throw new ApiError(400, "The picture couldn't be read.");
+            throw new ApiError(400, Text.en("dashboard.the_picture_couldn_t_be_read"));
         }
     }
 
@@ -376,7 +377,7 @@ public class CitadelAdminApi implements AdminRouteExtension {
     }
 
     private DataObject postLocked(Guild guild, Member actor, LocalDate end) {
-        if (winners.forWeek(guild.getIdLong(), end).isEmpty()) throw new ApiError(404, "That week hasn't been locked.");
+        if (winners.forWeek(guild.getIdLong(), end).isEmpty()) throw new ApiError(404, Text.of(guild, "dashboard.that_week_hasn_t_been_locked"));
         GuildMessageChannel channel;
         try {
             channel = poster.channelFor(guild);
@@ -406,7 +407,7 @@ public class CitadelAdminApi implements AdminRouteExtension {
 
     private static int placeOf(DataObject body) {
         int place = body.getInt("place", 1);
-        if (place < 1 || place > CitadelWinners.MAX_WINNERS) throw new ApiError(400, "That isn't a place on the wheel.");
+        if (place < 1 || place > CitadelWinners.MAX_WINNERS) throw new ApiError(400, Text.en("dashboard.that_isn_t_a_place_on"));
         return place;
     }
 
@@ -414,7 +415,7 @@ public class CitadelAdminApi implements AdminRouteExtension {
         if (!body.hasKey(key) || body.isNull(key)) return null;
         String raw = body.getString(key, "").strip();
         if (raw.isEmpty()) return null;
-        if (!raw.matches("\\d{1,20}")) throw new ApiError(400, "That isn't a Discord user.");
+        if (!raw.matches("\\d{1,20}")) throw new ApiError(400, Text.en("dashboard.that_isn_t_a_discord_user"));
         return Long.parseLong(raw);
     }
 
@@ -436,7 +437,7 @@ public class CitadelAdminApi implements AdminRouteExtension {
         } else if (action.equals("pending")) {
             prizes.markPending(guild.getIdLong(), end, place);
         } else {
-            throw new ApiError(400, "Say whether the prize was given or not.");
+            throw new ApiError(400, Text.of(guild, "dashboard.say_whether_the_prize_was_given"));
         }
         return weekJson(guild, end, false);
     }
@@ -446,7 +447,7 @@ public class CitadelAdminApi implements AdminRouteExtension {
         LocalDate end = weekEndOf(body.getString("end", ""));
         int place = placeOf(body);
         Long paidBy = optionalId(body, "paidBy");
-        if (paidBy == null) throw new ApiError(400, "Choose who paid the prize.");
+        if (paidBy == null) throw new ApiError(400, Text.of(guild, "dashboard.choose_who_paid_the_prize"));
         prizes.recordInCoffer(guild, end, place, body.getString("amount", ""), paidBy, optionalId(body, "recipient"), body.getString("note", ""), actor.getIdLong());
         log.info("Dashboard: {} recorded the Citadel wheel prize for place {} of the week ending {} in the coffer", actor.getId(), place, end);
         return weekJson(guild, end, false);

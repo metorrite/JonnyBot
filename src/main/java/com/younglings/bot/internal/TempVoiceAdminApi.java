@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.tempvoice.TempVoiceRepository;
 import com.younglings.bot.tempvoice.TempVoiceRules;
@@ -108,14 +109,14 @@ public class TempVoiceAdminApi implements AdminRouteExtension {
         }
         boolean isNew = create || (hubChannel != null && repository.hubByChannel(hubChannel.getIdLong()).isEmpty());
         if (isNew && repository.hubs(guild.getIdLong()).size() >= TempVoiceRules.MAX_HUBS_PER_GUILD) problems.add("A server can have at most " + TempVoiceRules.MAX_HUBS_PER_GUILD + " hubs.");
-        if (!problems.isEmpty()) throw new ApiError(400, "That hub can't be saved yet.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.that_hub_can_t_be_saved"), problems);
 
         if (create) {
             String name = TempVoiceRules.cleanName(body.isNull("hubName") ? "" : body.getString("hubName", ""));
             try {
                 hubChannel = guild.createVoiceChannel(name.equals("Voice channel") ? "➕ Create voice channel" : name, category).reason("Temporary voice hub created from the dashboard").complete();
             } catch (RuntimeException e) {
-                throw new ApiError(400, "Discord refused to create the channel.", List.of("Check JonnyBot may manage channels" + (category == null ? "." : " in that category.")));
+                throw new ApiError(400, Text.of(guild, "dashboard.discord_refused_to_create_the_channel"), List.of("Check JonnyBot may manage channels" + (category == null ? "." : " in that category.")));
             }
         }
         repository.saveHub(new Hub(guild.getIdLong(), hubChannel.getIdLong(), category == null ? null : category.getIdLong(), pattern, limit));
@@ -124,8 +125,8 @@ public class TempVoiceAdminApi implements AdminRouteExtension {
     }
 
     DataObject delete(Guild guild, Member actor, String rawId) {
-        if (rawId == null || !rawId.strip().matches("\\d{1,20}")) throw new ApiError(400, "That isn't a valid channel.");
-        if (!repository.deleteHub(guild.getIdLong(), Long.parseLong(rawId.strip()))) throw new ApiError(404, "That channel isn't a hub.");
+        if (rawId == null || !rawId.strip().matches("\\d{1,20}")) throw new ApiError(400, Text.of(guild, "dashboard.that_isn_t_a_valid_channel"));
+        if (!repository.deleteHub(guild.getIdLong(), Long.parseLong(rawId.strip()))) throw new ApiError(404, Text.of(guild, "dashboard.that_channel_isn_t_a_hub"));
         log.info("Dashboard: {} removed the temporary voice hub {}", actor.getId(), rawId.strip());
         return get(guild);
     }

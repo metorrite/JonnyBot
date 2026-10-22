@@ -3,6 +3,7 @@ package com.younglings.bot.internal;
 import com.younglings.bot.ban.AnnounceService;
 import com.younglings.bot.ban.BanAnnouncementRepository;
 import com.younglings.bot.ban.BanAnnouncementService;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.welcome.WelcomeConfig;
 import com.younglings.bot.welcome.WelcomeValidator;
@@ -69,7 +70,7 @@ public class AnnouncementsAdminApi implements AdminRouteExtension {
     /** Posts the draft in its channel as if the acting admin had just been banned. Nobody is pinged. */
     DataObject test(Guild guild, Member actor, DataObject body) {
         WelcomeConfig config = parseAndCheck(guild, body);
-        if (config.channelId() == null) throw new ApiError(400, "Choose the channel first.");
+        if (config.channelId() == null) throw new ApiError(400, Text.of(guild, "dashboard.choose_the_channel_first"));
         try {
             BanAnnouncementService.TestResult result = banService.sendTest(guild, actor.getUser(), config);
             log.info("Dashboard: {} sent a ban announcement test in #{}", actor.getId(), result.channelName());
@@ -82,12 +83,12 @@ public class AnnouncementsAdminApi implements AdminRouteExtension {
     /** The dashboard twin of /announce: same rules, judged against the signed-in admin's own permissions in that channel. */
     DataObject send(Guild guild, Member actor, DataObject body) {
         String rawChannel = body.isNull("channelId") ? "" : body.getString("channelId", "").strip();
-        if (!rawChannel.matches("\\d{1,20}")) throw new ApiError(400, "Choose a channel.");
+        if (!rawChannel.matches("\\d{1,20}")) throw new ApiError(400, Text.of(guild, "dashboard.choose_a_channel"));
         Long roleId = null;
         if (!body.isNull("roleId")) {
             String rawRole = body.getString("roleId", "").strip();
             if (!rawRole.isEmpty()) {
-                if (!rawRole.matches("\\d{1,20}")) throw new ApiError(400, "That role isn't valid.");
+                if (!rawRole.matches("\\d{1,20}")) throw new ApiError(400, Text.of(guild, "dashboard.that_role_isn_t_valid"));
                 roleId = Long.parseLong(rawRole);
             }
         }
@@ -100,7 +101,7 @@ public class AnnouncementsAdminApi implements AdminRouteExtension {
             throw new ApiError(400, e.getMessage());
         } catch (RuntimeException e) {
             log.warn("Dashboard announcement couldn't be posted", e);
-            throw new ApiError(400, "Discord wouldn't let the announcement be posted there.");
+            throw new ApiError(400, Text.of(guild, "dashboard.discord_wouldn_t_let_the_announcement"));
         }
     }
 
@@ -116,7 +117,7 @@ public class AnnouncementsAdminApi implements AdminRouteExtension {
             if (channel == null) problems.add("That channel doesn't exist in this server.");
             else if (!channel.canTalk()) problems.add("JonnyBot can't post in #" + channel.getName() + ". It needs permission to view and send messages (and embed links) there.");
         }
-        if (!problems.isEmpty()) throw new ApiError(400, "That ban announcement can't be saved yet.", problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.that_ban_announcement_can_t_be"), problems);
         return c;
     }
 

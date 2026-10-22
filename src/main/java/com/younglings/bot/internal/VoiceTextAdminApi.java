@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.voicetext.VoiceTextRepository;
 import com.younglings.bot.voicetext.VoiceTextRepository.Config;
@@ -102,7 +103,7 @@ public class VoiceTextAdminApi implements AdminRouteExtension {
             }
         }
         if (enabled && links.isEmpty()) problems.add("Link at least one voice channel before switching this on.");
-        if (!problems.isEmpty()) throw new ApiError(400, "Those settings can't be saved yet.", problems.stream().distinct().toList());
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.those_settings_can_t_be_saved"), problems.stream().distinct().toList());
 
         repository.saveConfig(new Config(guild.getIdLong(), enabled, announce, purge));
         if (body.hasKey("links")) {
