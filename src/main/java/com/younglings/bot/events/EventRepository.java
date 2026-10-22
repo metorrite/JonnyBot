@@ -1192,6 +1192,8 @@ public class EventRepository {
             }
             return quotas;
         } catch (SQLException e) {
+            // 42P01/42703: the co-host table or its quota column isn't there (a database EventCohostRepository hasn't set up yet), so nobody has a quota
+            if ("42P01".equals(e.getSQLState()) || "42703".equals(e.getSQLState())) return quotas;
             throw new RuntimeException("Failed to read the co-hosts' seat quotas", e);
         }
     }

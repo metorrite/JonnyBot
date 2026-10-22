@@ -82,6 +82,8 @@ public class EventService {
         List<String> problems = new ArrayList<>(EventRules.eventProblems(in.name(), in.description(), in.maxParticipants(), in.startsAt(), in.endsAt()));
         problems.addAll(template.configProblems(config));
         problems.addAll(EventSettings.problems(config));
+        String quota = QueueRules.quotaProblem(in.maxParticipants(), QueueRules.quotaSetting(config).host(), List.of());
+        if (quota != null) problems.add(quota);
         if (!problems.isEmpty()) throw new EventProblem(400, "The event can't be created yet.", problems);
         try {
             config = template.prepare(config);
@@ -125,6 +127,9 @@ public class EventService {
         List<String> problems = new ArrayList<>(EventRules.eventProblems(in.name(), in.description(), in.maxParticipants(), in.startsAt(), in.endsAt()));
         problems.addAll(template.configProblems(config));
         problems.addAll(EventSettings.problems(config));
+        // seat quotas (T-220): the host's and the co-hosts' together may not be more than the player limit
+        String quota = QueueRules.quotaProblem(in.maxParticipants(), QueueRules.quotaSetting(config).host(), repository.cohostQuotas(id).values());
+        if (quota != null) problems.add(quota);
         if (!problems.isEmpty()) throw new EventProblem(400, "The event can't be saved yet.", problems);
         if (!repository.updateEvent(guildId, id, in.name().strip(), clean(in.description()), in.scope(), in.scoringMode(), in.startsAt(), in.endsAt(), in.maxParticipants(), config.toString())) {
             throw new EventProblem(409, "The event moved on while you were editing it.");
