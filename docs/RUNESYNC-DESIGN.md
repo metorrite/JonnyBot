@@ -82,9 +82,11 @@ The server is the source of truth for consent (`plugin_consent`); the plugin onl
 
 - `POST /internal/plugin/ingest` accepts `Authorization: RSLink <assertion>` beside `X-Plugin-Token` (T-200).
 - `PluginCategory.XP`, `PluginEventType.XP` and `CLUE` with validation; XP scale; DROP valuation from GE prices at store time (stored as `valueGp` in the event's data copy, nullable when unknown) (T-201).
-- `GET /internal/plugin/runesync/config` -> `{ consent: [...], panelAvailable: bool, minClientVersion: "0.1.0", sendEverySeconds: 60 }` and `PUT .../consent` (same rules as the profile action) (T-202).
+- `GET /internal/plugin/runesync/config` -> `{ consent: [...], panelAvailable: bool, minClientVersion: "0.1.0", sendEverySeconds: 60 }` and `POST` (or `PUT`) `.../consent` (same rules as the profile action; the game client can only send GET and POST) (T-202).
 - `POST /internal/plugin/runesync/diagnostics` -> stores a redacted snapshot for 14 days, returns a short id like the bot's dev snapshot (T-093) (T-202).
+  - Built (T-202): `minClientVersion` comes from `RUNESYNC_MIN_CLIENT_VERSION` (unset = `0.0.0`, nobody refused). The config call may add `?client=<name version>&paused=true|false`, which only feeds the profile's device card. Snapshots: 16 KB max, 10 per member per day, fields named like token, assertion, tracking id, chat text/message, secret, password, authorization, cookie or discord dropped at any depth (permission flags like `chatAccess` stay). Owner view: `GET /internal/admin/runesync/diagnostics/{id}` (website Super admin -> RuneSync diagnostics). Member view: `GET /internal/plugin/me/runesync`.
 - `GET /internal/plugin/runesync/panel` -> the member's own clan's upcoming and running events, their own points and their own event progress (T-206). Data flows **into** the client only; this does not break the own-data rule.
+  - Built (T-206): one entry per server the member shares with JonnyBot whose **Clan plugin** page has "Allow the in-game clan panel" on (`plugin_guild_settings.clan_panel`, default off; admin route `GET/PUT plugin-settings`). Events: SIGNUPS and RUNNING, 10 per clan, with `joined`. Points: the member's own balance when the clan uses points. Progress: for running events the member is in, their (or their team's) points, objectives done of total, bingo tiles done. Cached 60 s per member; `panelAvailable` in the config is true when at least one clan allows it.
 - All behind the website proxy on the `api.` host, which keeps its own per-IP limits.
 
 ## 8. Website views (every data type has one)
