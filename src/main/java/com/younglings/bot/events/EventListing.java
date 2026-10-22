@@ -75,6 +75,17 @@ public final class EventListing {
         return publicStandings(config) && "SERVER".equals(standingsVisibility(config));
     }
 
+    /**
+     * Whether a clan-vs-clan event's clan standings may be shown on the hub (T-223): it is open to everyone, and its standings aren't kept to staff or
+     * hidden until the end while it runs. Clan names only, so the host's "show the standings on the hub" switch (which is about players) isn't needed.
+     */
+    public static boolean clanStandingsShown(Event e) {
+        if (!ClanVsClan.is(e.template()) || e.scope() != Scope.PUBLIC) return false;
+        String visibility = standingsVisibility(config(e));
+        if ("STAFF".equals(visibility)) return false;
+        return !"HIDDEN_UNTIL_END".equals(visibility) || e.status() == Status.DONE;
+    }
+
     /** {@code config.standings.visibility} as written (T-211), or null; read here directly so the hub doesn't depend on more than the setting's name. */
     private static String standingsVisibility(DataObject config) {
         try {

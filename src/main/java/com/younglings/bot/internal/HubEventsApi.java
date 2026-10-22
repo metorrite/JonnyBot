@@ -105,6 +105,9 @@ public class HubEventsApi {
         card.put("prizes", prizes);
         boolean scored = e.status() == Status.RUNNING || e.status() == Status.SCORING || e.status() == Status.DONE;
         if (scored && EventListing.standingsShown(e)) card.put("standings", standings(e));
+        // a clan-vs-clan event shows its clans' standings (clan names only) whenever it is open to everyone (T-223)
+        else if (scored && EventListing.clanStandingsShown(e)) card.put("standings", standings(e));
+        card.put("clanVsClan", com.younglings.bot.events.ClanVsClan.is(e.template()));
         return card;
     }
 
