@@ -2,6 +2,7 @@ package com.younglings.bot.runescape.polling;
 
 import com.younglings.bot.database.SchemaBootstrapper;
 import com.younglings.bot.runescape.polling.PollTally.Counts;
+import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.db.ConnectionSupplier;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
@@ -20,9 +21,7 @@ import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -40,11 +39,7 @@ public class RuneMetricsBudget {
 
     private final ConnectionSupplier connectionSupplier;
     private final PollCoordinator coordinator;
-    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor((ThreadFactory) runnable -> {
-        Thread thread = new Thread(runnable, "runemetrics-budget");
-        thread.setDaemon(true);
-        return thread;
-    });
+    private final ScheduledExecutorService executor = BotScheduler.lane("runemetrics-budget");
 
     public RuneMetricsBudget(ConnectionSupplier connectionSupplier, PollCoordinator coordinator) {
         this.connectionSupplier = connectionSupplier;

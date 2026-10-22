@@ -1,6 +1,7 @@
 package com.younglings.bot.retention;
 
 import com.younglings.bot.config.BotConfig;
+import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -11,9 +12,7 @@ import org.slf4j.LoggerFactory;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -33,11 +32,7 @@ public class GuildRetentionService {
 
     private final GuildRetentionRepository repository;
     private final BotConfig botConfig;
-    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor((ThreadFactory) runnable -> {
-        Thread thread = new Thread(runnable, "guild-retention");
-        thread.setDaemon(true);
-        return thread;
-    });
+    private final ScheduledExecutorService executor = BotScheduler.lane("guild-retention");
 
     public GuildRetentionService(GuildRetentionRepository repository, BotConfig botConfig) {
         this.repository = repository;

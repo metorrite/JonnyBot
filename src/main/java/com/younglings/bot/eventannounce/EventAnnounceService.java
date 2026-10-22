@@ -6,6 +6,7 @@ import com.younglings.bot.eventannounce.EventAnnounceRules.Card;
 import com.younglings.bot.eventannounce.EventAnnounceRules.Settings;
 import com.younglings.bot.eventannounce.EventAnnounceRules.State;
 import com.younglings.bot.eventannounce.EventAnnounceRules.Step;
+import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -48,7 +49,7 @@ public class EventAnnounceService {
     private final EventAnnounceRepository repository;
     private volatile JDA jda;
     private final ExecutorService worker = Executors.newSingleThreadExecutor(daemon("event-announcer"));
-    private final ScheduledExecutorService sweeper = Executors.newSingleThreadScheduledExecutor(daemon("event-announcer-sweep"));
+    private final ScheduledExecutorService sweeper = BotScheduler.lane("event-announcer-sweep");
 
     public EventAnnounceService(EventAnnounceRepository repository) {
         this.repository = repository;

@@ -1,6 +1,7 @@
 package com.younglings.bot.commands.ticket;
 
 import com.younglings.bot.alerts.AutoPostRouter;
+import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -8,9 +9,7 @@ import net.dv8tion.jda.api.JDA;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -26,12 +25,7 @@ public class TicketScheduler {
     private static final int TICKS_PER_INACTIVITY_CHECK = 10; // quiet tickets only need looking at every ten minutes
 
     private final TicketService ticketService;
-    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(
-            (ThreadFactory) runnable -> {
-                Thread thread = new Thread(runnable, "ticket-scheduler");
-                thread.setDaemon(true);
-                return thread;
-            });
+    private final ScheduledExecutorService executor = BotScheduler.lane("ticket-scheduler");
     private int ticks;
 
     public TicketScheduler(TicketService ticketService) {

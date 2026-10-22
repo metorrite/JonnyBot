@@ -2,6 +2,7 @@ package com.younglings.bot.lookup;
 
 import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.tracking.TrackingPostingToggle;
+import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -17,9 +18,7 @@ import org.slf4j.LoggerFactory;
 import java.time.Instant;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -35,12 +34,7 @@ public class LookupReminderScheduler {
     private final VosService vos;
     private final TrackingPostingToggle posting;
     private final BotConfig botConfig;
-    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(
-            (ThreadFactory) runnable -> {
-                Thread thread = new Thread(runnable, "lookup-reminders");
-                thread.setDaemon(true);
-                return thread;
-            });
+    private final ScheduledExecutorService executor = BotScheduler.lane("lookup-reminders");
 
     public LookupReminderScheduler(LookupReminderRepository reminders, VosService vos, TrackingPostingToggle posting, BotConfig botConfig) {
         this.reminders = reminders;

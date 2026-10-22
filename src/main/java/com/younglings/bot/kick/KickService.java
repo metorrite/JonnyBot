@@ -5,6 +5,7 @@ import com.younglings.bot.kick.KickClient.Stream;
 import com.younglings.bot.kick.KickRepository.Settings;
 import com.younglings.bot.kick.KickRepository.Streamer;
 import com.younglings.bot.kick.KickRules.OfflineAction;
+import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -23,9 +24,7 @@ import java.awt.Color;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -42,11 +41,7 @@ public class KickService {
 
     private final KickRepository repository;
     private final KickClient client;
-    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor((ThreadFactory) runnable -> {
-        Thread thread = new Thread(runnable, "kick");
-        thread.setDaemon(true);
-        return thread;
-    });
+    private final ScheduledExecutorService executor = BotScheduler.lane("kick");
 
     public KickService(KickRepository repository, KickClient client) {
         this.repository = repository;
