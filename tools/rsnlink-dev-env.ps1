@@ -16,11 +16,12 @@
 .PARAMETER EnvFile
   The .env file to write. Default: .env in the repository root (git-ignored).
 .PARAMETER PublicBaseUrl
-  The address the plugin shows players. Default: http://localhost:3000 (the local website).
+  The address the plugin shows players. Default: http://localhost:3000/link (the link page on the local website; the site's
+  root is the clan site, so players typing only localhost:3000 found nowhere to enter the code, beta test 2026-10-22).
 #>
 param(
   [string]$EnvFile = (Join-Path $PSScriptRoot '..\.env'),
-  [string]$PublicBaseUrl = 'http://localhost:3000'
+  [string]$PublicBaseUrl = 'http://localhost:3000/link'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -58,7 +59,7 @@ if ($exists -ne '1') {
 $existing = @{}
 if (Test-Path $EnvFile) {
   foreach ($line in Get-Content $EnvFile) {
-    $k = ($line -split '=', 2)[0].Trim()
+    $k = ($line -split '=', 2)[0].Trim().TrimStart([char]0xFEFF)
     if ($k) { $existing[$k] = $true }
   }
 }
@@ -71,11 +72,21 @@ $wanted = [ordered]@{
   'LINK_PUBLIC_BASE_URL' = $PublicBaseUrl
 }
 $added = @()
+$lines = ''
 foreach ($name in $wanted.Keys) {
   if (-not $existing.ContainsKey($name)) {
-    Add-Content -Path $EnvFile -Value "$name=$($wanted[$name])" -Encoding utf8
+    $lines += "$name=$($wanted[$name])`n"
     $added += $name
   }
+}
+if ($lines) {
+  # UTF-8 WITHOUT a byte-order mark: Windows PowerShell 5.1's "-Encoding utf8" writes one, and it hid the first key from
+  # the bot's .env reader (beta test 2026-10-22). Start on a new line if the file doesn't end with one.
+  if ((Test-Path $EnvFile) -and (Get-Item $EnvFile).Length -gt 0) {
+    $raw = [System.IO.File]::ReadAllText((Resolve-Path $EnvFile).Path)
+    if (-not $raw.EndsWith("`n")) { $lines = "`n" + $lines }
+  }
+  [System.IO.File]::AppendAllText([System.IO.Path]::GetFullPath($EnvFile), $lines, (New-Object System.Text.UTF8Encoding $false))
 }
 if ($added.Count -gt 0) { Write-Host ('Added to ' + $EnvFile + ': ' + ($added -join ', ')) } else { Write-Host 'Every LINK_ variable was already set; nothing changed.' }
 Write-Host 'Restart the dev bot; its log should say "RSN link service is on (schema rsnlink)."'
