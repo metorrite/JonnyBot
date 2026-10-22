@@ -1,6 +1,7 @@
 package com.younglings.bot.commands.ticket;
 
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.ticket.TicketModels.HelpSettings;
 import com.younglings.bot.ticket.TicketRepository;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -44,14 +45,13 @@ public class HelpOnboarding {
     /** The guidelines, a line saying what pressing the button means, then the buttons: agree, ping settings, step down. */
     static Container message(HelpSettings settings) {
         List<ContainerChildComponent> children = new ArrayList<>();
-        children.add(TextDisplay.of("### Sign up as a PVM Helper"));
+        children.add(TextDisplay.of(Text.of(settings.guildId(), "ticket.helper.sign_up_title")));
         children.add(TextDisplay.of(truncate(settings.guidelinesOrDefault(), HelpSettings.MAX_GUIDELINES)));
-        children.add(TextDisplay.of("-# Pressing the green button means you have read these guidelines and agree to them. Once you're a helper, **Ping Settings** lets you "
-                + "choose which tiers ping you. You can hand the role back at any time."));
+        children.add(TextDisplay.of(Text.of(settings.guildId(), "ticket.helper.pressing_the_green_button")));
         children.add(ActionRow.of(
-                Button.success(ACCEPT_ID, "I agree — sign me up"),
-                Button.primary(PINGS_ID, "Ping Settings"),
-                Button.secondary(LEAVE_ID, "Stop being a PVM Helper")));
+                Button.success(ACCEPT_ID, Text.of(settings.guildId(), "ticket.helper.i_agree")),
+                Button.primary(PINGS_ID, Text.of(settings.guildId(), "ticket.helper.ping_settings")),
+                Button.secondary(LEAVE_ID, Text.of(settings.guildId(), "ticket.helper.stop_being_a_helper"))));
         return Containers.card(Containers.PRIMARY, children);
     }
 
@@ -65,18 +65,17 @@ public class HelpOnboarding {
         List<String> ticked = allowed.stream().filter(chosen::contains).toList();
 
         List<ContainerChildComponent> children = new ArrayList<>();
-        StringBuilder text = new StringBuilder("### Your ping settings\n");
-        if (plus) text.append("You're a **PVM Helper+**, so you can be pinged for every tier.");
-        else text.append("You're a **PVM Helper**, so you can be pinged for the tiers below ").append(String.join(" and ", HelpRules.highTierLabels(settings)))
-                .append(". Those tickets won't ping you, but you can still see and join them.");
-        text.append("\n**Pinged for:** ").append(ticked.isEmpty() ? "*nothing. No ticket will ping you.*" : String.join(", ", ticked));
+        StringBuilder text = new StringBuilder(Text.of(settings.guildId(), "ticket.helper.your_ping_settings")).append("\n");
+        if (plus) text.append(Text.of(settings.guildId(), "ticket.helper.plus_every_tier"));
+        else text.append(Text.of(settings.guildId(), "ticket.helper.tiers_below", String.join(Text.of(settings.guildId(), "ticket.helper.and"), HelpRules.highTierLabels(settings))));
+        text.append("\n").append(Text.of(settings.guildId(), "ticket.helper.pinged_for", ticked.isEmpty() ? Text.of(settings.guildId(), "ticket.helper.pinged_for_nothing") : String.join(", ", ticked)));
         children.add(TextDisplay.of(text.toString()));
-        children.add(TextDisplay.of("Choose the tiers you want to hear about. Clear them all to turn pings off."));
+        children.add(TextDisplay.of(Text.of(settings.guildId(), "ticket.helper.choose_the_tiers")));
 
         StringSelectMenu.Builder menu = StringSelectMenu.create(PING_SELECT_ID)
-                .setPlaceholder("Choose tiers")
+                .setPlaceholder(Text.of(settings.guildId(), "ticket.helper.choose_tiers"))
                 .setRequiredRange(0, allowed.size());
-        for (String tier : allowed) menu.addOption(tier.equals(HelpRules.GENERAL) ? "General help (no tier picked)" : tier, tier);
+        for (String tier : allowed) menu.addOption(tier.equals(HelpRules.GENERAL) ? Text.of(settings.guildId(), "ticket.helper.general_help") : tier, tier);
         if (!ticked.isEmpty()) menu.setDefaultValues(ticked);
         children.add(ActionRow.of(menu.build()));
 

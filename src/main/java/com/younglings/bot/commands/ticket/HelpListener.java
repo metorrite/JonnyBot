@@ -1,6 +1,7 @@
 package com.younglings.bot.commands.ticket;
 
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.ticket.TicketModels.HelpSettings;
 import com.younglings.bot.ticket.TicketRepository;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -44,7 +45,7 @@ public class HelpListener extends ListenerAdapter {
             HelpSettings settings = repository.getHelpSettings(guild.getIdLong());
             Role role = settings.helperRoleId() == null ? null : guild.getRoleById(settings.helperRoleId());
             if (role == null && !id.equals(HelpOnboarding.PINGS_ID)) {
-                Containers.replyEphemeral(event, Containers.WARNING, "The PVM Helper role isn't set up yet. Ask an admin to choose it in /configure.");
+                Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "ticket.the_pvm_helper_role_isn_t"));
                 return;
             }
 
@@ -62,7 +63,7 @@ public class HelpListener extends ListenerAdapter {
     private void showPingSettings(ButtonInteractionEvent event, Guild guild, Member member, HelpSettings settings) {
         HelpPingService.HelperLevel level = HelpPingService.levelOf(settings, member);
         if (level == HelpPingService.HelperLevel.NONE) {
-            Containers.replyEphemeral(event, Containers.WARNING, "Sign up first: press **I agree — sign me up** and you become a PVM Helper. Then you can choose which tiers ping you.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "ticket.sign_up_first_press_i_agree"));
             return;
         }
         event.replyComponents(HelpOnboarding.pingSettings(settings, level, repository.getPingTiers(guild.getIdLong(), member.getIdLong())))
@@ -80,7 +81,7 @@ public class HelpListener extends ListenerAdapter {
             HelpSettings settings = repository.getHelpSettings(guild.getIdLong());
             HelpPingService.HelperLevel level = HelpPingService.levelOf(settings, member);
             if (level == HelpPingService.HelperLevel.NONE) {
-                Containers.replyEphemeral(event, Containers.WARNING, "You're not a PVM Helper any more, so there's nothing to change.");
+                Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "ticket.you_re_not_a_pvm_helper"));
                 return;
             }
             // Only the tiers this helper's role allows are kept, whatever the form claims to have sent.
@@ -97,39 +98,39 @@ public class HelpListener extends ListenerAdapter {
 
     private void accept(ButtonInteractionEvent event, Guild guild, Member member, Role role, boolean has) {
         if (has) {
-            Containers.replyEphemeral(event, Containers.INFO, "You're already a PVM Helper. Thank you for helping out.");
+            Containers.replyEphemeral(event, Containers.INFO, Text.of(event, "ticket.you_re_already_a_pvm_helper"));
             return;
         }
         if (!guild.getSelfMember().canInteract(role)) {
-            Containers.replyEphemeral(event, Containers.WARNING, "I can't hand out that role yet. An admin needs to move my role above it.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "ticket.i_can_t_hand_out_that"));
             return;
         }
         event.deferReply(true).queue();
         guild.addRoleToMember(member, role).reason("Accepted the PVM Helper guidelines").queue(
                 done -> event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.SUCCESS,
-                        "✅ You're now a PVM Helper. You can see every ticket and join the ones you can help with."))).useComponentsV2(true).queue(),
+                        Text.of(event, "ticket.you_re_now_a_pvm_helper")))).useComponentsV2(true).queue(),
                 error -> {
                     log.warn("Couldn't give {} the PVM Helper role", member.getId(), error);
-                    event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.DANGER, "I couldn't give you the role. Ask an admin to check my permissions."))).useComponentsV2(true).queue();
+                    event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.DANGER, Text.of(event, "ticket.i_couldn_t_give_you_the")))).useComponentsV2(true).queue();
                 });
     }
 
     private void leave(ButtonInteractionEvent event, Guild guild, Member member, Role role, boolean has) {
         if (!has) {
-            Containers.replyEphemeral(event, Containers.INFO, "You don't have the PVM Helper role.");
+            Containers.replyEphemeral(event, Containers.INFO, Text.of(event, "ticket.you_don_t_have_the_pvm"));
             return;
         }
         if (!guild.getSelfMember().canInteract(role)) {
-            Containers.replyEphemeral(event, Containers.WARNING, "I can't change that role yet. An admin needs to move my role above it.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "ticket.i_can_t_change_that_role"));
             return;
         }
         event.deferReply(true).queue();
         repository.setPingTiers(guild.getIdLong(), member.getIdLong(), Set.of()); // no pings for someone who isn't a helper
         guild.removeRoleFromMember(member, role).reason("Stepped down as a PVM Helper").queue(
-                done -> event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.SUCCESS, "You're no longer a PVM Helper. Thank you for what you did."))).useComponentsV2(true).queue(),
+                done -> event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.SUCCESS, Text.of(event, "ticket.you_re_no_longer_a_pvm")))).useComponentsV2(true).queue(),
                 error -> {
                     log.warn("Couldn't take the PVM Helper role from {}", member.getId(), error);
-                    event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.DANGER, "I couldn't remove the role. Ask an admin to check my permissions."))).useComponentsV2(true).queue();
+                    event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.DANGER, Text.of(event, "ticket.i_couldn_t_remove_the_role")))).useComponentsV2(true).queue();
                 });
     }
 }

@@ -16,6 +16,7 @@ import com.younglings.bot.events.EventRules.Status;
 import com.younglings.bot.events.EventService;
 import com.younglings.bot.events.EventSettings;
 import com.younglings.bot.events.EventSignups;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.MemberEventsApi;
 import com.younglings.bot.permission.AdminRoleFilter;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
@@ -76,7 +77,7 @@ public class EventsCommand {
         DataObject data = view.mine(event.getGuild(), event.getUser().getIdLong());
         DataArray events = data.getArray("events");
         if (events.length() == 0) {
-            Containers.replyEphemeral(event, Containers.INFO, "You haven't joined any events. See what's open with `/events open`.");
+            Containers.replyEphemeral(event, Containers.INFO, Text.of(event, "events.you_haven_t_joined_any_events"));
             return;
         }
         List<String> lines = new ArrayList<>();
@@ -112,7 +113,7 @@ public class EventsCommand {
     public void onOpen(GuildSlashEvent event) {
         List<Event> open = repository.events(event.getGuild().getIdLong(), List.of(Status.SIGNUPS), 15);
         if (open.isEmpty()) {
-            Containers.replyEphemeral(event, Containers.INFO, "No events are taking signups right now.");
+            Containers.replyEphemeral(event, Containers.INFO, Text.of(event, "events.no_events_are_taking_signups_right"));
             return;
         }
         List<String> lines = new ArrayList<>();
@@ -131,12 +132,11 @@ public class EventsCommand {
             var joined = service.join(guildId, id, guildId, event.getUser().getIdLong(), null, false, null);
             Event e = service.event(guildId, id);
             if (joined.waiting()) {
-                Containers.replyEphemeral(event, Containers.WARNING, "**" + e.name() + "** is full. You're on the waitlist at position " + joined.position() + ".");
+                Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "events.is_full_you_re_on_the", e.name(), joined.position()));
             } else {
                 var verification = EventSettings.verificationOf(DataObject.fromJson(e.config()));
-                Containers.replyEphemeral(event, Containers.SUCCESS, "You're in **" + e.name() + "**.",
-                        verification.required() ? "-# This event asks for verification: " + com.younglings.bot.events.EventRoster.askText(verification) + " You count once an organiser approves it."
-                                : "-# Check `/events mine` for your buy-in and team once the organisers set them.");
+                Containers.replyEphemeral(event, Containers.SUCCESS, Text.of(event, "events.you_re_in", e.name()),
+                        verification.required() ? Text.of(event, "events.this_event_asks_for_verification_you", com.younglings.bot.events.EventRoster.askText(verification)) : Text.of(event, "events.check_events_mine_for_your_buy"));
             }
         } catch (EventProblem p) {
             Containers.replyEphemeral(event, Containers.WARNING, p.getMessage());
@@ -149,11 +149,11 @@ public class EventsCommand {
         try {
             Event existing = service.event(guildId, id);
             if (existing.status() != Status.SIGNUPS) {
-                Containers.replyEphemeral(event, Containers.WARNING, "You can only leave while an event is taking signups. Ask an organiser if you need out of one that has started.");
+                Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "events.you_can_only_leave_while_an"));
                 return;
             }
             service.leave(guildId, id, event.getUser().getIdLong());
-            Containers.replyEphemeral(event, Containers.SUCCESS, "You've left event #" + id + ".");
+            Containers.replyEphemeral(event, Containers.SUCCESS, Text.of(event, "events.you_ve_left_event", id));
         } catch (EventProblem p) {
             Containers.replyEphemeral(event, Containers.WARNING, p.getMessage());
         }
@@ -172,15 +172,15 @@ public class EventsCommand {
             return;
         }
         if (target == null) {
-            Containers.replyEphemeral(event, Containers.INFO, "You aren't in a running bingo. See `/events mine`.");
+            Containers.replyEphemeral(event, Containers.INFO, Text.of(event, "events.you_aren_t_in_a_running"));
             return;
         }
         if (!com.younglings.bot.events.ClanVsClan.plays(target, BingoTemplate.KEY)) {
-            Containers.replyEphemeral(event, Containers.INFO, "That event doesn't have a board.");
+            Containers.replyEphemeral(event, Containers.INFO, Text.of(event, "events.that_event_doesn_t_have_a"));
             return;
         }
         if (repository.participant(target.id(), userId).isEmpty()) {
-            Containers.replyEphemeral(event, Containers.INFO, "You aren't in **" + target.name() + "**.");
+            Containers.replyEphemeral(event, Containers.INFO, Text.of(event, "events.you_aren_t_in", target.name()));
             return;
         }
         event.deferReply(true).queue();
@@ -192,7 +192,7 @@ public class EventsCommand {
                     done + " of " + tiles.size() + " tiles done · submit proof with /events submit event:" + target.id(), tiles);
             event.getHook().sendFiles(FileUpload.fromData(png, "my-bingo-board.png")).queue();
         } catch (IOException | RuntimeException e) {
-            event.getHook().sendMessage("I couldn't draw the board right now.").queue();
+            event.getHook().sendMessage(Text.of(event, "events.i_couldn_t_draw_the_board")).queue();
         }
     }
 
@@ -214,18 +214,18 @@ public class EventsCommand {
             return;
         }
         if (key == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "There's no tile " + tile + ". Use the number drawn on the tile.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "events.there_no_tile_use_the_number", tile));
             return;
         }
         EventSettings settings = EventSettings.parse(DataObject.fromJson(target.config()));
         TextChannel review = settings.reviewChannelId() == null ? null : event.getGuild().getTextChannelById(settings.reviewChannelId());
         if (review == null) {
-            Containers.replyEphemeral(event, Containers.INFO, "This event doesn't have a review channel yet, so screenshots can't be sent. Ask an organiser.");
+            Containers.replyEphemeral(event, Containers.INFO, Text.of(event, "events.this_event_doesn_t_have_a"));
             return;
         }
         String type = screenshot.getContentType();
         if (type == null || !type.startsWith("image/") || screenshot.getSize() > 8 * 1024 * 1024) {
-            Containers.replyEphemeral(event, Containers.WARNING, "Attach a screenshot (an image, up to 8 MB).");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "events.attach_a_screenshot_an_image_up"));
             return;
         }
         long claimId;
@@ -242,15 +242,15 @@ public class EventsCommand {
         String text = "**" + target.name() + " · submission #" + claimId + "** from " + event.getUser().getAsMention()
                 + "\nTile " + tile + ": " + label + extra + "\n-# Approve or deny it with the buttons, or on the dashboard (Event manager, Progress and proof).";
         screenshot.getProxy().download().thenCompose(stream -> review.sendMessage(text).setAllowedMentions(List.of())
-                        .addFiles(FileUpload.fromData(stream, screenshot.getFileName())).setComponents(EventClaimListener.buttons(eventId, claimId)).submit())
+                        .addFiles(FileUpload.fromData(stream, screenshot.getFileName())).setComponents(EventClaimListener.buttons(review.getGuild().getIdLong(), eventId, claimId)).submit())
                 .whenComplete((message, error) -> {
                     if (error != null) {
                         repository.decideClaim(eventId, claimId, ClaimStatus.DENIED, event.getJDA().getSelfUser().getIdLong(), "Couldn't be sent to the review channel");
-                        event.getHook().editOriginal("I couldn't pass your screenshot to staff. Try again in a moment.").queue();
+                        event.getHook().editOriginal(Text.of(event, "events.i_couldn_t_pass_your_screenshot")).queue();
                         return;
                     }
                     repository.setClaimProof(eventId, claimId, message.getJumpUrl());
-                    event.getHook().editOriginal("Sent to staff as submission #" + claimId + " for **" + label + "**. You'll get a DM when they decide.").queue();
+                    event.getHook().editOriginal(Text.of(event, "events.sent_to_staff_as_submission_for", claimId, label)).queue();
                 });
     }
 
@@ -272,7 +272,7 @@ public class EventsCommand {
                          @SlashOption(description = "Bingo only: what the board is drawn on (default RuneScape)", usePredefinedChoices = true) @Nullable EventQuickCreate.Look look) {
         Guild guild = event.getGuild();
         if (!isStaff(guild, event.getMember())) {
-            Containers.replyEphemeral(event, Containers.WARNING, "Only staff can create events.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "events.only_staff_can_create_events"));
             return;
         }
         long guildId = guild.getIdLong();
@@ -282,10 +282,10 @@ public class EventsCommand {
             long id = service.createEvent(guildId, event.getUser().getIdLong(), plan.input());
             service.moveStage(guildId, id, Status.SIGNUPS);
             Containers.reply(event, Containers.SUCCESS, false,
-                    "### 🎉 New event: " + plan.input().name(),
+                    Text.of(event, "events.new_event", plan.input().name()),
                     plan.summary(),
-                    "Sign up with `/events join id:" + id + "`. See everything open with `/events open`.",
-                    "-# Staff: prizes and buy-ins are on the dashboard's Event manager; teams are built there (Team builder) or with `/events team`. `/events start id:" + id + "` begins it.");
+                    Text.of(event, "events.sign_up_with_events_join_id", id),
+                    Text.of(event, "events.staff_prizes_and_buy_ins_are", id));
         } catch (IllegalArgumentException e) {
             Containers.replyEphemeral(event, Containers.WARNING, e.getMessage());
         } catch (EventProblem p) {
@@ -308,7 +308,7 @@ public class EventsCommand {
         try {
             Event e = service.event(guildId, id);
             if (!service.mayOrganise(e, event.getUser().getIdLong(), isStaff(event.getGuild(), event.getMember()))) {
-                Containers.replyEphemeral(event, Containers.WARNING, "Only staff and this event's organisers can do that.");
+                Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "events.only_staff_and_this_event_organisers"));
                 return;
             }
             service.moveStage(guildId, id, to);
@@ -324,7 +324,7 @@ public class EventsCommand {
         try {
             Event e = service.event(guild.getIdLong(), id);
             if (!service.mayOrganise(e, event.getUser().getIdLong(), isStaff(guild, event.getMember()))) {
-                Containers.replyEphemeral(event, Containers.WARNING, "Only staff and this event's organisers can do that.");
+                Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "events.only_staff_and_this_event_organisers"));
                 return;
             }
             EventSignups.Closed closed = signups.closeSignups(guild, id, event.getUser().getIdLong());
@@ -345,11 +345,11 @@ public class EventsCommand {
         try {
             Event e = service.event(guild.getIdLong(), id);
             if (!service.mayOrganise(e, event.getUser().getIdLong(), isStaff(guild, event.getMember()))) {
-                Containers.replyEphemeral(event, Containers.WARNING, "Only staff and this event's organisers can do that.");
+                Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "events.only_staff_and_this_event_organisers"));
                 return;
             }
             signups.reopenSignups(guild, id);
-            Containers.reply(event, Containers.SUCCESS, false, "**" + e.name() + "**: signups are open again.", "-# The roster has to be confirmed again once they are closed.");
+            Containers.reply(event, Containers.SUCCESS, false, Text.of(event, "events.signups_are_open_again", e.name()), Text.of(event, "events.the_roster_has_to_be_confirmed"));
         } catch (EventProblem p) {
             Containers.replyEphemeral(event, Containers.WARNING, refusal(p));
         }
@@ -367,11 +367,11 @@ public class EventsCommand {
 
     private void changeOrganiser(GuildSlashEvent event, long id, User user, boolean add) {
         if (!isStaff(event.getGuild(), event.getMember())) {
-            Containers.replyEphemeral(event, Containers.WARNING, "Only staff can change who organises an event.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "events.only_staff_can_change_who_organises"));
             return;
         }
         if (user.isBot()) {
-            Containers.replyEphemeral(event, Containers.WARNING, "Choose a person, not a bot.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "events.choose_a_person_not_a_bot"));
             return;
         }
         long guildId = event.getGuild().getIdLong();
@@ -379,7 +379,7 @@ public class EventsCommand {
             Event e = service.event(guildId, id);
             var after = service.changeOrganisers(guildId, id, add ? List.of(user.getIdLong()) : List.of(), add ? List.of() : List.of(user.getIdLong()));
             Containers.replyEphemeral(event, Containers.SUCCESS, (add ? user.getAsMention() + " can now run **" + e.name() + "**: start and finish it, and approve or deny proof."
-                    : user.getAsMention() + " is no longer an organiser of **" + e.name() + "**."), "-# " + after.size() + " organiser" + (after.size() == 1 ? "" : "s") + " on this event.");
+                    : user.getAsMention() + " is no longer an organiser of **" + e.name() + "**."), Text.of(event, "events.organiser_on_this_event", after.size(), (after.size() == 1 ? "" : "s")));
         } catch (EventProblem p) {
             Containers.replyEphemeral(event, Containers.WARNING, refusal(p));
         }

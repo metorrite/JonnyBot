@@ -1,6 +1,7 @@
 package com.younglings.bot.commands.ticket;
 
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.ticket.TicketModels.Field;
 import com.younglings.bot.ticket.TicketModels.FieldKind;
 import com.younglings.bot.ticket.TicketModels.Panel;
@@ -63,7 +64,7 @@ public class TicketListener extends ListenerAdapter {
             else if (id.startsWith(TicketView.CLOSE_PREFIX)) handleCloseButton(event, guild, member, parse(id, TicketView.CLOSE_PREFIX));
             else if (id.startsWith("ticket_rel_link:") || id.startsWith("ticket_rel_merge:")) {
                 long[] pair = RelatedTickets.parse(id);
-                if (pair == null) Containers.replyEphemeral(event, Containers.WARNING, "That button is out of date.");
+                if (pair == null) Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "ticket.that_button_is_out_of_date"));
                 else related.handle(event, guild, member, id.startsWith("ticket_rel_merge:"), pair[0], pair[1]);
             } else if (id.startsWith(TicketView.EVENT_PREFIX)) ticketEvents.handle(event, guild, member, parse(id, TicketView.EVENT_PREFIX));
         } catch (Exception e) {
@@ -95,7 +96,7 @@ public class TicketListener extends ListenerAdapter {
     private void handleOpen(ButtonInteractionEvent event, Guild guild, Member member, long panelId) {
         Panel panel = repository.getPanel(panelId);
         if (panel == null || panel.guildId() != guild.getIdLong()) {
-            Containers.replyEphemeral(event, Containers.WARNING, "That ticket type no longer exists.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "ticket.that_ticket_type_no_longer_exists"));
             return;
         }
         List<Field> fields = repository.getFields(panelId);
@@ -115,7 +116,7 @@ public class TicketListener extends ListenerAdapter {
     private void handleForm(ModalInteractionEvent event, Guild guild, Member member, long panelId) {
         Panel panel = repository.getPanel(panelId);
         if (panel == null || panel.guildId() != guild.getIdLong()) {
-            Containers.replyEphemeral(event, Containers.WARNING, "That ticket type no longer exists.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "ticket.that_ticket_type_no_longer_exists"));
             return;
         }
         List<Field> fields = repository.getFields(panelId);
@@ -137,10 +138,10 @@ public class TicketListener extends ListenerAdapter {
         service.openTicket(guild, member, panel, fields, raw).whenComplete((ticket, error) -> {
             if (error != null || ticket == null || ticket.channelId() == null) {
                 event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.DANGER,
-                        "I couldn't open the ticket — an admin needs to check that I can create channels in its category."))).useComponentsV2(true).queue();
+                        Text.of(event, "ticket.i_couldn_t_open_the_ticket")))).useComponentsV2(true).queue();
             } else {
                 event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.SUCCESS,
-                        "✅ Your ticket is open: <#" + ticket.channelId() + ">"))).useComponentsV2(true).queue();
+                        Text.of(event, "ticket.your_ticket_is_open", ticket.channelId())))).useComponentsV2(true).queue();
             }
         });
     }
@@ -169,7 +170,7 @@ public class TicketListener extends ListenerAdapter {
         Ticket ticket = repository.getTicket(ticketId);
         Panel panel = ticket == null || ticket.panelId() == null ? null : repository.getPanel(ticket.panelId());
         if (ticket == null || panel == null || ticket.guildId() != guild.getIdLong()) {
-            Containers.replyEphemeral(event, Containers.WARNING, "This ticket is no longer available.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "ticket.this_ticket_is_no_longer_available"));
             return;
         }
 
@@ -188,12 +189,12 @@ public class TicketListener extends ListenerAdapter {
                     event.editMessage(TicketView.opening(panel, fresh, rsns, helpers, pingRole, pingUsers, service.extrasFor(guild.getIdLong(), panel)).toEdit()).queue();
                 }
             }
-            case TICKET_CLOSED -> Containers.replyEphemeral(event, Containers.WARNING, "This ticket is already closed.");
-            case NO_HELPER_SYSTEM -> Containers.replyEphemeral(event, Containers.WARNING, "This ticket type doesn't use helpers.");
-            case IS_REQUESTER -> Containers.replyEphemeral(event, Containers.WARNING, "It's your own ticket — you can't join it as a helper.");
-            case ALREADY_HELPER -> Containers.replyEphemeral(event, Containers.INFO, "You've already joined this ticket.");
-            case NOT_ELIGIBLE -> Containers.replyEphemeral(event, Containers.WARNING, "Only helpers can join. Ask an admin for the helper role if you'd like to help out.");
-            case FULL -> Containers.replyEphemeral(event, Containers.WARNING, "This ticket already has " + panel.helperCap() + " helper(s) — that's the limit.");
+            case TICKET_CLOSED -> Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "ticket.this_ticket_is_already_closed"));
+            case NO_HELPER_SYSTEM -> Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "ticket.this_ticket_type_doesn_t_use"));
+            case IS_REQUESTER -> Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "ticket.it_your_own_ticket_you_can"));
+            case ALREADY_HELPER -> Containers.replyEphemeral(event, Containers.INFO, Text.of(event, "ticket.you_ve_already_joined_this_ticket"));
+            case NOT_ELIGIBLE -> Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "ticket.only_helpers_can_join_ask_an"));
+            case FULL -> Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "ticket.this_ticket_already_has_helper_that", panel.helperCap()));
         }
     }
 
@@ -202,32 +203,32 @@ public class TicketListener extends ListenerAdapter {
     private void handleCloseButton(ButtonInteractionEvent event, Guild guild, Member member, long ticketId) {
         Ticket ticket = repository.getTicket(ticketId);
         if (ticket == null || ticket.guildId() != guild.getIdLong()) {
-            Containers.replyEphemeral(event, Containers.WARNING, "This ticket is no longer available.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "ticket.this_ticket_is_no_longer_available"));
             return;
         }
         if (ticket.status() == Status.CLOSED) {
-            Containers.replyEphemeral(event, Containers.INFO, "This ticket is already closed.");
+            Containers.replyEphemeral(event, Containers.INFO, Text.of(event, "ticket.this_ticket_is_already_closed"));
             return;
         }
         Panel panel = ticket.panelId() == null ? null : repository.getPanel(ticket.panelId());
         if (!service.mayClose(guild, member, ticket, panel)) {
-            Containers.replyEphemeral(event, Containers.WARNING, "You don't have permission to close this ticket.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "ticket.you_don_t_have_permission_to"));
             return;
         }
 
         TextInput reason = TextInput.create("reason", TextInputStyle.PARAGRAPH)
-                .setPlaceholder("Optional — what was resolved, or why it's being closed")
+                .setPlaceholder(Text.of(event, "ticket.optional_what_was_resolved_or_why"))
                 .setRequired(false)
                 .setMaxLength(500)
                 .build();
-        event.replyModal(Modal.create("ticket_close_modal:" + ticketId, "Close this ticket").addComponents(Label.of("Reason", reason)).build()).queue();
+        event.replyModal(Modal.create("ticket_close_modal:" + ticketId, Text.of(event, "ticket.close_this_ticket")).addComponents(Label.of(Text.of(event, "ticket.reason"), reason)).build()).queue();
     }
 
     private void handleCloseModal(ModalInteractionEvent event, Guild guild, Member member, long ticketId) {
         Ticket ticket = repository.getTicket(ticketId);
         Panel panel = ticket == null || ticket.panelId() == null ? null : repository.getPanel(ticket.panelId());
         if (ticket == null || ticket.guildId() != guild.getIdLong() || !service.mayClose(guild, member, ticket, panel)) {
-            Containers.replyEphemeral(event, Containers.WARNING, "You can't close this ticket.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "ticket.you_can_t_close_this_ticket"));
             return;
         }
 
@@ -236,7 +237,7 @@ public class TicketListener extends ListenerAdapter {
         service.closeTicket(guild, ticket, member.getIdLong(), reason.isEmpty() ? null : reason)
                 .whenComplete((ignored, error) -> event.getHook().editOriginalComponents(List.of(Containers.toast(
                         error == null ? Containers.SUCCESS : Containers.DANGER,
-                        error == null ? "Ticket closed — the transcript is saved." : "Something went wrong closing the ticket — check the logs."))).useComponentsV2(true).queue());
+                        error == null ? Text.of(event, "ticket.ticket_closed_the_transcript_is_saved") : Text.of(event, "ticket.something_went_wrong_closing_the_ticket")))).useComponentsV2(true).queue());
     }
 
     private static long parse(String id, String prefix) {

@@ -3,6 +3,7 @@ package com.younglings.bot.events;
 import com.younglings.bot.BotListener;
 import com.younglings.bot.discord.Containers;
 import com.younglings.bot.events.EventRepository.Event;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.permission.AdminRoleFilter;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.Permission;
@@ -56,8 +57,8 @@ public class EventClaimListener extends ListenerAdapter implements BotListener {
     }
 
     /** The buttons to put under a submission. */
-    public static ActionRow buttons(long eventId, long claimId) {
-        return ActionRow.of(Button.success(APPROVE + eventId + ":" + claimId, "Approve"), Button.danger(DENY + eventId + ":" + claimId, "Deny"));
+    public static ActionRow buttons(long guildId, long eventId, long claimId) {
+        return ActionRow.of(Button.success(APPROVE + eventId + ":" + claimId, Text.of(guildId, "events.approve")), Button.danger(DENY + eventId + ":" + claimId, Text.of(guildId, "events.deny")));
     }
 
     private record Ids(long eventId, long claimId) {}
@@ -86,18 +87,18 @@ public class EventClaimListener extends ListenerAdapter implements BotListener {
         if (guild == null) return;
         Ids ids = idsOf(id, approve ? APPROVE : DENY);
         if (ids == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "That button is out of date.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "events.that_button_is_out_of_date"));
             return;
         }
         try {
             Event target = service.event(guild.getIdLong(), ids.eventId());
             if (!mayDecide(guild, event.getMember(), target)) {
-                Containers.replyEphemeral(event, Containers.WARNING, "Only staff and this event's organisers can decide proof.");
+                Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "events.only_staff_and_this_event_organisers_2"));
                 return;
             }
             if (!approve) {
                 TextInput reason = TextInput.create("reason", TextInputStyle.PARAGRAPH)
-                        .setPlaceholder("Why it was denied, so the player can fix it")
+                        .setPlaceholder(Text.of(event, "events.why_it_was_denied_so_the"))
                         .setMaxLength(EventRules.MAX_NOTE)
                         .build();
                 event.replyModal(Modal.create(DENY_MODAL + ids.eventId() + ":" + ids.claimId(), "Deny this proof")
@@ -112,7 +113,7 @@ public class EventClaimListener extends ListenerAdapter implements BotListener {
             Containers.replyEphemeral(event, Containers.WARNING, p.getMessage());
         } catch (RuntimeException e) {
             log.error("Could not handle an event proof button", e);
-            Containers.replyEphemeral(event, Containers.WARNING, "Something went wrong. Try the dashboard.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "events.something_went_wrong_try_the_dashboard"));
         }
     }
 
@@ -127,13 +128,13 @@ public class EventClaimListener extends ListenerAdapter implements BotListener {
         try {
             Event target = service.event(guild.getIdLong(), ids.eventId());
             if (!mayDecide(guild, event.getMember(), target)) {
-                Containers.replyEphemeral(event, Containers.WARNING, "Only staff and this event's organisers can decide proof.");
+                Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "events.only_staff_and_this_event_organisers_2"));
                 return;
             }
             var reasonValue = event.getValue("reason");
             String reason = reasonValue == null ? "" : reasonValue.getAsString().strip();
             if (reason.isEmpty()) {
-                Containers.replyEphemeral(event, Containers.WARNING, "Say why it was denied, so the player can fix it.");
+                Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "events.say_why_it_was_denied_so"));
                 return;
             }
             event.deferEdit().queue();
@@ -144,7 +145,7 @@ public class EventClaimListener extends ListenerAdapter implements BotListener {
             Containers.replyEphemeral(event, Containers.WARNING, p.getMessage());
         } catch (RuntimeException e) {
             log.error("Could not deny an event proof", e);
-            Containers.replyEphemeral(event, Containers.WARNING, "Something went wrong. Try the dashboard.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "events.something_went_wrong_try_the_dashboard"));
         }
     }
 
@@ -158,7 +159,7 @@ public class EventClaimListener extends ListenerAdapter implements BotListener {
             verdict = "⚠️ " + p.getMessage();
         } catch (RuntimeException e) {
             log.error("Could not decide event claim {}", ids.claimId(), e);
-            hook.sendMessage("I couldn't save that just now. Try again, or use the dashboard.").setEphemeral(true).queue();
+            hook.sendMessage(Text.of(guild, "events.i_couldn_t_save_that_just")).setEphemeral(true).queue();
             return;
         }
         String text = content + "\n" + verdict;

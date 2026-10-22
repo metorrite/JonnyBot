@@ -2,6 +2,7 @@ package com.younglings.bot.commands.ticket;
 
 import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.permission.AdminRoleFilter;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
 import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
@@ -29,15 +30,15 @@ public class DevHelpSetupCommand {
     @JDASlashCommand(name = "dev", subcommand = "helpsetup", description = "Sets up PvM Help testing here: helper roles, test panels and the helper signup")
     public void onDevHelpSetup(GuildSlashEvent event) {
         if (botConfig.getLiveEnvironment()) {
-            Containers.replyEphemeral(event, Containers.WARNING, "This command is dev-only.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "ticket.this_command_is_dev_only"));
             return;
         }
         if (event.getGuild() == null || event.getMember() == null || !adminRoleFilter.isAuthorized(event.getGuild(), event.getMember())) {
-            Containers.replyEphemeral(event, Containers.WARNING, "You need the Admin role (or higher) to use this.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "ticket.you_need_the_admin_role_or"));
             return;
         }
         if (!(event.getGuildChannel() instanceof GuildMessageChannel channel) || !channel.canTalk()) {
-            Containers.replyEphemeral(event, Containers.WARNING, "I can't post in this channel.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "ticket.i_can_t_post_in_this"));
             return;
         }
 

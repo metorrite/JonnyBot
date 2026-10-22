@@ -1,6 +1,7 @@
 package com.younglings.bot.giveaway;
 
 import com.younglings.bot.BotListener;
+import com.younglings.bot.i18n.Text;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
@@ -77,20 +78,20 @@ public class GiveawayListener extends ListenerAdapter implements BotListener {
             if (guild == null || member == null) return;
             Optional<Giveaway> found = repository.byId(Long.parseLong(id.substring(3)));
             if (found.isEmpty() || found.get().guildId() != guild.getIdLong()) {
-                event.reply("That giveaway isn't running any more.").setEphemeral(true).queue();
+                event.reply(Text.of(event, "giveaway.that_giveaway_isn_t_running_any")).setEphemeral(true).queue();
                 return;
             }
             Giveaway g = found.get();
             if (!g.open() || !g.endsAt().isAfter(Instant.now())) {
-                event.reply("This giveaway has ended.").setEphemeral(true).queue();
+                event.reply(Text.of(event, "giveaway.this_giveaway_has_ended")).setEphemeral(true).queue();
                 return;
             }
             if (g.requiredRoleId() != null && member.getRoles().stream().noneMatch(r -> r.getIdLong() == g.requiredRoleId())) {
-                event.reply("This giveaway is only for members with the <@&" + g.requiredRoleId() + "> role.").setEphemeral(true).queue();
+                event.reply(Text.of(event, "giveaway.this_giveaway_is_only_for_members", g.requiredRoleId())).setEphemeral(true).queue();
                 return;
             }
             boolean in = repository.toggleEntry(g.id(), g.guildId(), member.getIdLong());
-            event.reply(in ? "🎉 You're in! Press the button again to leave." : "You've left the giveaway.").setEphemeral(true).queue();
+            event.reply(in ? Text.of(event, "giveaway.you_re_in_press_the_button") : Text.of(event, "giveaway.you_ve_left_the_giveaway")).setEphemeral(true).queue();
             service.refresh(guild, g);
         } catch (Exception e) {
             log.error("Unhandled exception in giveaway button '{}'", id, e);

@@ -10,6 +10,7 @@ import com.younglings.bot.events.EventCohostRepository.Panel;
 import com.younglings.bot.events.EventCohostRepository.PendingJoin;
 import com.younglings.bot.events.EventRepository.Event;
 import com.younglings.bot.events.EventRules.Status;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
@@ -138,7 +139,7 @@ public class CohostPanels extends ListenerAdapter implements BotListener {
         text.append("\n").append(players).append(event.maxParticipants() > 0 ? " of " + event.maxParticipants() : "").append(players == 1 ? " player" : " players");
         text.append("\n\n").append(open ? "Press **Join** to take part. You play from the host's Discord: if you aren't in it yet, you'll get its invite."
                 : event.status() == Status.SIGNUPS ? "Signups have closed." : "Signups are over.");
-        Button join = Button.success(JOIN + event.id(), open ? "Join" : "Signups closed").withDisabled(!open);
+        Button join = Button.success(JOIN + event.id(), open ? Text.of(event.guildId(), "events.join") : Text.of(event.guildId(), "events.signups_closed")).withDisabled(!open);
         return Containers.card(open ? Containers.PRIMARY : Color.GRAY, TextDisplay.of(text.toString()), ActionRow.of(join));
     }
 
@@ -260,21 +261,21 @@ public class CohostPanels extends ListenerAdapter implements BotListener {
         long userId = interaction.getUser().getIdLong();
         Event event = events.eventById(eventId).orElse(null);
         if (event == null) {
-            Containers.replyEphemeral(interaction, Containers.WARNING, "This event doesn't exist any more.");
+            Containers.replyEphemeral(interaction, Containers.WARNING, Text.of(interaction, "events.this_event_doesn_t_exist_any"));
             return;
         }
         boolean accepted = cohosts.get(eventId, origin).map(c -> c.status() == EventCohostRepository.Status.ACCEPTED).orElse(false);
         if (!accepted) {
-            Containers.replyEphemeral(interaction, Containers.WARNING, "This server doesn't co-host that event any more.");
+            Containers.replyEphemeral(interaction, Containers.WARNING, Text.of(interaction, "events.this_server_doesn_t_co_host"));
             return;
         }
         if (!open(event)) {
-            Containers.replyEphemeral(interaction, Containers.WARNING, "Signups for **" + event.name() + "** have closed.");
+            Containers.replyEphemeral(interaction, Containers.WARNING, Text.of(interaction, "events.signups_for_have_closed", event.name()));
             return;
         }
         Guild host = interaction.getJDA().getGuildById(event.guildId());
         if (host == null) {
-            Containers.replyEphemeral(interaction, Containers.WARNING, "The host's server can't be reached right now. Try again in a moment.");
+            Containers.replyEphemeral(interaction, Containers.WARNING, Text.of(interaction, "events.the_host_server_can_t_be"));
             return;
         }
         interaction.deferReply(true).queue();

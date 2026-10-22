@@ -3,6 +3,7 @@ package com.younglings.bot.commands.ticket;
 import com.younglings.bot.combat.CombatAchievementModels.Achievement;
 import com.younglings.bot.combat.CombatAchievementRepository;
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.ticket.TicketModels.Field;
 import com.younglings.bot.ticket.TicketModels.FieldKind;
 import com.younglings.bot.ticket.TicketModels.FieldPurpose;
@@ -135,14 +136,13 @@ public class HelpTicketFlow extends ListenerAdapter {
 
     static Container tierStep(Panel panel, String boss, int bossIndex, boolean tierRequired) {
         List<ContainerChildComponent> children = new ArrayList<>();
-        children.add(TextDisplay.of("### " + panel.title() + "\n**Boss:** " + boss + "\n**Step 2: which tier?**\n"
-                + (tierRequired ? "Choose the tier you're working on."
-                        : "Choose a tier, or \"No tier\" if your question isn't about one. Pick a tier if you want to name a specific achievement.")));
+        children.add(TextDisplay.of(Text.of(panel.guildId(), "ticket.boss_step_2_which_tier", panel.title(), boss,
+                tierRequired ? Text.of(panel.guildId(), "ticket.choose_the_tier_you_re_working_on") : Text.of(panel.guildId(), "ticket.choose_a_tier_or_no_tier"))));
 
         StringSelectMenu.Builder menu = StringSelectMenu.create(TIER_PREFIX + panel.id() + ":" + bossIndex)
-                .setPlaceholder(tierRequired ? "Choose a tier" : "Choose a tier (optional)")
+                .setPlaceholder(tierRequired ? Text.of(panel.guildId(), "ticket.choose_a_tier") : Text.of(panel.guildId(), "ticket.choose_a_tier_optional"))
                 .setRequiredRange(1, 1);
-        if (!tierRequired) menu.addOption("No tier", "0");
+        if (!tierRequired) menu.addOption(Text.of(panel.guildId(), "ticket.no_tier"), "0");
         for (int i = 0; i < HelpRules.TIERS.size(); i++) menu.addOption(HelpRules.TIERS.get(i), String.valueOf(i + 1));
         children.add(ActionRow.of(menu.build()));
         return Containers.card(Containers.PRIMARY, children);
@@ -151,8 +151,7 @@ public class HelpTicketFlow extends ListenerAdapter {
     /** The achievements of one boss in the tier that was chosen, so the lists stay short and everything in them is the right difficulty. */
     static Container achievementStep(Panel panel, String boss, String tier, int bossIndex, int tierNumber, List<Achievement> achievements) {
         List<ContainerChildComponent> children = new ArrayList<>();
-        children.add(TextDisplay.of("### " + panel.title() + "\n**Boss:** " + boss + "  ·  **Tier:** " + tier
-                + "\n**Step 3: a specific achievement?** (optional)\nIf you choose one, helpers will only help with that one."));
+        children.add(TextDisplay.of(Text.of(panel.guildId(), "ticket.boss_tier_step_3_a_specific", panel.title(), boss, tier)));
 
         int number = 0;
         for (List<Achievement> chunk : balancedChunks(achievements, MAX_CHOICES)) {
@@ -164,7 +163,7 @@ public class HelpTicketFlow extends ListenerAdapter {
             }
             children.add(ActionRow.of(menu.build()));
         }
-        children.add(ActionRow.of(Button.secondary(SKIP_PREFIX + panel.id() + ":" + bossIndex + ":" + tierNumber, "No specific achievement")));
+        children.add(ActionRow.of(Button.secondary(SKIP_PREFIX + panel.id() + ":" + bossIndex + ":" + tierNumber, Text.of(panel.guildId(), "ticket.no_specific_achievement"))));
         return Containers.card(Containers.PRIMARY, children);
     }
 
@@ -174,7 +173,7 @@ public class HelpTicketFlow extends ListenerAdapter {
     public void start(IReplyCallback event, Panel panel) {
         List<String> bosses = catalog.bosses();
         if (bosses.isEmpty()) {
-            Containers.replyEphemeral(event, Containers.WARNING, "The boss list isn't loaded yet. An admin needs to check the combat achievement catalogue.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "ticket.the_boss_list_isn_t_loaded"));
             return;
         }
         event.replyComponents(bossStep(panel, bosses)).useComponentsV2(true).setEphemeral(true).queue();
@@ -193,7 +192,7 @@ public class HelpTicketFlow extends ListenerAdapter {
             String[] parts = id.split(":");
             Panel panel = repository.getPanel(Long.parseLong(parts[1]));
             if (panel == null || panel.guildId() != guild.getIdLong()) {
-                Containers.replyEphemeral(event, Containers.WARNING, "That ticket type no longer exists.");
+                Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "ticket.that_ticket_type_no_longer_exists"));
                 return;
             }
             List<Field> fields = repository.getFields(panel.id());
@@ -203,7 +202,7 @@ public class HelpTicketFlow extends ListenerAdapter {
                 List<String> bosses = catalog.bosses();
                 int bossIndex = Integer.parseInt(value);
                 if (bossIndex < 0 || bossIndex >= bosses.size()) {
-                    Containers.replyEphemeral(event, Containers.WARNING, "That boss isn't on the list any more. Press the button again.");
+                    Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "ticket.that_boss_isn_t_on_the"));
                     return;
                 }
                 boolean tierRequired = fields.stream().anyMatch(f -> f.purpose() == FieldPurpose.TIER && f.required());
@@ -213,7 +212,7 @@ public class HelpTicketFlow extends ListenerAdapter {
                 int tierNumber = Integer.parseInt(value);
                 List<String> bosses = catalog.bosses();
                 if (bossIndex < 0 || bossIndex >= bosses.size() || tierNumber < 0 || tierNumber > HelpRules.TIERS.size()) {
-                    Containers.replyEphemeral(event, Containers.WARNING, "That choice isn't available any more. Press the button again.");
+                    Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "ticket.that_choice_isn_t_available_any"));
                     return;
                 }
                 String boss = bosses.get(bossIndex);
@@ -241,7 +240,7 @@ public class HelpTicketFlow extends ListenerAdapter {
             String[] parts = id.split(":");
             Panel panel = repository.getPanel(Long.parseLong(parts[1]));
             if (panel == null || panel.guildId() != guild.getIdLong()) {
-                Containers.replyEphemeral(event, Containers.WARNING, "That ticket type no longer exists.");
+                Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "ticket.that_ticket_type_no_longer_exists"));
                 return;
             }
             askRest(event, panel, repository.getFields(panel.id()), Integer.parseInt(parts[2]), Integer.parseInt(parts[3]), 0);
@@ -272,7 +271,7 @@ public class HelpTicketFlow extends ListenerAdapter {
             String[] parts = id.split(":");
             Panel panel = repository.getPanel(Long.parseLong(parts[1]));
             if (panel == null || panel.guildId() != guild.getIdLong()) {
-                Containers.replyEphemeral(event, Containers.WARNING, "That ticket type no longer exists.");
+                Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "ticket.that_ticket_type_no_longer_exists"));
                 return;
             }
             List<Field> fields = repository.getFields(panel.id());
@@ -292,7 +291,7 @@ public class HelpTicketFlow extends ListenerAdapter {
 
         List<String> bosses = catalog.bosses();
         if (bossIndex < 0 || bossIndex >= bosses.size()) {
-            Containers.replyEphemeral(event, Containers.WARNING, "That boss isn't on the list any more. Press the button again.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "ticket.that_boss_isn_t_on_the"));
             return;
         }
         String tier = tierNumber <= 0 || tierNumber > HelpRules.TIERS.size() ? null : HelpRules.TIERS.get(tierNumber - 1);
@@ -314,10 +313,10 @@ public class HelpTicketFlow extends ListenerAdapter {
         service.openTicket(guild, member, panel, fields, raw).whenComplete((ticket, error) -> {
             if (error != null || ticket == null || ticket.channelId() == null) {
                 event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.DANGER,
-                        "I couldn't open the ticket. An admin needs to check that I can create channels in its category."))).useComponentsV2(true).queue();
+                        Text.of(event, "ticket.i_couldn_t_open_the_ticket_2")))).useComponentsV2(true).queue();
             } else {
                 event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.SUCCESS,
-                        "✅ Your ticket is open: <#" + ticket.channelId() + ">"))).useComponentsV2(true).queue();
+                        Text.of(event, "ticket.your_ticket_is_open", ticket.channelId())))).useComponentsV2(true).queue();
             }
         });
     }

@@ -2,6 +2,7 @@ package com.younglings.bot.appeal;
 
 import com.younglings.bot.BotListener;
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.components.label.Label;
 import net.dv8tion.jda.api.components.textinput.TextInput;
@@ -55,7 +56,7 @@ public class AppealListener extends ListenerAdapter implements BotListener {
             }
         } else if (reject != null) {
             TextInput note = TextInput.create(NOTE, TextInputStyle.PARAGRAPH).setRequired(true).setRequiredRange(1, AppealRules.MAX_NOTE)
-                    .setPlaceholder("They see this on the appeal page.").build();
+                    .setPlaceholder(Text.of(event, "appeal.they_see_this_on_the_appeal")).build();
             event.replyModal(Modal.create(REJECT_MODAL + reject, "Reject the appeal").addComponents(Label.of("Why", note)).build()).queue();
         }
     }
@@ -67,7 +68,7 @@ public class AppealListener extends ListenerAdapter implements BotListener {
         var value = event.getValue(NOTE);
         try {
             service.reject(event.getGuild(), event.getMember(), reject, value == null ? "" : value.getAsString());
-            Containers.replyEphemeral(event, Containers.SUCCESS, "Turned down. The appeal is closed and they can see why.");
+            Containers.replyEphemeral(event, Containers.SUCCESS, Text.of(event, "appeal.turned_down_the_appeal_is_closed"));
         } catch (AppealService.AppealProblem e) {
             Containers.replyEphemeral(event, Containers.WARNING, e.getMessage());
         }

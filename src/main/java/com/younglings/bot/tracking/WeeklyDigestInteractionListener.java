@@ -1,6 +1,7 @@
 package com.younglings.bot.tracking;
 
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.permission.AdminRoleFilter;
 import com.younglings.bot.wheel.WheelEligibility;
 import com.younglings.bot.wheel.WheelEntries;
@@ -101,11 +102,11 @@ public class WeeklyDigestInteractionListener extends ListenerAdapter {
         try {
             if (id.startsWith(SPIN_PREFIX)) {
                 if (!isStaff(guild, event.getMember())) {
-                    Containers.replyEphemeral(event, Containers.WARNING, "Only staff can spin the wheel. Use **Copy names** if you want the list.");
+                    Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "tracking.only_staff_can_spin_the_wheel"));
                     return;
                 }
                 TextInput extras = TextInput.create("extras", TextInputStyle.PARAGRAPH)
-                        .setPlaceholder("Axley\nBerserker87 x2\n(one name per line; x2 gives two entries)")
+                        .setPlaceholder(Text.of(event, "tracking.axley_berserker87_x2_one_name_per"))
                         .setRequired(false)
                         .setMaxLength(1500)
                         .build();
@@ -137,7 +138,7 @@ public class WeeklyDigestInteractionListener extends ListenerAdapter {
                 WheelEligibility.Result eligible = wheelEntries.forWeek(guild, window[0], window[1]);
                 List<String> capped = eligible.names();
                 if (capped.isEmpty()) {
-                    event.getHook().editOriginal("Nobody is on the wheel for that week" + (eligible.leftOut().isEmpty() ? " (nobody capped)." : " (everyone who capped is staff).")).queue();
+                    event.getHook().editOriginal(Text.of(event, eligible.leftOut().isEmpty() ? "tracking.nobody_on_wheel_nobody_capped" : "tracking.nobody_on_wheel_all_staff")).queue();
                     return;
                 }
                 StringBuilder list = new StringBuilder();
@@ -148,11 +149,10 @@ public class WeeklyDigestInteractionListener extends ListenerAdapter {
                     shown++;
                 }
                 String more = shown < capped.size() ? "\n-# " + (capped.size() - shown) + " more didn't fit." : "";
-                event.getHook().editOriginal("**On the wheel for that week (" + capped.size() + ")**, one per person, to paste into a wheel website:\n```\n"
-                        + list.toString().stripTrailing() + "\n```" + more + notes(eligible)).queue();
+                event.getHook().editOriginal(Text.of(event, "tracking.on_the_wheel_for_that_week", capped.size(), list.toString().stripTrailing(), more, notes(eligible))).queue();
             } catch (Exception e) {
                 log.error("Could not build the Copy names list", e);
-                event.getHook().editOriginal("I couldn't get the list just now. Try again in a moment.").queue();
+                event.getHook().editOriginal(Text.of(event, "tracking.i_couldn_t_get_the_list")).queue();
             }
         });
     }
@@ -165,7 +165,7 @@ public class WeeklyDigestInteractionListener extends ListenerAdapter {
         if (guild == null) return;
         try {
             if (!isStaff(guild, event.getMember())) {
-                Containers.replyEphemeral(event, Containers.WARNING, "Only staff can spin the wheel.");
+                Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "tracking.only_staff_can_spin_the_wheel_2"));
                 return;
             }
             OffsetDateTime[] window = windowOf(id, MODAL_PREFIX);
@@ -217,12 +217,12 @@ public class WeeklyDigestInteractionListener extends ListenerAdapter {
     /** Announces the spin's winner in the configured channel, with the configured message and the GIF that was spun. Staff only, once per spin. */
     private void postWinner(ButtonInteractionEvent event, Guild guild, String id) {
         if (!isStaff(guild, event.getMember())) {
-            Containers.replyEphemeral(event, Containers.WARNING, "Only staff can post the winner.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "tracking.only_staff_can_post_the_winner"));
             return;
         }
         String[] parts = id.substring(POST_PREFIX.length()).split(":", 3);
         if (parts.length != 3) {
-            Containers.replyEphemeral(event, Containers.WARNING, "That button is out of date. Spin again.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "tracking.that_button_is_out_of_date"));
             return;
         }
         OffsetDateTime[] window = CitadelWeek.windowEndingOn(LocalDate.parse(parts[0]));
@@ -230,7 +230,7 @@ public class WeeklyDigestInteractionListener extends ListenerAdapter {
         String winner = new String(java.util.Base64.getUrlDecoder().decode(parts[2]), java.nio.charset.StandardCharsets.UTF_8);
         long messageId = event.getMessageIdLong();
         if (!announced.add(messageId)) {
-            Containers.replyEphemeral(event, Containers.INFO, "This winner has already been posted.");
+            Containers.replyEphemeral(event, Containers.INFO, Text.of(event, "tracking.this_winner_has_already_been_posted"));
             return;
         }
         event.deferReply(true).queue();
@@ -239,14 +239,14 @@ public class WeeklyDigestInteractionListener extends ListenerAdapter {
                 var attachments = event.getMessage().getAttachments();
                 byte[] gif = attachments.isEmpty() ? null : attachments.get(0).getProxy().download().get().readAllBytes();
                 var channel = poster.postWinner(guild, window, winner, entryCount, gif);
-                event.getHook().editOriginal("Posted **" + winner + "** in " + channel.getAsMention() + ".").queue();
+                event.getHook().editOriginal(Text.of(event, "tracking.posted_in", winner, channel.getAsMention())).queue();
             } catch (CitadelWheelPoster.CannotPost e) {
                 announced.remove(messageId);
                 event.getHook().editOriginal(e.getMessage()).queue();
             } catch (Exception e) {
                 announced.remove(messageId);
                 log.error("Could not post the Citadel wheel winner", e);
-                event.getHook().editOriginal("I couldn't post that just now. Try again in a moment.").queue();
+                event.getHook().editOriginal(Text.of(event, "tracking.i_couldn_t_post_that_just")).queue();
             }
         });
     }
@@ -257,12 +257,12 @@ public class WeeklyDigestInteractionListener extends ListenerAdapter {
      */
     private void lockWinner(ButtonInteractionEvent event, Guild guild, String id) {
         if (!isStaff(guild, event.getMember())) {
-            Containers.replyEphemeral(event, Containers.WARNING, "Only staff can lock in the winner.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "tracking.only_staff_can_lock_in_the"));
             return;
         }
         String[] parts = id.substring(LOCK_PREFIX.length()).split(":", 3);
         if (parts.length != 3) {
-            Containers.replyEphemeral(event, Containers.WARNING, "That button is out of date. Spin again.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "tracking.that_button_is_out_of_date"));
             return;
         }
         LocalDate weekEnd = LocalDate.parse(parts[0]);
@@ -272,7 +272,7 @@ public class WeeklyDigestInteractionListener extends ListenerAdapter {
             try {
                 var already = winners.forWeek(guild.getIdLong(), weekEnd);
                 if (!already.isEmpty()) {
-                    event.getHook().editOriginal("That week already has a locked winner (**" + already.get(0).winner() + "**). Add more places or unlock it on the dashboard's Citadel wheel page.").queue();
+                    event.getHook().editOriginal(Text.of(event, "tracking.that_week_already_has_a_locked", already.get(0).winner())).queue();
                     return;
                 }
                 var attachments = event.getMessage().getAttachments();
@@ -284,12 +284,12 @@ public class WeeklyDigestInteractionListener extends ListenerAdapter {
                 }
                 List<String> wheel = spunWheels.get(id);
                 winners.lock(guild.getIdLong(), weekEnd, winner, wheel, WheelWinnerRepository.Method.SPUN, event.getUser().getIdLong(), gif, WheelWinnerRepository.GifSource.BOT);
-                event.getHook().editOriginal("Locked **" + winner + "** in as the winner of the week ending " + weekEnd + ".").queue();
+                event.getHook().editOriginal(Text.of(event, "tracking.locked_in_as_the_winner_of", winner, weekEnd)).queue();
             } catch (CitadelWinners.CannotLock e) {
                 event.getHook().editOriginal(e.getMessage()).queue();
             } catch (Exception e) {
                 log.error("Could not lock the Citadel wheel winner", e);
-                event.getHook().editOriginal("I couldn't lock that just now. Try again in a moment.").queue();
+                event.getHook().editOriginal(Text.of(event, "tracking.i_couldn_t_lock_that_just")).queue();
             }
         });
     }
@@ -326,7 +326,7 @@ public class WeeklyDigestInteractionListener extends ListenerAdapter {
             String summary = cappedCount + " capped" + (extras.names().isEmpty() ? "" : " + " + extras.names().size() + " extra " + (extras.names().size() == 1 ? "entry" : "entries"))
                     + " · " + drawn.size() + " on the wheel";
             String skipped = (extras.problems().isEmpty() ? "" : "\n-# Skipped: " + String.join(" ", extras.problems())) + notes;
-            event.getHook().editOriginal("🎡 Spinning the wheel... (" + summary + ")" + skipped)
+            event.getHook().editOriginal(Text.of(event, "tracking.spinning_the_wheel", summary, skipped))
                     .setAttachments(FileUpload.fromData(result.gif(), "citadel-wheel.gif")).queue();
             // the winner is named once the wheel has stopped, not before the animation has finished
             String reveal = "🎡 The wheel landed on **" + result.winner() + "**! (" + summary + ")" + skipped;
@@ -337,8 +337,8 @@ public class WeeklyDigestInteractionListener extends ListenerAdapter {
                     String lockId = lockId(dateKey, drawn.size(), result.winner());
                     if (lockId != null) spunWheels.put(lockId, List.copyOf(drawn));
                     var edit = event.getHook().editOriginal(reveal);
-                    if (postId != null && lockId != null) edit = edit.setComponents(ActionRow.of(Button.success(postId, "📣 Post winner"), Button.secondary(lockId, "🔒 Lock in winner")));
-                    else if (postId != null) edit = edit.setComponents(ActionRow.of(Button.success(postId, "📣 Post winner")));
+                    if (postId != null && lockId != null) edit = edit.setComponents(ActionRow.of(Button.success(postId, Text.of(event, "tracking.post_winner")), Button.secondary(lockId, Text.of(event, "tracking.lock_in_winner"))));
+                    else if (postId != null) edit = edit.setComponents(ActionRow.of(Button.success(postId, Text.of(event, "tracking.post_winner"))));
                     edit.queue();
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
@@ -346,7 +346,7 @@ public class WeeklyDigestInteractionListener extends ListenerAdapter {
             });
         } catch (Exception e) {
             log.error("Could not draw the citadel wheel", e);
-            event.getHook().editOriginal("I couldn't draw the wheel just now. Try again in a moment.").queue();
+            event.getHook().editOriginal(Text.of(event, "tracking.i_couldn_t_draw_the_wheel")).queue();
         }
     }
 }

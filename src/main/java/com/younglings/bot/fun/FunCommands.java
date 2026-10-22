@@ -1,6 +1,7 @@
 package com.younglings.bot.fun;
 
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
 import io.github.freya022.botcommands.api.commands.application.CommandScope;
 import io.github.freya022.botcommands.api.commands.application.annotations.DeclarationFilter;
@@ -45,8 +46,8 @@ public class FunCommands {
                        @SlashOption(description = "Dice notation, e.g. 2d6, d20, 3d8+2 (default d20)") @Nullable String dice) {
         var roll = FunLogic.roll(dice == null || dice.isBlank() ? "d20" : dice, random);
         if (roll.isEmpty()) {
-            Containers.replyEphemeral(event, Containers.WARNING, "I couldn't read that roll.",
-                    "-# Try 2d6, d20 or 3d8+2: up to " + FunLogic.MAX_DICE + " dice with 2 to " + FunLogic.MAX_SIDES + " sides.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "fun.i_couldn_t_read_that_roll"),
+                    Text.of(event, "fun.try_2d6_d20_or_3d8_2", FunLogic.MAX_DICE, FunLogic.MAX_SIDES));
             return;
         }
         var r = roll.get();
@@ -69,7 +70,7 @@ public class FunCommands {
             case DRAW -> "It's a draw.";
         };
         Containers.reply(event, outcome == FunLogic.Outcome.WIN ? Containers.SUCCESS : Containers.WARNING, false,
-                "You played " + move.emoji + " **" + move.label + "**, I played " + mine.emoji + " **" + mine.label + "**.", "### " + result);
+                Text.of(event, "fun.you_played_i_played", move.emoji, move.label, mine.emoji, mine.label), "### " + result);
     }
 
     @TopLevelSlashCommandData(scope = CommandScope.GUILD)
@@ -86,12 +87,12 @@ public class FunCommands {
                          @SlashOption(description = "Options separated by commas or the word or, e.g. pizza, pasta or soup") String options) {
         List<String> list = FunLogic.options(options);
         if (list.size() < 2 || list.size() > FunLogic.MAX_CHOICES) {
-            Containers.replyEphemeral(event, Containers.WARNING, "Give me between 2 and " + FunLogic.MAX_CHOICES + " options.",
-                    "-# Separate them with commas or the word or.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "fun.give_me_between_2_and_options", FunLogic.MAX_CHOICES),
+                    Text.of(event, "fun.separate_them_with_commas_or_the"));
             return;
         }
-        Containers.reply(event, Containers.SUCCESS, false, "🤔 I choose **" + list.get(random.nextInt(list.size())) + "**.",
-                "-# From: " + String.join(", ", list));
+        Containers.reply(event, Containers.SUCCESS, false, Text.of(event, "fun.i_choose", list.get(random.nextInt(list.size()))),
+                Text.of(event, "fun.from", String.join(", ", list)));
     }
 
     @TopLevelSlashCommandData(scope = CommandScope.GUILD)

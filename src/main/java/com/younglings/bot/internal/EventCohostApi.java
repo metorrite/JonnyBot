@@ -85,9 +85,9 @@ public class EventCohostApi implements AdminRouteExtension {
         if (parts.length == 4 && parts[3].equals("settings")) {
             AdminRouteExtension.requireMethod(method, "PUT");
             DataObject in = body.get();
-            if (!in.hasKey("announceStart") || !(in.opt("announceStart").orElse(null) instanceof Boolean on)) throw new EventProblem(400, Text.of(guild, "dashboard.say_whether_to_announce_the_start"));
+            if (!in.hasKey("announceStart") || !(in.opt("announceStart").orElse(null) instanceof Boolean on)) throw new EventProblem(400, Text.of(guild, "events.problem.say_whether_to_announce_the_start"));
             DataObject config = DataObject.fromJson(event.config()).put(CohostPanels.ANNOUNCE_START, on);
-            if (!events.setConfig(event.guildId(), event.id(), config.toString())) throw new EventProblem(404, Text.of(guild, "dashboard.that_event_doesn_t_exist_in"));
+            if (!events.setConfig(event.guildId(), event.id(), config.toString())) throw new EventProblem(404, Text.of(guild, "events.problem.that_event_doesn_t_exist_in"));
             log.info("Dashboard: {} turned the co-host start announcement {} for event {}", actor.getId(), on ? "on" : "off", event.id());
             return hostView(guild, events.eventById(event.id()).orElse(event));
         }
@@ -106,22 +106,22 @@ public class EventCohostApi implements AdminRouteExtension {
     }
 
     void invite(Guild guild, Member actor, Event event, long target) {
-        if (event.status() == EventRules.Status.DONE || event.status() == EventRules.Status.CANCELLED) throw new EventProblem(409, Text.of(guild, "dashboard.this_event_is_over"));
-        if (target == event.guildId()) throw new EventProblem(400, Text.of(guild, "dashboard.your_own_server_is_the_host"));
-        if (!allied(event.guildId(), target)) throw new EventProblem(403, Text.of(guild, "dashboard.you_can_only_invite_a_server"));
+        if (event.status() == EventRules.Status.DONE || event.status() == EventRules.Status.CANCELLED) throw new EventProblem(409, Text.of(guild, "events.problem.this_event_is_over"));
+        if (target == event.guildId()) throw new EventProblem(400, Text.of(guild, "events.problem.your_own_server_is_the_host"));
+        if (!allied(event.guildId(), target)) throw new EventProblem(403, Text.of(guild, "events.problem.you_can_only_invite_a_server"));
         long active = cohosts.forEvent(event.id()).stream().filter(c -> c.status() == Status.INVITED || c.status() == Status.ACCEPTED).count();
         boolean already = cohosts.get(event.id(), target).map(c -> c.status() == Status.INVITED || c.status() == Status.ACCEPTED).orElse(false);
-        if (already) throw new EventProblem(409, Text.of(guild, "dashboard.that_server_is_already_invited_or"));
-        if (active >= MAX_COHOSTS) throw new EventProblem(409, Text.of(guild, "dashboard.an_event_can_have_at_most", MAX_COHOSTS));
+        if (already) throw new EventProblem(409, Text.of(guild, "events.problem.that_server_is_already_invited_or"));
+        if (active >= MAX_COHOSTS) throw new EventProblem(409, Text.of(guild, "events.problem.an_event_can_have_at_most", MAX_COHOSTS));
         cohosts.invite(event.id(), target, actor.getIdLong());
         log.info("Dashboard: {} invited server {} to co-host event {}", actor.getId(), target, event.id());
     }
 
     void remove(Member actor, Event event, long target) {
-        if (events.setup(event.id()).signupsClosed()) throw new EventProblem(409, Text.of(actor.getGuild(), "dashboard.signups_have_closed_so_the_co"));
-        Cohost c = cohosts.get(event.id(), target).orElseThrow(() -> new EventProblem(404, Text.of(actor.getGuild(), "dashboard.that_server_isn_t_a_co")));
+        if (events.setup(event.id()).signupsClosed()) throw new EventProblem(409, Text.of(actor.getGuild(), "events.problem.signups_have_closed_so_the_co"));
+        Cohost c = cohosts.get(event.id(), target).orElseThrow(() -> new EventProblem(404, Text.of(actor.getGuild(), "events.problem.that_server_isn_t_a_co")));
         if (!cohosts.decide(event.id(), target, c.status(), Status.REMOVED, actor.getIdLong()) || c.status() == Status.REMOVED || c.status() == Status.DECLINED) {
-            throw new EventProblem(409, Text.of(actor.getGuild(), "dashboard.that_server_isn_t_invited_or"));
+            throw new EventProblem(409, Text.of(actor.getGuild(), "events.problem.that_server_isn_t_invited_or"));
         }
         log.info("Dashboard: {} removed server {} as a co-host of event {}", actor.getId(), target, event.id());
         service.syncTemplateTeams(event, false); // a clan-vs-clan event takes the clan's empty team away (T-222)
@@ -135,7 +135,7 @@ public class EventCohostApi implements AdminRouteExtension {
      * new quotas allow are filled from the waitlist at once.
      */
     void saveQueue(Member actor, Event event, DataObject body) {
-        if (event.status() != EventRules.Status.SIGNUPS && event.status() != EventRules.Status.DRAFT) throw new EventProblem(409, Text.of(actor.getGuild(), "dashboard.the_queue_can_only_change_while"));
+        if (event.status() != EventRules.Status.SIGNUPS && event.status() != EventRules.Status.DRAFT) throw new EventProblem(409, Text.of(actor.getGuild(), "events.problem.the_queue_can_only_change_while"));
         DataObject config = DataObject.fromJson(event.config());
         if (body.hasKey("queue") && !body.isNull("queue")) config.put("queue", body.getString("queue", "").strip().toUpperCase(java.util.Locale.ROOT));
         Integer hostQuota = optionalCount(body, "hostQuota");
@@ -153,14 +153,14 @@ public class EventCohostApi implements AdminRouteExtension {
             DataObject given = body.getObject("quotas");
             for (String key : given.keys()) {
                 long id = idOf(key, "server");
-                if (!accepted.contains(id)) throw new EventProblem(400, Text.of(actor.getGuild(), "dashboard.seat_quotas_are_only_for_servers"));
+                if (!accepted.contains(id)) throw new EventProblem(400, Text.of(actor.getGuild(), "events.problem.seat_quotas_are_only_for_servers"));
                 quotas.put(id, optionalCount(given, key));
             }
         }
         String problem = QueueRules.quotaProblem(event.maxParticipants(), hostQuota, quotas.values());
         if (problem != null) throw new EventProblem(400, problem);
 
-        if (!events.setConfig(event.guildId(), event.id(), config.toString())) throw new EventProblem(404, Text.of(actor.getGuild(), "dashboard.that_event_doesn_t_exist_in"));
+        if (!events.setConfig(event.guildId(), event.id(), config.toString())) throw new EventProblem(404, Text.of(actor.getGuild(), "events.problem.that_event_doesn_t_exist_in"));
         cohosts.setQuotas(event.id(), quotas);
         int moved = service.fillSeats(events.eventById(event.id()).orElse(event));
         log.info("Dashboard: {} set the fill queue of event {} ({}, host quota {}, co-host quotas {}, release {} h); {} moved in", actor.getId(), event.id(),
@@ -171,12 +171,12 @@ public class EventCohostApi implements AdminRouteExtension {
     private static int count(DataObject body, String key) {
         try {
             int n = body.getInt(key);
-            if (n < 0) throw new EventProblem(400, Text.en("dashboard.numbers_here_can_t_be_negative"));
+            if (n < 0) throw new EventProblem(400, Text.en("events.problem.numbers_here_can_t_be_negative"));
             return n;
         } catch (EventProblem e) {
             throw e;
         } catch (RuntimeException e) {
-            throw new EventProblem(400, Text.en("dashboard.use_whole_numbers_for_quotas_and"));
+            throw new EventProblem(400, Text.en("events.problem.use_whole_numbers_for_quotas_and"));
         }
     }
 
@@ -234,8 +234,8 @@ public class EventCohostApi implements AdminRouteExtension {
         if (body == null || !body.hasKey("panelChannelId") || body.isNull("panelChannelId") || body.getString("panelChannelId", "").isBlank()) return null;
         long id = idOf(body.getString("panelChannelId", ""), "channel");
         net.dv8tion.jda.api.entities.channel.concrete.TextChannel channel = guild.getTextChannelById(id);
-        if (channel == null) throw new ApiError(400, Text.of(guild, "dashboard.that_channel_isn_t_a_text"));
-        if (!CohostPanels.canPost(channel)) throw new ApiError(400, Text.of(guild, "dashboard.jonnybot_needs_to_see_and_send", channel.getName()));
+        if (channel == null) throw new ApiError(400, "That channel isn't a text channel in this server.");
+        if (!CohostPanels.canPost(channel)) throw new ApiError(400, "JonnyBot needs to see and send messages in #" + channel.getName() + ".");
         return id;
     }
 
@@ -246,16 +246,16 @@ public class EventCohostApi implements AdminRouteExtension {
             return cohostView(guild);
         }
         long eventId = idOf(parts[1], "event");
-        Cohost mine = cohosts.get(eventId, me).orElseThrow(() -> new ApiError(404, Text.of(guild, "dashboard.your_server_isn_t_invited_to")));
-        Event event = events.eventById(eventId).orElseThrow(() -> new ApiError(404, Text.of(guild, "dashboard.that_event_doesn_t_exist_any")));
+        Cohost mine = cohosts.get(eventId, me).orElseThrow(() -> new ApiError(404, "Your server isn't invited to that event."));
+        Event event = events.eventById(eventId).orElseThrow(() -> new ApiError(404, "That event doesn't exist any more."));
         if (parts.length == 3 && (parts[2].equals("accept") || parts[2].equals("decline"))) {
             AdminRouteExtension.requireMethod(method, "POST");
-            if (mine.status() != Status.INVITED) throw new ApiError(409, Text.of(guild, "dashboard.that_invitation_isn_t_open_any"));
-            if (event.status() == EventRules.Status.DONE || event.status() == EventRules.Status.CANCELLED) throw new ApiError(409, Text.of(guild, "dashboard.that_event_is_over"));
+            if (mine.status() != Status.INVITED) throw new ApiError(409, "That invitation isn't open any more.");
+            if (event.status() == EventRules.Status.DONE || event.status() == EventRules.Status.CANCELLED) throw new ApiError(409, "That event is over.");
             Status to = parts[2].equals("accept") ? Status.ACCEPTED : Status.DECLINED;
-            if (to == Status.ACCEPTED && !allied(event.guildId(), me)) throw new ApiError(403, Text.of(guild, "dashboard.your_server_is_no_longer_in"));
+            if (to == Status.ACCEPTED && !allied(event.guildId(), me)) throw new ApiError(403, "Your server is no longer in an alliance with the host.");
             Long panelChannel = to == Status.ACCEPTED ? panelChannel(guild, body.get()) : null;
-            if (!cohosts.decide(eventId, me, Status.INVITED, to, actor.getIdLong())) throw new ApiError(409, Text.of(guild, "dashboard.that_invitation_isn_t_open_any"));
+            if (!cohosts.decide(eventId, me, Status.INVITED, to, actor.getIdLong())) throw new ApiError(409, "That invitation isn't open any more.");
             if (panelChannel != null) {
                 cohosts.setPanelChannel(eventId, me, panelChannel);
                 panels.post(event, me); // the signup panel goes up straight away while signups are open (T-221)
@@ -266,7 +266,7 @@ public class EventCohostApi implements AdminRouteExtension {
         }
         if (parts.length == 3 && parts[2].equals("panel")) {
             AdminRouteExtension.requireMethod(method, "PUT");
-            if (mine.status() != Status.ACCEPTED) throw new ApiError(403, Text.of(guild, "dashboard.your_server_doesn_t_co_host"));
+            if (mine.status() != Status.ACCEPTED) throw new ApiError(403, "Your server doesn't co-host that event.");
             Long channel = panelChannel(guild, body.get());
             panels.remove(event, me);
             cohosts.setPanelChannel(eventId, me, channel);
@@ -276,11 +276,11 @@ public class EventCohostApi implements AdminRouteExtension {
         }
         if (parts.length == 4 && parts[2].equals("players")) {
             AdminRouteExtension.requireMethod(method, "DELETE");
-            if (mine.status() != Status.ACCEPTED) throw new ApiError(403, Text.of(guild, "dashboard.your_server_doesn_t_co_host"));
+            if (mine.status() != Status.ACCEPTED) throw new ApiError(403, "Your server doesn't co-host that event.");
             long userId = idOf(parts[3], "player");
-            Participant p = events.participant(eventId, userId).orElseThrow(() -> new ApiError(404, Text.of(guild, "dashboard.that_player_isn_t_in_the")));
-            if (p.guildId() != me) throw new ApiError(403, Text.of(guild, "dashboard.you_can_only_remove_players_who"));
-            if (events.setup(eventId).rosterConfirmed() || event.status() != EventRules.Status.SIGNUPS) throw new ApiError(409, Text.of(guild, "dashboard.the_host_has_confirmed_the_roster"));
+            Participant p = events.participant(eventId, userId).orElseThrow(() -> new ApiError(404, "That player isn't in the event."));
+            if (p.guildId() != me) throw new ApiError(403, "You can only remove players who joined through your server.");
+            if (events.setup(eventId).rosterConfirmed() || event.status() != EventRules.Status.SIGNUPS) throw new ApiError(409, "The host has confirmed the roster, so only they can change it now.");
             service.leave(event.guildId(), eventId, userId);
             log.info("Dashboard: {} (co-host server {}) removed player {} from event {}", actor.getId(), me, userId, eventId);
             return cohostView(guild);
@@ -343,11 +343,11 @@ public class EventCohostApi implements AdminRouteExtension {
     }
 
     private static long idOf(String raw, String what) {
-        if (raw == null || !raw.strip().matches("\\d{1,20}")) throw new ApiError(400, Text.en("dashboard.that_isn_t_a_valid", what));
+        if (raw == null || !raw.strip().matches("\\d{1,20}")) throw new ApiError(400, "That isn't a valid " + what + ".");
         try {
             return Long.parseLong(raw.strip());
         } catch (NumberFormatException e) {
-            throw new ApiError(400, Text.en("dashboard.that_isn_t_a_valid", what));
+            throw new ApiError(400, "That isn't a valid " + what + ".");
         }
     }
 }

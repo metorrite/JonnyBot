@@ -92,7 +92,7 @@ public class EventSubmissions {
         String queueText = head + "\n-# Approve or deny it with the buttons, or on the dashboard (Event manager, Progress and proof).";
         return shot.getProxy().download().thenApplyAsync(stream -> readAll(stream), worker).thenCompose(bytes ->
                 review.sendMessage(queueText).setAllowedMentions(List.of()).addFiles(FileUpload.fromData(bytes, shot.getFileName()))
-                        .setComponents(EventClaimListener.buttons(event.id(), claimId)).submit().thenApply(message -> {
+                        .setComponents(EventClaimListener.buttons(review.getGuild().getIdLong(), event.id(), claimId)).submit().thenApply(message -> {
                             repository.setClaimProof(event.id(), claimId, message.getJumpUrl());
                             sendReceipt(guild, event, claimId, player, head, bytes, shot.getFileName(), review.getIdLong());
                             return verification ? "Sent to staff as verification #" + claimId + ". You'll get a DM when they decide."
