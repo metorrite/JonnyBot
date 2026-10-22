@@ -65,6 +65,8 @@ public class CohostPanels extends ListenerAdapter implements BotListener {
     /** The host's switch in the event settings: announce the start in the co-hosts' panel channels (off unless switched on). */
     public static final String ANNOUNCE_START = "cohostAnnounceStart";
     private static final long REDRAW_DELAY_SECONDS = 5;
+    /** The panel and the announcement go into another server's channel, written from the host's event name: they never ping anyone there. */
+    static final java.util.EnumSet<net.dv8tion.jda.api.entities.Message.MentionType> NO_PINGS = java.util.EnumSet.noneOf(net.dv8tion.jda.api.entities.Message.MentionType.class);
 
     private final EventRepository events;
     private final EventService service;
@@ -172,12 +174,12 @@ public class CohostPanels extends ListenerAdapter implements BotListener {
         if (channel == null) return;
         if (p.messageId() == null) {
             if (!postIfMissing || event.status() != Status.SIGNUPS || !canPost(channel)) return;
-            channel.sendMessageComponents(List.of(panel(event))).useComponentsV2(true).queue(
+            channel.sendMessageComponents(List.of(panel(event))).useComponentsV2(true).setAllowedMentions(NO_PINGS).queue(
                     m -> cohosts.setPanelMessage(event.id(), p.guildId(), m.getIdLong()),
                     e -> log.info("Couldn't post the co-host panel of event {} in server {}: {}", event.id(), p.guildId(), e.getMessage()));
             return;
         }
-        channel.editMessageComponentsById(p.messageId(), List.of(panel(event))).useComponentsV2(true).queue(ok -> { }, e -> {
+        channel.editMessageComponentsById(p.messageId(), List.of(panel(event))).useComponentsV2(true).setAllowedMentions(NO_PINGS).queue(ok -> { }, e -> {
             if (e instanceof ErrorResponseException r && r.getErrorResponse() == ErrorResponse.UNKNOWN_MESSAGE) cohosts.setPanelMessage(event.id(), p.guildId(), null);
             else log.debug("Couldn't redraw the co-host panel of event {} in server {}: {}", event.id(), p.guildId(), e.getMessage());
         });
@@ -245,7 +247,7 @@ public class CohostPanels extends ListenerAdapter implements BotListener {
         if (!canPost(channel)) return;
         String invite = inviteOf(event.guildId());
         String text = "**" + event.name() + "** has started, hosted by **" + hostName(event.guildId()) + "**." + (invite == null ? "" : " Players take part from its Discord: " + invite);
-        channel.sendMessageComponents(List.of(Containers.toast(Containers.INFO, text))).useComponentsV2(true).queue(ok -> { },
+        channel.sendMessageComponents(List.of(Containers.toast(Containers.INFO, text))).useComponentsV2(true).setAllowedMentions(NO_PINGS).queue(ok -> { },
                 e -> log.debug("Couldn't announce the start of event {} in server {}: {}", event.id(), p.guildId(), e.getMessage()));
     }
 
