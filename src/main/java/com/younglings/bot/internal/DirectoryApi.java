@@ -146,7 +146,15 @@ public class DirectoryApi {
 
     /** A profile anyone may open by its address: listed, or unlisted. */
     private Optional<ClanProfile> viewable(String slug) {
-        return repository.bySlug(slug).filter(p -> service.publicView(p.guildId(), true).isPresent());
+        return repository.bySlug(slug).filter(p -> listed(p, true));
+    }
+
+    /**
+     * Whether a profile already loaded may be shown (listed, or also unlisted when {@code allowUnlisted}). Uses the loaded profile instead of
+     * fetching it again, so a list of clans costs one clan-name read per clan, not a profile and a clan name (T-180).
+     */
+    private boolean listed(ClanProfile p, boolean allowUnlisted) {
+        return service.publicView(p, service.clanNameOf(p.guildId()), allowUnlisted).isPresent();
     }
 
     // ---------- clans ----------
@@ -154,16 +162,21 @@ public class DirectoryApi {
     private DataObject buildList() {
         DataArray clans = DataArray.empty();
         for (ClanProfile p : repository.shared()) {
-            if (service.publicView(p.guildId(), false).isEmpty()) continue;
-            clans.add(publicJson(p, false));
+            String clan = service.clanNameOf(p.guildId());
+            if (service.publicView(p, clan, false).isEmpty()) continue;
+            clans.add(publicJson(p, false, clan));
         }
         return DataObject.empty().put("clans", clans).put("generatedAt", Instant.now().toString());
     }
 
     private DataObject publicJson(ClanProfile p, boolean full) {
+        return publicJson(p, full, service.clanNameOf(p.guildId()));
+    }
+
+    /** {@code clan}: the server's clan name ({@link ClanProfileService#clanNameOf}), passed in by a caller that already read it. */
+    private DataObject publicJson(ClanProfile p, boolean full, String clan) {
         DataArray focus = DataArray.empty();
         for (Focus f : Focus.values()) if (p.focus().contains(f)) focus.add(DataObject.empty().put("key", f.name()).put("label", f.label()));
-        String clan = service.clanNameOf(p.guildId());
         boolean listed = ProfileRules.listing(p, clan) == ProfileRules.Listing.LISTED;
         DataObject json = DataObject.empty().put("slug", p.slug()).put("name", p.displayName()).put("tagline", p.tagline()).put("logoUrl", p.logoUrl())
                 .put("colour", p.colour()).put("focus", focus).put("recruiting", DataObject.empty().put("key", p.recruiting().name()).put("label", p.recruiting().label()))
@@ -218,7 +231,7 @@ public class DirectoryApi {
         record Row(ClanProfile clan, EventInfo event) {}
         List<Row> rows = new ArrayList<>();
         for (ClanProfile p : repository.shared()) {
-            if (service.publicView(p.guildId(), false).isEmpty()) continue;
+            if (!listed(p, false)) continue;
             Guild guild = jda.getGuildById(p.guildId());
             if (guild == null) continue;
             for (EventInfo e : PublicEvents.feed(eventsOf(guild), repository.sharedEvents(p.guildId()), Instant.now(), EVENTS_PER_CLAN)) rows.add(new Row(p, e));
@@ -238,9 +251,11 @@ public class DirectoryApi {
         Instant now = Instant.now();
         OffsetDateTime since = period.since(now).atOffset(java.time.ZoneOffset.UTC);
         List<ClanLeaderboard.Entry> entries = new ArrayList<>();
+        java.util.Map<String, ClanProfile> bySlug = new java.util.HashMap<>();
         for (ClanProfile p : repository.shared()) {
-            if (!p.leaderboardOptIn() || service.publicView(p.guildId(), false).isEmpty()) continue;
+            if (!p.leaderboardOptIn() || !listed(p, false)) continue;
             if (entries.size() >= MAX_LEADERBOARD_CLANS) break;
+            bySlug.put(p.slug(), p);
             var gains = stats.xpGains(p.guildId(), since);
             long total = 0;
             for (var g : gains) total += g.xp();
@@ -249,7 +264,7 @@ public class DirectoryApi {
         DataArray array = DataArray.empty();
         int rank = 1;
         for (ClanLeaderboard.Entry e : ClanLeaderboard.rank(entries)) {
-            ClanProfile p = repository.bySlug(e.slug()).orElse(null);
+            ClanProfile p = bySlug.get(e.slug());
             array.add(DataObject.empty().put("rank", rank++).put("slug", e.slug()).put("name", e.name()).put("logoUrl", p == null ? null : p.logoUrl())
                     .put("colour", p == null ? null : p.colour()).put("xpGained", e.xpGained()).put("members", e.members()).put("perMember", e.perMember()));
         }
