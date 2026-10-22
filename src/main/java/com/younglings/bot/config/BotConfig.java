@@ -300,6 +300,26 @@ public class BotConfig {
         return envOrDotenv(name);
     }
 
+    /**
+     * A setting of the RuneClans hub client ({@code com.younglings.bot.runeclans}): {@code RUNECLANS_HUB_ENABLED}, {@code RUNECLANS_HUB_URL},
+     * {@code RUNECLANS_HUB_API_KEY}. Prefixed {@code RUNECLANS_} so they can't be mistaken for the event hub's settings. Null when unset.
+     * The old {@code RSCLANS_} names (before the hub was renamed to runeclans-hub) still work for one release: used only when the new name is
+     * unset, with a deprecation warning.
+     */
+    public String getRuneClansSetting(String name) {
+        if (!name.startsWith("RUNECLANS_")) throw new IllegalArgumentException("Only RUNECLANS_ settings are served here");
+        String value = envOrDotenv(name);
+        if (value != null) return value;
+        String legacy = "RSCLANS_" + name.substring("RUNECLANS_".length());
+        value = envOrDotenv(legacy);
+        if (value != null && LEGACY_WARNED.add(legacy)) {
+            org.slf4j.LoggerFactory.getLogger(BotConfig.class).warn("{} is deprecated and will be removed in the next release; rename it to {}", legacy, name);
+        }
+        return value;
+    }
+
+    private static final java.util.Set<String> LEGACY_WARNED = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
     /** What the JonnyBot face's address was before it was configurable. */
     public static final String DEFAULT_JONNYBOT_URL = "https://jonnybot.rsyounglings.com";
 

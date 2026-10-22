@@ -15,7 +15,7 @@ import org.jspecify.annotations.Nullable;
  * {@code /announce}: staff post a message in a channel as JonnyBot, optionally pinging one role, {@code @everyone} or {@code @here}.
  * Admins only by default (a server can change that on the dashboard's Commands page). {@code @everyone} and {@code @here} are refused
  * unless the sender may mention everyone in that channel, and a role must be mentionable or the sender must be able to mention
- * everyone; the rules are in {@link com.younglings.bot.ban.AnnouncePolicy}. The dashboard's Announcements page does the same.
+ * everyone; the rules are in {@link com.younglings.bot.ban.AnnouncePolicy}. The dashboard's Post a message page does the same.
  */
 @Command
 public class AnnounceCommand {

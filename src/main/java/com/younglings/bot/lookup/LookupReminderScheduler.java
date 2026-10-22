@@ -1,7 +1,9 @@
 package com.younglings.bot.lookup;
 
+import com.younglings.bot.discord.Mentions;
 import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.tracking.TrackingPostingToggle;
+import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -17,9 +19,7 @@ import org.slf4j.LoggerFactory;
 import java.time.Instant;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -35,12 +35,7 @@ public class LookupReminderScheduler {
     private final VosService vos;
     private final TrackingPostingToggle posting;
     private final BotConfig botConfig;
-    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(
-            (ThreadFactory) runnable -> {
-                Thread thread = new Thread(runnable, "lookup-reminders");
-                thread.setDaemon(true);
-                return thread;
-            });
+    private final ScheduledExecutorService executor = BotScheduler.lane("lookup-reminders");
 
     public LookupReminderScheduler(LookupReminderRepository reminders, VosService vos, TrackingPostingToggle posting, BotConfig botConfig) {
         this.reminders = reminders;
@@ -105,7 +100,7 @@ public class LookupReminderScheduler {
         Role role = reminder.roleId() == null ? null : guild.getRoleById(reminder.roleId());
         boolean ping = role != null && (role.isMentionable() || guild.getSelfMember().hasPermission(channel, Permission.MESSAGE_MENTION_EVERYONE));
         String content = (ping ? role.getAsMention() + " " : "") + text;
-        channel.sendMessage(content).setAllowedMentions(ping ? EnumSet.of(Message.MentionType.ROLE) : EnumSet.noneOf(Message.MentionType.class))
+        Mentions.onlyRoles(channel.sendMessage(content), ping ? new long[]{role.getIdLong()} : new long[0])
                 .queue(ok -> reminders.markPosted(reminder.guildId(), reminder.kind(), key),
                         err -> log.warn("Could not post the {} reminder in guild {}: {}", reminder.kind().key(), reminder.guildId(), err.toString()));
     }

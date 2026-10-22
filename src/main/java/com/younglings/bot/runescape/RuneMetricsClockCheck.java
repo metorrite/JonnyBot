@@ -1,5 +1,6 @@
 package com.younglings.bot.runescape;
 
+import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.db.ConnectionSupplier;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
@@ -11,9 +12,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -28,13 +27,11 @@ public class RuneMetricsClockCheck {
     private static final Logger log = LoggerFactory.getLogger(RuneMetricsClockCheck.class);
     private static final int MIN_SAMPLE = 20;
     private static final double TOLERATED_SHARE = 0.01;
+    /** How many of the newest activities are looked at: plenty to see a wrong zone, and a fixed cost however big the table grows. */
+    static final int MAX_ROWS = 5000;
 
     private final ConnectionSupplier connectionSupplier;
-    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor((ThreadFactory) runnable -> {
-        Thread thread = new Thread(runnable, "runemetrics-clock-check");
-        thread.setDaemon(true);
-        return thread;
-    });
+    private final ScheduledExecutorService executor = BotScheduler.lane("runemetrics-clock-check");
 
     public RuneMetricsClockCheck(ConnectionSupplier connectionSupplier) {
         this.connectionSupplier = connectionSupplier;
@@ -50,12 +47,18 @@ public class RuneMetricsClockCheck {
         return total >= MIN_SAMPLE && early > Math.max(1, Math.round(total * TOLERATED_SHARE));
     }
 
+    /**
+     * The newest activities only, by id (the primary key, so the newest rows are read straight off its index), then the last 3 days of
+     * those. No index leads on {@code recorded_at}, so filtering on it alone read the whole, ever-growing table every 6 hours (T-183).
+     */
+    static final String SQL = """
+            SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE occurred_at > recorded_at + INTERVAL '2 minutes') AS early
+            FROM (SELECT occurred_at, recorded_at FROM younglings.player_activity ORDER BY id DESC LIMIT %d) recent
+            WHERE recorded_at >= NOW() - INTERVAL '3 days' AND occurred_at IS NOT NULL
+            """.formatted(MAX_ROWS);
+
     void check() {
-        String sql = """
-                SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE occurred_at > recorded_at + INTERVAL '2 minutes') AS early
-                FROM younglings.player_activity WHERE recorded_at >= NOW() - INTERVAL '3 days' AND occurred_at IS NOT NULL
-                """;
-        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql); ResultSet rs = s.executeQuery()) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(SQL); ResultSet rs = s.executeQuery()) {
             if (!rs.next()) return;
             long total = rs.getLong("total");
             long early = rs.getLong("early");

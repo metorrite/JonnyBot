@@ -39,7 +39,7 @@ public enum HubCommand {
             "Admins only", true, CommandTag.MODERATION, CommandTag.ADMIN),
     POINTS("points", "Points", "points", "A server's points ledger: check your balance, see the top members, and staff award points with a reason on record.",
             "Everyone (awarding needs Manage Server)", false, CommandTag.CLAN_MANAGEMENT, CommandTag.MEMBER_USE),
-    ANNOUNCE("announce", "Announce", "announce", "Staff post an announcement in a channel, optionally pinging one role, @everyone or @here. Pings follow the sender's own mention permissions. The dashboard has the same form under Announcements.",
+    ANNOUNCE("announce", "Announce", "announce", "Staff post an announcement in a channel, optionally pinging one role, @everyone or @here. Pings follow the sender's own mention permissions. The dashboard has the same form on its Post a message page.",
             "Admins only", true, CommandTag.ADMIN, CommandTag.CLAN_MANAGEMENT),
     RANK("rank", "Self roles", "rank", "List, join and leave the roles this server lets members pick for themselves (the list is edited on the website).",
             "Everyone", false, CommandTag.FUNCTIONAL, CommandTag.MEMBER_USE),

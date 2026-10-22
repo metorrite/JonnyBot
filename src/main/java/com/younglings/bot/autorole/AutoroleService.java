@@ -1,6 +1,7 @@
 package com.younglings.bot.autorole;
 
 import com.younglings.bot.internal.MemberApi;
+import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
@@ -10,9 +11,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.time.Instant;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
@@ -29,11 +28,7 @@ public class AutoroleService {
     private static final Logger log = LoggerFactory.getLogger(AutoroleService.class);
 
     private final AutoroleRepository repository;
-    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor((ThreadFactory) runnable -> {
-        Thread thread = new Thread(runnable, "autorole");
-        thread.setDaemon(true);
-        return thread;
-    });
+    private final ScheduledExecutorService executor = BotScheduler.lane("autorole");
 
     public AutoroleService(AutoroleRepository repository) {
         this.repository = repository;
