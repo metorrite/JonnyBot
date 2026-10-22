@@ -1,6 +1,7 @@
 package com.younglings.bot.commandusage;
 
 import com.younglings.bot.BotListener;
+import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -14,7 +15,6 @@ import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.Map;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -31,11 +31,7 @@ public class CommandUsageListener extends ListenerAdapter implements BotListener
     private final CommandUsageRepository repository;
     private final CommandUsageCounter counter = new CommandUsageCounter();
     private final AtomicBoolean started = new AtomicBoolean();
-    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(runnable -> {
-        Thread thread = new Thread(runnable, "command-usage");
-        thread.setDaemon(true);
-        return thread;
-    });
+    private final ScheduledExecutorService executor = BotScheduler.lane("command-usage");
 
     public CommandUsageListener(CommandUsageRepository repository) {
         this.repository = repository;
