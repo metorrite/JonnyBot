@@ -63,7 +63,7 @@ class ModServiceTest {
     void setUp() {
         cases = mock(ModCaseRepository.class);
         admins = mock(AdminRoleFilter.class);
-        service = new ModService(cases, admins);
+        service = new ModService(cases, admins, null);
         settings = ModSettings.defaults(GUILD);
         when(cases.settings(GUILD)).thenReturn(settings);
         when(cases.record(anyLong(), anyLong(), anyString(), anyLong(), anyString(), any(), anyString(), any(), anyString()))
