@@ -15,7 +15,8 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Raw plugin events are kept for 180 days (set {@code PLUGIN_EVENT_RETENTION_DAYS} to change it, 0 to keep them) and then deleted, so
- * JonnyBot does not hold a permanent log of what people did in the game. Checked once a day.
+ * JonnyBot does not hold a permanent log of what people did in the game. Checked once a day. RuneSync's diagnostics snapshots expire after
+ * 14 days and are removed by the same daily check, whatever the event setting.
  */
 @BService
 public class PluginRetention {
@@ -23,18 +24,21 @@ public class PluginRetention {
     static final int DEFAULT_DAYS = 180;
 
     private final PluginRepository repository;
+    private final RuneSyncRepository runeSync;
     private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor((ThreadFactory) runnable -> {
         Thread thread = new Thread(runnable, "plugin-retention");
         thread.setDaemon(true);
         return thread;
     });
 
-    public PluginRetention(PluginRepository repository) {
+    public PluginRetention(PluginRepository repository, RuneSyncRepository runeSync) {
         this.repository = repository;
+        this.runeSync = runeSync;
     }
 
     @BEventListener
     public void onJdaReady(InjectedJDAEvent event) {
+        executor.scheduleWithFixedDelay(this::purgeDiagnostics, 2, 24 * 60, TimeUnit.MINUTES);
         int days = retentionDays(System.getenv("PLUGIN_EVENT_RETENTION_DAYS"));
         if (days <= 0) {
             log.info("Plugin event retention is off (PLUGIN_EVENT_RETENTION_DAYS=0): reported events are kept.");
@@ -59,6 +63,15 @@ public class PluginRetention {
             if (removed > 0) log.info("Removed {} plugin event(s) older than {} days", removed, days);
         } catch (Exception e) {
             log.error("Plugin event retention failed", e);
+        }
+    }
+
+    void purgeDiagnostics() {
+        try {
+            int removed = runeSync.purgeExpiredDiagnostics(Instant.now());
+            if (removed > 0) log.info("Removed {} expired RuneSync diagnostics snapshot(s)", removed);
+        } catch (Exception e) {
+            log.error("RuneSync diagnostics retention failed", e);
         }
     }
 }
