@@ -68,6 +68,7 @@ class DirectoryRoutesTest {
                 section));
         when(repository.bySlug("younglings")).thenReturn(Optional.of(clan));
         when(service.publicView(GUILD, true)).thenReturn(Optional.of(clan));
+        when(service.publicView(eq(clan), any(), eq(true))).thenReturn(Optional.of(clan));
     }
 
     private record Reply(int status, DataObject body) {}
