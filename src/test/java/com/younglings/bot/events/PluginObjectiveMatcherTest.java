@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PluginObjectiveMatcherTest {
@@ -129,5 +130,47 @@ class PluginObjectiveMatcherTest {
         var tiles = List.of(tile("elite", "Elite clue", Evidence.AUTO));
         assertTrue(PluginObjectiveMatcher.match(CompetitionTemplate.KEY, "{}", tiles, PluginEventType.CLUE, null, json("{\"tier\":\"elite\",\"count\":1}"), LABELS).isEmpty());
         assertTrue(PluginObjectiveMatcher.match(BossNightTemplate.KEY, "{}", tiles, PluginEventType.CLUE, null, json("{\"tier\":\"elite\",\"count\":1}"), LABELS).isEmpty());
+    }
+
+    // ---------- the editor's hints (T-141): they must agree with match() ----------
+
+    private static final java.util.function.Function<String, Boolean> KNOWN = item -> item.equalsIgnoreCase("Torva boots");
+
+    private static PluginObjectiveMatcher.Hint hint(String label) {
+        return PluginObjectiveMatcher.explain("bingo", label, LABELS, KNOWN);
+    }
+
+    @Test
+    void aHintSaysAutoExactlyWhenARuneSyncReportWouldTickTheTile() {
+        // a known drop: auto, and a drop report of it ticks the tile
+        assertTrue(hint("Nex: Torva boots").auto());
+        assertTrue(hint("Nex: Torva boots").text().contains("Torva boots from Nex"));
+        assertEquals(1, PluginObjectiveMatcher.match("bingo", "{}", List.of(tile("t", "Nex: Torva boots", Evidence.EITHER)), PluginEventType.DROP, "Nex",
+                json("{\"itemName\":\"Torva boots\"}"), LABELS).size());
+        // clue tiles: auto, and a clue report ticks them
+        assertTrue(hint("Elite clue").auto());
+        assertTrue(hint("Any clue scroll").auto());
+        assertEquals(1, PluginObjectiveMatcher.match("bingo", "{}", List.of(tile("t", "Elite clue", Evidence.EITHER)), PluginEventType.CLUE, null,
+                json("{\"tier\":\"elite\",\"count\":1}"), LABELS).size());
+        // a clue label with two tiers can never match, and says so
+        assertFalse(hint("Hard or elite clue").auto());
+    }
+
+    @Test
+    void typesRuneSyncDoesNotReportYetAreNotPromised() {
+        assertFalse(hint("99 Fletching").auto());
+        assertTrue(hint("99 Fletching").text().contains("level-ups"));
+        assertFalse(hint("Collection log: Abyssal whip").auto());
+        assertFalse(hint("Quest: Dragon Slayer").auto());
+        assertFalse(hint("Achievement: Ace of Spades").auto());
+    }
+
+    @Test
+    void anUnknownItemIsFlaggedAndOtherEventTypesGetNoHints() {
+        assertFalse(hint("Shiny rock").auto());
+        assertTrue(hint("Shiny rock").text().contains("Not an item JonnyBot knows"));
+        assertEquals(null, PluginObjectiveMatcher.explain(CompetitionTemplate.KEY, "Nex: Torva boots", LABELS, KNOWN));
+        assertEquals(null, PluginObjectiveMatcher.explain(BossNightTemplate.KEY, "Nex: Torva boots", LABELS, KNOWN));
+        assertEquals(null, hint("   "));
     }
 }
