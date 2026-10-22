@@ -2,6 +2,7 @@ package com.younglings.bot.tracking;
 
 import com.younglings.bot.discord.Containers;
 import com.younglings.bot.discord.DiscordLinks;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.runescape.SkillEmojiCatalog;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.Permission;
@@ -102,7 +103,7 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
 
         try {
             if (!member.hasPermission(Permission.ADMINISTRATOR)) {
-                Containers.replyEphemeral(event, Containers.WARNING, "You need the Administrator permission to configure this bot.");
+                Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "tracking.you_need_the_administrator_permission_to"));
                 return;
             }
 
@@ -158,7 +159,7 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
 
         try {
             if (!member.hasPermission(Permission.ADMINISTRATOR)) {
-                Containers.replyEphemeral(event, Containers.WARNING, "You need the Administrator permission to configure this bot.");
+                Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "tracking.you_need_the_administrator_permission_to"));
                 return;
             }
 
@@ -186,7 +187,7 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
 
         try {
             if (!member.hasPermission(Permission.ADMINISTRATOR)) {
-                Containers.replyEphemeral(event, Containers.WARNING, "You need the Administrator permission to configure this bot.");
+                Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "tracking.you_need_the_administrator_permission_to"));
                 return;
             }
             if (event.getValues().isEmpty()) return;
@@ -219,7 +220,7 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
 
         try {
             if (!member.hasPermission(Permission.ADMINISTRATOR)) {
-                Containers.replyEphemeral(event, Containers.WARNING, "You need the Administrator permission to configure this bot.");
+                Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "tracking.you_need_the_administrator_permission_to"));
                 return;
             }
 
@@ -236,7 +237,7 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
 
     private void doAddThreadPrompt(ButtonInteractionEvent event, String groupName) {
         TextInput linkInput = TextInput.create("thread_link", TextInputStyle.SHORT)
-                .setPlaceholder("Paste a thread/channel link, or just its ID")
+                .setPlaceholder(Text.of(event, "tracking.paste_a_thread_channel_link_or"))
                 .setRequired(true)
                 .build();
 
@@ -251,21 +252,21 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
         Long channelId = DiscordLinks.parseChannelId(raw);
 
         if (channelId == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "Couldn't find a channel/thread ID in that — paste the full link, or just the ID by itself.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "tracking.couldn_t_find_a_channel_thread"));
             return;
         }
         if (guild.getChannelById(GuildMessageChannel.class, channelId) == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "That doesn't look like a channel or thread in this server. Double-check the link and try again.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "tracking.that_doesn_t_look_like_a"));
             return;
         }
 
         trackingService.addDestination(guild.getIdLong(), group, channelId);
-        Containers.replyEphemeral(event, Containers.SUCCESS, "Added <#" + channelId + "> as a destination for **" + group.displayName() + "**.");
+        Containers.replyEphemeral(event, Containers.SUCCESS, Text.of(event, "tracking.added_as_a_destination_for", channelId, group.displayName()));
     }
 
     private void doAddSourceThreadPrompt(ButtonInteractionEvent event, String encodedSource) {
         TextInput linkInput = TextInput.create("thread_link", TextInputStyle.SHORT)
-                .setPlaceholder("Paste a thread/channel link, or just its ID")
+                .setPlaceholder(Text.of(event, "tracking.paste_a_thread_channel_link_or"))
                 .setRequired(true)
                 .build();
 
@@ -280,16 +281,16 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
         Long channelId = DiscordLinks.parseChannelId(raw);
 
         if (channelId == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "Couldn't find a channel/thread ID in that — paste the full link, or just the ID by itself.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "tracking.couldn_t_find_a_channel_thread"));
             return;
         }
         if (guild.getChannelById(GuildMessageChannel.class, channelId) == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "That doesn't look like a channel or thread in this server. Double-check the link and try again.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "tracking.that_doesn_t_look_like_a"));
             return;
         }
 
         trackingService.addDestinationToSource(guild.getIdLong(), source, channelId);
-        Containers.replyEphemeral(event, Containers.SUCCESS, "Added <#" + channelId + "> as a destination for every group under **" + source + "**.");
+        Containers.replyEphemeral(event, Containers.SUCCESS, Text.of(event, "tracking.added_as_a_destination_for_every", channelId, source));
     }
 
     /**
@@ -300,7 +301,7 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
      */
     private void doSendGroupNow(ButtonInteractionEvent event, Guild guild, TrackingGroup group) {
         if (!sendNowService.supportsGroup(group)) {
-            Containers.replyEphemeral(event, Containers.WARNING, "There's nothing to send for **" + group.displayName() + "**.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "tracking.there_nothing_to_send_for", group.displayName()));
             return;
         }
         // The Clan Report group and the Points & Promotions section run the same recompute.
@@ -316,7 +317,7 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
      */
     private void doSendSectionNow(ButtonInteractionEvent event, Guild guild, String source) {
         if (!sendNowService.supportsSection(source)) {
-            Containers.replyEphemeral(event, Containers.WARNING, "There's nothing to send for **" + source + "**.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "tracking.there_nothing_to_send_for", source));
             return;
         }
         // Every roster-polling section shares one lock, so two clicks can't overlap their polls.
@@ -327,7 +328,7 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
     private void runSendNow(ButtonInteractionEvent event, String lockKey, Supplier<TrackingSendNowService.Result> work) {
         if (!sendNowInFlight.add(lockKey)) {
             Containers.replyEphemeral(event, Containers.INFO,
-                    "That refresh is already running — its result will show up on the earlier reply when it finishes.");
+                    Text.of(event, "tracking.that_refresh_is_already_running_its"));
             return;
         }
 
@@ -341,7 +342,7 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
             } catch (Exception e) {
                 log.error("Send Now failed ({})", lockKey, e);
                 event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.DANGER,
-                        "Send Now failed — check the bot's logs."))).useComponentsV2(true).queue();
+                        Text.of(event, "tracking.send_now_failed_check_the_bot")))).useComponentsV2(true).queue();
             } finally {
                 sendNowInFlight.remove(lockKey);
             }
@@ -381,8 +382,8 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
             boolean clanReport = group == TrackingGroup.CLAN_REPORT;
             boolean container = adminLog || clanReport;
             String line = container ? null : sampleLineFor(group, actorMention);
-            Container sampleContainer = adminLog ? buildSampleAuditContainer(group, actorMention)
-                    : clanReport ? buildSampleClanReportContainer() : null;
+            Container sampleContainer = adminLog ? buildSampleAuditContainer(guild, group, actorMention)
+                    : clanReport ? buildSampleClanReportContainer(guild) : null;
 
             for (TrackingRepository.Destination destination : destinations) {
                 GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, destination.channelId());
@@ -413,7 +414,7 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
         List<TrackingRepository.TestMessage> messages = trackingService.getTestMessages(guildId);
 
         if (messages.isEmpty()) {
-            event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.INFO, "No test posts to clear."))).useComponentsV2(true).queue();
+            event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.INFO, Text.of(event, "tracking.no_test_posts_to_clear")))).useComponentsV2(true).queue();
             return;
         }
 
@@ -427,7 +428,7 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
         int count = messages.size();
         CompletableFuture.allOf(deletes.toArray(new CompletableFuture[0])).thenRun(() -> {
             trackingService.clearTestMessages(guildId);
-            event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.SUCCESS, "Cleared " + count + " test post(s)."))).useComponentsV2(true).queue();
+            event.getHook().editOriginalComponents(List.of(Containers.toast(Containers.SUCCESS, Text.of(event, "tracking.cleared_test_post", count)))).useComponentsV2(true).queue();
         });
     }
 
@@ -477,7 +478,7 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
     }
 
     /** Mirrors {@link TrackingEventClassifier}'s real admin-log Container layout, so the preview looks exactly like a real entry would. */
-    private Container buildSampleAuditContainer(TrackingGroup group, String actorMention) {
+    private Container buildSampleAuditContainer(Guild guild, TrackingGroup group, String actorMention) {
         String action = switch (group) {
             case SERVER_SETTINGS -> "Guild Update";
             case CHANNELS_THREADS -> "Channel Create";
@@ -489,7 +490,7 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
         };
 
         List<ContainerChildComponent> children = new ArrayList<>();
-        children.add(TextDisplay.of("### 🧪 [TEST] " + action));
+        children.add(TextDisplay.of(Text.of(guild, "tracking.test", action)));
 
         StringBuilder details = new StringBuilder("**Performed By:** ").append(actorMention);
         if (group == TrackingGroup.CHANNELS_THREADS) details.append("\n**Target:** **test-channel** (`0`)");
@@ -504,13 +505,13 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
     }
 
     /** Mirrors {@link ClanPointsService}'s real Clan Report layout with fake data (a made-up "TestPlayer" one tier below "eligible") — rank badges come from the real {@link TrackingIconCatalog#mentionForRank}. */
-    private Container buildSampleClanReportContainer() {
+    private Container buildSampleClanReportContainer(Guild guild) {
         String currentLine = withIcon(trackingIconCatalog.mentionForRank(0), "**TestPlayer**");
         String earnedRank = withIcon(trackingIconCatalog.mentionForRank(1), "**Corporal**");
 
         List<ContainerChildComponent> children = new ArrayList<>();
-        children.add(TextDisplay.of("### 🔺 [TEST] Clan Report — Promotions Needed"));
-        children.add(TextDisplay.of(currentLine + "\nEligible for " + earnedRank + " • 150 pts • waiting since Sep 28"));
+        children.add(TextDisplay.of(Text.of(guild, "tracking.test_clan_report_promotions_needed")));
+        children.add(TextDisplay.of(Text.of(guild, "tracking.eligible_for_150_pts_waiting_since", currentLine, earnedRank)));
         return Containers.card(Containers.WARNING, children);
     }
 
@@ -529,8 +530,7 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
     /** One button per source, not per group — see the class javadoc for why the old per-group layout doesn't fit anymore. Still 18+4 lightweight service calls per render (enabled + destination count, each group, plus a count per source) — an admin panel, not a hot path. */
     Container buildMainPanel(long guildId) {
         List<ContainerChildComponent> children = new ArrayList<>();
-        children.add(TextDisplay.of("### Tracker Channels\n" +
-                "-# Clan drops, levels, Citadel activity, joins/leaves, and Discord's own admin log — click a section below, then a group inside it."));
+        children.add(TextDisplay.of(Text.of(guildId, "tracking.tracker_channels_clan_drops_levels_citadel")));
 
         Set<String> sources = new LinkedHashSet<>();
         for (TrackingGroup group : TrackingGroup.values()) sources.add(group.source());
@@ -544,14 +544,14 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
                     "⚙️ " + source + " (" + enabledCount + "/" + groups.size() + ")")));
         }
 
-        children.add(TextDisplay.of("-# **Send Test Posts** sends one sample line per group so you can see the real formatting/icons — any group with no destination yet gets this channel added as one. **Clear Test Posts** deletes everything a test send has ever posted in this server."));
+        children.add(TextDisplay.of(Text.of(guildId, "tracking.send_test_posts_sends_one_sample")));
         children.add(ActionRow.of(
-                Button.secondary("configure_tracking_test_send:_", "Send Test Posts"),
-                Button.danger("configure_tracking_test_clear:_", "Clear Test Posts")));
+                Button.secondary("configure_tracking_test_send:_", Text.of(guildId, "tracking.send_test_posts")),
+                Button.danger("configure_tracking_test_clear:_", Text.of(guildId, "tracking.clear_test_posts"))));
 
         // Back always lives alone at the very bottom, left-aligned, in blurple — the one consistent
         // spot every panel in this bot puts its "go to the previous screen" button.
-        children.add(ActionRow.of(Button.primary("configure_back:_", "Back")));
+        children.add(ActionRow.of(Button.primary("configure_back:_", Text.of(guildId, "tracking.back"))));
         children.add(Containers.autoCloseNote());
 
         return Containers.card(Containers.PRIMARY, children);
@@ -570,18 +570,16 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
         List<ContainerChildComponent> children = new ArrayList<>();
         children.add(TextDisplay.of("### " + group.displayName()));
         children.add(TextDisplay.of("-# " + group.source()));
-        children.add(TextDisplay.of("**Status:** " + (enabled ? "Enabled" : "Disabled")));
-        children.add(ActionRow.of(enabled ? Button.danger("configure_tracking_toggle:" + group.name(), "Disable")
-                : Button.success("configure_tracking_toggle:" + group.name(), "Enable")));
+        children.add(TextDisplay.of(Text.of(guildId, "tracking.status", (enabled ? Text.of(guildId, "tracking.enabled") : Text.of(guildId, "tracking.disabled")))));
+        children.add(ActionRow.of(enabled ? Button.danger("configure_tracking_toggle:" + group.name(), Text.of(guildId, "tracking.disable"))
+                : Button.success("configure_tracking_toggle:" + group.name(), Text.of(guildId, "tracking.enable"))));
 
         if (sendNowService.supportsGroup(group)) {
-            children.add(TextDisplay.of(group == TrackingGroup.CLAN_REPORT
-                    ? "-# This posts on its own every day shortly after the daily clan sync (00:00 UTC). **Send Now** (bottom) recomputes points and promotion eligibility, then sends the report right away."
-                    : "-# This posts on its own every Wednesday at 01:00 UTC. **Send Now** (bottom) sends the most recently completed week's report right away."));
+            children.add(TextDisplay.of(group == TrackingGroup.CLAN_REPORT ? Text.of(guildId, "tracking.this_posts_on_its_own_every") : Text.of(guildId, "tracking.this_posts_on_its_own_every_2")));
         }
 
         if (destinations.isEmpty()) {
-            children.add(TextDisplay.of("**Destinations:** *none yet*"));
+            children.add(TextDisplay.of(Text.of(guildId, "tracking.destinations_none_yet")));
         } else {
             StringBuilder list = new StringBuilder("**Destinations:**\n");
             for (TrackingRepository.Destination destination : destinations) {
@@ -590,18 +588,18 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
             children.add(TextDisplay.of(list.toString().trim()));
 
             StringSelectMenu.Builder removeMenu = StringSelectMenu.create("configure_tracking_remove_dest:" + group.name())
-                    .setPlaceholder("Remove a destination");
+                    .setPlaceholder(Text.of(guildId, "tracking.remove_a_destination"));
             for (TrackingRepository.Destination destination : destinations) {
                 removeMenu.addOption("Remove #" + destination.channelId(), String.valueOf(destination.id()));
             }
             children.add(ActionRow.of(removeMenu.build()));
         }
 
-        children.add(TextDisplay.of("**Add a channel** (regular channel or an active thread):"));
+        children.add(TextDisplay.of(Text.of(guildId, "tracking.add_a_channel_regular_channel_or")));
         children.add(ActionRow.of(
                 EntitySelectMenu.create("configure_tracking_add_channel:" + group.name(), EntitySelectMenu.SelectTarget.CHANNEL)
                         .setChannelTypes(ChannelType.TEXT, ChannelType.GUILD_PUBLIC_THREAD, ChannelType.GUILD_PRIVATE_THREAD, ChannelType.FORUM)
-                        .setPlaceholder("Select a channel or thread")
+                        .setPlaceholder(Text.of(guildId, "tracking.select_a_channel_or_thread"))
                         .setRequiredRange(0, 1)
                         .build()));
 
@@ -609,9 +607,9 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
 
         // Back stays leftmost (the rule every panel here follows); Send Now sits right beside it on
         // the groups that have one.
-        Button back = Button.primary("configure_tracking_source:" + encodeSource(group.source()), "Back");
+        Button back = Button.primary("configure_tracking_source:" + encodeSource(group.source()), Text.of(guildId, "tracking.back"));
         children.add(sendNowService.supportsGroup(group)
-                ? ActionRow.of(back, Button.success("configure_tracking_report_send:" + group.name(), "Send Now"))
+                ? ActionRow.of(back, Button.success("configure_tracking_report_send:" + group.name(), Text.of(guildId, "tracking.send_now")))
                 : ActionRow.of(back));
 
         return Containers.card(Containers.PRIMARY, children);
@@ -627,25 +625,25 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
         List<ContainerChildComponent> children = new ArrayList<>();
         children.add(TextDisplay.of("### " + source));
 
-        children.add(TextDisplay.of("**Enable or disable every group here at once:**"));
+        children.add(TextDisplay.of(Text.of(guildId, "tracking.enable_or_disable_every_group_here")));
         children.add(ActionRow.of(
-                Button.success("configure_tracking_source_enable_all:" + encodedSource, "Enable All"),
-                Button.secondary("configure_tracking_source_disable_all:" + encodedSource, "Disable All")));
+                Button.success("configure_tracking_source_enable_all:" + encodedSource, Text.of(guildId, "tracking.enable_all")),
+                Button.secondary("configure_tracking_source_disable_all:" + encodedSource, Text.of(guildId, "tracking.disable_all"))));
 
-        children.add(TextDisplay.of("**Add a destination to every group here at once** (regular channel or an active thread):"));
+        children.add(TextDisplay.of(Text.of(guildId, "tracking.add_a_destination_to_every_group")));
         children.add(ActionRow.of(
                 EntitySelectMenu.create("configure_tracking_source_add_channel:" + encodedSource, EntitySelectMenu.SelectTarget.CHANNEL)
                         .setChannelTypes(ChannelType.TEXT, ChannelType.GUILD_PUBLIC_THREAD, ChannelType.GUILD_PRIVATE_THREAD, ChannelType.FORUM)
-                        .setPlaceholder("Select a channel or thread")
+                        .setPlaceholder(Text.of(guildId, "tracking.select_a_channel_or_thread"))
                         .setRequiredRange(0, 1)
                         .build()));
         children.add(ActionRow.of(
                 Containers.linkButton("configure_tracking_source_add_thread:" + encodedSource),
-                Button.danger("configure_tracking_source_clear_confirm:" + encodedSource, "Clear All Destinations")));
-        children.add(TextDisplay.of("-# **Link by ID** adds a destination via a pasted link or ID, for a forum thread Discord's own picker can't show. **Clear All Destinations** removes every destination from every group in this section — there's no undo, so it asks you to confirm first."));
+                Button.danger("configure_tracking_source_clear_confirm:" + encodedSource, Text.of(guildId, "tracking.clear_all_destinations"))));
+        children.add(TextDisplay.of(Text.of(guildId, "tracking.link_by_id_adds_a_destination")));
 
         children.add(Separator.createDivider(Separator.Spacing.SMALL));
-        children.add(TextDisplay.of("**Groups** — click one to open it. Green = enabled, gray = disabled:"));
+        children.add(TextDisplay.of(Text.of(guildId, "tracking.groups_click_one_to_open_it")));
         List<Button> rowButtons = new ArrayList<>();
         for (TrackingGroup group : groups) {
             boolean enabled = trackingService.isEnabled(guildId, group);
@@ -661,10 +659,10 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
 
         // Back stays leftmost (the rule every panel here follows); Send Now sits right beside it on
         // every section that has something to refresh — everything except the Discord Admin Log.
-        Button back = Button.primary("configure_tracking_main:_", "Back");
+        Button back = Button.primary("configure_tracking_main:_", Text.of(guildId, "tracking.back"));
         if (sendNowService.supportsSection(source)) {
             children.add(TextDisplay.of(sendNowService.describeSection(source)));
-            children.add(ActionRow.of(back, Button.success("configure_tracking_source_send:" + encodedSource, "Send Now")));
+            children.add(ActionRow.of(back, Button.success("configure_tracking_source_send:" + encodedSource, Text.of(guildId, "tracking.send_now"))));
         } else {
             children.add(ActionRow.of(back));
         }
@@ -677,13 +675,12 @@ public class TrackingConfigInteractionListener extends ListenerAdapter {
         int totalDestinations = groups.stream().mapToInt(group -> trackingService.getDestinations(guildId, group).size()).sum();
 
         List<ContainerChildComponent> children = new ArrayList<>();
-        children.add(TextDisplay.of("### Clear All Destinations — " + source));
-        children.add(TextDisplay.of("This removes " + totalDestinations + " destination(s) across all " + groups.size() +
-                " group(s) under " + source + ". Groups stay enabled — they'll just have nowhere to post until you add destinations again. This can't be undone."));
+        children.add(TextDisplay.of(Text.of(guildId, "tracking.clear_all_destinations_2", source)));
+        children.add(TextDisplay.of(Text.of(guildId, "tracking.this_removes_destination_across_all_group", totalDestinations, groups.size(), source)));
         String encodedSource = encodeSource(source);
         children.add(ActionRow.of(
-                Button.danger("configure_tracking_source_clear_go:" + encodedSource, "Yes, Clear All"),
-                Button.secondary("configure_tracking_source:" + encodedSource, "Cancel")));
+                Button.danger("configure_tracking_source_clear_go:" + encodedSource, Text.of(guildId, "tracking.yes_clear_all")),
+                Button.secondary("configure_tracking_source:" + encodedSource, Text.of(guildId, "tracking.cancel"))));
 
         return Containers.card(Containers.DANGER, children);
     }

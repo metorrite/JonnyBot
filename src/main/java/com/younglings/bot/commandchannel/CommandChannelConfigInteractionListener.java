@@ -2,6 +2,7 @@ package com.younglings.bot.commandchannel;
 
 import com.younglings.bot.discord.Containers;
 import com.younglings.bot.discord.DiscordLinks;
+import com.younglings.bot.i18n.Text;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
@@ -80,7 +81,7 @@ public class CommandChannelConfigInteractionListener extends ListenerAdapter {
                     edit(event, buildMainPanel(guild));
                 }
                 case "configure_cmdchan_group" -> showGroup(event, guild, Long.parseLong(parts[1]));
-                case "configure_cmdchan_new" -> event.replyModal(buildNewGroupModal()).queue();
+                case "configure_cmdchan_new" -> event.replyModal(buildNewGroupModal(event)).queue();
                 case "configure_cmdchan_toggle" -> {
                     long groupId = Long.parseLong(parts[1]);
                     service.getGroup(guildId, groupId).ifPresent(g -> service.setEnabled(guildId, groupId, !g.enabled()));
@@ -91,7 +92,7 @@ public class CommandChannelConfigInteractionListener extends ListenerAdapter {
                     if (group == null) edit(event, buildMainPanel(guild));
                     else event.replyModal(buildMessageModal(group)).queue();
                 }
-                case "configure_cmdchan_link" -> event.replyModal(buildLinkModal(Long.parseLong(parts[1]))).queue();
+                case "configure_cmdchan_link" -> event.replyModal(buildLinkModal(event, Long.parseLong(parts[1]))).queue();
                 case "configure_cmdchan_rules" -> showRules(event, guild, Long.parseLong(parts[1]));
                 case "configure_cmdchan_delete" -> {
                     CommandChannelGroup group = service.getGroup(guildId, Long.parseLong(parts[1])).orElse(null);
@@ -234,17 +235,17 @@ public class CommandChannelConfigInteractionListener extends ListenerAdapter {
         long guildId = guild.getIdLong();
         String name = event.getValue("name").getAsString().trim();
         if (name.isEmpty() || name.length() > CommandChannelService.MAX_NAME_LENGTH) {
-            Containers.replyEphemeral(event, Containers.WARNING, "A group name must be 1–" + CommandChannelService.MAX_NAME_LENGTH + " characters.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "commandchannel.a_group_name_must_be_1", CommandChannelService.MAX_NAME_LENGTH));
             return;
         }
         if (service.getGroups(guildId).size() >= CommandChannelService.MAX_GROUPS) {
-            Containers.replyEphemeral(event, Containers.WARNING, "That's the maximum of " + CommandChannelService.MAX_GROUPS + " groups.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "commandchannel.that_the_maximum_of_groups", CommandChannelService.MAX_GROUPS));
             return;
         }
 
         long groupId = service.createGroup(guildId, name);
         if (groupId < 0) {
-            Containers.replyEphemeral(event, Containers.WARNING, "There's already a group called **" + name + "**.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "commandchannel.there_already_a_group_called", name));
             return;
         }
         showGroup(event, guild, groupId);
@@ -258,7 +259,7 @@ public class CommandChannelConfigInteractionListener extends ListenerAdapter {
             return;
         }
         if (CommandChannelService.isDefaultGroup(group)) {
-            Containers.replyEphemeral(event, Containers.WARNING, "The Default group always uses the built-in message — edit the **Custom** group's instead.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "commandchannel.the_default_group_always_uses_the"));
             return;
         }
 
@@ -269,12 +270,12 @@ public class CommandChannelConfigInteractionListener extends ListenerAdapter {
     private void handleLinkAdd(ModalInteractionEvent event, Guild guild, long groupId) {
         Long channelId = DiscordLinks.parseChannelId(event.getValue("channel_link").getAsString());
         if (channelId == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "Couldn't find a channel/thread ID in that — paste the full link, or just the ID by itself.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "commandchannel.couldn_t_find_a_channel_thread"));
             return;
         }
         GuildChannel channel = guild.getGuildChannelById(channelId);
         if (!(channel instanceof GuildMessageChannel)) {
-            Containers.replyEphemeral(event, Containers.WARNING, "That doesn't look like a text channel or thread in this server. Double-check the link and try again.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "commandchannel.that_doesn_t_look_like_a"));
             return;
         }
         addChannelAndRender(event, guild, groupId, channelId);
@@ -301,12 +302,8 @@ public class CommandChannelConfigInteractionListener extends ListenerAdapter {
         List<CommandChannelGroup> groups = service.getGroups(guild.getIdLong());
 
         List<ContainerChildComponent> children = new ArrayList<>();
-        children.add(TextDisplay.of("### Command Only Channels\n" +
-                "-# In a group's channels, regular messages are deleted and the sender gets a short notice — slash commands still work. " +
-                "Each group has its own channels, notice, and rules about who it applies to. A channel can be in only one group."));
-        children.add(TextDisplay.of("-# Discord only allows a private (ephemeral) reply to a slash command or button, never to a typed message — " +
-                "so the notice is a normal message that mentions the sender and deletes itself after about " +
-                CommandChannelListener.NOTICE_LIFETIME_SECONDS + " seconds."));
+        children.add(TextDisplay.of(Text.of(guild, "commandchannel.command_only_channels_in_a_group")));
+        children.add(TextDisplay.of(Text.of(guild, "commandchannel.discord_only_allows_a_private_ephemeral", CommandChannelListener.NOTICE_LIFETIME_SECONDS)));
 
         List<Button> row = new ArrayList<>();
         for (CommandChannelGroup group : groups) {
@@ -319,9 +316,9 @@ public class CommandChannelConfigInteractionListener extends ListenerAdapter {
         }
         if (!row.isEmpty()) children.add(ActionRow.of(row));
 
-        Button back = Button.primary("configure_back:_", "Back");
+        Button back = Button.primary("configure_back:_", Text.of(guild, "commandchannel.back"));
         children.add(groups.size() < CommandChannelService.MAX_GROUPS
-                ? ActionRow.of(back, Button.success("configure_cmdchan_new:_", "New Group"))
+                ? ActionRow.of(back, Button.success("configure_cmdchan_new:_", Text.of(guild, "commandchannel.new_group")))
                 : ActionRow.of(back));
         children.add(Containers.autoCloseNote());
 
@@ -334,24 +331,22 @@ public class CommandChannelConfigInteractionListener extends ListenerAdapter {
         String gid = String.valueOf(group.id());
 
         List<ContainerChildComponent> children = new ArrayList<>();
-        children.add(TextDisplay.of("### " + group.name() + "\n-# "
-                + (group.enabled() ? "Enabled" : "**Disabled** — nothing is enforced")
-                + " • " + group.channelIds().size() + " channel(s)"));
+        children.add(TextDisplay.of(Text.of(guild, "commandchannel.channel", group.name(), (group.enabled() ? Text.of(guild, "commandchannel.enabled") : Text.of(guild, "commandchannel.disabled_nothing_enforced")), group.channelIds().size())));
 
         String note = isDefault ? " *(fixed default)*" : group.customMessage() == null || group.customMessage().isBlank() ? " *(using the default)*" : "";
-        children.add(TextDisplay.of("**Notice message**" + note + "\n> " + CommandChannelService.messageFor(group).replace("\n", "\n> ")));
+        children.add(TextDisplay.of(Text.of(guild, "commandchannel.notice_message", note, CommandChannelService.messageFor(group).replace("\n", "\n> "))));
 
         List<Button> actions = new ArrayList<>();
-        if (!isDefault) actions.add(Button.secondary("configure_cmdchan_msg:" + gid, "Edit Message"));
-        actions.add(Button.secondary("configure_cmdchan_rules:" + gid, "Who It Applies To"));
+        if (!isDefault) actions.add(Button.secondary("configure_cmdchan_msg:" + gid, Text.of(guild, "commandchannel.edit_message")));
+        actions.add(Button.secondary("configure_cmdchan_rules:" + gid, Text.of(guild, "commandchannel.who_it_applies_to")));
         actions.add(group.enabled()
-                ? Button.secondary("configure_cmdchan_toggle:" + gid, "Disable")
-                : Button.success("configure_cmdchan_toggle:" + gid, "Enable"));
-        if (!isProtected) actions.add(Button.danger("configure_cmdchan_delete:" + gid, "Delete Group"));
+                ? Button.secondary("configure_cmdchan_toggle:" + gid, Text.of(guild, "commandchannel.disable"))
+                : Button.success("configure_cmdchan_toggle:" + gid, Text.of(guild, "commandchannel.enable")));
+        if (!isProtected) actions.add(Button.danger("configure_cmdchan_delete:" + gid, Text.of(guild, "commandchannel.delete_group")));
         children.add(ActionRow.of(actions));
 
         if (group.channelIds().isEmpty()) {
-            children.add(TextDisplay.of("**Channels** — *none yet, add one below*"));
+            children.add(TextDisplay.of(Text.of(guild, "commandchannel.channels_none_yet_add_one_below")));
         } else {
             StringBuilder list = new StringBuilder("**Channels**\n");
             for (long channelId : group.channelIds().stream().sorted().toList()) {
@@ -359,7 +354,7 @@ public class CommandChannelConfigInteractionListener extends ListenerAdapter {
             }
             children.add(TextDisplay.of(list.toString().trim()));
 
-            StringSelectMenu.Builder remove = StringSelectMenu.create("configure_cmdchan_removech:" + gid).setPlaceholder("Remove a channel");
+            StringSelectMenu.Builder remove = StringSelectMenu.create("configure_cmdchan_removech:" + gid).setPlaceholder(Text.of(guild, "commandchannel.remove_a_channel"));
             for (long channelId : group.channelIds().stream().sorted().toList()) {
                 remove.addOption("Remove #" + channelName(guild, channelId), String.valueOf(channelId));
             }
@@ -370,13 +365,13 @@ public class CommandChannelConfigInteractionListener extends ListenerAdapter {
                 EntitySelectMenu.create("configure_cmdchan_addch:" + gid, EntitySelectMenu.SelectTarget.CHANNEL)
                         .setChannelTypes(ChannelType.TEXT, ChannelType.NEWS, ChannelType.VOICE,
                                 ChannelType.GUILD_PUBLIC_THREAD, ChannelType.GUILD_PRIVATE_THREAD)
-                        .setPlaceholder("Add a channel or thread")
+                        .setPlaceholder(Text.of(guild, "commandchannel.add_a_channel_or_thread"))
                         .setRequiredRange(0, 1)
                         .build()));
         children.add(Containers.linkButtonRow("configure_cmdchan_link:" + gid));
 
         children.add(TextDisplay.of(String.join("\n", service.describeRules(group, guild))));
-        children.add(ActionRow.of(Button.primary("configure_cmdchan_main:_", "Back")));
+        children.add(ActionRow.of(Button.primary("configure_cmdchan_main:_", Text.of(guild, "commandchannel.back"))));
 
         return Containers.card(Containers.PRIMARY, children);
     }
@@ -385,40 +380,38 @@ public class CommandChannelConfigInteractionListener extends ListenerAdapter {
         String gid = String.valueOf(group.id());
 
         List<ContainerChildComponent> children = new ArrayList<>();
-        children.add(TextDisplay.of("### " + group.name() + " — Who It Applies To"));
-        children.add(TextDisplay.of("-# By default a group covers **everyone**. Settings 1 and 2 narrow it to certain people (matching *either* counts); " +
-                "settings 3 and 4 carve out exceptions. Exemptions always win. Changes save immediately."));
+        children.add(TextDisplay.of(Text.of(guild, "commandchannel.who_it_applies_to_2", group.name())));
+        children.add(TextDisplay.of(Text.of(guild, "commandchannel.by_default_a_group_covers_everyone")));
         children.add(TextDisplay.of(String.join("\n", service.describeRules(group, guild))));
 
-        children.add(TextDisplay.of("**1. Applies to roles below…** — anyone whose highest role is lower than the one you pick."));
+        children.add(TextDisplay.of(Text.of(guild, "commandchannel.1_applies_to_roles_below_anyone")));
         children.add(ActionRow.of(roleSelect("configure_cmdchan_below:" + gid, "Pick a role (optional)", 1, singleton(group.applyBelowRoleId()), guild)));
 
-        children.add(TextDisplay.of("**2. Applies to specific roles…** — anyone holding any of these."));
+        children.add(TextDisplay.of(Text.of(guild, "commandchannel.2_applies_to_specific_roles_anyone")));
         children.add(ActionRow.of(roleSelect("configure_cmdchan_apply_roles:" + gid, "Pick roles (optional)", 25, group.applyRoleIds(), guild)));
 
-        children.add(TextDisplay.of("**3. Exempt roles at or above…** — anyone whose highest role is this or higher is never covered."));
+        children.add(TextDisplay.of(Text.of(guild, "commandchannel.3_exempt_roles_at_or_above")));
         children.add(ActionRow.of(roleSelect("configure_cmdchan_exempt_from:" + gid, "Pick a role (optional)", 1, singleton(group.exemptFromRoleId()), guild)));
 
-        children.add(TextDisplay.of("**4. Exempt specific roles…** — anyone holding any of these is never covered."));
+        children.add(TextDisplay.of(Text.of(guild, "commandchannel.4_exempt_specific_roles_anyone_holding")));
         children.add(ActionRow.of(roleSelect("configure_cmdchan_exempt_roles:" + gid, "Pick roles (optional)", 25, group.exemptRoleIds(), guild)));
 
-        children.add(ActionRow.of(Button.primary("configure_cmdchan_group:" + gid, "Back")));
+        children.add(ActionRow.of(Button.primary("configure_cmdchan_group:" + gid, Text.of(guild, "commandchannel.back"))));
         return Containers.card(Containers.PRIMARY, children);
     }
 
     private static Container buildDeleteConfirmPanel(CommandChannelGroup group) {
         return Containers.card(Containers.DANGER,
-                TextDisplay.of("### Delete “" + group.name() + "”?"),
-                TextDisplay.of("This removes the group, its " + group.channelIds().size()
-                        + " channel(s), and its rules. Messages in those channels will no longer be deleted. This can't be undone."),
+                TextDisplay.of(Text.of(group.guildId(), "commandchannel.delete", group.name())),
+                TextDisplay.of(Text.of(group.guildId(), "commandchannel.this_removes_the_group_its_channel", group.channelIds().size())),
                 ActionRow.of(
-                        Button.danger("configure_cmdchan_delete_go:" + group.id(), "Yes, Delete"),
-                        Button.secondary("configure_cmdchan_group:" + group.id(), "Cancel")));
+                        Button.danger("configure_cmdchan_delete_go:" + group.id(), Text.of(group.guildId(), "commandchannel.yes_delete")),
+                        Button.secondary("configure_cmdchan_group:" + group.id(), Text.of(group.guildId(), "commandchannel.cancel"))));
     }
 
-    private Modal buildNewGroupModal() {
+    private Modal buildNewGroupModal(IReplyCallback event) {
         TextInput name = TextInput.create("name", TextInputStyle.SHORT)
-                .setPlaceholder("e.g. Staff Commands")
+                .setPlaceholder(Text.of(event, "commandchannel.e_g_staff_commands"))
                 .setRequiredRange(1, CommandChannelService.MAX_NAME_LENGTH)
                 .build();
         return Modal.create("configure_cmdchan_new_modal:_", "New Command-Only Group")
@@ -438,9 +431,9 @@ public class CommandChannelConfigInteractionListener extends ListenerAdapter {
                 .build();
     }
 
-    private Modal buildLinkModal(long groupId) {
+    private Modal buildLinkModal(IReplyCallback event, long groupId) {
         TextInput link = TextInput.create("channel_link", TextInputStyle.SHORT)
-                .setPlaceholder("Paste a thread/channel link, or just its ID")
+                .setPlaceholder(Text.of(event, "commandchannel.paste_a_thread_channel_link_or"))
                 .setRequired(true)
                 .build();
         return Modal.create("configure_cmdchan_link_modal:" + groupId, "Add Channel by Link")

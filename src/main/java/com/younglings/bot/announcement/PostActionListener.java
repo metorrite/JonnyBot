@@ -2,6 +2,7 @@ package com.younglings.bot.announcement;
 
 import com.younglings.bot.commands.runescape.RsInteractionListener;
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.tracking.WeeklyDigestService;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
@@ -41,7 +42,7 @@ public class PostActionListener extends ListenerAdapter {
         try {
             Guild guild = event.getGuild();
             if (guild == null) {
-                Containers.replyEphemeral(event, Containers.WARNING, "This button only works inside the server.");
+                Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "announcement.this_button_only_works_inside_the"));
                 return;
             }
 
@@ -50,7 +51,7 @@ public class PostActionListener extends ListenerAdapter {
                 case "rs" -> rsInteractionListener.openRs(event, guild, event.getUser().getIdLong());
                 case "citadel" -> event.replyComponents(List.of(weeklyDigestService.buildWeekSummary(guild.getIdLong(), false)))
                         .useComponentsV2(true).setEphemeral(true).queue();
-                default -> Containers.replyEphemeral(event, Containers.WARNING, "This button isn't connected to anything.");
+                default -> Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "announcement.this_button_isn_t_connected_to"));
             }
         } catch (Exception e) {
             log.error("Unhandled exception in post button '{}'", id, e);

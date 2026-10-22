@@ -1,6 +1,7 @@
 package com.younglings.bot.rsnlink.bridge;
 
 import com.younglings.bot.BotListener;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.rsnlink.LinkService;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
@@ -31,7 +32,7 @@ public class RsnLinkDmButtons extends ListenerAdapter implements BotListener {
         if (!notMe && !stop) return;
         LinkService service = module.service();
         if (service == null) {
-            event.reply("Linking isn't available right now.").setEphemeral(true).queue();
+            event.reply(Text.of(event, "rsnlink.linking_isn_t_available_right_now")).setEphemeral(true).queue();
             return;
         }
         String pairingId = id.substring((notMe ? JdaLinkDmSender.NOT_ME : JdaLinkDmSender.STOP).length());
@@ -48,7 +49,7 @@ public class RsnLinkDmButtons extends ListenerAdapter implements BotListener {
             event.editComponents().queue(ok -> event.getHook().sendMessage(answer).queue(), err -> event.getHook().sendMessage(answer).queue());
         } catch (RuntimeException e) {
             log.warn("RS Link DM button failed ({})", e.getClass().getSimpleName());
-            event.reply("Something went wrong. Try again in a minute.").setEphemeral(true).queue();
+            event.reply(Text.of(event, "rsnlink.something_went_wrong_try_again_in")).setEphemeral(true).queue();
         }
     }
 }

@@ -4,6 +4,7 @@ import com.younglings.bot.commands.configure.ConfigureInteractionListener;
 import com.younglings.bot.commands.embed.EmbedHubPanel;
 import com.younglings.bot.discord.Containers;
 import com.younglings.bot.discord.DiscordLinks;
+import com.younglings.bot.i18n.Text;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
@@ -62,7 +63,7 @@ public class AnnouncementInteractionListener extends ListenerAdapter {
 
         try {
             if (!member.hasPermission(Permission.ADMINISTRATOR)) {
-                Containers.replyEphemeral(event, Containers.WARNING, "You need the Administrator permission to configure this bot.");
+                Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "announcement.you_need_the_administrator_permission_to"));
                 return;
             }
 
@@ -100,7 +101,7 @@ public class AnnouncementInteractionListener extends ListenerAdapter {
 
         try {
             if (!member.hasPermission(Permission.ADMINISTRATOR)) {
-                Containers.replyEphemeral(event, Containers.WARNING, "You need the Administrator permission to configure this bot.");
+                Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "announcement.you_need_the_administrator_permission_to"));
                 return;
             }
 
@@ -124,7 +125,7 @@ public class AnnouncementInteractionListener extends ListenerAdapter {
 
         try {
             if (!member.hasPermission(Permission.ADMINISTRATOR)) {
-                Containers.replyEphemeral(event, Containers.WARNING, "You need the Administrator permission to configure this bot.");
+                Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "announcement.you_need_the_administrator_permission_to"));
                 return;
             }
 
@@ -150,7 +151,7 @@ public class AnnouncementInteractionListener extends ListenerAdapter {
 
         try {
             if (!member.hasPermission(Permission.ADMINISTRATOR)) {
-                Containers.replyEphemeral(event, Containers.WARNING, "You need the Administrator permission to configure this bot.");
+                Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "announcement.you_need_the_administrator_permission_to"));
                 return;
             }
 
@@ -170,7 +171,7 @@ public class AnnouncementInteractionListener extends ListenerAdapter {
         String current = announcementService.getText(event.getGuild().getIdLong(), preset);
 
         TextInput.Builder textInput = TextInput.create("announce_text", TextInputStyle.PARAGRAPH)
-                .setPlaceholder("Your text. Tags on their own line: ~<LS>~ divider, ~B-P_Label|rs~ button. See Legend.")
+                .setPlaceholder(Text.of(event, "announcement.your_text_tags_on_their_own"))
                 .setRequired(false)
                 .setMaxLength(4000);
         if (current != null) textInput.setValue(current);
@@ -187,16 +188,16 @@ public class AnnouncementInteractionListener extends ListenerAdapter {
 
         PostMarkup.Parsed parsed = text == null ? null : PostMarkup.parse(text, false);
         if (parsed == null || parsed.problems().isEmpty()) {
-            Containers.replyEphemeral(event, Containers.SUCCESS, "Text saved — **Preview** it, then click **Post / Update** to publish.");
+            Containers.replyEphemeral(event, Containers.SUCCESS, Text.of(event, "announcement.text_saved_preview_it_then_click"));
         } else {
             Containers.replyEphemeral(event, parsed.hasErrors() ? Containers.WARNING : Containers.SUCCESS,
-                    "Text saved" + (parsed.hasErrors() ? ", but it can't be posted until this is fixed:" : ". Heads up:"), parsed.problemsText());
+                    Text.of(event, parsed.hasErrors() ? "announcement.text_saved_cant_post" : "announcement.text_saved_heads_up"), parsed.problemsText());
         }
     }
 
     private void doAddLinkPrompt(ButtonInteractionEvent event, AnnouncementPreset preset) {
         TextInput linkInput = TextInput.create("link_value", TextInputStyle.SHORT)
-                .setPlaceholder("Paste a channel/thread link, or just its ID")
+                .setPlaceholder(Text.of(event, "announcement.paste_a_channel_thread_link_or"))
                 .setRequired(true)
                 .build();
 
@@ -211,16 +212,16 @@ public class AnnouncementInteractionListener extends ListenerAdapter {
         Long channelId = DiscordLinks.parseChannelId(raw);
 
         if (channelId == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "Couldn't find a channel/thread ID in that — paste the full link, or just the ID by itself.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "announcement.couldn_t_find_a_channel_thread"));
             return;
         }
         if (guild.getChannelById(GuildMessageChannel.class, channelId) == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "That doesn't look like a channel or thread in this server. Double-check the link and try again.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "announcement.that_doesn_t_look_like_a"));
             return;
         }
 
         announcementService.addDestination(guild.getIdLong(), preset, channelId);
-        Containers.replyEphemeral(event, Containers.SUCCESS, "Added <#" + channelId + "> as a destination for **" + preset.displayName() + "**.");
+        Containers.replyEphemeral(event, Containers.SUCCESS, Text.of(event, "announcement.added_as_a_destination_for", channelId, preset.displayName()));
     }
 
     /**
@@ -235,13 +236,13 @@ public class AnnouncementInteractionListener extends ListenerAdapter {
         List<AnnouncementRepository.Destination> destinations = announcementService.getDestinations(guildId, preset);
 
         if (text == null || destinations.isEmpty()) {
-            Containers.replyEphemeral(event, Containers.WARNING, "Set both the text and at least one destination first.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "announcement.set_both_the_text_and_at"));
             return;
         }
 
         PostMarkup.Parsed parsed = PostMarkup.parse(text, true);
         if (parsed.hasErrors()) {
-            Containers.replyEphemeral(event, Containers.DANGER, "Nothing was posted — fix this first:", parsed.problemsText());
+            Containers.replyEphemeral(event, Containers.DANGER, Text.of(event, "announcement.nothing_was_posted_fix_this_first"), parsed.problemsText());
             return;
         }
 
@@ -267,7 +268,7 @@ public class AnnouncementInteractionListener extends ListenerAdapter {
     private void doPreview(ButtonInteractionEvent event, Guild guild, AnnouncementPreset preset) {
         String text = announcementService.getText(guild.getIdLong(), preset);
         if (text == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "There's no text yet — click **Edit Text** first.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "announcement.there_no_text_yet_click_edit"));
             return;
         }
 
@@ -275,7 +276,7 @@ public class AnnouncementInteractionListener extends ListenerAdapter {
         List<net.dv8tion.jda.api.components.MessageTopLevelComponent> components = new ArrayList<>();
         components.add(parsed.toContainer(Containers.PRIMARY));
         components.add(Containers.toast(parsed.hasErrors() ? Containers.DANGER : parsed.problems().isEmpty() ? Containers.SUCCESS : Containers.WARNING,
-                parsed.problems().isEmpty() ? "✅ Looks good — Post / Update will publish exactly this." : parsed.problemsText()));
+                parsed.problems().isEmpty() ? Text.of(event, "announcement.looks_good_post_update_will_publish") : parsed.problemsText()));
         event.replyComponents(components).useComponentsV2(true).setEphemeral(true).queue();
     }
 
@@ -305,8 +306,7 @@ public class AnnouncementInteractionListener extends ListenerAdapter {
 
     Container buildMainPanel(long guildId) {
         List<ContainerChildComponent> children = new ArrayList<>();
-        children.add(TextDisplay.of("### Embedded Posts\n" +
-                "-# Paste a block of text once, post it as the bot in as many channels as you like, and hit **Post / Update** again any time the text changes to update every copy in place."));
+        children.add(TextDisplay.of(Text.of(guildId, "announcement.embedded_posts_paste_a_block_of")));
 
         List<Button> buttons = new ArrayList<>();
         for (AnnouncementPreset preset : AnnouncementPreset.values()) {
@@ -317,9 +317,9 @@ public class AnnouncementInteractionListener extends ListenerAdapter {
                                     : Button.secondary("configure_announce_preset:" + preset.name(), label));
         }
         children.add(ActionRow.of(buttons));
-        children.add(TextDisplay.of("-# **Pre-made Embeds** are the ones designed in the bot's code, like the Teamforming panel — post or remove them here too."));
-        children.add(ActionRow.of(Button.secondary("configure_announce_premade:_", "Pre-made Embeds")));
-        children.add(ActionRow.of(Button.primary("configure_back:_", "Back")));
+        children.add(TextDisplay.of(Text.of(guildId, "announcement.pre_made_embeds_are_the_ones")));
+        children.add(ActionRow.of(Button.secondary("configure_announce_premade:_", Text.of(guildId, "announcement.pre_made_embeds"))));
+        children.add(ActionRow.of(Button.primary("configure_back:_", Text.of(guildId, "announcement.back"))));
         children.add(Containers.autoCloseNote());
 
         return Containers.card(Containers.PRIMARY, children);
@@ -331,19 +331,18 @@ public class AnnouncementInteractionListener extends ListenerAdapter {
 
         List<ContainerChildComponent> children = new ArrayList<>();
         children.add(TextDisplay.of("### " + preset.displayName()));
-        children.add(TextDisplay.of("-# Post / Update posts this text fresh, or edits the previous copy in place, in every destination below. " +
-                "The text can include dividers, images and buttons — open **Legend** for the tags."));
+        children.add(TextDisplay.of(Text.of(guildId, "announcement.post_update_posts_this_text_fresh")));
         children.add(ActionRow.of(
-                Button.primary("configure_announce_edit:" + preset.name(), "Edit Text"),
-                Button.secondary("configure_announce_preview:" + preset.name(), "Preview"),
-                Button.secondary("configure_announce_legend:_", "Legend"),
-                Button.success("configure_announce_post:" + preset.name(), "Post / Update")));
+                Button.primary("configure_announce_edit:" + preset.name(), Text.of(guildId, "announcement.edit_text")),
+                Button.secondary("configure_announce_preview:" + preset.name(), Text.of(guildId, "announcement.preview")),
+                Button.secondary("configure_announce_legend:_", Text.of(guildId, "announcement.legend")),
+                Button.success("configure_announce_post:" + preset.name(), Text.of(guildId, "announcement.post_update"))));
 
         String preview = text == null ? "*not set*" : text.length() > 300 ? text.substring(0, 300) + "…" : text;
-        children.add(TextDisplay.of("**Text**\n" + preview));
+        children.add(TextDisplay.of(Text.of(guildId, "announcement.text", preview)));
 
         if (destinations.isEmpty()) {
-            children.add(TextDisplay.of("**Destinations:** *none yet*"));
+            children.add(TextDisplay.of(Text.of(guildId, "announcement.destinations_none_yet")));
         } else {
             StringBuilder list = new StringBuilder("**Destinations:**\n");
             for (AnnouncementRepository.Destination destination : destinations) {
@@ -352,28 +351,28 @@ public class AnnouncementInteractionListener extends ListenerAdapter {
             children.add(TextDisplay.of(list.toString().trim()));
 
             StringSelectMenu.Builder removeMenu = StringSelectMenu.create("configure_announce_remove_dest:" + preset.name())
-                    .setPlaceholder("Remove a destination");
+                    .setPlaceholder(Text.of(guildId, "announcement.remove_a_destination"));
             for (AnnouncementRepository.Destination destination : destinations) {
                 removeMenu.addOption("Remove #" + destination.channelId(), String.valueOf(destination.id()));
             }
             children.add(ActionRow.of(removeMenu.build()));
         }
 
-        children.add(TextDisplay.of("**Add a destination** (regular channel, forum, or an active thread):"));
+        children.add(TextDisplay.of(Text.of(guildId, "announcement.add_a_destination_regular_channel_forum")));
         children.add(ActionRow.of(
                 EntitySelectMenu.create("configure_announce_add_channel:" + preset.name(), EntitySelectMenu.SelectTarget.CHANNEL)
                         .setChannelTypes(ChannelType.TEXT, ChannelType.GUILD_PUBLIC_THREAD, ChannelType.GUILD_PRIVATE_THREAD, ChannelType.FORUM)
-                        .setPlaceholder("Select a channel or thread")
+                        .setPlaceholder(Text.of(guildId, "announcement.select_a_channel_or_thread"))
                         .setRequiredRange(0, 1)
                         .build()));
         children.add(Containers.linkButtonRow("configure_announce_add_link:" + preset.name()));
 
         if (!destinations.isEmpty()) {
-            children.add(TextDisplay.of("-# **Clear All Destinations** removes every destination for this preset — there's no undo, so it asks you to confirm first."));
-            children.add(ActionRow.of(Button.danger("configure_announce_clear_confirm:" + preset.name(), "Clear All Destinations")));
+            children.add(TextDisplay.of(Text.of(guildId, "announcement.clear_all_destinations_removes_every_destination")));
+            children.add(ActionRow.of(Button.danger("configure_announce_clear_confirm:" + preset.name(), Text.of(guildId, "announcement.clear_all_destinations"))));
         }
 
-        children.add(ActionRow.of(Button.primary("configure_announce_main:_", "Back")));
+        children.add(ActionRow.of(Button.primary("configure_announce_main:_", Text.of(guildId, "announcement.back"))));
         children.add(Containers.autoCloseNote());
         return Containers.card(Containers.PRIMARY, children);
     }
@@ -381,10 +380,10 @@ public class AnnouncementInteractionListener extends ListenerAdapter {
     private Container buildClearConfirmPanel(long guildId, AnnouncementPreset preset) {
         int count = announcementService.getDestinations(guildId, preset).size();
         return Containers.card(Containers.DANGER,
-                TextDisplay.of("### Clear All Destinations — " + preset.displayName()),
-                TextDisplay.of("Remove all " + count + " destination(s)? This can't be undone — the text itself is kept."),
+                TextDisplay.of(Text.of(guildId, "announcement.clear_all_destinations_2", preset.displayName())),
+                TextDisplay.of(Text.of(guildId, "announcement.remove_all_destination_this_can_t", count)),
                 ActionRow.of(
-                        Button.danger("configure_announce_clear_go:" + preset.name(), "Yes, Clear All"),
-                        Button.secondary("configure_announce_clear_cancel:" + preset.name(), "Cancel")));
+                        Button.danger("configure_announce_clear_go:" + preset.name(), Text.of(guildId, "announcement.yes_clear_all")),
+                        Button.secondary("configure_announce_clear_cancel:" + preset.name(), Text.of(guildId, "announcement.cancel"))));
     }
 }
