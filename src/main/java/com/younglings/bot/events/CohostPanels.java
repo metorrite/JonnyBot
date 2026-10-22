@@ -4,7 +4,7 @@ import com.younglings.bot.BotListener;
 import com.younglings.bot.alerts.AutoPostRouter;
 import com.younglings.bot.clanprofile.ClanProfile;
 import com.younglings.bot.clanprofile.ClanProfileRepository;
-import com.younglings.bot.configure.GuildSettingsService;
+import com.younglings.bot.clanprofile.JoinLinks;
 import com.younglings.bot.discord.Containers;
 import com.younglings.bot.events.EventCohostRepository.Panel;
 import com.younglings.bot.events.EventCohostRepository.PendingJoin;
@@ -70,18 +70,18 @@ public class CohostPanels extends ListenerAdapter implements BotListener {
     private final EventRepository events;
     private final EventService service;
     private final EventCohostRepository cohosts;
-    private final GuildSettingsService guildSettings;
+    private final JoinLinks joinLinks;
     private final ClanProfileRepository profiles;
     private final ScheduledExecutorService executor = BotScheduler.lane("cohost-panels");
     private final Map<Long, ScheduledFuture<?>> redraws = new ConcurrentHashMap<>();
     private volatile JDA jda;
 
-    public CohostPanels(EventRepository events, EventService service, EventCohostRepository cohosts, GuildSettingsService guildSettings, ClanProfileRepository profiles,
+    public CohostPanels(EventRepository events, EventService service, EventCohostRepository cohosts, JoinLinks joinLinks, ClanProfileRepository profiles,
                         EventChanges changes) {
         this.events = events;
         this.service = service;
         this.cohosts = cohosts;
-        this.guildSettings = guildSettings;
+        this.joinLinks = joinLinks;
         this.profiles = profiles;
         changes.subscribe(change -> {
             if (change.kind() == EventChanges.Kind.STAGE) executor.execute(() -> onStage(change.eventId()));
@@ -125,11 +125,9 @@ public class CohostPanels extends ListenerAdapter implements BotListener {
         return guild == null ? "the host's server" : guild.getName();
     }
 
-    /** The host's invite (its server settings, else its clan profile's apply link), or null. */
+    /** The host's one join link ({@link JoinLinks}: the same one its hub page and events show), or null. */
     String inviteOf(long hostGuildId) {
-        String invite = guildSettings.getEffective(hostGuildId).inviteUrl();
-        if (invite == null || invite.isBlank()) invite = profiles.get(hostGuildId).map(ClanProfile::applyUrl).filter(u -> u != null && !u.isBlank()).orElse(null);
-        return invite;
+        return joinLinks.of(hostGuildId, profiles.get(hostGuildId).map(ClanProfile::applyUrl).orElse(null));
     }
 
     Container panel(Event event) {

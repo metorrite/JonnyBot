@@ -3,8 +3,7 @@ package com.younglings.bot.internal;
 import com.younglings.bot.alliance.AllianceRepository;
 import com.younglings.bot.clanprofile.ClanProfile;
 import com.younglings.bot.clanprofile.ClanProfileService;
-import com.younglings.bot.configure.GuildSettings;
-import com.younglings.bot.configure.GuildSettingsService;
+import com.younglings.bot.clanprofile.JoinLinks;
 import com.younglings.bot.events.EventRepository;
 import com.younglings.bot.events.EventService;
 import com.younglings.bot.events.EventTemplates;
@@ -28,14 +27,12 @@ class HubEventsHostTest {
     private static final long GUILD = 1234567890123456789L;
 
     private final ClanProfileService profiles = mock(ClanProfileService.class);
-    private final GuildSettingsService settings = mock(GuildSettingsService.class);
-    private final HubEventsApi api = new HubEventsApi(mock(EventRepository.class), mock(EventService.class), mock(EventTemplates.class), settings, profiles,
+    private final JoinLinks joinLinks = mock(JoinLinks.class);
+    private final HubEventsApi api = new HubEventsApi(mock(EventRepository.class), mock(EventService.class), mock(EventTemplates.class), joinLinks, profiles,
             mock(AllianceRepository.class), mock(PlayerLinkService.class), mock(HubModerationRepository.class));
 
     HubEventsHostTest() {
-        GuildSettings stored = mock(GuildSettings.class);
-        when(stored.inviteUrl()).thenReturn("https://discord.gg/abc");
-        when(settings.getEffective(GUILD)).thenReturn(stored);
+        when(joinLinks.of(GUILD, null)).thenReturn("https://discord.gg/abc");
     }
 
     private static void noDiscordId(DataObject host) {
