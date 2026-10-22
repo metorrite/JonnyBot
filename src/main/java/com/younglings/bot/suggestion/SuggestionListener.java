@@ -1,6 +1,7 @@
 package com.younglings.bot.suggestion;
 
 import com.younglings.bot.BotListener;
+import com.younglings.bot.i18n.Text;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
@@ -36,12 +37,12 @@ public class SuggestionListener extends ListenerAdapter implements BotListener {
             if (guild == null) return;
             Optional<Suggestion> found = repository.byId(suggestionId);
             if (found.isEmpty() || found.get().guildId() != guild.getIdLong()) {
-                event.reply("That suggestion doesn't exist any more.").setEphemeral(true).queue();
+                event.reply(Text.of(event, "suggestion.that_suggestion_doesn_t_exist_any")).setEphemeral(true).queue();
                 return;
             }
             Suggestion s = found.get();
             if (!s.open()) {
-                event.reply("Voting on this suggestion has closed.").setEphemeral(true).queue();
+                event.reply(Text.of(event, "suggestion.voting_on_this_suggestion_has_closed")).setEphemeral(true).queue();
                 return;
             }
             int now = repository.castVote(s.id(), s.guildId(), event.getUser().getIdLong(), SuggestionVote.directionOf(id));

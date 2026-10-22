@@ -1,6 +1,7 @@
 package com.younglings.bot.rolepanel;
 
 import com.younglings.bot.BotListener;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.rolepanel.RolePanel.RoleButton;
 import com.younglings.bot.rolepanel.RolePanelLogic.Change;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -51,12 +52,12 @@ public class RolePanelListener extends ListenerAdapter implements BotListener {
             Optional<RolePanel> found = repository.get(guild.getIdLong(), panelId);
             Optional<RoleButton> button = found.flatMap(p -> p.buttons().stream().filter(b -> b.roleId() == roleId).findFirst());
             if (found.isEmpty() || button.isEmpty()) {
-                event.reply("That button isn't part of a role panel any more.").setEphemeral(true).queue();
+                event.reply(Text.of(event, "rolepanel.that_button_isn_t_part_of")).setEphemeral(true).queue();
                 return;
             }
             Role role = guild.getRoleById(roleId);
             if (role == null || !RolePanelService.canGive(guild, role)) {
-                event.reply("JonnyBot can't hand out that role right now. Tell a server admin.").setEphemeral(true).queue();
+                event.reply(Text.of(event, "rolepanel.jonnybot_can_t_hand_out_that")).setEphemeral(true).queue();
                 return;
             }
             Change change = RolePanelLogic.button(found.get(), button.get(), heldBy(member), role.getName());
@@ -78,7 +79,7 @@ public class RolePanelListener extends ListenerAdapter implements BotListener {
             long panelId = Long.parseLong(id.substring(RolePanelMessage.ID_PREFIX.length(), id.length() - RolePanelMessage.MENU_SUFFIX.length()));
             Optional<RolePanel> found = repository.get(guild.getIdLong(), panelId);
             if (found.isEmpty()) {
-                event.reply("That menu isn't part of a role panel any more.").setEphemeral(true).queue();
+                event.reply(Text.of(event, "rolepanel.that_menu_isn_t_part_of")).setEphemeral(true).queue();
                 return;
             }
             RolePanel panel = found.get();
@@ -108,14 +109,14 @@ public class RolePanelListener extends ListenerAdapter implements BotListener {
         List<Role> add = change.add().stream().map(guild::getRoleById).filter(r -> r != null && RolePanelService.canGive(guild, r)).toList();
         List<Role> remove = change.remove().stream().map(guild::getRoleById).filter(r -> r != null && RolePanelService.canGive(guild, r)).toList();
         if (add.isEmpty() && remove.isEmpty()) {
-            event.reply("JonnyBot can't hand out that role right now. Tell a server admin.").setEphemeral(true).queue();
+            event.reply(Text.of(event, "rolepanel.jonnybot_can_t_hand_out_that")).setEphemeral(true).queue();
             return;
         }
         event.deferReply(true).queue(hook -> guild.modifyMemberRoles(member, add, remove).reason("Role panel: " + panel.name()).queue(
                 done -> hook.editOriginal(change.message()).queue(),
                 error -> {
                     log.warn("Role panel {}: couldn't change the roles of {}", panel.id(), member.getId(), error);
-                    hook.editOriginal("Something went wrong changing your roles. Tell a server admin.").queue();
+                    hook.editOriginal(Text.of(event, "rolepanel.something_went_wrong_changing_your_roles")).queue();
                 }));
     }
 }

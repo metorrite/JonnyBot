@@ -1,6 +1,7 @@
 package com.younglings.bot.moderation;
 
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
 import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.JDASlashCommand;
@@ -64,7 +65,7 @@ public class ModerationCommands {
                           @SlashOption(description = "Why") @Nullable String reason) {
         OptionalInt minutes = ModDurations.parseMinutes(duration);
         if (minutes.isEmpty() || minutes.getAsInt() > ModDurations.MAX_TIMEOUT_MINUTES) {
-            Containers.replyEphemeral(event, Containers.WARNING, "I couldn't read that duration.", "-# Try 30m, 2h, 7d or 1d12h, at most 28 days.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "moderation.i_couldn_t_read_that_duration"), Text.of(event, "moderation.try_30m_2h_7d_or_1d12h"));
             return;
         }
         run(event, user, ModAction.TIMEOUT, reason, minutes.getAsInt(), 0);
@@ -92,7 +93,7 @@ public class ModerationCommands {
         event.deferReply(true).queue(hook -> guild.retrieveMember(user).submit().handle((member, error) -> member)
                 .thenCompose(member -> service.execute(guild, actor, user, member, action, reason, minutes, deleteDays))
                 .whenComplete((outcome, error) -> {
-                    if (error != null) hook.editOriginal("Something went wrong, nothing was recorded.").queue();
+                    if (error != null) hook.editOriginal(Text.of(event, "moderation.something_went_wrong_nothing_was_recorded")).queue();
                     else hook.editOriginal((outcome.done() ? "✅ " : "⚠️ ") + outcome.message()).queue();
                 }));
     }
@@ -102,7 +103,7 @@ public class ModerationCommands {
     public void onCaseView(GuildSlashEvent event, @SlashOption(description = "The case number") long number) {
         var found = cases.find(event.getGuild().getIdLong(), number);
         if (found.isEmpty()) {
-            Containers.replyEphemeral(event, Containers.WARNING, "This server has no case #" + number + ".");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "moderation.this_server_has_no_case", number));
             return;
         }
         Containers.replyEphemeral(event, Containers.INFO, describe(found.get()).toArray(String[]::new));
@@ -112,9 +113,9 @@ public class ModerationCommands {
     public void onCaseEdit(GuildSlashEvent event, @SlashOption(description = "The case number") long number, @SlashOption(description = "The new reason") String reason) {
         String text = ModService.cleanReason(reason);
         if (cases.editReason(event.getGuild().getIdLong(), number, text, event.getUser().getIdLong())) {
-            Containers.replyEphemeral(event, Containers.SUCCESS, "Updated the reason of case #" + number + ".", "-# The first reason is kept in the case history.");
+            Containers.replyEphemeral(event, Containers.SUCCESS, Text.of(event, "moderation.updated_the_reason_of_case", number), Text.of(event, "moderation.the_first_reason_is_kept_in"));
         } else {
-            Containers.replyEphemeral(event, Containers.WARNING, "This server has no case #" + number + ".");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "moderation.this_server_has_no_case", number));
         }
     }
 
@@ -123,7 +124,7 @@ public class ModerationCommands {
     public void onModlogs(GuildSlashEvent event, @SlashOption(description = "Whose history") User user) {
         List<ModCase> list = cases.forUser(event.getGuild().getIdLong(), user.getIdLong(), 10);
         if (list.isEmpty()) {
-            Containers.replyEphemeral(event, Containers.INFO, user.getAsMention() + " has no moderation cases.");
+            Containers.replyEphemeral(event, Containers.INFO, Text.of(event, "moderation.has_no_moderation_cases", user.getAsMention()));
             return;
         }
         List<String> lines = new ArrayList<>();
