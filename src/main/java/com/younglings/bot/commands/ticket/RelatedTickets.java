@@ -1,5 +1,6 @@
 package com.younglings.bot.commands.ticket;
 
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.ticket.HelpExtras;
 import com.younglings.bot.ticket.TicketModels.Answer;
 import com.younglings.bot.ticket.TicketModels.Field;
@@ -47,12 +48,12 @@ public final class RelatedTickets {
     }
 
     /** The notice posted in the new ticket for helpers and staff. */
-    public static String notice(Candidate me, List<Candidate> siblings) {
-        StringBuilder text = new StringBuilder("### 🤝 Others want help with " + me.boss() + " too\n");
+    public static String notice(long guildId, Candidate me, List<Candidate> siblings) {
+        StringBuilder text = new StringBuilder(Text.of(guildId, "ticket.related.others_want_help", me.boss())).append("\n");
         for (Candidate s : siblings) {
-            text.append("• Ticket ").append(number(s.number())).append(s.channelId() == null ? "" : " (<#" + s.channelId() + ">)").append(" from <@").append(s.requesterId()).append(">\n");
+            text.append(Text.of(guildId, "ticket.related.ticket_from", number(s.number()) + (s.channelId() == null ? "" : " (<#" + s.channelId() + ">)"), "<@" + s.requesterId() + ">")).append("\n");
         }
-        text.append("-# Group content goes better together. **Link** just connects the tickets (each says where the other is). **Merge** (staff) moves this member into the other ticket and closes this one, with the transcript saved.");
+        text.append(Text.of(guildId, "ticket.related.link_or_merge"));
         return text.toString();
     }
 
