@@ -140,7 +140,7 @@ public class RuneSyncPanelService {
         for (var o : objectives) if (mine != null && mine.completions().getOrDefault(o.key(), 0) > 0) done++;
         DataObject out = DataObject.empty().put("eventId", Long.toString(event.id())).put("name", event.name()).put("team", team)
                 .put("points", mine == null ? 0 : mine.points()).put("objectivesDone", done).put("objectivesTotal", objectives.size());
-        if (BingoTemplate.KEY.equals(event.template())) {
+        if (com.younglings.bot.events.ClanVsClan.plays(event, BingoTemplate.KEY)) {
             DataObject config = DataObject.fromJson(event.config());
             var tiles = BingoBoardView.personal(BingoBoardView.boardKeys(config), objectives, mine);
             DataObject bingo = DataObject.empty().put("tilesDone", (int) tiles.stream().filter(t -> t.done()).count()).put("tiles", tiles.size());

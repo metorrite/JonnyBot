@@ -45,7 +45,7 @@ public class PluginEventFeed implements PluginEventSink {
                 for (PluginPayload.Event reported : events) {
                     if (!during(event, reported.at())) continue;
                     DataObject data = dataOf(reported);
-                    for (var hit : PluginObjectiveMatcher.match(event.template(), event.config(), objectives, reported.type(), reported.sourceName(), data, tiles::resolve)) {
+                    for (var hit : PluginObjectiveMatcher.match(ClanVsClan.game(event), event.config(), objectives, reported.type(), reported.sourceName(), data, tiles::resolve)) {
                         record(event, userId, rsn, hit, reported);
                     }
                 }
