@@ -53,11 +53,18 @@ public class PluginPointsAdminApi implements AdminRouteExtension {
         List<Rule> rules = new ArrayList<>();
         Set<PluginEventType> seen = EnumSet.noneOf(PluginEventType.class);
         for (int i = 0; i < given.length(); i++) {
+            if (!given.isType(i, DataType.OBJECT)) throw AdminRouteExtension.refuse(400, "Each rule must be an object.");
             DataObject r = given.getObject(i);
             PluginEventType type = PluginEventType.parse(r.getString("type", ""));
             if (type == null || !seen.add(type)) throw AdminRouteExtension.refuse(400, "Each kind of report can have one rule.");
-            Long min = r.hasKey("minValueGp") && !r.isNull("minValueGp") ? r.getLong("minValueGp") : null;
-            Rule rule = new Rule(type, r.getInt("points", 0), r.getInt("dailyCap", 0), type == PluginEventType.DROP ? min : null);
+            Rule rule;
+            try {
+                Long min = r.hasKey("minValueGp") && !r.isNull("minValueGp") ? r.getLong("minValueGp") : null;
+                rule = new Rule(type, r.getInt("points", 0), r.getInt("dailyCap", 0), type == PluginEventType.DROP ? min : null);
+            } catch (RuntimeException e) {
+                // not a whole number, or out of range for one
+                throw AdminRouteExtension.refuse(400, PluginPointsRules.label(type) + ": points, daily cap and smallest value must be whole numbers.");
+            }
             String problem = PluginPointsRules.problem(rule);
             if (problem != null) throw AdminRouteExtension.refuse(400, problem);
             rules.add(rule);
