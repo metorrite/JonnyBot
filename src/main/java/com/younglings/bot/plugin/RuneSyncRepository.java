@@ -23,7 +23,9 @@ import java.util.Optional;
  *       device card;</li>
  *   <li>{@code plugin_diagnostics}: redacted snapshots a member sent from RuneSync's panel for a bug report, under a short id, kept 14
  *       days;</li>
- *   <li>the member's own most recent events per type, read from {@code plugin_event}.</li>
+ *   <li>the member's own most recent events per type, read from {@code plugin_event};</li>
+ *   <li>{@code plugin_guild_settings}: a clan's plugin switches, set on the dashboard's Clan plugin page (T-206: "Allow the in-game clan
+ *       panel", off by default).</li>
  * </ul>
  */
 @BService
@@ -67,7 +69,15 @@ public class RuneSyncRepository {
                 // a dev database may hold the table from before these two columns
                 "ALTER TABLE younglings.plugin_client_status ADD COLUMN IF NOT EXISTS paused BOOLEAN NOT NULL DEFAULT FALSE;",
                 "ALTER TABLE younglings.plugin_client_status ADD COLUMN IF NOT EXISTS last_batch_at TIMESTAMPTZ NULL;",
-                "CREATE INDEX IF NOT EXISTS plugin_diagnostics_user ON younglings.plugin_diagnostics (discord_user_id, created_at DESC);"));
+                "CREATE INDEX IF NOT EXISTS plugin_diagnostics_user ON younglings.plugin_diagnostics (discord_user_id, created_at DESC);",
+                """
+                CREATE TABLE IF NOT EXISTS younglings.plugin_guild_settings (
+                    guild_id BIGINT PRIMARY KEY,
+                    clan_panel BOOLEAN NOT NULL DEFAULT FALSE,
+                    updated_at TIMESTAMPTZ NOT NULL,
+                    updated_by BIGINT NULL
+                );
+                """));
     }
 
     // ---------- the member's client ----------
@@ -155,6 +165,35 @@ public class RuneSyncRepository {
             }
         } catch (SQLException e) {
             throw new RuntimeException("Failed to delete the member's RuneSync records", e);
+        }
+    }
+
+    // ---------- a clan's switches ----------
+
+    /** Whether the clan allows RuneSync's in-game clan panel; off when it never chose. */
+    public boolean clanPanelOn(long guildId) {
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("SELECT clan_panel FROM younglings.plugin_guild_settings WHERE guild_id = ?")) {
+            s.setLong(1, guildId);
+            try (ResultSet rs = s.executeQuery()) {
+                return rs.next() && rs.getBoolean(1);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read the clan's plugin settings", e);
+        }
+    }
+
+    public void setClanPanel(long guildId, boolean on, long actorId, Instant at) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("""
+                INSERT INTO younglings.plugin_guild_settings (guild_id, clan_panel, updated_at, updated_by) VALUES (?, ?, ?, ?)
+                ON CONFLICT (guild_id) DO UPDATE SET clan_panel = EXCLUDED.clan_panel, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by""")) {
+            s.setLong(1, guildId);
+            s.setBoolean(2, on);
+            s.setTimestamp(3, Timestamp.from(at));
+            s.setLong(4, actorId);
+            s.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to save the clan's plugin settings", e);
         }
     }
 
