@@ -61,7 +61,7 @@ public class RsnLinkModule implements InternalRouteModule {
                 VerifySettings verify = VerifySettings.fromEnv(config::getLinkSetting, "RS Link verification (" + config.getJonnybotUrl() + ")");
                 PgVerifyStore verifyStore = new PgVerifyStore(database::connection, settings.schema());
                 List<LinkVerifier> verifiers = verify.enabled()
-                        ? List.of(XpLinkVerifier.start(verify, verifyStore, new HttpPublicData(verify.userAgent()), Clock.systemUTC()))
+                        ? List.of(XpLinkVerifier.start(verify, verifyStore, new HttpPublicData(verify.userAgent()), Clock.systemUTC(), BotScheduler.lane("rsnlink-verify")))
                         : List.of();
                 made = new LinkService(settings, database, dmSender, verifiers, Clock.systemUTC(), new SecureRandom());
                 made.start();
