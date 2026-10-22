@@ -65,7 +65,8 @@ class DirectoryRoutesTest {
                 new DirectoryAllianceRoutes(alliances, repository, service),
                 new DirectorySiteSwitchRoutes(siteSwitches),
                 new DirectoryHubEventRoutes(hubEvents),
-                new DirectoryClanSiteRoutes(sites, siteApi),
+                new DirectoryClanSiteRoutes(sites, siteApi, repository),
+                new DirectorySlugRoutes(repository),
                 section));
         when(repository.bySlug("younglings")).thenReturn(Optional.of(clan));
         when(service.publicView(GUILD, true)).thenReturn(Optional.of(clan));
@@ -159,6 +160,43 @@ class DirectoryRoutesTest {
         assertEquals(200, r.status());
         assertEquals("younglings", r.body().getString("testSection"));
         assertTrue(r.body().hasKey("alliances"), "the alliance module's section (null when hidden) is on the page");
+    }
+
+    @Test
+    void aGivenUpAddressForwardsToTheClansNewOneDuringTheGracePeriod() throws Exception {
+        ClanSite site = new ClanSite(GUILD, true, true, ClanSite.Template.values()[0], "{}", "[]", null, null, null, null);
+        when(sites.visible(GUILD)).thenReturn(Optional.of(site));
+        when(repository.bySlug("old-name")).thenReturn(Optional.empty());
+        when(repository.slugHolder("old-name")).thenReturn(Optional.of(GUILD));
+        when(repository.get(GUILD)).thenReturn(Optional.of(clan));
+        Reply moved = call("GET", "/internal/directory/sites/old-name", null);
+        assertEquals(200, moved.status());
+        assertEquals("younglings", moved.body().getString("movedTo"));
+        // nobody held it: an ordinary unknown address
+        when(repository.slugHolder("never-used")).thenReturn(Optional.empty());
+        assertEquals(404, call("GET", "/internal/directory/sites/never-used", null).status());
+        // the clan's site is no longer published: nothing to forward to
+        when(sites.visible(GUILD)).thenReturn(Optional.empty());
+        assertEquals(404, call("GET", "/internal/directory/sites/old-name", null).status());
+    }
+
+    @Test
+    void slugCheckSaysWhetherAnAddressCanBeHad() throws Exception {
+        when(repository.slugTaken("green-angels", -1)).thenReturn(false);
+        when(repository.slugTaken("younglings", -1)).thenReturn(true);
+        Reply free = call("GET", "/internal/directory/slug-check?slug=Green-Angels", null);
+        assertEquals(200, free.status());
+        assertEquals("green-angels", free.body().getString("slug"));
+        assertTrue(free.body().getBoolean("available"));
+        assertTrue(free.body().isNull("problem"));
+        Reply taken = call("GET", "/internal/directory/slug-check?slug=younglings", null);
+        assertEquals(false, taken.body().getBoolean("available"));
+        assertTrue(taken.body().getString("problem").contains("Another clan"));
+        Reply reserved = call("GET", "/internal/directory/slug-check?slug=status", null);
+        assertEquals(false, reserved.body().getBoolean("available"));
+        assertTrue(reserved.body().getString("problem").contains("reserved"));
+        assertEquals(false, call("GET", "/internal/directory/slug-check?slug=x", null).body().getBoolean("available"));
+        assertEquals(405, call("POST", "/internal/directory/slug-check?slug=abc", "{}").status());
     }
 
     @Test

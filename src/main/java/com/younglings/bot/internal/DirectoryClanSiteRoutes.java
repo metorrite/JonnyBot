@@ -1,6 +1,7 @@
 package com.younglings.bot.internal;
 
 import com.younglings.bot.clanprofile.ClanProfile;
+import com.younglings.bot.clanprofile.ClanProfileRepository;
 import com.younglings.bot.clansite.ClanSite;
 import com.younglings.bot.clansite.ClanSiteBlock;
 import com.younglings.bot.clansite.ClanSiteService;
@@ -15,7 +16,8 @@ import java.util.Optional;
 /**
  * Clan websites from the builder (T-065, T-066), only while published and the server is in the beta:
  * <ul>
- *   <li>{@code GET sites/{slug}}: the site's look, pages and content blocks</li>
+ *   <li>{@code GET sites/{slug}}: the site's look, pages and content blocks; or {@code {"movedTo": slug}} for an address the clan gave up less
+ *   than {@link com.younglings.bot.clanprofile.ProfileRules#SLUG_GRACE} ago, so its old subdomain forwards (T-290)</li>
  *   <li>{@code GET sites/{slug}/data/{members|overview|leaderboard|recap}}: that site's clan data, the same answers the clan site's own
  *   routes give the home server ({@link SiteApi#TENANT_ROUTES}); a recap is always the clan's, never one member's</li>
  * </ul>
@@ -24,10 +26,12 @@ import java.util.Optional;
 public class DirectoryClanSiteRoutes implements DirectoryRouteModule {
     private final ClanSiteService sites;
     private final SiteApi siteApi;
+    private final ClanProfileRepository profiles;
 
-    public DirectoryClanSiteRoutes(ClanSiteService sites, SiteApi siteApi) {
+    public DirectoryClanSiteRoutes(ClanSiteService sites, SiteApi siteApi, ClanProfileRepository profiles) {
         this.sites = sites;
         this.siteApi = siteApi;
+        this.profiles = profiles;
     }
 
     @Override
@@ -47,11 +51,27 @@ public class DirectoryClanSiteRoutes implements DirectoryRouteModule {
             if (!request.requireGet()) return true;
             Optional<ClanProfile> profile = request.viewable(parts[1]);
             Optional<ClanSite> site = profile.flatMap(p -> sites.visible(p.guildId()));
-            if (site.isEmpty()) request.sendError(404, "No such site");
-            else request.send(200, siteJson(request, profile.get(), site.get()));
+            if (site.isPresent()) {
+                request.send(200, siteJson(request, profile.get(), site.get()));
+                return true;
+            }
+            // An address the clan gave up less than ProfileRules.SLUG_GRACE ago (T-290): say where its site is now, so the old address forwards.
+            String movedTo = profile.isPresent() ? null : movedTo(request, parts[1]);
+            if (movedTo != null) request.send(200, DataObject.empty().put("movedTo", movedTo));
+            else request.sendError(404, "No such site");
             return true;
         }
         return false;
+    }
+
+    /** The current address of the clan that gave up {@code slug} recently, when its site is still published there; null otherwise. */
+    private String movedTo(DirectoryRequest request, String slug) {
+        return profiles.slugHolder(slug)
+                .flatMap(profiles::get)
+                .map(ClanProfile::slug)
+                .filter(now -> now != null && !now.equals(slug))
+                .filter(now -> request.viewable(now).flatMap(p -> sites.visible(p.guildId())).isPresent())
+                .orElse(null);
     }
 
     /** The public side of a clan's website: its clan (as the directory shows it), its look and its pages. Never a Discord id. */

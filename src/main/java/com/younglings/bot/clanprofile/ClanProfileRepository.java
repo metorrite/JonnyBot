@@ -88,7 +88,16 @@ public class ClanProfileRepository {
                 );
                 """,
                 // Who may see a shared event: PUBLIC (everyone, in the directory feeds) or ALLIANCE (only servers in an alliance with this one).
-                "ALTER TABLE younglings.shared_event ADD COLUMN IF NOT EXISTS scope TEXT NOT NULL DEFAULT 'PUBLIC';"));
+                "ALTER TABLE younglings.shared_event ADD COLUMN IF NOT EXISTS scope TEXT NOT NULL DEFAULT 'PUBLIC';",
+                // An address a server gave up, held for it for ProfileRules.SLUG_GRACE (T-290). guild_id is who gave it up; a server leaving is
+                // purged with the rest of its rows.
+                """
+                CREATE TABLE IF NOT EXISTS younglings.clan_slug_hold (
+                    slug TEXT PRIMARY KEY,
+                    guild_id BIGINT NOT NULL,
+                    released_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+                """));
     }
 
     // ---------- profiles ----------
@@ -127,15 +136,42 @@ public class ClanProfileRepository {
         }
     }
 
+    /** Whether another server has this address, or gave it up less than {@link ProfileRules#SLUG_GRACE} ago (T-290: it is still held for it). */
     public boolean slugTaken(String slug, long exceptGuildId) {
-        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("SELECT 1 FROM younglings.clan_profile WHERE slug = ? AND guild_id <> ?")) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("""
+                SELECT 1 FROM younglings.clan_profile WHERE slug = ? AND guild_id <> ?
+                UNION ALL
+                SELECT 1 FROM younglings.clan_slug_hold WHERE slug = ? AND guild_id <> ? AND released_at > ?
+                """)) {
             s.setString(1, slug);
             s.setLong(2, exceptGuildId);
+            s.setString(3, slug);
+            s.setLong(4, exceptGuildId);
+            s.setTimestamp(5, Timestamp.from(Instant.now().minus(ProfileRules.SLUG_GRACE)));
             try (ResultSet rs = s.executeQuery()) {
                 return rs.next();
             }
         } catch (SQLException e) {
             throw new RuntimeException("Failed to check the address", e);
+        }
+    }
+
+    /**
+     * The server that gave up this address less than {@link ProfileRules#SLUG_GRACE} ago, if no clan has it now: its old address forwards
+     * to its current one meanwhile (T-290).
+     */
+    public Optional<Long> slugHolder(String slug) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("""
+                SELECT h.guild_id FROM younglings.clan_slug_hold h
+                WHERE h.slug = ? AND h.released_at > ? AND NOT EXISTS (SELECT 1 FROM younglings.clan_profile p WHERE p.slug = h.slug)
+                """)) {
+            s.setString(1, slug);
+            s.setTimestamp(2, Timestamp.from(Instant.now().minus(ProfileRules.SLUG_GRACE)));
+            try (ResultSet rs = s.executeQuery()) {
+                return rs.next() ? Optional.of(rs.getLong(1)) : Optional.empty();
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to look up a held address", e);
         }
     }
 
@@ -163,7 +199,62 @@ public class ClanProfileRepository {
                     timezone = EXCLUDED.timezone, focus = EXCLUDED.focus, recruiting = EXCLUDED.recruiting, requirements = EXCLUDED.requirements,
                     apply_url = EXCLUDED.apply_url, leaderboard_opt_in = EXCLUDED.leaderboard_opt_in, updated_at = NOW()
                 """;
-        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
+        try (Connection c = connectionSupplier.getConnection()) {
+            boolean auto = c.getAutoCommit();
+            c.setAutoCommit(false);
+            try {
+                holdOldSlug(c, p.guildId(), p.slug());
+                writeContent(c, sql, p);
+                c.commit();
+            } catch (SQLException | RuntimeException e) {
+                c.rollback();
+                throw e;
+            } finally {
+                c.setAutoCommit(auto);
+            }
+            SiteInvalidator.signal(SiteInvalidator.Area.HUB);
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to save the clan profile", e);
+        }
+    }
+
+    /**
+     * When a server changes its address (T-290): the old one is held for it for {@link ProfileRules#SLUG_GRACE} (other clans can't take it, and
+     * it forwards to the new one), its own hold on the new address goes (it is taking it back), and holds past their time are cleared.
+     */
+    private static void holdOldSlug(Connection c, long guildId, String newSlug) throws SQLException {
+        String old = null;
+        try (PreparedStatement s = c.prepareStatement("SELECT slug FROM younglings.clan_profile WHERE guild_id = ?")) {
+            s.setLong(1, guildId);
+            try (ResultSet rs = s.executeQuery()) {
+                if (rs.next()) old = rs.getString(1);
+            }
+        }
+        if (old != null && !old.equals(newSlug)) {
+            try (PreparedStatement s = c.prepareStatement("""
+                    INSERT INTO younglings.clan_slug_hold (slug, guild_id, released_at) VALUES (?, ?, NOW())
+                    ON CONFLICT (slug) DO UPDATE SET guild_id = EXCLUDED.guild_id, released_at = EXCLUDED.released_at
+                    """)) {
+                s.setString(1, old);
+                s.setLong(2, guildId);
+                s.executeUpdate();
+            }
+        }
+        if (newSlug != null) {
+            try (PreparedStatement s = c.prepareStatement("DELETE FROM younglings.clan_slug_hold WHERE slug = ? AND guild_id = ?")) {
+                s.setString(1, newSlug);
+                s.setLong(2, guildId);
+                s.executeUpdate();
+            }
+        }
+        try (PreparedStatement s = c.prepareStatement("DELETE FROM younglings.clan_slug_hold WHERE released_at < ?")) {
+            s.setTimestamp(1, Timestamp.from(Instant.now().minus(ProfileRules.SLUG_GRACE)));
+            s.executeUpdate();
+        }
+    }
+
+    private static void writeContent(Connection c, String sql, ClanProfile p) throws SQLException {
+        try (PreparedStatement s = c.prepareStatement(sql)) {
             s.setLong(1, p.guildId());
             s.setString(2, p.visibility().name());
             nullable(s, 3, p.slug());
@@ -179,9 +270,6 @@ public class ClanProfileRepository {
             nullable(s, 13, p.applyUrl());
             s.setBoolean(14, p.leaderboardOptIn());
             s.executeUpdate();
-            SiteInvalidator.signal(SiteInvalidator.Area.HUB);
-        } catch (SQLException e) {
-            throw new RuntimeException("Failed to save the clan profile", e);
         }
     }
 

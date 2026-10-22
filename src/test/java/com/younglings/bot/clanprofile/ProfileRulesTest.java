@@ -42,6 +42,31 @@ class ProfileRulesTest {
     }
 
     @Test
+    void thePlatformsOwnSubdomainsAreReserved() {
+        // a clan's address is its website's subdomain (T-290), so the site's own hosts can never be one
+        for (String name : new String[] {"www", "api", "admin", "link", "dashboard", "hub", "auth", "mail", "status", "docs", "cdn", "assets", "static", "dev",
+                "staging", "beta"}) {
+            assertNotNull(ProfileRules.slugProblem(name), name + " should be reserved");
+        }
+        assertNull(ProfileRules.slugProblem("green-angels"));
+        assertNull(ProfileRules.slugProblem("beta-testers"), "only the whole word is reserved");
+    }
+
+    @Test
+    void addressesThatImpersonateOrOffendAreRefused() {
+        assertNotNull(ProfileRules.slugProblem("jagex-official"));
+        assertNotNull(ProfileRules.slugProblem("thejagexteam"), "jagex anywhere");
+        assertNotNull(ProfileRules.slugProblem("runeclans-support"));
+        assertNotNull(ProfileRules.slugProblem("clan-mods"));
+        assertNotNull(ProfileRules.slugProblem("jmodsquad"));
+        // whole words only for the ordinary ones: these are fine
+        assertNull(ProfileRules.slugProblem("modern-warriors"));
+        assertNull(ProfileRules.slugProblem("essex-pvm"));
+        assertNull(ProfileRules.slugProblem("the-officials-club"));
+        assertNull(ProfileRules.slugProblem("team-rocket"));
+    }
+
+    @Test
     void aGoodProfileHasNoFieldProblems() {
         assertTrue(ProfileRules.fieldProblems("Younglings", "Friendly PvM", "About us", "Combat 100+", "https://example.com/logo.png", "https://discord.gg/abc", 0x336699, "America/New_York").isEmpty());
         assertTrue(ProfileRules.fieldProblems("Younglings", null, null, null, null, null, null, null).isEmpty());

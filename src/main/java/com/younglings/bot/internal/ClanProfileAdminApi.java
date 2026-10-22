@@ -136,9 +136,12 @@ public class ClanProfileAdminApi implements AdminRouteExtension {
         String slug = current.slug();
         if (body.hasKey("slug") && !body.isNull("slug") && !body.getString("slug", "").isBlank()) {
             slug = body.getString("slug").strip().toLowerCase(Locale.ROOT);
-            String slugProblem = ProfileRules.slugProblem(slug);
+            // An address the clan already has is kept as it is, even if the rules have since grown (T-290 reserved more words).
+            String slugProblem = slug.equals(current.slug()) ? null : ProfileRules.slugProblem(slug);
             if (slugProblem != null) problems.add(slugProblem);
-            else if (repository.slugTaken(slug, guildId)) problems.add("Another clan already uses the address \"" + slug + "\". Choose another.");
+            else if (repository.slugTaken(slug, guildId)) {
+                problems.add("Another clan uses the address \"" + slug + "\", or gave it up less than " + ProfileRules.SLUG_GRACE.toDays() + " days ago. Choose another.");
+            }
         } else if (slug == null) {
             slug = freeSlug(ProfileRules.slugify(name.isBlank() ? (clan == null ? guild.getName() : clan) : name), guildId);
         }
