@@ -250,6 +250,8 @@ class EventSpaceOpsTest {
             Mockito.when(channel.getId()).thenReturn(Long.toString(id));
             Mockito.when(channel.getName()).thenReturn(name);
             Mockito.when(channel.getType()).thenReturn(category ? ChannelType.CATEGORY : ChannelType.TEXT);
+            // like a real channel, it has the overwrites it was made with (T-210 reads them back to spot changes made on Discord)
+            Mockito.when(((net.dv8tion.jda.api.entities.channel.attribute.IPermissionContainer) channel).getPermissionOverrides()).thenAnswer(x -> overridesOf(mine));
             AuditableRestAction<Void> delete = deletion(id);
             Mockito.when(channel.delete()).thenReturn(delete);
             server.channels.put(id, channel);
@@ -258,6 +260,21 @@ class EventSpaceOpsTest {
             return channel;
         });
         return action;
+    }
+
+    /** The pretend channel's overwrites as JDA hands them out: {isRole, id, allow, deny} each. */
+    private static List<net.dv8tion.jda.api.entities.PermissionOverride> overridesOf(List<long[]> made) {
+        List<net.dv8tion.jda.api.entities.PermissionOverride> list = new ArrayList<>();
+        for (long[] o : made) {
+            net.dv8tion.jda.api.entities.PermissionOverride override = Mockito.mock(net.dv8tion.jda.api.entities.PermissionOverride.class);
+            Mockito.when(override.isRoleOverride()).thenReturn(o[0] == 1);
+            Mockito.when(override.isMemberOverride()).thenReturn(o[0] == 0);
+            Mockito.when(override.getIdLong()).thenReturn(o[1]);
+            Mockito.when(override.getAllowedRaw()).thenReturn(o[2]);
+            Mockito.when(override.getDeniedRaw()).thenReturn(o[3]);
+            list.add(override);
+        }
+        return list;
     }
 
     // ---------- helpers ----------

@@ -85,6 +85,11 @@ public class ClanSyncService {
         return clanMemberRepository.getAll(guildId, activeOnly);
     }
 
+    /** How many members the tracked roster has, without loading it ({@code activeOnly} as in {@link #getRoster}). */
+    public int countRoster(long guildId, boolean activeOnly) {
+        return clanMemberRepository.count(guildId, activeOnly);
+    }
+
     /** Manual dev backfill for a clan member's join date — see {@link ClanMemberRepository#setClanJoinedAt}. */
     public boolean setClanJoinedAt(long guildId, String rsn, LocalDate joinedAt) {
         return clanMemberRepository.setClanJoinedAt(guildId, rsn, joinedAt);

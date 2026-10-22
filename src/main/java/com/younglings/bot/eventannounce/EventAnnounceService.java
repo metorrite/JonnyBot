@@ -1,11 +1,13 @@
 package com.younglings.bot.eventannounce;
 
+import com.younglings.bot.discord.Mentions;
 import com.younglings.bot.alerts.AutoPostRouter;
 import com.younglings.bot.eventannounce.EventAnnounceRepository.Tracked;
 import com.younglings.bot.eventannounce.EventAnnounceRules.Card;
 import com.younglings.bot.eventannounce.EventAnnounceRules.Settings;
 import com.younglings.bot.eventannounce.EventAnnounceRules.State;
 import com.younglings.bot.eventannounce.EventAnnounceRules.Step;
+import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -48,7 +50,7 @@ public class EventAnnounceService {
     private final EventAnnounceRepository repository;
     private volatile JDA jda;
     private final ExecutorService worker = Executors.newSingleThreadExecutor(daemon("event-announcer"));
-    private final ScheduledExecutorService sweeper = Executors.newSingleThreadScheduledExecutor(daemon("event-announcer-sweep"));
+    private final ScheduledExecutorService sweeper = BotScheduler.lane("event-announcer-sweep");
 
     public EventAnnounceService(EventAnnounceRepository repository) {
         this.repository = repository;
@@ -160,7 +162,8 @@ public class EventAnnounceService {
         Role role = tracked.roleId() == null ? null : guild.getRoleById(tracked.roleId());
         String text = "**" + event.getName() + "** is starting now! " + (role == null ? "" : role.getAsMention()) + "\n" + url(event);
         var action = channel.sendMessage(text.strip());
-        action.setAllowedMentions(role == null ? EnumSet.noneOf(Message.MentionType.class) : EnumSet.of(Message.MentionType.ROLE)).queue(ok -> {}, error -> {});
+        // the event's name is staff text from Discord: only the chosen role pings
+        Mentions.onlyRoles(action, role == null ? new long[0] : new long[]{role.getIdLong()}).queue(ok -> {}, error -> {});
     }
 
     /** The event ended or was cancelled (or deleted): show it so, take the button away and delete its role. */

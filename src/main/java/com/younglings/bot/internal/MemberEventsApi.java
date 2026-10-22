@@ -1,7 +1,7 @@
 package com.younglings.bot.internal;
 
 import com.younglings.bot.clanprofile.ClanProfileRepository;
-import com.younglings.bot.configure.GuildSettingsService;
+import com.younglings.bot.clanprofile.JoinLinks;
 import com.younglings.bot.events.BingoBoardView;
 import com.younglings.bot.events.BingoTemplate;
 import com.younglings.bot.events.EventProblem;
@@ -42,10 +42,10 @@ public class MemberEventsApi {
     private final EventRepository repository;
     private final ClanProfileRepository profiles;
     private final EventSpaceRepository space;
-    private final GuildSettingsService guildSettings;
+    private final JoinLinks joinLinks;
 
-    public MemberEventsApi(EventService service, EventRepository repository, ClanProfileRepository profiles, EventSpaceRepository space, GuildSettingsService guildSettings) {
-        this.guildSettings = guildSettings;
+    public MemberEventsApi(EventService service, EventRepository repository, ClanProfileRepository profiles, EventSpaceRepository space, JoinLinks joinLinks) {
+        this.joinLinks = joinLinks;
         this.service = service;
         this.repository = repository;
         this.profiles = profiles;
@@ -91,10 +91,9 @@ public class MemberEventsApi {
         if (member == null) throw new EventProblem(403, notInServerMessage(guild));
     }
 
-    /** The sentence shown to someone who isn't in the server yet; its link is the server's invite link, else the clan profile's apply link, when there is one. */
+    /** The sentence shown to someone who isn't in the server yet; its link is the server's one join link ({@link JoinLinks}), when there is one. */
     String notInServerMessage(Guild guild) {
-        String link = guildSettings.getEffective(guild.getIdLong()).inviteUrl();
-        if (link == null || link.isBlank()) link = profiles.get(guild.getIdLong()).map(p -> p.applyUrl()).filter(u -> u != null && !u.isBlank()).orElse(null);
+        String link = joinLinks.of(guild.getIdLong(), profiles.get(guild.getIdLong()).map(p -> p.applyUrl()).orElse(null));
         return "To take part in an event you need to be in the " + guild.getName() + " Discord server. Join it first" + (link == null ? ", then sign up here again." : " (" + link + "), then sign up here again.");
     }
 
@@ -210,7 +209,7 @@ public class MemberEventsApi {
         out.put("objectives", progress);
 
         DataObject config = DataObject.fromJson(event.config());
-        if (scored && !me.waiting() && BingoTemplate.KEY.equals(event.template())) {
+        if (scored && !me.waiting() && com.younglings.bot.events.ClanVsClan.plays(event, BingoTemplate.KEY)) {
             var tiles = BingoBoardView.personal(BingoBoardView.boardKeys(config), objectives, mineStanding);
             DataArray tileJson = DataArray.empty();
             for (var t : tiles) tileJson.add(DataObject.empty().put("n", t.number()).put("label", t.label()).put("points", t.points()).put("done", t.done()).put("locked", t.locked()));

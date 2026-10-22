@@ -216,7 +216,12 @@ public final class EventOptions {
                 EventSettings.DEFAULT_POLICY, List.of(new Choice("everyone", "Everyone, mixed freely"), new Choice("home", "Only this server"),
                         new Choice("clanVsOutsiders", "Clan members apart from everyone else"), new Choice("separate", "Every kind on its own teams"))));
         list.add(Option.choice("config.queue", "When the event is full", "Who gets a place when someone leaves.", Step.PLAYERS, "FIRST_COME",
-                List.of(new Choice("FIRST_COME", "First come, first served"), new Choice("CLAN_FIRST", "Clan members first"))));
+                List.of(new Choice("FIRST_COME", "First come, first served"), new Choice("CLAN_FIRST", "Clan members first"),
+                        new Choice("ROUND_ROBIN", "Round robin between servers", "With co-hosts: one player from this server, then one from each co-host, in turn."))));
+        list.add(Option.number("config.queueQuota.host", "Places kept for this server", "Optional seat quota for co-hosted events: at most this many places go to players from this server until the release. 0 for no quota. Co-hosts' quotas are set on the event's Co-hosts card.",
+                Step.PLAYERS, 0, 0, EventRules.MAX_PARTICIPANTS).showWhen(When.isNot("maxParticipants", 0)));
+        list.add(Option.number("config.queueQuota.releaseHours", "Release unfilled quota places (hours before signups close)", "Places a server hasn't filled by then go to whoever is waiting. With no signup deadline they are released when signups close.",
+                Step.PLAYERS, QueueRules.DEFAULT_RELEASE_HOURS, 0, QueueRules.MAX_RELEASE_HOURS).showWhen(When.isNot("maxParticipants", 0)));
 
         list.add(Option.of("config.buyIn.enabled", "Buy-in", "Players pay in-game gp to enter, and the paid total makes the pot.", Step.MONEY, Type.BOOL, false));
         list.add(Option.number("config.buyIn.amount", "Buy-in amount (gp)", "What each player pays.", Step.MONEY, 0, 1, 1_000_000_000_000L)

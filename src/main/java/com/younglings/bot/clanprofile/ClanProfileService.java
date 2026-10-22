@@ -44,8 +44,9 @@ public class ClanProfileService {
         return name == null || name.isBlank() ? null : name.strip();
     }
 
+    /** The active members on the clan's roster, counted by the database (the hub lists every clan with this). */
     public int memberCount(long guildId) {
-        return clanSync.getRoster(guildId, true).size();
+        return clanSync.countRoster(guildId, true);
     }
 
     /**
@@ -76,8 +77,15 @@ public class ClanProfileService {
 
     /** The profile as the public may see it, or empty when it is hidden (private, suspended, or public without a verified clan). */
     public Optional<ClanProfile> publicView(long guildId, boolean allowUnlisted) {
-        ClanProfile profile = profileOf(guildId);
-        ProfileRules.Listing listing = ProfileRules.listing(profile, clanNameOf(guildId));
+        return publicView(profileOf(guildId), clanNameOf(guildId), allowUnlisted);
+    }
+
+    /**
+     * The same, for a profile already loaded (a list of them) and its server's clan name ({@link #clanNameOf}), so a list of clans doesn't
+     * fetch each profile and clan name again.
+     */
+    public Optional<ClanProfile> publicView(ClanProfile profile, String clanName, boolean allowUnlisted) {
+        ProfileRules.Listing listing = ProfileRules.listing(profile, clanName);
         if (listing == ProfileRules.Listing.LISTED || (allowUnlisted && listing == ProfileRules.Listing.UNLISTED)) return Optional.of(profile);
         return Optional.empty();
     }

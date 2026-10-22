@@ -7,6 +7,7 @@ import com.younglings.bot.runescape.PlayerLinkRepository;
 import com.younglings.bot.runescape.RuneScapeSkillCatalog;
 import com.younglings.bot.runescape.RuneScapeXpTable;
 import com.younglings.bot.runescape.SkillValue;
+import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -20,9 +21,7 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -39,11 +38,7 @@ public class MemberNotifier {
     private final MemberProfileRepository repository;
     private final PlayerLinkRepository links;
     private final BrandingService branding;
-    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor((ThreadFactory) r -> {
-        Thread t = new Thread(r, "member-notifier");
-        t.setDaemon(true);
-        return t;
-    });
+    private final ScheduledExecutorService executor = BotScheduler.lane("member-notifier");
 
     public MemberNotifier(MemberProfileRepository repository, PlayerLinkRepository links, BrandingService branding) {
         this.repository = repository;

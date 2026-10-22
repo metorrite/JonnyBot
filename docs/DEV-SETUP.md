@@ -64,6 +64,85 @@ powershell -ExecutionPolicy Bypass -File tools/rsnlink-dev-env.ps1
 
 It creates `jonnybot_link` if missing and appends fresh random **local-only** keys to the git-ignored `.env` (`LINK_DATABASE_URL`, `LINK_ENC_KEY`, `LINK_LOOKUP_KEY`, `LINK_ALIAS_KEY`, `LINK_SIGNING_KEY`, `LINK_PUBLIC_BASE_URL`), printing names only. Keys already in `.env` are kept (changing `LINK_ALIAS_KEY` changes every alias; changing `LINK_ENC_KEY` without moving the old one to `LINK_ENC_KEY_OLD` makes stored Discord ids unreadable). To make a key by hand instead: 32 random bytes, base64, e.g. in PowerShell `$b = New-Object byte[] 32; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); [Convert]::ToBase64String($b)`. On start the bot logs `RSN link service is on (schema rsnlink).`, or `... is off` when `LINK_DATABASE_URL` is unset, or `... refused to start:` with the names of the variables that are wrong. Never put these local keys on Railway; production keys are made at go-live (T-120). Tests make their own random keys and use the schema `rsnlink_test`; point them at the link database with `JONNYBOT_TEST_LINK_DATABASE_URL` (same form as `DATABASE_URL`, database `jonnybot_link`).
 
+## 3c. Every bot setting
+
+Every environment variable the bot reads. Each one can also go in the git-ignored `.env`, except where noted; the environment wins over `.env`. Only `DISCORD_TOKEN`, `DATABASE_URL` and `LIVE_ENV` are required. `SettingsDocumentedTest` fails the build when the bot reads a setting that isn't in this table.
+
+**Core**
+
+| Setting | What it does | When unset |
+|---|---|---|
+| `DISCORD_TOKEN` | The bot's Discord token (the *dev* bot's, locally). | Required. |
+| `DATABASE_URL` | The bot's Postgres (`postgresql://USER:PASSWORD@host:port/db`). | Required. |
+| `LIVE_ENV` | `TRUE` on the live bot only. With `FALSE` the bot is "not live": automatic posts are diverted (see `DEV_ALERT_CHANNEL_ID`) and dev-only setup can run. | Required. |
+| `GUILD_ID` | The home server. Outside production, commands register there as guild commands, and `@Test` commands only ever go there. Locally it is the **real** clan server (see above). | Commands register globally; `@Test` commands nowhere. The internal API stays off. |
+| `OWNER_IDS` | Comma-separated Discord ids of the bot's owners (Super admin, owner-only commands). | Nobody is an owner. |
+| `ADMIN_ROLE_ID` | The env-default Admin role for the home server: it and every role above it may use admin commands. Servers set their own on the dashboard. | Fails closed: nobody passes the env-default admin check. |
+| `BOT_STATUS` | The bot's Discord status text. | `bot.activity` from `config.properties`. |
+
+**Internal API and website**
+
+| Setting | What it does | When unset |
+|---|---|---|
+| `INTERNAL_API_SECRET` | The shared secret the website sends (must equal the site's `JONNYBOT_INTERNAL_API_SECRET`). | The internal API doesn't start (no dashboard, no site data). |
+| `INTERNAL_API_PORT` | Port of the internal API. | `8081`. |
+| `SITE_URL` | The website's public address, no trailing slash: where `/wrapped` gets recap images and links to. | `/wrapped` says it isn't set up. |
+| `JONNYBOT_SITE_URL` | The address put in the User-Agent of every request the bot makes to a third party. | `https://jonnybot.rsyounglings.com`. |
+
+**Dev bot safety**
+
+| Setting | What it does | When unset |
+|---|---|---|
+| `DEV_ALERT_CHANNEL_ID` | While the bot isn't live (T-126): the channel its automatic alerts go to instead, with no pings. | They are only logged. |
+| `DEV_HELP_SEED_CHANNEL` | Not-live bot only: the name (or part of it) of a channel where PvM/CA Help test panels are set up at start. Environment only. | Nothing is set up. |
+
+**RuneScape tracking**
+
+| Setting | What it does | When unset |
+|---|---|---|
+| `RUNESCAPE_CLAN_NAME` | Env-default clan name for the home server (servers set their own on Server setup). | No clan until one is set. |
+| `RUNESCAPE_AUTO_POLL_ENABLED` | `false` stops all automatic roster and clan polling (manual Update buttons still work). | `true`. |
+| `RUNESCAPE_POLL_REQUESTS_PER_MINUTE` | The shared RuneMetrics request budget per minute. | `10`. |
+| `RUNESCAPE_POLL_BURST` | Requests the budget may save up for a burst. | `6`. |
+| `RUNESCAPE_CLAN_POLL_WINDOW_MINUTES` | One pass over every player in a registered clan. | `180`. |
+| `RUNESCAPE_LINKED_POLL_WINDOW_MINUTES` | One pass over linked players not in a registered clan. | `480`. |
+| `RUNESCAPE_PREMIUM_POLL_WINDOW_MINUTES` | One pass over players in premium clans. | `60`. |
+| `RUNEMETRICS_TIME_ZONE` | The zone RuneMetrics' activity times are read in. The clock check warns if it looks wrong (for example `Etc/GMT-1`). Environment only. | `Europe/London`. |
+| `RSN_RENAME_ALERT_CHANNEL_ID` | Env-default channel for "this player may have renamed" alerts. | Renames are only logged. |
+| `RSN_VERIFICATION_CHANNEL_ID` | Env-default channel where RSN verification requests go for review. | Requests wait unnoticed. |
+| `VERIFIED_CLAN_ROLE_ID`, `VERIFIED_NON_CLAN_ROLE_ID`, `UNVERIFIED_ROLE_ID` | Env-default roles given or removed on verification (clan member, verified non-member, removed on verify). | Nothing is given or removed for that slot. |
+
+**Data retention**
+
+| Setting | What it does | When unset |
+|---|---|---|
+| `GUILD_DATA_RETENTION_DAYS` | Days after the bot leaves a server before that server's data is deleted; `0` keeps it forever. | `30`. |
+| `GUILD_DATA_RETENTION_DRY_RUN` | `false` lets the retention sweep actually delete. | `true`: it only reports. |
+| `PLUGIN_EVENT_RETENTION_DAYS` | Days plugin events are kept; `0` keeps them. Environment only. | `180`. |
+
+**Features with outside services**
+
+| Setting | What it does | When unset |
+|---|---|---|
+| `PHISHING_LIST_URL` | The phishing-domain list automod downloads daily; empty switches the download off. Environment only. | `https://phish.sinking.yachts/v2/all`. |
+| `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET` | The Twitch app for go-live alerts. Environment only. | Twitch alerts say they aren't set up; nothing is sent to Twitch. |
+| `KICK_CLIENT_ID`, `KICK_CLIENT_SECRET` | The Kick app for go-live alerts (T-042). Environment only. | The same for Kick. |
+
+**Plugins**
+
+| Setting | What it does | When unset |
+|---|---|---|
+| `PLUGIN_XP_SCALE` | Raw plugin XP units per point of experience. | `10` (the client reports tenths). |
+| `RUNESYNC_MIN_CLIENT_VERSION` | RuneSync versions below this are told to update. | `0.0.0`: none are refused. |
+| `LINK_DATABASE_URL`, `LINK_ENC_KEY`, `LINK_ENC_KEY_OLD`, `LINK_LOOKUP_KEY`, `LINK_ALIAS_KEY`, `LINK_SIGNING_KEY`, `LINK_PUBLIC_BASE_URL` | The RSN link service (section 3 above, and LINK-SYSTEM.md section 6.1). | The link service is off. |
+| `LINK_INTERNAL_URL` | Where the plugin ingest reaches the link service to check RS Link assertions. | This bot's own internal API on `127.0.0.1:<INTERNAL_API_PORT>`. |
+| `RUNECLANS_HUB_ENABLED` | `true` makes the bot a client of the RuneClans hub (T-158): RS Link assertions are checked there, plugin events come from its change feed every 30 seconds, and the bot's servers are registered with it. Needs the two below; with either missing or malformed the client stays off and says why in the log. | Off: the bot's own RS Link and plugin ingest do everything. |
+| `RUNECLANS_HUB_URL` | The hub's address (`https://...`; plain http only for localhost). | The hub client is off. |
+| `RUNECLANS_HUB_API_KEY` | JonnyBot's first-party hub API key (`rsh_...`; scopes `link:resolve`, `players:read`, `feed:read`, `guilds:write`). Never logged. | The hub client is off. |
+| `RSCLANS_HUB_ENABLED`, `RSCLANS_HUB_URL`, `RSCLANS_HUB_API_KEY` | **Deprecated** old names of the three settings above (the hub is now runeclans-hub). Still read for one release when the new name is unset; the bot logs a warning. | |
+
+Tests read `JONNYBOT_TEST_DATABASE_URL`, `JONNYBOT_TEST_LINK_DATABASE_URL`, `STARTUP_CHECK_DATABASE_URL` and `STARTUP_CHECK_REQUIRED` (section 5); the bot itself never does.
+
 ## 3b. Secret scan (pre-commit hook)
 
 Every commit is scanned for secrets by [gitleaks](https://github.com/gitleaks/gitleaks), locally; nothing is uploaded. CI runs the same scan ("Secret Scan" job) next to GitGuardian.

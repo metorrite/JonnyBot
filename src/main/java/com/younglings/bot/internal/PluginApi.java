@@ -7,7 +7,11 @@ import com.younglings.bot.plugin.PluginRepository.Token;
 import com.younglings.bot.plugin.PluginService;
 import com.younglings.bot.plugin.PluginService.PluginException;
 import com.younglings.bot.plugin.PluginTokens;
+import com.younglings.bot.plugin.PluginVisibilityRepository;
 import com.younglings.bot.plugin.RsLinkAuth;
+import com.younglings.bot.plugin.RuneSyncPanelService;
+import com.younglings.bot.plugin.RuneSyncService;
+import com.younglings.bot.plugin.RuneSyncService.RuneSyncException;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.utils.data.DataArray;
 import net.dv8tion.jda.api.utils.data.DataObject;
@@ -17,6 +21,8 @@ import org.slf4j.LoggerFactory;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.EnumSet;
 import java.util.Locale;
@@ -29,9 +35,11 @@ import java.util.Set;
  * <ul>
  *   <li><b>The plugin</b>, identified by its token in {@code X-Plugin-Token} or, for an upload from RuneSync, by an RS Link signed assertion in
  *       {@code Authorization: RSLink ...} (see {@link RsLinkAuth}): {@code POST ingest} (a batch of events, schema v1) and
- *       {@code GET whoami} (which names it may report for and what the player has allowed).</li>
+ *       {@code GET whoami} (which names it may report for and what the player has allowed); and RuneSync's own routes (T-202):
+ *       {@code GET runesync/config}, {@code PUT runesync/consent}, {@code POST runesync/diagnostics} and {@code GET runesync/panel}.</li>
  *   <li><b>The player</b>, identified by a {@code userId} the website takes from its verified sign-in (the same trust as {@code /internal/me/}):
- *       {@code GET me}, {@code POST me/tokens}, {@code DELETE me/tokens/{id}}, {@code PUT me/consent} and {@code DELETE me/data}.</li>
+ *       {@code GET me}, {@code GET me/runesync}, {@code POST me/tokens}, {@code DELETE me/tokens/{id}}, {@code PUT me/consent},
+ *       {@code GET}/{@code PUT me/visibility} ("Show my clan that I use RuneSync", T-140) and {@code DELETE me/data}.</li>
  * </ul>
  * Nothing here is about one server: a player's plugin data belongs to the player.
  */
@@ -43,13 +51,24 @@ public class PluginApi {
 
     private final PluginService service;
     private final RsLinkAuth rsLink;
+    private final RuneSyncService runeSync;
+    private final RuneSyncPanelService panel;
+    private final PluginVisibilityRepository visibility;
     /** 60 requests a minute per token, with a short burst. */
     private final RateLimiter ingestLimit = new RateLimiter(60, 1_000);
     private final RateLimiter accountLimit = new RateLimiter(20, 3_000);
+    /** RuneSync's settings and diagnostics calls: a client asks every ~10 minutes, so this is generous. */
+    private final RateLimiter runeSyncLimit = new RateLimiter(10, 6_000);
 
-    public PluginApi(PluginService service, RsLinkAuth rsLink) {
+    /** Who a plugin call is from: the Discord account, the RSN RS Link vouches for (null on the token path) and the key for rate limits. */
+    private record Caller(long userId, String linkedRsn, String limitKey) {}
+
+    public PluginApi(PluginService service, RsLinkAuth rsLink, RuneSyncService runeSync, RuneSyncPanelService panel, PluginVisibilityRepository visibility) {
         this.service = service;
         this.rsLink = rsLink;
+        this.runeSync = runeSync;
+        this.panel = panel;
+        this.visibility = visibility;
     }
 
     /** Called after the shared secret has been checked. */
@@ -74,6 +93,8 @@ public class PluginApi {
                     return;
                 }
                 whoami(exchange);
+            } else if (parts[0].equals("runesync") && parts.length == 2) {
+                runeSync(exchange, method, parts[1]);
             } else if (parts[0].equals("me")) {
                 account(exchange, method, parts);
             } else {
@@ -81,6 +102,8 @@ public class PluginApi {
             }
         } catch (PluginException e) {
             send(exchange, 400, error(e.getMessage()));
+        } catch (RuneSyncException e) {
+            send(exchange, e.status(), error(e.getMessage()));
         }
     }
 
@@ -92,12 +115,12 @@ public class PluginApi {
         return token;
     }
 
-    private void ingest(HttpExchange exchange) throws IOException {
-        // Either a RuneSync upload signed through RS Link (Authorization: RSLink <assertion>), or a manual token (X-Plugin-Token).
+    /**
+     * Who is calling: either RuneSync signed through RS Link ({@code Authorization: RSLink <assertion>}), or a manual token
+     * ({@code X-Plugin-Token}). Empty when the answer has already been sent (401, or 503 while linking is unavailable).
+     */
+    private Optional<Caller> caller(HttpExchange exchange) throws IOException {
         String assertion = RsLinkAuth.assertionFrom(exchange.getRequestHeaders().getFirst("Authorization"));
-        long userId;
-        String linkedRsn = null;
-        String limitKey;
         if (assertion != null) {
             Optional<RsLinkAuth.Identity> identity;
             try {
@@ -105,21 +128,24 @@ public class PluginApi {
             } catch (RsLinkAuth.Unavailable e) {
                 exchange.getResponseHeaders().set("Retry-After", "30");
                 send(exchange, 503, error("Linking is unavailable for a moment. Keep the batch and try again shortly."));
-                return;
+                return Optional.empty();
             }
             if (identity.isEmpty()) {
                 send(exchange, 401, error("That RS Link proof isn't valid any more. Check the link in RS Link."));
-                return;
+                return Optional.empty();
             }
-            userId = identity.get().discordUserId();
-            linkedRsn = identity.get().rsn();
-            limitKey = "rsl:" + userId;
-        } else {
-            Optional<Token> token = authenticate(exchange);
-            if (token.isEmpty()) return;
-            userId = token.get().discordUserId();
-            limitKey = Long.toString(token.get().id());
+            return Optional.of(new Caller(identity.get().discordUserId(), identity.get().rsn(), "rsl:" + identity.get().discordUserId()));
         }
+        Optional<Token> token = authenticate(exchange);
+        return token.map(t -> new Caller(t.discordUserId(), null, Long.toString(t.id())));
+    }
+
+    private void ingest(HttpExchange exchange) throws IOException {
+        Optional<Caller> caller = caller(exchange);
+        if (caller.isEmpty()) return;
+        long userId = caller.get().userId();
+        String linkedRsn = caller.get().linkedRsn();
+        String limitKey = caller.get().limitKey();
         if (!ingestLimit.tryAcquire(limitKey)) {
             exchange.getResponseHeaders().set("Retry-After", "2");
             send(exchange, 429, error("Too many requests. Send fewer, larger batches (up to " + PluginPayload.MAX_EVENTS + " events)."));
@@ -147,6 +173,12 @@ public class PluginApi {
             send(exchange, 403, error(result.forbidden()));
             return;
         }
+        try {
+            runeSync.recordBatch(userId, batch.client(), result.accepted(), result.duplicates(), result.rejected().size(), Instant.now());
+        } catch (RuntimeException e) {
+            // the device card is a convenience: the batch is stored either way
+            log.warn("Couldn't record the plugin client status for user {}", userId, e);
+        }
         DataArray rejected = DataArray.empty();
         for (var r : result.rejected()) rejected.add(DataObject.empty().put("id", r.id()).put("reason", r.reason()));
         send(exchange, 200, DataObject.empty().put("accepted", result.accepted()).put("duplicates", result.duplicates()).put("rejected", rejected)
@@ -161,6 +193,77 @@ public class PluginApi {
         for (String rsn : service.reportableNames(userId)) names.add(rsn);
         send(exchange, 200, DataObject.empty().put("schema", PluginPayload.SCHEMA).put("maxEventsPerBatch", PluginPayload.MAX_EVENTS).put("rsns", names)
                 .put("consented", categoryKeys(service.consent(userId))).put("categories", categoryOptions()));
+    }
+
+    /**
+     * RuneSync's settings and bug-report calls (RUNESYNC-DESIGN.md sections 6, 7 and 10), from the plugin itself:
+     * <ul>
+     *   <li>{@code GET runesync/config?client=RuneSync%200.1.0&paused=false}: consent, panelAvailable, minClientVersion, sendEverySeconds. The
+     *       optional {@code client} and {@code paused} only feed the profile's device card.</li>
+     *   <li>{@code POST} (or {@code PUT}) {@code runesync/consent} {@code {"categories": ["XP", ...]}}: the in-game toggles, written to the same
+     *       record as the profile.</li>
+     *   <li>{@code POST runesync/diagnostics} (a snapshot): stored redacted for 14 days, answers {@code {"id": "RS-7K2M9Q"}}.</li>
+     *   <li>{@code GET runesync/panel}: the in-game clan panel's data (T-206): for each of the member's clans that switched the panel on, its
+     *       open and running events, the member's own points and own progress. Cached 60 seconds per member.</li>
+     * </ul>
+     */
+    private void runeSync(HttpExchange exchange, String method, String route) throws IOException {
+        // The game client can only send GET and POST (local API library docs/core-http.md), so consent takes POST as well as PUT.
+        Set<String> methods = switch (route) {
+            case "config" -> Set.of("GET");
+            case "consent" -> Set.of("PUT", "POST");
+            case "diagnostics" -> Set.of("POST");
+            case "panel" -> Set.of("GET");
+            default -> null;
+        };
+        if (methods == null) {
+            send(exchange, 404, error("Not found"));
+            return;
+        }
+        if (!methods.contains(method)) {
+            send(exchange, 405, error("Method not allowed"));
+            return;
+        }
+        Optional<Caller> caller = caller(exchange);
+        if (caller.isEmpty()) return;
+        long userId = caller.get().userId();
+        if (!runeSyncLimit.tryAcquire(caller.get().limitKey())) {
+            exchange.getResponseHeaders().set("Retry-After", "10");
+            send(exchange, 429, error("Too many requests. RuneSync asks for its settings every 10 minutes."));
+            return;
+        }
+        if (route.equals("panel")) {
+            send(exchange, 200, panel.panel(userId, Instant.now()));
+            return;
+        }
+        if (route.equals("config")) {
+            String client = query(exchange, "client");
+            String clientName = null;
+            if (client != null) {
+                try {
+                    clientName = URLDecoder.decode(client, StandardCharsets.UTF_8);
+                } catch (IllegalArgumentException e) {
+                    // a malformed %-escape: the device card just won't name the client
+                }
+            }
+            runeSync.checkIn(userId, clientName, "true".equals(query(exchange, "paused")), Instant.now());
+            send(exchange, 200, runeSync.config(userId));
+            return;
+        }
+        DataObject body;
+        try {
+            byte[] bytes = readLimited(exchange.getRequestBody());
+            if (bytes == null) {
+                send(exchange, 413, error("That request is too large."));
+                return;
+            }
+            body = DataObject.fromJson(bytes);
+        } catch (RuntimeException e) {
+            send(exchange, 400, error("That request isn't valid JSON."));
+            return;
+        }
+        if (route.equals("consent")) send(exchange, 200, runeSync.setConsent(userId, body));
+        else send(exchange, 200, runeSync.storeDiagnostics(userId, body, Instant.now()));
     }
 
     // ---------- the player ----------
@@ -191,6 +294,8 @@ public class PluginApi {
 
         if (parts.length == 1 && method.equals("GET")) {
             send(exchange, 200, userView(userId));
+        } else if (parts.length == 2 && parts[1].equals("runesync") && method.equals("GET")) {
+            send(exchange, 200, runeSync.memberView(userId, Instant.now()));
         } else if (parts.length == 2 && parts[1].equals("tokens") && method.equals("POST")) {
             var created = service.createToken(userId, body == null ? null : body.getString("label", null));
             send(exchange, 200, DataObject.empty().put("id", Long.toString(created.id())).put("token", created.token()).put("preview", created.preview())
@@ -223,8 +328,26 @@ public class PluginApi {
             }
             service.setConsent(userId, chosen);
             send(exchange, 200, userView(userId));
+        } else if (parts.length == 2 && parts[1].equals("visibility") && method.equals("GET")) {
+            send(exchange, 200, DataObject.empty().put("showToClan", visibility.showToClan(userId)));
+        } else if (parts.length == 2 && parts[1].equals("visibility") && method.equals("PUT")) {
+            if (body == null || !body.hasKey("showToClan") || body.isNull("showToClan")) {
+                send(exchange, 400, error("Say whether to show it (showToClan true or false)."));
+                return;
+            }
+            boolean on;
+            try {
+                on = body.getBoolean("showToClan");
+            } catch (RuntimeException e) {
+                send(exchange, 400, error("showToClan must be true or false."));
+                return;
+            }
+            visibility.setShowToClan(userId, on, Instant.now());
+            send(exchange, 200, DataObject.empty().put("showToClan", visibility.showToClan(userId)));
         } else if (parts.length == 2 && parts[1].equals("data") && method.equals("DELETE")) {
             int removed = service.deleteAllData(userId);
+            runeSync.deleteFor(userId);
+            visibility.deleteFor(userId);
             send(exchange, 200, DataObject.empty().put("removedEvents", removed).put("view", userView(userId)));
         } else {
             send(exchange, 404, error("Not found"));
