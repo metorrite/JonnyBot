@@ -383,6 +383,26 @@ public class EventRepository {
      * Events of every server that a host has opened beyond its own server (visibility alliance or everyone), not drafts, cancelled or archived ones, soonest
      * first. {@link EventListing#listed} has the last word (taken-down and long-finished ones).
      */
+    /**
+     * Finished clan-vs-clan events open to everyone that {@code guildId}'s clan may have taken part in, newest first (T-223). The caller checks the event's
+     * {@code cvcTeams} for the clan; the text match here only narrows the rows read.
+     */
+    public List<Event> finishedClanVsClan(long guildId, int limit) {
+        List<Event> list = new ArrayList<>();
+        String sql = "SELECT * FROM younglings.event WHERE template = 'clan-vs-clan' AND scope = 'PUBLIC' AND status = 'DONE' AND config LIKE ? "
+                + "ORDER BY ends_at DESC NULLS LAST, id DESC LIMIT ?";
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
+            s.setString(1, "%\"" + guildId + "\"%");
+            s.setInt(2, limit);
+            try (ResultSet rs = s.executeQuery()) {
+                while (rs.next()) list.add(mapEvent(rs));
+            }
+            return list;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read the clan's clan-vs-clan events", e);
+        }
+    }
+
     public List<Event> sharedBeyondServer(int limit) {
         List<Event> list = new ArrayList<>();
         String sql = "SELECT * FROM younglings.event WHERE scope IN ('ALLIANCE', 'PUBLIC') AND status NOT IN ('DRAFT', 'CANCELLED') AND NOT archived "
