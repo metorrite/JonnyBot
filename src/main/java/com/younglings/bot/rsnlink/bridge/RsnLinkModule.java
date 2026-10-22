@@ -12,6 +12,7 @@ import com.younglings.bot.rsnlink.verify.HttpPublicData;
 import com.younglings.bot.rsnlink.verify.PgVerifyStore;
 import com.younglings.bot.rsnlink.verify.VerifySettings;
 import com.younglings.bot.rsnlink.verify.XpLinkVerifier;
+import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -23,7 +24,6 @@ import java.io.IOException;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.util.List;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -116,11 +116,7 @@ public class RsnLinkModule implements InternalRouteModule {
     }
 
     private static void startSweeps(LinkService service) {
-        ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(runnable -> {
-            Thread thread = new Thread(runnable, "rsnlink-retention");
-            thread.setDaemon(true);
-            return thread;
-        });
+        ScheduledExecutorService executor = BotScheduler.lane("rsnlink-retention");
         executor.scheduleWithFixedDelay(() -> {
             try {
                 service.sweep();

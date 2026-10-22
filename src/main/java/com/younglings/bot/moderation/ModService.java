@@ -35,10 +35,12 @@ public class ModService {
 
     private final ModCaseRepository cases;
     private final AdminRoleFilter admins;
+    private final com.younglings.bot.appeal.AppealLinks appealLinks;
 
-    public ModService(ModCaseRepository cases, AdminRoleFilter admins) {
+    public ModService(ModCaseRepository cases, AdminRoleFilter admins, com.younglings.bot.appeal.AppealLinks appealLinks) {
         this.cases = cases;
         this.admins = admins;
+        this.appealLinks = appealLinks;
     }
 
     /**
@@ -73,7 +75,7 @@ public class ModService {
         }
 
         CompletableFuture<Void> told = action.dmsBefore() && settings.dmReason() && !target.isBot()
-                ? tell(target, dmText(guild.getName(), action, text, durationMinutes, settings, actor)) : CompletableFuture.completedFuture(null);
+                ? tell(target, dmText(guild.getName(), action, text, durationMinutes, withAppealPage(guild.getIdLong(), settings), actor)) : CompletableFuture.completedFuture(null);
         return told.thenCompose(ignored -> discord(guild, target, targetMember, action, text, durationMinutes, deleteDays)).handle((ok, error) -> {
             if (error != null) {
                 Throwable cause = error.getCause() != null ? error.getCause() : error;
@@ -98,6 +100,13 @@ public class ModService {
             case UNTIMEOUT -> member.removeTimeout().reason(audit).submit();
             case WARN -> CompletableFuture.completedFuture(null);
         };
+    }
+
+    /** The settings the DM is written from: the server's own appeal link, or the website's appeal page when the server takes appeals there (T-033). */
+    ModSettings withAppealPage(long guildId, ModSettings settings) {
+        if (settings.appealUrl() != null && !settings.appealUrl().isBlank()) return settings;
+        String page = appealLinks == null ? null : appealLinks.linkFor(guildId);
+        return page == null ? settings : settings.withAppealUrl(page);
     }
 
     /** DMs the person; a closed DM is not an error (the action still goes ahead). */

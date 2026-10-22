@@ -1,5 +1,6 @@
 package com.younglings.bot;
 
+import com.younglings.bot.discord.Mentions;
 import com.younglings.bot.announcement.AnnouncementInteractionListener;
 import com.younglings.bot.announcement.PostActionListener;
 import com.younglings.bot.commands.DevEmbedListener;
@@ -175,6 +176,8 @@ public class Bot extends JDAService {
             return;
         }
 
+        // T-136: no message pings @everyone, @here or a role unless the feature names exactly what it pings
+        Mentions.installDefault();
         // This uses JDABuilder#createLight, with the intents and the additional cache flags set above
         // It also sets the EventManager and a special rate limiter
         createLight(botConfig.getToken())

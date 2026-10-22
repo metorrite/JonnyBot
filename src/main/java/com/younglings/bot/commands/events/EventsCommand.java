@@ -166,7 +166,7 @@ public class EventsCommand {
         Event target;
         try {
             target = eventId != null ? service.event(guildId, eventId) : repository.eventsForUser(guildId, userId, 30).stream()
-                    .filter(e -> BingoTemplate.KEY.equals(e.template()) && (e.status() == Status.RUNNING || e.status() == Status.SCORING)).findFirst().orElse(null);
+                    .filter(e -> com.younglings.bot.events.ClanVsClan.plays(e, BingoTemplate.KEY) && (e.status() == Status.RUNNING || e.status() == Status.SCORING)).findFirst().orElse(null);
         } catch (EventProblem p) {
             Containers.replyEphemeral(event, Containers.WARNING, p.getMessage());
             return;
@@ -175,7 +175,7 @@ public class EventsCommand {
             Containers.replyEphemeral(event, Containers.INFO, "You aren't in a running bingo. See `/events mine`.");
             return;
         }
-        if (!BingoTemplate.KEY.equals(target.template())) {
+        if (!com.younglings.bot.events.ClanVsClan.plays(target, BingoTemplate.KEY)) {
             Containers.replyEphemeral(event, Containers.INFO, "That event doesn't have a board.");
             return;
         }

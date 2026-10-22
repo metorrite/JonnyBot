@@ -8,6 +8,7 @@ import com.younglings.bot.permission.PermissionGroupService;
 import com.younglings.bot.rolekeep.RoleKeepRepository.Kept;
 import com.younglings.bot.rolekeep.RoleKeepRepository.Temp;
 import com.younglings.bot.rolekeep.RoleKeepRules.Source;
+import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -23,9 +24,7 @@ import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -43,11 +42,7 @@ public class RoleKeepService {
     private final RoleKeepRepository repository;
     private final GuildSettingsService settings;
     private final PermissionGroupService groups;
-    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor((ThreadFactory) runnable -> {
-        Thread thread = new Thread(runnable, "role-keep");
-        thread.setDaemon(true);
-        return thread;
-    });
+    private final ScheduledExecutorService executor = BotScheduler.lane("role-keep");
 
     public RoleKeepService(RoleKeepRepository repository, GuildSettingsService settings, PermissionGroupService groups) {
         this.repository = repository;
