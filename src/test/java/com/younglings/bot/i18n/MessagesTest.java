@@ -88,15 +88,42 @@ class MessagesTest {
             catalogue.keySet().stream().filter(k -> !english.containsKey(k)).forEach(k -> problems.add(code + " has a key English lacks: " + k));
         }
 
-        // keys written as string literals in messages.text(...) calls
-        Pattern call = Pattern.compile("(?:messages|msg)\\.text\\([^\"\\n]*\"([a-z0-9]+(?:\\.[a-z0-9]+)+)\"");
+        // keys written as string literals in messages.text(...) and Text.of(...) / Text.en(...) calls (T-098), every one in the call, so a
+        // key picked by a ternary (Text.of(event, ok ? "a.done" : "a.failed")) is checked on both sides
+        Pattern call = Pattern.compile("(?:(?:messages|msg)\\.text|Text\\.(?:of|en))\\(");
+        Pattern key = Pattern.compile("\"([a-z0-9_]+(?:\\.[a-z0-9_]+)+)\"");
+        int seen = 0;
         try (Stream<Path> files = Files.walk(Path.of("src/main/java"))) {
             for (Path file : (Iterable<Path>) files.filter(p -> p.toString().endsWith(".java"))::iterator) {
-                Matcher found = call.matcher(Files.readString(file));
-                while (found.find()) if (!english.containsKey(found.group(1))) problems.add(file.getFileName() + " asks for a message key English lacks: " + found.group(1));
+                String source = Files.readString(file);
+                Matcher found = call.matcher(source);
+                while (found.find()) {
+                    Matcher keys = key.matcher(arguments(source, found.end()));
+                    while (keys.find()) {
+                        seen++;
+                        if (!english.containsKey(keys.group(1))) problems.add(file.getFileName() + " asks for a message key English lacks: " + keys.group(1));
+                    }
+                }
             }
         }
+        assertTrue(seen > 0, "the scan found no message keys in the code; is it looking in the right place?");
         assertTrue(problems.isEmpty(), String.join("\n", problems));
+    }
+
+    /** The source of a call's argument list, from just after its "(" to the matching ")" (strings skipped, so a ")" in text doesn't end it). */
+    private static String arguments(String source, int from) {
+        int depth = 1;
+        for (int i = from; i < source.length(); i++) {
+            char c = source.charAt(i);
+            if (c == '"') {
+                for (i++; i < source.length() && source.charAt(i) != '"'; i++) if (source.charAt(i) == '\\') i++;
+            } else if (c == '(') {
+                depth++;
+            } else if (c == ')' && --depth == 0) {
+                return source.substring(from, i);
+            }
+        }
+        return source.substring(from);
     }
 
     private static List<String> placeholders(Pattern pattern, String text) {

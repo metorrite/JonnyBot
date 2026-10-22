@@ -2,6 +2,7 @@ package com.younglings.bot.commands;
 
 import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
 import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.JDASlashCommand;
@@ -33,13 +34,13 @@ public class DevClearCommandsCommand {
     @JDASlashCommand(name = "dev", subcommand = "clearcommands", description = "Clears every dev-registered command from this server")
     public void onDevClearCommands(GuildSlashEvent event) {
         if (botConfig.getLiveEnvironment()) {
-            Containers.replyEphemeral(event, Containers.WARNING, "This command is dev-only.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "commands.this_command_is_dev_only"));
             return;
         }
 
         Guild guild = event.getGuild();
         if (guild == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "This command can only be used in a server.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "commands.this_command_can_only_be_used"));
             return;
         }
 

@@ -8,6 +8,7 @@ import com.younglings.bot.events.BingoLooks;
 import com.younglings.bot.events.BingoSampleEvent;
 import com.younglings.bot.events.BingoTemplate;
 import com.younglings.bot.events.BingoTiles;
+import com.younglings.bot.i18n.Text;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
 import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.JDASlashCommand;
@@ -43,7 +44,7 @@ public class DevBingoShapesCommand {
     @JDASlashCommand(name = "dev", subcommand = "bingoshapes", description = "Posts every bingo shape and grid in both looks, from a made-up event")
     public void onBingoShapes(GuildSlashEvent event) {
         if (botConfig.getLiveEnvironment()) {
-            Containers.replyEphemeral(event, Containers.WARNING, "This command is dev-only.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "commands.this_command_is_dev_only"));
             return;
         }
         event.deferReply(false).queue();

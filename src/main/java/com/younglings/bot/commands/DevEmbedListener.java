@@ -4,6 +4,7 @@ import com.younglings.bot.announcement.PostMarkup;
 import com.younglings.bot.announcement.PostTextConverter;
 import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.permission.AdminRoleFilter;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.components.checkbox.Checkbox;
@@ -59,11 +60,11 @@ public class DevEmbedListener extends ListenerAdapter {
             Guild guild = event.getGuild();
             Member member = event.getMember();
             if (guild == null || member == null || botConfig.getLiveEnvironment()) {
-                Containers.replyEphemeral(event, Containers.WARNING, "This command is dev-only.");
+                Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "commands.this_command_is_dev_only"));
                 return;
             }
             if (!adminRoleFilter.isAuthorized(guild, member)) {
-                Containers.replyEphemeral(event, Containers.WARNING, "You need the Admin role (or higher) to use this.");
+                Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "commands.you_need_the_admin_role_or"));
                 return;
             }
 
@@ -72,11 +73,11 @@ public class DevEmbedListener extends ListenerAdapter {
 
             PostMarkup.Parsed parsed = PostMarkup.parse(text, true);
             if (parsed.hasErrors()) {
-                Containers.replyEphemeral(event, Containers.DANGER, "Nothing was posted — fix this first:", parsed.problemsText());
+                Containers.replyEphemeral(event, Containers.DANGER, Text.of(event, "commands.nothing_was_posted_fix_this_first"), parsed.problemsText());
                 return;
             }
             if (!(event.getGuildChannel() instanceof GuildMessageChannel channel) || !channel.canTalk()) {
-                Containers.replyEphemeral(event, Containers.WARNING, "I can't post in this channel.");
+                Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "commands.i_can_t_post_in_this"));
                 return;
             }
 

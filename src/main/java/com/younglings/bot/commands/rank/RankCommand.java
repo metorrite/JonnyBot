@@ -1,6 +1,7 @@
 package com.younglings.bot.commands.rank;
 
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.MemberApi;
 import com.younglings.bot.member.MemberProfileRepository;
 import com.younglings.bot.member.MemberProfileRepository.SelfRole;
@@ -67,7 +68,7 @@ public class RankCommand {
         Member member = event.getMember();
         List<Option> options = options(guild);
         if (options.isEmpty()) {
-            Containers.replyEphemeral(event, Containers.INFO, "This server has no self-assignable roles yet.");
+            Containers.replyEphemeral(event, Containers.INFO, Text.of(event, "rank.this_server_has_no_self_assignable"));
             return;
         }
         StringBuilder lines = new StringBuilder();
@@ -78,7 +79,7 @@ public class RankCommand {
             if (!option.label().equals(option.name())) lines.append(" (").append(option.label()).append(')');
             lines.append('\n');
         }
-        Containers.replyEphemeral(event, Containers.INFO, "**Roles you can pick**", lines.toString().stripTrailing(), "-# `/rank join` to take one, `/rank leave` to drop it.");
+        Containers.replyEphemeral(event, Containers.INFO, Text.of(event, "rank.roles_you_can_pick"), lines.toString().stripTrailing(), Text.of(event, "rank.rank_join_to_take_one_rank"));
     }
 
     @JDASlashCommand(name = "rank", subcommand = "join", description = "Take one of the self-assignable roles")
@@ -97,12 +98,12 @@ public class RankCommand {
         Option option = find(options(guild), typed);
         Role role = option == null ? null : guild.getRoleById(option.roleId());
         if (option == null || role == null || member == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "That isn't a role you can pick for yourself. Use `/rank list` to see the ones you can.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "rank.that_isn_t_a_role_you"));
             return;
         }
         boolean has = member.getRoles().contains(role);
         if (join == has) {
-            Containers.replyEphemeral(event, Containers.INFO, join ? "You already have " + role.getAsMention() + "." : "You don't have " + role.getAsMention() + ".");
+            Containers.replyEphemeral(event, Containers.INFO, join ? Text.of(event, "rank.you_already_have", role.getAsMention()) : Text.of(event, "rank.you_don_t_have", role.getAsMention()));
             return;
         }
         event.deferReply(true).queue();

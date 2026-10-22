@@ -1,6 +1,7 @@
 package com.younglings.bot.commands.rolekeep;
 
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.rolekeep.RoleKeepRepository;
 import com.younglings.bot.rolekeep.RoleKeepRepository.Kept;
 import com.younglings.bot.rolekeep.RoleKeepRules;
@@ -41,22 +42,22 @@ public class RoleKeepCommands {
             Containers.replyEphemeral(event, Containers.WARNING, problem);
             return;
         }
-        Containers.replyEphemeral(event, Containers.SUCCESS, "**" + role.getName() + "** is now kept on " + member.getAsMention() + ": it is given back whenever they rejoin.",
-                "-# Use /rolepersist remove to stop. Taking the role off them now does not stop it coming back.");
+        Containers.replyEphemeral(event, Containers.SUCCESS, Text.of(event, "rolekeep.is_now_kept_on_it_is", role.getName(), member.getAsMention()),
+                Text.of(event, "rolekeep.use_rolepersist_remove_to_stop_taking"));
     }
 
     @JDASlashCommand(name = "rolepersist", subcommand = "remove", description = "Stop keeping a role on a member")
     public void onRemove(GuildSlashEvent event, @SlashOption(description = "Whose role") Member member, @SlashOption(description = "Which role") Role role) {
         boolean was = service.unpersist(event.getGuild(), member.getIdLong(), role.getIdLong());
         Containers.replyEphemeral(event, was ? Containers.SUCCESS : Containers.INFO,
-                was ? "**" + role.getName() + "** is no longer kept on " + member.getAsMention() + ". The role they hold now is unchanged." : "That role was not being kept on " + member.getAsMention() + ".");
+                was ? Text.of(event, "rolekeep.is_no_longer_kept_on_the", role.getName(), member.getAsMention()) : Text.of(event, "rolekeep.that_role_was_not_being_kept", member.getAsMention()));
     }
 
     @JDASlashCommand(name = "rolepersist", subcommand = "list", description = "See the roles kept on a member")
     public void onList(GuildSlashEvent event, @SlashOption(description = "Whose roles") Member member) {
         List<Kept> kept = repository.keptFor(event.getGuild().getIdLong(), member.getIdLong());
         if (kept.isEmpty()) {
-            Containers.replyEphemeral(event, Containers.INFO, "Nothing is kept on " + member.getAsMention() + ".");
+            Containers.replyEphemeral(event, Containers.INFO, Text.of(event, "rolekeep.nothing_is_kept_on", member.getAsMention()));
             return;
         }
         List<String> lines = new ArrayList<>();
@@ -73,7 +74,7 @@ public class RoleKeepCommands {
                        @SlashOption(description = "For how long: 30m, 2h, 7d, 1w (1 minute to 365 days)") String duration) {
         Optional<Duration> length = RoleKeepRules.parseDuration(duration);
         if (length.isEmpty()) {
-            Containers.replyEphemeral(event, Containers.WARNING, "I could not read that length of time. Use something like 30m, 2h, 7d or 1w (from 1 minute to 365 days).");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "rolekeep.i_could_not_read_that_length"));
             return;
         }
         String problem = service.giveTemp(event.getGuild(), event.getUser().getIdLong(), member, role, length.get());
@@ -82,6 +83,6 @@ public class RoleKeepCommands {
             return;
         }
         long ends = java.time.Instant.now().plus(length.get()).getEpochSecond();
-        Containers.replyEphemeral(event, Containers.SUCCESS, member.getAsMention() + " has **" + role.getName() + "** until <t:" + ends + ":f> (<t:" + ends + ":R>).");
+        Containers.replyEphemeral(event, Containers.SUCCESS, Text.of(event, "rolekeep.has_until_t_f_t_r", member.getAsMention(), role.getName(), ends, ends));
     }
 }

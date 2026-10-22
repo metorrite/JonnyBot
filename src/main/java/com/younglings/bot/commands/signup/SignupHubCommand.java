@@ -1,6 +1,7 @@
 package com.younglings.bot.commands.signup;
 
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
 import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.JDASlashCommand;
@@ -27,7 +28,7 @@ public class SignupHubCommand {
     @JDASlashCommand(name = "signup", description = "Create and manage signups")
     public void onSignup(GuildSlashEvent event) {
         if (event.getGuild() == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "This command can only be used in a server.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "signup.this_command_can_only_be_used"));
             return;
         }
 

@@ -4,6 +4,7 @@ import com.younglings.bot.afk.AfkNicknames;
 import com.younglings.bot.afk.AfkService;
 import com.younglings.bot.discord.Containers;
 import com.younglings.bot.hub.HubService;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.permission.AdminRoleFilter;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
 import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
@@ -43,21 +44,21 @@ public class AfkCommand {
         }
         var afk = service.set(guild.getIdLong(), event.getUser().getIdLong(), reason);
         if (hub.afkPolicy(guild.getIdLong()).nicknameTag() && event.getMember() != null) AfkNicknames.markAway(guild, event.getMember());
-        Containers.replyEphemeral(event, Containers.SUCCESS, "You're marked away" + (afk.reason().isBlank() ? "." : ": " + afk.reason()),
-                "-# It clears the next time you send a message.");
+        Containers.replyEphemeral(event, Containers.SUCCESS, Text.of(event, "afk.you_re_marked_away", (afk.reason().isBlank() ? "." : ": " + afk.reason())),
+                Text.of(event, "afk.it_clears_the_next_time_you"));
     }
 
     private void clearFor(GuildSlashEvent event, Guild guild, User user) {
         Member caller = event.getMember();
         boolean staff = caller != null && (caller.hasPermission(Permission.MANAGE_SERVER) || adminRoleFilter.isAuthorized(guild, caller));
         if (!staff) {
-            Containers.replyEphemeral(event, Containers.WARNING, "Only staff can take someone else off the away list.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "afk.only_staff_can_take_someone_else"));
             return;
         }
         boolean was = service.clear(guild.getIdLong(), user.getIdLong());
         Member target = guild.getMember(user);
         if (was && target != null) AfkNicknames.markBack(guild, target);
         Containers.replyEphemeral(event, was ? Containers.SUCCESS : Containers.INFO,
-                was ? user.getAsMention() + " is off the away list." : user.getAsMention() + " wasn't marked away.");
+                was ? Text.of(event, "afk.is_off_the_away_list", user.getAsMention()) : Text.of(event, "afk.wasn_t_marked_away", user.getAsMention()));
     }
 }

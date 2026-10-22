@@ -1,6 +1,7 @@
 package com.younglings.bot.commands.teamforming;
 
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.components.MessageTopLevelComponent;
 import net.dv8tion.jda.api.components.buttons.ButtonStyle;
@@ -98,7 +99,7 @@ public class TeamformingInteractionListener extends ListenerAdapter {
 
         String sectionKey = id.substring(TeamformingService.SELECT_PREFIX.length());
         if (TeamformingCatalog.sectionByKey(sectionKey) == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "This teamforming section no longer exists — ask an admin to re-post the panel.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "teamforming.this_teamforming_section_no_longer_exists"));
             return;
         }
 

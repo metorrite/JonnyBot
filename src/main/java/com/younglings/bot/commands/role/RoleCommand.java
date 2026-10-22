@@ -1,6 +1,7 @@
 package com.younglings.bot.commands.role;
 
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.roletools.RoleToolkitService;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
 import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
@@ -48,12 +49,12 @@ public class RoleCommand {
         }
         boolean has = target.getRoles().contains(role);
         if (give == has) {
-            Containers.replyEphemeral(event, Containers.INFO, target.getAsMention() + (has ? " already has " : " does not have ") + "**" + role.getName() + "**.");
+            Containers.replyEphemeral(event, Containers.INFO, Text.of(event, has ? "role.already_has" : "role.does_not_have", target.getAsMention(), role.getName()));
             return;
         }
         var action = give ? guild.addRoleToMember(target, role) : guild.removeRoleFromMember(target, role);
         action.reason("/role " + (give ? "give" : "take") + " by " + caller.getUser().getName()).queue(
-                ok -> Containers.replyEphemeral(event, Containers.SUCCESS, (give ? "Gave **" : "Took **") + role.getName() + (give ? "** to " : "** from ") + target.getAsMention() + "."),
-                error -> Containers.replyEphemeral(event, Containers.WARNING, "Discord refused that change: " + error.getMessage()));
+                ok -> Containers.replyEphemeral(event, Containers.SUCCESS, Text.of(event, give ? "role.gave_to" : "role.took_from", role.getName(), target.getAsMention())),
+                error -> Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "role.discord_refused_that_change", error.getMessage())));
     }
 }

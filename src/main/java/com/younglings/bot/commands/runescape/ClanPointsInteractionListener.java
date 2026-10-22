@@ -1,6 +1,7 @@
 package com.younglings.bot.commands.runescape;
 
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.permission.AdminRoleFilter;
 import com.younglings.bot.runescape.ClanPointsRepository;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -59,7 +60,7 @@ public class ClanPointsInteractionListener extends ListenerAdapter {
 
         try {
             if (!adminRoleFilter.isAuthorized(guild, member)) {
-                Containers.replyEphemeral(event, Containers.WARNING, "You need the Admin role (or higher) to use this.");
+                Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "runescape.you_need_the_admin_role_or"));
                 return;
             }
 
@@ -86,7 +87,7 @@ public class ClanPointsInteractionListener extends ListenerAdapter {
 
         try {
             if (!adminRoleFilter.isAuthorized(guild, member)) {
-                Containers.replyEphemeral(event, Containers.WARNING, "You need the Admin role (or higher) to use this.");
+                Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "runescape.you_need_the_admin_role_or"));
                 return;
             }
 
@@ -125,7 +126,7 @@ public class ClanPointsInteractionListener extends ListenerAdapter {
         Long cap = parseNonNegative(event.getValue("cap_points").getAsString());
 
         if (daily == null || visit == null || cap == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "All three values must be whole numbers 0 or greater.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "runescape.all_three_values_must_be_whole"));
             return;
         }
 
@@ -157,7 +158,7 @@ public class ClanPointsInteractionListener extends ListenerAdapter {
             Long threshold = parseNonNegative(event.getValue("rank_" + rank.id()).getAsString());
             if (threshold == null) {
                 Containers.replyEphemeral(event, Containers.WARNING,
-                        "\"" + rank.rankName() + "\"'s threshold must be a whole number 0 or greater — nothing on this page was saved.");
+                        Text.of(event, "runescape.threshold_must_be_a_whole_number", rank.rankName()));
                 return;
             }
             parsedThresholds.put(rank.id(), threshold);

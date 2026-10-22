@@ -2,6 +2,7 @@ package com.younglings.bot.commands.signup;
 
 import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
 import io.github.freya022.botcommands.api.commands.application.CommandScope;
 import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
@@ -41,14 +42,14 @@ public class SignupDevCommand {
     @JDASlashCommand(name = "dev", subcommand = "signups", description = "Lists every active signup across every server this bot is in")
     public void onDevSignups(GuildSlashEvent event) {
         if (botConfig.getLiveEnvironment()) {
-            Containers.replyEphemeral(event, Containers.WARNING, "This command is dev-only.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "signup.this_command_is_dev_only"));
             return;
         }
 
         List<SignupSession> all = signupService.getAllActiveSignups();
 
         if (all.isEmpty()) {
-            Containers.replyEphemeral(event, Containers.INFO, "No active signups found across any server.");
+            Containers.replyEphemeral(event, Containers.INFO, Text.of(event, "signup.no_active_signups_found_across_any"));
             return;
         }
 

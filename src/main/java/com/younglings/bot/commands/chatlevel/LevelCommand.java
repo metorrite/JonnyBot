@@ -4,6 +4,7 @@ import com.younglings.bot.chatlevel.ChatLevelRepository;
 import com.younglings.bot.chatlevel.ChatLevelRepository.Standing;
 import com.younglings.bot.chatlevel.ChatLevels;
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
 import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.JDASlashCommand;
@@ -29,7 +30,7 @@ public class LevelCommand {
 
     private boolean refuseIfOff(GuildSlashEvent event) {
         if (repository.config(event.getGuild().getIdLong()).enabled()) return false;
-        Containers.replyEphemeral(event, Containers.INFO, "Chat levels aren't switched on in this server.");
+        Containers.replyEphemeral(event, Containers.INFO, Text.of(event, "chatlevel.chat_levels_aren_t_switched_on"));
         return true;
     }
 
@@ -39,17 +40,18 @@ public class LevelCommand {
         Guild guild = event.getGuild();
         User who = user == null ? event.getUser() : user;
         if (who.isBot()) {
-            Containers.replyEphemeral(event, Containers.INFO, "Bots don't earn levels.");
+            Containers.replyEphemeral(event, Containers.INFO, Text.of(event, "chatlevel.bots_don_t_earn_levels"));
             return;
         }
         Standing standing = repository.standing(guild.getIdLong(), who.getIdLong()).orElse(new Standing(who.getIdLong(), 0, 0));
         int level = ChatLevels.levelOf(standing.xp());
-        String next = level >= ChatLevels.MAX_LEVEL ? "Top level reached." : ChatLevels.intoLevel(standing.xp()) + " / " + ChatLevels.xpToNext(level) + " XP to level " + (level + 1);
+        String next = level >= ChatLevels.MAX_LEVEL ? Text.of(event, "chatlevel.top_level_reached")
+                : Text.of(event, "chatlevel.xp_to_level", ChatLevels.intoLevel(standing.xp()), ChatLevels.xpToNext(level), level + 1);
         long rank = standing.xp() == 0 ? 0 : repository.rankOf(guild.getIdLong(), standing.xp());
         Containers.reply(event, Containers.PRIMARY, false,
-                "**" + who.getEffectiveName() + "**: level **" + level + "**" + (rank > 0 ? " · rank #" + rank : " · not ranked yet"),
+                Text.of(event, "chatlevel.level", who.getEffectiveName(), level, (rank > 0 ? Text.of(event, "chatlevel.rank_suffix", rank) : Text.of(event, "chatlevel.not_ranked_suffix"))),
                 ChatLevels.bar(standing.xp(), 12) + "  " + next,
-                "-# " + standing.xp() + " XP in total · " + standing.messages() + " messages that earned XP");
+                Text.of(event, "chatlevel.xp_in_total_messages_that_earned", standing.xp(), standing.messages()));
     }
 
     @TopLevelSlashCommandData(description = "Chat levels across the server")
@@ -58,12 +60,12 @@ public class LevelCommand {
         if (refuseIfOff(event)) return;
         List<Standing> top = repository.top(event.getGuild().getIdLong(), 10);
         if (top.isEmpty()) {
-            Containers.replyEphemeral(event, Containers.INFO, "Nobody has earned XP yet.");
+            Containers.replyEphemeral(event, Containers.INFO, Text.of(event, "chatlevel.nobody_has_earned_xp_yet"));
             return;
         }
         StringBuilder lines = new StringBuilder();
         int place = 1;
         for (Standing s : top) lines.append(place++).append(". <@").append(s.userId()).append("> · level ").append(ChatLevels.levelOf(s.xp())).append(" · ").append(s.xp()).append(" XP\n");
-        Containers.replyEphemeral(event, Containers.PRIMARY, "**Top chatters**", lines.toString().stripTrailing());
+        Containers.replyEphemeral(event, Containers.PRIMARY, Text.of(event, "chatlevel.top_chatters"), lines.toString().stripTrailing());
     }
 }

@@ -3,6 +3,7 @@ package com.younglings.bot.commands.configure;
 import com.younglings.bot.commands.ticket.HelpOnboarding;
 import com.younglings.bot.commands.ticket.HelpRules;
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.ticket.TicketModels.HelpSettings;
 import com.younglings.bot.ticket.TicketRepository;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -207,7 +208,7 @@ public class PvmHelpConfigureListener extends ListenerAdapter {
                     default -> null;
                 };
             } catch (NumberFormatException e) {
-                Containers.replyEphemeral(event, Containers.WARNING, "The hours must be a whole number, or left blank to never escalate.");
+                Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "configure.the_hours_must_be_a_whole"));
                 return;
             }
             if (updated == null) return;
@@ -270,12 +271,12 @@ public class PvmHelpConfigureListener extends ListenerAdapter {
 
     private void postGuidelines(EntitySelectInteractionEvent event, Guild guild, HelpSettings s) {
         if (s.helperRoleId() == null || guild.getRoleById(s.helperRoleId()) == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "Choose the PVM Helper role first. The button on that message hands it out.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "configure.choose_the_pvm_helper_role_first"));
             return;
         }
         GuildMessageChannel channel = event.getMentions().getChannels(GuildMessageChannel.class).stream().findFirst().orElse(null);
         if (channel == null || !channel.canTalk()) {
-            Containers.replyEphemeral(event, Containers.WARNING, "I can't post in that channel. I need permission to view it and send messages there.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "configure.i_can_t_post_in_that"));
             return;
         }
 
@@ -293,7 +294,7 @@ public class PvmHelpConfigureListener extends ListenerAdapter {
 
     private static boolean requireAdmin(net.dv8tion.jda.api.interactions.callbacks.IReplyCallback event, Member member) {
         if (member.hasPermission(Permission.ADMINISTRATOR)) return true;
-        Containers.replyEphemeral(event, Containers.WARNING, "You need the Administrator permission to configure this bot.");
+        Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "configure.you_need_the_administrator_permission_to"));
         return false;
     }
 

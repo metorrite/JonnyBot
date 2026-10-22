@@ -1,6 +1,7 @@
 package com.younglings.bot.commands;
 
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
 import io.github.freya022.botcommands.api.commands.application.CommandScope;
 import io.github.freya022.botcommands.api.commands.application.annotations.Test;
@@ -18,6 +19,6 @@ public class SlashPing {
     @Test({})
     @JDASlashCommand(name = "dev", subcommand = "ping", description = "Replies with pong")
     public void onPing(GuildSlashEvent event) {
-        Containers.replyEphemeral(event, Containers.SUCCESS, "Pong!");
+        Containers.replyEphemeral(event, Containers.SUCCESS, Text.of(event, "commands.pong"));
     }
 }

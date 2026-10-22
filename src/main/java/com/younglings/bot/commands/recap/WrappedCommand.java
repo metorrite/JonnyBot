@@ -2,6 +2,7 @@ package com.younglings.bot.commands.recap;
 
 import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.permission.MemberAccess;
 import com.younglings.bot.runescape.PlayerLink;
 import com.younglings.bot.runescape.PlayerLinkRepository;
@@ -78,23 +79,23 @@ public class WrappedCommand {
         Guild guild = event.getGuild();
         Member member = event.getMember();
         if (guild == null || member == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "This command can only be used in a server.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "recap.this_command_can_only_be_used"));
             return;
         }
         if (!memberAccess.isMemberTier(guild, member)) {
-            Containers.replyEphemeral(event, Containers.WARNING, "Recaps are for clan members — link your RuneScape name with `/rs` to get access.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "recap.recaps_are_for_clan_members_link"));
             return;
         }
         String site = botConfig.getSiteUrl();
         if (site == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "Recaps aren't set up yet — the bot doesn't know the website's address.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "recap.recaps_aren_t_set_up_yet"));
             return;
         }
 
         long now = System.currentTimeMillis();
         Long previous = lastUse.get(member.getIdLong());
         if (previous != null && now - previous < COOLDOWN.toMillis()) {
-            Containers.replyEphemeral(event, Containers.WARNING, "Give it a few seconds before asking for another recap.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "recap.give_it_a_few_seconds_before"));
             return;
         }
         lastUse.put(member.getIdLong(), now);
@@ -106,7 +107,7 @@ public class WrappedCommand {
         if (!clan && rsn.isEmpty()) {
             List<PlayerLink> mine = links.getLinksForUser(guild.getIdLong(), member.getIdLong());
             if (mine.isEmpty()) {
-                Containers.replyEphemeral(event, Containers.WARNING, "No RuneScape name is linked to your account — use `/rs` first, or give a name: `/wrapped who:SomeName`.");
+                Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "recap.no_runescape_name_is_linked_to"));
                 return;
             }
             rsn = mine.getFirst().rsn();

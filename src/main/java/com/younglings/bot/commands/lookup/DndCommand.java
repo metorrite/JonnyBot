@@ -1,6 +1,7 @@
 package com.younglings.bot.commands.lookup;
 
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.lookup.DndTable;
 import com.younglings.bot.lookup.LookupTags;
 import com.younglings.bot.lookup.RecurringEventsService;
@@ -38,7 +39,7 @@ public class DndCommand {
     public void onDnd(GuildSlashEvent event, @SlashOption(description = "Only this group (leave out to see them all)", autocomplete = GROUPS) @Nullable String group) {
         String wanted = group == null || group.isBlank() ? null : GROUP_NAMES.stream().filter(g -> g.equalsIgnoreCase(group.strip())).findFirst().orElse(null);
         if (group != null && !group.isBlank() && wanted == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "**" + group.strip() + "** isn't a group. Choose Daily, Weekly, Monthly, When available or Item.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "lookup.isn_t_a_group_choose_daily", group.strip()));
             return;
         }
         event.deferReply().queue();

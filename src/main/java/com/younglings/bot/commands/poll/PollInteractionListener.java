@@ -1,6 +1,7 @@
 package com.younglings.bot.commands.poll;
 
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.permission.AdminRoleFilter;
 import com.younglings.bot.permission.MemberAccess;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -92,7 +93,7 @@ public class PollInteractionListener extends ListenerAdapter {
         if (member == null) return;
 
         if (!memberAccess.isMemberTier(guild, member)) {
-            Containers.replyEphemeral(event, Containers.WARNING, "Polls are for clan members — link your RuneScape name with `/rs` to get access.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "poll.polls_are_for_clan_members_link"));
             return;
         }
         boolean admin = adminRoleFilter.isAuthorized(guild, member);
@@ -101,8 +102,7 @@ public class PollInteractionListener extends ListenerAdapter {
         switch (parts[0]) {
             case "poll_new" -> {
                 if (!admin && pollService.activePollsOwnedBy(guild.getIdLong(), member.getIdLong()).size() >= PollService.MAX_ACTIVE_PER_MEMBER) {
-                    Containers.replyEphemeral(event, Containers.WARNING, "You already have " + PollService.MAX_ACTIVE_PER_MEMBER
-                            + " active polls — end one before starting another.");
+                    Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "poll.you_already_have_active_polls_end", PollService.MAX_ACTIVE_PER_MEMBER));
                     return;
                 }
                 event.replyModal(buildCreateModal()).queue();
@@ -128,11 +128,11 @@ public class PollInteractionListener extends ListenerAdapter {
     private PollSession manageablePoll(ButtonInteractionEvent event, String idText, Member member, boolean admin) {
         PollSession poll = pollService.getSessionById(parseLongOr(idText, -1));
         if (poll == null || poll.guildId() != event.getGuild().getIdLong()) {
-            Containers.replyEphemeral(event, Containers.WARNING, "That poll has already ended.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "poll.that_poll_has_already_ended"));
             return null;
         }
         if (!PollService.canManage(poll, member.getIdLong(), admin)) {
-            Containers.replyEphemeral(event, Containers.WARNING, "Only the person who started a poll — or an admin — can end it.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "poll.only_the_person_who_started_a"));
             return null;
         }
         return poll;
@@ -177,7 +177,7 @@ public class PollInteractionListener extends ListenerAdapter {
         Guild guild = event.getGuild();
         Member member = event.getMember();
         if (member == null || !memberAccess.isMemberTier(guild, member)) {
-            Containers.replyEphemeral(event, Containers.WARNING, "Polls are for clan members — link your RuneScape name with `/rs` to get access.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "poll.polls_are_for_clan_members_link"));
             return;
         }
         boolean admin = adminRoleFilter.isAuthorized(guild, member);
@@ -193,11 +193,11 @@ public class PollInteractionListener extends ListenerAdapter {
             return;
         }
         if (!(event.getGuildChannel() instanceof GuildMessageChannel channel) || !channel.canTalk()) {
-            Containers.replyEphemeral(event, Containers.WARNING, "I can't post a poll in this channel — open `/poll` in a channel where I can send messages.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "poll.i_can_t_post_a_poll"));
             return;
         }
         if (!admin && pollService.activePollsOwnedBy(guild.getIdLong(), member.getIdLong()).size() >= PollService.MAX_ACTIVE_PER_MEMBER) {
-            Containers.replyEphemeral(event, Containers.WARNING, "You already have " + PollService.MAX_ACTIVE_PER_MEMBER + " active polls — end one before starting another.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "poll.you_already_have_active_polls_end", PollService.MAX_ACTIVE_PER_MEMBER));
             return;
         }
 
@@ -248,7 +248,7 @@ public class PollInteractionListener extends ListenerAdapter {
 
         PollSession session = pollService.getSessionById(pollId);
         if (session == null || !"ACTIVE".equalsIgnoreCase(session.status())) {
-            Containers.replyEphemeral(event, Containers.WARNING, "This poll is no longer active.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "poll.this_poll_is_no_longer_active"));
             return;
         }
 
@@ -259,14 +259,14 @@ public class PollInteractionListener extends ListenerAdapter {
                 .orElse(null);
 
         if (option == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "This poll option no longer exists.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "poll.this_poll_option_no_longer_exists"));
             return;
         }
 
         PollService.VoteResult result = pollService.toggleVote(pollId, option.optionId(), event.getUser().getIdLong());
 
         if (result == PollService.VoteResult.POLL_CLOSED) {
-            Containers.replyEphemeral(event, Containers.WARNING, "This poll is no longer active.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "poll.this_poll_is_no_longer_active"));
             return;
         }
 
@@ -289,7 +289,7 @@ public class PollInteractionListener extends ListenerAdapter {
         long pollId = parseLongOr(id.substring("poll_mine:".length()), -1);
         PollSession session = pollService.getSessionById(pollId);
         if (session == null || !"ACTIVE".equalsIgnoreCase(session.status())) {
-            Containers.replyEphemeral(event, Containers.WARNING, "This poll is no longer active.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "poll.this_poll_is_no_longer_active"));
             return;
         }
         Containers.replyThenDelete(event, Containers.INFO, Duration.ofSeconds(10), describeMine(pollService.myVoteLines(pollId, event.getUser().getIdLong())));

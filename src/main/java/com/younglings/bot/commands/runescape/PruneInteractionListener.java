@@ -1,6 +1,7 @@
 package com.younglings.bot.commands.runescape;
 
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.permission.AdminRoleFilter;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
@@ -76,7 +77,7 @@ public class PruneInteractionListener extends ListenerAdapter {
 
         try {
             if (!adminRoleFilter.isAuthorized(guild, member)) {
-                Containers.replyEphemeral(event, Containers.WARNING, "You need the Admin role (or higher) to use this.");
+                Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "runescape.you_need_the_admin_role_or"));
                 return;
             }
 
@@ -85,7 +86,7 @@ public class PruneInteractionListener extends ListenerAdapter {
                 case "rsadmin_prune_open" -> event.replyModal(buildPruneModal()).queue();
                 case "rsadmin_prune_cancel" -> {
                     pendingSpecs.remove(parts[1]);
-                    Containers.edit(event, Containers.WARNING, "Prune cancelled — nothing was deleted.");
+                    Containers.edit(event, Containers.WARNING, Text.of(event, "runescape.prune_cancelled_nothing_was_deleted"));
                 }
                 case "rsadmin_prune_confirm" -> doPruneConfirm(event, guild, parts[1]);
             }
@@ -104,7 +105,7 @@ public class PruneInteractionListener extends ListenerAdapter {
 
         try {
             if (!adminRoleFilter.isAuthorized(guild, member)) {
-                Containers.replyEphemeral(event, Containers.WARNING, "You need the Admin role (or higher) to use this.");
+                Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "runescape.you_need_the_admin_role_or"));
                 return;
             }
 
@@ -175,12 +176,12 @@ public class PruneInteractionListener extends ListenerAdapter {
 
         if (who.equals("SPECIFIC") && specificUserIds.isEmpty()) {
             Containers.replyEphemeral(event, Containers.WARNING,
-                    "You picked \"Specific user(s)\" but didn't select anyone — pick at least one user, or choose \"Everyone\"/\"Bots only\" instead.");
+                    Text.of(event, "runescape.you_picked_specific_user_but_didn"));
             return;
         }
         if (channelsMode.equals("SPECIFIC") && specificChannelIds.isEmpty()) {
             Containers.replyEphemeral(event, Containers.WARNING,
-                    "You picked \"Specific channel(s)\" but didn't select any — pick at least one, or choose \"This channel\"/\"All channels\" instead.");
+                    Text.of(event, "runescape.you_picked_specific_channel_but_didn"));
             return;
         }
 
@@ -220,7 +221,7 @@ public class PruneInteractionListener extends ListenerAdapter {
     private void doPruneConfirm(ButtonInteractionEvent event, Guild guild, String token) {
         PruneSpec spec = pendingSpecs.remove(token);
         if (spec == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "This confirmation expired — open Prune Messages again.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "runescape.this_confirmation_expired_open_prune_messages"));
             return;
         }
 

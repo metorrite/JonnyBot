@@ -3,6 +3,7 @@ package com.younglings.bot.commands.coffer;
 import com.younglings.bot.coffer.CofferRepository;
 import com.younglings.bot.discord.Containers;
 import com.younglings.bot.discord.Pagination;
+import com.younglings.bot.i18n.Text;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.components.container.Container;
 import net.dv8tion.jda.api.components.container.ContainerChildComponent;
@@ -148,7 +149,7 @@ public class CofferService {
         long toId = toUser.getIdLong();
 
         if (fromId == toId) {
-            Containers.replyEphemeral(event, Containers.WARNING, "You cannot transfer to yourself.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "coffer.you_cannot_transfer_to_yourself"));
             return;
         }
 
@@ -158,8 +159,7 @@ public class CofferService {
         long balance = repository.getHolderBalance(guildId, fromId);
         if (balance < amount) {
             String subject = fromUser != null ? fromUser.getAsMention() + " only holds" : "You only hold";
-            Containers.replyEphemeral(event, Containers.WARNING, subject + " **" + GpAmountParser.format(balance) + "** in the coffer. " +
-                        "Cannot transfer **" + GpAmountParser.format(amount) + "**.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "coffer.in_the_coffer_cannot_transfer", subject, GpAmountParser.format(balance), GpAmountParser.format(amount)));
             return;
         }
 
@@ -167,15 +167,14 @@ public class CofferService {
             long transferId = repository.insertPendingTransfer(guildId, fromId, toId, amount);
             // TODO: send accept/reject buttons to toUser when verification is enabled
             Containers.replyEphemeral(event, Containers.INFO,
-                    "Transfer of **" + GpAmountParser.format(amount) + "** to " + toUser.getAsMention() +
-                        " is pending their acceptance. (Transfer ID: `" + transferId + "`)");
+                    Text.of(event, "coffer.transfer_of_to_is_pending_their", GpAmountParser.format(amount), toUser.getAsMention(), transferId));
         } else {
             boolean success = repository.executeTransfer(guildId, fromId, toId, amount);
             if (!success) {
                 // Balance changed between the check above and the atomic debit (e.g. a
                 // concurrent transfer/giveaway). Reject rather than allow an overdraft.
                 String subject = fromUser != null ? fromUser.getAsMention() + "'s balance" : "Your balance";
-                Containers.replyEphemeral(event, Containers.WARNING, subject + " changed before this transfer could complete — please try again.");
+                Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "coffer.changed_before_this_transfer_could_complete", subject));
                 return;
             }
 
@@ -206,15 +205,14 @@ public class CofferService {
         long balance = repository.getHolderBalance(guildId, givenById);
         if (balance < amount) {
             String subject = holderUser != null ? holderUser.getAsMention() + " only holds" : "You only hold";
-            Containers.replyEphemeral(event, Containers.WARNING, subject + " **" + GpAmountParser.format(balance) + "** in the coffer. " +
-                        "Cannot give away **" + GpAmountParser.format(amount) + "**.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "coffer.in_the_coffer_cannot_give_away", subject, GpAmountParser.format(balance), GpAmountParser.format(amount)));
             return;
         }
 
         boolean success = repository.insertGiveaway(guildId, givenById, recipientUser.getIdLong(), amount, description);
         if (!success) {
             String subject = holderUser != null ? holderUser.getAsMention() + "'s balance" : "Your balance";
-            Containers.replyEphemeral(event, Containers.WARNING, subject + " changed before this giveaway could complete — please try again.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "coffer.changed_before_this_giveaway_could_complete", subject));
             return;
         }
 

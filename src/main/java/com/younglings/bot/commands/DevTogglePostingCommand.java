@@ -2,6 +2,7 @@ package com.younglings.bot.commands;
 
 import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.tracking.TrackingPostingToggle;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
 import io.github.freya022.botcommands.api.commands.application.CommandScope;
@@ -29,14 +30,12 @@ public class DevTogglePostingCommand {
     @JDASlashCommand(name = "dev", subcommand = "toggleposting", description = "Toggles whether this bot actually posts tracking entries (starts off on dev)")
     public void onDevTogglePosting(GuildSlashEvent event) {
         if (botConfig.getLiveEnvironment()) {
-            Containers.replyEphemeral(event, Containers.WARNING, "This command is dev-only.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "commands.this_command_is_dev_only"));
             return;
         }
 
         boolean nowEnabled = postingToggle.toggle();
         Containers.replyEphemeral(event, nowEnabled ? Containers.SUCCESS : Containers.WARNING,
-                nowEnabled
-                        ? "Tracking posts are back **on** — this instance will post to the real channels again."
-                        : "Tracking posts are now **off** for this instance — polling/classification/DB writes still run normally, nothing actually gets sent to Discord.");
+                nowEnabled ? Text.of(event, "commands.tracking_posts_are_back_on_this") : Text.of(event, "commands.tracking_posts_are_now_off_for"));
     }
 }
