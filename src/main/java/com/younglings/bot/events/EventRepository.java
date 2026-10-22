@@ -1115,12 +1115,23 @@ public class EventRepository {
      * same moment can't both get it.
      */
     public Optional<Boolean> join(long eventId, long userId, long guildId, Long teamId, Kind kind, BuyInStatus buyIn, int maxParticipants) {
+        return join(eventId, userId, guildId, teamId, kind, buyIn, maxParticipants, null);
+    }
+
+    /**
+     * As above, with a seat quota for the server the player came through ({@code guildId}, T-220): with {@code originQuota} set, the player only gets a
+     * place while that server's players hold fewer than that many; otherwise they wait. Null means no quota.
+     */
+    public Optional<Boolean> join(long eventId, long userId, long guildId, Long teamId, Kind kind, BuyInStatus buyIn, int maxParticipants, Integer originQuota) {
         String sql = """
                 INSERT INTO younglings.event_participant (event_id, user_id, guild_id, team_id, kind, status, buy_in_status)
                 SELECT ?, ?, ?, ?, ?,
-                       CASE WHEN ? = 0 OR (SELECT COUNT(*) FROM younglings.event_participant WHERE event_id = ? AND status = 'ACTIVE') < ? THEN 'ACTIVE' ELSE 'WAITING' END, ?
+                       CASE WHEN ? = 0 OR ((SELECT COUNT(*) FROM younglings.event_participant WHERE event_id = ? AND status = 'ACTIVE') < ?
+                                           AND (? < 0 OR (SELECT COUNT(*) FROM younglings.event_participant WHERE event_id = ? AND status = 'ACTIVE' AND guild_id = ?) < ?))
+                            THEN 'ACTIVE' ELSE 'WAITING' END, ?
                 ON CONFLICT DO NOTHING RETURNING status
                 """;
+        int quota = originQuota == null ? -1 : originQuota;
         try (Connection c = connectionSupplier.getConnection()) {
             c.setAutoCommit(false);
             try {
@@ -1134,7 +1145,11 @@ public class EventRepository {
                     s.setInt(6, maxParticipants);
                     s.setLong(7, eventId);
                     s.setInt(8, maxParticipants);
-                    s.setString(9, buyIn.name());
+                    s.setInt(9, quota);
+                    s.setLong(10, eventId);
+                    s.setLong(11, guildId);
+                    s.setInt(12, quota);
+                    s.setString(13, buyIn.name());
                     Optional<Boolean> result;
                     try (ResultSet rs = s.executeQuery()) {
                         result = rs.next() ? Optional.of(rs.getString(1).equals("WAITING")) : Optional.empty();
@@ -1163,6 +1178,24 @@ public class EventRepository {
     }
 
     /** Moves a waiting player into a place, if there is one free. False when they weren't waiting or the event filled up first. */
+    /**
+     * The seat quotas of an event's accepted co-hosts ({@code event_cohost.quota}, T-220), by server; a co-host without one isn't listed. The table and
+     * column belong to {@link EventCohostRepository}; they are read here so the queue can see them with the roster.
+     */
+    public java.util.Map<Long, Integer> cohostQuotas(long eventId) {
+        java.util.Map<Long, Integer> quotas = new java.util.LinkedHashMap<>();
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(
+                "SELECT guild_id, quota FROM younglings.event_cohost WHERE event_id = ? AND status = 'ACCEPTED' AND quota IS NOT NULL ORDER BY guild_id")) {
+            s.setLong(1, eventId);
+            try (ResultSet rs = s.executeQuery()) {
+                while (rs.next()) quotas.put(rs.getLong(1), rs.getInt(2));
+            }
+            return quotas;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read the co-hosts' seat quotas", e);
+        }
+    }
+
     public boolean promote(long eventId, long userId, int maxParticipants) {
         String sql = """
                 UPDATE younglings.event_participant SET status = 'ACTIVE'

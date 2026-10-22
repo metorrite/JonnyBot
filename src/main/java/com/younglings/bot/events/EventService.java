@@ -414,6 +414,14 @@ public class EventService {
      * puts them on the waitlist, ordered by the host's queue policy.
      */
     public Joined join(long guildId, long id, long userGuildId, long userId, Long teamId, boolean staff, Kind kindOverride) {
+        return join(guildId, id, userGuildId, userId, teamId, staff, kindOverride, !staff);
+    }
+
+    /**
+     * As above. {@code applyQuota} decides whether the seat quota of the player's server applies (T-220): it does for anyone signing up themselves,
+     * including from a Discord signup, and not for staff adding a late entry.
+     */
+    public Joined join(long guildId, long id, long userGuildId, long userId, Long teamId, boolean staff, Kind kindOverride, boolean applyQuota) {
         Event event = event(guildId, id);
         if (!EventRules.acceptsJoins(event.status())) throw new EventProblem(409, "This event isn't taking signups.");
         var barred = repository.ban(id, userId);
@@ -435,7 +443,8 @@ public class EventService {
         if (event.scoringMode() == ScoringMode.TEAM && teamId == null && event.status() == Status.RUNNING) {
             throw new EventProblem(400, "Pick a team: this event is scored by team and it has already started.");
         }
-        var waiting = repository.join(id, userId, userGuildId, teamId, kind, settings.buyIn().enabled() ? BuyInStatus.DUE : BuyInStatus.NONE, event.maxParticipants());
+        Integer originQuota = applyQuota && event.maxParticipants() > 0 ? quotas(event, settings, Instant.now()).limitFor(userGuildId) : null;
+        var waiting = repository.join(id, userId, userGuildId, teamId, kind, settings.buyIn().enabled() ? BuyInStatus.DUE : BuyInStatus.NONE, event.maxParticipants(), originQuota);
         if (waiting.isEmpty()) throw new EventProblem(409, "That player is already in the event.");
         repository.setSource(id, userId, staff ? EventRepository.RosterSource.STAFF : EventRepository.RosterSource.SELF);
         repository.touchRoster(id);
@@ -446,12 +455,63 @@ public class EventService {
         // a player who joined on their own is added to the event's Discord signup too, so the two lists stay the same
         if (!staff) changes.publish(new EventChanges.Change(EventChanges.Kind.PLAYER_JOINED, guildId, id, 0, userId, false, ""));
         if (!waiting.get()) return new Joined(false, 0);
-        return new Joined(true, QueueRules.position(settings.queue(), queueEntries(id), userId));
+        return new Joined(true, QueueRules.position(settings.queue(), event.guildId(), queueEntries(id), userId));
     }
 
     private List<QueueRules.Entry> queueEntries(long id) {
-        return repository.participants(id).stream().filter(EventRepository.Participant::waiting)
-                .map(p -> new QueueRules.Entry(p.userId(), p.kind(), p.joinedAt())).toList();
+        return waitingEntries(repository.participants(id));
+    }
+
+    private static List<QueueRules.Entry> waitingEntries(List<EventRepository.Participant> players) {
+        return players.stream().filter(EventRepository.Participant::waiting).map(p -> new QueueRules.Entry(p.userId(), p.kind(), p.joinedAt(), p.guildId())).toList();
+    }
+
+    /** Where a waiting player stands (1 is next), in the event's queue order; 0 when they aren't waiting. */
+    public int queuePosition(Event event, long userId) {
+        return QueueRules.position(settingsOf(event).queue(), event.guildId(), queueEntries(event.id()), userId);
+    }
+
+    /**
+     * The seat quotas in force for an event at {@code now} (T-220): the host's from its settings and each accepted co-host's, released once signups have
+     * closed or the release time has passed. {@link QueueRules.Quotas#NONE} when nobody has a quota.
+     */
+    public QueueRules.Quotas quotas(Event event, EventSettings settings, Instant now) {
+        QueueRules.QuotaSetting setting = QueueRules.quotaSetting(configOf(event));
+        java.util.Map<Long, Integer> seats = new java.util.LinkedHashMap<>(repository.cohostQuotas(event.id()));
+        if (setting.host() != null) seats.put(event.guildId(), setting.host());
+        if (seats.isEmpty()) return QueueRules.Quotas.NONE;
+        boolean released = QueueRules.released(now, settings.signupClosesAt(), repository.setup(event.id()).signupsClosed(), setting.releaseHours());
+        return new QueueRules.Quotas(seats, released);
+    }
+
+    private static DataObject configOf(Event event) {
+        try {
+            return DataObject.fromJson(event.config());
+        } catch (RuntimeException e) {
+            return DataObject.empty();
+        }
+    }
+
+    /**
+     * Gives free places to the waitlist, in the event's queue order, while each player's server has room under its quota (T-220). Called when a place
+     * frees up, when quotas change, and by the signup sweep once quota places are released. Returns how many moved in.
+     */
+    public int fillSeats(Event event) {
+        if (event.maxParticipants() <= 0) return 0;
+        EventSettings settings = settingsOf(event);
+        QueueRules.Quotas quotas = quotas(event, settings, Instant.now());
+        int moved = 0;
+        for (int guard = 0; guard < EventRules.MAX_PARTICIPANTS; guard++) {
+            List<EventRepository.Participant> players = repository.participants(event.id());
+            if (players.stream().filter(p -> !p.waiting()).count() >= event.maxParticipants()) break;
+            java.util.Map<Long, Integer> activeByOrigin = new java.util.HashMap<>();
+            for (EventRepository.Participant p : players) if (!p.waiting()) activeByOrigin.merge(p.guildId(), 1, Integer::sum);
+            QueueRules.Entry next = QueueRules.next(settings.queue(), event.guildId(), waitingEntries(players), quotas, activeByOrigin);
+            if (next == null || !repository.promote(event.id(), next.userId(), event.maxParticipants())) break;
+            moved++;
+        }
+        if (moved > 0) repository.touchRoster(event.id());
+        return moved;
     }
 
     private void checkTeam(long id, EventSettings settings, long teamId, Kind kind, long userId) {
@@ -476,10 +536,7 @@ public class EventService {
         if (!repository.leave(id, userId)) throw new EventProblem(404, "That player isn't in the event.");
         repository.touchRoster(id);
         repository.touchTeams(id);
-        if (!player.waiting() && event.maxParticipants() > 0) {
-            QueueRules.Entry next = QueueRules.next(settingsOf(event).queue(), queueEntries(id));
-            if (next != null) repository.promote(id, next.userId(), event.maxParticipants());
-        }
+        if (!player.waiting()) fillSeats(event);
         changes.publish(EventChanges.Kind.ROSTER, guildId, id);
         // and out of the event's Discord signup, so removing someone here removes them there
         changes.publish(new EventChanges.Change(EventChanges.Kind.PLAYER_LEFT, guildId, id, 0, userId, false, ""));
