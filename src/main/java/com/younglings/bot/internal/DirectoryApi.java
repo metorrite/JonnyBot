@@ -1,29 +1,15 @@
 package com.younglings.bot.internal;
 
 import com.sun.net.httpserver.HttpExchange;
-import com.younglings.bot.alliance.AllianceRepository;
-import com.younglings.bot.alliance.AllianceRules.Status;
-import com.younglings.bot.alliance.AllianceVisibility;
-import com.younglings.bot.alliance.AllianceVisibility.Ally;
-import com.younglings.bot.alliance.AllianceVisibility.AllianceView;
-import com.younglings.bot.alliance.AllianceVisibility.Group;
-import com.younglings.bot.alliance.AllianceVisibility.Section;
-import com.younglings.bot.alliance.AllianceVisibility.Visibility;
 import com.younglings.bot.clanprofile.ClanLeaderboard;
 import com.younglings.bot.clanprofile.ClanLeaderboard.Period;
 import com.younglings.bot.clanprofile.ClanProfile;
 import com.younglings.bot.clanprofile.ClanProfile.Focus;
 import com.younglings.bot.clanprofile.ClanProfileRepository;
 import com.younglings.bot.clanprofile.ClanProfileService;
-import com.younglings.bot.clanprofile.ClanRecruiting;
-import com.younglings.bot.clanprofile.ClanRecruitingRepository;
-import com.younglings.bot.forms.WebFormRepository;
 import com.younglings.bot.clanprofile.ProfileRules;
 import com.younglings.bot.clanprofile.PublicEvents;
 import com.younglings.bot.clanprofile.PublicEvents.EventInfo;
-import com.younglings.bot.clansite.ClanSite;
-import com.younglings.bot.clansite.ClanSiteBlock;
-import com.younglings.bot.clansite.ClanSiteService;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.Guild;
@@ -34,7 +20,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -49,20 +34,15 @@ import java.util.Optional;
  * fetched by its address but is never listed.
  * <ul>
  *   <li>{@code GET clans}: every listed clan</li>
- *   <li>{@code GET clans/{slug}}: one clan, listed or unlisted</li>
+ *   <li>{@code GET clans/{slug}}: one clan, listed or unlisted, with every {@link DirectoryRouteModule}'s section</li>
  *   <li>{@code GET clans/{slug}/events}: that clan's shared upcoming events</li>
- *   <li>{@code GET alliances/{id}}: an alliance, naming only the clans that chose to show their alliances (404 unless at least two did)</li>
  *   <li>{@code POST clans/{slug}/report} {@code {reason, reporter?}}: report a listing for the bot's owner to review</li>
  *   <li>{@code GET events}: shared upcoming events of every listed clan, soonest first</li>
- *   <li>{@code GET site-switches}: whether the owner has opened the JonnyBot website, the hub and the dashboard (the website gates read it)</li>
- *   <li>{@code GET hub-events?viewer=} and {@code GET hub-events/{id}?viewer=}: the events hub's engine events ({@link HubEventsApi})</li>
- *   <li>{@code POST hub-events/{id}/join} {@code {userId}}: join one as the signed-in person (the website says who; T-217)</li>
- *   <li>{@code POST hub-events/{id}/report} {@code {reason, reporter?}}: report a listed event for the bot's owner to review (T-218)</li>
  *   <li>{@code GET leaderboards?period=week|month}: clans that opted in, ranked by XP their members gained</li>
- *   <li>{@code GET sites/{slug}}: a clan's website from the builder (look, pages, content blocks), only while it is published and its server is in the beta</li>
- *   <li>{@code GET sites/{slug}/data/{members|overview|leaderboard|recap}}: that site's clan data, the same answers the clan site's own routes give
- *   the home server ({@link SiteApi#TENANT_ROUTES}); a recap is always the clan's, never one member's</li>
  * </ul>
+ * Everything else is a {@link DirectoryRouteModule}: alliances ({@link DirectoryAllianceRoutes}), site switches
+ * ({@link DirectorySiteSwitchRoutes}), the events hub ({@link DirectoryHubEventRoutes}), clan websites ({@link DirectoryClanSiteRoutes})
+ * and recruiting posts ({@link DirectoryRecruitingSection}). A new feature adds a module; it does not edit this class.
  */
 @BService
 public class DirectoryApi {
@@ -80,28 +60,15 @@ public class DirectoryApi {
     private final ClanProfileRepository repository;
     private final ClanProfileService service;
     private final SiteStatsRepository stats;
-    private final AllianceRepository alliances;
-    private final SiteSwitchAdminApi siteSwitches;
-    private final ClanSiteService sites;
-    private final SiteApi siteApi;
-    private final ClanRecruitingRepository recruiting;
-    private final WebFormRepository forms;
+    private final List<DirectoryRouteModule> modules;
     private final TtlCache cache = new TtlCache();
 
-    private final HubEventsApi hubEvents;
-
-    public DirectoryApi(ClanProfileRepository repository, ClanProfileService service, SiteStatsRepository stats, AllianceRepository alliances, SiteSwitchAdminApi siteSwitches,
-                        HubEventsApi hubEvents, ClanSiteService sites, SiteApi siteApi, ClanRecruitingRepository recruiting, WebFormRepository forms) {
-        this.siteSwitches = siteSwitches;
-        this.hubEvents = hubEvents;
+    public DirectoryApi(ClanProfileRepository repository, ClanProfileService service, SiteStatsRepository stats, List<DirectoryRouteModule> modules) {
         this.repository = repository;
         this.service = service;
         this.stats = stats;
-        this.alliances = alliances;
-        this.sites = sites;
-        this.siteApi = siteApi;
-        this.recruiting = recruiting;
-        this.forms = forms;
+        this.modules = modules;
+        log.info("Directory API ready with {} module(s): {}", modules.size(), modules.stream().map(m -> m.getClass().getSimpleName()).toList());
     }
 
     /** Called after the shared secret has been checked. */
@@ -136,67 +103,6 @@ public class DirectoryApi {
             send(exchange, 200, DataObject.empty().put("events", eventsJson(profile.get(), jda, EVENTS_PER_CLAN)).put("generatedAt", Instant.now().toString()));
         } else if (head.equals("clans") && parts.length == 3 && parts[2].equals("report")) {
             report(exchange, method, parts[1]);
-        } else if (head.equals("hub-events") && parts.length == 3 && parts[2].equals("join")) {
-            if (!method.equals("POST")) {
-                send(exchange, 405, DataObject.empty().put("error", "Method not allowed"));
-                return;
-            }
-            DataObject body;
-            try (InputStream in = exchange.getRequestBody()) {
-                body = DataObject.fromJson(in);
-            } catch (RuntimeException e) {
-                send(exchange, 400, DataObject.empty().put("error", "That request couldn't be read."));
-                return;
-            }
-            HubEventsApi.Answer answer = hubEvents.join(jda, parts[1], body.getString("userId", ""));
-            send(exchange, answer.status(), answer.body());
-        } else if (head.equals("hub-events") && parts.length == 3 && parts[2].equals("report")) {
-            if (!method.equals("POST")) {
-                send(exchange, 405, DataObject.empty().put("error", "Method not allowed"));
-                return;
-            }
-            DataObject body;
-            try (InputStream in = exchange.getRequestBody()) {
-                body = DataObject.fromJson(in);
-            } catch (RuntimeException e) {
-                send(exchange, 400, DataObject.empty().put("error", "That report couldn't be read."));
-                return;
-            }
-            HubEventsApi.Answer answer = hubEvents.report(jda, parts[1], body);
-            send(exchange, answer.status(), answer.body());
-        } else if (head.equals("alliances") && parts.length == 2 && parts[1].matches("\\d{1,18}")) {
-            if (!get(exchange, method)) return;
-            DataObject page = alliancePage(Long.parseLong(parts[1]));
-            if (page == null) send(exchange, 404, DataObject.empty().put("error", "No such alliance"));
-            else send(exchange, 200, page);
-        } else if (head.equals("site-switches") && parts.length == 1) {
-            if (!get(exchange, method)) return;
-            send(exchange, 200, siteSwitches.states());
-        } else if (head.equals("hub-events")) {
-            if (!get(exchange, method)) return;
-            String viewer = queryParam(exchange, "viewer");
-            DataObject answer = parts.length == 1 ? hubEvents.list(jda, viewer) : parts.length == 2 ? hubEvents.one(jda, parts[1], viewer) : null;
-            if (answer == null) send(exchange, 404, DataObject.empty().put("error", "No such event"));
-            else send(exchange, 200, answer);
-        } else if (head.equals("sites") && parts.length == 4 && parts[2].equals("data")) {
-            if (!get(exchange, method)) return;
-            Optional<ClanSite> site = viewable(parts[1]).flatMap(p -> sites.visible(p.guildId()));
-            Guild guild = site.isEmpty() ? null : jda.getGuildById(site.get().guildId());
-            DataObject data = guild == null ? null : siteApi.tenant(guild, parts[3], exchange);
-            if (data == null) {
-                send(exchange, 404, DataObject.empty().put("error", "Not found"));
-                return;
-            }
-            send(exchange, 200, data);
-        } else if (head.equals("sites") && parts.length == 2) {
-            if (!get(exchange, method)) return;
-            Optional<ClanProfile> profile = viewable(parts[1]);
-            Optional<ClanSite> site = profile.flatMap(p -> sites.visible(p.guildId()));
-            if (site.isEmpty()) {
-                send(exchange, 404, DataObject.empty().put("error", "No such site"));
-                return;
-            }
-            send(exchange, 200, siteJson(profile.get(), site.get()));
         } else if (head.equals("events") && parts.length == 1) {
             if (!get(exchange, method)) return;
             send(exchange, 200, cache.get("events", LIST_TTL_MILLIS, () -> allEvents(jda)));
@@ -210,6 +116,10 @@ public class DirectoryApi {
             }
             send(exchange, 200, cache.get("leaderboard:" + period.get().key(), LEADERBOARD_TTL_MILLIS, () -> leaderboard(period.get())));
         } else {
+            DirectoryRequest request = new DirectoryRequest(exchange, jda, method, parts, this::viewable, p -> publicJson(p, true));
+            for (DirectoryRouteModule module : modules) {
+                if (module.route(request)) return;
+            }
             send(exchange, 404, DataObject.empty().put("error", "Not found"));
         }
     }
@@ -261,108 +171,10 @@ public class DirectoryApi {
                 .put("memberCount", clan == null ? null : service.memberCount(p.guildId())).put("onLeaderboards", listed && p.leaderboardOptIn());
         if (full) {
             json.put("description", p.description()).put("requirements", p.requirements()).put("applyUrl", p.applyUrl()).put("timezone", p.timezone())
-                    .put("updatedAt", p.updatedAt() == null ? null : p.updatedAt().toString())
-                    .put("recruitingPost", recruitingJson(p));
-            json.put("alliances", alliancesJson(p.guildId()));
+                    .put("updatedAt", p.updatedAt() == null ? null : p.updatedAt().toString());
+            for (DirectoryRouteModule module : modules) module.addToClan(p, json);
         }
         return json;
-    }
-
-    // ---------- alliances ----------
-
-    /** An alliance's members as the visibility rules need them. */
-    private List<AllianceView> viewsOf(List<com.younglings.bot.alliance.AllianceRepository.Alliance> list) {
-        List<AllianceView> views = new ArrayList<>();
-        for (var a : list) {
-            var members = alliances.membersOf(a.id());
-            var choices = alliances.visibilities(members.stream().map(m -> m.guildId()).toList());
-            List<Ally> allies = new ArrayList<>();
-            for (var m : members) {
-                boolean listed = service.publicView(m.guildId(), false).isPresent();
-                allies.add(new Ally(m.guildId(), choices.getOrDefault(m.guildId(), Visibility.HIDDEN), listed, m.status() == Status.ACTIVE));
-            }
-            views.add(new AllianceView(a.id(), a.name(), allies));
-        }
-        return views;
-    }
-
-    /** What a clan's page says about its alliances, or null when its clan chose to say nothing. Only clans that chose to be shown, and are listed, are ever named. */
-    private DataObject alliancesJson(long guildId) {
-        Visibility choice = alliances.visibility(guildId);
-        List<AllianceView> views = choice == Visibility.SHOWN ? viewsOf(alliances.alliancesOf(guildId)) : List.of();
-        Section section = AllianceVisibility.sectionFor(guildId, choice, views);
-        if (section.mode() == AllianceVisibility.Mode.ABSENT) return null;
-        DataArray groups = DataArray.empty();
-        for (Group g : section.groups()) {
-            DataArray clans = DataArray.empty();
-            for (long ally : g.allies()) {
-                repository.get(ally).ifPresent(p -> {
-                    if (p.slug() != null) clans.add(DataObject.empty().put("slug", p.slug()).put("name", p.displayName()).put("logoUrl", p.logoUrl()).put("colour", p.colour()));
-                });
-            }
-            groups.add(DataObject.empty().put("id", Long.toString(g.allianceId())).put("name", g.name()).put("clans", clans).put("hasPage", g.pageAvailable()));
-        }
-        return DataObject.empty().put("mode", section.mode().name()).put("alliances", groups);
-    }
-
-    /** An alliance's public page, naming only the clans that chose to show their alliances. Null when fewer than two can be named (so a hidden clan's alliance is not revealed). */
-    private DataObject alliancePage(long id) {
-        var alliance = alliances.alliance(id);
-        if (alliance.isEmpty()) return null;
-        AllianceView view = viewsOf(List.of(alliance.get())).get(0);
-        if (!AllianceVisibility.hasPage(view)) return null;
-        DataArray clans = DataArray.empty();
-        for (Ally ally : AllianceVisibility.nameableMembers(view)) {
-            repository.get(ally.guildId()).ifPresent(p -> {
-                if (p.slug() != null) clans.add(DataObject.empty().put("slug", p.slug()).put("name", p.displayName()).put("tagline", p.tagline()).put("logoUrl", p.logoUrl()).put("colour", p.colour()));
-            });
-        }
-        return clans.length() < 2 ? null : DataObject.empty().put("id", Long.toString(id)).put("name", alliance.get().name()).put("clans", clans);
-    }
-
-    // ---------- clan websites ----------
-
-    /** The public side of a clan's website: its clan (as the directory shows it), its look and its pages. Never a Discord id. */
-    private DataObject siteJson(ClanProfile p, ClanSite site) {
-        DataArray blocks = DataArray.empty();
-        for (ClanSiteBlock b : sites.blocks(site.guildId())) {
-            blocks.add(DataObject.empty().put("page", b.page()).put("position", b.position()).put("kind", b.kind().name()).put("body", jsonObject(b.body())));
-        }
-        return DataObject.empty().put("slug", p.slug()).put("clan", publicJson(p, true)).put("template", site.template().name())
-                .put("theme", jsonObject(site.theme())).put("pages", jsonArray(site.pages())).put("blocks", blocks)
-                .put("publishedAt", site.publishedAt() == null ? null : site.publishedAt().toString());
-    }
-
-    private static DataObject jsonObject(String raw) {
-        try {
-            return DataObject.fromJson(raw == null || raw.isBlank() ? "{}" : raw);
-        } catch (RuntimeException e) {
-            return DataObject.empty();
-        }
-    }
-
-    private static DataArray jsonArray(String raw) {
-        try {
-            return DataArray.fromJson(raw == null || raw.isBlank() ? "[]" : raw);
-        } catch (RuntimeException e) {
-            return DataArray.empty();
-        }
-    }
-
-    // ---------- recruiting ----------
-
-    /**
-     * The clan's recruiting post: what it is looking for, its invite, and the address of the application form the hub's Apply button opens.
-     * The form only while the clan is recruiting and the form is switched on; its address is the public form page the clan already shares.
-     */
-    private DataObject recruitingJson(ClanProfile p) {
-        ClanRecruiting r = recruiting.of(p.guildId());
-        boolean open = p.recruiting() != ClanProfile.Recruiting.CLOSED;
-        String formPath = null;
-        if (open && r.applyFormId() != null) {
-            formPath = forms.get(r.applyFormId()).filter(f -> f.guildId() == p.guildId() && f.enabled()).map(f -> "/forms/" + f.guildId() + "/" + f.id()).orElse(null);
-        }
-        return DataObject.empty().put("post", r.post()).put("applyFormPath", formPath).put("inviteUrl", open && ClanRecruiting.validInvite(r.inviteUrl()) ? r.inviteUrl() : null);
     }
 
     // ---------- events ----------
@@ -457,7 +269,7 @@ public class DirectoryApi {
             return;
         }
         DataObject body;
-        try (InputStream in = exchange.getRequestBody()) {
+        try (java.io.InputStream in = exchange.getRequestBody()) {
             body = DataObject.fromJson(in);
         } catch (RuntimeException e) {
             send(exchange, 400, DataObject.empty().put("error", "That report couldn't be read."));

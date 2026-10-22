@@ -16,7 +16,7 @@ public final class PointsRules {
     public static final int MAX_UNIT = 20;
 
     /** Where an entry came from, so a server can tell a manual award from an approved submission or a spent reward. */
-    public enum Category { MANUAL, EVENT, SUBMISSION, DONATION, REDEMPTION, ADJUSTMENT, KEYWORD }
+    public enum Category { MANUAL, EVENT, SUBMISSION, DONATION, REDEMPTION, ADJUSTMENT, KEYWORD, PLUGIN }
 
     /** Where a submission stands. */
     public enum Status { PENDING, APPROVED, DENIED }
