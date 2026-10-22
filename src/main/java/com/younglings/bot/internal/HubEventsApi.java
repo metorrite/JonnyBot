@@ -105,6 +105,9 @@ public class HubEventsApi {
         card.put("prizes", prizes);
         boolean scored = e.status() == Status.RUNNING || e.status() == Status.SCORING || e.status() == Status.DONE;
         if (scored && EventListing.standingsShown(e)) card.put("standings", standings(e));
+        // a clan-vs-clan event shows its clans' standings (clan names only) whenever it is open to everyone (T-223)
+        else if (scored && EventListing.clanStandingsShown(e)) card.put("standings", standings(e));
+        card.put("clanVsClan", com.younglings.bot.events.ClanVsClan.is(e.template()));
         return card;
     }
 
@@ -221,14 +224,17 @@ public class HubEventsApi {
                 .put("host", host(jda, e.guildId()));
     }
 
-    /** The host as the hub shows it: its listed clan profile when there is one, else the server's own name and icon; and where to join it. */
-    private DataObject host(JDA jda, long guildId) {
+    /**
+     * The host as the hub shows it: its listed clan profile when there is one, else the server's own name and icon; and where to join it.
+     * Never the server's Discord id: the hub is public, and the directory shares no Discord ids (T-182).
+     */
+    DataObject host(JDA jda, long guildId) {
         Guild guild = jda == null ? null : jda.getGuildById(guildId);
         Optional<ClanProfile> listed = profiles.publicView(guildId, false);
         // the server's invite link (Server setup), else its clan profile's apply link: the same as the "join the Discord first" message
         String invite = guildSettings.getEffective(guildId).inviteUrl();
         if (invite == null || invite.isBlank()) invite = listed.map(ClanProfile::applyUrl).filter(u -> u != null && !u.isBlank()).orElse(null);
-        DataObject host = DataObject.empty().put("guildId", Long.toString(guildId)).put("inviteUrl", invite);
+        DataObject host = DataObject.empty().put("inviteUrl", invite);
         if (listed.isPresent()) {
             ClanProfile p = listed.get();
             return host.put("name", p.displayName()).put("iconUrl", p.logoUrl()).put("slug", p.slug());

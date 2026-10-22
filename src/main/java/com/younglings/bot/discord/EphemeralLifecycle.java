@@ -1,5 +1,6 @@
 package com.younglings.bot.discord;
 
+import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.components.ActionComponent;
 import net.dv8tion.jda.api.entities.Message;
@@ -21,7 +22,6 @@ import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -56,11 +56,7 @@ public class EphemeralLifecycle extends ListenerAdapter {
     // A message can be touched by several interactions; the newest one that can still delete it is tried first.
     private static final int HOOKS_KEPT = 3;
 
-    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(runnable -> {
-        Thread thread = new Thread(runnable, "ephemeral-lifecycle");
-        thread.setDaemon(true);
-        return thread;
-    });
+    private final ScheduledExecutorService scheduler = BotScheduler.lane("ephemeral-lifecycle");
     private final Map<Long, Tracked> tracked = new ConcurrentHashMap<>();
 
     private static final class Tracked {

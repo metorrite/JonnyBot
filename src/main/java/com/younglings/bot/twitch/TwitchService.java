@@ -1,10 +1,12 @@
 package com.younglings.bot.twitch;
 
+import com.younglings.bot.discord.Mentions;
 import com.younglings.bot.alerts.AutoPostRouter;
 import com.younglings.bot.twitch.TwitchClient.Stream;
 import com.younglings.bot.twitch.TwitchRepository.Settings;
 import com.younglings.bot.twitch.TwitchRepository.Streamer;
 import com.younglings.bot.twitch.TwitchRules.OfflineAction;
+import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -23,9 +25,7 @@ import java.awt.Color;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -42,11 +42,7 @@ public class TwitchService {
 
     private final TwitchRepository repository;
     private final TwitchClient client;
-    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor((ThreadFactory) runnable -> {
-        Thread thread = new Thread(runnable, "twitch");
-        thread.setDaemon(true);
-        return thread;
-    });
+    private final ScheduledExecutorService executor = BotScheduler.lane("twitch");
 
     public TwitchService(TwitchRepository repository, TwitchClient client) {
         this.repository = repository;
@@ -129,8 +125,9 @@ public class TwitchService {
         if (picture != null) embed.setImage(picture);
 
         MessageCreateBuilder message = new MessageCreateBuilder().setContent(trim((streamer.pingRoleId() == null ? "" : "<@&" + streamer.pingRoleId() + "> ") + line, 2000)).setEmbeds(embed.build());
-        if (streamer.pingRoleId() != null) message.setAllowedMentions(java.util.EnumSet.of(Message.MentionType.ROLE)).mentionRoles(streamer.pingRoleId());
-        else message.setAllowedMentions(java.util.EnumSet.noneOf(Message.MentionType.class));
+        // only the alert's own role pings: the stream title (the streamer's text) never does
+        if (streamer.pingRoleId() != null) Mentions.onlyRoles(message, streamer.pingRoleId());
+        else message.setAllowedMentions(Mentions.NONE);
         channel.sendMessage(message.build()).queue(sent -> repository.recordMessage(streamer.id(), channel.getIdLong(), sent.getIdLong()),
                 t -> log.warn("Twitch post failed in guild {}: {}", streamer.guildId(), t.getMessage()));
     }

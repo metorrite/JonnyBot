@@ -7,6 +7,7 @@ import com.younglings.bot.runescape.polling.PollRequest;
 import com.younglings.bot.tracking.CitadelWeek;
 import com.younglings.bot.tracking.CitadelWheelPoster;
 import com.younglings.bot.tracking.WeeklyDigestService;
+import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -22,9 +23,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.TemporalAdjusters;
 import java.util.List;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -53,12 +52,7 @@ public class WeeklyDigestScheduler {
     private final PollCoordinator polls;
     private final CitadelWheelPoster wheelPoster;
     private final BotConfig botConfig;
-    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(
-            (ThreadFactory) runnable -> {
-                Thread thread = new Thread(runnable, "weekly-digest-scheduler");
-                thread.setDaemon(true);
-                return thread;
-            });
+    private final ScheduledExecutorService executor = BotScheduler.lane("weekly-digest-scheduler");
 
     public WeeklyDigestScheduler(WeeklyDigestService weeklyDigestService, ClanSyncService clanSyncService, ClanMemberRepository clanMembers,
                                  PollCoordinator polls, CitadelWheelPoster wheelPoster, BotConfig botConfig) {

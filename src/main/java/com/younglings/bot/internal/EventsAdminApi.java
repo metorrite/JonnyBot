@@ -15,6 +15,7 @@ import com.younglings.bot.events.BingoLayout;
 import com.younglings.bot.events.BingoShapes;
 import com.younglings.bot.events.BingoLooks;
 import com.younglings.bot.events.BingoTemplate;
+import com.younglings.bot.events.ClanVsClan;
 import com.younglings.bot.events.BingoTiles;
 import com.younglings.bot.events.EventBoardPanels;
 import com.younglings.bot.events.EventBonuses;
@@ -449,7 +450,7 @@ public class EventsAdminApi implements AdminRouteExtension {
         service.bans(id).forEach(b -> bans.add(DataObject.empty().put("userId", Long.toString(b.userId())).put("userName", name(guild, b.userId())).put("reason", b.reason())
                 .put("bannedBy", name(guild, b.bannedBy())).put("at", b.at().toString())));
         DataArray tileInfo = DataArray.empty();
-        if (e.template().equals(BingoTemplate.KEY)) {
+        if (ClanVsClan.plays(e, BingoTemplate.KEY)) {
             for (ObjectiveSpec o : service.objectives(id)) {
                 BingoTiles.Ref ref = tiles.resolve(o.label());
                 tileInfo.add(DataObject.empty().put("key", o.key()).put("boss", ref.boss()).put("item", ref.item()).put("icon", ref.iconKey()));
@@ -458,7 +459,7 @@ public class EventsAdminApi implements AdminRouteExtension {
         DataArray organisers = DataArray.empty();
         settings.organisers().forEach(o -> organisers.add(DataObject.empty().put("userId", Long.toString(o)).put("userName", name(guild, o))));
         DataObject layout = null;
-        if (e.template().equals(BingoTemplate.KEY)) {
+        if (ClanVsClan.plays(e, BingoTemplate.KEY)) {
             try {
                 DataObject config = DataObject.fromJson(e.config());
                 var shape = BingoTemplate.layoutOf(config);
@@ -624,6 +625,7 @@ public class EventsAdminApi implements AdminRouteExtension {
                 return detail(guild, id);
             }
             case "suggest" -> {
+                if (ClanVsClan.is(service.event(guildId, id).template())) throw new ApiError(409, "In a clan-vs-clan event each clan is a team, and players are put on their clan's team.");
                 AdminRouteExtension.requireMethod(method, "POST");
                 TeamBuilder.Suggestion suggestion = eventTeams.suggest(guildId, id);
                 DataArray moves = DataArray.empty();
@@ -709,7 +711,23 @@ public class EventsAdminApi implements AdminRouteExtension {
                     .put("objectivesCompleted", s.objectivesCompleted()).put("completions", completions)
                     .put("lastCompletedAt", s.lastCompletedAt() == null ? null : s.lastCompletedAt().toString()));
         }
-        return DataObject.empty().put("scoringMode", event.scoringMode().name()).put("standings", array);
+        DataObject answer = DataObject.empty().put("scoringMode", event.scoringMode().name()).put("standings", array);
+        if (ClanVsClan.is(event.template())) answer.put("clanVsClan", clanVsClanJson(guild, event));
+        return answer;
+    }
+
+    /** A clan-vs-clan event's scoring, and what each player earned for their clan (T-222), best first within each clan. */
+    private DataObject clanVsClanJson(Guild guild, Event event) {
+        ClanVsClan.Settings settings = ClanVsClan.settings(DataObject.fromJson(event.config()));
+        var earned = ClanVsClan.contributions(repository.objectives(event.id()), com.younglings.bot.events.ClanVsClanTemplate.reports(repository.progress(event.id())));
+        DataObject teams = DataObject.empty();
+        earned.forEach((teamId, players) -> {
+            DataArray list = DataArray.empty();
+            players.entrySet().stream().sorted(Map.Entry.<Long, Long>comparingByValue().reversed())
+                    .forEach(p -> list.add(DataObject.empty().put("userId", Long.toString(p.getKey())).put("name", name(guild, p.getKey())).put("points", p.getValue())));
+            teams.put(Long.toString(teamId), list);
+        });
+        return DataObject.empty().put("game", settings.game()).put("scoring", settings.scoring().name()).put("topN", settings.topN()).put("contributions", teams);
     }
 
     DataObject claims(Guild guild, long id) {
@@ -756,7 +774,7 @@ public class EventsAdminApi implements AdminRouteExtension {
 
     DataObject rerollBingo(Guild guild, Member actor, long id, DataObject body) {
         Event event = service.event(guild.getIdLong(), id);
-        if (!BingoTemplate.KEY.equals(event.template())) throw new ApiError(409, "This event isn't a bingo.");
+        if (!ClanVsClan.plays(event, BingoTemplate.KEY)) throw new ApiError(409, "This event isn't a bingo.");
         Set<String> locked = new HashSet<>();
         if (body.hasKey("lockedKeys") && !body.isNull("lockedKeys")) {
             DataArray keys = body.getArray("lockedKeys");
