@@ -82,6 +82,8 @@ public class EventService {
         List<String> problems = new ArrayList<>(EventRules.eventProblems(in.name(), in.description(), in.maxParticipants(), in.startsAt(), in.endsAt()));
         problems.addAll(template.configProblems(config));
         problems.addAll(EventSettings.problems(config));
+        String quota = QueueRules.quotaProblem(in.maxParticipants(), QueueRules.quotaSetting(config).host(), List.of());
+        if (quota != null) problems.add(quota);
         if (!problems.isEmpty()) throw new EventProblem(400, "The event can't be created yet.", problems);
         try {
             config = template.prepare(config);
@@ -97,9 +99,11 @@ public class EventService {
             log.error("Template {} produced invalid starter objectives: {}", template.key(), starterProblems);
             throw new EventProblem(500, "That template couldn't set itself up.");
         }
-        long id = repository.createEvent(guildId, template.key(), in.name().strip(), clean(in.description()), in.scope(), in.scoringMode(), in.startsAt(), in.endsAt(),
+        ScoringMode mode = template.fixedScoringMode() != null ? template.fixedScoringMode() : in.scoringMode();
+        long id = repository.createEvent(guildId, template.key(), in.name().strip(), clean(in.description()), in.scope(), mode, in.startsAt(), in.endsAt(),
                 in.maxParticipants(), config.toString(), actorId);
         if (!starterObjectives.isEmpty()) repository.replaceObjectives(id, starterObjectives);
+        if (template.managesTeams()) repository.event(guildId, id).ifPresent(e -> template.syncTeams(e, false));
         return id;
     }
 
@@ -125,8 +129,12 @@ public class EventService {
         List<String> problems = new ArrayList<>(EventRules.eventProblems(in.name(), in.description(), in.maxParticipants(), in.startsAt(), in.endsAt()));
         problems.addAll(template.configProblems(config));
         problems.addAll(EventSettings.problems(config));
+        // seat quotas (T-220): the host's and the co-hosts' together may not be more than the player limit
+        String quota = QueueRules.quotaProblem(in.maxParticipants(), QueueRules.quotaSetting(config).host(), repository.cohostQuotas(id).values());
+        if (quota != null) problems.add(quota);
         if (!problems.isEmpty()) throw new EventProblem(400, "The event can't be saved yet.", problems);
-        if (!repository.updateEvent(guildId, id, in.name().strip(), clean(in.description()), in.scope(), in.scoringMode(), in.startsAt(), in.endsAt(), in.maxParticipants(), config.toString())) {
+        ScoringMode mode = template.fixedScoringMode() != null ? template.fixedScoringMode() : in.scoringMode();
+        if (!repository.updateEvent(guildId, id, in.name().strip(), clean(in.description()), in.scope(), mode, in.startsAt(), in.endsAt(), in.maxParticipants(), config.toString())) {
             throw new EventProblem(409, "The event moved on while you were editing it.");
         }
         changes.publish(EventChanges.Kind.SETUP, guildId, id);
@@ -275,7 +283,7 @@ public class EventService {
      */
     public void changeLook(long guildId, long id, String look) {
         Event event = event(guildId, id);
-        if (!BingoTemplate.KEY.equals(event.template())) throw new EventProblem(409, "Only a bingo has a board to change the look of.");
+        if (!ClanVsClan.plays(event, BingoTemplate.KEY)) throw new EventProblem(409, "Only a bingo has a board to change the look of.");
         if (event.status() == Status.DONE || event.status() == Status.CANCELLED) throw new EventProblem(409, "This event is over, so its board can't change.");
         if (look != null && !BingoLooks.valid(look)) throw new EventProblem(400, "Choose a board look from the list.");
         DataObject config = DataObject.fromJson(event.config());
@@ -414,6 +422,14 @@ public class EventService {
      * puts them on the waitlist, ordered by the host's queue policy.
      */
     public Joined join(long guildId, long id, long userGuildId, long userId, Long teamId, boolean staff, Kind kindOverride) {
+        return join(guildId, id, userGuildId, userId, teamId, staff, kindOverride, !staff);
+    }
+
+    /**
+     * As above. {@code applyQuota} decides whether the seat quota of the player's server applies (T-220): it does for anyone signing up themselves,
+     * including from a Discord signup, and not for staff adding a late entry.
+     */
+    public Joined join(long guildId, long id, long userGuildId, long userId, Long teamId, boolean staff, Kind kindOverride, boolean applyQuota) {
         Event event = event(guildId, id);
         if (!EventRules.acceptsJoins(event.status())) throw new EventProblem(409, "This event isn't taking signups.");
         var barred = repository.ban(id, userId);
@@ -432,10 +448,12 @@ public class EventService {
                 throw new EventProblem(409, "This event needs players verified before they can be on a team. Add them without a team, verify them, then put them on one.");
             }
         }
+        if (teamId == null) teamId = templateTeam(event, userGuildId, userId, staff);
         if (event.scoringMode() == ScoringMode.TEAM && teamId == null && event.status() == Status.RUNNING) {
             throw new EventProblem(400, "Pick a team: this event is scored by team and it has already started.");
         }
-        var waiting = repository.join(id, userId, userGuildId, teamId, kind, settings.buyIn().enabled() ? BuyInStatus.DUE : BuyInStatus.NONE, event.maxParticipants());
+        Integer originQuota = applyQuota && event.maxParticipants() > 0 ? quotas(event, settings, Instant.now()).limitFor(userGuildId) : null;
+        var waiting = repository.join(id, userId, userGuildId, teamId, kind, settings.buyIn().enabled() ? BuyInStatus.DUE : BuyInStatus.NONE, event.maxParticipants(), originQuota);
         if (waiting.isEmpty()) throw new EventProblem(409, "That player is already in the event.");
         repository.setSource(id, userId, staff ? EventRepository.RosterSource.STAFF : EventRepository.RosterSource.SELF);
         repository.touchRoster(id);
@@ -446,12 +464,92 @@ public class EventService {
         // a player who joined on their own is added to the event's Discord signup too, so the two lists stay the same
         if (!staff) changes.publish(new EventChanges.Change(EventChanges.Kind.PLAYER_JOINED, guildId, id, 0, userId, false, ""));
         if (!waiting.get()) return new Joined(false, 0);
-        return new Joined(true, QueueRules.position(settings.queue(), queueEntries(id), userId));
+        return new Joined(true, QueueRules.position(settings.queue(), event.guildId(), queueEntries(id), userId));
+    }
+
+    /**
+     * The team the event's template puts a joining player on (clan vs clan: their clan's), or null. A refusal stands for a player joining themselves; staff
+     * adding someone the template can't place add them with no team. A player who can't go straight onto a team yet (verification by teams) gets none and
+     * is placed at Close signups.
+     */
+    private Long templateTeam(Event event, long userGuildId, long userId, boolean staff) {
+        EventTemplate template = templates.byKey(event.template()).orElse(null);
+        if (template == null || !template.managesTeams()) return null;
+        Long team;
+        try {
+            team = template.teamOnJoin(event, userGuildId, userId, staff);
+        } catch (EventProblem e) {
+            if (staff) return null;
+            throw e;
+        }
+        if (team == null) return null;
+        if (teamMoment(event) == EventRoster.Gate.TEAMS && !EventRoster.counts(EventRoster.Verification.PENDING, settingsOf(event).verification(), EventRoster.Gate.TEAMS)) return null;
+        return team;
+    }
+
+    /** Lets the event's template bring the teams it keeps up to date (clan vs clan: one per clan); {@code recheck} also re-places the players. */
+    public void syncTemplateTeams(Event event, boolean recheck) {
+        EventTemplate template = templates.byKey(event.template()).orElse(null);
+        if (template == null || !template.managesTeams()) return;
+        template.syncTeams(event, recheck);
+        repository.touchTeams(event.id());
+        changes.publish(EventChanges.Kind.TEAMS, event.guildId(), event.id());
     }
 
     private List<QueueRules.Entry> queueEntries(long id) {
-        return repository.participants(id).stream().filter(EventRepository.Participant::waiting)
-                .map(p -> new QueueRules.Entry(p.userId(), p.kind(), p.joinedAt())).toList();
+        return waitingEntries(repository.participants(id));
+    }
+
+    private static List<QueueRules.Entry> waitingEntries(List<EventRepository.Participant> players) {
+        return players.stream().filter(EventRepository.Participant::waiting).map(p -> new QueueRules.Entry(p.userId(), p.kind(), p.joinedAt(), p.guildId())).toList();
+    }
+
+    /** Where a waiting player stands (1 is next), in the event's queue order; 0 when they aren't waiting. */
+    public int queuePosition(Event event, long userId) {
+        return QueueRules.position(settingsOf(event).queue(), event.guildId(), queueEntries(event.id()), userId);
+    }
+
+    /**
+     * The seat quotas in force for an event at {@code now} (T-220): the host's from its settings and each accepted co-host's, released once signups have
+     * closed or the release time has passed. {@link QueueRules.Quotas#NONE} when nobody has a quota.
+     */
+    public QueueRules.Quotas quotas(Event event, EventSettings settings, Instant now) {
+        QueueRules.QuotaSetting setting = QueueRules.quotaSetting(configOf(event));
+        java.util.Map<Long, Integer> seats = new java.util.LinkedHashMap<>(repository.cohostQuotas(event.id()));
+        if (setting.host() != null) seats.put(event.guildId(), setting.host());
+        if (seats.isEmpty()) return QueueRules.Quotas.NONE;
+        boolean released = QueueRules.released(now, settings.signupClosesAt(), repository.setup(event.id()).signupsClosed(), setting.releaseHours());
+        return new QueueRules.Quotas(seats, released);
+    }
+
+    private static DataObject configOf(Event event) {
+        try {
+            return DataObject.fromJson(event.config());
+        } catch (RuntimeException e) {
+            return DataObject.empty();
+        }
+    }
+
+    /**
+     * Gives free places to the waitlist, in the event's queue order, while each player's server has room under its quota (T-220). Called when a place
+     * frees up, when quotas change, and by the signup sweep once quota places are released. Returns how many moved in.
+     */
+    public int fillSeats(Event event) {
+        if (event.maxParticipants() <= 0) return 0;
+        EventSettings settings = settingsOf(event);
+        QueueRules.Quotas quotas = quotas(event, settings, Instant.now());
+        int moved = 0;
+        for (int guard = 0; guard < EventRules.MAX_PARTICIPANTS; guard++) {
+            List<EventRepository.Participant> players = repository.participants(event.id());
+            if (players.stream().filter(p -> !p.waiting()).count() >= event.maxParticipants()) break;
+            java.util.Map<Long, Integer> activeByOrigin = new java.util.HashMap<>();
+            for (EventRepository.Participant p : players) if (!p.waiting()) activeByOrigin.merge(p.guildId(), 1, Integer::sum);
+            QueueRules.Entry next = QueueRules.next(settings.queue(), event.guildId(), waitingEntries(players), quotas, activeByOrigin);
+            if (next == null || !repository.promote(event.id(), next.userId(), event.maxParticipants())) break;
+            moved++;
+        }
+        if (moved > 0) repository.touchRoster(event.id());
+        return moved;
     }
 
     private void checkTeam(long id, EventSettings settings, long teamId, Kind kind, long userId) {
@@ -476,10 +574,7 @@ public class EventService {
         if (!repository.leave(id, userId)) throw new EventProblem(404, "That player isn't in the event.");
         repository.touchRoster(id);
         repository.touchTeams(id);
-        if (!player.waiting() && event.maxParticipants() > 0) {
-            QueueRules.Entry next = QueueRules.next(settingsOf(event).queue(), queueEntries(id));
-            if (next != null) repository.promote(id, next.userId(), event.maxParticipants());
-        }
+        if (!player.waiting()) fillSeats(event);
         changes.publish(EventChanges.Kind.ROSTER, guildId, id);
         // and out of the event's Discord signup, so removing someone here removes them there
         changes.publish(new EventChanges.Change(EventChanges.Kind.PLAYER_LEFT, guildId, id, 0, userId, false, ""));
@@ -528,9 +623,15 @@ public class EventService {
         List<EventRoster.Verification> held = players.stream().filter(p -> !p.waiting()).map(Participant::verification).toList();
         EventPrep.TeamFacts teams = event.scoringMode() == ScoringMode.TEAM ? teamFactsOf(event, settings, players, setup) : null;
         EventPrep.SpaceFacts space = settings.channels().enabled() ? new EventPrep.SpaceFacts(setup.spaceApplied(), setup.spaceComplete(), setup.spaceNote()) : null;
-        return EventPrep.of(new EventPrep.Facts(event.status(), settings.setupMode(), !repository.objectives(event.id()).isEmpty(), setup.signupsClosed(), setup.rosterConfirmed(),
+        EventPrep.Prep prep = EventPrep.of(new EventPrep.Facts(event.status(), settings.setupMode(), !repository.objectives(event.id()).isEmpty(), setup.signupsClosed(), setup.rosterConfirmed(),
                 held.size(), players.size() - held.size(), settings.verification(), EventRoster.tally(held, settings.verification()), teams, space,
                 setup.rosterChangedSinceConfirmed(), teams != null && setup.teamsChangedSinceFinal()));
+        EventTemplate template = templates.byKey(event.template()).orElse(null);
+        if (template == null) return prep;
+        List<EventPrep.Step> steps = new ArrayList<>(prep.steps());
+        List<String> warnings = new ArrayList<>(prep.warnings());
+        template.checklist(event, steps, warnings);
+        return new EventPrep.Prep(steps, prep.blockers(), warnings);
     }
 
     /** The teams as the setup checklist and "finalise" look at them. */
@@ -954,6 +1055,12 @@ public class EventService {
         if (!approve && cleanNote.isEmpty()) throw new EventProblem(400, "Say why it was denied, so the player can fix it.");
         boolean verification = claim.kind() == EventRepository.ClaimKind.VERIFICATION;
         if (verification && (event.status() == Status.DONE || event.status() == Status.CANCELLED)) throw new EventProblem(409, "This event is over.");
+        if (ClanVsClan.is(event.template()) && ClanVsClan.settings(DataObject.fromJson(event.config())).reviewByOtherClan()) {
+            // clans review each other's proof: nobody decides proof from their own clan's team
+            Long claimTeam = repository.participant(id, claim.userId()).map(Participant::teamId).orElse(null);
+            Long actorTeam = repository.participant(id, actorId).map(Participant::teamId).orElse(null);
+            if (claimTeam != null && claimTeam.equals(actorTeam)) throw new EventProblem(403, "In this event the clans review each other's proof, so someone from another clan decides this one.");
+        }
         if (!verification && approve && !EventRules.acceptsProgress(event.status())) throw new EventProblem(409, "The event isn't running, so an approval couldn't be counted. Reopen it first.");
 
         if (!repository.decideClaim(id, claimId, approve ? ClaimStatus.APPROVED : ClaimStatus.DENIED, actorId, cleanNote.isEmpty() ? null : cleanNote)) {
@@ -991,7 +1098,11 @@ public class EventService {
             if (byTeam && p.teamId() == null) continue;
             log.add(new Entry(byTeam ? "t:" + p.teamId() : "u:" + p.userId(), p.objectiveKey(), p.amount(), p.createdAt()));
         }
-        return EventScoring.standings(repository.objectives(id), log, bonusesOf(event));
+        List<ObjectiveSpec> objectives = repository.objectives(id);
+        List<Standing> usual = EventScoring.standings(objectives, log, bonusesOf(event));
+        EventTemplate template = templates.byKey(event.template()).orElse(null);
+        List<Standing> own = template == null ? null : template.standings(event, objectives, repository.progress(id), usual);
+        return own == null ? usual : own;
     }
 
     private static String clean(String text) {

@@ -5,6 +5,7 @@ import com.younglings.bot.commands.signup.SignupEntry;
 import com.younglings.bot.commands.signup.SignupService;
 import com.younglings.bot.events.EventRepository.Event;
 import com.younglings.bot.events.EventRules.Status;
+import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -21,9 +22,7 @@ import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -53,20 +52,18 @@ public class EventSignups {
     private final EventRepository repository;
     private final EventService service;
     private final SignupService signups;
+    private final EventChanges changes;
     /** How often the signup and the roster are compared. */
     static final int SWEEP_SECONDS = 30;
 
-    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor((ThreadFactory) runnable -> {
-        Thread thread = new Thread(runnable, "event-signups");
-        thread.setDaemon(true);
-        return thread;
-    });
+    private final ScheduledExecutorService executor = BotScheduler.lane("event-signups");
     private volatile JDA jda;
 
     public EventSignups(EventRepository repository, EventService service, SignupService signups, EventChanges changes) {
         this.repository = repository;
         this.service = service;
         this.signups = signups;
+        this.changes = changes;
         changes.subscribe(change -> {
             if (change.kind() == EventChanges.Kind.PLAYER_JOINED || change.kind() == EventChanges.Kind.PLAYER_LEFT) executor.execute(() -> mirror(change));
         });
@@ -155,6 +152,8 @@ public class EventSignups {
             pause(guild, event.signupId());
             added = sync(guild, eventId);
         }
+        // a clan-vs-clan event re-checks everyone's clan now, as its rosters may have changed since they joined (T-222)
+        service.syncTemplateTeams(service.event(guild.getIdLong(), eventId), true);
         return report(eventId, added);
     }
 
@@ -197,7 +196,8 @@ public class EventSignups {
                 continue;
             }
             try {
-                service.join(guild.getIdLong(), eventId, guild.getIdLong(), entry.userId(), null, true, null);
+                // staff-level so the deadline doesn't refuse a signup made in time, but the player chose to sign up, so their server's seat quota applies (T-220)
+                service.join(guild.getIdLong(), eventId, guild.getIdLong(), entry.userId(), null, true, null, true);
                 repository.setSource(eventId, entry.userId(), EventRepository.RosterSource.SIGNUP);
                 added++;
             } catch (EventProblem e) {
@@ -277,6 +277,28 @@ public class EventSignups {
         }
     }
 
+    /**
+     * Seat quotas (T-220): once an event's quota places are released (its release time has passed, or signups closed), free places go to whoever is
+     * waiting, in the event's queue order. Events without quotas, or not yet released, are left alone.
+     */
+    void releaseQuotas() {
+        Instant now = Instant.now();
+        for (Event event : repository.eventsInStatus(Status.SIGNUPS)) {
+            if (event.maxParticipants() <= 0) continue;
+            try {
+                QueueRules.Quotas quotas = service.quotas(event, settingsOf(event), now);
+                if (quotas == QueueRules.Quotas.NONE || !quotas.released()) continue;
+                int moved = service.fillSeats(event);
+                if (moved > 0) {
+                    log.info("Released seat quota places of event {}: {} waiting player(s) moved in", event.id(), moved);
+                    changes.publish(EventChanges.Kind.ROSTER, event.guildId(), event.id());
+                }
+            } catch (RuntimeException e) {
+                log.warn("Releasing the seat quotas of event {} failed", event.id(), e);
+            }
+        }
+    }
+
     /** Pauses the Discord signup and redraws its panels, so they say PAUSED at once instead of when someone next clicks one. */
     private void pause(Guild guild, long signupId) {
         if (!signups.isSignupActive(signupId)) return;
@@ -288,6 +310,7 @@ public class EventSignups {
         if (AutoPostRouter.diverting()) return;
         try {
             closePastDeadline(jda);
+            releaseQuotas();
             for (Event event : repository.eventsWithSignup()) {
                 Guild guild = jda.getGuildById(event.guildId());
                 if (guild == null) continue;

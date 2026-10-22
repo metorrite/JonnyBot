@@ -125,7 +125,7 @@ public class EventSpaces {
         EventRepository.Setup setup = events.setup(event.id());
         Readiness readiness = new Readiness(event.status(), teamScored, setup.signupsClosed(), setup.rosterConfirmed(), setup.teamsFinalised());
         EventSpace.Setting setting = settings.channels();
-        Facts facts = new Facts(event.name(), event.template(), teamScored, setting, settings.boardChannelId(), settings.reviewChannelId(),
+        Facts facts = new Facts(event.name(), ClanVsClan.game(event), teamScored, setting, settings.boardChannelId(), settings.reviewChannelId(),
                 teams.stream().map(t -> new TeamRef(t.id(), t.name())).toList(), players, settings.organisers(), excluded, heldRoles, heldChannels,
                 pickProblems(guild, event, settings), roomOf(guild), readiness, EventBoards.displayOf(DataObject.fromJson(event.config())).shared(),
                 new EventSpace.Ids(guild.getPublicRole().getIdLong(), guild.getSelfMember().getIdLong(), staffRoles(guild).stream().map(net.dv8tion.jda.api.entities.Role::getIdLong).toList()));

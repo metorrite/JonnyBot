@@ -93,7 +93,8 @@ public final class EventSpace {
         /** Whether an event made from {@code template} has this channel: the board is a bingo's, and proof is reviewed in every kind but a competition. */
         public boolean appliesTo(String template) {
             return switch (this) {
-                case BOARD -> BingoTemplate.KEY.equals(template);
+                // a clan-vs-clan event may play a bingo; once it is made, its inner game decides (the event's facts carry the game)
+                case BOARD -> BingoTemplate.KEY.equals(template) || ClanVsClan.is(template);
                 case REVIEW -> !CompetitionTemplate.KEY.equals(template);
                 default -> true;
             };

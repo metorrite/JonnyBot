@@ -3,6 +3,7 @@ package com.younglings.bot.runescape.polling;
 import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.runescape.PlayerLinkRepository;
 import com.younglings.bot.runescape.RuneScapeStatsService;
+import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,10 +16,8 @@ import java.util.OptionalLong;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -46,12 +45,7 @@ public class PollCoordinator {
 
     private final PollEngine engine;
     private final Map<String, JobState> jobs = new ConcurrentHashMap<>();
-    private final ScheduledExecutorService jobRunner = Executors.newSingleThreadScheduledExecutor(
-            (ThreadFactory) runnable -> {
-                Thread thread = new Thread(runnable, "poll-jobs");
-                thread.setDaemon(true);
-                return thread;
-            });
+    private final ScheduledExecutorService jobRunner = BotScheduler.lane("poll-jobs");
 
     private static final class JobState {
         final PollJob job;
