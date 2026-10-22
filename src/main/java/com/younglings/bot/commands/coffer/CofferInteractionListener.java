@@ -2,6 +2,7 @@ package com.younglings.bot.commands.coffer;
 
 import com.younglings.bot.coffer.CofferRepository;
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.permission.AdminRoleFilter;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.components.label.Label;
@@ -119,7 +120,7 @@ public class CofferInteractionListener extends ListenerAdapter {
     }
 
     private void replyNotAdmin(ButtonInteractionEvent event) {
-        Containers.replyEphemeral(event, Containers.WARNING, "You need the Admin role (or higher) to use this.");
+        Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "coffer.you_need_the_admin_role_or"));
     }
 
     // --- /coffer hub: modals ---
@@ -134,7 +135,7 @@ public class CofferInteractionListener extends ListenerAdapter {
 
             case "coffer_hub_transfer_modal" -> {
                 if (!isAdmin(event)) {
-                    Containers.replyEphemeral(event, Containers.WARNING, "You need the Admin role (or higher) to use this.");
+                    Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "coffer.you_need_the_admin_role_or"));
                     return;
                 }
 
@@ -151,7 +152,7 @@ public class CofferInteractionListener extends ListenerAdapter {
 
             case "coffer_hub_giveaway_modal" -> {
                 if (!isAdmin(event)) {
-                    Containers.replyEphemeral(event, Containers.WARNING, "You need the Admin role (or higher) to use this.");
+                    Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "coffer.you_need_the_admin_role_or"));
                     return;
                 }
 
@@ -263,21 +264,21 @@ public class CofferInteractionListener extends ListenerAdapter {
 
         CofferTransfer transfer = repository.getPendingTransfer(transferId);
         if (transfer == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "This transfer no longer exists or has already been resolved.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "coffer.this_transfer_no_longer_exists_or"));
             return;
         }
         if (transfer.toDiscordId() != event.getUser().getIdLong()) {
-            Containers.replyEphemeral(event, Containers.WARNING, "Only the intended recipient can accept this transfer.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "coffer.only_the_intended_recipient_can_accept"));
             return;
         }
 
         boolean accepted = repository.acceptTransfer(transferId);
         if (!accepted) {
-            Containers.replyEphemeral(event, Containers.WARNING, "The sender no longer holds enough GP to complete this transfer.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "coffer.the_sender_no_longer_holds_enough"));
             return;
         }
         Containers.reply(event, Containers.SUCCESS, false,
-                "✅ Transfer of **" + GpAmountParser.format(transfer.amount()) + "** accepted.");
+                Text.of(event, "coffer.transfer_of_accepted", GpAmountParser.format(transfer.amount())));
     }
 
     private void handleReject(ButtonInteractionEvent event, String transferIdStr) {
@@ -286,24 +287,24 @@ public class CofferInteractionListener extends ListenerAdapter {
 
         CofferTransfer transfer = repository.getPendingTransfer(transferId);
         if (transfer == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "This transfer no longer exists or has already been resolved.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "coffer.this_transfer_no_longer_exists_or"));
             return;
         }
         if (transfer.toDiscordId() != event.getUser().getIdLong()) {
-            Containers.replyEphemeral(event, Containers.WARNING, "Only the intended recipient can reject this transfer.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "coffer.only_the_intended_recipient_can_reject"));
             return;
         }
 
         repository.rejectTransfer(transferId);
         Containers.reply(event, Containers.DANGER, false,
-                "❌ Transfer of **" + GpAmountParser.format(transfer.amount()) + "** rejected.");
+                Text.of(event, "coffer.transfer_of_rejected", GpAmountParser.format(transfer.amount())));
     }
 
     private long parseTransferId(ButtonInteractionEvent event, String raw) {
         try {
             return Long.parseLong(raw);
         } catch (NumberFormatException e) {
-            Containers.replyEphemeral(event, Containers.WARNING, "Invalid transfer ID.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "coffer.invalid_transfer_id"));
             return -1;
         }
     }

@@ -42,6 +42,14 @@ public class Messages {
         }
         if (!loaded.containsKey(DEFAULT_LANGUAGE)) throw new IllegalStateException("The English catalogue (i18n/messages_en.properties) is missing");
         this.catalogues = Map.copyOf(loaded);
+        Text.install(this);
+    }
+
+    /** The English catalogue alone, for {@link Text} before the bot has made a {@code Messages}. */
+    static Map<String, String> loadEnglish() {
+        Map<String, String> catalogue = loadCatalogue(DEFAULT_LANGUAGE);
+        if (catalogue == null) throw new IllegalStateException("The English catalogue (i18n/messages_en.properties) is missing");
+        return catalogue;
     }
 
     /** Code to its name in its own language ("en" to "English"), for the languages that have a catalogue. English first. */

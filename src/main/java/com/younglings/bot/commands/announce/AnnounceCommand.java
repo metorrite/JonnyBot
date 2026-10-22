@@ -2,6 +2,7 @@ package com.younglings.bot.commands.announce;
 
 import com.younglings.bot.ban.AnnounceService;
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
 import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.JDASlashCommand;
@@ -34,17 +35,17 @@ public class AnnounceCommand {
                            @SlashOption(name = "here", description = "Ping @here (needs the Mention Everyone permission)") @Nullable Boolean here) {
         Member sender = event.getMember();
         if (sender == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "This only works in a server.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "announce.this_only_works_in_a_server"));
             return;
         }
         try {
             String channelName = service.send(event.getGuild(), sender, channel.getIdLong(), message,
                     Boolean.TRUE.equals(everyone), Boolean.TRUE.equals(here), role == null ? null : role.getIdLong());
-            Containers.replyEphemeral(event, Containers.SUCCESS, "Posted in #" + channelName + ".");
+            Containers.replyEphemeral(event, Containers.SUCCESS, Text.of(event, "announce.posted_in", channelName));
         } catch (IllegalStateException e) {
             Containers.replyEphemeral(event, Containers.WARNING, e.getMessage());
         } catch (RuntimeException e) {
-            Containers.replyEphemeral(event, Containers.WARNING, "Discord wouldn't let the announcement be posted there.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "announce.discord_wouldn_t_let_the_announcement"));
         }
     }
 }

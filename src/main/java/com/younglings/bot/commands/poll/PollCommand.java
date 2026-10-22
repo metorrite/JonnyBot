@@ -1,6 +1,7 @@
 package com.younglings.bot.commands.poll;
 
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.permission.AdminRoleFilter;
 import com.younglings.bot.permission.MemberAccess;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
@@ -33,11 +34,11 @@ public class PollCommand {
         Guild guild = event.getGuild();
         Member member = event.getMember();
         if (guild == null || member == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "This command can only be used in a server.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "poll.this_command_can_only_be_used"));
             return;
         }
         if (!memberAccess.isMemberTier(guild, member)) {
-            Containers.replyEphemeral(event, Containers.WARNING, "Polls are for clan members — link your RuneScape name with `/rs` to get access.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "poll.polls_are_for_clan_members_link"));
             return;
         }
 

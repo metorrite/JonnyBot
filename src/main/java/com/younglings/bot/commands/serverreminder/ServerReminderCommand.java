@@ -1,6 +1,7 @@
 package com.younglings.bot.commands.serverreminder;
 
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.reminder.ReminderParser;
 import com.younglings.bot.serverreminder.ServerReminder;
 import com.younglings.bot.serverreminder.ServerReminderService;
@@ -41,22 +42,21 @@ public class ServerReminderCommand {
                       @SlashOption(description = "A role to ping") @Nullable Role ping) {
         Duration wait = ReminderParser.parse(when).orElse(null);
         if (wait == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "I couldn't read \"" + when + "\" as a wait. Try something like `30m`, `2h30m` or `1d`.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "serverreminder.i_couldn_t_read_as_a", when));
             return;
         }
         Duration repeat = null;
         if (every != null && !every.isBlank()) {
             repeat = ReminderParser.parse(every).orElse(null);
             if (repeat == null) {
-                Containers.replyEphemeral(event, Containers.WARNING, "I couldn't read \"" + every + "\" as a repeat. Try something like `1d` or `1w`.");
+                Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "serverreminder.i_couldn_t_read_as_a_2", every));
                 return;
             }
         }
         try {
             ServerReminder made = service.create(event.getGuild(), event.getUser().getIdLong(), event.getMember() == null ? event.getUser().getName() : event.getMember().getEffectiveName(),
                     channel.getIdLong(), text, ping == null ? null : ping.getIdLong(), Instant.now().plus(wait), repeat);
-            Containers.replyEphemeral(event, Containers.SUCCESS, "Reminder #" + made.id() + " will post in " + channel.getAsMention() + " <t:" + made.nextAt().getEpochSecond() + ":R>"
-                    + (repeat == null ? "." : ", then every " + describe(repeat) + "."), "-# `/serverreminder cancel` stops it; the dashboard's Server reminders page lists them all.");
+            Containers.replyEphemeral(event, Containers.SUCCESS, Text.of(event, "serverreminder.reminder_will_post_in_t_r", made.id(), channel.getAsMention(), made.nextAt().getEpochSecond(), (repeat == null ? "." : Text.of(event, "serverreminder.then_every", describe(repeat)))), Text.of(event, "serverreminder.serverreminder_cancel_stops_it_the_dashboard"));
         } catch (ReminderException e) {
             Containers.replyEphemeral(event, Containers.WARNING, e.getMessage());
         }
@@ -71,16 +71,16 @@ public class ServerReminderCommand {
                     + (r.roleId() == null ? "" : " · pings <@&" + r.roleId() + ">") + "\n" + shorten(r.text()));
         }
         if (lines.isEmpty()) {
-            Containers.replyEphemeral(event, Containers.INFO, "There are no active reminders.");
+            Containers.replyEphemeral(event, Containers.INFO, Text.of(event, "serverreminder.there_are_no_active_reminders"));
             return;
         }
-        Containers.replyEphemeral(event, Containers.INFO, "**Active reminders**", String.join("\n\n", lines));
+        Containers.replyEphemeral(event, Containers.INFO, Text.of(event, "serverreminder.active_reminders"), String.join("\n\n", lines));
     }
 
     @JDASlashCommand(name = "serverreminder", subcommand = "cancel", description = "Stop a reminder")
     public void onCancel(GuildSlashEvent event, @SlashOption(description = "The reminder's number from /serverreminder list") long id) {
         boolean done = service.cancel(event.getGuild().getIdLong(), id);
-        Containers.replyEphemeral(event, done ? Containers.SUCCESS : Containers.WARNING, done ? "Reminder #" + id + " is cancelled." : "There is no active reminder #" + id + ".");
+        Containers.replyEphemeral(event, done ? Containers.SUCCESS : Containers.WARNING, done ? Text.of(event, "serverreminder.reminder_is_cancelled", id) : Text.of(event, "serverreminder.there_is_no_active_reminder", id));
     }
 
     static String describe(Duration every) {

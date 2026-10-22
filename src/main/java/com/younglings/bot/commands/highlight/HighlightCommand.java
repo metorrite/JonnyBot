@@ -6,6 +6,7 @@ import com.younglings.bot.highlight.HighlightMatcher;
 import com.younglings.bot.highlight.HighlightRepository;
 import com.younglings.bot.highlight.HighlightRepository.Keyword;
 import com.younglings.bot.highlight.HighlightService;
+import com.younglings.bot.i18n.Text;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
 import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
 import io.github.freya022.botcommands.api.commands.application.slash.annotations.JDASlashCommand;
@@ -51,11 +52,11 @@ public class HighlightCommand {
         HighlightConfig config = repository.config(guild.getIdLong());
         String cleaned = HighlightMatcher.clean(word);
         switch (service.add(guild, event.getUser().getIdLong(), word, wholeWord == null || wholeWord)) {
-            case ADDED -> Containers.replyEphemeral(event, Containers.SUCCESS, "You'll get a message when someone says **" + cleaned + "**.",
-                    "-# I only message you about channels you can see, and not for your own messages.");
-            case DUPLICATE -> Containers.replyEphemeral(event, Containers.INFO, "You're already watching **" + cleaned + "**.");
-            case FULL -> Containers.replyEphemeral(event, Containers.WARNING, "You can watch at most " + config.maxKeywords() + " words here. Remove one with `/highlight remove` first.");
-            case BAD_WORD -> Containers.replyEphemeral(event, Containers.WARNING, "A word must be " + HighlightConfig.MIN_WORD + " to " + HighlightConfig.MAX_WORD + " characters.");
+            case ADDED -> Containers.replyEphemeral(event, Containers.SUCCESS, Text.of(event, "highlight.you_ll_get_a_message_when", cleaned),
+                    Text.of(event, "highlight.i_only_message_you_about_channels"));
+            case DUPLICATE -> Containers.replyEphemeral(event, Containers.INFO, Text.of(event, "highlight.you_re_already_watching", cleaned));
+            case FULL -> Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "highlight.you_can_watch_at_most_words", config.maxKeywords()));
+            case BAD_WORD -> Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "highlight.a_word_must_be_to_characters", HighlightConfig.MIN_WORD, HighlightConfig.MAX_WORD));
         }
     }
 
@@ -63,7 +64,7 @@ public class HighlightCommand {
     public void onRemove(GuildSlashEvent event, @SlashOption(description = "The word to stop watching", autocomplete = MY_WORDS) String word) {
         boolean gone = repository.removeKeyword(event.getGuild().getIdLong(), event.getUser().getIdLong(), null, HighlightMatcher.clean(word));
         Containers.replyEphemeral(event, gone ? Containers.SUCCESS : Containers.INFO,
-                gone ? "No longer watching **" + HighlightMatcher.clean(word) + "**." : "You weren't watching **" + HighlightMatcher.clean(word) + "**.");
+                gone ? Text.of(event, "highlight.no_longer_watching", HighlightMatcher.clean(word)) : Text.of(event, "highlight.you_weren_t_watching", HighlightMatcher.clean(word)));
     }
 
     @JDASlashCommand(name = "highlight", subcommand = "list", description = "See the words you watch and the channels you skip")
@@ -81,7 +82,7 @@ public class HighlightCommand {
             lines.append(String.join(", ", ignored.stream().map(id -> "<#" + id + ">").toList())).append('\n');
         }
         if (!config.enabled()) lines.append("\n-# Highlights are switched off in this server, so nothing is sent for now.");
-        Containers.replyEphemeral(event, Containers.INFO, "**Your highlights** (" + words.size() + " of " + config.maxKeywords() + ")", lines.toString().stripTrailing());
+        Containers.replyEphemeral(event, Containers.INFO, Text.of(event, "highlight.your_highlights_of", words.size(), config.maxKeywords()), lines.toString().stripTrailing());
     }
 
     @JDASlashCommand(name = "highlight", subcommand = "ignore", description = "Skip (or stop skipping) a channel for your highlights")
@@ -91,11 +92,11 @@ public class HighlightCommand {
         Set<Long> ignored = repository.ignoredBy(guild.getIdLong(), user);
         boolean now = !ignored.contains(channel.getIdLong());
         if (now && ignored.size() >= HighlightConfig.MAX_MEMBER_IGNORES) {
-            Containers.replyEphemeral(event, Containers.WARNING, "You can skip at most " + HighlightConfig.MAX_MEMBER_IGNORES + " channels.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "highlight.you_can_skip_at_most_channels", HighlightConfig.MAX_MEMBER_IGNORES));
             return;
         }
         repository.setIgnored(guild.getIdLong(), user, channel.getIdLong(), now);
-        Containers.replyEphemeral(event, Containers.SUCCESS, now ? "Skipping " + channel.getAsMention() + " for your highlights." : "No longer skipping " + channel.getAsMention() + ".");
+        Containers.replyEphemeral(event, Containers.SUCCESS, now ? Text.of(event, "highlight.skipping_for_your_highlights", channel.getAsMention()) : Text.of(event, "highlight.no_longer_skipping", channel.getAsMention()));
     }
 
     @AutocompleteHandler(value = MY_WORDS, mode = AutocompleteMode.FUZZY, showUserInput = false)

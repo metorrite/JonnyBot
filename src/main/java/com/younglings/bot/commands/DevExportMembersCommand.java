@@ -2,6 +2,7 @@ package com.younglings.bot.commands;
 
 import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.runescape.PlayerLink;
 import com.younglings.bot.runescape.PlayerLinkService;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
@@ -52,7 +53,7 @@ public class DevExportMembersCommand {
     @JDASlashCommand(name = "dev", subcommand = "exportmembers", description = "Writes a local CSV of every member's username, display name, and linked RSN(s)")
     public void onDevExportMembers(GuildSlashEvent event) {
         if (botConfig.getLiveEnvironment()) {
-            Containers.replyEphemeral(event, Containers.WARNING, "This command is dev-only.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "commands.this_command_is_dev_only"));
             return;
         }
 
@@ -61,7 +62,7 @@ public class DevExportMembersCommand {
         if (memberRoles.size() != 1) {
             // Better to stop than write a column that's FALSE for everyone because of a rename.
             Containers.replyEphemeral(event, Containers.WARNING,
-                    "Expected exactly one role named **" + MEMBER_ROLE_NAME + "** but found " + memberRoles.size() + " — nothing was written.");
+                    Text.of(event, "commands.expected_exactly_one_role_named_but", MEMBER_ROLE_NAME, memberRoles.size()));
             return;
         }
         Role memberRole = memberRoles.getFirst();

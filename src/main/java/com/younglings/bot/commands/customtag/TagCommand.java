@@ -5,6 +5,7 @@ import com.younglings.bot.customtag.CustomTag.Delivery;
 import com.younglings.bot.customtag.CustomTagRepository;
 import com.younglings.bot.customtag.CustomTagVariables;
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.permission.AdminRoleFilter;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
 import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
@@ -61,7 +62,7 @@ public class TagCommand {
 
     private boolean off(GuildSlashEvent event) {
         if (repository.enabled(event.getGuild().getIdLong())) return false;
-        Containers.replyEphemeral(event, Containers.INFO, "Tags aren't switched on in this server.");
+        Containers.replyEphemeral(event, Containers.INFO, Text.of(event, "customtag.tags_aren_t_switched_on_in"));
         return true;
     }
 
@@ -74,7 +75,7 @@ public class TagCommand {
         Guild guild = event.getGuild();
         CustomTag tag = repository.byName(guild.getIdLong(), name).orElse(null);
         if (tag == null) {
-            Containers.replyEphemeral(event, Containers.WARNING, "There's no tag called **" + CustomTag.normalise(name) + "**. `/tag list` shows them.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "customtag.there_no_tag_called_tag_list", CustomTag.normalise(name)));
             return;
         }
         Member member = event.getMember();
@@ -118,10 +119,10 @@ public class TagCommand {
         List<String> names = repository.forGuild(guild.getIdLong()).stream()
                 .filter(t -> t.enabled() && (staff || t.allowedRoles().isEmpty() || roles.stream().anyMatch(t.allowedRoles()::contains))).map(CustomTag::name).toList();
         if (names.isEmpty()) {
-            Containers.replyEphemeral(event, Containers.INFO, "This server has no tags you can use yet.");
+            Containers.replyEphemeral(event, Containers.INFO, Text.of(event, "customtag.this_server_has_no_tags_you"));
             return;
         }
-        Containers.replyEphemeral(event, Containers.INFO, "**Tags**", "`" + String.join("`, `", names) + "`", "-# `/tag use name` posts one.");
+        Containers.replyEphemeral(event, Containers.INFO, Text.of(event, "customtag.tags"), "`" + String.join("`, `", names) + "`", Text.of(event, "customtag.tag_use_name_posts_one"));
     }
 
     @JDASlashCommand(name = "tag", subcommand = "create", description = "Staff: make a plain text tag (the dashboard has the full editor)")
@@ -131,28 +132,28 @@ public class TagCommand {
         if (off(event)) return;
         Guild guild = event.getGuild();
         if (!isStaff(guild, event.getMember())) {
-            Containers.replyEphemeral(event, Containers.WARNING, "Only staff can make tags.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "customtag.only_staff_can_make_tags"));
             return;
         }
         String clean = CustomTag.normalise(name);
         if (!CustomTag.validName(clean)) {
-            Containers.replyEphemeral(event, Containers.WARNING, "A tag's name is up to " + CustomTag.MAX_NAME + " letters, numbers, - or _.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "customtag.a_tag_name_is_up_to", CustomTag.MAX_NAME));
             return;
         }
         if (text.isBlank() || text.length() > CustomTag.MAX_CONTENT) {
-            Containers.replyEphemeral(event, Containers.WARNING, "A tag's text is 1 to " + CustomTag.MAX_CONTENT + " characters.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "customtag.a_tag_text_is_1_to", CustomTag.MAX_CONTENT));
             return;
         }
         if (repository.byName(guild.getIdLong(), clean).isPresent()) {
-            Containers.replyEphemeral(event, Containers.WARNING, "There's already a tag called **" + clean + "**. Change it on the dashboard.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "customtag.there_already_a_tag_called_change", clean));
             return;
         }
         if (repository.forGuild(guild.getIdLong()).size() >= CustomTag.MAX_PER_GUILD) {
-            Containers.replyEphemeral(event, Containers.WARNING, "A server can have at most " + CustomTag.MAX_PER_GUILD + " tags.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "customtag.a_server_can_have_at_most", CustomTag.MAX_PER_GUILD));
             return;
         }
         repository.save(new CustomTag(null, guild.getIdLong(), clean, text.strip(), false, "", null, Delivery.CHANNEL, Set.of(), 0, true, 0));
-        Containers.replyEphemeral(event, Containers.SUCCESS, "Made the tag **" + clean + "**. Try `/tag use " + clean + "`.");
+        Containers.replyEphemeral(event, Containers.SUCCESS, Text.of(event, "customtag.made_the_tag_try_tag_use", clean, clean));
     }
 
     @JDASlashCommand(name = "tag", subcommand = "delete", description = "Staff: delete a tag")
@@ -160,16 +161,16 @@ public class TagCommand {
         if (off(event)) return;
         Guild guild = event.getGuild();
         if (!isStaff(guild, event.getMember())) {
-            Containers.replyEphemeral(event, Containers.WARNING, "Only staff can delete tags.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "customtag.only_staff_can_delete_tags"));
             return;
         }
         CustomTag tag = repository.byName(guild.getIdLong(), name).orElse(null);
         if (tag == null) {
-            Containers.replyEphemeral(event, Containers.INFO, "There's no tag called **" + CustomTag.normalise(name) + "**.");
+            Containers.replyEphemeral(event, Containers.INFO, Text.of(event, "customtag.there_no_tag_called", CustomTag.normalise(name)));
             return;
         }
         repository.delete(guild.getIdLong(), tag.id());
-        Containers.replyEphemeral(event, Containers.SUCCESS, "Deleted the tag **" + tag.name() + "**.");
+        Containers.replyEphemeral(event, Containers.SUCCESS, Text.of(event, "customtag.deleted_the_tag", tag.name()));
     }
 
     @AutocompleteHandler(value = TAGS, mode = AutocompleteMode.FUZZY, showUserInput = false)

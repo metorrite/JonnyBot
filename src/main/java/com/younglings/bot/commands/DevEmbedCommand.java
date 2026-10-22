@@ -2,6 +2,7 @@ package com.younglings.bot.commands;
 
 import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
 import io.github.freya022.botcommands.api.commands.application.CommandScope;
 import io.github.freya022.botcommands.api.commands.application.slash.GuildSlashEvent;
@@ -26,7 +27,7 @@ public class DevEmbedCommand {
     @JDASlashCommand(name = "dev", subcommand = "embed", description = "Paste text into a form and the bot posts it here as an embed")
     public void onDevEmbed(GuildSlashEvent event) {
         if (botConfig.getLiveEnvironment()) {
-            Containers.replyEphemeral(event, Containers.WARNING, "This command is dev-only.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "commands.this_command_is_dev_only"));
             return;
         }
         event.replyModal(DevEmbedListener.buildModal()).queue();

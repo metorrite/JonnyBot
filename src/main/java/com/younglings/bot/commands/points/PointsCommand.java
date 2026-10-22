@@ -1,6 +1,7 @@
 package com.younglings.bot.commands.points;
 
 import com.younglings.bot.discord.Containers;
+import com.younglings.bot.i18n.Text;
 import com.younglings.bot.points.PointsRepository;
 import com.younglings.bot.points.PointsRepository.Balance;
 import com.younglings.bot.points.PointsRepository.Settings;
@@ -61,7 +62,7 @@ public class PointsCommand {
         if (!enabled(event, settings)) return;
         List<Balance> top = repository.top(event.getGuild().getIdLong(), 10);
         if (top.isEmpty()) {
-            Containers.replyEphemeral(event, Containers.INFO, "Nobody has any " + settings.unit() + " yet.");
+            Containers.replyEphemeral(event, Containers.INFO, Text.of(event, "points.nobody_has_any_yet", settings.unit()));
             return;
         }
         List<String> lines = new ArrayList<>();
@@ -78,13 +79,13 @@ public class PointsCommand {
                         @SlashOption(description = "Why, for the history") String reason) {
         Member staff = event.getMember();
         if (staff == null || !staff.hasPermission(Permission.MANAGE_SERVER)) {
-            Containers.replyEphemeral(event, Containers.WARNING, "You need the Manage Server permission to award points.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "points.you_need_the_manage_server_permission"));
             return;
         }
         Settings settings = repository.settings(event.getGuild().getIdLong());
         if (!enabled(event, settings)) return;
         if (member.getUser().isBot()) {
-            Containers.replyEphemeral(event, Containers.WARNING, "Bots can't hold points.");
+            Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "points.bots_can_t_hold_points"));
             return;
         }
         var result = service.apply(event.getGuild().getIdLong(), member.getIdLong(), amount, reason, Category.MANUAL, null, event.getUser().getIdLong());
@@ -92,10 +93,9 @@ public class PointsCommand {
             Containers.replyEphemeral(event, Containers.WARNING, result.message());
             return;
         }
-        String verb = amount > 0 ? "Gave " : "Took ";
         Containers.replyEphemeral(event, Containers.SUCCESS,
-                verb + PointsRules.format(Math.abs(amount), settings.unit()) + (amount > 0 ? " to " : " from ") + member.getAsMention() + ".",
-                "-# They now have " + PointsRules.format(result.balance(), settings.unit()) + ".");
+                Text.of(event, amount > 0 ? "points.gave_to" : "points.took_from", PointsRules.format(Math.abs(amount), settings.unit()), member.getAsMention()),
+                Text.of(event, "points.they_now_have", PointsRules.format(result.balance(), settings.unit())));
     }
 
     @JDASlashCommand(name = "points", subcommand = "rewards", description = "See what you can spend your points on")
@@ -105,7 +105,7 @@ public class PointsCommand {
         if (!enabled(event, settings)) return;
         var list = rewards.rewards(guildId, true);
         if (list.isEmpty()) {
-            Containers.replyEphemeral(event, Containers.INFO, "There are no rewards to spend " + settings.unit() + " on yet.");
+            Containers.replyEphemeral(event, Containers.INFO, Text.of(event, "points.there_are_no_rewards_to_spend", settings.unit()));
             return;
         }
         List<String> lines = new ArrayList<>();
@@ -129,8 +129,8 @@ public class PointsCommand {
             return;
         }
         Containers.replyEphemeral(event, Containers.SUCCESS,
-                "You got **" + result.redemption().rewardName() + "** for " + PointsRules.format(result.redemption().cost(), settings.unit()) + ".",
-                "-# Staff will hand it over. You have " + PointsRules.format(result.balance(), settings.unit()) + " left.");
+                Text.of(event, "points.you_got_for", result.redemption().rewardName(), PointsRules.format(result.redemption().cost(), settings.unit())),
+                Text.of(event, "points.staff_will_hand_it_over_you", PointsRules.format(result.balance(), settings.unit())));
     }
 
     @JDASlashCommand(name = "points", subcommand = "submit", description = "Send a screenshot to staff to earn points")
@@ -142,7 +142,7 @@ public class PointsCommand {
         if (!enabled(event, settings)) return;
         TextChannel review = settings.reviewChannelId() == null ? null : event.getGuild().getTextChannelById(settings.reviewChannelId());
         if (review == null) {
-            Containers.replyEphemeral(event, Containers.INFO, "Submissions aren't set up in this server yet. An admin picks the review channel on the dashboard's Points page.");
+            Containers.replyEphemeral(event, Containers.INFO, Text.of(event, "points.submissions_aren_t_set_up_in"));
             return;
         }
         String problem = PointsRules.submissionProblem(description, proof.getContentType(), proof.getFileName(), proof.getSize(), repository.pendingFor(guildId, event.getUser().getIdLong()));
@@ -172,7 +172,7 @@ public class PointsCommand {
 
     private static boolean enabled(GuildSlashEvent event, Settings settings) {
         if (settings.enabled()) return true;
-        Containers.replyEphemeral(event, Containers.INFO, "Points aren't turned on in this server yet. An admin can switch them on from the dashboard.");
+        Containers.replyEphemeral(event, Containers.INFO, Text.of(event, "points.points_aren_t_turned_on_in"));
         return false;
     }
 
