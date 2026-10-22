@@ -22,9 +22,28 @@ public final class ProfileRules {
     public static final int MIN_SLUG = 3;
     public static final int MAX_SLUG = 32;
 
-    /** Words that would collide with the directory's own pages. */
-    private static final Set<String> RESERVED_SLUGS = Set.of("admin", "api", "new", "search", "recruiting", "events", "leaderboards", "leaderboard", "report",
-            "about", "www", "login", "logout", "dashboard", "settings", "docs", "faq", "install", "privacy", "terms", "clans", "directory", "jonnybot");
+    /**
+     * Addresses no clan may take. A clan's address is also its website's subdomain ({@code <slug>.runeclans.com}, T-290), so this is the one
+     * list for both: words that collide with the directory's own pages, and the platform's own subdomains (mail, status, the API and so on).
+     */
+    public static final Set<String> RESERVED_SLUGS = Set.of("admin", "api", "new", "search", "recruiting", "events", "leaderboards", "leaderboard", "report",
+            "about", "www", "login", "logout", "dashboard", "settings", "docs", "faq", "install", "privacy", "terms", "clans", "directory", "jonnybot",
+            // the platform's subdomains (T-290)
+            "link", "hub", "auth", "mail", "email", "smtp", "status", "cdn", "assets", "static", "img", "images", "media", "dev", "staging", "beta",
+            "test", "preview", "app", "apps", "help", "support", "blog", "news", "shop", "store", "builder", "manage", "plugins", "account", "accounts",
+            "signin", "signup", "register", "oauth", "sso", "webhook", "webhooks", "ws", "socket", "runeclans", "rsclans");
+
+    /**
+     * Parts of an address that would pass a clan off as Jagex, the platform or its staff, or that are offensive. Checked per dash-separated
+     * word ({@link #BLOCKED_WORDS}) or anywhere in the address ({@link #BLOCKED_ANYWHERE}, for words that are never innocent inside another).
+     */
+    static final Set<String> BLOCKED_WORDS = Set.of("official", "staff", "mod", "mods", "moderator", "moderators", "admin", "admins", "jmod", "jmods", "support",
+            "verified", "security", "nazi", "nazis", "rape", "porn", "sex");
+    static final List<String> BLOCKED_ANYWHERE = List.of("jagex", "jmod", "runeclans", "rsclans", "fuck", "shit", "cunt", "nigg", "faggot", "retard", "hitler",
+            "kkk");
+
+    /** How long an address a clan gave up stays held for it (others can't take it; its old address forwards to the new one). */
+    public static final java.time.Duration SLUG_GRACE = java.time.Duration.ofDays(30);
 
     /** Clan ranks that may speak for the clan and so may verify it. */
     private static final Set<String> LEADERSHIP_RANKS = Set.of("owner", "deputy owner");
@@ -49,7 +68,16 @@ public final class ProfileRules {
         if (slug == null || slug.length() < MIN_SLUG || slug.length() > MAX_SLUG) return "The address must be " + MIN_SLUG + " to " + MAX_SLUG + " characters.";
         if (!slug.matches("[a-z0-9]+(-[a-z0-9]+)*")) return "The address can only use lower-case letters, digits and single dashes.";
         if (RESERVED_SLUGS.contains(slug)) return "\"" + slug + "\" is reserved. Choose another address.";
+        if (blocked(slug)) return "That address can't be used: it could be mistaken for Jagex, the site or its staff, or it isn't suitable. Choose another.";
         return null;
+    }
+
+    /** Whether a (well-formed) address holds a blocked word: as one of its dash-separated words, or anywhere for the never-innocent ones. */
+    static boolean blocked(String slug) {
+        for (String word : slug.split("-")) if (BLOCKED_WORDS.contains(word)) return true;
+        String joined = slug.replace("-", "");
+        for (String part : BLOCKED_ANYWHERE) if (joined.contains(part)) return true;
+        return false;
     }
 
     // ---------- fields ----------
