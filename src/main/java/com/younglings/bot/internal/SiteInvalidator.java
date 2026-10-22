@@ -1,6 +1,7 @@
 package com.younglings.bot.internal;
 
 import com.younglings.bot.config.BotConfig;
+import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.utils.data.DataArray;
 import net.dv8tion.jda.api.utils.data.DataObject;
@@ -16,7 +17,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -68,11 +68,7 @@ public class SiteInvalidator {
     private final String secret;
     volatile long delayMillis = DELAY_MILLIS;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(TIMEOUT).build();
-    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
-        Thread t = new Thread(r, "site-invalidator");
-        t.setDaemon(true);
-        return t;
-    });
+    private final ScheduledExecutorService scheduler = BotScheduler.lane("site-invalidator");
     private final Set<String> pending = ConcurrentHashMap.newKeySet();
     private final AtomicBoolean scheduled = new AtomicBoolean();
     private volatile long lastWarn;

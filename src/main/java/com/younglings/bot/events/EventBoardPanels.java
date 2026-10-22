@@ -6,6 +6,7 @@ import com.younglings.bot.events.EventRepository.Panel;
 import com.younglings.bot.events.EventRules.ObjectiveSpec;
 import com.younglings.bot.events.EventRules.Status;
 import com.younglings.bot.events.EventScoring.Standing;
+import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -24,10 +25,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -44,11 +43,7 @@ public class EventBoardPanels {
     private final EventService service;
     private final EventSpaceRepository space;
     private final BingoTiles tiles;
-    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor((ThreadFactory) runnable -> {
-        Thread thread = new Thread(runnable, "event-board-panels");
-        thread.setDaemon(true);
-        return thread;
-    });
+    private final ScheduledExecutorService executor = BotScheduler.lane("event-board-panels");
     private final Map<Long, ScheduledFuture<?>> pending = new ConcurrentHashMap<>();
     private volatile JDA jda;
 
@@ -102,7 +97,7 @@ public class EventBoardPanels {
         Guild guild = client.getGuildById(guildId);
         Event event = repository.event(guildId, eventId).orElse(null);
         if (guild == null || event == null) return "That event or server wasn't found.";
-        if (!BingoTemplate.KEY.equals(event.template())) return "Only bingo events have a board.";
+        if (!ClanVsClan.plays(event, BingoTemplate.KEY)) return "Only bingo events have a board.";
         if (!shown(event.status())) return "The board is posted once the event starts.";
         EventBoards.Display display = EventBoards.displayOf(DataObject.fromJson(event.config()));
         List<String> parts = new java.util.ArrayList<>();

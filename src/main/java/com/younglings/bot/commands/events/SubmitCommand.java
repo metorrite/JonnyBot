@@ -74,7 +74,7 @@ public class SubmitCommand {
             objective = findTile(p.event, all, tile);
             if (objective == null) {
                 Containers.replyEphemeral(event, Containers.WARNING, "I couldn't tell which tile you mean by \"" + tile + "\". Pick one from the list that appears as you type"
-                        + (BingoTemplate.KEY.equals(p.event.template()) ? ", or use the number drawn on the tile." : "."));
+                        + (com.younglings.bot.events.ClanVsClan.plays(p.event, BingoTemplate.KEY) ? ", or use the number drawn on the tile." : "."));
                 return;
             }
             claimId = service.submitClaim(guildId, p.event.id(), objective.key(), p.userId, 1, note == null ? "" : note, screenshot.getUrl());
@@ -167,7 +167,7 @@ public class SubmitCommand {
     private ObjectiveSpec findTile(Event target, List<ObjectiveSpec> objectives, String typed) {
         ObjectiveSpec byLabel = EventSubmit.byLabel(objectives, typed);
         if (byLabel != null) return byLabel;
-        if (BingoTemplate.KEY.equals(target.template()) && typed != null && typed.strip().matches("\\d{1,3}")) {
+        if (com.younglings.bot.events.ClanVsClan.plays(target, BingoTemplate.KEY) && typed != null && typed.strip().matches("\\d{1,3}")) {
             String key = BingoBoardView.keyForNumber(DataObject.fromJson(target.config()), objectives, Integer.parseInt(typed.strip()));
             return key == null ? null : objectives.stream().filter(o -> o.key().equals(key)).findFirst().orElse(null);
         }

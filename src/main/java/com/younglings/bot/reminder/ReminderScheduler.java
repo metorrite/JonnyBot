@@ -2,6 +2,7 @@ package com.younglings.bot.reminder;
 
 import com.younglings.bot.alerts.AutoPostRouter;
 import com.younglings.bot.reminder.ReminderRepository.Reminder;
+import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -12,9 +13,7 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
 import java.util.EnumSet;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -27,11 +26,7 @@ public class ReminderScheduler {
     private static final Logger log = LoggerFactory.getLogger(ReminderScheduler.class);
 
     private final ReminderRepository repository;
-    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor((ThreadFactory) runnable -> {
-        Thread thread = new Thread(runnable, "reminders");
-        thread.setDaemon(true);
-        return thread;
-    });
+    private final ScheduledExecutorService executor = BotScheduler.lane("reminders");
 
     public ReminderScheduler(ReminderRepository repository) {
         this.repository = repository;

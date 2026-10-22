@@ -7,6 +7,7 @@ import com.younglings.bot.plugin.PluginRepository.Token;
 import com.younglings.bot.plugin.PluginService;
 import com.younglings.bot.plugin.PluginService.PluginException;
 import com.younglings.bot.plugin.PluginTokens;
+import com.younglings.bot.plugin.PluginVisibilityRepository;
 import com.younglings.bot.plugin.RsLinkAuth;
 import com.younglings.bot.plugin.RuneSyncPanelService;
 import com.younglings.bot.plugin.RuneSyncService;
@@ -37,7 +38,8 @@ import java.util.Set;
  *       {@code GET whoami} (which names it may report for and what the player has allowed); and RuneSync's own routes (T-202):
  *       {@code GET runesync/config}, {@code PUT runesync/consent}, {@code POST runesync/diagnostics} and {@code GET runesync/panel}.</li>
  *   <li><b>The player</b>, identified by a {@code userId} the website takes from its verified sign-in (the same trust as {@code /internal/me/}):
- *       {@code GET me}, {@code GET me/runesync}, {@code POST me/tokens}, {@code DELETE me/tokens/{id}}, {@code PUT me/consent} and {@code DELETE me/data}.</li>
+ *       {@code GET me}, {@code GET me/runesync}, {@code POST me/tokens}, {@code DELETE me/tokens/{id}}, {@code PUT me/consent},
+ *       {@code GET}/{@code PUT me/visibility} ("Show my clan that I use RuneSync", T-140) and {@code DELETE me/data}.</li>
  * </ul>
  * Nothing here is about one server: a player's plugin data belongs to the player.
  */
@@ -51,6 +53,7 @@ public class PluginApi {
     private final RsLinkAuth rsLink;
     private final RuneSyncService runeSync;
     private final RuneSyncPanelService panel;
+    private final PluginVisibilityRepository visibility;
     /** 60 requests a minute per token, with a short burst. */
     private final RateLimiter ingestLimit = new RateLimiter(60, 1_000);
     private final RateLimiter accountLimit = new RateLimiter(20, 3_000);
@@ -60,11 +63,12 @@ public class PluginApi {
     /** Who a plugin call is from: the Discord account, the RSN RS Link vouches for (null on the token path) and the key for rate limits. */
     private record Caller(long userId, String linkedRsn, String limitKey) {}
 
-    public PluginApi(PluginService service, RsLinkAuth rsLink, RuneSyncService runeSync, RuneSyncPanelService panel) {
+    public PluginApi(PluginService service, RsLinkAuth rsLink, RuneSyncService runeSync, RuneSyncPanelService panel, PluginVisibilityRepository visibility) {
         this.service = service;
         this.rsLink = rsLink;
         this.runeSync = runeSync;
         this.panel = panel;
+        this.visibility = visibility;
     }
 
     /** Called after the shared secret has been checked. */
@@ -324,9 +328,26 @@ public class PluginApi {
             }
             service.setConsent(userId, chosen);
             send(exchange, 200, userView(userId));
+        } else if (parts.length == 2 && parts[1].equals("visibility") && method.equals("GET")) {
+            send(exchange, 200, DataObject.empty().put("showToClan", visibility.showToClan(userId)));
+        } else if (parts.length == 2 && parts[1].equals("visibility") && method.equals("PUT")) {
+            if (body == null || !body.hasKey("showToClan") || body.isNull("showToClan")) {
+                send(exchange, 400, error("Say whether to show it (showToClan true or false)."));
+                return;
+            }
+            boolean on;
+            try {
+                on = body.getBoolean("showToClan");
+            } catch (RuntimeException e) {
+                send(exchange, 400, error("showToClan must be true or false."));
+                return;
+            }
+            visibility.setShowToClan(userId, on, Instant.now());
+            send(exchange, 200, DataObject.empty().put("showToClan", visibility.showToClan(userId)));
         } else if (parts.length == 2 && parts[1].equals("data") && method.equals("DELETE")) {
             int removed = service.deleteAllData(userId);
             runeSync.deleteFor(userId);
+            visibility.deleteFor(userId);
             send(exchange, 200, DataObject.empty().put("removedEvents", removed).put("view", userView(userId)));
         } else {
             send(exchange, 404, error("Not found"));

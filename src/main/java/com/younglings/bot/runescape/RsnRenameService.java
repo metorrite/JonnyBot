@@ -1,5 +1,6 @@
 package com.younglings.bot.runescape;
 
+import com.younglings.bot.discord.Mentions;
 import com.younglings.bot.alerts.AutoPostRouter;
 import com.younglings.bot.configure.GuildSettingsService;
 import com.younglings.bot.discord.Containers;
@@ -234,8 +235,7 @@ public class RsnRenameService {
                         Button.danger("rsnrename_reject:" + candidate.id(), "Reject")
                 ));
 
-        channel.sendMessageComponents(List.of(container)).useComponentsV2(true)
-                .setAllowedMentions(mentionsFor(ping))
+        Mentions.onlyRoles(channel.sendMessageComponents(List.of(container)).useComponentsV2(true), pinged(guild, ping))
                 .queue(success -> {}, error -> log.warn("Failed to post rename alert for candidate {}", candidate.id(), error));
     }
 
@@ -250,8 +250,7 @@ public class RsnRenameService {
                         "newly-seen name, and the per-skill and activity checks couldn't settle it: " + String.join(", ", candidateNames) + ". Not automated " +
                         "— please check manually with **Player Lookup**."));
 
-        channel.sendMessageComponents(List.of(container)).useComponentsV2(true)
-                .setAllowedMentions(mentionsFor(ping))
+        Mentions.onlyRoles(channel.sendMessageComponents(List.of(container)).useComponentsV2(true), pinged(guild, ping))
                 .queue(success -> {}, error -> log.warn("Failed to post ambiguous-rename alert for '{}'", oldRsn, error));
     }
 
@@ -292,8 +291,10 @@ public class RsnRenameService {
         return permissionGroups.roleIds(guild.getIdLong(), PermissionGroup.ADMIN).stream().map(id -> "<@&" + id + "> ").collect(Collectors.joining());
     }
 
-    private EnumSet<Message.MentionType> mentionsFor(String ping) {
-        return ping.isEmpty() ? EnumSet.noneOf(Message.MentionType.class) : EnumSet.of(Message.MentionType.ROLE);
+    /** The admin roles {@link #adminPing} named, the only roles the alert may ping (RSNs in it are players' text). */
+    private long[] pinged(Guild guild, String ping) {
+        if (ping.isEmpty()) return new long[0];
+        return permissionGroups.roleIds(guild.getIdLong(), PermissionGroup.ADMIN).stream().mapToLong(Long::longValue).toArray();
     }
 
     // --- Resolution (confirm/reject buttons, or a manual admin rename) ---

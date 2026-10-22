@@ -80,7 +80,7 @@ class EventCohostApiTest {
         events = mock(EventRepository.class);
         service = mock(EventService.class);
         alliances = mock(AllianceRepository.class);
-        api = new EventCohostApi(cohosts, events, service, alliances);
+        api = new EventCohostApi(cohosts, events, service, alliances, mock(com.younglings.bot.events.CohostPanels.class));
         actor = mock(Member.class);
         when(actor.getIdLong()).thenReturn(7L);
         when(actor.getId()).thenReturn("7");

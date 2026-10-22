@@ -7,6 +7,7 @@ import com.younglings.bot.clanprofile.ClanProfile;
 import com.younglings.bot.clanprofile.ClanProfileRepository;
 import com.younglings.bot.clanprofile.ClanProfileService;
 import com.younglings.bot.clanprofile.ClanRecruitingRepository;
+import com.younglings.bot.clanprofile.JoinLinks;
 import com.younglings.bot.clansite.ClanSite;
 import com.younglings.bot.clansite.ClanSiteService;
 import com.younglings.bot.forms.WebFormRepository;
@@ -68,6 +69,7 @@ class DirectoryRoutesTest {
                 section));
         when(repository.bySlug("younglings")).thenReturn(Optional.of(clan));
         when(service.publicView(GUILD, true)).thenReturn(Optional.of(clan));
+        when(service.publicView(eq(clan), any(), eq(true))).thenReturn(Optional.of(clan));
     }
 
     private record Reply(int status, DataObject body) {}
@@ -170,7 +172,7 @@ class DirectoryRoutesTest {
         ClanRecruitingRepository recruiting = mock(ClanRecruitingRepository.class);
         when(recruiting.of(GUILD)).thenReturn(new com.younglings.bot.clanprofile.ClanRecruiting(GUILD, "We raid on Fridays", null, null, null));
         DataObject json = DataObject.empty();
-        new DirectoryRecruitingSection(recruiting, mock(WebFormRepository.class)).addToClan(clan, json);
+        new DirectoryRecruitingSection(recruiting, mock(WebFormRepository.class), new JoinLinks(mock(com.younglings.bot.configure.GuildSettingsService.class, org.mockito.Answers.RETURNS_DEEP_STUBS), recruiting)).addToClan(clan, json);
         assertEquals("We raid on Fridays", json.getObject("recruitingPost").getString("post"));
         assertTrue(json.getObject("recruitingPost").isNull("applyFormPath"), "a clan that is not recruiting shows no form");
         verify(recruiting).of(GUILD);

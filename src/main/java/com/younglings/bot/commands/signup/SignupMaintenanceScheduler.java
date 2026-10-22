@@ -1,6 +1,7 @@
 package com.younglings.bot.commands.signup;
 
 import com.younglings.bot.alerts.AutoPostRouter;
+import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -10,9 +11,7 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -38,12 +37,7 @@ public class SignupMaintenanceScheduler {
     private static final Duration AUTO_CLOSE_AFTER = Duration.ofDays(45);
 
     private final SignupService signupService;
-    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(
-            (ThreadFactory) runnable -> {
-                Thread thread = new Thread(runnable, "signup-maintenance");
-                thread.setDaemon(true); // never blocks JVM shutdown; no cleanup hook needed
-                return thread;
-            });
+    private final ScheduledExecutorService executor = BotScheduler.lane("signup-maintenance");
 
     public SignupMaintenanceScheduler(SignupService signupService) {
         this.signupService = signupService;
