@@ -5,6 +5,7 @@ import com.younglings.bot.anniversary.AnniversaryRepository.Settings;
 import com.younglings.bot.anniversary.AnniversaryRules.Anniversary;
 import com.younglings.bot.discord.Containers;
 import com.younglings.bot.internal.SiteStatsRepository;
+import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -24,7 +25,6 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -45,11 +45,7 @@ public class AnniversaryService {
     private final AnniversaryRepository repository;
     private final SiteStatsRepository stats;
     private final AtomicBoolean started = new AtomicBoolean();
-    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(runnable -> {
-        Thread thread = new Thread(runnable, "clan-anniversaries");
-        thread.setDaemon(true);
-        return thread;
-    });
+    private final ScheduledExecutorService executor = BotScheduler.lane("clan-anniversaries");
 
     public AnniversaryService(AnniversaryRepository repository, SiteStatsRepository stats) {
         this.repository = repository;
