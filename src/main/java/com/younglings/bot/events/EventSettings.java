@@ -17,7 +17,8 @@ import java.util.Set;
  * The settings every event has, whatever its template, read from the event's stored settings. Keys (all optional):
  * {@code buyIn: {enabled, kind, amount, showPot}} (the buy-in is in-game gp unless a kind is given),
  * {@code teamPolicy: "everyone" | "home" | "clanVsOutsiders" | "separate"} (who may join and who may share a team),
- * {@code queue: "FIRST_COME" | "CLAN_FIRST"} (who gets a place when the event is full), and
+ * {@code queue: "FIRST_COME" | "CLAN_FIRST" | "ROUND_ROBIN"} (who gets a place when the event is full) with optional seat quotas
+ * {@code queueQuota: {host, releaseHours}} ({@link QueueRules#quotaSetting}), and
  * {@code signupClosesAt}: an ISO date and time after which players can no longer join themselves (staff still can),
  * {@code boardChannelId}: where a bingo's live board image is posted and kept up to date, and {@code reviewChannelId}: where players' screenshots
  * go for staff to look at, and {@code organisers}: Discord user ids (up to {@link #MAX_ORGANISERS}) who may run this one event from Discord (start and
@@ -154,7 +155,8 @@ public record EventSettings(BuyIn buyIn, Policy teamPolicy, QueueRules.Policy qu
             problems.addAll(PrizeRules.buyInProblems(parsed.buyIn()));
         }
         if (config.hasKey("teamPolicy") && policy(config.getString("teamPolicy", DEFAULT_POLICY)) == null) problems.add("Choose who may join: everyone, home server only, clan members apart from outsiders, or all separate.");
-        if (config.hasKey("queue") && queue(config.getString("queue", "FIRST_COME")) == null) problems.add("Choose how a full event fills: first come first served, or clan members first.");
+        if (config.hasKey("queue") && queue(config.getString("queue", "FIRST_COME")) == null) problems.add("Choose how a full event fills: first come first served, clan members first, or round robin between servers.");
+        problems.addAll(QueueRules.quotaSettingProblems(config));
         try {
             if (config.hasKey("signupClosesAt") && !config.isNull("signupClosesAt") && !config.getString("signupClosesAt").isBlank()) Instant.parse(config.getString("signupClosesAt").strip());
         } catch (DateTimeParseException | ClassCastException e) {
