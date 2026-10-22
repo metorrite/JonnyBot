@@ -307,14 +307,24 @@ public class BotConfig {
      * unset, with a deprecation warning.
      */
     public String getRuneClansSetting(String name) {
+        return runeClansSettingFrom(name, this::envOrDotenv, legacy -> {
+            if (LEGACY_WARNED.add(legacy)) {
+                org.slf4j.LoggerFactory.getLogger(BotConfig.class).warn("{} is deprecated and will be removed in the next release; rename it to {}", legacy, name);
+            }
+        });
+    }
+
+    /**
+     * {@link #getRuneClansSetting}'s rule, apart from where settings come from (T-284): the new name wins; else the old {@code RSCLANS_} name,
+     * reported to {@code usedLegacy}; else null.
+     */
+    static String runeClansSettingFrom(String name, java.util.function.Function<String, String> lookup, java.util.function.Consumer<String> usedLegacy) {
         if (!name.startsWith("RUNECLANS_")) throw new IllegalArgumentException("Only RUNECLANS_ settings are served here");
-        String value = envOrDotenv(name);
+        String value = lookup.apply(name);
         if (value != null) return value;
         String legacy = "RSCLANS_" + name.substring("RUNECLANS_".length());
-        value = envOrDotenv(legacy);
-        if (value != null && LEGACY_WARNED.add(legacy)) {
-            org.slf4j.LoggerFactory.getLogger(BotConfig.class).warn("{} is deprecated and will be removed in the next release; rename it to {}", legacy, name);
-        }
+        value = lookup.apply(legacy);
+        if (value != null) usedLegacy.accept(legacy);
         return value;
     }
 
