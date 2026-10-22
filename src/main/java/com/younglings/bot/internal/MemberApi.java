@@ -74,13 +74,15 @@ public class MemberApi {
     private final MemberEventsApi events;
     private final HighlightMemberApi highlights;
     private final ChatLevelMemberApi chatLevel;
+    private final List<MemberRouteExtension> extensions;
     // Per member: a handful of quick clicks is normal, a sustained flood is not. Reads are far cheaper than writes.
     private final RateLimiter writes = new RateLimiter(8, 1_500);
     private final RateLimiter reads = new RateLimiter(40, 500);
 
     public MemberApi(MemberProfileRepository repository, PlayerLinkRepository links, PollService pollService, SignupService signupService, MemberAccess memberAccess,
                      Debouncer debouncer, SiteCache cache, CommunitySettings community, SiteStatsRepository stats, RsInteractionListener rsLinks, MemberEventsApi events,
-                     HighlightMemberApi highlights, ChatLevelMemberApi chatLevel) {
+                     HighlightMemberApi highlights, ChatLevelMemberApi chatLevel, List<MemberRouteExtension> extensions) {
+        this.extensions = extensions;
         this.highlights = highlights;
         this.chatLevel = chatLevel;
         this.rsLinks = rsLinks;
@@ -164,7 +166,7 @@ public class MemberApi {
                 case "signups" -> method.equals("GET") ? mySignups(guild, userId) : null;
                 case "signups/join" -> method.equals("POST") ? joinSignup(guild, userId, body) : null;
                 case "signups/leave" -> method.equals("POST") ? leaveSignup(guild, userId, body) : null;
-                default -> null;
+                default -> fromExtensions(guild, userId, method, route, body);
             };
 
             if (result == null) {
@@ -176,6 +178,8 @@ public class MemberApi {
             InternalApiServer.sendJson(exchange, e.status, DataObject.empty().put("error", e.getMessage()));
         } catch (HighlightMemberApi.Refused e) {
             InternalApiServer.sendJson(exchange, e.status, DataObject.empty().put("error", e.getMessage()));
+        } catch (MemberRouteExtension.Refused e) {
+            InternalApiServer.sendJson(exchange, e.status, DataObject.empty().put("error", e.getMessage()));
         } catch (com.younglings.bot.events.EventProblem e) {
             // the event engine's own refusals already say why in words a member can read
             InternalApiServer.sendJson(exchange, e.status(), DataObject.empty().put("error", e.getMessage()));
@@ -183,6 +187,15 @@ public class MemberApi {
             log.error("Member API request {} failed", exchange.getRequestURI().getPath(), e);
             InternalApiServer.sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));
         }
+    }
+
+    /** A route no case above knows, offered to the features that bring their own (see {@link MemberRouteExtension}); null when none takes it. */
+    private DataObject fromExtensions(Guild guild, long userId, String method, String route, DataObject body) {
+        for (MemberRouteExtension extension : extensions) {
+            DataObject answer = extension.route(guild, userId, method, route, body);
+            if (answer != null) return answer;
+        }
+        return null;
     }
 
     // ---------- linking a RuneScape name ----------

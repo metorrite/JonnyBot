@@ -7,6 +7,9 @@ import com.younglings.bot.runescape.PlayerLink;
 import com.younglings.bot.runescape.PlayerLinkRepository;
 import com.younglings.bot.runescape.polling.PollCoordinator;
 import com.younglings.bot.runescape.polling.PollEngine;
+import com.younglings.bot.absence.AbsenceRepository.Notice;
+import com.younglings.bot.absence.AbsenceRules;
+import com.younglings.bot.absence.AbsenceService;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
@@ -44,6 +47,7 @@ public class AdminOpsApi {
     private final ClanAdminApi clanAdmin;
     private final PollCoordinator polls;
     private final BotConfig config;
+    private final AbsenceService absences;
 
     /** Every roster member is refreshed once per cycle (RosterPollScheduler spreads them across this window). */
     private Duration pollCycle() {
@@ -56,7 +60,9 @@ public class AdminOpsApi {
         return relative.compareTo(STALE_AFTER) > 0 ? relative : STALE_AFTER;
     }
 
-    public AdminOpsApi(SiteStatsRepository stats, PlayerLinkRepository links, AdminToolsStore store, ClanAdminApi clanAdmin, PollCoordinator polls, BotConfig config) {
+    public AdminOpsApi(SiteStatsRepository stats, PlayerLinkRepository links, AdminToolsStore store, ClanAdminApi clanAdmin, PollCoordinator polls, BotConfig config,
+                       AbsenceService absences) {
+        this.absences = absences;
         this.stats = stats;
         this.links = links;
         this.store = store;
@@ -123,22 +129,28 @@ public class AdminOpsApi {
         DataArray inactive = DataArray.empty();
         DataArray promotions = DataArray.empty();
         DataArray notCapped = DataArray.empty();
+        DataArray away = DataArray.empty();
+        // members on leave (T-190) aren't called inactive or not capped while it runs; they're listed as away instead
+        Map<Long, Notice> onLeave = absences.activeByUser(guild.getIdLong());
         for (MemberRow m : r.rows()) {
             String key = m.rsn().toLowerCase(Locale.ROOT);
+            var link = r.linkByRsn().get(key);
+            Notice leave = link == null ? null : onLeave.get(link.discordUserId());
+            if (leave != null) away.add(item(m.rsn(), "away until " + AbsenceRules.day(leave.until()) + (leave.reason().isBlank() ? "" : " · " + leave.reason())));
             if (!m.verified()) unverified.add(item(m.rsn(), m.clanRank() + " · no Discord account linked"));
             if (m.lastPolled() == null) stale.add(item(m.rsn(), "never refreshed"));
             else if (Duration.between(m.lastPolled(), now).compareTo(staleAfter()) > 0) stale.add(item(m.rsn(), "last refreshed " + Duration.between(m.lastPolled(), now).toHours() + "h ago"));
             OffsetDateTime activity = r.lastActivity().get(key);
             boolean newcomer = m.firstSeen() != null && Duration.between(m.firstSeen(), now).toDays() < 7;
-            if (!newcomer && (activity == null || Duration.between(activity, now).compareTo(INACTIVE_AFTER) > 0)) {
+            if (leave == null && !newcomer && (activity == null || Duration.between(activity, now).compareTo(INACTIVE_AFTER) > 0)) {
                 inactive.add(item(m.rsn(), activity == null ? "no adventure-log activity recorded" : "quiet for " + Duration.between(activity, now).toDays() + " days"));
             }
             if (m.promotionNeeded()) promotions.add(item(m.rsn(), m.clanRank() + " · " + m.points() + " points"));
             Boolean capped = r.citadelThisWeek().get(key);
-            if (capped == null || !capped) notCapped.add(item(m.rsn(), capped == null ? "hasn't visited the Citadel this week" : "visited but hasn't capped"));
+            if (leave == null && (capped == null || !capped)) notCapped.add(item(m.rsn(), capped == null ? "hasn't visited the Citadel this week" : "visited but hasn't capped"));
         }
         return DataObject.empty().put("total", r.rows().size()).put("weekStart", r.weekStart().toString())
-                .put("unverified", unverified).put("stale", stale).put("inactive", inactive).put("promotions", promotions).put("notCapped", notCapped);
+                .put("unverified", unverified).put("stale", stale).put("inactive", inactive).put("promotions", promotions).put("notCapped", notCapped).put("away", away);
     }
 
     // ---------- health ----------

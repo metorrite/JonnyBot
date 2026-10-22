@@ -29,6 +29,8 @@ public enum HubCommand {
             "Everyone", false, CommandTag.UTILITY, CommandTag.MEMBER_USE),
     AFK("afk", "Away status", "afk", "Mark yourself away: people who mention you are told, and it clears when you next speak.",
             "Everyone", false, CommandTag.UTILITY, CommandTag.MEMBER_USE),
+    ABSENCE("absence", "Leave of absence", "absence", "Members say they're away for some days (holiday, busy) so Needs attention doesn't flag them as inactive. Off until the Leave of absence page switches it on.",
+            "Everyone", false, CommandTag.CLAN_MANAGEMENT, CommandTag.MEMBER_USE),
     SPLIT("split", "Loot split", "split", "Divide a drop between a group, with an optional fee, and show each person's share.",
             "Everyone", false, CommandTag.RUNESCAPE, CommandTag.UTILITY, CommandTag.MEMBER_USE),
     SUGGEST("suggest", "Suggestions", "suggest", "Members post ideas in the suggestions channel for everyone to vote on; staff reply from the dashboard.",
