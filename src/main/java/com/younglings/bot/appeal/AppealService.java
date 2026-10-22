@@ -51,6 +51,8 @@ public class AppealService {
     static final String APPROVE = "appeal_approve:";
     static final String REJECT = "appeal_reject:";
     static final int HISTORY_SHOWN = 10;
+    /** The appeal's text is written by the person appealing: nothing in it (or in their name) may ping anyone. */
+    static final java.util.EnumSet<net.dv8tion.jda.api.entities.Message.MentionType> NO_PINGS = java.util.EnumSet.noneOf(net.dv8tion.jda.api.entities.Message.MentionType.class);
 
     private final AppealRepository appeals;
     private final ModCaseRepository cases;
@@ -206,7 +208,7 @@ public class AppealService {
             GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, settings.mirrorChannelId());
             ModCase c = cases.find(guild.getIdLong(), appeal.caseNo()).orElse(null);
             if (channel != null && c != null) {
-                channel.editMessageComponentsById(appeal.mirrorMessageId(), List.of(copyCard(appeal, c))).useComponentsV2(true).queue(ok -> { }, e -> { });
+                channel.editMessageComponentsById(appeal.mirrorMessageId(), List.of(copyCard(appeal, c))).useComponentsV2(true).setAllowedMentions(NO_PINGS).queue(ok -> { }, e -> { });
             }
         }
     }
@@ -263,7 +265,7 @@ public class AppealService {
             List<ModCase> history = cases.forUser(guild.getIdLong(), appeal.userId(), HISTORY_SHOWN);
             action.queue(channel -> {
                 tickets.setChannel(ticket.id(), channel.getIdLong());
-                channel.sendMessageComponents(List.of(ticketCard(appeal, appealed, history))).useComponentsV2(true).queue(ok -> { },
+                channel.sendMessageComponents(List.of(ticketCard(appeal, appealed, history))).useComponentsV2(true).setAllowedMentions(NO_PINGS).queue(ok -> { },
                         e -> log.warn("Couldn't post appeal {} in its ticket", appeal.id(), e));
             }, error -> {
                 log.warn("Couldn't open the ticket of appeal {}", appeal.id(), error);
@@ -279,7 +281,7 @@ public class AppealService {
         if (settings.mirrorChannelId() == null) return;
         GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, settings.mirrorChannelId());
         if (channel == null || !channel.canTalk()) return;
-        channel.sendMessageComponents(List.of(copyCard(appeal, appealed))).useComponentsV2(true)
+        channel.sendMessageComponents(List.of(copyCard(appeal, appealed))).useComponentsV2(true).setAllowedMentions(NO_PINGS)
                 .queue(m -> appeals.setMirrorMessage(appeal.id(), m.getIdLong()), e -> log.debug("Couldn't post the copy of appeal {}: {}", appeal.id(), e.getMessage()));
     }
 
