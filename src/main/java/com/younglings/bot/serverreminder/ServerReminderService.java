@@ -1,5 +1,6 @@
 package com.younglings.bot.serverreminder;
 
+import com.younglings.bot.discord.Mentions;
 import com.younglings.bot.alerts.AutoPostRouter;
 import com.younglings.bot.serverreminder.ServerReminder.Status;
 import com.younglings.bot.util.BotScheduler;
@@ -122,7 +123,8 @@ public class ServerReminderService {
         GuildMessageChannel target = AutoPostRouter.route(channel, "a server reminder");
         if (target == null) return;
         var action = target.sendMessage(AutoPostRouter.defang(messageOf(reminder))).setAllowedMentions(EnumSet.noneOf(Message.MentionType.class));
-        if (reminder.roleId() != null && !AutoPostRouter.noPings()) action = action.setAllowedMentions(EnumSet.of(Message.MentionType.ROLE)).mentionRoles(reminder.roleId());
+        // only the reminder's own role pings, not other roles named in its text
+        if (reminder.roleId() != null && !AutoPostRouter.noPings()) action = Mentions.onlyRoles(action, reminder.roleId());
         action.queue(ok -> {}, error -> log.warn("Couldn't post server reminder {} in guild {}: {}", reminder.id(), guild.getId(), error.getMessage()));
     }
 

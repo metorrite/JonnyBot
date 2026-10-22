@@ -1,5 +1,6 @@
 package com.younglings.bot.twitch;
 
+import com.younglings.bot.discord.Mentions;
 import com.younglings.bot.alerts.AutoPostRouter;
 import com.younglings.bot.twitch.TwitchClient.Stream;
 import com.younglings.bot.twitch.TwitchRepository.Settings;
@@ -124,8 +125,9 @@ public class TwitchService {
         if (picture != null) embed.setImage(picture);
 
         MessageCreateBuilder message = new MessageCreateBuilder().setContent(trim((streamer.pingRoleId() == null ? "" : "<@&" + streamer.pingRoleId() + "> ") + line, 2000)).setEmbeds(embed.build());
-        if (streamer.pingRoleId() != null) message.setAllowedMentions(java.util.EnumSet.of(Message.MentionType.ROLE)).mentionRoles(streamer.pingRoleId());
-        else message.setAllowedMentions(java.util.EnumSet.noneOf(Message.MentionType.class));
+        // only the alert's own role pings: the stream title (the streamer's text) never does
+        if (streamer.pingRoleId() != null) Mentions.onlyRoles(message, streamer.pingRoleId());
+        else message.setAllowedMentions(Mentions.NONE);
         channel.sendMessage(message.build()).queue(sent -> repository.recordMessage(streamer.id(), channel.getIdLong(), sent.getIdLong()),
                 t -> log.warn("Twitch post failed in guild {}: {}", streamer.guildId(), t.getMessage()));
     }
