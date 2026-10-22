@@ -224,14 +224,17 @@ public class HubEventsApi {
                 .put("host", host(jda, e.guildId()));
     }
 
-    /** The host as the hub shows it: its listed clan profile when there is one, else the server's own name and icon; and where to join it. */
-    private DataObject host(JDA jda, long guildId) {
+    /**
+     * The host as the hub shows it: its listed clan profile when there is one, else the server's own name and icon; and where to join it.
+     * Never the server's Discord id: the hub is public, and the directory shares no Discord ids (T-182).
+     */
+    DataObject host(JDA jda, long guildId) {
         Guild guild = jda == null ? null : jda.getGuildById(guildId);
         Optional<ClanProfile> listed = profiles.publicView(guildId, false);
         // the server's invite link (Server setup), else its clan profile's apply link: the same as the "join the Discord first" message
         String invite = guildSettings.getEffective(guildId).inviteUrl();
         if (invite == null || invite.isBlank()) invite = listed.map(ClanProfile::applyUrl).filter(u -> u != null && !u.isBlank()).orElse(null);
-        DataObject host = DataObject.empty().put("guildId", Long.toString(guildId)).put("inviteUrl", invite);
+        DataObject host = DataObject.empty().put("inviteUrl", invite);
         if (listed.isPresent()) {
             ClanProfile p = listed.get();
             return host.put("name", p.displayName()).put("iconUrl", p.logoUrl()).put("slug", p.slug());
