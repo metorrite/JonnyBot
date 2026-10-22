@@ -62,7 +62,7 @@ class EventCohostQueueTest {
         when(alliances.alliancesOf(anyLong())).thenReturn(List.of(new AllianceRepository.Alliance(1, "Friends", HOST, NOW)));
         when(alliances.membersOf(1)).thenReturn(List.of(new AllianceRepository.Membership(1, HOST, AllianceRules.Status.ACTIVE, null, NOW),
                 new AllianceRepository.Membership(1, ALLY, AllianceRules.Status.ACTIVE, null, NOW)));
-        api = new EventCohostApi(cohosts, events, service, alliances);
+        api = new EventCohostApi(cohosts, events, service, alliances, mock(com.younglings.bot.events.CohostPanels.class));
         actor = mock(Member.class);
         when(actor.getId()).thenReturn("7");
         when(cohosts.forEvent(EVENT)).thenReturn(List.of(new Cohost(EVENT, ALLY, Status.ACCEPTED, 7L, 8L, NOW, NOW), new Cohost(EVENT, INVITED, Status.INVITED, 7L, null, NOW, null)));
