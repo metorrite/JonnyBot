@@ -91,4 +91,43 @@ class PluginObjectiveMatcherTest {
                 json("{\"bossName\":\"Telos\"}"), LABELS).isEmpty());
         assertEquals("t1", tiles.get(0).key().toLowerCase(Locale.ROOT));
     }
+    @Test
+    void aClueCountsTowardsAClueTileOfItsTierOrAnyTier() {
+        var tiles = List.of(tile("elite", "Elite clue", Evidence.AUTO), tile("hard", "Clue scroll (hard)", Evidence.AUTO), tile("any", "Any clue", Evidence.EITHER),
+                tile("drop", "Elite clue: Spectral shield", Evidence.AUTO));
+
+        var hits = PluginObjectiveMatcher.match("bingo", "{}", tiles, PluginEventType.CLUE, null, json("{\"tier\":\"elite\",\"count\":12}"), LABELS);
+
+        assertEquals(List.of(new PluginObjectiveMatcher.Hit("elite", 1), new PluginObjectiveMatcher.Hit("any", 1)), hits);
+    }
+
+    @Test
+    void aLevelUpCountsWhenItReachesTheTilesLevel() {
+        var tiles = List.of(tile("a", "99 Fletching", Evidence.AUTO), tile("b", "Level 90 Herblore", Evidence.AUTO), tile("c", "Fletching 100", Evidence.AUTO),
+                tile("d", "Torva boots", Evidence.AUTO));
+
+        var hits = PluginObjectiveMatcher.match("scavenger", "{}", tiles, PluginEventType.LEVEL_UP, null, json("{\"skill\":\"Fletching\",\"level\":99}"), LABELS);
+
+        assertEquals(List.of(new PluginObjectiveMatcher.Hit("a", 1)), hits);
+    }
+
+    @Test
+    void collectionLogQuestsAndAchievementsNeedTheirPrefixSoNothingCountsTwice() {
+        var tiles = List.of(tile("item", "Torva boots", Evidence.AUTO), tile("log", "Collection log: Torva boots", Evidence.AUTO), tile("quest", "Quest: Desperate Times", Evidence.AUTO),
+                tile("ach", "Achievement: Master Quester", Evidence.AUTO));
+
+        assertEquals(List.of(new PluginObjectiveMatcher.Hit("log", 1)),
+                PluginObjectiveMatcher.match("bingo", "{}", tiles, PluginEventType.COLLECTION_LOG, null, json("{\"itemName\":\"Torva boots\"}"), LABELS));
+        assertEquals(List.of(new PluginObjectiveMatcher.Hit("quest", 1)),
+                PluginObjectiveMatcher.match("bingo", "{}", tiles, PluginEventType.QUEST_COMPLETE, null, json("{\"quest\":\"desperate times\"}"), LABELS));
+        assertEquals(List.of(new PluginObjectiveMatcher.Hit("ach", 1)),
+                PluginObjectiveMatcher.match("bingo", "{}", tiles, PluginEventType.ACHIEVEMENT, null, json("{\"name\":\"Master Quester\"}"), LABELS));
+    }
+
+    @Test
+    void theNewTypesDontCountInCompetitionsOrBossNights() {
+        var tiles = List.of(tile("elite", "Elite clue", Evidence.AUTO));
+        assertTrue(PluginObjectiveMatcher.match(CompetitionTemplate.KEY, "{}", tiles, PluginEventType.CLUE, null, json("{\"tier\":\"elite\",\"count\":1}"), LABELS).isEmpty());
+        assertTrue(PluginObjectiveMatcher.match(BossNightTemplate.KEY, "{}", tiles, PluginEventType.CLUE, null, json("{\"tier\":\"elite\",\"count\":1}"), LABELS).isEmpty());
+    }
 }
