@@ -84,6 +84,7 @@ public final class LinkService {
         this.clock = clock;
         this.random = random;
         this.dmFlow = new LinkDm(this, background);
+        for (LinkVerifier v : this.verifiers) v.attach(this::raiseFromBackground);
     }
 
     /** Creates or upgrades the schema. Call once before serving. */
@@ -198,11 +199,47 @@ public final class LinkService {
                 else store.touchCharacter(c, ch.id(), now);
             }
             store.touchToken(c, auth.tokenId(), now);
-            Link link = runVerifiers(c, auth.link(), ch, Map.of("rsn", rsnKey), now);
+            Link link = runVerifiers(c, auth.link(), ch, rsn, Map.of("kind", "session", "rsn", rsnKey), now);
             boolean disputed = !store.openDisputesFor(c, link.id()).isEmpty() || link.status().equals("disputed");
             return DataObject.empty().put("linked", link.status().equals("active")).put("disputed", disputed).put("verification", link.verification())
-                    .put("discordName", discordName(c, link.discordUserId()));
+                    .put("discordName", discordName(c, link.discordUserId())).put("xpReports", wantsXpReports(link));
         });
+    }
+
+    /**
+     * {@code POST /v1/xp}: the plugin's own character's exact XP (in tenths) for the skills that changed, and the game state it was sent from
+     * ({@code game}, {@code lobby}, {@code logout}). Only taken when a verifier asked for reports ({@code xpReports} on {@code /v1/session});
+     * the "plugin knew it first" check (T-170) reads public data about it later, never while this request waits. The name must be this
+     * link's character (renames go through {@code /v1/session}).
+     */
+    public DataObject xpReport(String token, String rawRsn, String rawTracking, String state, Map<Integer, Long> xp10) {
+        String rsn = requireRsn(rawRsn);
+        String tracking = optionalTracking(rawTracking);
+        Instant now = clock.instant();
+        return tx(c -> {
+            TokenAuth auth = authenticate(c, token, tokenRoutes, now);
+            Character ch = auth.character();
+            byte[] trackingLookup = tracking == null ? null : crypto.lookup(SUBJECT_TRACKING, tracking);
+            boolean otherTracking = ch.tracked() && trackingLookup != null && !MessageDigest.isEqual(ch.trackingLookup(), trackingLookup);
+            if (!ch.rsnLookup().equals(LinkCodes.rsnLookup(rsn)) || otherTracking) {
+                throw new LinkException(409, "character_mismatch", "This link belongs to another character. Link this character on its own.");
+            }
+            Link link = auth.link();
+            if (!wantsXpReports(link)) return DataObject.empty().put("accepted", false).put("xpReports", false);
+            Map<String, Object> report = new java.util.HashMap<>();
+            report.put("kind", "xp");
+            report.put("state", state == null ? "game" : state);
+            report.put("xp10", xp10 == null ? Map.of() : xp10);
+            link = runVerifiers(c, link, ch, ch.rsnDisplay(), report, now);
+            return DataObject.empty().put("accepted", true).put("xpReports", wantsXpReports(link)).put("verification", link.verification());
+        });
+    }
+
+    /** Whether any verifier wants XP reports for this link at its level. */
+    private boolean wantsXpReports(Link link) {
+        Verification level = Verification.of(link.verification());
+        for (LinkVerifier v : verifiers) if (v.wantsXpReports(level)) return true;
+        return false;
     }
 
     /** {@code POST /v1/alias}: the per-plugin alias and a signed assertion of it (section 13). */
@@ -388,6 +425,7 @@ public final class LinkService {
                             .put("method", l.method()).put("verification", l.verification()).put("linkedAt", l.createdAt().toString())
                             .put("lastSeenAt", row.character().lastSeenAt().toString()).put("endedAt", l.endedAt() == null ? null : l.endedAt().toString())
                             .put("tracked", row.character().tracked()).put("devices", store.activeTokens(c, l.id()))
+                            .put("verify", verificationDetail(l.id()))
                             .put("previousNames", DataArray.fromCollection(store.history(c, row.character().id()))));
                 }
             }
@@ -537,7 +575,7 @@ public final class LinkService {
             log.info("Link pairing {} approved: new link {}", p.id(), link.id());
         }
         store.approvePairing(c, p.id(), discordUserId, link.id(), status.equals("active") ? "linked" : "disputed");
-        link = runVerifiers(c, link, character, null, now);
+        link = runVerifiers(c, link, character, character.rsnDisplay(), null, now);
         return new Outcome(status.equals("active") ? "linked" : "disputed", link);
     }
 
@@ -568,22 +606,116 @@ public final class LinkService {
     }
 
     /** Runs every {@link LinkVerifier}; the strongest result above the current level is stored. Returns the link as it now stands. */
-    private Link runVerifiers(Connection c, Link link, Character ch, Map<String, Object> report, Instant now) throws SQLException {
+    private Link runVerifiers(Connection c, Link link, Character ch, String rsnDisplay, Map<String, Object> report, Instant now) throws SQLException {
         Verification current = Verification.of(link.verification());
         VerificationResult best = null;
         for (LinkVerifier v : verifiers) {
             try {
-                Optional<VerificationResult> r = v.check(new LinkContext(link.id().toString(), ch.id().toString(), ch.rsnLookup(), ch.tracked(), current, report));
+                Optional<VerificationResult> r = v.check(new LinkContext(link.id().toString(), ch.id().toString(), ch.rsnLookup(), rsnDisplay, ch.tracked(),
+                        current, report));
                 if (r.isPresent() && r.get().level().strongerThan(best == null ? current : best.level())) best = r.get();
             } catch (RuntimeException e) {
                 log.warn("Link verifier {} failed on link {}: {}", v.method(), link.id(), e.getClass().getSimpleName());
             }
         }
         if (best == null) return link;
-        String evidence = DataObject.empty().put("method", best.method()).put("evidence", best.evidence()).toString();
-        store.setVerification(c, link.id(), best.level().key(), evidence, now);
-        log.info("Link {} raised to {} by {}", link.id(), best.level().key(), best.method());
-        return new Link(link.id(), link.characterId(), link.discordUserId(), link.status(), link.method(), best.level().key(), link.createdAt(), link.endedAt());
+        return applyVerification(c, link, best, now);
+    }
+
+    /**
+     * Stores a stronger level and its evidence, then uses it as the tie-breaker (T-170): in every open dispute this link is in where the
+     * other side is weaker, this link keeps the name and the other is superseded, exactly as if the owner had settled it. Where the other
+     * side is as strong, the dispute stays for the owner.
+     */
+    private Link applyVerification(Connection c, Link link, VerificationResult result, Instant now) throws SQLException {
+        String evidence = DataObject.empty().put("method", result.method()).put("evidence", result.evidence()).toString();
+        store.setVerification(c, link.id(), result.level().key(), evidence, now);
+        log.info("Link {} raised to {} by {}", link.id(), result.level().key(), result.method());
+        String status = link.status();
+        for (LinkStore.Dispute d : store.openDisputesFor(c, link.id())) {
+            boolean incumbent = link.id().equals(d.incumbentLinkId());
+            UUID otherId = incumbent ? d.claimantLinkId() : d.incumbentLinkId();
+            Link other = otherId == null ? null : store.link(c, otherId).orElse(null);
+            if (other != null && !result.level().strongerThan(Verification.of(other.verification()))) continue;
+            String winner = incumbent ? "incumbent" : "claimant";
+            // Close it first, so ending the loser's link doesn't settle it a second way.
+            store.resolveDispute(c, d.id(), "resolved_" + winner, "verification", "settled by " + result.method(), now);
+            if (other != null && (other.status().equals("active") || other.status().equals("disputed"))) endLink(c, other, "superseded", "dispute", now);
+            if (status.equals("disputed") && store.activeLink(c, link.characterId()).isEmpty()) {
+                store.setLinkStatus(c, link.id(), "active");
+                status = "active";
+            }
+            store.abuseEvent(c, "dispute_settled_by_verification", SUBJECT_RSN, crypto.lookup(SUBJECT_RSN, d.rsnLookup()),
+                    DataObject.empty().put("disputeId", d.id().toString()).put("winner", winner).toString(), now);
+            log.info("Dispute {} settled for the {} by {}", d.id(), winner, result.method());
+        }
+        return new Link(link.id(), link.characterId(), link.discordUserId(), status, link.method(), result.level().key(), link.createdAt(), link.endedAt());
+    }
+
+    /** The {@link LinkVerifier.Raiser} given to every verifier: a background verdict, applied in its own transaction. */
+    void raiseFromBackground(String rawLinkId, VerificationResult result) {
+        UUID linkId = parseUuid(rawLinkId);
+        if (linkId == null || result == null || result.level() == null) return;
+        Instant now = clock.instant();
+        tx(c -> {
+            Link link = store.link(c, linkId).orElse(null);
+            // An ended link stays ended, and a level never goes down.
+            if (link == null || !(link.status().equals("active") || link.status().equals("disputed"))) return null;
+            if (!result.level().strongerThan(Verification.of(link.verification()))) return null;
+            applyVerification(c, link, result, now);
+            return null;
+        });
+    }
+
+    /** Every verifier's state for one link, by method (for the player's page and the owner's view). Empty when there are none. */
+    public DataObject verificationDetail(UUID linkId) {
+        DataObject out = DataObject.empty();
+        for (LinkVerifier v : verifiers) {
+            Map<String, Object> d = v.describe(linkId.toString());
+            if (!d.isEmpty()) out.put(v.method(), DataObject.fromJson(jsonOf(d)));
+        }
+        return out;
+    }
+
+    /** Every verifier's service-wide counts, by method, for the owner's abuse page. */
+    public DataObject verificationOverview() {
+        DataObject out = DataObject.empty();
+        for (LinkVerifier v : verifiers) {
+            Map<String, Object> o = v.overview();
+            if (!o.isEmpty()) out.put(v.method(), DataObject.fromJson(jsonOf(o)));
+        }
+        return out;
+    }
+
+    /** Plain maps, lists, strings, numbers and booleans as JSON (what verifiers describe themselves with). */
+    static String jsonOf(Object value) {
+        if (value == null) return "null";
+        if (value instanceof Map<?, ?> m) {
+            StringBuilder s = new StringBuilder("{");
+            for (Map.Entry<?, ?> e : m.entrySet()) {
+                if (s.length() > 1) s.append(',');
+                s.append(jsonOf(String.valueOf(e.getKey()))).append(':').append(jsonOf(e.getValue()));
+            }
+            return s.append('}').toString();
+        }
+        if (value instanceof java.util.Collection<?> list) {
+            StringBuilder s = new StringBuilder("[");
+            for (Object o : list) {
+                if (s.length() > 1) s.append(',');
+                s.append(jsonOf(o));
+            }
+            return s.append(']').toString();
+        }
+        if (value instanceof Number || value instanceof Boolean) return value.toString();
+        String text = value.toString();
+        StringBuilder s = new StringBuilder("\"");
+        for (int i = 0; i < text.length(); i++) {
+            char ch = text.charAt(i);
+            if (ch == '"' || ch == '\\') s.append('\\').append(ch);
+            else if (ch < 0x20) s.append(String.format("\\u%04x", (int) ch));
+            else s.append(ch);
+        }
+        return s.append('"').toString();
     }
 
     // =====================================================================================================================
