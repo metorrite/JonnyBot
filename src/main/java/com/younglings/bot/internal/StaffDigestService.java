@@ -8,6 +8,7 @@ import com.younglings.bot.staffdigest.StaffDigestRules;
 import com.younglings.bot.staffdigest.StaffDigestRules.EventLine;
 import com.younglings.bot.staffdigest.StaffDigestRules.Facts;
 import com.younglings.bot.ticket.TicketRepository;
+import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -28,7 +29,6 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -47,11 +47,7 @@ public class StaffDigestService {
     private final AdminOpsApi ops;
     private final TicketRepository tickets;
     private final AtomicBoolean started = new AtomicBoolean();
-    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(runnable -> {
-        Thread thread = new Thread(runnable, "staff-digest");
-        thread.setDaemon(true);
-        return thread;
-    });
+    private final ScheduledExecutorService executor = BotScheduler.lane("staff-digest");
 
     public StaffDigestService(StaffDigestRepository repository, AdminOpsApi ops, TicketRepository tickets) {
         this.repository = repository;
