@@ -1,6 +1,7 @@
 package com.younglings.bot.absence;
 
 import com.younglings.bot.absence.AbsenceRepository.Notice;
+import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -13,7 +14,6 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -40,11 +40,7 @@ public class AbsenceService {
 
     private final AbsenceRepository repository;
     private final AtomicBoolean started = new AtomicBoolean();
-    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(runnable -> {
-        Thread thread = new Thread(runnable, "absence-prune");
-        thread.setDaemon(true);
-        return thread;
-    });
+    private final ScheduledExecutorService executor = BotScheduler.lane("absence-prune");
 
     public AbsenceService(AbsenceRepository repository) {
         this.repository = repository;
