@@ -157,6 +157,8 @@ public class EventSignups {
             pause(guild, event.signupId());
             added = sync(guild, eventId);
         }
+        // a clan-vs-clan event re-checks everyone's clan now, as its rosters may have changed since they joined (T-222)
+        service.syncTemplateTeams(service.event(guild.getIdLong(), eventId), true);
         return report(eventId, added);
     }
 

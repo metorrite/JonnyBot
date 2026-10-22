@@ -210,7 +210,7 @@ public class MemberEventsApi {
         out.put("objectives", progress);
 
         DataObject config = DataObject.fromJson(event.config());
-        if (scored && !me.waiting() && BingoTemplate.KEY.equals(event.template())) {
+        if (scored && !me.waiting() && com.younglings.bot.events.ClanVsClan.plays(event, BingoTemplate.KEY)) {
             var tiles = BingoBoardView.personal(BingoBoardView.boardKeys(config), objectives, mineStanding);
             DataArray tileJson = DataArray.empty();
             for (var t : tiles) tileJson.add(DataObject.empty().put("n", t.number()).put("label", t.label()).put("points", t.points()).put("done", t.done()).put("locked", t.locked()));

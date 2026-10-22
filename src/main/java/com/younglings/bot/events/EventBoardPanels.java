@@ -102,7 +102,7 @@ public class EventBoardPanels {
         Guild guild = client.getGuildById(guildId);
         Event event = repository.event(guildId, eventId).orElse(null);
         if (guild == null || event == null) return "That event or server wasn't found.";
-        if (!BingoTemplate.KEY.equals(event.template())) return "Only bingo events have a board.";
+        if (!ClanVsClan.plays(event, BingoTemplate.KEY)) return "Only bingo events have a board.";
         if (!shown(event.status())) return "The board is posted once the event starts.";
         EventBoards.Display display = EventBoards.displayOf(DataObject.fromJson(event.config()));
         List<String> parts = new java.util.ArrayList<>();

@@ -73,10 +73,17 @@ public class EventTracker {
         executor.scheduleWithFixedDelay(this::sweep, 2, PERIOD.toMinutes(), TimeUnit.MINUTES);
     }
 
+    /** Every running competition, including clan-vs-clan events whose clans play one (T-222). */
+    private List<Event> competitions() {
+        List<Event> all = new java.util.ArrayList<>(repository.runningEvents(CompetitionTemplate.KEY));
+        for (Event e : repository.runningEvents(ClanVsClan.KEY)) if (ClanVsClan.plays(e, CompetitionTemplate.KEY)) all.add(e);
+        return all;
+    }
+
     /** One pass over every running competition. Never throws: one event's trouble must not stop the next. */
     public void sweep() {
         try {
-            for (Event event : repository.runningEvents(CompetitionTemplate.KEY)) {
+            for (Event event : competitions()) {
                 try {
                     feed(event);
                 } catch (RuntimeException e) {

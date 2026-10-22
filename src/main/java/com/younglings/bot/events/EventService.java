@@ -99,9 +99,11 @@ public class EventService {
             log.error("Template {} produced invalid starter objectives: {}", template.key(), starterProblems);
             throw new EventProblem(500, "That template couldn't set itself up.");
         }
-        long id = repository.createEvent(guildId, template.key(), in.name().strip(), clean(in.description()), in.scope(), in.scoringMode(), in.startsAt(), in.endsAt(),
+        ScoringMode mode = template.fixedScoringMode() != null ? template.fixedScoringMode() : in.scoringMode();
+        long id = repository.createEvent(guildId, template.key(), in.name().strip(), clean(in.description()), in.scope(), mode, in.startsAt(), in.endsAt(),
                 in.maxParticipants(), config.toString(), actorId);
         if (!starterObjectives.isEmpty()) repository.replaceObjectives(id, starterObjectives);
+        if (template.managesTeams()) repository.event(guildId, id).ifPresent(e -> template.syncTeams(e, false));
         return id;
     }
 
@@ -131,7 +133,8 @@ public class EventService {
         String quota = QueueRules.quotaProblem(in.maxParticipants(), QueueRules.quotaSetting(config).host(), repository.cohostQuotas(id).values());
         if (quota != null) problems.add(quota);
         if (!problems.isEmpty()) throw new EventProblem(400, "The event can't be saved yet.", problems);
-        if (!repository.updateEvent(guildId, id, in.name().strip(), clean(in.description()), in.scope(), in.scoringMode(), in.startsAt(), in.endsAt(), in.maxParticipants(), config.toString())) {
+        ScoringMode mode = template.fixedScoringMode() != null ? template.fixedScoringMode() : in.scoringMode();
+        if (!repository.updateEvent(guildId, id, in.name().strip(), clean(in.description()), in.scope(), mode, in.startsAt(), in.endsAt(), in.maxParticipants(), config.toString())) {
             throw new EventProblem(409, "The event moved on while you were editing it.");
         }
         changes.publish(EventChanges.Kind.SETUP, guildId, id);
@@ -280,7 +283,7 @@ public class EventService {
      */
     public void changeLook(long guildId, long id, String look) {
         Event event = event(guildId, id);
-        if (!BingoTemplate.KEY.equals(event.template())) throw new EventProblem(409, "Only a bingo has a board to change the look of.");
+        if (!ClanVsClan.plays(event, BingoTemplate.KEY)) throw new EventProblem(409, "Only a bingo has a board to change the look of.");
         if (event.status() == Status.DONE || event.status() == Status.CANCELLED) throw new EventProblem(409, "This event is over, so its board can't change.");
         if (look != null && !BingoLooks.valid(look)) throw new EventProblem(400, "Choose a board look from the list.");
         DataObject config = DataObject.fromJson(event.config());
@@ -445,6 +448,7 @@ public class EventService {
                 throw new EventProblem(409, "This event needs players verified before they can be on a team. Add them without a team, verify them, then put them on one.");
             }
         }
+        if (teamId == null) teamId = templateTeam(event, userGuildId, userId, staff);
         if (event.scoringMode() == ScoringMode.TEAM && teamId == null && event.status() == Status.RUNNING) {
             throw new EventProblem(400, "Pick a team: this event is scored by team and it has already started.");
         }
@@ -461,6 +465,35 @@ public class EventService {
         if (!staff) changes.publish(new EventChanges.Change(EventChanges.Kind.PLAYER_JOINED, guildId, id, 0, userId, false, ""));
         if (!waiting.get()) return new Joined(false, 0);
         return new Joined(true, QueueRules.position(settings.queue(), event.guildId(), queueEntries(id), userId));
+    }
+
+    /**
+     * The team the event's template puts a joining player on (clan vs clan: their clan's), or null. A refusal stands for a player joining themselves; staff
+     * adding someone the template can't place add them with no team. A player who can't go straight onto a team yet (verification by teams) gets none and
+     * is placed at Close signups.
+     */
+    private Long templateTeam(Event event, long userGuildId, long userId, boolean staff) {
+        EventTemplate template = templates.byKey(event.template()).orElse(null);
+        if (template == null || !template.managesTeams()) return null;
+        Long team;
+        try {
+            team = template.teamOnJoin(event, userGuildId, userId, staff);
+        } catch (EventProblem e) {
+            if (staff) return null;
+            throw e;
+        }
+        if (team == null) return null;
+        if (teamMoment(event) == EventRoster.Gate.TEAMS && !EventRoster.counts(EventRoster.Verification.PENDING, settingsOf(event).verification(), EventRoster.Gate.TEAMS)) return null;
+        return team;
+    }
+
+    /** Lets the event's template bring the teams it keeps up to date (clan vs clan: one per clan); {@code recheck} also re-places the players. */
+    public void syncTemplateTeams(Event event, boolean recheck) {
+        EventTemplate template = templates.byKey(event.template()).orElse(null);
+        if (template == null || !template.managesTeams()) return;
+        template.syncTeams(event, recheck);
+        repository.touchTeams(event.id());
+        changes.publish(EventChanges.Kind.TEAMS, event.guildId(), event.id());
     }
 
     private List<QueueRules.Entry> queueEntries(long id) {
@@ -590,9 +623,15 @@ public class EventService {
         List<EventRoster.Verification> held = players.stream().filter(p -> !p.waiting()).map(Participant::verification).toList();
         EventPrep.TeamFacts teams = event.scoringMode() == ScoringMode.TEAM ? teamFactsOf(event, settings, players, setup) : null;
         EventPrep.SpaceFacts space = settings.channels().enabled() ? new EventPrep.SpaceFacts(setup.spaceApplied(), setup.spaceComplete(), setup.spaceNote()) : null;
-        return EventPrep.of(new EventPrep.Facts(event.status(), settings.setupMode(), !repository.objectives(event.id()).isEmpty(), setup.signupsClosed(), setup.rosterConfirmed(),
+        EventPrep.Prep prep = EventPrep.of(new EventPrep.Facts(event.status(), settings.setupMode(), !repository.objectives(event.id()).isEmpty(), setup.signupsClosed(), setup.rosterConfirmed(),
                 held.size(), players.size() - held.size(), settings.verification(), EventRoster.tally(held, settings.verification()), teams, space,
                 setup.rosterChangedSinceConfirmed(), teams != null && setup.teamsChangedSinceFinal()));
+        EventTemplate template = templates.byKey(event.template()).orElse(null);
+        if (template == null) return prep;
+        List<EventPrep.Step> steps = new ArrayList<>(prep.steps());
+        List<String> warnings = new ArrayList<>(prep.warnings());
+        template.checklist(event, steps, warnings);
+        return new EventPrep.Prep(steps, prep.blockers(), warnings);
     }
 
     /** The teams as the setup checklist and "finalise" look at them. */
@@ -1016,6 +1055,12 @@ public class EventService {
         if (!approve && cleanNote.isEmpty()) throw new EventProblem(400, "Say why it was denied, so the player can fix it.");
         boolean verification = claim.kind() == EventRepository.ClaimKind.VERIFICATION;
         if (verification && (event.status() == Status.DONE || event.status() == Status.CANCELLED)) throw new EventProblem(409, "This event is over.");
+        if (ClanVsClan.is(event.template()) && ClanVsClan.settings(DataObject.fromJson(event.config())).reviewByOtherClan()) {
+            // clans review each other's proof: nobody decides proof from their own clan's team
+            Long claimTeam = repository.participant(id, claim.userId()).map(Participant::teamId).orElse(null);
+            Long actorTeam = repository.participant(id, actorId).map(Participant::teamId).orElse(null);
+            if (claimTeam != null && claimTeam.equals(actorTeam)) throw new EventProblem(403, "In this event the clans review each other's proof, so someone from another clan decides this one.");
+        }
         if (!verification && approve && !EventRules.acceptsProgress(event.status())) throw new EventProblem(409, "The event isn't running, so an approval couldn't be counted. Reopen it first.");
 
         if (!repository.decideClaim(id, claimId, approve ? ClaimStatus.APPROVED : ClaimStatus.DENIED, actorId, cleanNote.isEmpty() ? null : cleanNote)) {
@@ -1053,7 +1098,11 @@ public class EventService {
             if (byTeam && p.teamId() == null) continue;
             log.add(new Entry(byTeam ? "t:" + p.teamId() : "u:" + p.userId(), p.objectiveKey(), p.amount(), p.createdAt()));
         }
-        return EventScoring.standings(repository.objectives(id), log, bonusesOf(event));
+        List<ObjectiveSpec> objectives = repository.objectives(id);
+        List<Standing> usual = EventScoring.standings(objectives, log, bonusesOf(event));
+        EventTemplate template = templates.byKey(event.template()).orElse(null);
+        List<Standing> own = template == null ? null : template.standings(event, objectives, repository.progress(id), usual);
+        return own == null ? usual : own;
     }
 
     private static String clean(String text) {

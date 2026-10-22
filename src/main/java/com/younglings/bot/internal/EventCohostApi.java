@@ -111,6 +111,7 @@ public class EventCohostApi implements AdminRouteExtension {
             throw new EventProblem(409, "That server isn't invited or co-hosting any more.");
         }
         log.info("Dashboard: {} removed server {} as a co-host of event {}", actor.getId(), target, event.id());
+        service.syncTemplateTeams(event, false); // a clan-vs-clan event takes the clan's empty team away (T-222)
     }
 
     /**
@@ -227,6 +228,7 @@ public class EventCohostApi implements AdminRouteExtension {
             if (to == Status.ACCEPTED && !allied(event.guildId(), me)) throw new ApiError(403, "Your server is no longer in an alliance with the host.");
             if (!cohosts.decide(eventId, me, Status.INVITED, to, actor.getIdLong())) throw new ApiError(409, "That invitation isn't open any more.");
             log.info("Dashboard: {} {} co-hosting event {} for server {}", actor.getId(), to == Status.ACCEPTED ? "accepted" : "declined", eventId, me);
+            service.syncTemplateTeams(event, false); // a clan-vs-clan event gives the accepting clan its team (T-222)
             return cohostView(guild);
         }
         if (parts.length == 4 && parts[2].equals("players")) {
