@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.i18n.LanguageRepository;
 import com.younglings.bot.i18n.Messages;
 import net.dv8tion.jda.api.entities.Guild;
@@ -23,7 +24,7 @@ class LanguageAdminApiTest {
     void theLanguagePageRouteReadsAndSaves() {
         LanguageRepository repository = mock(LanguageRepository.class);
         when(repository.find(anyLong())).thenReturn(Optional.empty());
-        LanguageAdminApi api = new LanguageAdminApi(new Messages(repository));
+        LanguageAdminApi api = new LanguageAdminApi(new Messages(repository, mock(BotConfig.class)));
         Guild guild = mock(Guild.class);
         Member actor = mock(Member.class);
         when(guild.getIdLong()).thenReturn(9L);
