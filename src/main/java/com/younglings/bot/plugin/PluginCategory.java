@@ -9,7 +9,8 @@ public enum PluginCategory {
     DROPS("Drops", "Items you receive, and where they came from."),
     KILLS("Boss kills", "Which boss you killed and your kill count."),
     ACHIEVEMENTS("Levels, quests and achievements", "Level-ups, completed quests, achievements and collection log entries."),
-    PRESENCE("Online status and activity", "Whether you are online and what you are doing, so clanmates can see who is around.");
+    PRESENCE("Online status and activity", "Whether you are online and what you are doing, so clanmates can see who is around. In a team event, "
+            + "your team sees in RuneSync whether you are in the game with RuneSync now.");
 
     private final String label;
     private final String description;

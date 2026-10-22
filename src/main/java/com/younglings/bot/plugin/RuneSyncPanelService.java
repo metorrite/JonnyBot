@@ -1,5 +1,6 @@
 package com.younglings.bot.plugin;
 
+import com.younglings.bot.events.BingoBoardImage;
 import com.younglings.bot.events.BingoBoardView;
 import com.younglings.bot.events.BingoTemplate;
 import com.younglings.bot.events.EventRepository;
@@ -34,8 +35,12 @@ import java.util.concurrent.ConcurrentHashMap;
  * points, and the member's own progress in the running events they are in.
  * <p>
  * Data flows only <b>into</b> the client, and only what the member could already see: events are listed only for servers whose Discord
- * the member is in (the rule the profile's event list uses), and the only points and progress in it are the member's own. No other
- * player is named. Answers are cached 60 seconds per member, so a panel left open costs the bot almost nothing.
+ * the member is in (the rule the profile's event list uses), and the only points and progress in it are the member's own. Answers are
+ * cached 60 seconds per member, so a panel left open costs the bot almost nothing.
+ * <p>
+ * Since T-142/T-143 a bingo also carries its board (the member's own in a solo event, the team's in a team event), and a team event
+ * carries "team status": the teammates' names as the server shows them (the event's team page shows the same) and, only for those who
+ * switched on the Presence category, whether they are in the game with RuneSync now. Nobody outside the member's own team is named.
  */
 @BService
 public class RuneSyncPanelService {
@@ -47,16 +52,19 @@ public class RuneSyncPanelService {
     private final EventRepository events;
     private final EventService eventService;
     private final PointsRepository points;
+    private final PluginRepository plugins;
     private final Map<Long, Cached> cache = new ConcurrentHashMap<>();
     private volatile JDA jda;
 
     private record Cached(Instant at, DataObject answer) {}
 
-    public RuneSyncPanelService(RuneSyncRepository repository, EventRepository events, EventService eventService, PointsRepository points) {
+    public RuneSyncPanelService(RuneSyncRepository repository, EventRepository events, EventService eventService, PointsRepository points,
+                                PluginRepository plugins) {
         this.repository = repository;
         this.events = events;
         this.eventService = eventService;
         this.points = points;
+        this.plugins = plugins;
     }
 
     @BEventListener
@@ -133,12 +141,58 @@ public class RuneSyncPanelService {
         DataObject out = DataObject.empty().put("eventId", Long.toString(event.id())).put("name", event.name()).put("team", team)
                 .put("points", mine == null ? 0 : mine.points()).put("objectivesDone", done).put("objectivesTotal", objectives.size());
         if (BingoTemplate.KEY.equals(event.template())) {
-            var tiles = BingoBoardView.personal(BingoBoardView.boardKeys(DataObject.fromJson(event.config())), objectives, mine);
-            out.put("bingo", DataObject.empty().put("tilesDone", (int) tiles.stream().filter(t -> t.done()).count()).put("tiles", tiles.size()));
+            DataObject config = DataObject.fromJson(event.config());
+            var tiles = BingoBoardView.personal(BingoBoardView.boardKeys(config), objectives, mine);
+            DataObject bingo = DataObject.empty().put("tilesDone", (int) tiles.stream().filter(t -> t.done()).count()).put("tiles", tiles.size());
+            // T-142: the board itself, so RuneSync can draw it. In a team event the board the member plays is their team's
+            // (standings are per team there), so it is sent as teamBoard; in a solo event it is the member's own board.
+            bingo.put(team ? "teamBoard" : "board", board(tiles, BingoBoardView.boardSize(config)));
+            out.put("bingo", bingo);
         } else {
             out.put("bingo", (DataObject) null);
         }
+        if (team && me.teamId() != null) out.put("teamStatus", teamStatus(guildId, event.id(), me.teamId()));
         return out;
+    }
+
+    /** A board for the client: its width and each tile's label and whether it is done (tiles in reading order). */
+    static DataObject board(List<BingoBoardImage.TileView> tiles, int size) {
+        DataArray cells = DataArray.empty();
+        for (var t : tiles) cells.add(DataObject.empty().put("label", t.label()).put("done", t.done()).put("locked", t.locked()));
+        int width = size > 0 ? size : (int) Math.ceil(Math.sqrt(Math.max(1, tiles.size())));
+        return DataObject.empty().put("size", width).put("cells", cells);
+    }
+
+    /** How long after a check-in a teammate still counts as in the game with RuneSync (RuneSync checks in about every 10 minutes). */
+    static final Duration IN_GAME_WINDOW = Duration.ofMinutes(11);
+
+    /**
+     * T-143, the lite party window: the member's event team, each teammate named as clanmates see them in the server, and whether they are in
+     * the game with RuneSync now. "In game" is only told for teammates who switched on the Presence category (their own consent, off by
+     * default); for the others it is null ("not shared"). No location, no combat stats, no gear: only what the team page already shows plus
+     * the opted-in presence.
+     */
+    DataObject teamStatus(long guildId, long eventId, long teamId) {
+        String teamName = events.teams(eventId).stream().filter(t -> t.id() == teamId).map(EventRepository.Team::name).findFirst().orElse("");
+        DataArray members = DataArray.empty();
+        Instant now = Instant.now();
+        for (Participant p : events.participants(eventId)) {
+            if (p.waiting() || p.teamId() == null || p.teamId() != teamId) continue;
+            Boolean inGame = null;
+            if (plugins.consent(p.userId()).contains(PluginCategory.PRESENCE)) {
+                inGame = repository.clientStatus(p.userId()).map(s -> s.lastSeen() != null && s.lastSeen().isAfter(now.minus(IN_GAME_WINDOW))).orElse(false);
+            }
+            members.add(DataObject.empty().put("name", displayName(guildId, p.userId())).put("inGame", inGame));
+        }
+        return DataObject.empty().put("name", teamName).put("members", members);
+    }
+
+    /** A teammate's name as the clan sees it in the server, or "A teammate" when the bot can't tell. */
+    String displayName(long guildId, long userId) {
+        JDA current = jda;
+        Guild guild = current == null ? null : current.getGuildById(guildId);
+        var member = guild == null ? null : guild.getMemberById(userId);
+        return member == null ? "A teammate" : member.getEffectiveName();
     }
 
     /** The clan switch changed: cached answers for anyone may be wrong now. */
