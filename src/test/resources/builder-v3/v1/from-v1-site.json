@@ -1,0 +1,302 @@
+{
+  "v": 1,
+  "look": {
+    "theme": "parchment",
+    "mode": "dark",
+    "accent": "#1f9d63",
+    "logo": "https://cdn.example.test/logo.png",
+    "banner": null
+  },
+  "pages": [
+    {
+      "id": "j11ra16hsw",
+      "title": "Home",
+      "path": "",
+      "hidden": false,
+      "sections": [
+        {
+          "id": "ub8mxscmm3",
+          "tone": "plain",
+          "columns": [
+            {
+              "id": "twpu3ftbyi",
+              "span": 12,
+              "widgets": [
+                {
+                  "id": "kwejchue1e",
+                  "type": "clan-header",
+                  "settings": {
+                    "showBanner": true,
+                    "showTagline": true,
+                    "align": "left"
+                  },
+                  "unmet": "hide"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "ct57kryn70",
+          "tone": "plain",
+          "columns": [
+            {
+              "id": "kwe7c70gns",
+              "span": 6,
+              "widgets": [
+                {
+                  "id": "b220x84xru",
+                  "type": "events",
+                  "settings": {
+                    "title": "Coming up",
+                    "limit": 3,
+                    "showImages": true
+                  },
+                  "unmet": "hide"
+                }
+              ]
+            },
+            {
+              "id": "rj1e0ejo8c",
+              "span": 6,
+              "widgets": [
+                {
+                  "id": "azu7tnu92q",
+                  "type": "weekly-recap",
+                  "settings": {
+                    "title": "Last week",
+                    "showTop": true
+                  },
+                  "unmet": "hide"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gffrponv7r",
+      "title": "About",
+      "path": "about",
+      "hidden": false,
+      "sections": [
+        {
+          "id": "ab30vblqwc",
+          "tone": "plain",
+          "columns": [
+            {
+              "id": "u7gjwrlgqm",
+              "span": 8,
+              "widgets": [
+                {
+                  "id": "3734gobn4m",
+                  "type": "text",
+                  "settings": {
+                    "markdown": "We are **friendly**."
+                  },
+                  "unmet": "hide"
+                }
+              ]
+            },
+            {
+              "id": "zle0d4q098",
+              "span": 4,
+              "widgets": [
+                {
+                  "id": "vkhew2bmae",
+                  "type": "alliances",
+                  "settings": {
+                    "title": "Our allies"
+                  },
+                  "unmet": "hide"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "kfo9mx4xyl",
+      "title": "Roster",
+      "path": "roster",
+      "hidden": false,
+      "sections": [
+        {
+          "id": "v8b75xozcl",
+          "tone": "plain",
+          "columns": [
+            {
+              "id": "7v4yue4nil",
+              "span": 12,
+              "widgets": [
+                {
+                  "id": "lhgysqkry5",
+                  "type": "roster",
+                  "settings": {
+                    "title": "Members",
+                    "limit": 500,
+                    "showJoined": false,
+                    "search": true
+                  },
+                  "unmet": "hide"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "wsgk3ckiid",
+      "title": "Clan rules",
+      "path": "clan-rules",
+      "hidden": false,
+      "sections": []
+    },
+    {
+      "id": "3qs2dmq3y9",
+      "title": "Stats",
+      "path": "stats",
+      "hidden": false,
+      "sections": [
+        {
+          "id": "kasmzc7svr",
+          "tone": "plain",
+          "columns": [
+            {
+              "id": "yhgzpw2skk",
+              "span": 6,
+              "widgets": [
+                {
+                  "id": "sxup4cz945",
+                  "type": "stat-tiles",
+                  "settings": {
+                    "members": true,
+                    "xpWeek": true,
+                    "xpMonth": true,
+                    "kills": true
+                  },
+                  "unmet": "hide"
+                }
+              ]
+            },
+            {
+              "id": "mcyzj8q7nk",
+              "span": 6,
+              "widgets": [
+                {
+                  "id": "uefvor0exn",
+                  "type": "top-xp",
+                  "settings": {
+                    "title": "Top XP this week",
+                    "limit": 8
+                  },
+                  "unmet": "hide"
+                },
+                {
+                  "id": "xbgi7oo4hi",
+                  "type": "clan-stats",
+                  "settings": {
+                    "title": "Clan stats"
+                  },
+                  "unmet": "hide"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dpqtspou5d",
+      "title": "Events",
+      "path": "events",
+      "hidden": false,
+      "sections": [
+        {
+          "id": "xgr2l2hwlv",
+          "tone": "plain",
+          "columns": [
+            {
+              "id": "7um9adcv1p",
+              "span": 12,
+              "widgets": [
+                {
+                  "id": "712vvk68cy",
+                  "type": "events",
+                  "settings": {
+                    "title": "Upcoming events",
+                    "limit": 12,
+                    "showImages": true
+                  },
+                  "unmet": "hide"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2ctfocj60m",
+      "title": "Recaps",
+      "path": "recaps",
+      "hidden": false,
+      "sections": [
+        {
+          "id": "kx78b3ctv1",
+          "tone": "plain",
+          "columns": [
+            {
+              "id": "yy8zh4o8o7",
+              "span": 12,
+              "widgets": [
+                {
+                  "id": "4icntdjdm2",
+                  "type": "weekly-recap",
+                  "settings": {
+                    "title": "Last week",
+                    "showTop": true
+                  },
+                  "unmet": "hide"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ol2mi6gqbt",
+      "title": "Apply",
+      "path": "apply",
+      "hidden": false,
+      "sections": [
+        {
+          "id": "spspjx1dz5",
+          "tone": "plain",
+          "columns": [
+            {
+              "id": "qzhpkcaaav",
+              "span": 12,
+              "widgets": [
+                {
+                  "id": "3qgom0gxs0",
+                  "type": "recruiting",
+                  "settings": {
+                    "title": "Join us",
+                    "buttonLabel": "Apply now",
+                    "showRequirements": true
+                  },
+                  "unmet": "hide"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
