@@ -751,6 +751,23 @@ public class EventRepository {
         }
     }
 
+    /** Events in every server that {@code userId} is a player of (waiting or not), soonest first, for "My events" on RuneClans (T-337). No drafts or archived ones. */
+    public List<Event> eventsForUserEverywhere(long userId, int limit) {
+        List<Event> list = new ArrayList<>();
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("""
+                SELECT e.* FROM younglings.event e JOIN younglings.event_participant p ON p.event_id = e.id
+                WHERE p.user_id = ? AND e.status NOT IN ('DRAFT', 'CANCELLED') AND NOT e.archived ORDER BY e.starts_at DESC NULLS FIRST, e.id DESC LIMIT ?""")) {
+            s.setLong(1, userId);
+            s.setInt(2, limit);
+            try (ResultSet rs = s.executeQuery()) {
+                while (rs.next()) list.add(mapEvent(rs));
+            }
+            return list;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read a player's events", e);
+        }
+    }
+
     /** A player an organiser removed and barred from taking part again, with the reason (shown to staff, and to the player if they try to come back). */
     public record Ban(long userId, String reason, long bannedBy, Instant at) {}
 

@@ -4,6 +4,8 @@ import com.younglings.bot.clanprofile.ClanProfile;
 import com.younglings.bot.clanprofile.ClanProfileService;
 import com.younglings.bot.clansite.ClanSite;
 import com.younglings.bot.clansite.ClanSiteBlock;
+import com.younglings.bot.clansite.ClanSiteLayoutRepository;
+import com.younglings.bot.clansite.ClanSiteLayoutRules;
 import com.younglings.bot.clansite.ClanSiteRepository;
 import com.younglings.bot.clansite.ClanSiteRules;
 import com.younglings.bot.clansite.ClanSiteService;
@@ -32,6 +34,9 @@ import java.util.function.Supplier;
  *   <li>{@code POST clan-site/publish}, {@code POST clan-site/unpublish}</li>
  *   <li>{@code GET clan-site/export}: everything the clan wrote, for "Download my site"</li>
  *   <li>{@code POST clan-site/takedown} {@code {reason}} and {@code POST clan-site/restore}: the bot's owner only (a report was upheld)</li>
+ *   <li>builder v2 (T-301): {@code GET clan-site/layout}, {@code PUT clan-site/layout} {@code {layout, baseRev}} (the draft, shape checked by
+ *   {@link ClanSiteLayoutRules}), {@code POST clan-site/layout/publish} (the draft becomes the public layout and the site is published), and
+ *   {@code POST clan-site/delete} {@code {confirm}} (the whole website, after typing its address)</li>
  * </ul>
  * Reached only through {@link TicketAdminApi}, which has already checked the asker may use the dashboard here and audit-logs every write.
  */
@@ -40,12 +45,16 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
     static final int MAX_REASON = 300;
 
     private final ClanSiteRepository repository;
+    private final ClanSiteLayoutRepository layouts;
     private final ClanSiteService sites;
     private final ClanProfileService profiles;
     private final BotOwners owners;
+    /** Layout saves per server (on top of the per-person admin limit): the editor autosaves, so a burst of 3 and then one a second. */
+    private final RateLimiter layoutSaves = new RateLimiter(3, 1_000);
 
-    public ClanSiteAdminApi(ClanSiteRepository repository, ClanSiteService sites, ClanProfileService profiles, BotOwners owners) {
+    public ClanSiteAdminApi(ClanSiteRepository repository, ClanSiteLayoutRepository layouts, ClanSiteService sites, ClanProfileService profiles, BotOwners owners) {
         this.repository = repository;
+        this.layouts = layouts;
         this.sites = sites;
         this.profiles = profiles;
         this.owners = owners;
@@ -63,8 +72,21 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
             AdminRouteExtension.requireMethod(method, "PUT");
             return saveBlocks(guild, actor, parts[2], body.get());
         }
+        if (parts.length == 3 && parts[1].equals("layout") && parts[2].equals("publish")) {
+            AdminRouteExtension.requireMethod(method, "POST");
+            return publishLayout(guild, actor);
+        }
         if (parts.length != 2) return null;
         return switch (parts[1]) {
+            case "layout" -> {
+                if (method.equals("GET")) yield layout(guild);
+                AdminRouteExtension.requireMethod(method, "PUT");
+                yield saveLayout(guild, actor, body.get());
+            }
+            case "delete" -> {
+                AdminRouteExtension.requireMethod(method, "POST");
+                yield delete(guild, actor, body.get().getString("confirm", ""));
+            }
             case "export" -> {
                 AdminRouteExtension.requireMethod(method, "GET");
                 yield export(guild);
@@ -193,6 +215,73 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
         return get(guild, actor);
     }
 
+    // ---------- builder v2 layout (T-301) ----------
+
+    /** The draft and whether a published copy exists, for the editor. The draft is null before the first save. */
+    DataObject layout(Guild guild) {
+        var found = layouts.byGuild(guild.getIdLong());
+        DataObject limits = DataObject.empty().put("bytes", ClanSiteLayoutRules.MAX_BYTES).put("pages", ClanSiteLayoutRules.MAX_PAGES)
+                .put("sections", ClanSiteLayoutRules.MAX_SECTIONS).put("columns", ClanSiteLayoutRules.MAX_COLUMNS)
+                .put("widgets", ClanSiteLayoutRules.MAX_WIDGETS_PER_COLUMN).put("settingsBytes", ClanSiteLayoutRules.MAX_SETTINGS_BYTES);
+        DataObject json = DataObject.empty().put("limits", limits).put("inBeta", sites.inBeta(guild.getIdLong()));
+        if (found.isEmpty()) return json.putNull("draft").put("draftRev", 0).put("publishedRev", 0).putNull("publishedAt").putNull("updatedAt");
+        var l = found.get();
+        return json.put("draft", parse(l.draft(), true)).put("draftRev", l.draftRev()).put("publishedRev", l.publishedRev())
+                .put("publishedAt", l.publishedAt() == null ? null : l.publishedAt().toString())
+                .put("updatedAt", l.updatedAt() == null ? null : l.updatedAt().toString());
+    }
+
+    /** {@code {layout, baseRev}}: the draft, checked whole; refused when another save landed since {@code baseRev}. */
+    DataObject saveLayout(Guild guild, Member actor, DataObject body) {
+        requireBeta(guild);
+        if (!layoutSaves.tryAcquire(guild.getId())) throw new ApiError(429, Text.of(guild, "dashboard.you_re_doing_that_too_fast"));
+        List<String> problems = new ArrayList<>();
+        String clean;
+        try {
+            clean = ClanSiteLayoutRules.clean(body.optObject("layout").orElse(null), problems);
+        } catch (RuntimeException e) {
+            problems.add("The layout couldn't be read. Reload the page and try again.");
+            clean = null;
+        }
+        if (clean == null) throw new ApiError(400, Text.of(guild, "dashboard.the_website_can_t_be_saved"), distinct(problems));
+        int rev = layouts.saveDraft(guild.getIdLong(), clean, Math.max(0, body.getInt("baseRev", 0)), actor.getIdLong());
+        if (rev < 0) {
+            throw new ApiError(409, Text.of(guild, "dashboard.the_website_can_t_be_saved"),
+                    List.of("Someone saved this site from another tab or window. Reload to see the newest version."));
+        }
+        return layout(guild);
+    }
+
+    /** Publishes the draft: the same checks as v1's publish (switched on, profile can carry a site, not taken down), then the copy. */
+    DataObject publishLayout(Guild guild, Member actor) {
+        if (layouts.byGuild(guild.getIdLong()).isEmpty()) {
+            throw new ApiError(400, Text.of(guild, "dashboard.the_website_can_t_be_published"), List.of("Save the site before publishing it."));
+        }
+        publish(guild, actor, true);
+        layouts.publishDraft(guild.getIdLong(), actor.getIdLong());
+        return layout(guild);
+    }
+
+    /**
+     * Deletes the website (its v1 settings and blocks and its v2 layouts). {@code confirm} must be the site's address (or "delete" when it has
+     * none), so a stray click can't do it. A site the bot's owner took down can't be deleted to clear the takedown.
+     */
+    DataObject delete(Guild guild, Member actor, String confirm) {
+        long id = guild.getIdLong();
+        ClanSite current = sites.of(id);
+        if (current.takedownReason() != null && !current.takedownReason().isBlank()) {
+            throw new ApiError(403, Text.of(guild, "dashboard.the_website_can_t_be_saved"), List.of("This website was taken down by JonnyBot's owner, so it can't be deleted."));
+        }
+        String slug = profiles.profileOf(id).slug();
+        String expected = slug == null || slug.isBlank() ? "delete" : slug;
+        if (!expected.equals(confirm == null ? "" : confirm.strip().toLowerCase(java.util.Locale.ROOT))) {
+            throw new ApiError(400, Text.of(guild, "dashboard.the_website_can_t_be_saved"), List.of("Type " + expected + " to confirm."));
+        }
+        layouts.delete(id);
+        repository.delete(id);
+        return get(guild, actor);
+    }
+
     // ---------- export ----------
 
     /** Everything the clan wrote (look, pages, blocks) and the addresses of the images it used, for "Download my site". */
@@ -215,7 +304,8 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
             }
         }
         return DataObject.empty().put("format", "jonnybot-clan-site/1").put("exportedAt", Instant.now().toString()).put("slug", profiles.profileOf(id).slug())
-                .put("site", siteJson(site)).put("blocks", blocks).put("images", DataArray.fromCollection(images));
+                .put("site", siteJson(site)).put("blocks", blocks).put("images", DataArray.fromCollection(images))
+                .put("layout", layouts.byGuild(id).map(l -> parse(l.draft(), true)).orElse(null));
     }
 
     private static List<String> distinct(List<String> problems) {

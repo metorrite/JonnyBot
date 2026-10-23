@@ -65,7 +65,8 @@ class DirectoryRoutesTest {
                 new DirectoryAllianceRoutes(alliances, repository, service),
                 new DirectorySiteSwitchRoutes(siteSwitches),
                 new DirectoryHubEventRoutes(hubEvents),
-                new DirectoryClanSiteRoutes(sites, siteApi, repository),
+                new DirectoryClanSiteRoutes(sites, siteApi, repository, mock(com.younglings.bot.clansite.ClanSiteLayoutRepository.class),
+                        mock(com.younglings.bot.clansite.ClanSitePluginFeed.class)),
                 new DirectorySlugRoutes(repository),
                 section));
         when(repository.bySlug("younglings")).thenReturn(Optional.of(clan));
@@ -105,12 +106,19 @@ class DirectoryRoutesTest {
     void hubEventsListOneJoinAndReport() throws Exception {
         when(hubEvents.list(jda, "u1")).thenReturn(DataObject.empty().put("events", "list"));
         when(hubEvents.one(jda, "42", null)).thenReturn(DataObject.empty().put("event", "one"));
-        when(hubEvents.join(jda, "42", "99")).thenReturn(new HubEventsApi.Answer(200, DataObject.empty().put("joined", true)));
+        when(hubEvents.join(jda, "42", "99", null)).thenReturn(new HubEventsApi.Answer(200, DataObject.empty().put("joined", true)));
+        when(hubEvents.join(jda, "42", "99", "cohost-1")).thenReturn(new HubEventsApi.Answer(200, DataObject.empty().put("joined", "via")));
+        when(hubEvents.leave(jda, "42", "99")).thenReturn(new HubEventsApi.Answer(200, DataObject.empty().put("left", true)));
+        when(hubEvents.mine(jda, "u1")).thenReturn(DataObject.empty().put("events", "mine"));
         when(hubEvents.report(eq(jda), eq("42"), any())).thenReturn(new HubEventsApi.Answer(202, DataObject.empty().put("ok", true)));
 
         assertEquals("list", call("GET", "/internal/directory/hub-events?viewer=u1", null).body().getString("events"));
         assertEquals("one", call("GET", "/internal/directory/hub-events/42", null).body().getString("event"));
         assertEquals(200, call("POST", "/internal/directory/hub-events/42/join", "{\"userId\":\"99\"}").status());
+        assertEquals("via", call("POST", "/internal/directory/hub-events/42/join", "{\"userId\":\"99\",\"via\":\"cohost-1\"}").body().getString("joined"));
+        assertTrue(call("POST", "/internal/directory/hub-events/42/leave", "{\"userId\":\"99\"}").body().getBoolean("left"));
+        assertEquals(405, call("GET", "/internal/directory/hub-events/42/leave", null).status());
+        assertEquals("mine", call("GET", "/internal/directory/hub-events/mine?viewer=u1", null).body().getString("events"));
         assertEquals(202, call("POST", "/internal/directory/hub-events/42/report", "{\"reason\":\"spam spam spam\"}").status());
 
         assertEquals(405, call("GET", "/internal/directory/hub-events/42/join", null).status());

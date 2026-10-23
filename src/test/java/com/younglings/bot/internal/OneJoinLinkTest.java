@@ -52,7 +52,8 @@ class OneJoinLinkTest {
         String onClanPage = page.getObject("recruitingPost").getString("inviteUrl");
 
         HubEventsApi hub = new HubEventsApi(mock(EventRepository.class), mock(EventService.class), mock(EventTemplates.class), joinLinks, profiles,
-                mock(AllianceRepository.class), mock(PlayerLinkService.class), mock(HubModerationRepository.class));
+                mock(AllianceRepository.class), mock(PlayerLinkService.class), mock(HubModerationRepository.class),
+            mock(com.younglings.bot.events.EventCohostRepository.class), mock(com.younglings.bot.permission.DashboardAccess.class), mock(MemberEventsApi.class));
         Method host = HubEventsApi.class.getDeclaredMethod("host", JDA.class, long.class);
         host.setAccessible(true);
         String onEvents = ((DataObject) host.invoke(hub, mock(JDA.class), GUILD)).getString("inviteUrl");
