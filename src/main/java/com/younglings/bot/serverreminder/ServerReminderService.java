@@ -65,13 +65,13 @@ public class ServerReminderService {
 
         GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, channelId);
         if (channel == null) throw new ReminderException("That channel doesn't exist in this server.");
-        if (!channel.canTalk()) throw new ReminderException("JonnyBot can't post in #" + channel.getName() + ". It needs to see the channel and send messages there.");
+        if (!channel.canTalk()) throw new ReminderException("The bot can't post in #" + channel.getName() + ". It needs to see the channel and send messages there.");
         if (roleId != null) {
             Role role = guild.getRoleById(roleId);
             if (role == null) throw new ReminderException("That role doesn't exist in this server.");
             if (role.isPublicRole()) throw new ReminderException("@everyone can't be pinged by a reminder.");
             if (!role.isMentionable() && !guild.getSelfMember().hasPermission(Permission.MESSAGE_MENTION_EVERYONE)) {
-                throw new ReminderException("@" + role.getName() + " can't be mentioned: make the role mentionable in Discord, or give JonnyBot the Mention Everyone permission.");
+                throw new ReminderException("@" + role.getName() + " can't be mentioned: make the role mentionable in Discord, or give the bot the Mention Everyone permission.");
             }
         }
         if (repository.activeCount(guild.getIdLong()) >= ServerReminder.MAX_ACTIVE_PER_GUILD) {
@@ -113,7 +113,7 @@ public class ServerReminderService {
             return;
         }
         if (!channel.canTalk()) {
-            repository.fail(reminder.id(), "JonnyBot can't post in #" + channel.getName() + " any more.");
+            repository.fail(reminder.id(), "The bot can't post in #" + channel.getName() + " any more.");
             return;
         }
         Instant now = Instant.now();

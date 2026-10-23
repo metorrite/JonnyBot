@@ -114,7 +114,7 @@ public class AppealsAdminApi implements AdminRouteExtension {
         Long mirror = in.hasKey("mirrorChannelId") ? optionalId(in, "mirrorChannelId") : current.mirrorChannelId();
         if (mirror != null) {
             GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, mirror);
-            if (channel == null || !channel.canTalk()) throw AdminRouteExtension.refuse(400, "Pick a channel JonnyBot can post in for the copies.");
+            if (channel == null || !channel.canTalk()) throw AdminRouteExtension.refuse(400, "Pick a channel the bot can post in for the copies.");
         }
         appeals.saveSettings(new AppealRules.Settings(guild.getIdLong(), enabled, panelId, cooldown, mirror));
         log.info("Dashboard: {} saved the appeal settings of {} (on: {}, panel {}, cooldown {} d, copies to {})", actor.getId(), guild.getId(), enabled, panelId, cooldown, mirror);

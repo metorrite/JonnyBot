@@ -41,7 +41,7 @@ public class AutopunishService {
             case BAN -> Permission.BAN_MEMBERS;
         };
         if (!self.hasPermission(needed) || !self.canInteract(target)) {
-            return "Autopunish would have had them " + r.describe() + " (" + totalWarnings + " warnings), but JonnyBot lacks the " + needed.getName()
+            return "Autopunish would have had them " + r.describe() + " (" + totalWarnings + " warnings), but the bot lacks the " + needed.getName()
                     + " permission or its role is below theirs.";
         }
         switch (r.action()) {

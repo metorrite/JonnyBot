@@ -760,7 +760,7 @@ public final class EventSpace {
         if (newRoles > f.available().roles()) blockers.add("This needs " + newRoles + " new roles but the server only has room for " + Math.max(0, f.available().roles()) + " more (Discord allows " + MAX_ROLES + ").");
         if (newChannels > f.available().channels()) blockers.add("This needs " + newChannels + " new channels and categories but the server only has room for " + Math.max(0, f.available().channels()) + " more (Discord allows " + MAX_CHANNELS + ").");
         if (!f.available().missingPermissions().isEmpty() && (newRoles > 0 || newChannels > 0)) {
-            blockers.add("JonnyBot needs these permissions on the server: " + String.join(", ", f.available().missingPermissions()) + ".");
+            blockers.add("The bot needs these permissions on the server: " + String.join(", ", f.available().missingPermissions()) + ".");
         }
         if (draft.newChannels() > 0 && channels.stream().filter(c -> c.action() == Action.CREATE && c.kind() == Kind.CATEGORY).count() > 1) {
             warnings.add("The channels don't fit in one category (Discord allows " + MAX_CHANNELS_PER_CATEGORY + "), so more categories are made.");

@@ -256,7 +256,7 @@ public class EventSpaces {
         if (channel == null) return "The channel chosen for the " + what + " can't be found. It may have been deleted.";
         if (channel.getType() != ChannelType.TEXT && channel.getType() != ChannelType.NEWS) return "#" + channel.getName() + ", chosen for the " + what + ", isn't a text channel.";
         if (!guild.getSelfMember().hasPermission(channel, Permission.VIEW_CHANNEL, Permission.MESSAGE_SEND, Permission.MESSAGE_ATTACH_FILES, Permission.MESSAGE_EMBED_LINKS)) {
-            return "JonnyBot needs to see, send messages, attach files and embed links in #" + channel.getName() + ", chosen for the " + what + ".";
+            return "The bot needs to see, send messages, attach files and embed links in #" + channel.getName() + ", chosen for the " + what + ".";
         }
         return null;
     }

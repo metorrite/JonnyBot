@@ -1,5 +1,6 @@
 package com.younglings.bot.i18n;
 
+import com.younglings.bot.config.BotBrand;
 import com.younglings.bot.config.BotConfig;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
@@ -130,8 +131,9 @@ public class Messages {
         return catalogues.get(language);
     }
 
+    /** {@code {0}}, {@code {1}}... are the arguments; {@code {bot}} is the bot's default name ({@link BotBrand#NAME}), for text that names it. */
     static String fill(String template, Object... args) {
-        String out = template;
+        String out = template.replace("{bot}", BotBrand.NAME);
         for (int i = 0; i < args.length; i++) out = out.replace("{" + i + "}", String.valueOf(args[i]));
         return out;
     }

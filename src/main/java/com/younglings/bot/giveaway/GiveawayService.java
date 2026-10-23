@@ -64,7 +64,7 @@ public class GiveawayService {
                           boolean reactionEntry) {
         GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, channelId);
         if (channel == null) throw new GiveawayException("That channel doesn't exist in this server.");
-        if (!channel.canTalk()) throw new GiveawayException("JonnyBot can't post in #" + channel.getName() + ". It needs permission to view the channel and send messages there.");
+        if (!channel.canTalk()) throw new GiveawayException("The bot can't post in #" + channel.getName() + ". It needs permission to view the channel and send messages there.");
 
         long id = repository.create(guild.getIdLong(), channelId, prize, hostId, winners, endsAt, requiredRoleId, winnerRoleId, dmWinners, reactionEntry);
         Giveaway g = repository.get(guild.getIdLong(), id).orElseThrow();
@@ -77,7 +77,7 @@ public class GiveawayService {
         } catch (RuntimeException e) {
             repository.delete(guild.getIdLong(), id);
             log.warn("Couldn't post giveaway {} in channel {}", id, channelId, e);
-            throw new GiveawayException("Discord refused the message. Check JonnyBot can post and embed links in #" + channel.getName() + ".");
+            throw new GiveawayException("Discord refused the message. Check the bot can post and embed links in #" + channel.getName() + ".");
         }
     }
 

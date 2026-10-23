@@ -59,7 +59,7 @@ public class EmbedderService {
         GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, channelId);
         if (channel == null) return;
         if (!actor.hasPermission(channel, Permission.VIEW_CHANNEL, Permission.MESSAGE_SEND)) {
-            throw new IllegalStateException("You can't post in #" + channel.getName() + " yourself, so JonnyBot won't delete messages there for you.");
+            throw new IllegalStateException("You can't post in #" + channel.getName() + " yourself, so the bot won't delete messages there for you.");
         }
         try {
             channel.deleteMessageById(messageId).complete();
@@ -75,10 +75,10 @@ public class EmbedderService {
 
     private GuildMessageChannel checkedChannel(Guild guild, Member actor, long channelId) {
         GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, channelId);
-        if (channel == null) throw new IllegalStateException("That channel isn't a channel JonnyBot can post in.");
-        if (!channel.canTalk()) throw new IllegalStateException("JonnyBot can't post in #" + channel.getName() + ". It needs permission to view the channel and send messages there.");
+        if (channel == null) throw new IllegalStateException("That channel isn't a channel the bot can post in.");
+        if (!channel.canTalk()) throw new IllegalStateException("The bot can't post in #" + channel.getName() + ". It needs permission to view the channel and send messages there.");
         if (!actor.hasPermission(channel, Permission.VIEW_CHANNEL, Permission.MESSAGE_SEND)) {
-            throw new IllegalStateException("You can't post in #" + channel.getName() + " yourself, so JonnyBot won't post there for you.");
+            throw new IllegalStateException("You can't post in #" + channel.getName() + " yourself, so the bot won't post there for you.");
         }
         return channel;
     }

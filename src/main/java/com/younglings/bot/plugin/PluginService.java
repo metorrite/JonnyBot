@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import com.younglings.bot.config.BotBrand;
 
 /**
  * What the plugin API does with a player's data: issue and recognise tokens, and accept a batch of events only for a RuneScape name the
@@ -114,7 +115,7 @@ public class PluginService {
     public IngestResult ingest(long userId, PluginPayload.Parsed batch) {
         PlayerAccount account = links.getAccountForRsn(batch.rsn());
         if (account == null || account.discordUserId() != userId) {
-            return new IngestResult(0, 0, List.of(), Set.of(), "That RuneScape name isn't linked to your Discord account in JonnyBot. Link it with /rs first.");
+            return new IngestResult(0, 0, List.of(), Set.of(), "That RuneScape name isn't linked to your Discord account in " + BotBrand.NAME + ". Link it with /rs first.");
         }
         return store(userId, account.rsn(), batch);
     }

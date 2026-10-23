@@ -113,8 +113,8 @@ class ServerCheckupTest {
         List<Finding> findings = ServerCheckup.run(view, config(settings(null, null, 20L)));
 
         Finding error = only(findings, Level.ERROR).get(0);
-        assertTrue(error.title().contains("@Member is above JonnyBot's role"));
-        assertTrue(error.detail().contains("drag JonnyBot's role above @Member"));
+        assertTrue(error.title().contains("@Member is above the bot's role"));
+        assertTrue(error.detail().contains("drag the bot's role above @Member"));
     }
 
     @Test

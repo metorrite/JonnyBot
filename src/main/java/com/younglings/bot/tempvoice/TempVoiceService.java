@@ -55,7 +55,7 @@ public class TempVoiceService {
     /** Why the bot can't run temporary channels in this server, in words for the person setting it up, or null when it can. */
     public static String problemWith(Guild guild) {
         if (!guild.getSelfMember().hasPermission(NEEDED)) {
-            return "JonnyBot needs the Manage Channels, Manage Permissions and Move Members permissions (and to see and connect to the voice channels) to run temporary voice channels.";
+            return "The bot needs the Manage Channels, Manage Permissions and Move Members permissions (and to see and connect to the voice channels) to run temporary voice channels.";
         }
         return null;
     }

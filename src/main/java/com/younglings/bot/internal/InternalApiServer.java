@@ -214,7 +214,7 @@ public class InternalApiServer {
 
         Guild guild = jda.getGuildById(id);
         if (guild == null) {
-            if (requested) sendJson(exchange, 404, DataObject.empty().put("error", "JonnyBot isn't in that server."));
+            if (requested) sendJson(exchange, 404, DataObject.empty().put("error", "The bot isn't in that server."));
             else sendJson(exchange, 503, DataObject.empty().put("error", "Guild not available yet"));
             return null;
         }

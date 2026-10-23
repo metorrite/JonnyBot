@@ -645,7 +645,7 @@ public class TicketAdminApi {
         Settings updated = TicketAdminJson.readSettings(current, body(exchange));
 
         List<String> problems = new ArrayList<>();
-        if (updated.logChannelId() != null && guild.getChannelById(GuildMessageChannel.class, updated.logChannelId()) == null) problems.add("The log channel isn't a channel JonnyBot can post in, in this server.");
+        if (updated.logChannelId() != null && guild.getChannelById(GuildMessageChannel.class, updated.logChannelId()) == null) problems.add("The log channel isn't a channel the bot can post in, in this server.");
         if (updated.closeDelaySeconds() < 0 || updated.closeDelaySeconds() > 300) problems.add("The close delay must be between 0 and 300 seconds.");
         if (updated.transcriptRetentionDays() != null && (updated.transcriptRetentionDays() < 1 || updated.transcriptRetentionDays() > 3650)) problems.add("Transcript retention must be between 1 and 3650 days.");
         if (!com.younglings.bot.ticket.TicketInactivity.validDays(updated.autoCloseDays())) problems.add("Tickets can close themselves after between 1 and " + com.younglings.bot.ticket.TicketInactivity.MAX_DAYS + " days of silence, or never.");

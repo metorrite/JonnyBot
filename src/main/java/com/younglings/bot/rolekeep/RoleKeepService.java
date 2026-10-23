@@ -150,7 +150,7 @@ public class RoleKeepService {
     public String giveTemp(Guild guild, long actorId, Member target, Role role, Duration length) {
         String problem = refusal(guild, role);
         if (problem != null) return problem;
-        if (!guild.getSelfMember().canInteract(target)) return "JonnyBot cannot change " + target.getEffectiveName() + "'s roles: they rank above the bot.";
+        if (!guild.getSelfMember().canInteract(target)) return "The bot cannot change " + target.getEffectiveName() + "'s roles: they rank above the bot.";
         repository.setTemp(guild.getIdLong(), target.getIdLong(), role.getIdLong(), Instant.now().plus(length), actorId);
         if (!target.getRoles().contains(role)) {
             guild.addRoleToMember(target, role).reason("Temporary role from " + actorId).queue(ok -> {}, e -> log.warn("Could not give {} the temporary role: {}", target.getId(), e.getMessage()));

@@ -98,7 +98,7 @@ public class WarningAdminApi implements AdminRouteExtension {
                 case KICK -> Permission.KICK_MEMBERS;
                 case BAN -> Permission.BAN_MEMBERS;
             };
-            if (!self.hasPermission(needed)) problems.add("JonnyBot needs the " + needed.getName() + " permission to " + r.action().name().toLowerCase(java.util.Locale.ROOT) + " members.");
+            if (!self.hasPermission(needed)) problems.add("The bot needs the " + needed.getName() + " permission to " + r.action().name().toLowerCase(java.util.Locale.ROOT) + " members.");
         }
         if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.the_autopunish_rules_can_t_be"), problems.stream().distinct().toList());
         repository.saveAutopunishRules(guild.getIdLong(), rules.stream().sorted(java.util.Comparator.comparingInt(Autopunish.Rule::threshold)).toList());

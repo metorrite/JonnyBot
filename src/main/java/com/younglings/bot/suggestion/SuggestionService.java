@@ -51,7 +51,7 @@ public class SuggestionService {
         if (configured.isEmpty()) throw new SuggestionException("This server hasn't chosen a channel for suggestions yet. An admin can set one on the dashboard.");
         GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, configured.getAsLong());
         if (channel == null) throw new SuggestionException("The suggestions channel no longer exists. An admin needs to choose a new one on the dashboard.");
-        if (!channel.canTalk()) throw new SuggestionException("JonnyBot can't post in the suggestions channel right now. An admin needs to check its permissions.");
+        if (!channel.canTalk()) throw new SuggestionException("The bot can't post in the suggestions channel right now. An admin needs to check its permissions.");
         long wait = claimCooldown(authorId, System.currentTimeMillis());
         if (wait > 0) throw new SuggestionException("Please wait " + wait + " second" + (wait == 1 ? "" : "s") + " before sending another suggestion.");
 
@@ -64,7 +64,7 @@ public class SuggestionService {
         } catch (RuntimeException e) {
             repository.delete(guild.getIdLong(), id);
             log.warn("Couldn't post suggestion {} in channel {}", id, channel.getId(), e);
-            throw new SuggestionException("Discord refused the message. Check JonnyBot can post and embed links in #" + channel.getName() + ".");
+            throw new SuggestionException("Discord refused the message. Check the bot can post and embed links in #" + channel.getName() + ".");
         }
     }
 

@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
+import com.younglings.bot.config.BotBrand;
 
 /**
  * How JonnyBot appears in one server: the name its messages use for the server (a display name, else the clan name, else the Discord server
@@ -92,7 +93,7 @@ public class BrandingAdminApi implements AdminRouteExtension {
             nickname = body.isNull("nickname") ? "" : body.getString("nickname", "").strip();
             if (nickname.length() > MAX_NICKNAME) problems.add("A nickname can be at most " + MAX_NICKNAME + " characters.");
             boolean changed = !nickname.equals(self.getNickname() == null ? "" : self.getNickname());
-            if (changed && !self.hasPermission(Permission.NICKNAME_CHANGE)) problems.add("JonnyBot needs the Change Nickname permission to rename itself here. Give its role that permission in Server Settings, then Roles.");
+            if (changed && !self.hasPermission(Permission.NICKNAME_CHANGE)) problems.add("The bot needs the Change Nickname permission to rename itself here. Give its role that permission in Server Settings, then Roles.");
         }
 
         // The profile (avatar, banner, bio) is for servers on the premium list.
@@ -125,7 +126,7 @@ public class BrandingAdminApi implements AdminRouteExtension {
             String next = nickname.isEmpty() ? null : nickname;
             if (!Objects.equals(next, self.getNickname())) {
                 try {
-                    guild.modifyNickname(self, next).reason("Changed from the JonnyBot dashboard").complete();
+                    guild.modifyNickname(self, next).reason("Changed from the " + BotBrand.NAME + " dashboard").complete();
                 } catch (RuntimeException e) {
                     log.warn("Couldn't rename JonnyBot in guild {}: {}", guild.getId(), e.getMessage());
                     throw new ApiError(502, Text.of(guild, "dashboard.discord_didn_t_accept_that_nickname"), List.of(e.getMessage() == null ? "Try again in a moment." : e.getMessage()));

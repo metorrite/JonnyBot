@@ -65,7 +65,7 @@ public class AppealsPublicApi implements InternalRouteModule {
         }
         Guild guild = jda == null ? null : jda.getGuildById(rest);
         if (guild == null) {
-            InternalApiServer.sendJson(exchange, 404, error("JonnyBot isn't in that server."));
+            InternalApiServer.sendJson(exchange, 404, error("The bot isn't in that server."));
             return;
         }
         try {

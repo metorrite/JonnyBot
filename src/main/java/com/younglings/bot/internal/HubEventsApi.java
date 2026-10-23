@@ -40,6 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import com.younglings.bot.config.BotBrand;
 
 /**
  * The events hub's engine events (T-216, design {@code docs/EVENTS-HUB.md}), reached through {@link DirectoryApi} ({@code /internal/directory/hub-events}),
@@ -447,7 +448,7 @@ public class HubEventsApi {
             ClanProfile p = listed.get();
             return host.put("name", p.displayName()).put("iconUrl", p.logoUrl()).put("slug", p.slug());
         }
-        return host.put("name", guild == null ? "A JonnyBot server" : guild.getName()).put("iconUrl", guild == null ? null : guild.getIconUrl()).put("slug", null);
+        return host.put("name", guild == null ? "A " + BotBrand.NAME + " server" : guild.getName()).put("iconUrl", guild == null ? null : guild.getIconUrl()).put("slug", null);
     }
 
     /** The top of the standings with RuneScape names only (a team's name for a team); a player with no linked name is "Player n". */

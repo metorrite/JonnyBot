@@ -177,9 +177,9 @@ public class ServerSetupAdminApi {
         } else if (role.isPublicRole()) {
             problems.add(label + ": @everyone can't be used here.");
         } else if (handedOut && role.isManaged()) {
-            problems.add(label + ": @" + role.getName() + " is managed by an integration, so JonnyBot can't give it to anyone.");
+            problems.add(label + ": @" + role.getName() + " is managed by an integration, so the bot can't give it to anyone.");
         } else if (handedOut && !guild.getSelfMember().canInteract(role)) {
-            problems.add(label + ": JonnyBot can't give @" + role.getName() + " out. Move JonnyBot's own role above it in Server Settings > Roles.");
+            problems.add(label + ": the bot can't give @" + role.getName() + " out. Move the bot's own role above it in Server Settings > Roles.");
         }
     }
 
@@ -187,7 +187,7 @@ public class ServerSetupAdminApi {
         if (!field.present() || field.value() == null) return;
         GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, field.value());
         if (channel == null) problems.add(label + ": that channel doesn't exist in this server.");
-        else if (!channel.canTalk()) problems.add(label + ": JonnyBot can't post in #" + channel.getName() + ". It needs permission to view and send messages there.");
+        else if (!channel.canTalk()) problems.add(label + ": the bot can't post in #" + channel.getName() + ". It needs permission to view and send messages there.");
     }
 
     private static String idOrNull(Long id) {

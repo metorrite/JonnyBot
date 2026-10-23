@@ -92,7 +92,7 @@ public class AnniversaryService {
         Settings s = repository.settings(guild.getIdLong());
         if (s.channelId() == null) return "Pick a channel first.";
         GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, s.channelId());
-        if (channel == null || !channel.canTalk()) return "JonnyBot can't post in that channel. Check the channel and its permissions.";
+        if (channel == null || !channel.canTalk()) return "The bot can't post in that channel. Check the channel and its permissions.";
         List<Anniversary> items = week(guild.getIdLong(), today(), s.minYears());
         if (items.isEmpty()) return "Nobody reaches an anniversary in the next seven days, so there is nothing to post.";
         channel.sendMessageComponents(List.of(post(items))).useComponentsV2(true).setAllowedMentions(List.of())

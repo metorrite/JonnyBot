@@ -124,7 +124,7 @@ public class ClanProfileAdminApi implements AdminRouteExtension {
                 try {
                     focus.add(Focus.valueOf(given.getString(i).strip().toUpperCase(Locale.ROOT)));
                 } catch (IllegalArgumentException e) {
-                    problems.add("One of the focus choices isn't one JonnyBot knows.");
+                    problems.add("One of the focus choices isn't one the bot knows.");
                 }
             }
         } else {
