@@ -75,7 +75,8 @@ class SiteApiTenantDatabaseTest {
             Map.entry("coffer", ""), Map.entry("polls", ""), Map.entry("signups", ""), Map.entry("events", ""), Map.entry("pvm", ""),
             Map.entry("drops", ""), Map.entry("bosses", "period=last-30d"), Map.entry("boss", "boss=general_graardor&period=last-30d"),
             Map.entry("item", "item=bandos_hilt&period=last-30d"), Map.entry("drop-log", "period=last-30d"),
-            Map.entry("member/skill", "rsn=" + SHOWN + "&skill=0"), Map.entry("notifications", ""));
+            Map.entry("member/skill", "rsn=" + SHOWN + "&skill=0"), Map.entry("notifications", ""),
+            Map.entry("member", "rsn=" + SHOWN), Map.entry("member/recap", "rsn=" + SHOWN + "&period=last-30d"));
     private static final Set<String> NAMES_THE_SHOWN_MEMBER = Set.of("members", "overview", "leaderboard", "feed", "records", "citadel-grid", "history",
             "coffer", "signups", "pvm", "drops", "drop-log", "notifications");
 
@@ -228,6 +229,21 @@ class SiteApiTenantDatabaseTest {
         assertNull(api.tenant(guildA, "member/skill", exchange("rsn=" + HIDDEN + "&skill=0")), "hidden from the rankings");
         assertNull(api.tenant(guildA, "member/skill", exchange("rsn=" + OTHER + "&skill=0")), "not in this clan");
         assertNull(api.tenant(guildB, "member/skill", exchange("rsn=" + SHOWN + "&skill=0")), "the same name asked of the other server");
+    }
+
+    @Test
+    void aMemberPageAndMemberRecapOnlyForAVisibleMemberOfThatClan() {
+        for (String route : List.of("member", "member/recap")) {
+            String period = route.equals("member") ? "" : "&period=last-30d";
+            DataObject page = api.tenant(guildA, route, exchange("rsn=" + SHOWN + period));
+            assertNotNull(page, route);
+            assertTrue(text(page).contains(SHOWN.toLowerCase()), route);
+            assertNull(api.tenant(guildA, route, exchange("rsn=" + HIDDEN + period)), route + ": a member hidden from the rankings has no page (404, like an unknown name)");
+            assertNull(api.tenant(guildA, route, exchange("rsn=" + OTHER + period)), route + ": not in this clan");
+            assertNull(api.tenant(guildB, route, exchange("rsn=" + SHOWN + period)), route + ": the same name asked of the other server");
+            assertNotNull(api.tenant(guildB, route, exchange("rsn=" + OTHER + period)), route + ": the other server's own member");
+        }
+        assertNotNull(api.member(guildA, HIDDEN), "the home site's member page is unchanged");
     }
 
     @Test

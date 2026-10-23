@@ -67,7 +67,6 @@ public class InternalApiServer {
     private static final Logger log = LoggerFactory.getLogger(InternalApiServer.class);
     private static final String SECRET_HEADER = "X-Internal-Secret";
     private static final String GUILD_HEADER = "X-Guild-Id";
-    private static final int MAX_NICKNAME_LENGTH = 32; // Discord's own limit
 
     private final BotConfig botConfig;
     private final TicketAdminApi ticketAdminApi;
@@ -321,14 +320,7 @@ public class InternalApiServer {
      * non-issue. {@code null} if the member genuinely isn't in the guild at all.
      */
     private Member resolveMember(Guild guild, long userId) {
-        Member cached = guild.getMemberById(userId);
-        if (cached != null) return cached;
-
-        try {
-            return guild.retrieveMemberById(userId).complete();
-        } catch (Exception e) {
-            return null;
-        }
+        return ServerProfile.resolveMember(guild, userId);
     }
 
     // --- Read endpoints ---
@@ -397,17 +389,11 @@ public class InternalApiServer {
                 return;
             }
 
-            String nickname = body.isNull("nickname") ? null : body.getString("nickname").trim();
-            if (nickname != null && nickname.isEmpty()) nickname = null;
-            if (nickname != null && nickname.length() > MAX_NICKNAME_LENGTH) {
-                sendJson(exchange, 400, DataObject.empty().put("error",
-                        "Nickname must be " + MAX_NICKNAME_LENGTH + " characters or fewer"));
-                return;
-            }
-
-            member.modifyNickname(nickname).complete();
+            DataObject result = ServerProfile.setNickname(member, body);
             log.info("Set nickname for member {} in guild {}", member.getId(), guildId);
-            sendJson(exchange, 200, DataObject.empty().put("nickname", nickname));
+            sendJson(exchange, 200, result);
+        } catch (ServerProfile.Refused e) {
+            sendJson(exchange, e.status, DataObject.empty().put("error", e.getMessage()));
         } catch (Exception e) {
             log.error("Internal API /nickname request failed", e);
             sendJson(exchange, 500, DataObject.empty().put("error",
@@ -427,46 +413,16 @@ public class InternalApiServer {
                 return;
             }
 
-            String colorKey = body.isNull("color") ? null : body.getString("color");
-            if (colorKey != null && !ColorRoleCatalog.isValidKey(colorKey)) {
-                sendJson(exchange, 400, DataObject.empty().put("error", "Unknown color: " + colorKey));
-                return;
-            }
-
-            List<Role> toRemove = new ArrayList<>();
-            for (Role role : member.getRoles()) {
-                if (ColorRoleCatalog.isColorRoleName(role.getName())) toRemove.add(role);
-            }
-
-            List<Role> toAdd = new ArrayList<>();
-            if (colorKey != null) {
-                toAdd.add(ensureColorRole(guild, colorKey));
-            }
-
-            if (!toAdd.isEmpty() || !toRemove.isEmpty()) {
-                guild.modifyMemberRoles(member, toAdd, toRemove).complete();
-            }
-
-            log.info("Set color role '{}' for member {} in guild {}", colorKey, member.getId(), guildId);
-            sendJson(exchange, 200, DataObject.empty().put("colorRole", colorKey));
+            DataObject result = ServerProfile.setColorRole(guild, member, body);
+            log.info("Set color role '{}' for member {} in guild {}", result.getString("colorRole", null), member.getId(), guildId);
+            sendJson(exchange, 200, result);
+        } catch (ServerProfile.Refused e) {
+            sendJson(exchange, e.status, DataObject.empty().put("error", e.getMessage()));
         } catch (Exception e) {
             log.error("Internal API /color-role request failed", e);
             sendJson(exchange, 500, DataObject.empty().put("error",
                     "Failed to change color role — the bot may not have permission here"));
         }
-    }
-
-    private Role ensureColorRole(Guild guild, String colorKey) {
-        String roleName = ColorRoleCatalog.roleName(colorKey);
-        List<Role> existing = guild.getRolesByName(roleName, true);
-        if (!existing.isEmpty()) return existing.getFirst();
-
-        return guild.createRole()
-                .setName(roleName)
-                .setColor(ColorRoleCatalog.colorFor(colorKey))
-                .setMentionable(false)
-                .setHoisted(false)
-                .complete();
     }
 
     // --- Response builders ---
@@ -519,22 +475,7 @@ public class InternalApiServer {
     }
 
     private DataObject buildMemberInfo(Member member) {
-        String colorRoleKey = null;
-        for (Role role : member.getRoles()) {
-            String key = ColorRoleCatalog.keyFromRoleName(role.getName());
-            if (key != null) {
-                colorRoleKey = key;
-                break;
-            }
-        }
-
-        return DataObject.empty()
-                .put("id", member.getId())
-                .put("username", member.getUser().getName())
-                .put("nickname", member.getNickname())
-                .put("displayName", member.getEffectiveName())
-                .put("avatarUrl", member.getEffectiveAvatarUrl())
-                .put("colorRole", colorRoleKey);
+        return ServerProfile.info(member);
     }
 
     // --- Helpers ---
