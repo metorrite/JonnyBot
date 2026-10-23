@@ -232,7 +232,9 @@
                       "type": "text",
                       "v": 1,
                       "settings": {
-                        "markdown": "## Pull up a chair\nWelcome to {clan}. We're here for the company as much as the XP: weekly events, a busy Discord and people who help out.\n\nNew here? Have a look at what's coming up, then come and say hello."
+                        "markdown": "## Pull up a chair\nWelcome to {clan}. We're here for the company as much as the XP: weekly events, a busy Discord and people who help out.\n\nNew here? Have a look at what's coming up, then come and say hello.",
+                        "align": "left",
+                        "width": "readable"
                       },
                       "unmet": "hide"
                     }
@@ -492,7 +494,9 @@
                       "type": "text",
                       "v": 1,
                       "settings": {
-                        "markdown": "## Events\nSomething on most nights. Everyone is welcome, whatever your level."
+                        "markdown": "## Events\nSomething on most nights. Everyone is welcome, whatever your level.",
+                        "align": "left",
+                        "width": "readable"
                       },
                       "unmet": "hide"
                     }
@@ -567,17 +571,6 @@
                   "valign": "start",
                   "surface": "none",
                   "widgets": [
-                    {
-                      "id": "heart0031",
-                      "type": "countdown",
-                      "v": 1,
-                      "settings": {
-                        "title": "Next big event",
-                        "until": "",
-                        "done": "It's happening now!"
-                      },
-                      "unmet": "hide"
-                    },
                     {
                       "id": "heart0032",
                       "type": "event-standings",
@@ -707,7 +700,9 @@
                       "type": "text",
                       "v": 1,
                       "settings": {
-                        "markdown": "## Our community\nThe people who make {clan} what it is."
+                        "markdown": "## Our community\nThe people who make {clan} what it is.",
+                        "align": "left",
+                        "width": "readable"
                       },
                       "unmet": "hide"
                     }
@@ -761,12 +756,21 @@
                     {
                       "id": "heart0044",
                       "type": "stat-tiles",
-                      "v": 1,
+                      "v": 2,
                       "settings": {
-                        "members": true,
-                        "xpWeek": true,
-                        "xpMonth": false,
-                        "kills": false
+                        "cards": [
+                          {
+                            "metric": "members",
+                            "label": "",
+                            "link": null
+                          },
+                          {
+                            "metric": "xpWeek",
+                            "label": "",
+                            "link": null
+                          }
+                        ],
+                        "columns": "4"
                       },
                       "unmet": "hide"
                     }
@@ -789,7 +793,11 @@
                       "v": 1,
                       "settings": {
                         "title": "Busiest skillers",
-                        "limit": 6
+                        "limit": 6,
+                        "showDay": true,
+                        "showWeek": true,
+                        "showMonth": true,
+                        "defaultTab": "week"
                       },
                       "unmet": "hide"
                     }
@@ -870,7 +878,12 @@
                         "title": "Everyone",
                         "limit": 200,
                         "showJoined": true,
-                        "search": true
+                        "showRank": true,
+                        "showLevel": false,
+                        "showXp": false,
+                        "search": true,
+                        "rankFilter": true,
+                        "sort": "rank"
                       },
                       "unmet": "hide"
                     }
@@ -935,7 +948,9 @@
                       "type": "text",
                       "v": 1,
                       "settings": {
-                        "markdown": "## Come and join us\nWe'd love to have you. Hop on Discord, say hello, and someone will invite you in game."
+                        "markdown": "## Come and join us\nWe'd love to have you. Hop on Discord, say hello, and someone will invite you in game.",
+                        "align": "left",
+                        "width": "readable"
                       },
                       "unmet": "hide"
                     },
