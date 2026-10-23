@@ -19,6 +19,12 @@ public final class PremiumFeatures {
     public static final String FAST_POLLING = "polling.fast";
     /** The bot's server avatar, banner and bio. */
     public static final String BRANDING_PROFILE = "branding.profile";
+    /** Builder v3 (T-363, docs/BUILDER-V3.md 10.2 {@code site.limits}): how many pages a clan website may have. */
+    public static final String SITE_PAGES = "site.limits.pages";
+    /** Builder v3: how many widgets one page of a clan website may hold. */
+    public static final String SITE_WIDGETS_PER_PAGE = "site.limits.widgets";
+    /** Builder v3: how many published versions of a clan website can be seen and restored. */
+    public static final String SITE_VERSIONS = "site.versions";
 
     /** {@code unlockedBy}: the tiers that get the feature (or the premium value of a limit). {@code freeValue}/{@code premiumValue}: null for a plain on/off feature. */
     public record Feature(String key, String title, String description, Set<String> unlockedBy, Long freeValue, Long premiumValue) {
@@ -30,7 +36,10 @@ public final class PremiumFeatures {
     private static final List<Feature> ALL = List.of(
             new Feature(FAST_POLLING, "Faster player updates", "Your clan's players are refreshed every hour instead of every three hours, ahead of other clans in the queue.",
                     Set.of(TIER_PREMIUM), null, null),
-            new Feature(BRANDING_PROFILE, "Server profile", "Give the bot its own avatar, banner and bio in your server.", Set.of(TIER_PREMIUM), null, null));
+            new Feature(BRANDING_PROFILE, "Server profile", "Give the bot its own avatar, banner and bio in your server.", Set.of(TIER_PREMIUM), null, null),
+            new Feature(SITE_PAGES, "Website pages", "Up to 24 pages on your clan website instead of 12.", Set.of(TIER_PREMIUM), 12L, 24L),
+            new Feature(SITE_WIDGETS_PER_PAGE, "Widgets a page", "Up to 80 widgets on each page of your clan website instead of 40.", Set.of(TIER_PREMIUM), 40L, 80L),
+            new Feature(SITE_VERSIONS, "Website versions", "Go back to any of your last 30 published versions instead of the last 3.", Set.of(TIER_PREMIUM), 3L, 30L));
 
     private static final Map<String, Feature> BY_KEY = ALL.stream().collect(java.util.stream.Collectors.toUnmodifiableMap(Feature::key, f -> f));
 
