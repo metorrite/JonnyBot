@@ -83,6 +83,14 @@ public class RuneClansHubClient {
         }
     }
 
+    /**
+     * {@code GET /v1/guilds/{id}/events}: the newest plugin events of a server's members, as the hub filters them (only members whose grant
+     * to JonnyBot covers that server, only categories both the grant and the player's current consent allow). For clan websites (T-303).
+     */
+    public Answer guildEvents(long guildId, int limit) {
+        return call("GET", "/v1/guilds/" + guildId + "/events?limit=" + Math.max(1, Math.min(limit, 100)), null);
+    }
+
     // ---------- writes ----------
 
     /** {@code PUT /v1/guilds/{id}}: tells the hub a server JonnyBot is in, by name. */
