@@ -9,8 +9,10 @@ import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.notice.BotOwners;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
+import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.utils.data.DataArray;
 import net.dv8tion.jda.api.utils.data.DataObject;
 import org.slf4j.Logger;
@@ -32,6 +34,8 @@ public class AccessGrantAdminApi implements AdminRouteExtension {
     private static final Logger log = LoggerFactory.getLogger(AccessGrantAdminApi.class);
     private static final int MAX_NOTE = 120;
     private static final int MAX_GRANTS = 500;
+    /** How many people not in the bot's cache one listing asks Discord about; the rest show by id alone. */
+    private static final int MAX_USER_LOOKUPS = 20;
 
     private final AccessGrantRepository repository;
     private final AccessGrantService service;
@@ -62,12 +66,20 @@ public class AccessGrantAdminApi implements AdminRouteExtension {
     DataObject list(Guild guild) {
         DataArray grants = DataArray.empty();
         Instant now = Instant.now();
+        int lookups = 0;
         for (AccessGrant g : repository.all()) {
             DataObject json = DataObject.empty().put("id", Long.toString(g.id())).put("area", g.area().key()).put("note", g.note())
                     .put("grantedBy", Long.toString(g.grantedBy())).put("grantedAt", g.grantedAt().toString())
                     .put("expiresAt", g.expiresAt() == null ? null : g.expiresAt().toString()).put("expired", g.expired(now));
             if (g.isUser()) {
                 json.put("subject", "user").put("userId", Long.toString(g.userId()));
+                // Who that is, so the owner sees a name rather than a number: from the cache, else asked of Discord for the first few only.
+                User user = guild.getJDA().getUserById(g.userId());
+                if (user == null && lookups < MAX_USER_LOOKUPS) {
+                    lookups++;
+                    user = retrieveUser(guild.getJDA(), g.userId());
+                }
+                json.put("userName", user == null ? null : user.getName()).put("avatarUrl", user == null ? null : user.getEffectiveAvatarUrl());
             } else {
                 Guild known = guild.getJDA().getGuildById(g.guildId());
                 json.put("subject", "server").put("guildId", Long.toString(g.guildId())).put("level", g.level().key()).put("levelLabel", g.level().label())
@@ -118,6 +130,14 @@ public class AccessGrantAdminApi implements AdminRouteExtension {
         if (!repository.delete(id)) throw new ApiError(404, Text.of(guild, "dashboard.that_entry_is_not_on_the"));
         service.listChanged();
         return list(guild);
+    }
+
+    private static User retrieveUser(JDA jda, long userId) {
+        try {
+            return jda.retrieveUserById(userId).complete();
+        } catch (Exception e) {
+            return null; // no such user, or Discord could not say: the website shows the id alone
+        }
     }
 
     /** An optional last day (yyyy-MM-dd, end of that day UTC), in the future. */

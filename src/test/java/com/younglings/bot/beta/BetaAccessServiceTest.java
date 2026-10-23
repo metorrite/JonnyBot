@@ -1,5 +1,6 @@
 package com.younglings.bot.beta;
 
+import com.younglings.bot.access.AccessLevel;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Guild;
@@ -31,7 +32,7 @@ class BetaAccessServiceTest {
     @BeforeEach
     void setUp() {
         repository = mock(BetaGuildRepository.class);
-        when(repository.all()).thenReturn(List.of(new BetaGuildRepository.BetaGuild(BETA_GUILD, "Friends")));
+        listAt(AccessLevel.MANAGE_SERVER);
         jda = mock(JDA.class);
         guild = mock(Guild.class);
         member = mock(Member.class);
@@ -39,6 +40,45 @@ class BetaAccessServiceTest {
         when(guild.getMemberById(USER)).thenReturn(member);
         service = new BetaAccessService(repository);
         service.clock = now::get;
+    }
+
+    private void listAt(AccessLevel level) {
+        when(repository.all()).thenReturn(List.of(new BetaGuildRepository.BetaGuild(BETA_GUILD, "Friends", level)));
+    }
+
+    @Test
+    void aServerAtAdministratorDoesNotLetManageServerIn() {
+        listAt(AccessLevel.ADMINISTRATOR);
+        when(member.hasPermission(Permission.MANAGE_SERVER)).thenReturn(true);
+
+        assertFalse(service.managesAnyBetaGuild(jda, USER));
+    }
+
+    @Test
+    void aServerAtAdministratorLetsAnAdministratorIn() {
+        listAt(AccessLevel.ADMINISTRATOR);
+        when(member.hasPermission(Permission.ADMINISTRATOR)).thenReturn(true);
+
+        assertTrue(service.managesAnyBetaGuild(jda, USER));
+    }
+
+    @Test
+    void aServerAtOwnerOnlyLetsTheOwnerIn() {
+        listAt(AccessLevel.OWNER);
+        when(member.hasPermission(Permission.ADMINISTRATOR)).thenReturn(true);
+        assertFalse(service.managesAnyBetaGuild(jda, USER));
+
+        service.listChanged();
+        when(member.isOwner()).thenReturn(true);
+        assertTrue(service.managesAnyBetaGuild(jda, USER));
+    }
+
+    @Test
+    void aServerWithALevelTheCodeDoesNotKnowLetsNobodyIn() {
+        listAt(null);
+        when(member.isOwner()).thenReturn(true);
+
+        assertFalse(service.managesAnyBetaGuild(jda, USER));
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.access.AccessLevel;
 import com.younglings.bot.beta.BetaAccessService;
 import com.younglings.bot.beta.BetaGuildRepository;
 import com.younglings.bot.i18n.Text;
@@ -13,17 +14,24 @@ import net.dv8tion.jda.api.utils.data.DataObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.List;
 import java.util.function.Supplier;
 
 /**
  * The list of trusted servers whose admin team may use JonnyBot's website while it is closed to the public. Reading and changing it is
  * for the bot's owner, because it decides who gets in. Reached only through
  * {@link TicketAdminApi}, which has already checked the asker and audit-logs every change.
+ * <p>
+ * Each server has its own level, the least a person must be there (T-345): Server owner, Administrator or Manage Server. A new server starts at
+ * Administrator; servers added before levels existed keep Manage Server, the rule they always had.
  */
 @BService
 public class BetaAdminApi implements AdminRouteExtension {
     private static final Logger log = LoggerFactory.getLogger(BetaAdminApi.class);
     private static final int MAX_LABEL = 60;
+    /** The levels a beta server may have, most restrictive first. "Any member" is left out: that is what a per-area access grant is for. */
+    static final List<AccessLevel> LEVELS = List.of(AccessLevel.OWNER, AccessLevel.ADMINISTRATOR, AccessLevel.MANAGE_SERVER);
+    static final AccessLevel DEFAULT_LEVEL = AccessLevel.ADMINISTRATOR;
 
     private final BetaGuildRepository repository;
     private final BetaAccessService access;
@@ -58,10 +66,15 @@ public class BetaAdminApi implements AdminRouteExtension {
             for (var beta : repository.all()) {
                 Guild known = guild.getJDA().getGuildById(beta.guildId());
                 guilds.add(DataObject.empty().put("guildId", Long.toString(beta.guildId())).put("label", beta.label())
-                        .put("botPresent", known != null).put("name", known == null ? null : known.getName()));
+                        .put("botPresent", known != null).put("name", known == null ? null : known.getName())
+                        .put("iconUrl", known == null ? null : known.getIconUrl())
+                        .put("level", beta.level() == null ? null : beta.level().key())
+                        .put("levelLabel", beta.level() == null ? null : beta.level().label()));
             }
         }
-        return DataObject.empty().put("guilds", guilds).put("canEdit", owner);
+        DataArray levels = DataArray.empty();
+        for (AccessLevel level : LEVELS) levels.add(DataObject.empty().put("key", level.key()).put("label", level.label()));
+        return DataObject.empty().put("guilds", guilds).put("canEdit", owner).put("levels", levels).put("defaultLevel", DEFAULT_LEVEL.key());
     }
 
     DataObject save(Guild guild, Member actor, String rawId, DataObject body) {
@@ -69,11 +82,22 @@ public class BetaAdminApi implements AdminRouteExtension {
         long id = parseId(rawId);
         String label = body.getString("label", "").strip();
         if (label.length() > MAX_LABEL) throw new ApiError(400, Text.of(guild, "dashboard.keep_the_label_under_characters", MAX_LABEL));
+        AccessLevel level = levelFor(guild, id, body.getString("level", "").strip());
 
-        repository.upsert(id, label, actor.getIdLong());
+        repository.upsert(id, label, level, actor.getIdLong());
         access.listChanged();
-        log.info("Dashboard: {} saved beta server {} ({})", actor.getId(), id, label);
+        log.info("Dashboard: {} saved beta server {} ({}, {})", actor.getId(), id, label, level.key());
         return list(guild, actor);
+    }
+
+    /** The level asked for; with none, the server's current one (a label change keeps it), or the default for a server new to the list. */
+    private AccessLevel levelFor(Guild guild, long id, String raw) {
+        if (!raw.isEmpty()) {
+            return AccessLevel.ofKey(raw).filter(LEVELS::contains)
+                    .orElseThrow(() -> new ApiError(400, Text.of(guild, "dashboard.choose_the_level_for_a_beta")));
+        }
+        return repository.all().stream().filter(b -> b.guildId() == id && b.level() != null).map(BetaGuildRepository.BetaGuild::level)
+                .findFirst().orElse(DEFAULT_LEVEL);
     }
 
     DataObject remove(Guild guild, Member actor, String rawId) {
