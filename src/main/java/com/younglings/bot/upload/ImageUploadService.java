@@ -4,6 +4,7 @@ import io.github.freya022.botcommands.api.core.service.annotations.BService;
 
 import java.security.SecureRandom;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -51,6 +52,33 @@ public class ImageUploadService {
 
     public boolean remove(long guildId, String scope, String slot) {
         return isKnownSlot(scope, slot) && repository.delete(guildId, scope, slot);
+    }
+
+    // ---------- a clan website's picture library (T-408, docs/BUILDER-V3.md 5.4) ----------
+
+    /**
+     * The scope of a clan website's picture library: gallery pictures and every single-picture field and section background of the site
+     * editor. Unlike the places above, a library holds many pictures, each under its own token (its slot is the token), up to the site's
+     * plan limit. A plan that ends keeps every picture (docs/BUILDER-V3.md 10.4); only new uploads count against the lower limit.
+     */
+    public static final String LIBRARY = "site-gallery";
+
+    /** Adds a picture to the server's site library unless it already holds {@code limit} pictures. Empty when it is full. */
+    public Optional<UploadedImageRepository.Saved> addToLibrary(long guildId, byte[] data, long limit) {
+        if (data == null || data.length == 0) throw new InvalidImageException("That file is empty.");
+        if (data.length > MAX_BYTES) throw new InvalidImageException("That picture is too big. Keep it under " + (MAX_BYTES / (1024 * 1024)) + " MB.");
+        String type = sniff(data).orElseThrow(() -> new InvalidImageException("Upload a PNG, JPEG, GIF or WebP picture."));
+        return repository.addIfRoom(guildId, LIBRARY, newToken(), type, ImageResizer.fitFor(LIBRARY, type, data), limit);
+    }
+
+    /** The server's site library, oldest first. */
+    public List<UploadedImageRepository.Listed> library(long guildId) {
+        return repository.list(guildId, LIBRARY);
+    }
+
+    /** Removes one picture from the server's site library. False if that token isn't one of this server's library pictures. */
+    public boolean removeFromLibrary(long guildId, String token) {
+        return token != null && token.matches("[0-9a-f]{32}") && repository.delete(guildId, LIBRARY, token);
     }
 
     public Optional<UploadedImageRepository.Stored> find(String token) {
