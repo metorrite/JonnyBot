@@ -1,0 +1,73 @@
+{
+  "v": 2,
+  "look": { "theme": "modern", "mode": "dark", "accent": null, "logo": null, "banner": null },
+  "style": {},
+  "header": {
+    "layout": "logo-left",
+    "logo": { "show": true, "text": "name", "height": 40 },
+    "nav": [
+      { "id": "tonujmnril", "label": "Home", "link": { "kind": "page", "pageId": "homepage01" } },
+      { "id": "fytb4613yn", "label": "Dup", "link": { "kind": "page", "pageId": "page000002" } }
+    ],
+    "slots": { "left": [], "right": [] },
+    "sticky": false,
+    "transparent": "never",
+    "height": "normal",
+    "mobile": "drawer"
+  },
+  "footer": { "columns": [], "showSocial": false, "badge": true },
+  "pages": [
+    {
+      "id": "homepage01",
+      "title": "Home",
+      "path": "",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "sect000001",
+          "width": "wide",
+          "background": { "kind": "none" },
+          "padding": { "lg": { "y": "lg", "x": "md" } },
+          "height": { "lg": { "mode": "auto" } },
+          "rows": [
+            {
+              "id": "50nravtugn",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "colm000001",
+                  "span": { "lg": 6 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "wdgt000002",
+                      "type": "text",
+                      "v": 1,
+                      "settings": { "markdown": "## About us\nWrite something about your clan here." },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "colm000002",
+                  "span": { "lg": 6 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    { "id": "page000002", "title": "Dup", "path": "about", "hidden": false, "access": "public", "sections": [] }
+  ],
+  "wizard": { "step": "look", "done": false }
+}

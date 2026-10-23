@@ -1,0 +1,444 @@
+{
+  "v": 1,
+  "look": {
+    "theme": "minimal",
+    "mode": "light",
+    "accent": null,
+    "logo": null,
+    "banner": null
+  },
+  "pages": [
+    {
+      "id": "ziv9jl0wg5",
+      "title": "Home",
+      "path": "",
+      "hidden": false,
+      "sections": [
+        {
+          "id": "k56sajtmqp",
+          "tone": "plain",
+          "columns": [
+            {
+              "id": "hchjdd2qdo",
+              "span": 12,
+              "widgets": [
+                {
+                  "id": "wk2lzhltb0",
+                  "type": "carousel",
+                  "settings": {
+                    "slides": [
+                      {
+                        "title": "Welcome to The Green Angels",
+                        "text": "Bossing, skilling and good company every evening.",
+                        "cta": "Join us",
+                        "href": "",
+                        "image": "",
+                        "art": "clans"
+                      },
+                      {
+                        "title": "Weekly events",
+                        "text": "Bingo, competitions and boss nights all week.",
+                        "cta": "",
+                        "href": "",
+                        "image": "",
+                        "art": "events"
+                      }
+                    ]
+                  },
+                  "unmet": "hide"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "isc4maal3u",
+          "tone": "plain",
+          "columns": [
+            {
+              "id": "llnt38kapu",
+              "span": 8,
+              "widgets": [
+                {
+                  "id": "0cj2ec4z8r",
+                  "type": "text",
+                  "settings": {
+                    "markdown": "## Welcome to The Green Angels\nTell visitors what your clan is about: what you do together, when you play and who fits in."
+                  },
+                  "unmet": "hide"
+                }
+              ]
+            },
+            {
+              "id": "dzvquw0pea",
+              "span": 4,
+              "widgets": [
+                {
+                  "id": "gmo81vbemc",
+                  "type": "events",
+                  "settings": {
+                    "title": "Coming up",
+                    "limit": 3,
+                    "showImages": true
+                  },
+                  "unmet": "hide"
+                },
+                {
+                  "id": "oo0fa9vgwt",
+                  "type": "discord-join",
+                  "settings": {
+                    "title": "Join our Discord",
+                    "text": "Chat, events and clan news all happen on our Discord.",
+                    "buttonLabel": "Join the Discord"
+                  },
+                  "unmet": "hide"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "ybjoivh6s6",
+          "tone": "panel",
+          "columns": [
+            {
+              "id": "g5cf4eah1q",
+              "span": 4,
+              "widgets": [
+                {
+                  "id": "wcer6p8f5b",
+                  "type": "top-xp",
+                  "settings": {
+                    "title": "Top XP this week",
+                    "limit": 8
+                  },
+                  "unmet": "hide"
+                }
+              ]
+            },
+            {
+              "id": "13asbnf536",
+              "span": 4,
+              "widgets": [
+                {
+                  "id": "xbdoc0e5u2",
+                  "type": "weekly-recap",
+                  "settings": {
+                    "title": "Last week",
+                    "showTop": true
+                  },
+                  "unmet": "hide"
+                }
+              ]
+            },
+            {
+              "id": "ec0tgu5re2",
+              "span": 4,
+              "widgets": [
+                {
+                  "id": "t1przrkwaf",
+                  "type": "clan-stats",
+                  "settings": {
+                    "title": "Clan stats"
+                  },
+                  "unmet": "hide"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "nvbhbor9eu",
+      "title": "Roster",
+      "path": "roster",
+      "hidden": false,
+      "sections": [
+        {
+          "id": "gv18uw7065",
+          "tone": "plain",
+          "columns": [
+            {
+              "id": "2bzeyzft5y",
+              "span": 12,
+              "widgets": [
+                {
+                  "id": "51p5fwvg8n",
+                  "type": "stat-tiles",
+                  "settings": {
+                    "members": true,
+                    "xpWeek": true,
+                    "xpMonth": true,
+                    "kills": true
+                  },
+                  "unmet": "hide"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "9a16yhi7db",
+          "tone": "plain",
+          "columns": [
+            {
+              "id": "p6pjg7t4w7",
+              "span": 9,
+              "widgets": [
+                {
+                  "id": "f2pipzmt6z",
+                  "type": "roster",
+                  "settings": {
+                    "title": "Members",
+                    "limit": 200,
+                    "showJoined": false,
+                    "search": true
+                  },
+                  "unmet": "hide"
+                }
+              ]
+            },
+            {
+              "id": "fsfivbq687",
+              "span": 3,
+              "widgets": [
+                {
+                  "id": "v8fmt1u864",
+                  "type": "top-xp",
+                  "settings": {
+                    "title": "Top XP this week",
+                    "limit": 8
+                  },
+                  "unmet": "hide"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s5zqovq9io",
+      "title": "Events",
+      "path": "events",
+      "hidden": false,
+      "sections": [
+        {
+          "id": "kr7475trvw",
+          "tone": "plain",
+          "columns": [
+            {
+              "id": "gowo21oj7c",
+              "span": 8,
+              "widgets": [
+                {
+                  "id": "43idvtzqux",
+                  "type": "events",
+                  "settings": {
+                    "title": "Upcoming events",
+                    "limit": 12,
+                    "showImages": true
+                  },
+                  "unmet": "hide"
+                }
+              ]
+            },
+            {
+              "id": "8xncrf9uxk",
+              "span": 4,
+              "widgets": [
+                {
+                  "id": "bu1a9poqfc",
+                  "type": "countdown",
+                  "settings": {
+                    "title": "Next clan event",
+                    "until": "",
+                    "done": "It's happening now!"
+                  },
+                  "unmet": "hide"
+                },
+                {
+                  "id": "jkt5abtn5f",
+                  "type": "event-standings",
+                  "settings": {
+                    "title": "Event standings",
+                    "limit": 10
+                  },
+                  "unmet": "hide"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "yut559c3th",
+          "tone": "panel",
+          "columns": [
+            {
+              "id": "bu35af97fn",
+              "span": 12,
+              "widgets": [
+                {
+                  "id": "9tgjnhme6d",
+                  "type": "hub-events",
+                  "settings": {
+                    "title": "Events and competitions",
+                    "limit": 6,
+                    "showFinished": false
+                  },
+                  "unmet": "hide"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "d2auk4980d",
+      "title": "Join us",
+      "path": "join",
+      "hidden": false,
+      "sections": [
+        {
+          "id": "8yczugnrbf",
+          "tone": "plain",
+          "columns": [
+            {
+              "id": "7j78hos491",
+              "span": 8,
+              "widgets": [
+                {
+                  "id": "b1eiyeas03",
+                  "type": "recruiting",
+                  "settings": {
+                    "title": "Join us",
+                    "buttonLabel": "Apply now",
+                    "showRequirements": true
+                  },
+                  "unmet": "hide"
+                }
+              ]
+            },
+            {
+              "id": "zo1i2h9zv0",
+              "span": 4,
+              "widgets": [
+                {
+                  "id": "dcd834chyk",
+                  "type": "discord-join",
+                  "settings": {
+                    "title": "Join our Discord",
+                    "text": "Chat, events and clan news all happen on our Discord.",
+                    "buttonLabel": "Join the Discord"
+                  },
+                  "unmet": "hide"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "6n1da9l7lh",
+          "tone": "plain",
+          "columns": [
+            {
+              "id": "uz4bhycadl",
+              "span": 12,
+              "widgets": [
+                {
+                  "id": "0aroygls1w",
+                  "type": "faq",
+                  "settings": {
+                    "title": "Questions",
+                    "items": [
+                      {
+                        "q": "Do I need to be a certain level?",
+                        "a": "No, everyone is welcome."
+                      },
+                      {
+                        "q": "How do I join?",
+                        "a": "Apply on our Discord and a recruiter will invite you in game."
+                      }
+                    ]
+                  },
+                  "unmet": "hide"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "wn1amqzwa3",
+      "title": "About",
+      "path": "about",
+      "hidden": false,
+      "sections": [
+        {
+          "id": "wzxkdckuoi",
+          "tone": "plain",
+          "columns": [
+            {
+              "id": "azkljj75zo",
+              "span": 8,
+              "widgets": [
+                {
+                  "id": "yugye6y0nc",
+                  "type": "text",
+                  "settings": {
+                    "markdown": "## About The Green Angels\nYour clan's story: when it started, what it's proud of."
+                  },
+                  "unmet": "hide"
+                }
+              ]
+            },
+            {
+              "id": "s396ll271d",
+              "span": 4,
+              "widgets": [
+                {
+                  "id": "62z9m0uso3",
+                  "type": "alliances",
+                  "settings": {
+                    "title": "Our allies"
+                  },
+                  "unmet": "hide"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "db0c5cn7er",
+          "tone": "plain",
+          "columns": [
+            {
+              "id": "p3cfonan72",
+              "span": 12,
+              "widgets": [
+                {
+                  "id": "bx81egn8ft",
+                  "type": "links",
+                  "settings": {
+                    "title": "Links",
+                    "style": "buttons",
+                    "links": [
+                      {
+                        "label": "Our Discord",
+                        "url": "https://discord.com/"
+                      }
+                    ]
+                  },
+                  "unmet": "hide"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

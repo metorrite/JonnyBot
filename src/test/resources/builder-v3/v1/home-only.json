@@ -1,0 +1,153 @@
+{
+  "v": 1,
+  "look": {
+    "theme": "minimal",
+    "mode": "light",
+    "accent": null,
+    "logo": null,
+    "banner": null
+  },
+  "pages": [
+    {
+      "id": "i1affb6ayn",
+      "title": "Home",
+      "path": "",
+      "hidden": false,
+      "sections": [
+        {
+          "id": "psnfy7qgwm",
+          "tone": "plain",
+          "columns": [
+            {
+              "id": "frxld5lrn8",
+              "span": 12,
+              "widgets": [
+                {
+                  "id": "gsvu1abdxx",
+                  "type": "carousel",
+                  "settings": {
+                    "slides": [
+                      {
+                        "title": "Welcome to our clan",
+                        "text": "Bossing, skilling and good company every evening.",
+                        "cta": "Join us",
+                        "href": "",
+                        "image": "",
+                        "art": "clans"
+                      },
+                      {
+                        "title": "Weekly events",
+                        "text": "Bingo, competitions and boss nights all week.",
+                        "cta": "",
+                        "href": "",
+                        "image": "",
+                        "art": "events"
+                      }
+                    ]
+                  },
+                  "unmet": "hide"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "75kmr2snps",
+          "tone": "plain",
+          "columns": [
+            {
+              "id": "jscbpxppbo",
+              "span": 8,
+              "widgets": [
+                {
+                  "id": "k7iblya37z",
+                  "type": "text",
+                  "settings": {
+                    "markdown": "## Welcome to our clan\nTell visitors what your clan is about: what you do together, when you play and who fits in."
+                  },
+                  "unmet": "hide"
+                }
+              ]
+            },
+            {
+              "id": "hmzy9dsmnr",
+              "span": 4,
+              "widgets": [
+                {
+                  "id": "e98nuzzzja",
+                  "type": "events",
+                  "settings": {
+                    "title": "Coming up",
+                    "limit": 3,
+                    "showImages": true
+                  },
+                  "unmet": "hide"
+                },
+                {
+                  "id": "2t0vpsje46",
+                  "type": "discord-join",
+                  "settings": {
+                    "title": "Join our Discord",
+                    "text": "Chat, events and clan news all happen on our Discord.",
+                    "buttonLabel": "Join the Discord"
+                  },
+                  "unmet": "hide"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "krj8dftawn",
+          "tone": "panel",
+          "columns": [
+            {
+              "id": "hi9kvy8krq",
+              "span": 4,
+              "widgets": [
+                {
+                  "id": "m3osaa2lwt",
+                  "type": "top-xp",
+                  "settings": {
+                    "title": "Top XP this week",
+                    "limit": 8
+                  },
+                  "unmet": "hide"
+                }
+              ]
+            },
+            {
+              "id": "7n5o3colr1",
+              "span": 4,
+              "widgets": [
+                {
+                  "id": "a8owxuo008",
+                  "type": "weekly-recap",
+                  "settings": {
+                    "title": "Last week",
+                    "showTop": true
+                  },
+                  "unmet": "hide"
+                }
+              ]
+            },
+            {
+              "id": "mya84yjnsx",
+              "span": 4,
+              "widgets": [
+                {
+                  "id": "bn7ks9q7x1",
+                  "type": "clan-stats",
+                  "settings": {
+                    "title": "Clan stats"
+                  },
+                  "unmet": "hide"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
