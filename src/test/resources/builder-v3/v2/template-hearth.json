@@ -1,0 +1,1061 @@
+{
+  "v": 2,
+  "look": {
+    "theme": "minimal",
+    "mode": "light",
+    "accent": null,
+    "logo": null,
+    "banner": null
+  },
+  "style": {
+    "radius": "lg",
+    "density": "airy",
+    "glow": "soft",
+    "buttons": "soft"
+  },
+  "header": {
+    "layout": "logo-center",
+    "logo": {
+      "show": true,
+      "text": "name",
+      "height": 40
+    },
+    "nav": [
+      {
+        "id": "heart0068",
+        "label": "Home",
+        "link": {
+          "kind": "page",
+          "pageId": "heart0001"
+        }
+      },
+      {
+        "id": "heart0069",
+        "label": "Events",
+        "link": {
+          "kind": "page",
+          "pageId": "heart0002"
+        }
+      },
+      {
+        "id": "heart0070",
+        "label": "Community",
+        "link": {
+          "kind": "page",
+          "pageId": "heart0003"
+        }
+      },
+      {
+        "id": "heart0071",
+        "label": "Join us",
+        "link": {
+          "kind": "page",
+          "pageId": "heart0004"
+        }
+      }
+    ],
+    "slots": {
+      "left": [],
+      "right": [
+        {
+          "kind": "discord"
+        }
+      ]
+    },
+    "sticky": true,
+    "transparent": "never",
+    "height": "normal",
+    "mobile": "drawer"
+  },
+  "footer": {
+    "columns": [
+      {
+        "title": "{clan}",
+        "links": [
+          {
+            "label": "Home",
+            "link": {
+              "kind": "page",
+              "pageId": "heart0001"
+            }
+          },
+          {
+            "label": "Join us",
+            "link": {
+              "kind": "page",
+              "pageId": "heart0004"
+            }
+          }
+        ]
+      },
+      {
+        "title": "Together",
+        "links": [
+          {
+            "label": "Events",
+            "link": {
+              "kind": "page",
+              "pageId": "heart0002"
+            }
+          },
+          {
+            "label": "Community",
+            "link": {
+              "kind": "page",
+              "pageId": "heart0003"
+            }
+          },
+          {
+            "label": "Discord",
+            "link": {
+              "kind": "invite"
+            }
+          }
+        ]
+      }
+    ],
+    "text": "{clan}. Come for the XP, stay for the people.",
+    "showSocial": true,
+    "badge": true
+  },
+  "pages": [
+    {
+      "id": "heart0001",
+      "title": "Home",
+      "path": "",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "heart0008",
+          "label": "Welcome",
+          "width": "full",
+          "background": {
+            "kind": "accent"
+          },
+          "padding": {
+            "lg": {
+              "y": "xl",
+              "x": "lg"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "heart0007",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "heart0006",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "heart0005",
+                      "type": "clan-header",
+                      "v": 1,
+                      "settings": {
+                        "showBanner": true,
+                        "showTagline": true,
+                        "align": "center"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "heart0014",
+          "label": "Hello",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "heart0013",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "heart0010",
+                  "span": {
+                    "lg": 7
+                  },
+                  "padding": {
+                    "lg": "md"
+                  },
+                  "valign": "start",
+                  "surface": "panel",
+                  "widgets": [
+                    {
+                      "id": "heart0009",
+                      "type": "text",
+                      "v": 1,
+                      "settings": {
+                        "markdown": "## Pull up a chair\nWelcome to {clan}. We're here for the company as much as the XP: weekly events, a busy Discord and people who help out.\n\nNew here? Have a look at what's coming up, then come and say hello."
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "heart0012",
+                  "span": {
+                    "lg": 5
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "heart0011",
+                      "type": "events",
+                      "v": 1,
+                      "settings": {
+                        "title": "Coming up",
+                        "limit": 3,
+                        "showImages": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "heart0020",
+          "label": "Around the clan",
+          "width": "wide",
+          "background": {
+            "kind": "surface"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "heart0019",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "heart0016",
+                  "span": {
+                    "lg": 7
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "heart0015",
+                      "type": "activity-feed",
+                      "v": 1,
+                      "settings": {
+                        "title": "What everyone's been up to",
+                        "limit": 8
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "heart0018",
+                  "span": {
+                    "lg": 5
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "heart0017",
+                      "type": "links",
+                      "v": 2,
+                      "settings": {
+                        "title": "Find your way",
+                        "style": "list",
+                        "links": [
+                          {
+                            "label": "Upcoming events",
+                            "link": {
+                              "kind": "page",
+                              "pageId": "heart0002"
+                            }
+                          },
+                          {
+                            "label": "Meet the community",
+                            "link": {
+                              "kind": "page",
+                              "pageId": "heart0003"
+                            }
+                          },
+                          {
+                            "label": "Join us",
+                            "link": {
+                              "kind": "page",
+                              "pageId": "heart0004"
+                            }
+                          },
+                          {
+                            "label": "Our Discord",
+                            "link": {
+                              "kind": "invite"
+                            }
+                          }
+                        ]
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "heart0024",
+          "label": "Recap",
+          "width": "content",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "heart0023",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "heart0022",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "heart0021",
+                      "type": "weekly-recap",
+                      "v": 1,
+                      "settings": {
+                        "title": "Last week in {clan}",
+                        "showTop": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "seo": {
+        "description": "{clan}: a friendly RuneScape clan. Events, news and good company."
+      }
+    },
+    {
+      "id": "heart0002",
+      "title": "Events",
+      "path": "events",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "heart0028",
+          "width": "content",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "heart0027",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "heart0026",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "heart0025",
+                      "type": "text",
+                      "v": 1,
+                      "settings": {
+                        "markdown": "## Events\nSomething on most nights. Everyone is welcome, whatever your level."
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "heart0035",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "heart0034",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "heart0030",
+                  "span": {
+                    "lg": 8
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "heart0029",
+                      "type": "hub-events",
+                      "v": 1,
+                      "settings": {
+                        "title": "Competitions and bingos",
+                        "limit": 4,
+                        "showFinished": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "heart0033",
+                  "span": {
+                    "lg": 4
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "heart0031",
+                      "type": "countdown",
+                      "v": 1,
+                      "settings": {
+                        "title": "Next big event",
+                        "until": "",
+                        "done": "It's happening now!"
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "heart0032",
+                      "type": "event-standings",
+                      "v": 1,
+                      "settings": {
+                        "title": "Standings",
+                        "limit": 10
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "heart0039",
+          "width": "wide",
+          "background": {
+            "kind": "surface"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "heart0038",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "heart0037",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "heart0036",
+                      "type": "events",
+                      "v": 1,
+                      "settings": {
+                        "title": "On Discord",
+                        "limit": 8,
+                        "showImages": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "heart0003",
+      "title": "Community",
+      "path": "community",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "heart0043",
+          "width": "content",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "heart0042",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "heart0041",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "heart0040",
+                      "type": "text",
+                      "v": 1,
+                      "settings": {
+                        "markdown": "## Our community\nThe people who make {clan} what it is."
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "heart0051",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "heart0050",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "heart0045",
+                  "span": {
+                    "lg": 4
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "heart0044",
+                      "type": "stat-tiles",
+                      "v": 1,
+                      "settings": {
+                        "members": true,
+                        "xpWeek": true,
+                        "xpMonth": false,
+                        "kills": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "heart0047",
+                  "span": {
+                    "lg": 4
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "heart0046",
+                      "type": "top-xp",
+                      "v": 1,
+                      "settings": {
+                        "title": "Busiest skillers",
+                        "limit": 6
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "heart0049",
+                  "span": {
+                    "lg": 4
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "heart0048",
+                      "type": "clan-stats",
+                      "v": 1,
+                      "settings": {
+                        "title": "By the numbers"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "heart0055",
+          "width": "wide",
+          "background": {
+            "kind": "surface"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "heart0054",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "heart0053",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "heart0052",
+                      "type": "roster",
+                      "v": 1,
+                      "settings": {
+                        "title": "Everyone",
+                        "limit": 200,
+                        "showJoined": true,
+                        "search": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "heart0004",
+      "title": "Join us",
+      "path": "join",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "heart0063",
+          "width": "content",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "heart0062",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "heart0058",
+                  "span": {
+                    "lg": 7
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "heart0056",
+                      "type": "text",
+                      "v": 1,
+                      "settings": {
+                        "markdown": "## Come and join us\nWe'd love to have you. Hop on Discord, say hello, and someone will invite you in game."
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "heart0057",
+                      "type": "faq",
+                      "v": 1,
+                      "settings": {
+                        "title": "Good to know",
+                        "items": [
+                          {
+                            "q": "Do I need to be a certain level?",
+                            "a": "No, everyone is welcome."
+                          },
+                          {
+                            "q": "How do I join?",
+                            "a": "Apply on our Discord and a recruiter will invite you in game."
+                          }
+                        ]
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "heart0061",
+                  "span": {
+                    "lg": 5
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "heart0059",
+                      "type": "recruiting",
+                      "v": 1,
+                      "settings": {
+                        "title": "Joining {clan}",
+                        "buttonLabel": "Apply now",
+                        "showRequirements": true
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "heart0060",
+                      "type": "discord-join",
+                      "v": 1,
+                      "settings": {
+                        "title": "Join our Discord",
+                        "text": "Chat, events and clan news all happen on our Discord.",
+                        "buttonLabel": "Join the Discord"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "heart0067",
+          "width": "content",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "heart0066",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "heart0065",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "heart0064",
+                      "type": "alliances",
+                      "v": 1,
+                      "settings": {
+                        "title": "Friends of the clan"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
