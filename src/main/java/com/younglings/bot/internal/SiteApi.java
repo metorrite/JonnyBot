@@ -155,13 +155,23 @@ public class SiteApi {
         }
     }
 
-    /** The routes a hosted clan website (website builder) may read: clan-level pages only, never one member's profile or "me". */
-    public static final java.util.Set<String> TENANT_ROUTES = java.util.Set.of("members", "overview", "leaderboard", "recap");
+    /**
+     * The routes a hosted clan website (website builder) may read: clan-level answers only, never one member's profile, the live Discord list,
+     * the news channel (T-365 has its own module for those) or "me". {@code member/skill} is the one per-member answer, and only for a current
+     * member who hasn't hidden themselves from the rankings.
+     */
+    public static final java.util.Set<String> TENANT_ROUTES = java.util.Set.of("members", "overview", "leaderboard", "recap", "feed", "records", "citadel-grid",
+            "history", "coffer", "polls", "signups", "events", "pvm", "drops", "bosses", "boss", "item", "drop-log", "member/skill", "notifications");
 
     /**
      * One answer for a hosted clan website, for any server (the clan site's own routes above are for the home server). Only
      * {@link #TENANT_ROUTES}; a recap is always the clan's, never one member's. Cached per server: the key ends in {@code #g<id>}, so the
      * home server's keys are unchanged and {@link SiteCache#invalidate} by route still clears these.
+     * <p>
+     * Privacy (builder v3, section 11): the same rules as the home server's routes, a little stricter. A member who hid themselves from the
+     * rankings is left out of every list of names here (rankings, records, the timeline, donors, signup names), and one who hid their adventure
+     * log out of every activity line. The roster itself ({@code members}) still lists everyone on the clan's in-game list, as the home site does:
+     * that list is public in the game. No Discord user ids, link rows or "me" data are ever in these answers.
      */
     public DataObject tenant(Guild guild, String route, HttpExchange exchange) {
         if (!TENANT_ROUTES.contains(route)) return null;
@@ -169,10 +179,92 @@ public class SiteApi {
         return cache.get(cacheKey, ttlMillis(route), () -> switch (route) {
             case "members" -> members(guild);
             case "overview" -> overview(guild);
-            case "leaderboard" -> leaderboard(guild, query(exchange, "month"), query(exchange, "period"));
-            case "recap" -> recap.build(guild, "clan", null, query(exchange, "period"));
+            case "leaderboard" -> leaderboard(guild, query(exchange, "month"), query(exchange, "period"), true);
+            case "recap" -> tenantRecap(guild, query(exchange, "period"));
+            case "feed" -> feed(guild, query(exchange, "limit"), query(exchange, "kind"));
+            case "records" -> records(guild, true);
+            case "citadel-grid" -> citadelGrid(guild, query(exchange, "weeks"));
+            case "history" -> history(guild, true);
+            case "coffer" -> coffer(guild, true);
+            case "polls" -> polls(guild);
+            case "signups" -> signups(guild, true);
+            case "events" -> events(guild);
+            case "pvm" -> pvm(guild);
+            case "drops" -> drops(guild);
+            case "bosses" -> bossStats.bosses(guild, query(exchange, "period"));
+            case "boss" -> bossStats.boss(guild, query(exchange, "boss"), query(exchange, "period"));
+            case "item" -> bossStats.item(guild, query(exchange, "item"), query(exchange, "period"), query(exchange, "boss"));
+            case "drop-log" -> bossStats.drops(guild, query(exchange, "period"), query(exchange, "bosses"));
+            case "member/skill" -> tenantMemberSkill(guild, query(exchange, "rsn"), query(exchange, "skill"));
+            case "notifications" -> notifications(guild);
             default -> null;
         });
+    }
+
+    /** The clan's recap for a clan site: the list of new members' names leaves out members hidden from the rankings (the count stays whole). */
+    DataObject tenantRecap(Guild guild, String period) {
+        DataObject answer = recap.build(guild, "clan", null, period);
+        if (answer == null || !answer.hasKey("roster")) return answer;
+        Set<String> hiddenBoards = profiles.hiddenRsns(guild.getIdLong(), true);
+        DataObject roster = answer.getObject("roster");
+        DataArray names = DataArray.empty();
+        DataArray all = roster.getArray("newMembers");
+        for (int i = 0; i < all.length(); i++) {
+            if (shown(hiddenBoards, all.getString(i))) names.add(all.getString(i));
+        }
+        roster.put("newMembers", names);
+        return answer;
+    }
+
+    /** One skill's XP series for a clan site: only for a current member of that clan who hasn't hidden themselves from the rankings. */
+    DataObject tenantMemberSkill(Guild guild, String rsn, String skillRaw) {
+        if (rsn == null || rsn.isBlank()) return null;
+        long guildId = guild.getIdLong();
+        MemberRow row = stats.members(guildId).stream().filter(m -> m.rsn().equalsIgnoreCase(rsn.trim())).findFirst().orElse(null);
+        if (row == null || !shown(profiles.hiddenRsns(guildId, true), row.rsn())) return null;
+        return memberSkill(guild, row.rsn(), skillRaw);
+    }
+
+    private static final int NOTIFICATION_ITEMS = 5;
+    private static final Duration EVENTS_SOON = Duration.ofDays(7);
+
+    /**
+     * What a clan site's bell shows (builder v3, section 7): Discord events starting within a week or running now, open polls, open signup
+     * sheets and the newest few activity lines. Each list is short and newest (or soonest) first; built from the answers above, so it follows
+     * their privacy rules.
+     */
+    DataObject notifications(Guild guild) {
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        DataArray events = DataArray.empty();
+        guild.getScheduledEvents().stream()
+                .filter(e -> e.getStatus() == ScheduledEvent.Status.ACTIVE
+                        || (e.getStatus() == ScheduledEvent.Status.SCHEDULED && e.getStartTime().isBefore(now.plus(EVENTS_SOON))))
+                .sorted(Comparator.comparing(ScheduledEvent::getStartTime)).limit(NOTIFICATION_ITEMS)
+                .forEach(e -> events.add(DataObject.empty().put("id", e.getId()).put("name", e.getName()).put("status", e.getStatus().name())
+                        .put("startTime", e.getStartTime().toString()).put("url", "https://discord.com/events/" + guild.getId() + "/" + e.getId())));
+
+        DataArray polls = DataArray.empty();
+        for (DataObject poll : objects(polls(guild).getArray("polls"))) {
+            if (polls.length() >= NOTIFICATION_ITEMS) break;
+            if (poll.getBoolean("active")) polls.add(DataObject.empty().put("id", poll.getString("id")).put("title", poll.getString("title"))
+                    .put("createdAt", poll.getString("createdAt")).put("closesAt", poll.getString("closesAt", null)).put("url", poll.getString("url", null)));
+        }
+
+        DataArray signups = DataArray.empty();
+        for (DataObject sheet : objects(signups(guild, true).getArray("signups"))) {
+            if (signups.length() >= NOTIFICATION_ITEMS) break;
+            if (!sheet.getBoolean("paused")) signups.add(DataObject.empty().put("id", sheet.getString("id")).put("title", sheet.getString("title"))
+                    .put("createdAt", sheet.getString("createdAt")).put("entries", sheet.getArray("entries").length()).put("max", sheet.isNull("max") ? null : sheet.getInt("max")));
+        }
+
+        return DataObject.empty().put("events", events).put("polls", polls).put("signups", signups)
+                .put("feed", feed(guild, Integer.toString(NOTIFICATION_ITEMS), null).getArray("items"));
+    }
+
+    private static List<DataObject> objects(DataArray array) {
+        List<DataObject> list = new ArrayList<>();
+        for (int i = 0; i < array.length(); i++) list.add(array.getObject(i));
+        return list;
     }
 
     /** How long an answer may be reused. Live things are short; heavy aggregates are longer. Writes drop their own entries early. */
@@ -180,7 +272,7 @@ public class SiteApi {
         return switch (route) {
             case "online" -> 10_000;
             case "polls", "signups" -> 5_000;
-            case "feed" -> 15_000;
+            case "feed", "notifications" -> 15_000;
             case "events" -> 30_000;
             case "members", "overview", "member", "news" -> 60_000;
             case "me" -> 15_000;
@@ -612,6 +704,11 @@ public class SiteApi {
     }
 
     DataObject records(Guild guild) {
+        return records(guild, false);
+    }
+
+    /** @param strict a clan site's answer: the longest-serving list leaves out members hidden from the rankings too */
+    DataObject records(Guild guild, boolean strict) {
         long guildId = guild.getIdLong();
         Set<String> hiddenBoards = profiles.hiddenRsns(guildId, true);
         DataArray days = DataArray.empty();
@@ -624,7 +721,7 @@ public class SiteApi {
                 .forEach(s -> streaks.add(DataObject.empty().put("rsn", s.rsn()).put("longest", s.longest()).put("current", s.current())));
 
         DataArray veterans = DataArray.empty();
-        stats.members(guildId).stream()
+        stats.members(guildId).stream().filter(m -> !strict || shown(hiddenBoards, m.rsn()))
                 .sorted(Comparator.comparing((MemberRow m) -> m.clanJoinedAt() != null ? m.clanJoinedAt() : m.firstSeen().toLocalDate()).thenComparing(MemberRow::rsn))
                 .limit(8).forEach(m -> veterans.add(DataObject.empty().put("rsn", m.rsn())
                         .put("joined", (m.clanJoinedAt() != null ? m.clanJoinedAt() : m.firstSeen().toLocalDate()).toString()).put("joinedExact", m.clanJoinedAt() != null)));
@@ -668,9 +765,15 @@ public class SiteApi {
     }
 
     DataObject history(Guild guild) {
+        return history(guild, false);
+    }
+
+    /** @param strict a clan site's answer: the timeline and "close to promotion" leave out members hidden from the rankings (the counts stay whole) */
+    DataObject history(Guild guild, boolean strict) {
         long guildId = guild.getIdLong();
         List<MemberRow> members = stats.members(guildId);
         var events = stats.rosterEvents(guildId, 200);
+        Set<String> hiddenBoards = strict ? profiles.hiddenRsns(guildId, true) : Set.of();
 
         // Member count after each day with changes, walking backwards from today's roster size.
         TreeMap<LocalDate, Integer> countByDay = new TreeMap<>();
@@ -688,8 +791,9 @@ public class SiteApi {
         // A merged timeline of joins, leaves and confirmed renames.
         record Entry(String type, String rsn, String other, OffsetDateTime at) {}
         List<Entry> timeline = new ArrayList<>();
-        events.stream().limit(60).forEach(e -> timeline.add(new Entry(e.type(), e.rsn(), null, e.at())));
-        stats.confirmedRenames(guildId, 20).forEach(r -> timeline.add(new Entry("RENAME", r.newRsn(), r.oldRsn(), r.at())));
+        events.stream().filter(e -> shown(hiddenBoards, e.rsn())).limit(60).forEach(e -> timeline.add(new Entry(e.type(), e.rsn(), null, e.at())));
+        stats.confirmedRenames(guildId, 20).stream().filter(r -> shown(hiddenBoards, r.newRsn()) && shown(hiddenBoards, r.oldRsn()))
+                .forEach(r -> timeline.add(new Entry("RENAME", r.newRsn(), r.oldRsn(), r.at())));
         timeline.sort(Comparator.comparing(Entry::at).reversed());
         DataArray timelineArray = DataArray.empty();
         timeline.stream().limit(60).forEach(e -> timelineArray.add(DataObject.empty().put("type", e.type()).put("rsn", e.rsn()).put("from", e.other()).put("at", e.at().toString())));
@@ -699,6 +803,7 @@ public class SiteApi {
         record Close(MemberRow member, RankConfigRow next, long needed) {}
         List<Close> close = new ArrayList<>();
         for (MemberRow m : members) {
+            if (!shown(hiddenBoards, m.rsn())) continue;
             RankConfigRow next = ranks.stream().filter(r -> r.rankOrder() > m.rankOrder()).min(Comparator.comparingInt(RankConfigRow::rankOrder)).orElse(null);
             if (next != null && next.pointThreshold() > 0) close.add(new Close(m, next, Math.max(0, next.pointThreshold() - m.points())));
         }
@@ -716,7 +821,13 @@ public class SiteApi {
      * the member's linked RuneScape name, or "A member" if they haven't linked one.
      */
     DataObject signups(Guild guild) {
+        return signups(guild, false);
+    }
+
+    /** @param strict a clan site's answer: a member hidden from the rankings shows as "A member" here too */
+    DataObject signups(Guild guild, boolean strict) {
         long guildId = guild.getIdLong();
+        Set<String> hiddenBoards = strict ? profiles.hiddenRsns(guildId, true) : Set.of();
         DataArray array = DataArray.empty();
         for (var sheet : stats.activeSignups(guildId)) {
             SignupSession session = signupService.getSessionById(sheet.id());
@@ -736,6 +847,7 @@ public class SiteApi {
                     var linked = links.getLinksForUser(guildId, entry.userId());
                     name = linked.isEmpty() ? "A member" : linked.getFirst().rsn();
                 }
+                if (name != null && !shown(hiddenBoards, name)) name = "A member";
                 entries.add(DataObject.empty().put("name", name).put("position", entry.position()));
             }
             array.add(DataObject.empty().put("id", Long.toString(sheet.id())).put("title", sheet.title()).put("note", sheet.notification())
@@ -840,6 +952,11 @@ public class SiteApi {
 
     /** Top XP gainers, Citadel cappers and roster changes for one calendar month ({@code month} is {@code YYYY-MM}; blank means this month), plus the months that have data. */
     DataObject leaderboard(Guild guild, String monthRaw, String periodRaw) {
+        return leaderboard(guild, monthRaw, periodRaw, false);
+    }
+
+    /** @param strict a clan site's answer: who joined and left leaves out members hidden from the rankings too */
+    DataObject leaderboard(Guild guild, String monthRaw, String periodRaw, boolean strict) {
         long guildId = guild.getIdLong();
         YearMonth current = YearMonth.now(ZoneOffset.UTC);
 
@@ -877,6 +994,7 @@ public class SiteApi {
         DataArray joined = DataArray.empty();
         DataArray left = DataArray.empty();
         for (var event : rosterEvents.getRosterEventsInWindow(guildId, from, to)) {
+            if (strict && !shown(hiddenBoards, event.rsn())) continue;
             (event.eventType().equals("JOIN") ? joined : left).add(event.rsn());
         }
 
@@ -900,13 +1018,19 @@ public class SiteApi {
     // ---------- the clan coffer (totals only) ----------
 
     DataObject coffer(Guild guild) {
+        return coffer(guild, false);
+    }
+
+    /** @param strict a clan site's answer: the top donors leave out names hidden from the rankings (the totals stay whole) */
+    DataObject coffer(Guild guild, boolean strict) {
         long guildId = guild.getIdLong();
         var totals = stats.cofferTotals(guildId);
+        Set<String> hiddenBoards = strict ? profiles.hiddenRsns(guildId, true) : Set.of();
 
         DataArray weeks = DataArray.empty();
         stats.cofferByWeek(guildId, CHART_WEEKS).forEach(w -> weeks.add(DataObject.empty().put("weekStart", w.weekStart().toString()).put("donated", w.donated())));
         DataArray donors = DataArray.empty();
-        stats.topDonors(guildId, 10).forEach(d -> donors.add(DataObject.empty().put("name", d.name()).put("total", d.total()).put("donations", d.donations())));
+        stats.topDonors(guildId, 10 + hiddenBoards.size()).stream().filter(d -> shown(hiddenBoards, d.name())).limit(10).forEach(d -> donors.add(DataObject.empty().put("name", d.name()).put("total", d.total()).put("donations", d.donations())));
         DataArray giveaways = DataArray.empty();
         stats.recentGiveaways(guildId, 8).forEach(g -> giveaways.add(DataObject.empty().put("amount", g.amount()).put("description", g.description()).put("at", g.at().toString())));
 
