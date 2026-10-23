@@ -49,7 +49,44 @@ public class CommunitySettings {
                 """
                 ALTER TABLE younglings.site_setting
                     ADD COLUMN IF NOT EXISTS nav_event_bubble BOOLEAN NOT NULL DEFAULT FALSE;
+                """,
+                // Whether members may change their nickname / name colour from the server's clan website (T-369). Off unless an admin turns it on.
+                """
+                ALTER TABLE younglings.site_setting
+                    ADD COLUMN IF NOT EXISTS site_member_nickname BOOLEAN NOT NULL DEFAULT FALSE,
+                    ADD COLUMN IF NOT EXISTS site_member_color BOOLEAN NOT NULL DEFAULT FALSE;
                 """));
+    }
+
+    // ---------- what members may change about themselves from a clan website ----------
+
+    /** Whether a clan site's members may set their nickname ({@code nickname}) and name colour ({@code color}) from the site. Both off by default. */
+    public record SiteMemberOptions(boolean nickname, boolean color) {}
+
+    public SiteMemberOptions siteMemberOptions(long guildId) {
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("SELECT site_member_nickname, site_member_color FROM younglings.site_setting WHERE guild_id = ?")) {
+            s.setLong(1, guildId);
+            try (ResultSet rs = s.executeQuery()) {
+                return rs.next() ? new SiteMemberOptions(rs.getBoolean(1), rs.getBoolean(2)) : new SiteMemberOptions(false, false);
+            }
+        } catch (SQLException e) {
+            throw fail("read the clan site member options", e);
+        }
+    }
+
+    public void setSiteMemberOptions(long guildId, SiteMemberOptions options) {
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("""
+                     INSERT INTO younglings.site_setting (guild_id, site_member_nickname, site_member_color) VALUES (?, ?, ?)
+                     ON CONFLICT (guild_id) DO UPDATE SET site_member_nickname = EXCLUDED.site_member_nickname, site_member_color = EXCLUDED.site_member_color""")) {
+            s.setLong(1, guildId);
+            s.setBoolean(2, options.nickname());
+            s.setBoolean(3, options.color());
+            s.executeUpdate();
+        } catch (SQLException e) {
+            throw fail("save the clan site member options", e);
+        }
     }
 
     // ---------- the member-poll channel ----------

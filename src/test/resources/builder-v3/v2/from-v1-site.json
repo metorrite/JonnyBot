@@ -1,0 +1,390 @@
+{
+  "v": 2,
+  "look": { "theme": "parchment", "mode": "dark", "accent": "#1f9d63", "logo": "https://cdn.example.test/logo.png", "banner": null },
+  "style": {},
+  "header": {
+    "layout": "logo-left",
+    "logo": { "show": true, "text": "name", "height": 40 },
+    "nav": [
+      { "id": "2kn6nwfjtg", "label": "Home", "link": { "kind": "page", "pageId": "j11ra16hsw" } },
+      { "id": "zi4hqt69jg", "label": "About", "link": { "kind": "page", "pageId": "gffrponv7r" } },
+      { "id": "3qb62hen9w", "label": "Roster", "link": { "kind": "page", "pageId": "kfo9mx4xyl" } },
+      { "id": "tmw7y7r88n", "label": "Clan rules", "link": { "kind": "page", "pageId": "wsgk3ckiid" } },
+      { "id": "io2c7aiy3c", "label": "Stats", "link": { "kind": "page", "pageId": "3qs2dmq3y9" } },
+      { "id": "tmtvi4a6cc", "label": "Events", "link": { "kind": "page", "pageId": "dpqtspou5d" } },
+      { "id": "2k812w35iu", "label": "Recaps", "link": { "kind": "page", "pageId": "2ctfocj60m" } },
+      { "id": "tyea0etdqs", "label": "Apply", "link": { "kind": "page", "pageId": "ol2mi6gqbt" } }
+    ],
+    "slots": { "left": [], "right": [] },
+    "sticky": false,
+    "transparent": "never",
+    "height": "normal",
+    "mobile": "drawer"
+  },
+  "footer": { "columns": [], "showSocial": false, "badge": true },
+  "pages": [
+    {
+      "id": "j11ra16hsw",
+      "title": "Home",
+      "path": "",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "ub8mxscmm3",
+          "width": "wide",
+          "background": { "kind": "none" },
+          "padding": { "lg": { "y": "lg", "x": "md" } },
+          "height": { "lg": { "mode": "auto" } },
+          "rows": [
+            {
+              "id": "ogj9fb3iyp",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "twpu3ftbyi",
+                  "span": { "lg": 12 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "kwejchue1e",
+                      "type": "clan-header",
+                      "v": 1,
+                      "settings": { "showBanner": true, "showTagline": true, "align": "left" },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "ct57kryn70",
+          "width": "wide",
+          "background": { "kind": "none" },
+          "padding": { "lg": { "y": "lg", "x": "md" } },
+          "height": { "lg": { "mode": "auto" } },
+          "rows": [
+            {
+              "id": "z26t1z5djn",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "kwe7c70gns",
+                  "span": { "lg": 6 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "b220x84xru",
+                      "type": "events",
+                      "v": 1,
+                      "settings": { "title": "Coming up", "limit": 3, "showImages": true },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "rj1e0ejo8c",
+                  "span": { "lg": 6 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "azu7tnu92q",
+                      "type": "weekly-recap",
+                      "v": 1,
+                      "settings": { "title": "Last week", "showTop": true },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gffrponv7r",
+      "title": "About",
+      "path": "about",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "ab30vblqwc",
+          "width": "wide",
+          "background": { "kind": "none" },
+          "padding": { "lg": { "y": "lg", "x": "md" } },
+          "height": { "lg": { "mode": "auto" } },
+          "rows": [
+            {
+              "id": "so1jgu8c9a",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "u7gjwrlgqm",
+                  "span": { "lg": 8 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    { "id": "3734gobn4m", "type": "text", "v": 1, "settings": { "markdown": "We are **friendly**." }, "unmet": "hide" }
+                  ]
+                },
+                {
+                  "id": "zle0d4q098",
+                  "span": { "lg": 4 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [{ "id": "vkhew2bmae", "type": "alliances", "v": 1, "settings": { "title": "Our allies" }, "unmet": "hide" }]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "kfo9mx4xyl",
+      "title": "Roster",
+      "path": "roster",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "v8b75xozcl",
+          "width": "wide",
+          "background": { "kind": "none" },
+          "padding": { "lg": { "y": "lg", "x": "md" } },
+          "height": { "lg": { "mode": "auto" } },
+          "rows": [
+            {
+              "id": "veq1xmhlhs",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "7v4yue4nil",
+                  "span": { "lg": 12 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "lhgysqkry5",
+                      "type": "roster",
+                      "v": 1,
+                      "settings": { "title": "Members", "limit": 500, "showJoined": false, "search": true },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    { "id": "wsgk3ckiid", "title": "Clan rules", "path": "clan-rules", "hidden": false, "access": "public", "sections": [] },
+    {
+      "id": "3qs2dmq3y9",
+      "title": "Stats",
+      "path": "stats",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "kasmzc7svr",
+          "width": "wide",
+          "background": { "kind": "none" },
+          "padding": { "lg": { "y": "lg", "x": "md" } },
+          "height": { "lg": { "mode": "auto" } },
+          "rows": [
+            {
+              "id": "8mx6y144qh",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "yhgzpw2skk",
+                  "span": { "lg": 6 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "sxup4cz945",
+                      "type": "stat-tiles",
+                      "v": 1,
+                      "settings": { "members": true, "xpWeek": true, "xpMonth": true, "kills": true },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "mcyzj8q7nk",
+                  "span": { "lg": 6 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "uefvor0exn",
+                      "type": "top-xp",
+                      "v": 1,
+                      "settings": { "title": "Top XP this week", "limit": 8 },
+                      "unmet": "hide"
+                    },
+                    { "id": "xbgi7oo4hi", "type": "clan-stats", "v": 1, "settings": { "title": "Clan stats" }, "unmet": "hide" }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dpqtspou5d",
+      "title": "Events",
+      "path": "events",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "xgr2l2hwlv",
+          "width": "wide",
+          "background": { "kind": "none" },
+          "padding": { "lg": { "y": "lg", "x": "md" } },
+          "height": { "lg": { "mode": "auto" } },
+          "rows": [
+            {
+              "id": "5md8yptr9e",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "7um9adcv1p",
+                  "span": { "lg": 12 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "712vvk68cy",
+                      "type": "events",
+                      "v": 1,
+                      "settings": { "title": "Upcoming events", "limit": 12, "showImages": true },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2ctfocj60m",
+      "title": "Recaps",
+      "path": "recaps",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "kx78b3ctv1",
+          "width": "wide",
+          "background": { "kind": "none" },
+          "padding": { "lg": { "y": "lg", "x": "md" } },
+          "height": { "lg": { "mode": "auto" } },
+          "rows": [
+            {
+              "id": "4c95zwkdxi",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "yy8zh4o8o7",
+                  "span": { "lg": 12 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "4icntdjdm2",
+                      "type": "weekly-recap",
+                      "v": 1,
+                      "settings": { "title": "Last week", "showTop": true },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ol2mi6gqbt",
+      "title": "Apply",
+      "path": "apply",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "spspjx1dz5",
+          "width": "wide",
+          "background": { "kind": "none" },
+          "padding": { "lg": { "y": "lg", "x": "md" } },
+          "height": { "lg": { "mode": "auto" } },
+          "rows": [
+            {
+              "id": "b0r97zl0fl",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "qzhpkcaaav",
+                  "span": { "lg": 12 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "3qgom0gxs0",
+                      "type": "recruiting",
+                      "v": 1,
+                      "settings": { "title": "Join us", "buttonLabel": "Apply now", "showRequirements": true },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

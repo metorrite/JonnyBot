@@ -1,0 +1,312 @@
+{
+  "v": 1,
+  "look": {
+    "theme": "parchment",
+    "mode": "light",
+    "accent": "#1f9d63",
+    "logo": "https://cdn.example.test/logo.png",
+    "banner": "https://cdn.example.test/banner.jpg"
+  },
+  "pages": [
+    {
+      "id": "svdta61f59",
+      "title": "Home",
+      "path": "",
+      "hidden": false,
+      "sections": [
+        {
+          "id": "hvahsq4901",
+          "tone": "accent",
+          "columns": [
+            {
+              "id": "pq1io8uwxy",
+              "span": 12,
+              "widgets": [
+                {
+                  "id": "cabtsaqfq7",
+                  "type": "text",
+                  "settings": {
+                    "markdown": "Line 1"
+                  },
+                  "unmet": "hide"
+                },
+                {
+                  "id": "xdtfvwei4w",
+                  "type": "text",
+                  "settings": {
+                    "markdown": "Line 2"
+                  },
+                  "unmet": "hide"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "plko47df40",
+          "tone": "panel",
+          "columns": [
+            {
+              "id": "emo2uhnagw",
+              "span": 8,
+              "widgets": [
+                {
+                  "id": "cabtsaqfq7",
+                  "type": "text",
+                  "settings": {
+                    "markdown": "Line 1"
+                  },
+                  "unmet": "hide"
+                },
+                {
+                  "id": "xdtfvwei4w",
+                  "type": "text",
+                  "settings": {
+                    "markdown": "Line 2"
+                  },
+                  "unmet": "hide"
+                },
+                {
+                  "id": "zbsq9vohdx",
+                  "type": "text",
+                  "settings": {
+                    "markdown": "Line 3"
+                  },
+                  "unmet": "hide"
+                },
+                {
+                  "id": "2dpzutb4qp",
+                  "type": "text",
+                  "settings": {
+                    "markdown": "Line 4"
+                  },
+                  "unmet": "hide"
+                },
+                {
+                  "id": "8pvab86b6c",
+                  "type": "text",
+                  "settings": {
+                    "markdown": "Line 5"
+                  },
+                  "unmet": "hide"
+                },
+                {
+                  "id": "r9uq4zs062",
+                  "type": "text",
+                  "settings": {
+                    "markdown": "Line 6"
+                  },
+                  "unmet": "hide"
+                },
+                {
+                  "id": "askahakaee",
+                  "type": "text",
+                  "settings": {
+                    "markdown": "Line 7"
+                  },
+                  "unmet": "hide"
+                },
+                {
+                  "id": "vnh5rmi0e4",
+                  "type": "text",
+                  "settings": {
+                    "markdown": "Line 8"
+                  },
+                  "unmet": "hide"
+                },
+                {
+                  "id": "c08jjesyre",
+                  "type": "text",
+                  "settings": {
+                    "markdown": "Line 9"
+                  },
+                  "unmet": "hide"
+                },
+                {
+                  "id": "byhrvqmwwo",
+                  "type": "text",
+                  "settings": {
+                    "markdown": "Line 10"
+                  },
+                  "unmet": "hide"
+                },
+                {
+                  "id": "l2ipqsix1d",
+                  "type": "text",
+                  "settings": {
+                    "markdown": "Line 11"
+                  },
+                  "unmet": "hide"
+                },
+                {
+                  "id": "ku8atpngrl",
+                  "type": "text",
+                  "settings": {
+                    "markdown": "Line 12"
+                  },
+                  "unmet": "hide"
+                }
+              ]
+            },
+            {
+              "id": "ysdu8cnmpw",
+              "span": 4,
+              "widgets": [
+                {
+                  "id": "rpwedv4fxw",
+                  "type": "links",
+                  "settings": {
+                    "title": "Links",
+                    "links": []
+                  },
+                  "unmet": "placeholder"
+                },
+                {
+                  "id": "ly5s6cxkui",
+                  "type": "links",
+                  "settings": {
+                    "title": "Links",
+                    "links": []
+                  },
+                  "unmet": "placeholder"
+                },
+                {
+                  "id": "0k8zerey1m",
+                  "type": "links",
+                  "settings": {
+                    "title": "Links",
+                    "links": []
+                  },
+                  "unmet": "placeholder"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "xd48ghr6fx",
+          "tone": "plain",
+          "columns": [
+            {
+              "id": "cojnt29g54",
+              "span": 4,
+              "widgets": []
+            },
+            {
+              "id": "6u0w84n3ca",
+              "span": 4,
+              "widgets": [
+                {
+                  "id": "lw8xfx17ga",
+                  "type": "countdown",
+                  "settings": {
+                    "title": "Reset",
+                    "at": "2026-11-01T00:00:00.000Z"
+                  },
+                  "unmet": "hide"
+                }
+              ]
+            },
+            {
+              "id": "i2vmtdbke2",
+              "span": 4,
+              "widgets": []
+            }
+          ]
+        },
+        {
+          "id": "jen3342hyr",
+          "tone": "plain",
+          "columns": [
+            {
+              "id": "y3htjddnbb",
+              "span": 3,
+              "widgets": []
+            },
+            {
+              "id": "sqbucyquv1",
+              "span": 3,
+              "widgets": []
+            },
+            {
+              "id": "lgbqcbw7li",
+              "span": 3,
+              "widgets": []
+            },
+            {
+              "id": "u24mj5eamm",
+              "span": 3,
+              "widgets": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2ho4sd0rxm",
+      "title": "About",
+      "path": "about",
+      "hidden": false,
+      "sections": [
+        {
+          "id": "m4i9pdc9za",
+          "tone": "plain",
+          "columns": [
+            {
+              "id": "bmtbvatb8o",
+              "span": 12,
+              "widgets": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "u9u2afogu5",
+      "title": "Hidden notes",
+      "path": "hidden-notes",
+      "hidden": true,
+      "sections": [
+        {
+          "id": "abpy61het1",
+          "tone": "plain",
+          "columns": [
+            {
+              "id": "ydth31pq5m",
+              "span": 12,
+              "widgets": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mepage0001",
+      "title": "Me",
+      "path": "me",
+      "hidden": false,
+      "sections": []
+    },
+    {
+      "id": "adminpage1",
+      "title": "Admin",
+      "path": "admin",
+      "hidden": false,
+      "sections": []
+    },
+    {
+      "id": "mepagex001",
+      "title": "Me page",
+      "path": "me-page",
+      "hidden": false,
+      "sections": []
+    }
+  ],
+  "wizard": {
+    "step": "a-very-long-step-name-that-is-more-than-forty-characters",
+    "done": false,
+    "slug": "ember-wardens",
+    "name": "Ember Wardens",
+    "tagline": "Friendly skilling clan"
+  }
+}

@@ -1,0 +1,336 @@
+{
+  "v": 2,
+  "look": {
+    "theme": "parchment",
+    "mode": "light",
+    "accent": "#1f9d63",
+    "logo": "https://cdn.example.test/logo.png",
+    "banner": "https://cdn.example.test/banner.jpg"
+  },
+  "style": {},
+  "header": {
+    "layout": "logo-left",
+    "logo": { "show": true, "text": "name", "height": 40 },
+    "nav": [
+      { "id": "pg2md382r1", "label": "Home", "link": { "kind": "page", "pageId": "svdta61f59" } },
+      { "id": "h4uoe86hxw", "label": "About", "link": { "kind": "page", "pageId": "2ho4sd0rxm" } },
+      { "id": "0k43lt00k1", "label": "Me", "link": { "kind": "page", "pageId": "mepage0001" } },
+      { "id": "dk99ezbe03", "label": "Admin", "link": { "kind": "page", "pageId": "adminpage1" } },
+      { "id": "c446v5nb28", "label": "Me page", "link": { "kind": "page", "pageId": "mepagex001" } }
+    ],
+    "slots": { "left": [], "right": [] },
+    "sticky": false,
+    "transparent": "never",
+    "height": "normal",
+    "mobile": "drawer"
+  },
+  "footer": { "columns": [], "showSocial": false, "badge": true },
+  "pages": [
+    {
+      "id": "svdta61f59",
+      "title": "Home",
+      "path": "",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "hvahsq4901",
+          "width": "wide",
+          "background": { "kind": "accent" },
+          "padding": { "lg": { "y": "lg", "x": "md" } },
+          "height": { "lg": { "mode": "auto" } },
+          "rows": [
+            {
+              "id": "moz2swopmz",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "pq1io8uwxy",
+                  "span": { "lg": 12 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    { "id": "cabtsaqfq7", "type": "text", "v": 1, "settings": { "markdown": "Line 1" }, "unmet": "hide" },
+                    { "id": "xdtfvwei4w", "type": "text", "v": 1, "settings": { "markdown": "Line 2" }, "unmet": "hide" }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "plko47df40",
+          "width": "wide",
+          "background": { "kind": "surface" },
+          "padding": { "lg": { "y": "lg", "x": "md" } },
+          "height": { "lg": { "mode": "auto" } },
+          "rows": [
+            {
+              "id": "4ix4nsri0u",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "emo2uhnagw",
+                  "span": { "lg": 8 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    { "id": "4uu4wm4qa5", "type": "text", "v": 1, "settings": { "markdown": "Line 1" }, "unmet": "hide" },
+                    { "id": "qittkb09tg", "type": "text", "v": 1, "settings": { "markdown": "Line 2" }, "unmet": "hide" },
+                    { "id": "zbsq9vohdx", "type": "text", "v": 1, "settings": { "markdown": "Line 3" }, "unmet": "hide" },
+                    { "id": "2dpzutb4qp", "type": "text", "v": 1, "settings": { "markdown": "Line 4" }, "unmet": "hide" },
+                    { "id": "8pvab86b6c", "type": "text", "v": 1, "settings": { "markdown": "Line 5" }, "unmet": "hide" },
+                    { "id": "r9uq4zs062", "type": "text", "v": 1, "settings": { "markdown": "Line 6" }, "unmet": "hide" },
+                    { "id": "askahakaee", "type": "text", "v": 1, "settings": { "markdown": "Line 7" }, "unmet": "hide" },
+                    { "id": "vnh5rmi0e4", "type": "text", "v": 1, "settings": { "markdown": "Line 8" }, "unmet": "hide" }
+                  ]
+                },
+                {
+                  "id": "ysdu8cnmpw",
+                  "span": { "lg": 4 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "rpwedv4fxw",
+                      "type": "links",
+                      "v": 1,
+                      "settings": { "title": "Links", "style": "buttons", "links": [] },
+                      "unmet": "placeholder"
+                    },
+                    {
+                      "id": "ly5s6cxkui",
+                      "type": "links",
+                      "v": 1,
+                      "settings": { "title": "Links", "style": "buttons", "links": [] },
+                      "unmet": "placeholder"
+                    },
+                    {
+                      "id": "0k8zerey1m",
+                      "type": "links",
+                      "v": 1,
+                      "settings": { "title": "Links", "style": "buttons", "links": [] },
+                      "unmet": "placeholder"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "18kifb6enb",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "zidtkzr3l1",
+                  "span": { "lg": 8 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    { "id": "c08jjesyre", "type": "text", "v": 1, "settings": { "markdown": "Line 9" }, "unmet": "hide" },
+                    { "id": "byhrvqmwwo", "type": "text", "v": 1, "settings": { "markdown": "Line 10" }, "unmet": "hide" },
+                    { "id": "l2ipqsix1d", "type": "text", "v": 1, "settings": { "markdown": "Line 11" }, "unmet": "hide" },
+                    { "id": "ku8atpngrl", "type": "text", "v": 1, "settings": { "markdown": "Line 12" }, "unmet": "hide" }
+                  ]
+                },
+                {
+                  "id": "8ivp38ojje",
+                  "span": { "lg": 4 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "xd48ghr6fx",
+          "width": "wide",
+          "background": { "kind": "none" },
+          "padding": { "lg": { "y": "lg", "x": "md" } },
+          "height": { "lg": { "mode": "auto" } },
+          "rows": [
+            {
+              "id": "4ybkhu77ip",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "cojnt29g54",
+                  "span": { "lg": 4 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": []
+                },
+                {
+                  "id": "6u0w84n3ca",
+                  "span": { "lg": 4 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "lw8xfx17ga",
+                      "type": "countdown",
+                      "v": 1,
+                      "settings": { "title": "Reset", "until": "", "done": "It's happening now!" },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "i2vmtdbke2",
+                  "span": { "lg": 4 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "jen3342hyr",
+          "width": "wide",
+          "background": { "kind": "none" },
+          "padding": { "lg": { "y": "lg", "x": "md" } },
+          "height": { "lg": { "mode": "auto" } },
+          "rows": [
+            {
+              "id": "lqe74pmqsd",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "y3htjddnbb",
+                  "span": { "lg": 3 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": []
+                },
+                {
+                  "id": "sqbucyquv1",
+                  "span": { "lg": 3 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": []
+                },
+                {
+                  "id": "lgbqcbw7li",
+                  "span": { "lg": 3 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": []
+                },
+                {
+                  "id": "u24mj5eamm",
+                  "span": { "lg": 3 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2ho4sd0rxm",
+      "title": "About",
+      "path": "about",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "m4i9pdc9za",
+          "width": "wide",
+          "background": { "kind": "none" },
+          "padding": { "lg": { "y": "lg", "x": "md" } },
+          "height": { "lg": { "mode": "auto" } },
+          "rows": [
+            {
+              "id": "jkufvt3sxd",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "bmtbvatb8o",
+                  "span": { "lg": 12 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "u9u2afogu5",
+      "title": "Hidden notes",
+      "path": "hidden-notes",
+      "hidden": true,
+      "access": "public",
+      "sections": [
+        {
+          "id": "abpy61het1",
+          "width": "wide",
+          "background": { "kind": "none" },
+          "padding": { "lg": { "y": "lg", "x": "md" } },
+          "height": { "lg": { "mode": "auto" } },
+          "rows": [
+            {
+              "id": "w402ehvrok",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "ydth31pq5m",
+                  "span": { "lg": 12 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    { "id": "mepage0001", "title": "Me", "path": "me-page-2", "hidden": false, "access": "public", "sections": [] },
+    { "id": "adminpage1", "title": "Admin", "path": "admin-page", "hidden": false, "access": "public", "sections": [] },
+    { "id": "mepagex001", "title": "Me page", "path": "me-page", "hidden": false, "access": "public", "sections": [] }
+  ],
+  "wizard": {
+    "step": "a-very-long-step-name-that-is-more-than-",
+    "done": false,
+    "slug": "ember-wardens",
+    "name": "Ember Wardens",
+    "tagline": "Friendly skilling clan"
+  }
+}
