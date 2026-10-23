@@ -1,0 +1,689 @@
+{
+  "v": 2,
+  "look": { "theme": "modern", "mode": "dark", "accent": "#c9a227", "logo": null, "banner": null },
+  "style": {
+    "colours": { "accent": "#c9a227", "surface": "#1a1d24" },
+    "fonts": { "heading": "cinzel", "body": "inter" },
+    "radius": "lg",
+    "density": "airy",
+    "glow": "soft",
+    "buttons": "outline"
+  },
+  "header": {
+    "layout": "logo-center",
+    "logo": { "show": true, "text": "custom", "height": 56, "image": "https://cdn.example.test/logo-wide.png", "custom": "Green Angels" },
+    "nav": [
+      { "id": "nonih4iu57", "label": "Home", "link": { "kind": "page", "pageId": "79w2b0yjz9" } },
+      { "id": "3yw1qx2rcv", "label": "Members", "link": { "kind": "page", "pageId": "g0ud8aco8n" } },
+      {
+        "id": "ohwad2lbhm",
+        "label": "More",
+        "children": [
+          {
+            "id": "nvmtwmc7w0",
+            "label": "Hiscores",
+            "link": { "kind": "url", "href": "https://secure.runescape.com/" },
+            "description": "Official hiscores"
+          },
+          { "id": "a7sjd5qhtl", "label": "Welcome", "link": { "kind": "page", "pageId": "79w2b0yjz9", "anchor": "welcome" } }
+        ]
+      },
+      { "id": "6oy2e88r35", "label": "Discord", "link": { "kind": "invite" }, "badge": "events" }
+    ],
+    "slots": {
+      "left": [{ "kind": "citadel-timer" }],
+      "right": [
+        { "kind": "search" },
+        { "kind": "bell" },
+        { "kind": "button", "settings": { "label": "Apply" } },
+        { "kind": "button" },
+        { "kind": "profile" }
+      ]
+    },
+    "sticky": true,
+    "transparent": "home",
+    "height": "tall",
+    "mobile": "dropdown",
+    "announcement": {
+      "text": "Clan event this Saturday!",
+      "link": { "kind": "page", "pageId": "g0ud8aco8n" },
+      "until": "2026-12-31T23:59:00.000Z",
+      "tone": "accent"
+    }
+  },
+  "footer": {
+    "columns": [
+      {
+        "title": "Clan",
+        "links": [
+          { "label": "Members", "link": { "kind": "page", "pageId": "g0ud8aco8n" } },
+          { "label": "Join", "link": { "kind": "invite" } }
+        ]
+      },
+      { "title": "", "links": [{ "label": "RuneScape", "link": { "kind": "url", "href": "https://www.runescape.com/" } }] }
+    ],
+    "showSocial": true,
+    "badge": false,
+    "text": "Est. 2009."
+  },
+  "pages": [
+    {
+      "id": "79w2b0yjz9",
+      "title": "Home",
+      "path": "",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "ygyqv6bhr4",
+          "width": "full",
+          "background": { "kind": "image", "image": "https://cdn.example.test/hero.jpg", "overlay": 40, "fixed": true },
+          "padding": { "lg": { "y": "xl", "x": "lg" }, "base": { "y": "md", "x": "sm" } },
+          "height": { "lg": { "mode": "viewport", "pct": 70 }, "base": { "mode": "min", "px": 320 } },
+          "rows": [
+            {
+              "id": "v12qcq2d3m",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "8qclmjqvgt",
+                  "span": { "lg": 12 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    { "id": "372cqmjmwa", "type": "heading", "v": 1, "settings": { "text": "Welcome" }, "unmet": "hide" },
+                    { "id": "p54k8pkpl0", "type": "rich-text", "v": 1, "settings": { "markdown": "Hi" }, "unmet": "hide" }
+                  ]
+                }
+              ]
+            }
+          ],
+          "label": "Hero",
+          "anchor": "welcome"
+        },
+        {
+          "id": "mxy6e0bbuh",
+          "width": "content",
+          "background": { "kind": "surface" },
+          "padding": { "lg": { "y": "lg", "x": "md" } },
+          "height": { "lg": { "mode": "auto" } },
+          "rows": [
+            {
+              "id": "qazw3kw8ab",
+              "gap": { "lg": "lg", "base": "sm" },
+              "align": "center",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "jnczw1axel",
+                  "span": { "lg": 8 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "sgxadvmnrb",
+                      "type": "roster",
+                      "v": 2,
+                      "settings": { "pageSize": 25 },
+                      "unmet": "hide",
+                      "height": { "lg": { "mode": "fixed", "px": 480 }, "base": { "mode": "auto" } }
+                    }
+                  ],
+                  "order": { "base": 1 }
+                },
+                {
+                  "id": "bi6j9his10",
+                  "span": { "lg": 4, "md": 6 },
+                  "padding": { "lg": "md" },
+                  "valign": "stretch",
+                  "surface": "panel",
+                  "widgets": [
+                    {
+                      "id": "vm6zi7m2hv",
+                      "type": "discord-online",
+                      "v": 1,
+                      "settings": {},
+                      "unmet": "placeholder",
+                      "hide": { "base": true }
+                    }
+                  ],
+                  "order": { "base": 0 }
+                }
+              ]
+            },
+            {
+              "id": "yjjqk8oz47",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "min", "px": 200 } },
+              "cells": [
+                {
+                  "id": "v79av26pw8",
+                  "span": { "lg": 4 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [{ "id": "x6xrdzymux", "type": "stat-cards", "v": 1, "settings": {}, "unmet": "hide" }]
+                },
+                {
+                  "id": "z3tu8qw5x6",
+                  "span": { "lg": 4 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [{ "id": "dny1qr2wuy", "type": "citadel-timer", "v": 1, "settings": {}, "unmet": "hide" }]
+                },
+                {
+                  "id": "yshyudn4za",
+                  "span": { "lg": 4 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    { "id": "hj3ssjyagl", "type": "future-widget", "v": 7, "settings": { "kept": { "as": "is" } }, "unmet": "hide" }
+                  ],
+                  "hide": { "base": true }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "g0ud8aco8n",
+      "title": "Members",
+      "path": "members",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "sect000000",
+          "width": "full",
+          "background": { "kind": "image", "image": "https://cdn.example.test/hero.jpg", "overlay": 40, "fixed": true },
+          "padding": { "lg": { "y": "xl", "x": "lg" }, "base": { "y": "md", "x": "sm" } },
+          "height": { "lg": { "mode": "viewport", "pct": 70 }, "base": { "mode": "min", "px": 320 } },
+          "rows": [
+            {
+              "id": "rowx000000",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "cell000000",
+                  "span": { "lg": 12 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    { "id": "w000000000", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000001", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000002", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000003", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000004", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000005", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000006", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000007", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" }
+                  ]
+                }
+              ]
+            }
+          ],
+          "label": "Hero"
+        },
+        {
+          "id": "sect000001",
+          "width": "full",
+          "background": { "kind": "image", "image": "https://cdn.example.test/hero.jpg", "overlay": 40, "fixed": true },
+          "padding": { "lg": { "y": "xl", "x": "lg" }, "base": { "y": "md", "x": "sm" } },
+          "height": { "lg": { "mode": "viewport", "pct": 70 }, "base": { "mode": "min", "px": 320 } },
+          "rows": [
+            {
+              "id": "rowx000001",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "cell000001",
+                  "span": { "lg": 12 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    { "id": "w000000008", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000009", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000010", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000011", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000012", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000013", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000014", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000015", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" }
+                  ]
+                }
+              ]
+            }
+          ],
+          "label": "Hero"
+        },
+        {
+          "id": "sect000002",
+          "width": "full",
+          "background": { "kind": "image", "image": "https://cdn.example.test/hero.jpg", "overlay": 40, "fixed": true },
+          "padding": { "lg": { "y": "xl", "x": "lg" }, "base": { "y": "md", "x": "sm" } },
+          "height": { "lg": { "mode": "viewport", "pct": 70 }, "base": { "mode": "min", "px": 320 } },
+          "rows": [
+            {
+              "id": "rowx000002",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "cell000002",
+                  "span": { "lg": 12 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    { "id": "w000000016", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000017", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000018", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000019", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000020", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000021", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000022", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000023", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" }
+                  ]
+                }
+              ]
+            }
+          ],
+          "label": "Hero"
+        },
+        {
+          "id": "sect000003",
+          "width": "full",
+          "background": { "kind": "image", "image": "https://cdn.example.test/hero.jpg", "overlay": 40, "fixed": true },
+          "padding": { "lg": { "y": "xl", "x": "lg" }, "base": { "y": "md", "x": "sm" } },
+          "height": { "lg": { "mode": "viewport", "pct": 70 }, "base": { "mode": "min", "px": 320 } },
+          "rows": [
+            {
+              "id": "rowx000003",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "cell000003",
+                  "span": { "lg": 12 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    { "id": "w000000024", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000025", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000026", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000027", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000028", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000029", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000030", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000031", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" }
+                  ]
+                }
+              ]
+            }
+          ],
+          "label": "Hero"
+        },
+        {
+          "id": "sect000004",
+          "width": "full",
+          "background": { "kind": "image", "image": "https://cdn.example.test/hero.jpg", "overlay": 40, "fixed": true },
+          "padding": { "lg": { "y": "xl", "x": "lg" }, "base": { "y": "md", "x": "sm" } },
+          "height": { "lg": { "mode": "viewport", "pct": 70 }, "base": { "mode": "min", "px": 320 } },
+          "rows": [
+            {
+              "id": "rowx000004",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "cell000004",
+                  "span": { "lg": 12 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    { "id": "w000000032", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000033", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000034", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000035", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000036", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000037", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000038", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000039", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" }
+                  ]
+                }
+              ]
+            }
+          ],
+          "label": "Hero"
+        },
+        {
+          "id": "sect000005",
+          "width": "full",
+          "background": { "kind": "image", "image": "https://cdn.example.test/hero.jpg", "overlay": 40, "fixed": true },
+          "padding": { "lg": { "y": "xl", "x": "lg" }, "base": { "y": "md", "x": "sm" } },
+          "height": { "lg": { "mode": "viewport", "pct": 70 }, "base": { "mode": "min", "px": 320 } },
+          "rows": [
+            {
+              "id": "rowx000005",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "cell000005",
+                  "span": { "lg": 12 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    { "id": "w000000040", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000041", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000042", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000043", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000044", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000045", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000046", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000047", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" }
+                  ]
+                }
+              ]
+            }
+          ],
+          "label": "Hero"
+        },
+        {
+          "id": "sect000006",
+          "width": "full",
+          "background": { "kind": "image", "image": "https://cdn.example.test/hero.jpg", "overlay": 40, "fixed": true },
+          "padding": { "lg": { "y": "xl", "x": "lg" }, "base": { "y": "md", "x": "sm" } },
+          "height": { "lg": { "mode": "viewport", "pct": 70 }, "base": { "mode": "min", "px": 320 } },
+          "rows": [
+            {
+              "id": "rowx000006",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "cell000006",
+                  "span": { "lg": 12 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    { "id": "w000000048", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000049", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000050", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000051", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000052", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000053", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000054", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000055", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" }
+                  ]
+                }
+              ]
+            }
+          ],
+          "label": "Hero"
+        },
+        {
+          "id": "sect000007",
+          "width": "full",
+          "background": { "kind": "image", "image": "https://cdn.example.test/hero.jpg", "overlay": 40, "fixed": true },
+          "padding": { "lg": { "y": "xl", "x": "lg" }, "base": { "y": "md", "x": "sm" } },
+          "height": { "lg": { "mode": "viewport", "pct": 70 }, "base": { "mode": "min", "px": 320 } },
+          "rows": [
+            {
+              "id": "rowx000007",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "cell000007",
+                  "span": { "lg": 12 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    { "id": "w000000056", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000057", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000058", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000059", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000060", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000061", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000062", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000063", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" }
+                  ]
+                }
+              ]
+            }
+          ],
+          "label": "Hero"
+        },
+        {
+          "id": "sect000008",
+          "width": "full",
+          "background": { "kind": "image", "image": "https://cdn.example.test/hero.jpg", "overlay": 40, "fixed": true },
+          "padding": { "lg": { "y": "xl", "x": "lg" }, "base": { "y": "md", "x": "sm" } },
+          "height": { "lg": { "mode": "viewport", "pct": 70 }, "base": { "mode": "min", "px": 320 } },
+          "rows": [
+            {
+              "id": "rowx000008",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "cell000008",
+                  "span": { "lg": 12 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    { "id": "w000000064", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000065", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000066", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000067", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000068", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000069", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000070", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000071", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" }
+                  ]
+                }
+              ]
+            }
+          ],
+          "label": "Hero"
+        },
+        {
+          "id": "sect000009",
+          "width": "full",
+          "background": { "kind": "image", "image": "https://cdn.example.test/hero.jpg", "overlay": 40, "fixed": true },
+          "padding": { "lg": { "y": "xl", "x": "lg" }, "base": { "y": "md", "x": "sm" } },
+          "height": { "lg": { "mode": "viewport", "pct": 70 }, "base": { "mode": "min", "px": 320 } },
+          "rows": [
+            {
+              "id": "rowx000009",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "cell000009",
+                  "span": { "lg": 12 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    { "id": "w000000072", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000073", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000074", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000075", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000076", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000077", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000078", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" },
+                    { "id": "w000000079", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" }
+                  ]
+                }
+              ]
+            }
+          ],
+          "label": "Hero"
+        },
+        {
+          "id": "sect000010",
+          "width": "full",
+          "background": { "kind": "image", "image": "https://cdn.example.test/hero.jpg", "overlay": 40, "fixed": true },
+          "padding": { "lg": { "y": "xl", "x": "lg" }, "base": { "y": "md", "x": "sm" } },
+          "height": { "lg": { "mode": "viewport", "pct": 70 }, "base": { "mode": "min", "px": 320 } },
+          "rows": [
+            {
+              "id": "rowx000010",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "cell000010",
+                  "span": { "lg": 12 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [{ "id": "w000000080", "type": "rich-text", "v": 1, "settings": {}, "unmet": "hide" }]
+                }
+              ]
+            }
+          ],
+          "label": "Hero"
+        }
+      ],
+      "seo": { "description": "Everyone in the clan.", "image": "https://cdn.example.test/members.png" }
+    },
+    {
+      "id": "5iq311nf25",
+      "title": "Staff room",
+      "path": "staff-room",
+      "hidden": true,
+      "access": "staff",
+      "sections": [
+        {
+          "id": "pop9rnrxwh",
+          "width": "wide",
+          "background": { "kind": "none" },
+          "padding": { "lg": { "y": "lg", "x": "md" } },
+          "height": { "lg": { "mode": "auto" } },
+          "rows": [
+            {
+              "id": "vjvsltlvtb",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "lgg1if4i7k",
+                  "span": { "lg": 12 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "8csdm9ybh2",
+      "title": "Member page",
+      "path": "member-page",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "0kcbr2h5qy",
+          "width": "wide",
+          "background": { "kind": "none" },
+          "padding": { "lg": { "y": "lg", "x": "md" } },
+          "height": { "lg": { "mode": "auto" } },
+          "rows": [
+            {
+              "id": "flk8x83njy",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "nr3ca1vna5",
+                  "span": { "lg": 12 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": []
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "template": "member"
+    },
+    {
+      "id": "7uxrisgwtf",
+      "title": "My account",
+      "path": "my-account",
+      "hidden": false,
+      "access": "members",
+      "sections": [
+        {
+          "id": "lvffsqxsmv",
+          "width": "wide",
+          "background": { "kind": "none" },
+          "padding": { "lg": { "y": "lg", "x": "md" } },
+          "height": { "lg": { "mode": "auto" } },
+          "rows": [
+            {
+              "id": "oze4xms6nr",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "4bfyw2ec53",
+                  "span": { "lg": 12 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": []
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "template": "account"
+    }
+  ],
+  "wizard": { "step": "done", "done": true, "slug": "green-angels", "name": "The Green Angels", "tagline": "Since 2009" }
+}

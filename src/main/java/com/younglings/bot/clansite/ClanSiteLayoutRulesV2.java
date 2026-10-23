@@ -44,7 +44,8 @@ public final class ClanSiteLayoutRulesV2 {
     public static final int MAX_WIDGETS_PER_PAGE = 80;
     public static final int MAX_SETTINGS_BYTES = 8 * 1024;
     public static final int MAX_NAV_ITEMS = 40;
-    public static final int MAX_SLOTS = 8;
+    public static final int MAX_SLOTS = 6;
+    public static final int MAX_SLOT_SETTINGS_BYTES = 2 * 1024;
     public static final int MAX_FOOTER_COLUMNS = 4;
     public static final int MAX_FOOTER_LINKS = 8;
     public static final int MAX_TITLE = ClanSiteLayoutRules.MAX_TITLE;
@@ -88,8 +89,13 @@ public final class ClanSiteLayoutRulesV2 {
     private static final int MAX_ANCHOR = 32;
     private static final int MAX_LABEL = 40;
     private static final int MAX_DESCRIPTION = 160;
-    private static final int MAX_TEXT = 300;
-    private static final int MAX_ORDER = 99;
+    private static final int MAX_FOOTER_TEXT = 280;
+    private static final int MAX_ANNOUNCEMENT = 160;
+    private static final int MAX_CHILD_DESCRIPTION = 80;
+    private static final int MAX_ORDER = 12;
+    private static final int MAX_OVERLAY = 90;
+    private static final int MAX_WIDGET_VERSION = 1000;
+    private static final int MAX_WIZARD_STEP = 40;
 
     /**
      * How many pages, and widgets on a page, the server's plan allows (section 10.5), never more than the hard limits. A site whose plan got
@@ -192,9 +198,16 @@ public final class ClanSiteLayoutRulesV2 {
             }
         }
         out.put("pages", cleanPages);
+        if (!cleanPages.isEmpty()) pageLinks(out, problems);
 
         DataObject wizard = layout.optObject("wizard").orElse(null);
-        if (wizard != null) out.put("wizard", ClanSiteLayoutRules.wizard(wizard));
+        if (wizard != null) {
+            // v2 lets a step name be up to 40 characters (the model's WizardProgress); the rest is as v1
+            DataObject progress = ClanSiteLayoutRules.wizard(wizard);
+            String step = wizard.getString("step", "");
+            if (!step.isEmpty() && step.length() <= MAX_WIZARD_STEP) progress.put("step", step);
+            out.put("wizard", progress);
+        }
         return problems.size() == before ? out.toString() : null;
     }
 
@@ -305,9 +318,9 @@ public final class ClanSiteLayoutRulesV2 {
             out.put("image", image);
         }
         if (b.hasKey("overlay") && !b.isNull("overlay")) {
-            Double overlay = decimal(b, "overlay");
-            if (overlay == null || overlay < 0 || overlay > 100) problems.add(label + " has a background shade out of range.");
-            else out.put("overlay", overlay == Math.rint(overlay) ? (Object) overlay.longValue() : overlay);
+            Long overlay = wholeNumber(b, "overlay");
+            if (overlay == null || overlay < 0 || overlay > MAX_OVERLAY) problems.add(label + " has a background shade out of range (0 to " + MAX_OVERLAY + "%).");
+            else out.put("overlay", overlay);
         }
         if (b.hasKey("fixed")) out.put("fixed", b.getBoolean("fixed", false));
         return out;
@@ -375,7 +388,7 @@ public final class ClanSiteLayoutRulesV2 {
         long v = 1;
         if (widget.hasKey("v")) {
             Long raw = wholeNumber(widget, "v");
-            if (raw != null && raw >= 1 && raw <= 999) v = raw;
+            if (raw != null && raw >= 1 && raw <= MAX_WIDGET_VERSION) v = raw;
             else problems.add(label + " has a widget from an unknown version. Reload the page.");
         }
         DataObject settings = widget.isType("settings", DataType.OBJECT) ? widget.getObject("settings") : DataObject.empty();
@@ -435,7 +448,9 @@ public final class ClanSiteLayoutRulesV2 {
                         problems.add("The menu has an item that isn't one.");
                         continue;
                     }
-                    cleanChildren.add(navLink(children.getObject(c), true, ids, problems));
+                    DataObject child = children.getObject(c);
+                    if (child.hasKey("children")) problems.add("Drop-down menus go one level deep: an item inside a drop-down can't have its own.");
+                    cleanChildren.add(navLink(child, true, ids, problems));
                     count++;
                 }
                 cleanItem.put("children", cleanChildren);
@@ -447,7 +462,8 @@ public final class ClanSiteLayoutRulesV2 {
 
         DataObject slots = object(h, "slots", problems, "The header's slots");
         DataObject s = slots == null ? DataObject.empty() : slots;
-        out.put("slots", DataObject.empty().put("left", slots(s, "left", problems)).put("right", slots(s, "right", problems)));
+        Set<String> kinds = new HashSet<>();
+        out.put("slots", DataObject.empty().put("left", slots(s, "left", kinds, problems)).put("right", slots(s, "right", kinds, problems)));
         out.put("sticky", h.getBoolean("sticky", false));
         out.put("transparent", choice(h, "transparent", TRANSPARENT, "never", "The header has an unknown see-through setting.", problems));
         out.put("height", choice(h, "height", HEADER_HEIGHTS, "normal", "The header has an unknown height.", problems));
@@ -456,7 +472,7 @@ public final class ClanSiteLayoutRulesV2 {
         DataObject announcement = object(h, "announcement", problems, "The announcement bar");
         if (announcement != null) {
             DataObject a = DataObject.empty();
-            String message = text(announcement, "text", MAX_TEXT, "The announcement is longer than " + MAX_TEXT + " characters.", problems);
+            String message = text(announcement, "text", MAX_ANNOUNCEMENT, "The announcement is longer than " + MAX_ANNOUNCEMENT + " characters.", problems);
             if (message == null) problems.add("Type the announcement, or switch the bar off.");
             a.put("text", message == null ? "" : message);
             if (announcement.hasKey("link") && !announcement.isNull("link")) a.put("link", link(announcement, "The announcement", problems));
@@ -480,13 +496,14 @@ public final class ClanSiteLayoutRulesV2 {
         if (item.hasKey("link") && !item.isNull("link")) out.put("link", link(item, what, problems));
         else if (child) problems.add(what + " in a drop-down needs a link.");
         if (child) {
-            String description = text(item, "description", MAX_DESCRIPTION, what + " has a description longer than " + MAX_DESCRIPTION + " characters.", problems);
+            String description = text(item, "description", MAX_CHILD_DESCRIPTION, what + " has a description longer than " + MAX_CHILD_DESCRIPTION + " characters.", problems);
             if (description != null) out.put("description", description);
         }
         return out;
     }
 
-    private static DataArray slots(DataObject slots, String side, List<String> problems) {
+    /** One side of the header. Each kind of item appears once in the whole header, except buttons ({@code kinds} carries the left side's). */
+    private static DataArray slots(DataObject slots, String side, Set<String> kinds, List<String> problems) {
         DataArray list = slots.optArray(side).orElse(DataArray.empty());
         DataArray out = DataArray.empty();
         if (list.length() > MAX_SLOTS) {
@@ -501,10 +518,11 @@ public final class ClanSiteLayoutRulesV2 {
             DataObject slot = list.getObject(i);
             String kind = slot.getString("kind", "");
             if (!SLOT_KINDS.contains(kind)) problems.add("The header has an item of an unknown kind.");
+            else if (!kind.equals("button") && !kinds.add(kind)) problems.add("The header has the " + kind + " item twice.");
             DataObject cleanSlot = DataObject.empty().put("kind", kind);
             if (slot.isType("settings", DataType.OBJECT)) {
                 DataObject settings = slot.getObject("settings");
-                if (bytes(settings) > MAX_SETTINGS_BYTES) problems.add("A header item has too much in it (" + (MAX_SETTINGS_BYTES / 1024) + " KB at most).");
+                if (bytes(settings) > MAX_SLOT_SETTINGS_BYTES) problems.add("A header item has too much in it (" + (MAX_SLOT_SETTINGS_BYTES / 1024) + " KB at most).");
                 cleanSlot.put("settings", settings);
             }
             out.add(cleanSlot);
@@ -544,7 +562,7 @@ public final class ClanSiteLayoutRulesV2 {
             }
         }
         DataObject out = DataObject.empty().put("columns", cleanColumns);
-        String text = text(f, "text", MAX_TEXT, "The footer text is longer than " + MAX_TEXT + " characters.", problems);
+        String text = text(f, "text", MAX_FOOTER_TEXT, "The footer text is longer than " + MAX_FOOTER_TEXT + " characters.", problems);
         if (text != null) out.put("text", text);
         return out.put("showSocial", f.getBoolean("showSocial", false)).put("badge", f.getBoolean("badge", true));
     }
@@ -583,6 +601,37 @@ public final class ClanSiteLayoutRulesV2 {
     }
 
     // ---------- values ----------
+
+    /**
+     * The header's and footer's links to pages must name a page of this site (the model's {@code validateLayout} does the same); links inside
+     * widget settings are the website's business.
+     */
+    private static void pageLinks(DataObject out, List<String> problems) {
+        Set<String> pageIds = new HashSet<>();
+        DataArray pages = out.getArray("pages");
+        for (int i = 0; i < pages.length(); i++) pageIds.add(pages.getObject(i).getString("id", ""));
+        List<DataObject> links = new java.util.ArrayList<>();
+        DataObject header = out.getObject("header");
+        DataArray nav = header.getArray("nav");
+        for (int i = 0; i < nav.length(); i++) {
+            DataObject item = nav.getObject(i);
+            item.optObject("link").ifPresent(links::add);
+            DataArray children = item.optArray("children").orElse(DataArray.empty());
+            for (int c = 0; c < children.length(); c++) children.getObject(c).optObject("link").ifPresent(links::add);
+        }
+        header.optObject("announcement").flatMap(a -> a.optObject("link")).ifPresent(links::add);
+        DataArray columns = out.getObject("footer").getArray("columns");
+        for (int i = 0; i < columns.length(); i++) {
+            DataArray footerLinks = columns.getObject(i).getArray("links");
+            for (int k = 0; k < footerLinks.length(); k++) footerLinks.getObject(k).optObject("link").ifPresent(links::add);
+        }
+        for (DataObject link : links) {
+            if ("page".equals(link.getString("kind", "")) && !pageIds.contains(link.getString("pageId", ""))) {
+                problems.add("A link in the menu or footer goes to a page that doesn't exist any more. Pick another page.");
+                return;
+            }
+        }
+    }
 
     /** A link field (section 4.2): a page of this site (by id, and an optional section link name), an https address, or the Discord invite. */
     private static DataObject link(DataObject holder, String what, List<String> problems) {
@@ -767,11 +816,6 @@ public final class ClanSiteLayoutRulesV2 {
 
     private static boolean whole(Number n) {
         return n.doubleValue() == Math.rint(n.doubleValue()) && !Double.isInfinite(n.doubleValue());
-    }
-
-    private static Double decimal(DataObject holder, String key) {
-        Object raw = holder.get(key);
-        return raw instanceof Number n && !Double.isNaN(n.doubleValue()) && !Double.isInfinite(n.doubleValue()) ? n.doubleValue() : null;
     }
 
     /** An optional object field: null when missing, a problem when it is something else. */
