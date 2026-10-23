@@ -300,6 +300,12 @@ public class BotConfig {
         return envOrDotenv(name);
     }
 
+    /** A Discord Linked Roles setting ({@code LINKED_ROLES_*}, see {@code linkedroles.LinkedRolesSettings}); null when unset. */
+    public String getLinkedRolesSetting(String name) {
+        if (!name.startsWith("LINKED_ROLES_")) throw new IllegalArgumentException("Only LINKED_ROLES_ settings are served here");
+        return envOrDotenv(name);
+    }
+
     /**
      * A setting of the RuneClans hub client ({@code com.younglings.bot.runeclans}): {@code RUNECLANS_HUB_ENABLED}, {@code RUNECLANS_HUB_URL},
      * {@code RUNECLANS_HUB_API_KEY}. Prefixed {@code RUNECLANS_} so they can't be mistaken for the event hub's settings. Null when unset.
