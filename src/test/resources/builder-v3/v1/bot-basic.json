@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "look": { "theme": "modern", "mode": "light", "accent": null, "logo": null, "banner": null },
+  "pages": [
+    {
+      "id": "page01",
+      "title": "Home",
+      "path": "",
+      "hidden": false,
+      "sections": [
+        {
+          "id": "sect01",
+          "tone": "panel",
+          "columns": [
+            { "id": "colm01", "span": 8, "widgets": [{ "id": "widg01", "type": "text", "settings": { "markdown": "Hi" }, "unmet": "hide" }] },
+            { "id": "colm02", "span": 4, "widgets": [] }
+          ]
+        }
+      ]
+    }
+  ]
+}

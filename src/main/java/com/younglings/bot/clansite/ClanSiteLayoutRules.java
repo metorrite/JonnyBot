@@ -17,6 +17,7 @@ import java.util.regex.Pattern;
  * docs/BUILDER-V2.md section 2). The bot checks only the shape and the sizes: the version, pages, sections, columns adding up to 12, widget
  * ids and types, and how much each part may hold. What a widget's settings mean is the website's business; the bot stores them as given,
  * small and well-formed. {@link #clean} returns the layout to store, rebuilt from the known fields only, or adds what is wrong to {@code problems}.
+ * Builder v3's layout v2 (T-363) is checked by {@link ClanSiteLayoutRulesV2}; this class keeps the v1 rules and the parts both share.
  */
 public final class ClanSiteLayoutRules {
     private ClanSiteLayoutRules() {}
@@ -36,10 +37,10 @@ public final class ClanSiteLayoutRules {
     public static final Set<String> TONES = Set.of("plain", "panel", "accent");
     public static final Set<String> UNMET = Set.of("hide", "placeholder");
 
-    private static final Pattern ID = Pattern.compile("[a-z0-9]{6,16}");
-    private static final Pattern TYPE = Pattern.compile("[a-z][a-z0-9-]{1,31}");
-    private static final Pattern PATH = Pattern.compile("[a-z0-9]+(-[a-z0-9]+)*");
-    private static final Pattern HEX = Pattern.compile("#[0-9a-fA-F]{6}");
+    static final Pattern ID = Pattern.compile("[a-z0-9]{6,16}");
+    static final Pattern TYPE = Pattern.compile("[a-z][a-z0-9-]{1,31}");
+    static final Pattern PATH = Pattern.compile("[a-z0-9]+(-[a-z0-9]+)*");
+    static final Pattern HEX = Pattern.compile("#[0-9a-fA-F]{6}");
     private static final Pattern STEP = Pattern.compile("[a-z-]{1,20}");
     private static final Pattern SLUG = Pattern.compile("[a-z0-9]+(-[a-z0-9]+)*");
     private static final Pattern UPLOAD = Pattern.compile("/api/uploads/[0-9a-f]{32}(\\?v=\\d{1,10})?");
@@ -47,8 +48,17 @@ public final class ClanSiteLayoutRules {
     /** Paths a page can't have: the site's own files and the routes that are never a clan's. */
     static final Set<String> RESERVED_PATHS = Set.of("api", "_next", "brand", "site", "p");
 
-    /** The layout to store, or null with the reasons in {@code problems}. */
+    /** The layout to store, or null with the reasons in {@code problems}. A layout v2 (builder v3) is checked with the premium limits. */
     public static String clean(DataObject layout, List<String> problems) {
+        return clean(layout, ClanSiteLayoutRulesV2.Limits.PREMIUM, problems);
+    }
+
+    /**
+     * The layout to store, or null with the reasons in {@code problems}. Both versions are accepted (docs/BUILDER-V3.md 3.7: the website
+     * migrates v1 when it next saves, never the bot), and a v1 layout is checked exactly as before. {@code limits} only applies to v2.
+     */
+    public static String clean(DataObject layout, ClanSiteLayoutRulesV2.Limits limits, List<String> problems) {
+        if (layout != null && layout.getInt("v", -1) == ClanSiteLayoutRulesV2.VERSION) return ClanSiteLayoutRulesV2.clean(layout, limits, problems);
         int before = problems.size();
         if (layout == null) {
             problems.add("Send the layout.");
@@ -81,21 +91,25 @@ public final class ClanSiteLayoutRules {
         out.put("pages", cleanPages);
 
         DataObject wizard = layout.optObject("wizard").orElse(null);
-        if (wizard != null) {
-            String step = wizard.getString("step", "");
-            DataObject progress = DataObject.empty().put("step", STEP.matcher(step).matches() ? step : "start").put("done", wizard.getBoolean("done", false));
-            String slug = wizard.getString("slug", "");
-            if (SLUG.matcher(slug).matches() && slug.length() <= 32) progress.put("slug", slug);
-            String name = wizard.getString("name", "");
-            if (!name.isBlank()) progress.put("name", name.length() > 60 ? name.substring(0, 60) : name);
-            String tagline = wizard.getString("tagline", "");
-            if (!tagline.isBlank()) progress.put("tagline", tagline.length() > 120 ? tagline.substring(0, 120) : tagline);
-            out.put("wizard", progress);
-        }
+        if (wizard != null) out.put("wizard", wizard(wizard));
         return problems.size() == before ? out.toString() : null;
     }
 
-    private static DataObject look(DataObject look, List<String> problems) {
+    /** The guided setup's progress, cut to what it may hold (both layout versions). */
+    static DataObject wizard(DataObject wizard) {
+        String step = wizard.getString("step", "");
+        DataObject progress = DataObject.empty().put("step", STEP.matcher(step).matches() ? step : "start").put("done", wizard.getBoolean("done", false));
+        String slug = wizard.getString("slug", "");
+        if (SLUG.matcher(slug).matches() && slug.length() <= 32) progress.put("slug", slug);
+        String name = wizard.getString("name", "");
+        if (!name.isBlank()) progress.put("name", name.length() > 60 ? name.substring(0, 60) : name);
+        String tagline = wizard.getString("tagline", "");
+        if (!tagline.isBlank()) progress.put("tagline", tagline.length() > 120 ? tagline.substring(0, 120) : tagline);
+        return progress;
+    }
+
+    /** The site's look (both layout versions): template, light or dark, clan colour, logo and banner. */
+    static DataObject look(DataObject look, List<String> problems) {
         DataObject t = look == null ? DataObject.empty() : look;
         String theme = t.getString("theme", "modern");
         String mode = t.getString("mode", "dark");
@@ -212,7 +226,7 @@ public final class ClanSiteLayoutRules {
         return DataObject.empty().put("id", id).put("type", type).put("settings", settings).put("unmet", UNMET.contains(unmet) ? unmet : "hide");
     }
 
-    private static String id(DataObject part, Set<String> ids, String what, List<String> problems) {
+    static String id(DataObject part, Set<String> ids, String what, List<String> problems) {
         String id = part.getString("id", "");
         if (!ID.matcher(id).matches()) problems.add("A " + what + " has a broken id. Reload the page and try again.");
         else if (!ids.add(id)) problems.add("Two parts of the site share the id " + id + ". Reload the page and try again.");
