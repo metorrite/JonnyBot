@@ -164,8 +164,8 @@ class BillingRulesTest {
         }
         assertEquals(12L, PremiumFeatures.limit(null, PremiumFeatures.SITE_PAGES).orElseThrow());
         assertEquals(24L, PremiumFeatures.limit("premium", PremiumFeatures.SITE_PAGES).orElseThrow());
-        assertEquals(40L, PremiumFeatures.limit(null, PremiumFeatures.SITE_WIDGETS).orElseThrow());
-        assertEquals(80L, PremiumFeatures.limit("premium", PremiumFeatures.SITE_WIDGETS).orElseThrow());
+        assertEquals(40L, PremiumFeatures.limit(null, PremiumFeatures.SITE_WIDGETS_PER_PAGE).orElseThrow());
+        assertEquals(80L, PremiumFeatures.limit("premium", PremiumFeatures.SITE_WIDGETS_PER_PAGE).orElseThrow());
         assertEquals(3L, PremiumFeatures.limit(null, PremiumFeatures.SITE_VERSIONS).orElseThrow());
         assertEquals(30L, PremiumFeatures.limit("premium", PremiumFeatures.SITE_VERSIONS).orElseThrow());
     }

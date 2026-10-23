@@ -6,12 +6,15 @@ import com.younglings.bot.clansite.ClanSite;
 import com.younglings.bot.clansite.ClanSiteBlock;
 import com.younglings.bot.clansite.ClanSiteLayoutRepository;
 import com.younglings.bot.clansite.ClanSiteLayoutRules;
+import com.younglings.bot.clansite.ClanSiteLayoutRulesV2;
 import com.younglings.bot.clansite.ClanSiteRepository;
 import com.younglings.bot.clansite.ClanSiteRules;
 import com.younglings.bot.clansite.ClanSiteService;
 import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.notice.BotOwners;
+import com.younglings.bot.premium.Premium;
+import com.younglings.bot.premium.PremiumFeatures;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
@@ -38,6 +41,10 @@ import com.younglings.bot.config.BotBrand;
  *   <li>builder v2 (T-301): {@code GET clan-site/layout}, {@code PUT clan-site/layout} {@code {layout, baseRev}} (the draft, shape checked by
  *   {@link ClanSiteLayoutRules}), {@code POST clan-site/layout/publish} (the draft becomes the public layout and the site is published), and
  *   {@code POST clan-site/delete} {@code {confirm}} (the whole website, after typing its address)</li>
+ *   <li>builder v3 (T-363): the layout routes also take layout v2 (checked by {@code ClanSiteLayoutRulesV2} with this server's plan limits);
+ *   {@code POST clan-site/layout/publish} takes an optional {@code {label}} and records a version; {@code GET clan-site/layout/versions},
+ *   {@code GET clan-site/layout/versions/{id}} (with its layout) and {@code POST clan-site/layout/versions/{id}/restore} {@code {baseRev?}}
+ *   (copies it into the draft; never publishes)</li>
  * </ul>
  * Reached only through {@link TicketAdminApi}, which has already checked the asker may use the dashboard here and audit-logs every write.
  */
@@ -50,15 +57,18 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
     private final ClanSiteService sites;
     private final ClanProfileService profiles;
     private final BotOwners owners;
-    /** Layout saves per server (on top of the per-person admin limit): the editor autosaves, so a burst of 3 and then one a second. */
+    private final Premium premium;
+    /** Layout saves and restores per server (on top of the per-person admin limit): the editor autosaves, so a burst of 3 and then one a second. */
     private final RateLimiter layoutSaves = new RateLimiter(3, 1_000);
 
-    public ClanSiteAdminApi(ClanSiteRepository repository, ClanSiteLayoutRepository layouts, ClanSiteService sites, ClanProfileService profiles, BotOwners owners) {
+    public ClanSiteAdminApi(ClanSiteRepository repository, ClanSiteLayoutRepository layouts, ClanSiteService sites, ClanProfileService profiles, BotOwners owners,
+                            Premium premium) {
         this.repository = repository;
         this.layouts = layouts;
         this.sites = sites;
         this.profiles = profiles;
         this.owners = owners;
+        this.premium = premium;
     }
 
     @Override
@@ -75,7 +85,23 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
         }
         if (parts.length == 3 && parts[1].equals("layout") && parts[2].equals("publish")) {
             AdminRouteExtension.requireMethod(method, "POST");
-            return publishLayout(guild, actor);
+            return publishLayout(guild, actor, body.get());
+        }
+        if (parts.length >= 3 && parts[1].equals("layout") && parts[2].equals("versions")) {
+            if (parts.length == 3) {
+                AdminRouteExtension.requireMethod(method, "GET");
+                return versions(guild);
+            }
+            long versionId = versionId(guild, parts[3]);
+            if (parts.length == 4) {
+                AdminRouteExtension.requireMethod(method, "GET");
+                return version(guild, versionId);
+            }
+            if (parts.length == 5 && parts[4].equals("restore")) {
+                AdminRouteExtension.requireMethod(method, "POST");
+                return restoreVersion(guild, actor, versionId, body.get());
+            }
+            return null;
         }
         if (parts.length != 2) return null;
         return switch (parts[1]) {
@@ -218,14 +244,23 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
 
     // ---------- builder v2 layout (T-301) ----------
 
-    /** The draft and whether a published copy exists, for the editor. The draft is null before the first save. */
+    /**
+     * The draft and whether a published copy exists, for the editor. The draft is null before the first save. {@code limits} are v1's;
+     * {@code limitsV2} are layout v2's (builder v3), with the page and widget counts and kept versions of this server's plan.
+     */
     DataObject layout(Guild guild) {
-        var found = layouts.byGuild(guild.getIdLong());
+        long id = guild.getIdLong();
+        var found = layouts.byGuild(id);
         DataObject limits = DataObject.empty().put("bytes", ClanSiteLayoutRules.MAX_BYTES).put("pages", ClanSiteLayoutRules.MAX_PAGES)
                 .put("sections", ClanSiteLayoutRules.MAX_SECTIONS).put("columns", ClanSiteLayoutRules.MAX_COLUMNS)
                 .put("widgets", ClanSiteLayoutRules.MAX_WIDGETS_PER_COLUMN).put("settingsBytes", ClanSiteLayoutRules.MAX_SETTINGS_BYTES);
-        DataObject json = DataObject.empty().put("limits", limits).put("inBeta", sites.inBeta(guild.getIdLong()))
-                .put("plan", com.younglings.bot.premium.Billing.planJson(guild.getIdLong(), true)); // T-366: the site's plan, decided by the bot
+        ClanSiteLayoutRulesV2.Limits plan = planLimits(id);
+        DataObject limitsV2 = DataObject.empty().put("bytes", ClanSiteLayoutRulesV2.MAX_BYTES).put("pages", plan.pages())
+                .put("sections", ClanSiteLayoutRulesV2.MAX_SECTIONS).put("rows", ClanSiteLayoutRulesV2.MAX_ROWS).put("cells", ClanSiteLayoutRulesV2.MAX_CELLS)
+                .put("widgetsPerCell", ClanSiteLayoutRulesV2.MAX_WIDGETS_PER_CELL).put("widgetsPerPage", plan.widgetsPerPage())
+                .put("settingsBytes", ClanSiteLayoutRulesV2.MAX_SETTINGS_BYTES).put("navItems", ClanSiteLayoutRulesV2.MAX_NAV_ITEMS)
+                .put("versions", keptVersions(id));
+        DataObject json = DataObject.empty().put("limits", limits).put("limitsV2", limitsV2).put("plan", planJson(id)).put("inBeta", sites.inBeta(id));
         if (found.isEmpty()) return json.putNull("draft").put("draftRev", 0).put("publishedRev", 0).putNull("publishedAt").putNull("updatedAt");
         var l = found.get();
         return json.put("draft", parse(l.draft(), true)).put("draftRev", l.draftRev()).put("publishedRev", l.publishedRev())
@@ -240,7 +275,9 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
         List<String> problems = new ArrayList<>();
         String clean;
         try {
-            clean = ClanSiteLayoutRules.clean(body.optObject("layout").orElse(null), problems);
+            String stored = layouts.byGuild(guild.getIdLong()).map(ClanSiteLayoutRepository.Layouts::draft).orElse(null);
+            ClanSiteLayoutRulesV2.Limits limits = planLimits(guild.getIdLong()).keeping(stored);
+            clean = ClanSiteLayoutRules.clean(body.optObject("layout").orElse(null), limits, problems);
         } catch (RuntimeException e) {
             problems.add("The layout couldn't be read. Reload the page and try again.");
             clean = null;
@@ -254,14 +291,95 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
         return layout(guild);
     }
 
-    /** Publishes the draft: the same checks as v1's publish (switched on, profile can carry a site, not taken down), then the copy. */
-    DataObject publishLayout(Guild guild, Member actor) {
+    /**
+     * Publishes the draft: the same checks as v1's publish (switched on, profile can carry a site, not taken down), then the copy, which is
+     * also recorded as a version with the optional {@code label} (up to {@link ClanSiteLayoutRepository#MAX_VERSION_LABEL} characters).
+     */
+    DataObject publishLayout(Guild guild, Member actor, DataObject body) {
         if (layouts.byGuild(guild.getIdLong()).isEmpty()) {
             throw new ApiError(400, Text.of(guild, "dashboard.the_website_can_t_be_published"), List.of("Save the site before publishing it."));
         }
+        String label = body.isNull("label") ? null : body.getString("label", null);
+        if (label != null && label.strip().length() > ClanSiteLayoutRepository.MAX_VERSION_LABEL) {
+            throw new ApiError(400, Text.of(guild, "dashboard.the_website_can_t_be_published"),
+                    List.of("Keep the version name to " + ClanSiteLayoutRepository.MAX_VERSION_LABEL + " characters."));
+        }
         publish(guild, actor, true);
-        layouts.publishDraft(guild.getIdLong(), actor.getIdLong());
+        layouts.publishDraft(guild.getIdLong(), actor.getIdLong(), label);
         return layout(guild);
+    }
+
+    // ---------- versions (T-363, docs/BUILDER-V3.md 6.5) ----------
+
+    /** The published versions this server's plan lets it see, newest first ({@code current}: the one the public site shows). */
+    DataObject versions(Guild guild) {
+        long id = guild.getIdLong();
+        int published = layouts.byGuild(id).map(ClanSiteLayoutRepository.Layouts::publishedRev).orElse(0);
+        DataArray list = DataArray.empty();
+        boolean currentSeen = false;
+        for (ClanSiteLayoutRepository.Version v : layouts.versions(id, keptVersions(id))) {
+            boolean current = !currentSeen && v.rev() == published;
+            currentSeen |= current;
+            list.add(versionJson(v).put("current", current));
+        }
+        return DataObject.empty().put("versions", list).put("kept", keptVersions(id)).put("plan", planJson(id));
+    }
+
+    /** One version with its layout, so the history can show or compare it. */
+    DataObject version(Guild guild, long versionId) {
+        long id = guild.getIdLong();
+        var found = layouts.version(id, versionId, keptVersions(id))
+                .orElseThrow(() -> new ApiError(404, Text.of(guild, "dashboard.the_website_can_t_be_saved"), List.of("That version doesn't exist any more.")));
+        return versionJson(found).put("layout", parse(found.layout(), true));
+    }
+
+    /** {@code {baseRev?}}: copies a version into the draft as a new revision; it goes public only when published again. */
+    DataObject restoreVersion(Guild guild, Member actor, long versionId, DataObject body) {
+        requireBeta(guild);
+        if (!layoutSaves.tryAcquire(guild.getId())) throw new ApiError(429, Text.of(guild, "dashboard.you_re_doing_that_too_fast"));
+        long id = guild.getIdLong();
+        if (layouts.version(id, versionId, keptVersions(id)).isEmpty()) {
+            throw new ApiError(404, Text.of(guild, "dashboard.the_website_can_t_be_saved"), List.of("That version doesn't exist any more."));
+        }
+        int rev = layouts.restoreVersion(id, versionId, Math.max(0, body.getInt("baseRev", 0)), actor.getIdLong());
+        if (rev < 0) {
+            throw new ApiError(409, Text.of(guild, "dashboard.the_website_can_t_be_saved"),
+                    List.of("Someone saved this site from another tab or window. Reload to see the newest version."));
+        }
+        return layout(guild);
+    }
+
+    private static long versionId(Guild guild, String raw) {
+        try {
+            long id = Long.parseLong(raw);
+            if (id > 0) return id;
+        } catch (NumberFormatException ignored) {
+            // falls through to the 404
+        }
+        throw new ApiError(404, Text.of(guild, "dashboard.the_website_can_t_be_saved"), List.of("That version doesn't exist any more."));
+    }
+
+    private static DataObject versionJson(ClanSiteLayoutRepository.Version v) {
+        return DataObject.empty().put("id", v.id()).put("rev", v.rev()).put("label", v.label())
+                .put("publishedBy", v.publishedBy() == null ? null : String.valueOf(v.publishedBy()))
+                .put("publishedAt", v.publishedAt() == null ? null : v.publishedAt().toString());
+    }
+
+    // ---------- plan (T-366: the full plan, tier, until, graceUntil, source, from Billing) ----------
+
+    private ClanSiteLayoutRulesV2.Limits planLimits(long guildId) {
+        return ClanSiteLayoutRulesV2.Limits.of(premium.limit(guildId, PremiumFeatures.SITE_PAGES).orElse((long) ClanSiteLayoutRulesV2.MAX_PAGES),
+                premium.limit(guildId, PremiumFeatures.SITE_WIDGETS_PER_PAGE).orElse((long) ClanSiteLayoutRulesV2.MAX_WIDGETS_PER_PAGE));
+    }
+
+    private int keptVersions(long guildId) {
+        long kept = premium.limit(guildId, PremiumFeatures.SITE_VERSIONS).orElse((long) ClanSiteLayoutRepository.KEPT_VERSIONS);
+        return (int) Math.max(1, Math.min(ClanSiteLayoutRepository.KEPT_VERSIONS, kept));
+    }
+
+    /** The site's plan in the layout answers ({@code {tier, until, graceUntil, source}}, tier "free" without one); the bot is in this server. */
+    DataObject planJson(long guildId) {
+        return com.younglings.bot.premium.Billing.planJson(guildId, true);
     }
 
     /**

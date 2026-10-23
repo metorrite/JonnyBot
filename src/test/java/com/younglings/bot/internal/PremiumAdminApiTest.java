@@ -73,8 +73,8 @@ class PremiumAdminApiTest {
         assertFalse(result.getBoolean("canEdit"));
         assertTrue(result.getBoolean("thisServer"));
         assertEquals("premium", result.getObject("thisServerPlan").getString("tier"));
-        long included = PremiumFeatures.all().stream().filter(f -> PremiumFeatures.allows("premium", f.key())).count();
-        assertEquals(included, result.getObject("thisServerPlan").getArray("features").length(), "the plan card lists what it includes");
+        long unlocked = PremiumFeatures.all().stream().filter(f -> PremiumFeatures.allows("premium", f.key())).count();
+        assertEquals(unlocked, result.getObject("thisServerPlan").getArray("features").length(), "the plan card lists what it includes");
         assertFalse(result.toString().contains("private note"), "the owner's note is not shown to a server");
     }
 
