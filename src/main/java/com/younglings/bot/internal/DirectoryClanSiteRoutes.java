@@ -5,6 +5,7 @@ import com.younglings.bot.clanprofile.ClanProfileRepository;
 import com.younglings.bot.clansite.ClanSite;
 import com.younglings.bot.clansite.ClanSiteBlock;
 import com.younglings.bot.clansite.ClanSiteLayoutRepository;
+import com.younglings.bot.clansite.ClanSitePluginFeed;
 import com.younglings.bot.clansite.ClanSiteService;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
@@ -20,6 +21,8 @@ import java.util.Optional;
  *   <li>{@code GET sites/{slug}}: the site's look, pages and content blocks, and its published builder v2 layout ({@code layout}, null for a
  *   v1 site; T-301); or {@code {"movedTo": slug}} for an address the clan gave up less
  *   than {@link com.younglings.bot.clanprofile.ProfileRules#SLUG_GRACE} ago, so its old subdomain forwards (T-290)</li>
+ *   <li>{@code GET sites/{slug}/data/plugin/{activity|drops|runesync}?limit=}: the clan's recent plugin events from the RuneClans hub, for the
+ *   builder's activity widgets ({@link ClanSitePluginFeed}, T-303)</li>
  *   <li>{@code GET sites/{slug}/data/{members|overview|leaderboard|recap}}: that site's clan data, the same answers the clan site's own
  *   routes give the home server ({@link SiteApi#TENANT_ROUTES}); a recap is always the clan's, never one member's</li>
  * </ul>
@@ -30,18 +33,38 @@ public class DirectoryClanSiteRoutes implements DirectoryRouteModule {
     private final SiteApi siteApi;
     private final ClanProfileRepository profiles;
     private final ClanSiteLayoutRepository layouts;
+    private final ClanSitePluginFeed pluginFeed;
 
-    public DirectoryClanSiteRoutes(ClanSiteService sites, SiteApi siteApi, ClanProfileRepository profiles, ClanSiteLayoutRepository layouts) {
+    public DirectoryClanSiteRoutes(ClanSiteService sites, SiteApi siteApi, ClanProfileRepository profiles, ClanSiteLayoutRepository layouts,
+                                   ClanSitePluginFeed pluginFeed) {
         this.sites = sites;
         this.siteApi = siteApi;
         this.profiles = profiles;
         this.layouts = layouts;
+        this.pluginFeed = pluginFeed;
+    }
+
+    private static int limit(DirectoryRequest request) {
+        try {
+            String raw = request.query("limit");
+            return raw == null ? 10 : Integer.parseInt(raw);
+        } catch (NumberFormatException e) {
+            return 10;
+        }
     }
 
     @Override
     public boolean route(DirectoryRequest request) throws IOException {
         String[] parts = request.parts();
         if (!request.head().equals("sites")) return false;
+        if (parts.length == 5 && parts[2].equals("data") && parts[3].equals("plugin")) {
+            if (!request.requireGet()) return true;
+            Optional<ClanSite> site = request.viewable(parts[1]).flatMap(p -> sites.visible(p.guildId()));
+            DataObject feed = site.isEmpty() ? null : pluginFeed.feed(site.get().guildId(), parts[4], limit(request));
+            if (feed == null) request.sendError(404, "Not found");
+            else request.send(200, feed);
+            return true;
+        }
         if (parts.length == 4 && parts[2].equals("data")) {
             if (!request.requireGet()) return true;
             Optional<ClanSite> site = request.viewable(parts[1]).flatMap(p -> sites.visible(p.guildId()));
