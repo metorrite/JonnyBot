@@ -67,7 +67,9 @@ public class DirectoryClanSiteRoutes implements DirectoryRouteModule {
             else request.send(200, feed);
             return true;
         }
-        if ((parts.length == 4 || parts.length == 5) && parts[2].equals("data")) {
+        // Only the tenant routes are claimed here, so other modules' data routes (data/discord/*, T-365) still reach their module.
+        if ((parts.length == 4 || parts.length == 5) && parts[2].equals("data")
+                && SiteApi.TENANT_ROUTES.contains(parts.length == 4 ? parts[3] : parts[3] + "/" + parts[4])) {
             if (!request.requireGet()) return true;
             String route = parts.length == 4 ? parts[3] : parts[3] + "/" + parts[4]; // member/skill is the one two-part answer
             Optional<ClanSite> site = request.viewable(parts[1]).flatMap(p -> sites.visible(p.guildId()));
