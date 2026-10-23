@@ -25,6 +25,8 @@ public final class PremiumFeatures {
     public static final String SITE_WIDGETS_PER_PAGE = "site.limits.widgets";
     /** Builder v3: how many published versions of a clan website can be seen and restored. */
     public static final String SITE_VERSIONS = "site.versions";
+    /** Builder v3 (T-408, docs/BUILDER-V3.md 5.4 and decision Q8): how many pictures a clan website's picture library may hold. */
+    public static final String SITE_PICTURES = "site.pictures";
     // Builder v3 on/off features (T-366, docs/BUILDER-V3.md section 10.2). The website reads the plan from the bot and never decides on its own.
     /** The premium widgets and layout features of the site editor (custom spans, resize, breakpoint overrides). */
     public static final String SITE_EDITOR = "site.editor";
@@ -53,6 +55,7 @@ public final class PremiumFeatures {
             new Feature(SITE_PAGES, "Website pages", "Up to 24 pages on your clan website instead of 12.", Set.of(TIER_PREMIUM), 12L, 24L),
             new Feature(SITE_WIDGETS_PER_PAGE, "Widgets a page", "Up to 80 widgets on each page of your clan website instead of 40.", Set.of(TIER_PREMIUM), 40L, 80L),
             new Feature(SITE_VERSIONS, "Website versions", "Go back to any of your last 30 published versions instead of the last 3.", Set.of(TIER_PREMIUM), 3L, 30L),
+            new Feature(SITE_PICTURES, "Website pictures", "Upload up to 200 pictures for your clan website instead of 10.", Set.of(TIER_PREMIUM), 10L, 200L),
             new Feature(SITE_EDITOR, "Full site editor", "Every widget, custom column widths, resizing and separate layouts for phones and tablets.", Set.of(TIER_PREMIUM), null, null),
             new Feature(SITE_STYLE, "Site style", "Your own colours, fonts, corners and spacing on your clan website.", Set.of(TIER_PREMIUM), null, null),
             new Feature(SITE_USER_THEMES, "Visitor themes", "Let visitors pick the theme they read your website in.", Set.of(TIER_PREMIUM), null, null),
