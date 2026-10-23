@@ -90,6 +90,7 @@ Every environment variable the bot reads. Each one can also go in the git-ignore
 | `INTERNAL_API_SECRET` | The shared secret the website sends (must equal the site's `JONNYBOT_INTERNAL_API_SECRET`). | The internal API doesn't start (no dashboard, no site data). |
 | `INTERNAL_API_PORT` | Port of the internal API. | `8081`. |
 | `SITE_URL` | The website's public address, no trailing slash: where `/wrapped` gets recap images and links to. | `/wrapped` says it isn't set up. |
+| `BILLING_RECONCILE_URL` | The runeclans website's billing reconcile route, e.g. `https://runeclans.com/api/billing/reconcile` (T-366). Once a day the bot sends it the paid subscriptions of servers it left 14+ days ago (with `INTERNAL_API_SECRET`), and the website sets them to cancel at the period end. | Nothing is sent; those subscriptions keep renewing until cancelled by hand. |
 | `JONNYBOT_SITE_URL` | The address put in the User-Agent of every request the bot makes to a third party. | `https://jonnybot.rsyounglings.com`. |
 
 **Dev bot safety**

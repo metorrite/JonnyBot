@@ -224,7 +224,8 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
         DataObject limits = DataObject.empty().put("bytes", ClanSiteLayoutRules.MAX_BYTES).put("pages", ClanSiteLayoutRules.MAX_PAGES)
                 .put("sections", ClanSiteLayoutRules.MAX_SECTIONS).put("columns", ClanSiteLayoutRules.MAX_COLUMNS)
                 .put("widgets", ClanSiteLayoutRules.MAX_WIDGETS_PER_COLUMN).put("settingsBytes", ClanSiteLayoutRules.MAX_SETTINGS_BYTES);
-        DataObject json = DataObject.empty().put("limits", limits).put("inBeta", sites.inBeta(guild.getIdLong()));
+        DataObject json = DataObject.empty().put("limits", limits).put("inBeta", sites.inBeta(guild.getIdLong()))
+                .put("plan", com.younglings.bot.premium.Billing.planJson(guild.getIdLong(), true)); // T-366: the site's plan, decided by the bot
         if (found.isEmpty()) return json.putNull("draft").put("draftRev", 0).put("publishedRev", 0).putNull("publishedAt").putNull("updatedAt");
         var l = found.get();
         return json.put("draft", parse(l.draft(), true)).put("draftRev", l.draftRev()).put("publishedRev", l.publishedRev())

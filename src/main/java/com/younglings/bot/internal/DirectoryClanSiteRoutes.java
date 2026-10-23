@@ -110,6 +110,7 @@ public class DirectoryClanSiteRoutes implements DirectoryRouteModule {
         return DataObject.empty().put("slug", p.slug()).put("clan", request.clanJson(p)).put("template", site.template().name())
                 .put("theme", jsonObject(site.theme())).put("pages", jsonArray(site.pages())).put("blocks", blocks)
                 .put("publishedAt", site.publishedAt() == null ? null : site.publishedAt().toString())
+                .put("plan", com.younglings.bot.premium.Billing.planJson(site.guildId(), request.jda().getGuildById(site.guildId()) != null)) // T-366
                 .put("layout", layouts.byGuild(site.guildId()).map(l -> l.published()).filter(raw -> raw != null && !raw.isBlank()).map(DirectoryClanSiteRoutes::jsonObject).orElse(null));
     }
 

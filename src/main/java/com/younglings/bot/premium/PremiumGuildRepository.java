@@ -122,6 +122,11 @@ public class PremiumGuildRepository {
 
     /** Adds the server, or replaces its plan, end, note and source. The label is the owner's reminder of whose server it is. */
     public void upsert(long guildId, String label, String tier, Instant expiresAt, String note, String source, long addedBy) {
+        upsertBy(guildId, label, tier, expiresAt, note, source, addedBy);
+    }
+
+    /** The same, where {@code addedBy} is null for a grant nobody typed in (a payment). */
+    public void upsertBy(long guildId, String label, String tier, Instant expiresAt, String note, String source, Long addedBy) {
         String sql = """
                 INSERT INTO younglings.premium_guild (guild_id, label, added_by, tier, expires_at, note, source) VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT (guild_id) DO UPDATE SET label = EXCLUDED.label, tier = EXCLUDED.tier, expires_at = EXCLUDED.expires_at, note = EXCLUDED.note, source = EXCLUDED.source
@@ -130,7 +135,8 @@ public class PremiumGuildRepository {
              PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setLong(1, guildId);
             statement.setString(2, label);
-            statement.setLong(3, addedBy);
+            if (addedBy == null) statement.setNull(3, Types.BIGINT);
+            else statement.setLong(3, addedBy);
             statement.setString(4, tier);
             if (expiresAt == null) statement.setNull(5, Types.TIMESTAMP_WITH_TIMEZONE);
             else statement.setTimestamp(5, Timestamp.from(expiresAt));

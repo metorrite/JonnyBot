@@ -2,6 +2,7 @@ package com.younglings.bot.internal;
 
 import com.younglings.bot.notice.BotOwners;
 import com.younglings.bot.premium.Premium;
+import com.younglings.bot.premium.PremiumFeatures;
 import com.younglings.bot.premium.PremiumGuildRepository;
 import com.younglings.bot.premium.PremiumGuildRepository.Grant;
 import net.dv8tion.jda.api.JDA;
@@ -72,7 +73,8 @@ class PremiumAdminApiTest {
         assertFalse(result.getBoolean("canEdit"));
         assertTrue(result.getBoolean("thisServer"));
         assertEquals("premium", result.getObject("thisServerPlan").getString("tier"));
-        assertEquals(2, result.getObject("thisServerPlan").getArray("features").length(), "the plan card lists what it includes");
+        long included = PremiumFeatures.all().stream().filter(f -> PremiumFeatures.allows("premium", f.key())).count();
+        assertEquals(included, result.getObject("thisServerPlan").getArray("features").length(), "the plan card lists what it includes");
         assertFalse(result.toString().contains("private note"), "the owner's note is not shown to a server");
     }
 

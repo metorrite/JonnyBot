@@ -20,6 +20,26 @@ public final class PremiumFeatures {
     /** The bot's server avatar, banner and bio. */
     public static final String BRANDING_PROFILE = "branding.profile";
 
+    // Clan websites, builder v3 (docs/BUILDER-V3.md in the runeclans repo, section 10). The website reads the plan from the bot and never decides on its own.
+    /** The premium widgets and layout features of the site editor (custom spans, resize, breakpoint overrides). */
+    public static final String SITE_EDITOR = "site.editor";
+    /** The site's own colours, fonts, corners, density, glow and buttons. */
+    public static final String SITE_STYLE = "site.style";
+    /** Visitors may pick a theme for the site. */
+    public static final String SITE_USER_THEMES = "site.userThemes";
+    /** Every page of the site's own admin dashboard (free sites get Overview, Status and Plan). */
+    public static final String SITE_ADMIN_FULL = "site.admin.full";
+    /** How many saved versions of the site are kept. */
+    public static final String SITE_VERSIONS = "site.versions";
+    /** The bigger page and widget limits ({@link #SITE_PAGES}, {@link #SITE_WIDGETS} hold the numbers). */
+    public static final String SITE_LIMITS = "site.limits";
+    /** Pages a site may have. */
+    public static final String SITE_PAGES = "site.limits.pages";
+    /** Widgets a page may have. */
+    public static final String SITE_WIDGETS = "site.limits.widgets";
+    /** The "Made with RuneClans" footer badge may be turned off. */
+    public static final String SITE_NO_BADGE = "site.noBadge";
+
     /** {@code unlockedBy}: the tiers that get the feature (or the premium value of a limit). {@code freeValue}/{@code premiumValue}: null for a plain on/off feature. */
     public record Feature(String key, String title, String description, Set<String> unlockedBy, Long freeValue, Long premiumValue) {
         public boolean isLimit() {
@@ -30,7 +50,16 @@ public final class PremiumFeatures {
     private static final List<Feature> ALL = List.of(
             new Feature(FAST_POLLING, "Faster player updates", "Your clan's players are refreshed every hour instead of every three hours, ahead of other clans in the queue.",
                     Set.of(TIER_PREMIUM), null, null),
-            new Feature(BRANDING_PROFILE, "Server profile", "Give the bot its own avatar, banner and bio in your server.", Set.of(TIER_PREMIUM), null, null));
+            new Feature(BRANDING_PROFILE, "Server profile", "Give the bot its own avatar, banner and bio in your server.", Set.of(TIER_PREMIUM), null, null),
+            new Feature(SITE_EDITOR, "Full site editor", "Every widget, custom column widths, resizing and separate layouts for phones and tablets.", Set.of(TIER_PREMIUM), null, null),
+            new Feature(SITE_STYLE, "Site style", "Your own colours, fonts, corners and spacing on your clan website.", Set.of(TIER_PREMIUM), null, null),
+            new Feature(SITE_USER_THEMES, "Visitor themes", "Let visitors pick the theme they read your website in.", Set.of(TIER_PREMIUM), null, null),
+            new Feature(SITE_ADMIN_FULL, "Full site admin", "Every page of your website's admin dashboard.", Set.of(TIER_PREMIUM), null, null),
+            new Feature(SITE_VERSIONS, "Saved versions", "Up to 30 earlier versions of your website kept to go back to (free: 3).", Set.of(TIER_PREMIUM), 3L, 30L),
+            new Feature(SITE_LIMITS, "Bigger website", "More pages, and more widgets on each page.", Set.of(TIER_PREMIUM), null, null),
+            new Feature(SITE_PAGES, "Website pages", "Up to 24 pages on your website (free: 12).", Set.of(TIER_PREMIUM), 12L, 24L),
+            new Feature(SITE_WIDGETS, "Widgets a page", "Up to 80 widgets on each page (free: 40).", Set.of(TIER_PREMIUM), 40L, 80L),
+            new Feature(SITE_NO_BADGE, "No footer badge", "Turn off the \"Made with RuneClans\" badge at the bottom of your website.", Set.of(TIER_PREMIUM), null, null));
 
     private static final Map<String, Feature> BY_KEY = ALL.stream().collect(java.util.stream.Collectors.toUnmodifiableMap(Feature::key, f -> f));
 
