@@ -156,12 +156,13 @@ public class SiteApi {
     }
 
     /**
-     * The routes a hosted clan website (website builder) may read: clan-level answers only, never one member's profile, the live Discord list,
-     * the news channel (T-365 has its own module for those) or "me". {@code member/skill} is the one per-member answer, and only for a current
-     * member who hasn't hidden themselves from the rankings.
+     * The routes a hosted clan website (website builder) may read: clan-level answers, never the live Discord list, the news channel (T-365
+     * has its own module for those) or "me" ({@link DirectoryClanSiteMemberRoutes}). The per-member answers ({@code member}, {@code member/recap},
+     * {@code member/skill}) are only for a current member who hasn't hidden themselves from the rankings ({@link #visibleMember}).
      */
     public static final java.util.Set<String> TENANT_ROUTES = java.util.Set.of("members", "overview", "leaderboard", "recap", "feed", "records", "citadel-grid",
-            "history", "coffer", "polls", "signups", "events", "pvm", "drops", "bosses", "boss", "item", "drop-log", "member/skill", "notifications");
+            "history", "coffer", "polls", "signups", "events", "pvm", "drops", "bosses", "boss", "item", "drop-log", "member/skill", "notifications",
+            "member", "member/recap");
 
     /**
      * One answer for a hosted clan website, for any server (the clan site's own routes above are for the home server). Only
@@ -196,9 +197,23 @@ public class SiteApi {
             case "item" -> bossStats.item(guild, query(exchange, "item"), query(exchange, "period"), query(exchange, "boss"));
             case "drop-log" -> bossStats.drops(guild, query(exchange, "period"), query(exchange, "bosses"));
             case "member/skill" -> tenantMemberSkill(guild, query(exchange, "rsn"), query(exchange, "skill"));
+            case "member" -> visibleMember(guild, query(exchange, "rsn")) == null ? null : member(guild, query(exchange, "rsn"));
+            case "member/recap" -> visibleMember(guild, query(exchange, "rsn")) == null ? null : recap.build(guild, "member", query(exchange, "rsn"), query(exchange, "period"));
             case "notifications" -> notifications(guild);
             default -> null;
         });
+    }
+
+    /**
+     * The roster row for {@code rsn} when a clan site may show that member on their own (member page, member recap, skill series, T-369):
+     * a current member of this server's clan who hasn't hidden themselves from the rankings. {@code null} otherwise, and the route answers 404,
+     * so a hidden member's page looks the same as a name that isn't in the clan.
+     */
+    MemberRow visibleMember(Guild guild, String rsn) {
+        if (rsn == null || rsn.isBlank()) return null;
+        long guildId = guild.getIdLong();
+        MemberRow row = stats.members(guildId).stream().filter(m -> m.rsn().equalsIgnoreCase(rsn.trim())).findFirst().orElse(null);
+        return row == null || !shown(profiles.hiddenRsns(guildId, true), row.rsn()) ? null : row;
     }
 
     /** The clan's recap for a clan site: the list of new members' names leaves out members hidden from the rankings (the count stays whole). */
@@ -218,11 +233,8 @@ public class SiteApi {
 
     /** One skill's XP series for a clan site: only for a current member of that clan who hasn't hidden themselves from the rankings. */
     DataObject tenantMemberSkill(Guild guild, String rsn, String skillRaw) {
-        if (rsn == null || rsn.isBlank()) return null;
-        long guildId = guild.getIdLong();
-        MemberRow row = stats.members(guildId).stream().filter(m -> m.rsn().equalsIgnoreCase(rsn.trim())).findFirst().orElse(null);
-        if (row == null || !shown(profiles.hiddenRsns(guildId, true), row.rsn())) return null;
-        return memberSkill(guild, row.rsn(), skillRaw);
+        MemberRow row = visibleMember(guild, rsn);
+        return row == null ? null : memberSkill(guild, row.rsn(), skillRaw);
     }
 
     private static final int NOTIFICATION_ITEMS = 5;
