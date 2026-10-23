@@ -162,6 +162,21 @@ class DirectoryRoutesTest {
     }
 
     @Test
+    void aClanSitesTwoPartAnswerReachesTheTenantRoute() throws Exception {
+        ClanSite site = new ClanSite(GUILD, true, true, ClanSite.Template.values()[0], "{}", "[]", null, null, null, null);
+        Guild guild = mock(Guild.class);
+        when(sites.visible(GUILD)).thenReturn(Optional.of(site));
+        when(jda.getGuildById(GUILD)).thenReturn(guild);
+        when(siteApi.tenant(eq(guild), eq("member/skill"), any())).thenReturn(DataObject.empty().put("skillId", 3));
+
+        Reply skill = call("GET", "/internal/directory/sites/younglings/data/member/skill?rsn=Someone&skill=3", null);
+        assertEquals(200, skill.status());
+        assertEquals(3, skill.body().getInt("skillId"));
+        assertEquals(404, call("GET", "/internal/directory/sites/younglings/data/member/other", null).status(), "only answers SiteApi knows");
+        assertEquals(404, call("GET", "/internal/directory/sites/younglings/data/a/b/c", null).status());
+    }
+
+    @Test
     void aClanPageHasEveryModulesSection() throws Exception {
         when(alliances.visibility(anyLong())).thenReturn(com.younglings.bot.alliance.AllianceVisibility.Visibility.HIDDEN);
         Reply r = call("GET", "/internal/directory/clans/younglings", null);
