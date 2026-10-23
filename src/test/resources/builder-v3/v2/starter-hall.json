@@ -1,0 +1,581 @@
+{
+  "v": 2,
+  "look": { "theme": "parchment", "mode": "dark", "accent": null, "logo": null, "banner": null },
+  "style": {},
+  "header": {
+    "layout": "logo-left",
+    "logo": { "show": true, "text": "name", "height": 40 },
+    "nav": [
+      { "id": "h2w5nsmz4a", "label": "Home", "link": { "kind": "page", "pageId": "cx5tydo7f4" } },
+      { "id": "vgvl9520qc", "label": "Roster", "link": { "kind": "page", "pageId": "ofnbvun9e3" } },
+      { "id": "qqo66vilm9", "label": "Events", "link": { "kind": "page", "pageId": "wi76xu42dp" } },
+      { "id": "p6opz7xoxr", "label": "Join us", "link": { "kind": "page", "pageId": "4v2o9o0vv2" } },
+      { "id": "ikwa5t0abz", "label": "About", "link": { "kind": "page", "pageId": "xllv9zsf5g" } }
+    ],
+    "slots": { "left": [], "right": [] },
+    "sticky": false,
+    "transparent": "never",
+    "height": "normal",
+    "mobile": "drawer"
+  },
+  "footer": { "columns": [], "showSocial": false, "badge": true },
+  "pages": [
+    {
+      "id": "cx5tydo7f4",
+      "title": "Home",
+      "path": "",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "jfzn6r686q",
+          "width": "wide",
+          "background": { "kind": "none" },
+          "padding": { "lg": { "y": "lg", "x": "md" } },
+          "height": { "lg": { "mode": "auto" } },
+          "rows": [
+            {
+              "id": "mcsxl6lyiv",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "xb9etrsehz",
+                  "span": { "lg": 12 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "elneyubroj",
+                      "type": "carousel",
+                      "v": 1,
+                      "settings": {
+                        "slides": [
+                          {
+                            "title": "Welcome to The Green Angels",
+                            "text": "Bossing, skilling and good company every evening.",
+                            "cta": "Join us",
+                            "href": "",
+                            "image": "",
+                            "art": "clans"
+                          },
+                          {
+                            "title": "Weekly events",
+                            "text": "Bingo, competitions and boss nights all week.",
+                            "cta": "",
+                            "href": "",
+                            "image": "",
+                            "art": "events"
+                          }
+                        ]
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "1elwn2k4cg",
+          "width": "wide",
+          "background": { "kind": "none" },
+          "padding": { "lg": { "y": "lg", "x": "md" } },
+          "height": { "lg": { "mode": "auto" } },
+          "rows": [
+            {
+              "id": "b884i9jyv7",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "citz5y3ttu",
+                  "span": { "lg": 8 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "5ktk5nafvo",
+                      "type": "text",
+                      "v": 1,
+                      "settings": {
+                        "markdown": "## Welcome to The Green Angels\nTell visitors what your clan is about: what you do together, when you play and who fits in."
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "686h38c3cs",
+                  "span": { "lg": 4 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ix3gh6gg2o",
+                      "type": "events",
+                      "v": 1,
+                      "settings": { "title": "Coming up", "limit": 3, "showImages": true },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "n9he95bin3",
+                      "type": "discord-join",
+                      "v": 1,
+                      "settings": {
+                        "title": "Join our Discord",
+                        "text": "Chat, events and clan news all happen on our Discord.",
+                        "buttonLabel": "Join the Discord"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "yk9t0riibg",
+          "width": "wide",
+          "background": { "kind": "surface" },
+          "padding": { "lg": { "y": "lg", "x": "md" } },
+          "height": { "lg": { "mode": "auto" } },
+          "rows": [
+            {
+              "id": "jo5jgdar5p",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "wxuk87h1ch",
+                  "span": { "lg": 4 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "a2mdmq5u2h",
+                      "type": "top-xp",
+                      "v": 1,
+                      "settings": { "title": "Top XP this week", "limit": 8 },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "4mn096tman",
+                  "span": { "lg": 4 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ibxf4kintp",
+                      "type": "weekly-recap",
+                      "v": 1,
+                      "settings": { "title": "Last week", "showTop": true },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "vykqgubk2f",
+                  "span": { "lg": 4 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [{ "id": "pucrjtxm4i", "type": "clan-stats", "v": 1, "settings": { "title": "Clan stats" }, "unmet": "hide" }]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ofnbvun9e3",
+      "title": "Roster",
+      "path": "roster",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "qvtkdynpuy",
+          "width": "wide",
+          "background": { "kind": "none" },
+          "padding": { "lg": { "y": "lg", "x": "md" } },
+          "height": { "lg": { "mode": "auto" } },
+          "rows": [
+            {
+              "id": "o0fh8rwgwl",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "txfok4sn5m",
+                  "span": { "lg": 12 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "wx0wvdl1f3",
+                      "type": "stat-tiles",
+                      "v": 1,
+                      "settings": { "members": true, "xpWeek": true, "xpMonth": true, "kills": true },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "05zt2n6a2p",
+          "width": "wide",
+          "background": { "kind": "none" },
+          "padding": { "lg": { "y": "lg", "x": "md" } },
+          "height": { "lg": { "mode": "auto" } },
+          "rows": [
+            {
+              "id": "jqviqp4fhd",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "kzxl82sj1g",
+                  "span": { "lg": 9 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "4bhwwm0tl8",
+                      "type": "roster",
+                      "v": 1,
+                      "settings": { "title": "Members", "limit": 200, "showJoined": false, "search": true },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "w2lzd4p0h8",
+                  "span": { "lg": 3 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "2x81dxlwo5",
+                      "type": "top-xp",
+                      "v": 1,
+                      "settings": { "title": "Top XP this week", "limit": 8 },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "wi76xu42dp",
+      "title": "Events",
+      "path": "events",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "rm2syxfvyh",
+          "width": "wide",
+          "background": { "kind": "none" },
+          "padding": { "lg": { "y": "lg", "x": "md" } },
+          "height": { "lg": { "mode": "auto" } },
+          "rows": [
+            {
+              "id": "rezr9tkx0r",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "mqy9komxfu",
+                  "span": { "lg": 8 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "h93mtlj6ze",
+                      "type": "events",
+                      "v": 1,
+                      "settings": { "title": "Upcoming events", "limit": 12, "showImages": true },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "g73pgwypq3",
+                  "span": { "lg": 4 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "s79j9zmocp",
+                      "type": "countdown",
+                      "v": 1,
+                      "settings": { "title": "Next clan event", "until": "", "done": "It's happening now!" },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "34h04f8r3b",
+                      "type": "event-standings",
+                      "v": 1,
+                      "settings": { "title": "Event standings", "limit": 10 },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "jbynpg1ipg",
+          "width": "wide",
+          "background": { "kind": "surface" },
+          "padding": { "lg": { "y": "lg", "x": "md" } },
+          "height": { "lg": { "mode": "auto" } },
+          "rows": [
+            {
+              "id": "sw397byu9i",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "7k8r084kuf",
+                  "span": { "lg": 12 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "k1ezu0ak8d",
+                      "type": "hub-events",
+                      "v": 1,
+                      "settings": { "title": "Events and competitions", "limit": 6, "showFinished": false },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "4v2o9o0vv2",
+      "title": "Join us",
+      "path": "join",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "b4pwxn9fv6",
+          "width": "wide",
+          "background": { "kind": "none" },
+          "padding": { "lg": { "y": "lg", "x": "md" } },
+          "height": { "lg": { "mode": "auto" } },
+          "rows": [
+            {
+              "id": "3ik5i0cqr6",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "rbmxbt0uck",
+                  "span": { "lg": 8 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ayb3hsi5au",
+                      "type": "recruiting",
+                      "v": 1,
+                      "settings": { "title": "Join us", "buttonLabel": "Apply now", "showRequirements": true },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "zkqmxtzo8t",
+                  "span": { "lg": 4 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "tp1qtas55u",
+                      "type": "discord-join",
+                      "v": 1,
+                      "settings": {
+                        "title": "Join our Discord",
+                        "text": "Chat, events and clan news all happen on our Discord.",
+                        "buttonLabel": "Join the Discord"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "v4iwl6xeum",
+          "width": "wide",
+          "background": { "kind": "none" },
+          "padding": { "lg": { "y": "lg", "x": "md" } },
+          "height": { "lg": { "mode": "auto" } },
+          "rows": [
+            {
+              "id": "4kc3y4o8md",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "xjwbmfen1y",
+                  "span": { "lg": 12 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "1qrekdf4l1",
+                      "type": "faq",
+                      "v": 1,
+                      "settings": {
+                        "title": "Questions",
+                        "items": [
+                          { "q": "Do I need to be a certain level?", "a": "No, everyone is welcome." },
+                          { "q": "How do I join?", "a": "Apply on our Discord and a recruiter will invite you in game." }
+                        ]
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "xllv9zsf5g",
+      "title": "About",
+      "path": "about",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "sitfpwopg6",
+          "width": "wide",
+          "background": { "kind": "none" },
+          "padding": { "lg": { "y": "lg", "x": "md" } },
+          "height": { "lg": { "mode": "auto" } },
+          "rows": [
+            {
+              "id": "kulsyi417z",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "yv3hjgy47z",
+                  "span": { "lg": 8 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "c3pylga6zn",
+                      "type": "text",
+                      "v": 1,
+                      "settings": { "markdown": "## About The Green Angels\nYour clan's story: when it started, what it's proud of." },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "jixo47hvhq",
+                  "span": { "lg": 4 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [{ "id": "ilnfusgpuf", "type": "alliances", "v": 1, "settings": { "title": "Our allies" }, "unmet": "hide" }]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "ajcd4j4wga",
+          "width": "wide",
+          "background": { "kind": "none" },
+          "padding": { "lg": { "y": "lg", "x": "md" } },
+          "height": { "lg": { "mode": "auto" } },
+          "rows": [
+            {
+              "id": "q8wv42g4an",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "x3ldh3zwbe",
+                  "span": { "lg": 12 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "zqqcxyb19v",
+                      "type": "links",
+                      "v": 1,
+                      "settings": {
+                        "title": "Links",
+                        "style": "buttons",
+                        "links": [{ "label": "Our Discord", "url": "https://discord.com/" }]
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

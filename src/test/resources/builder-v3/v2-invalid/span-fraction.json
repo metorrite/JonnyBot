@@ -1,0 +1,338 @@
+{
+  "v": 2,
+  "look": { "theme": "modern", "mode": "dark", "accent": "#c9a227", "logo": null, "banner": null },
+  "style": {
+    "colours": { "accent": "#c9a227", "surface": "#1a1d24" },
+    "fonts": { "heading": "cinzel", "body": "inter" },
+    "radius": "lg",
+    "density": "airy",
+    "glow": "soft",
+    "buttons": "outline"
+  },
+  "header": {
+    "layout": "logo-center",
+    "logo": { "show": true, "text": "custom", "height": 56, "image": "https://cdn.example.test/logo-wide.png", "custom": "Green Angels" },
+    "nav": [
+      { "id": "nonih4iu57", "label": "Home", "link": { "kind": "page", "pageId": "79w2b0yjz9" } },
+      { "id": "3yw1qx2rcv", "label": "Members", "link": { "kind": "page", "pageId": "g0ud8aco8n" } },
+      {
+        "id": "ohwad2lbhm",
+        "label": "More",
+        "children": [
+          {
+            "id": "nvmtwmc7w0",
+            "label": "Hiscores",
+            "link": { "kind": "url", "href": "https://secure.runescape.com/" },
+            "description": "Official hiscores"
+          },
+          { "id": "a7sjd5qhtl", "label": "Welcome", "link": { "kind": "page", "pageId": "79w2b0yjz9", "anchor": "welcome" } }
+        ]
+      },
+      { "id": "6oy2e88r35", "label": "Discord", "link": { "kind": "invite" }, "badge": "events" }
+    ],
+    "slots": {
+      "left": [{ "kind": "citadel-timer" }],
+      "right": [
+        { "kind": "search" },
+        { "kind": "bell" },
+        { "kind": "button", "settings": { "label": "Apply" } },
+        { "kind": "button" },
+        { "kind": "profile" }
+      ]
+    },
+    "sticky": true,
+    "transparent": "home",
+    "height": "tall",
+    "mobile": "dropdown",
+    "announcement": {
+      "text": "Clan event this Saturday!",
+      "link": { "kind": "page", "pageId": "g0ud8aco8n" },
+      "until": "2026-12-31T23:59:00.000Z",
+      "tone": "accent"
+    }
+  },
+  "footer": {
+    "columns": [
+      {
+        "title": "Clan",
+        "links": [
+          { "label": "Members", "link": { "kind": "page", "pageId": "g0ud8aco8n" } },
+          { "label": "Join", "link": { "kind": "invite" } }
+        ]
+      },
+      { "title": "", "links": [{ "label": "RuneScape", "link": { "kind": "url", "href": "https://www.runescape.com/" } }] }
+    ],
+    "showSocial": true,
+    "badge": false,
+    "text": "Est. 2009."
+  },
+  "pages": [
+    {
+      "id": "79w2b0yjz9",
+      "title": "Home",
+      "path": "",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "ygyqv6bhr4",
+          "width": "full",
+          "background": { "kind": "image", "image": "https://cdn.example.test/hero.jpg", "overlay": 40, "fixed": true },
+          "padding": { "lg": { "y": "xl", "x": "lg" }, "base": { "y": "md", "x": "sm" } },
+          "height": { "lg": { "mode": "viewport", "pct": 70 }, "base": { "mode": "min", "px": 320 } },
+          "rows": [
+            {
+              "id": "v12qcq2d3m",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "8qclmjqvgt",
+                  "span": { "lg": 12 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    { "id": "372cqmjmwa", "type": "heading", "v": 1, "settings": { "text": "Welcome" }, "unmet": "hide" },
+                    { "id": "p54k8pkpl0", "type": "rich-text", "v": 1, "settings": { "markdown": "Hi" }, "unmet": "hide" }
+                  ]
+                }
+              ]
+            }
+          ],
+          "label": "Hero",
+          "anchor": "welcome"
+        },
+        {
+          "id": "mxy6e0bbuh",
+          "width": "content",
+          "background": { "kind": "surface" },
+          "padding": { "lg": { "y": "lg", "x": "md" } },
+          "height": { "lg": { "mode": "auto" } },
+          "rows": [
+            {
+              "id": "qazw3kw8ab",
+              "gap": { "lg": "lg", "base": "sm" },
+              "align": "center",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "jnczw1axel",
+                  "span": { "lg": 8, "md": 4.5 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "sgxadvmnrb",
+                      "type": "roster",
+                      "v": 2,
+                      "settings": { "pageSize": 25 },
+                      "unmet": "hide",
+                      "height": { "lg": { "mode": "fixed", "px": 480 }, "base": { "mode": "auto" } }
+                    }
+                  ],
+                  "order": { "base": 1 }
+                },
+                {
+                  "id": "bi6j9his10",
+                  "span": { "lg": 4, "md": 6 },
+                  "padding": { "lg": "md" },
+                  "valign": "stretch",
+                  "surface": "panel",
+                  "widgets": [
+                    {
+                      "id": "vm6zi7m2hv",
+                      "type": "discord-online",
+                      "v": 1,
+                      "settings": {},
+                      "unmet": "placeholder",
+                      "hide": { "base": true }
+                    }
+                  ],
+                  "order": { "base": 0 }
+                }
+              ]
+            },
+            {
+              "id": "yjjqk8oz47",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "min", "px": 200 } },
+              "cells": [
+                {
+                  "id": "v79av26pw8",
+                  "span": { "lg": 4 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [{ "id": "x6xrdzymux", "type": "stat-cards", "v": 1, "settings": {}, "unmet": "hide" }]
+                },
+                {
+                  "id": "z3tu8qw5x6",
+                  "span": { "lg": 4 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [{ "id": "dny1qr2wuy", "type": "citadel-timer", "v": 1, "settings": {}, "unmet": "hide" }]
+                },
+                {
+                  "id": "yshyudn4za",
+                  "span": { "lg": 4 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    { "id": "hj3ssjyagl", "type": "future-widget", "v": 7, "settings": { "kept": { "as": "is" } }, "unmet": "hide" }
+                  ],
+                  "hide": { "base": true }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "g0ud8aco8n",
+      "title": "Members",
+      "path": "members",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "nf73wl4w95",
+          "width": "wide",
+          "background": { "kind": "none" },
+          "padding": { "lg": { "y": "lg", "x": "md" } },
+          "height": { "lg": { "mode": "auto" } },
+          "rows": [
+            {
+              "id": "9lnh486lby",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "9h2whsvygu",
+                  "span": { "lg": 12 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": []
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "seo": { "description": "Everyone in the clan.", "image": "https://cdn.example.test/members.png" }
+    },
+    {
+      "id": "5iq311nf25",
+      "title": "Staff room",
+      "path": "staff-room",
+      "hidden": true,
+      "access": "staff",
+      "sections": [
+        {
+          "id": "pop9rnrxwh",
+          "width": "wide",
+          "background": { "kind": "none" },
+          "padding": { "lg": { "y": "lg", "x": "md" } },
+          "height": { "lg": { "mode": "auto" } },
+          "rows": [
+            {
+              "id": "vjvsltlvtb",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "lgg1if4i7k",
+                  "span": { "lg": 12 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "8csdm9ybh2",
+      "title": "Member page",
+      "path": "member-page",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "0kcbr2h5qy",
+          "width": "wide",
+          "background": { "kind": "none" },
+          "padding": { "lg": { "y": "lg", "x": "md" } },
+          "height": { "lg": { "mode": "auto" } },
+          "rows": [
+            {
+              "id": "flk8x83njy",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "nr3ca1vna5",
+                  "span": { "lg": 12 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": []
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "template": "member"
+    },
+    {
+      "id": "7uxrisgwtf",
+      "title": "My account",
+      "path": "my-account",
+      "hidden": false,
+      "access": "members",
+      "sections": [
+        {
+          "id": "lvffsqxsmv",
+          "width": "wide",
+          "background": { "kind": "none" },
+          "padding": { "lg": { "y": "lg", "x": "md" } },
+          "height": { "lg": { "mode": "auto" } },
+          "rows": [
+            {
+              "id": "oze4xms6nr",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "4bfyw2ec53",
+                  "span": { "lg": 12 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": []
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "template": "account"
+    }
+  ],
+  "wizard": { "step": "done", "done": true, "slug": "green-angels", "name": "The Green Angels", "tagline": "Since 2009" }
+}

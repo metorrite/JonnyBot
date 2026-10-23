@@ -35,9 +35,13 @@ class ClanSiteTest {
 
     @Test
     void aClanSiteReadsClanLevelDataOnly() {
-        assertEquals(java.util.Set.of("members", "overview", "leaderboard", "recap"), com.younglings.bot.internal.SiteApi.TENANT_ROUTES);
-        assertFalse(com.younglings.bot.internal.SiteApi.TENANT_ROUTES.contains("member"));
-        assertFalse(com.younglings.bot.internal.SiteApi.TENANT_ROUTES.contains("me"));
+        // T-364 opened every clan-level answer (each one's privacy is tested in SiteApiTenantDatabaseTest)
+        assertEquals(java.util.Set.of("members", "overview", "leaderboard", "recap", "feed", "records", "citadel-grid", "history", "coffer", "polls", "signups",
+                "events", "pvm", "drops", "bosses", "boss", "item", "drop-log", "member/skill", "notifications", "member", "member/recap"),
+                com.younglings.bot.internal.SiteApi.TENANT_ROUTES); // T-369 added the member page and member recap (visible members only)
+        for (String never : java.util.List.of("me", "online", "news", "options")) {
+            assertFalse(com.younglings.bot.internal.SiteApi.TENANT_ROUTES.contains(never), never);
+        }
     }
 
     @Test

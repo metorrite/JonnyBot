@@ -1,0 +1,81 @@
+{
+  "v": 1,
+  "look": {
+    "theme": "neon",
+    "mode": "sepia",
+    "accent": "red",
+    "logo": "http://insecure.test/x.png",
+    "banner": null,
+    "extra": true
+  },
+  "pages": [
+    {
+      "id": "homepage01",
+      "title": "",
+      "path": "ignored",
+      "hidden": true,
+      "sections": [
+        {
+          "id": "sect000001",
+          "tone": "loud",
+          "columns": [
+            {
+              "id": "colm000001",
+              "span": 5,
+              "widgets": [
+                {
+                  "id": "wdgt000001",
+                  "type": "nope",
+                  "settings": {}
+                },
+                {
+                  "id": "wdgt000002",
+                  "type": "text",
+                  "settings": {
+                    "markdown": 42
+                  }
+                }
+              ]
+            },
+            {
+              "id": "colm000002",
+              "span": 5,
+              "widgets": []
+            }
+          ]
+        },
+        {
+          "id": "BAD",
+          "tone": "plain",
+          "columns": []
+        }
+      ]
+    },
+    {
+      "id": "page000002",
+      "title": "Dup",
+      "path": "about",
+      "hidden": false,
+      "sections": []
+    },
+    {
+      "id": "page000003",
+      "title": "Dup 2",
+      "path": "about",
+      "hidden": false,
+      "sections": []
+    },
+    {
+      "id": "page000004",
+      "title": "Bad path",
+      "path": "Not Valid",
+      "hidden": false,
+      "sections": []
+    }
+  ],
+  "wizard": {
+    "step": "look",
+    "done": "yes",
+    "slug": "Bad Slug"
+  }
+}
