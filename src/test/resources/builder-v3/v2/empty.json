@@ -1,0 +1,17 @@
+{
+  "v": 2,
+  "look": { "theme": "modern", "mode": "dark", "accent": null, "logo": null, "banner": null },
+  "style": {},
+  "header": {
+    "layout": "logo-left",
+    "logo": { "show": true, "text": "name", "height": 40 },
+    "nav": [{ "id": "v2fx4ussu1", "label": "Home", "link": { "kind": "page", "pageId": "enqxsyacch" } }],
+    "slots": { "left": [], "right": [] },
+    "sticky": false,
+    "transparent": "never",
+    "height": "normal",
+    "mobile": "drawer"
+  },
+  "footer": { "columns": [], "showSocial": false, "badge": true },
+  "pages": [{ "id": "enqxsyacch", "title": "Home", "path": "", "hidden": false, "access": "public", "sections": [] }]
+}

@@ -12,6 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -137,31 +138,93 @@ class ClanSiteLayoutRulesV2Test {
     void everyV2FixtureIsAcceptedUnchanged() throws Exception {
         List<Path> files = fixtures("v2");
         assertFalse(files.isEmpty(), "there are v2 fixtures to check");
+        List<String> failures = new ArrayList<>();
         for (Path file : files) {
             String raw = Files.readString(file, StandardCharsets.UTF_8);
             List<String> problems = new ArrayList<>();
             String clean = ClanSiteLayoutRules.clean(DataObject.fromJson(raw), ClanSiteLayoutRulesV2.Limits.PREMIUM, problems);
-            assertNotNull(clean, file.getFileName() + ": " + problems);
-            JsonNode expected = JSON.readTree(raw);
-            JsonNode actual = JSON.readTree(clean);
-            assertEquals(expected, actual, file.getFileName() + " comes back exactly as the website sent it");
-            assertEquals(clean, ClanSiteLayoutRules.clean(DataObject.fromJson(clean), ClanSiteLayoutRulesV2.Limits.PREMIUM, new ArrayList<>()),
-                    file.getFileName() + ": cleaning twice changes nothing");
+            if (clean == null) {
+                failures.add(file.getFileName() + " refused: " + problems);
+                continue;
+            }
+            if (!JSON.readTree(raw).equals(JSON.readTree(clean))) failures.add(file.getFileName() + " doesn't come back exactly as the website sent it: " + diff(JSON.readTree(raw), JSON.readTree(clean), ""));
+            if (!clean.equals(ClanSiteLayoutRules.clean(DataObject.fromJson(clean), ClanSiteLayoutRulesV2.Limits.PREMIUM, new ArrayList<>()))) {
+                failures.add(file.getFileName() + ": cleaning twice changes something");
+            }
         }
+        assertTrue(failures.isEmpty(), String.join("\n", failures));
     }
+
+    /** The first place two JSON trees differ, for a readable failure. */
+    private static String diff(JsonNode expected, JsonNode actual, String at) {
+        if (expected.equals(actual)) return "";
+        if (expected.isObject() && actual.isObject()) {
+            for (var it = expected.fieldNames(); it.hasNext(); ) {
+                String key = it.next();
+                if (!actual.has(key)) return at + "." + key + " dropped";
+                String inner = diff(expected.get(key), actual.get(key), at + "." + key);
+                if (!inner.isEmpty()) return inner;
+            }
+            for (var it = actual.fieldNames(); it.hasNext(); ) {
+                String key = it.next();
+                if (!expected.has(key)) return at + "." + key + " added (" + actual.get(key) + ")";
+            }
+        }
+        if (expected.isArray() && actual.isArray() && expected.size() == actual.size()) {
+            for (int i = 0; i < expected.size(); i++) {
+                String inner = diff(expected.get(i), actual.get(i), at + "[" + i + "]");
+                if (!inner.isEmpty()) return inner;
+            }
+        }
+        return at + ": " + expected + " became " + actual;
+    }
+
+    /** The v1 fixtures that are junk on purpose (an id used twice, broken values): the website's migration copes with them, the v1 rules refuse them. */
+    private static final Set<String> V1_JUNK = Set.of("edge-cases.json", "messy.json");
+    /**
+     * The one {@code v2-invalid} fixture the bot accepts: the website refuses a field the format doesn't have, the bot drops it (as for v1),
+     * so a field added on the website before the bot knows it never makes a save fail.
+     */
+    private static final Set<String> V2_DROPPED_NOT_REFUSED = Set.of("unknown-field.json");
 
     @Test
     void everyV1FixtureStillSavesWithTheV1Rules() throws Exception {
         List<Path> files = fixtures("v1");
         assertFalse(files.isEmpty(), "there are v1 fixtures to check");
+        int checked = 0;
         for (Path file : files) {
             String raw = Files.readString(file, StandardCharsets.UTF_8);
             List<String> problems = new ArrayList<>();
             String clean = ClanSiteLayoutRules.clean(DataObject.fromJson(raw), ClanSiteLayoutRulesV2.Limits.of(12, 40), problems);
+            if (V1_JUNK.contains(file.getFileName().toString())) {
+                assertNull(clean, file.getFileName() + " is refused by the v1 rules");
+                continue;
+            }
             assertNotNull(clean, file.getFileName() + ": " + problems);
             assertEquals(1, DataObject.fromJson(clean).getInt("v"), "a v1 layout stays v1 (the website migrates it, never the bot)");
-            assertEquals(JSON.readTree(raw), JSON.readTree(clean), file.getFileName() + " comes back unchanged");
+            checked++;
         }
+        assertTrue(checked >= 5, "the starters, the import and the bot's own v1 fixture were checked");
+    }
+
+    @Test
+    void everyInvalidV2FixtureIsRefused() throws Exception {
+        List<Path> files = fixtures("v2-invalid").stream().filter(p -> !p.getFileName().toString().equals("index.json")).toList();
+        assertTrue(files.size() >= 30, "the model's invalid fixtures are there");
+        JsonNode index = JSON.readTree(Files.readString(files.get(0).resolveSibling("index.json"), StandardCharsets.UTF_8));
+        assertEquals(files.size(), index.size(), "index.json lists every invalid fixture");
+        List<String> failures = new ArrayList<>();
+        for (Path file : files) {
+            String name = file.getFileName().toString();
+            List<String> problems = new ArrayList<>();
+            String clean = ClanSiteLayoutRules.clean(DataObject.fromJson(Files.readString(file, StandardCharsets.UTF_8)), ClanSiteLayoutRulesV2.Limits.PREMIUM, problems);
+            if (V2_DROPPED_NOT_REFUSED.contains(name)) {
+                if (clean == null) failures.add(name + " should be kept (the unknown field dropped): " + problems);
+            } else if (clean != null || problems.isEmpty()) {
+                failures.add(name + " must be refused");
+            }
+        }
+        assertTrue(failures.isEmpty(), String.join("\n", failures));
     }
 
     // ---------- shape ----------
