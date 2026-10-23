@@ -59,6 +59,19 @@ public class GuildRetentionRepository {
         }
     }
 
+    /** When the bot left the server, or null while it is there (or its data has already been deleted). */
+    public Instant leftAt(long guildId) {
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("SELECT left_at FROM younglings.guild_departure WHERE guild_id = ?")) {
+            s.setLong(1, guildId);
+            try (ResultSet rs = s.executeQuery()) {
+                return rs.next() ? rs.getTimestamp(1).toInstant() : null;
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read when the bot left a server", e);
+        }
+    }
+
     /**
      * Every table that holds a server's own data: it has a server id that can never be empty. A table whose server id may be empty
      * holds data that belongs to a player, not a server (stat snapshots, say), and is left alone.

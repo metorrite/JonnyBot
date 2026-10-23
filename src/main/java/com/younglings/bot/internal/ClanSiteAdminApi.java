@@ -409,7 +409,7 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
                 .put("publishedAt", v.publishedAt() == null ? null : v.publishedAt().toString());
     }
 
-    // ---------- plan (T-366 replaces planJson with the full plan: tier, until, graceUntil, source) ----------
+    // ---------- plan (T-366: the full plan, tier, until, graceUntil, source, from Billing) ----------
 
     private ClanSiteLayoutRulesV2.Limits planLimits(long guildId) {
         return ClanSiteLayoutRulesV2.Limits.of(premium.limit(guildId, PremiumFeatures.SITE_PAGES).orElse((long) ClanSiteLayoutRulesV2.MAX_PAGES),
@@ -421,9 +421,9 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
         return (int) Math.max(1, Math.min(ClanSiteLayoutRepository.KEPT_VERSIONS, kept));
     }
 
-    /** The seam for the site's plan in the layout answers; today only the tier (null = free). */
+    /** The site's plan in the layout answers ({@code {tier, until, graceUntil, source}}, tier "free" without one); the bot is in this server. */
     DataObject planJson(long guildId) {
-        return DataObject.empty().put("tier", premium.tierOf(guildId));
+        return com.younglings.bot.premium.Billing.planJson(guildId, true);
     }
 
     /**

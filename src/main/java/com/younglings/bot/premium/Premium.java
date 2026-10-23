@@ -18,7 +18,8 @@ import java.util.concurrent.TimeUnit;
 /**
  * The one place that answers "does this server have that?" ({@link #allows}, {@link #limit}) and the one place plans are granted, changed and revoked,
  * each with a line in the history. Once a day it removes grants that have run out (logging EXPIRE). Nothing is ever sent to a server about its plan:
- * an ending plan simply stops, and the owner's list shows what is ending soon. No payments, prices or billing of any kind.
+ * an ending plan simply stops, and the owner's list shows what is ending soon. Payments arrive through {@link Billing} as just another
+ * {@code source} ("stripe"); no prices or payment details live in the bot.
  */
 @BService
 public class Premium {
@@ -69,6 +70,14 @@ public class Premium {
         boolean existed = repository.grant(guildId) != null;
         repository.upsert(guildId, label, tier, expiresAt, note, source, byUser);
         repository.log(guildId, existed ? CHANGE : GRANT, tier, expiresAt, byUser, note);
+        return existed;
+    }
+
+    /** The same for a grant nobody typed in (a payment, see {@link Billing}): no user in the history. */
+    public boolean grantAutomatic(long guildId, String label, String tier, Instant expiresAt, String note, String source) {
+        boolean existed = repository.grant(guildId) != null;
+        repository.upsertBy(guildId, label, tier, expiresAt, note, source, null);
+        repository.log(guildId, existed ? CHANGE : GRANT, tier, expiresAt, null, note);
         return existed;
     }
 

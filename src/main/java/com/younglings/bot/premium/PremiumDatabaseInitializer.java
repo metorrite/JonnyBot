@@ -48,7 +48,33 @@ public class PremiumDatabaseInitializer {
                     at TIMESTAMPTZ NOT NULL DEFAULT now()
                 );
                 """,
-                "CREATE INDEX IF NOT EXISTS premium_grant_log_guild_idx ON younglings.premium_grant_log (guild_id, at DESC);"
+                "CREATE INDEX IF NOT EXISTS premium_grant_log_guild_idx ON younglings.premium_grant_log (guild_id, at DESC);",
+
+                // A server's paid subscription as the website last forwarded it (BillingRules, T-366): the newest Stripe event wins, so
+                // event_created / event_id say which event this state came from. Ids are Stripe's own (cus_..., sub_...), never card details.
+                """
+                CREATE TABLE IF NOT EXISTS younglings.premium_subscription (
+                    guild_id BIGINT PRIMARY KEY,
+                    customer_id TEXT NOT NULL,
+                    subscription_id TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    current_period_end TIMESTAMPTZ NULL,
+                    cancel_at_period_end BOOLEAN NOT NULL DEFAULT FALSE,
+                    event_created TIMESTAMPTZ NOT NULL,
+                    event_id TEXT NOT NULL,
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                );
+                """,
+
+                // Every billing event the bot has taken, so a replay (Stripe retries, the website retries) is answered without doing anything twice.
+                """
+                CREATE TABLE IF NOT EXISTS younglings.billing_event (
+                    event_id TEXT PRIMARY KEY,
+                    guild_id BIGINT NOT NULL,
+                    outcome TEXT NOT NULL,
+                    received_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                );
+                """
         ));
     }
 }
