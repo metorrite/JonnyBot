@@ -1,0 +1,133 @@
+{
+  "v": 2,
+  "look": { "theme": "parchment", "mode": "dark", "accent": "#c9a227", "logo": "/api/uploads/0123456789abcdef0123456789abcdef?v=2", "banner": null },
+  "style": {
+    "colours": { "accent": "#c9a227", "bg": "#101010" },
+    "fonts": { "heading": "cinzel", "body": "inter" },
+    "radius": "md",
+    "density": "airy",
+    "glow": "soft",
+    "buttons": "outline"
+  },
+  "header": {
+    "layout": "logo-center",
+    "logo": { "show": true, "image": "https://cdn.example.test/logo.png", "text": "custom", "custom": "Younglings", "height": 48 },
+    "nav": [
+      { "id": "nav001", "label": "Home", "link": { "kind": "page", "pageId": "page01" } },
+      {
+        "id": "nav002",
+        "label": "Clan",
+        "badge": "events",
+        "children": [
+          { "id": "nav003", "label": "Roster", "link": { "kind": "page", "pageId": "page02", "anchor": "top" }, "description": "Everyone in the clan" },
+          { "id": "nav004", "label": "Wiki", "link": { "kind": "url", "href": "https://runescape.wiki/" } },
+          { "id": "nav005", "label": "Discord", "link": { "kind": "invite" } }
+        ]
+      }
+    ],
+    "slots": {
+      "left": [{ "kind": "citadel-timer" }],
+      "right": [{ "kind": "search" }, { "kind": "bell" }, { "kind": "profile" }, { "kind": "button", "settings": { "label": "Join us" } }]
+    },
+    "sticky": true,
+    "transparent": "home",
+    "height": "tall",
+    "mobile": "dropdown",
+    "announcement": { "text": "Clan event on Saturday", "link": { "kind": "page", "pageId": "page02" }, "until": "2026-11-01T00:00:00Z", "tone": "accent" }
+  },
+  "footer": {
+    "columns": [{ "title": "Links", "links": [{ "label": "Roster", "link": { "kind": "page", "pageId": "page02" } }] }],
+    "text": "Made by the clan",
+    "showSocial": true,
+    "badge": false
+  },
+  "pages": [
+    {
+      "id": "page01",
+      "title": "Home",
+      "path": "",
+      "hidden": false,
+      "access": "public",
+      "seo": { "description": "The clan's home page", "image": "https://cdn.example.test/og.png" },
+      "sections": [
+        {
+          "id": "sect01",
+          "label": "Hero",
+          "width": "full",
+          "background": { "kind": "image", "image": "https://cdn.example.test/hero.png", "overlay": 40, "fixed": true },
+          "padding": { "lg": { "y": "xl", "x": "md" }, "base": { "y": "md", "x": "sm" } },
+          "height": { "lg": { "mode": "viewport", "pct": 60 }, "base": { "mode": "auto" } },
+          "anchor": "top",
+          "rows": [
+            {
+              "id": "row001",
+              "gap": { "lg": "lg", "md": "md" },
+              "align": "center",
+              "height": { "lg": { "mode": "min", "px": 320 } },
+              "cells": [
+                {
+                  "id": "cell01",
+                  "span": { "lg": 8, "md": 12 },
+                  "order": { "base": 2 },
+                  "padding": { "lg": "md" },
+                  "valign": "center",
+                  "surface": "panel",
+                  "widgets": [
+                    { "id": "widg01", "type": "heading", "v": 1, "settings": { "text": "Welcome" }, "unmet": "hide" },
+                    { "id": "widg02", "type": "rich-text", "v": 2, "settings": { "markdown": "Hello **clan**" }, "unmet": "placeholder", "height": { "lg": { "mode": "fixed", "px": 200 } } }
+                  ]
+                },
+                {
+                  "id": "cell02",
+                  "span": { "lg": 4 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "hide": { "base": true },
+                  "widgets": [{ "id": "widg03", "type": "stat-cards", "v": 1, "settings": {}, "unmet": "hide", "hide": { "md": true } }]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "page02",
+      "title": "Roster",
+      "path": "roster",
+      "hidden": false,
+      "access": "members",
+      "sections": [
+        {
+          "id": "sect02",
+          "width": "content",
+          "background": { "kind": "surface" },
+          "padding": { "lg": { "y": "md", "x": "none" } },
+          "height": { "lg": { "mode": "auto" } },
+          "rows": [
+            {
+              "id": "row002",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                { "id": "cell03", "span": { "lg": 12 }, "padding": { "lg": "none" }, "valign": "start", "surface": "none", "widgets": [{ "id": "widg04", "type": "roster", "v": 1, "settings": { "pageSize": 50 }, "unmet": "hide" }] }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "page03",
+      "title": "Member",
+      "path": "member",
+      "hidden": true,
+      "access": "public",
+      "template": "member",
+      "sections": []
+    }
+  ],
+  "wizard": { "step": "done", "done": true, "slug": "younglings", "name": "Younglings" }
+}
