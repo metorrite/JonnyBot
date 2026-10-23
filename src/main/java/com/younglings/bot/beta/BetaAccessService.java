@@ -2,7 +2,6 @@ package com.younglings.bot.beta;
 
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.JDA;
-import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 
@@ -11,8 +10,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.LongSupplier;
 
 /**
- * Who may use JonnyBot's website while it is closed to the public: besides the clan's own admins, anyone who owns, or holds
- * Administrator or Manage Server in, one of the trusted servers on the beta list. The bot has to be in the server to look, so a
+ * Who may use JonnyBot's website while it is closed to the public: besides the clan's own admins, anyone who holds at least that server's
+ * level (owner, Administrator, or Manage Server) in one of the trusted servers on the beta list. The bot has to be in the server to look, so a
  * listed server the bot is not in lets nobody through. Answers are remembered for a minute, because the website asks on every page.
  */
 @BService
@@ -39,8 +38,9 @@ public class BetaAccessService {
         for (BetaGuildRepository.BetaGuild beta : repository.all()) {
             Guild guild = jda.getGuildById(beta.guildId());
             if (guild == null) continue;
+            if (beta.level() == null) continue; // a level the code no longer knows lets nobody in
             Member member = memberIn(guild, userId);
-            if (member != null && (member.isOwner() || member.hasPermission(Permission.ADMINISTRATOR) || member.hasPermission(Permission.MANAGE_SERVER))) {
+            if (beta.level().satisfiedBy(member)) {
                 allowed = true;
                 break;
             }

@@ -61,6 +61,26 @@ class AccessGrantAdminApiTest {
     }
 
     @Test
+    void aUserGrantNamesThePersonWhenTheBotKnowsThem() {
+        long known = Long.parseLong("4".repeat(18));
+        long unknown = Long.parseLong("6".repeat(18));
+        java.time.Instant at = java.time.Instant.parse("2026-10-23T00:00:00Z");
+        when(repository.all()).thenReturn(List.of(
+                new com.younglings.bot.access.AccessGrant(1, AccessArea.DASHBOARD, known, null, null, "", 7L, at, null),
+                new com.younglings.bot.access.AccessGrant(2, AccessArea.DASHBOARD, unknown, null, null, "", 7L, at, null)));
+        net.dv8tion.jda.api.entities.User user = mock(net.dv8tion.jda.api.entities.User.class);
+        when(user.getName()).thenReturn("tester");
+        when(user.getEffectiveAvatarUrl()).thenReturn("https://cdn.example/avatar.png");
+        when(guild.getJDA().getUserById(known)).thenReturn(user);
+
+        var grants = api.list(guild).getArray("grants");
+
+        assertEquals("tester", grants.getObject(0).getString("userName"));
+        assertEquals("https://cdn.example/avatar.png", grants.getObject(0).getString("avatarUrl"));
+        assertNull(grants.getObject(1).getString("userName", null), "Discord could not say: the id alone");
+    }
+
+    @Test
     void theOwnerCanLetAServerInAtALevel() {
         DataObject body = DataObject.empty().put("area", "dashboard").put("subject", "server").put("guildId", "1388208054008545300").put("level", "manage_server");
 
