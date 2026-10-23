@@ -244,14 +244,14 @@ public final class EventOptions {
                 .showWhen(When.is("config.verification.required", true)));
         list.add(Option.of("config.verification.instructions", "What players are told to send", "Shown to players who join. Up to " + EventRoster.MAX_INSTRUCTIONS + " characters.", Step.SETUP, Type.TEXTAREA, "")
                 .showWhen(When.is("config.verification.required", true)).maxLength(EventRoster.MAX_INSTRUCTIONS));
-        list.add(Option.of("config.channels.enabled", "Let JonnyBot make the event's roles and channels", "A category with the event's channels, and a role for the players, made when you press Set up after signups close. Fine-tune names and channels below, or later on the Channels tab.", Step.DISCORD, Type.BOOL, true));
+        list.add(Option.of("config.channels.enabled", "Let the bot make the event's roles and channels", "A category with the event's channels, and a role for the players, made when you press Set up after signups close. Fine-tune names and channels below, or later on the Channels tab.", Step.DISCORD, Type.BOOL, true));
         list.add(Option.of("config.channels.teamChannels", "A private channel for each team", "Only that team, the organisers and staff can see it.", Step.DISCORD, Type.BOOL, true)
                 .showWhen(When.is("scoringMode", "TEAM")));
         list.add(Option.of("config.channels.playerChannels", "A private channel for each player", "For events where everyone plays alone. Only that player, the organisers and staff can see it.", Step.DISCORD, Type.BOOL, false)
                 .showWhen(When.is("scoringMode", "INDIVIDUAL")));
         list.add(Option.of("config.submissions.require", "Proof only from the event's channels", "Players must send proof with /submit in their own event channel. Staff and organisers can still send from anywhere.", Step.DISCORD, Type.BOOL, false));
         list.add(Option.of("config.submissions.receipts", "Post a receipt in the player's channel", "Each submission also shows in the player's (or team's) own channel and is updated when staff decide.", Step.DISCORD, Type.BOOL, true));
-        list.add(Option.of("config.submissions.remind", "Remind players who post a picture without /submit", "When a player posts a picture in their own event channel without using /submit, JonnyBot answers once an hour with how to send it properly. Needs the Message Content intent; staff and organisers are never reminded.", Step.DISCORD, Type.BOOL, false));
+        list.add(Option.of("config.submissions.remind", "Remind players who post a picture without /submit", "When a player posts a picture in their own event channel without using /submit, the bot answers once an hour with how to send it properly. Needs the Message Content intent; staff and organisers are never reminded.", Step.DISCORD, Type.BOOL, false));
         list.add(Option.of("config.wrapup.lockOnFinish", "Make the channels read-only when the event ends", "Players can still read the channels after the event but not write in them.", Step.DISCORD, Type.BOOL, true));
         list.add(Option.of("config.wrapup.unlockOnReopen", "Unlock the channels if the event is reopened", "Players can write again when a finished event is reopened.", Step.DISCORD, Type.BOOL, true)
                 .showWhen(When.is("config.wrapup.lockOnFinish", true)));
@@ -275,7 +275,7 @@ public final class EventOptions {
         When create = When.is(path + ".use", "create");
         return List.of(
                 Option.choice(path + ".use", kind.label(), about, Step.DISCORD, "create",
-                        List.of(new Choice("create", "JonnyBot makes it", "Named from the pattern below, inside the event's category."), new Choice("existing", "Use a channel I already have", "Pick it from the list."),
+                        List.of(new Choice("create", "The bot makes it", "Named from the pattern below, inside the event's category."), new Choice("existing", "Use a channel I already have", "Pick it from the list."),
                                 new Choice("none", "Leave it out", "")))
                         .showWhen(on),
                 Option.of(path + ".channelId", kind.label() + " channel", "The channel to use.", Step.DISCORD, Type.CHANNEL, null).showWhen(existing).requiredWhen(existing),

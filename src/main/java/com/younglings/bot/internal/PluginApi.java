@@ -28,6 +28,7 @@ import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
+import com.younglings.bot.config.BotBrand;
 
 /**
  * The plugin API, under {@code /internal/plugin/}. {@link InternalApiServer} has already checked the shared secret (the public website
@@ -111,7 +112,7 @@ public class PluginApi {
 
     private Optional<Token> authenticate(HttpExchange exchange) throws IOException {
         Optional<Token> token = service.authenticate(exchange.getRequestHeaders().getFirst("X-Plugin-Token"));
-        if (token.isEmpty()) send(exchange, 401, error("That token isn't valid. Make a new one on your JonnyBot profile."));
+        if (token.isEmpty()) send(exchange, 401, error("That token isn't valid. Make a new one on your " + BotBrand.NAME + " profile."));
         return token;
     }
 
@@ -321,7 +322,7 @@ public class PluginApi {
                     try {
                         chosen.add(PluginCategory.valueOf(given.getString(i).strip().toUpperCase(Locale.ROOT)));
                     } catch (IllegalArgumentException e) {
-                        send(exchange, 400, error("One of those categories isn't one JonnyBot knows."));
+                        send(exchange, 400, error("One of those categories isn't one the bot knows."));
                         return;
                     }
                 }

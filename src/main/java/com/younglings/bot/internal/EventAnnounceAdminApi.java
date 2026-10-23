@@ -78,7 +78,7 @@ public class EventAnnounceAdminApi implements AdminRouteExtension {
             }
         }
         if (enabled && channelId == null) problems.add("Choose the channel to announce events in, or turn the announcer off.");
-        if (enabled && useRole && !guild.getSelfMember().hasPermission(Permission.MANAGE_ROLES)) problems.add("JonnyBot needs the Manage Roles permission to make the interested role for each event.");
+        if (enabled && useRole && !guild.getSelfMember().hasPermission(Permission.MANAGE_ROLES)) problems.add("The bot needs the Manage Roles permission to make the interested role for each event.");
         if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.the_announcer_can_t_be_saved"), problems);
         repository.saveSettings(new Settings(guild.getIdLong(), enabled, channelId, useRole, notifyStart));
         log.info("Dashboard: {} saved the event announcer settings (enabled {})", actor.getId(), enabled);

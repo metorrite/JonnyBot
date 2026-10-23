@@ -168,7 +168,7 @@ class PluginObjectiveMatcherTest {
     @Test
     void anUnknownItemIsFlaggedAndOtherEventTypesGetNoHints() {
         assertFalse(hint("Shiny rock").auto());
-        assertTrue(hint("Shiny rock").text().contains("Not an item JonnyBot knows"));
+        assertTrue(hint("Shiny rock").text().contains("Not an item the bot knows"));
         assertEquals(null, PluginObjectiveMatcher.explain(CompetitionTemplate.KEY, "Nex: Torva boots", LABELS, KNOWN));
         assertEquals(null, PluginObjectiveMatcher.explain(BossNightTemplate.KEY, "Nex: Torva boots", LABELS, KNOWN));
         assertEquals(null, hint("   "));

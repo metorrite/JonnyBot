@@ -485,7 +485,7 @@ public class EventSpaceOps {
         events.setConfig(guildId, eventId, config.toString());
         changes.publish(EventChanges.Kind.SETUP, guildId, eventId);
         job.step("Done.");
-        job.finish("Everything JonnyBot made for this event has been removed.");
+        job.finish("Everything the bot made for this event has been removed.");
     }
 
     // ---------- who holds the roles ----------

@@ -104,7 +104,7 @@ public class TempVoiceAdminApi implements AdminRouteExtension {
         if (!create) {
             String rawChannel = body.isNull("hubChannelId") ? "" : body.getString("hubChannelId", "").strip();
             hubChannel = rawChannel.matches("\\d{1,20}") ? guild.getVoiceChannelById(Long.parseLong(rawChannel)) : null;
-            if (hubChannel == null) problems.add("Choose the voice channel people join to get their own, or let JonnyBot create one.");
+            if (hubChannel == null) problems.add("Choose the voice channel people join to get their own, or let the bot create one.");
             else if (repository.channel(hubChannel.getIdLong()).isPresent()) problems.add("That channel is a temporary channel itself, so it can't be a hub.");
         }
         boolean isNew = create || (hubChannel != null && repository.hubByChannel(hubChannel.getIdLong()).isEmpty());
@@ -116,7 +116,7 @@ public class TempVoiceAdminApi implements AdminRouteExtension {
             try {
                 hubChannel = guild.createVoiceChannel(name.equals("Voice channel") ? "➕ Create voice channel" : name, category).reason("Temporary voice hub created from the dashboard").complete();
             } catch (RuntimeException e) {
-                throw new ApiError(400, Text.of(guild, "dashboard.discord_refused_to_create_the_channel"), List.of("Check JonnyBot may manage channels" + (category == null ? "." : " in that category.")));
+                throw new ApiError(400, Text.of(guild, "dashboard.discord_refused_to_create_the_channel"), List.of("Check the bot may manage channels" + (category == null ? "." : " in that category.")));
             }
         }
         repository.saveHub(new Hub(guild.getIdLong(), hubChannel.getIdLong(), category == null ? null : category.getIdLong(), pattern, limit));

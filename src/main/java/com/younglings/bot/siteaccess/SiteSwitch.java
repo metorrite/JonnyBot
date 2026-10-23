@@ -2,10 +2,11 @@ package com.younglings.bot.siteaccess;
 
 import java.util.Arrays;
 import java.util.Optional;
+import com.younglings.bot.config.BotBrand;
 
 /** The website's gates the owner can open or close without a redeploy. The key is what the website and the dashboard use. */
 public enum SiteSwitch {
-    JONNYBOT("jonnybot", "JonnyBot website", "Home, docs, install, FAQ, privacy and terms. While closed only trusted admins see them."),
+    JONNYBOT("jonnybot", BotBrand.NAME + " website", "Home, docs, install, FAQ, privacy and terms. While closed only trusted admins see them."),
     HUB("hub", "Clans hub", "The public directory of clans, events and leaderboards. While closed only trusted admins see it."),
     DASHBOARD("dashboard", "Bot dashboard", "The per-server bot dashboard. While closed only trusted admins can sign in to it.");
 

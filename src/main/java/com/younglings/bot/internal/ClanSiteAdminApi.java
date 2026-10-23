@@ -24,6 +24,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
+import com.younglings.bot.config.BotBrand;
 
 /**
  * A server's clan website (website builder) for the dashboard's Clan website page (docs/DOMAINS-AND-SITE-BUILDER.md B5, website repo):
@@ -196,7 +197,7 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
             if (!current.enabled()) problems.add("Switch the website on first.");
             String profile = profileProblem(guild.getIdLong(), profiles.profileOf(guild.getIdLong()));
             if (profile != null) problems.add(profile);
-            if (current.takedownReason() != null && !current.takedownReason().isBlank()) problems.add("This website was taken down by JonnyBot's owner: " + current.takedownReason());
+            if (current.takedownReason() != null && !current.takedownReason().isBlank()) problems.add("This website was taken down by " + BotBrand.NAME + "'s owner: " + current.takedownReason());
             if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.the_website_can_t_be_published"), problems);
         }
         repository.save(new ClanSite(current.guildId(), current.enabled(), publish, current.template(), current.theme(), current.pages(), actor.getIdLong(),
@@ -270,7 +271,7 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
         long id = guild.getIdLong();
         ClanSite current = sites.of(id);
         if (current.takedownReason() != null && !current.takedownReason().isBlank()) {
-            throw new ApiError(403, Text.of(guild, "dashboard.the_website_can_t_be_saved"), List.of("This website was taken down by JonnyBot's owner, so it can't be deleted."));
+            throw new ApiError(403, Text.of(guild, "dashboard.the_website_can_t_be_saved"), List.of("This website was taken down by " + BotBrand.NAME + "'s owner, so it can't be deleted."));
         }
         String slug = profiles.profileOf(id).slug();
         String expected = slug == null || slug.isBlank() ? "delete" : slug;

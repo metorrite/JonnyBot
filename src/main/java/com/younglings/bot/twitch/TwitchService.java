@@ -62,7 +62,7 @@ public class TwitchService {
     /** Whether JonnyBot can post in this channel, as words for the person setting it up (null when it can). */
     public static String problemWith(GuildMessageChannel channel) {
         if (!channel.getGuild().getSelfMember().hasPermission(channel, NEEDED)) {
-            return "JonnyBot needs View Channel, Send Messages and Embed Links in #" + channel.getName() + " to post there.";
+            return "The bot needs View Channel, Send Messages and Embed Links in #" + channel.getName() + " to post there.";
         }
         return null;
     }

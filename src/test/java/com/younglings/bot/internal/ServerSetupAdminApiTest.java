@@ -136,7 +136,7 @@ class ServerSetupAdminApiTest {
                 api.save(guild, actor, DataObject.fromJson("{\"verifiedClanRoleId\": \"500\", \"unverifiedRoleId\": \"700\"}")));
 
         assertEquals(400, thrown.status);
-        assertTrue(thrown.problems.getFirst().contains("Move JonnyBot's own role above"));
+        assertTrue(thrown.problems.getFirst().contains("Move the bot's own role above"));
         verify(settings, never()).updateVerificationRoleSettings(anyLong(), any(), any(), any());
     }
 

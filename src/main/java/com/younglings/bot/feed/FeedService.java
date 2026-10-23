@@ -54,7 +54,7 @@ public class FeedService {
     public static String problemWith(GuildMessageChannel channel) {
         Guild guild = channel.getGuild();
         if (!guild.getSelfMember().hasPermission(channel, NEEDED)) {
-            return "JonnyBot needs the View Channel and Send Messages permissions in #" + channel.getName() + " to post there.";
+            return "The bot needs the View Channel and Send Messages permissions in #" + channel.getName() + " to post there.";
         }
         return null;
     }

@@ -99,7 +99,7 @@ public class RuneSyncService {
             try {
                 chosen.add(PluginCategory.valueOf(given.getString(i).strip().toUpperCase(Locale.ROOT)));
             } catch (RuntimeException e) {
-                throw new RuneSyncException(400, "One of those categories isn't one JonnyBot knows.");
+                throw new RuneSyncException(400, "One of those categories isn't one the bot knows.");
             }
         }
         plugins.setConsent(userId, chosen);

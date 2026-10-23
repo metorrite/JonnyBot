@@ -79,8 +79,8 @@ public class LockCommands {
         return switch (outcome) {
             case DONE -> (locking ? "Locked " : "Unlocked ") + channel.getAsMention() + ".";
             case ALREADY -> channel.getAsMention() + " is already locked.";
-            case NOT_LOCKED -> channel.getAsMention() + " isn't locked by JonnyBot, so there is nothing to put back.";
-            case NO_PERMISSION -> "JonnyBot needs to see, send messages in and manage permissions of " + channel.getAsMention() + " to do that.";
+            case NOT_LOCKED -> channel.getAsMention() + " isn't locked by the bot, so there is nothing to put back.";
+            case NO_PERMISSION -> "The bot needs to see, send messages in and manage permissions of " + channel.getAsMention() + " to do that.";
             case FAILED -> "Discord refused part of that, so " + channel.getAsMention() + " was put back as it was. Try again.";
         };
     }

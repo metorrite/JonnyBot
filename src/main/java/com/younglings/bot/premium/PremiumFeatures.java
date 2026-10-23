@@ -30,7 +30,7 @@ public final class PremiumFeatures {
     private static final List<Feature> ALL = List.of(
             new Feature(FAST_POLLING, "Faster player updates", "Your clan's players are refreshed every hour instead of every three hours, ahead of other clans in the queue.",
                     Set.of(TIER_PREMIUM), null, null),
-            new Feature(BRANDING_PROFILE, "Server profile", "Give JonnyBot its own avatar, banner and bio in your server.", Set.of(TIER_PREMIUM), null, null));
+            new Feature(BRANDING_PROFILE, "Server profile", "Give the bot its own avatar, banner and bio in your server.", Set.of(TIER_PREMIUM), null, null));
 
     private static final Map<String, Feature> BY_KEY = ALL.stream().collect(java.util.stream.Collectors.toUnmodifiableMap(Feature::key, f -> f));
 

@@ -55,7 +55,7 @@ public class VoiceTextAdminApi implements AdminRouteExtension {
             TextChannel text = guild.getTextChannelById(link.getValue());
             String problem = voice == null ? "The voice channel no longer exists."
                     : text == null ? "The text channel no longer exists."
-                    : !VoiceTextService.canManage(guild, text) ? "JonnyBot needs View Channel, Send Messages and Manage Permissions in #" + text.getName() + "."
+                    : !VoiceTextService.canManage(guild, text) ? "The bot needs View Channel, Send Messages and Manage Permissions in #" + text.getName() + "."
                     : null;
             boolean everyoneCanSee = text != null && guild.getPublicRole().hasPermission(text, Permission.VIEW_CHANNEL);
             links.add(DataObject.empty().put("voiceChannelId", Long.toString(link.getKey())).put("voiceName", voice == null ? null : voice.getName())
@@ -96,7 +96,7 @@ public class VoiceTextAdminApi implements AdminRouteExtension {
                     problems.add("The text channel for " + voice.getName() + " doesn't exist in this server.");
                     continue;
                 }
-                if (!VoiceTextService.canManage(guild, text)) problems.add("JonnyBot needs View Channel, Send Messages and Manage Permissions in #" + text.getName() + " to give people access.");
+                if (!VoiceTextService.canManage(guild, text)) problems.add("The bot needs View Channel, Send Messages and Manage Permissions in #" + text.getName() + " to give people access.");
                 if (links.containsKey(voice.getIdLong())) problems.add(voice.getName() + " is linked twice.");
                 if (!textUsed.add(text.getIdLong())) problems.add("#" + text.getName() + " is linked to more than one voice channel: leaving one would take away access that the other still needs.");
                 links.put(voice.getIdLong(), text.getIdLong());

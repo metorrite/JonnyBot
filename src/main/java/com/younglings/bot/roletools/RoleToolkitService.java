@@ -105,7 +105,7 @@ public class RoleToolkitService {
         }
         if (target.getUser().isBot() && !admin) return Optional.of("Roles of bots are changed by admins only.");
         if (!admin && !caller.canInteract(role)) return Optional.of("@" + role.getName() + " is above your own highest role.");
-        if (!guild.getSelfMember().canInteract(target)) return Optional.of("JonnyBot cannot change " + target.getEffectiveName() + "'s roles: they rank above the bot.");
+        if (!guild.getSelfMember().canInteract(target)) return Optional.of("The bot cannot change " + target.getEffectiveName() + "'s roles: they rank above the bot.");
         return Optional.empty();
     }
 

@@ -54,7 +54,7 @@ public class RolePanelService {
     public RolePanel post(Guild guild, RolePanel panel, long channelId) {
         GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, channelId);
         if (channel == null) throw new PostException("That channel doesn't exist in this server.");
-        if (!channel.canTalk()) throw new PostException("JonnyBot can't post in #" + channel.getName() + ". It needs permission to view the channel and send messages there.");
+        if (!channel.canTalk()) throw new PostException("The bot can't post in #" + channel.getName() + ". It needs permission to view the channel and send messages there.");
         if (panel.buttons().isEmpty()) throw new PostException("Add at least one role first.");
         requireFits(panel);
         if (panel.style() == RolePanel.Style.REACTIONS) requireReactionPermission(channel);
@@ -82,7 +82,7 @@ public class RolePanelService {
             throw e;
         } catch (RuntimeException e) {
             log.warn("Couldn't post role panel {} in channel {}", panel.id(), channelId, e);
-            throw new PostException("Discord refused the message. Check JonnyBot can post, embed links and use external emojis in #" + channel.getName() + ".");
+            throw new PostException("Discord refused the message. Check the bot can post, embed links and use external emojis in #" + channel.getName() + ".");
         }
     }
 
@@ -100,13 +100,13 @@ public class RolePanelService {
         GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, parsed.channelId());
         if (channel == null) throw new PostException("That channel doesn't exist in this server.");
         if (!guild.getSelfMember().hasPermission(channel, Permission.VIEW_CHANNEL, Permission.MESSAGE_HISTORY)) {
-            throw new PostException("JonnyBot can't read #" + channel.getName() + ". It needs View Channel and Read Message History there.");
+            throw new PostException("The bot can't read #" + channel.getName() + ". It needs View Channel and Read Message History there.");
         }
         requireReactionPermission(channel);
         try {
             channel.retrieveMessageById(parsed.messageId()).complete();
         } catch (RuntimeException e) {
-            throw new PostException("JonnyBot can't find that message. Check the link and that it hasn't been deleted.");
+            throw new PostException("The bot can't find that message. Check the link and that it hasn't been deleted.");
         }
         if (repository.byMessage(guild.getIdLong(), parsed.messageId()).filter(p -> !p.id().equals(panel.id())).isPresent()) {
             throw new PostException("Another role panel is already on that message.");
@@ -115,7 +115,7 @@ public class RolePanelService {
             addReactions(channel, parsed.messageId(), panel);
         } catch (RuntimeException e) {
             log.warn("Couldn't add the reactions of role panel {} to message {}", panel.id(), parsed.messageId(), e);
-            throw new PostException("Discord refused the reactions. Check JonnyBot can add reactions and use external emojis in #" + channel.getName() + ".");
+            throw new PostException("Discord refused the reactions. Check the bot can add reactions and use external emojis in #" + channel.getName() + ".");
         }
         repository.setPosted(guild.getIdLong(), panel.id(), parsed.channelId(), parsed.messageId(), true);
         return repository.get(guild.getIdLong(), panel.id()).orElse(panel);
@@ -155,7 +155,7 @@ public class RolePanelService {
 
     private static void requireReactionPermission(GuildMessageChannel channel) {
         if (!channel.getGuild().getSelfMember().hasPermission(channel, Permission.MESSAGE_ADD_REACTION, Permission.MESSAGE_HISTORY)) {
-            throw new PostException("JonnyBot needs the Add Reactions and Read Message History permissions in #" + channel.getName() + " for a reactions panel.");
+            throw new PostException("The bot needs the Add Reactions and Read Message History permissions in #" + channel.getName() + " for a reactions panel.");
         }
     }
 

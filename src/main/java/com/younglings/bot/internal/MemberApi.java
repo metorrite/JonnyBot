@@ -398,7 +398,7 @@ public class MemberApi {
         net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel channel = channelId == null ? null
                 : guild.getChannelById(net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel.class, channelId);
         if (channel == null) throw new Rejected(409, "Member polls aren't set up yet — an admin needs to choose a channel for them.");
-        if (!channel.canTalk()) throw new Rejected(502, "JonnyBot can't post in the polls channel right now.");
+        if (!channel.canTalk()) throw new Rejected(502, "The bot can't post in the polls channel right now.");
 
         String title = body.getString("title", "").strip();
         List<String> options = new ArrayList<>();

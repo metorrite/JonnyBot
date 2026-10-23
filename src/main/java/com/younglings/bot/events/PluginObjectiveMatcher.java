@@ -126,7 +126,7 @@ public final class PluginObjectiveMatcher {
             String from = ref.boss() == null ? "" : " from " + ref.boss();
             return new Hint(true, "Auto with RuneSync: a drop of " + item + from + " (loot from an NPC the member kills).");
         }
-        return new Hint(false, "Not an item JonnyBot knows. RuneSync ticks it only if a drop's name is exactly \"" + item
+        return new Hint(false, "Not an item the bot knows. RuneSync ticks it only if a drop's name is exactly \"" + item
                 + "\". Pick the boss and item from the lists, or write \"Boss: item\".");
     }
 
