@@ -137,7 +137,7 @@ public class ChatLevelAdminApi implements AdminRouteExtension {
             } else {
                 GuildMessageChannel channel = raw.matches("\\d{1,20}") ? guild.getChannelById(GuildMessageChannel.class, Long.parseLong(raw)) : null;
                 if (channel == null) problems.add("The level-up channel doesn't exist in this server.");
-                else if (!channel.canTalk()) problems.add("JonnyBot can't post in #" + channel.getName() + ".");
+                else if (!channel.canTalk()) problems.add("The bot can't post in #" + channel.getName() + ".");
                 else announceChannel = channel.getIdLong();
             }
         }
@@ -159,7 +159,7 @@ public class ChatLevelAdminApi implements AdminRouteExtension {
                 Role role = raw.matches("\\d{1,20}") ? guild.getRoleById(Long.parseLong(raw)) : null;
                 if (level < 1 || level > ChatLevels.MAX_LEVEL) problems.add("A level role's level must be between 1 and " + ChatLevels.MAX_LEVEL + ".");
                 else if (role == null) problems.add("The role for level " + level + " doesn't exist in this server.");
-                else if (!MemberApi.safeToAssign(guild, role)) problems.add("JonnyBot can't hand out @" + role.getName() + ": it must be an ordinary role below JonnyBot's own with no powerful permissions.");
+                else if (!MemberApi.safeToAssign(guild, role)) problems.add("The bot can't hand out @" + role.getName() + ": it must be an ordinary role below the bot's own with no powerful permissions.");
                 else if (rewards.containsKey(level)) problems.add("Level " + level + " has two roles; give each level one.");
                 else rewards.put(level, role.getIdLong());
             }

@@ -28,6 +28,8 @@ public final class ProfileRules {
      */
     public static final Set<String> RESERVED_SLUGS = Set.of("admin", "api", "new", "search", "recruiting", "events", "leaderboards", "leaderboard", "report",
             "about", "www", "login", "logout", "dashboard", "settings", "docs", "faq", "install", "privacy", "terms", "clans", "directory", "jonnybot",
+            // the bot's own face (bot.runeclans.com since the RuneClan Bot rebrand; jonnybot. redirects there)
+            "bot",
             // the platform's subdomains (T-290)
             "link", "hub", "auth", "mail", "email", "smtp", "status", "cdn", "assets", "static", "img", "images", "media", "dev", "staging", "beta",
             "test", "preview", "app", "apps", "help", "support", "blog", "news", "shop", "store", "builder", "manage", "plugins", "account", "accounts",
@@ -96,7 +98,7 @@ public final class ProfileRules {
         String apply = urlProblem(applyUrl);
         if (apply != null) problems.add("Apply link: " + apply);
         if (colour != null && (colour < 0 || colour > 0xFFFFFF)) problems.add("That colour isn't valid.");
-        if (timezone != null && !timezone.isBlank() && !validTimezone(timezone)) problems.add("That time zone isn't one JonnyBot knows.");
+        if (timezone != null && !timezone.isBlank() && !validTimezone(timezone)) problems.add("That time zone isn't one the bot knows.");
         return problems;
     }
 
@@ -140,7 +142,7 @@ public final class ProfileRules {
         if (clanName == null || clanName.isBlank()) return "Set this server's RuneScape clan in Server setup first.";
         if (rosterSize == 0) return "I couldn't find any members for the clan \"" + clanName + "\". Check the name in Server setup, or sync the clan roster and try again.";
         if (claimedByOther) return "The clan \"" + clanName + "\" has already been verified by another server. If this is your clan, ask the bot's owner to look into it.";
-        if (linkedNames == 0) return "Link your RuneScape name in this server first (with /rs), so JonnyBot can see your rank in the clan.";
+        if (linkedNames == 0) return "Link your RuneScape name in this server first (with /rs), so the bot can see your rank in the clan.";
         if (ranksOnRoster.isEmpty()) return "None of the RuneScape names you linked here is on the \"" + clanName + "\" roster.";
         if (ranksOnRoster.stream().noneMatch(ProfileRules::isLeadership)) {
             return "Only a clan Owner or Deputy Owner can verify a clan. Your rank is " + String.join(" / ", ranksOnRoster) + ".";

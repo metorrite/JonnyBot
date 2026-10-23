@@ -73,7 +73,7 @@ public class EventAnnounceService {
     /** Why the announcer can't post in this channel, in words for the person setting it up, or null when it can. */
     public static String problemWith(GuildMessageChannel channel) {
         if (!channel.getGuild().getSelfMember().hasPermission(channel, CHANNEL_NEEDED)) {
-            return "JonnyBot needs the View Channel, Send Messages and Embed Links permissions in #" + channel.getName() + ".";
+            return "The bot needs the View Channel, Send Messages and Embed Links permissions in #" + channel.getName() + ".";
         }
         return null;
     }

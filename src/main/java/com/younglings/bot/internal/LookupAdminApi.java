@@ -73,7 +73,7 @@ public class LookupAdminApi implements AdminRouteExtension {
                     channelId = Long.parseLong(rawChannel);
                     GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, channelId);
                     if (channel == null) problems.add(kind.title() + ": that channel doesn't exist in this server.");
-                    else if (!channel.canTalk()) problems.add(kind.title() + ": JonnyBot can't post in #" + channel.getName() + ". It needs permission to view the channel and send messages there.");
+                    else if (!channel.canTalk()) problems.add(kind.title() + ": the bot can't post in #" + channel.getName() + ". It needs permission to view the channel and send messages there.");
                 }
             }
             if (enabled && channelId == null) problems.add(kind.title() + ": choose a channel before switching it on.");

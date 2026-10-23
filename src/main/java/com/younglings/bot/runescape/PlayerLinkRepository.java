@@ -13,6 +13,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
+import com.younglings.bot.config.BotBrand;
 
 @BService
 public class PlayerLinkRepository {
@@ -276,7 +277,7 @@ public class PlayerLinkRepository {
         private final long ownerDiscordUserId;
 
         public RsnTakenException(String rsn, long ownerDiscordUserId) {
-            super("'" + rsn + "' is already registered with JonnyBot to another Discord account.");
+            super("'" + rsn + "' is already registered with " + BotBrand.NAME + " to another Discord account.");
             this.ownerDiscordUserId = ownerDiscordUserId;
         }
 

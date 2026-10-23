@@ -146,7 +146,7 @@ public class RolePanelAdminApi implements AdminRouteExtension {
             long roleId = Long.parseLong(roleText);
             Role role = guild.getRoleById(roleId);
             if (role == null) problems.add(where + ": that role doesn't exist in this server.");
-            else if (!RolePanelService.canGive(guild, role)) problems.add(where + ": @" + role.getName() + " can't be handed out (it is managed by an integration, sits above JonnyBot's role, or has powerful permissions).");
+            else if (!RolePanelService.canGive(guild, role)) problems.add(where + ": @" + role.getName() + " can't be handed out (it is managed by an integration, sits above the bot's role, or has powerful permissions).");
             if (!seen.add(roleId)) problems.add(where + ": that role is already on another button.");
 
             String label = b.getString("label", "").strip();

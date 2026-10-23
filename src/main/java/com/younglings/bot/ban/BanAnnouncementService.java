@@ -58,9 +58,9 @@ public class BanAnnouncementService {
 
     /** Posts {@code config} (an unsaved draft is fine) in its channel as if {@code subject} had just been banned. Throws {@link IllegalStateException} with a reason fit to show an admin. */
     public TestResult sendTest(Guild guild, User subject, WelcomeConfig config) {
-        if (config.channelId() == null) throw new IllegalStateException("Choose a channel JonnyBot can post in.");
+        if (config.channelId() == null) throw new IllegalStateException("Choose a channel the bot can post in.");
         GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, config.channelId());
-        if (channel == null || !channel.canTalk()) throw new IllegalStateException("Choose a channel JonnyBot can post in.");
+        if (channel == null || !channel.canTalk()) throw new IllegalStateException("Choose a channel the bot can post in.");
         MessageCreateData post;
         try {
             post = build(config, subject.getName(), subject.getEffectiveAvatarUrl(), guild.getName(), channel.getName(), guild.getMemberCount());

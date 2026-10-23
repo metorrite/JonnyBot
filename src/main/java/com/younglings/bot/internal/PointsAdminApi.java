@@ -106,7 +106,7 @@ public class PointsAdminApi implements AdminRouteExtension {
             } else {
                 var channel = guild.getTextChannelById(rawChannel);
                 if (!guild.getSelfMember().hasPermission(channel, net.dv8tion.jda.api.Permission.VIEW_CHANNEL, net.dv8tion.jda.api.Permission.MESSAGE_SEND, net.dv8tion.jda.api.Permission.MESSAGE_ATTACH_FILES)) {
-                    problems.add("JonnyBot needs to see, send messages and attach files in #" + channel.getName() + ".");
+                    problems.add("The bot needs to see, send messages and attach files in #" + channel.getName() + ".");
                 }
                 reviewChannel = Long.parseLong(rawChannel);
             }

@@ -70,7 +70,7 @@ public class WelcomeAdminApi {
         if (config.channelId() != null) {
             GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, config.channelId());
             if (channel == null) problems.add("That channel doesn't exist in this server.");
-            else if (!channel.canTalk()) problems.add("JonnyBot can't post in #" + channel.getName() + ". It needs permission to view and send messages (and embed links) there.");
+            else if (!channel.canTalk()) problems.add("The bot can't post in #" + channel.getName() + ". It needs permission to view and send messages (and embed links) there.");
         }
         if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.that_welcome_message_can_t_be"), problems);
         return config;

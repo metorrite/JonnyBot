@@ -170,7 +170,7 @@ public class HubAdminApi {
                 GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, Long.parseLong(raw));
                 if (channel == null) problems.add("Admin channel: that channel doesn't exist in this server.");
                 else if (!(channel instanceof TextChannel)) problems.add("Admin channel: signups can only use a text channel, not a forum or thread.");
-                else if (!channel.canTalk()) problems.add("Admin channel: JonnyBot can't post in #" + channel.getName() + ".");
+                else if (!channel.canTalk()) problems.add("Admin channel: the bot can't post in #" + channel.getName() + ".");
                 else adminChannel = channel.getIdLong();
             }
         }

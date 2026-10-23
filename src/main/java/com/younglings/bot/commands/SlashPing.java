@@ -15,7 +15,7 @@ public class SlashPing {
 
     // The one place the /dev group is declared as guild-scoped and test-only: @Test means it is only ever pushed to the
     // test guild(s), so none of /dev exists on the live bot. Every subcommand also refuses to run if it somehow did.
-    @TopLevelSlashCommandData(scope = CommandScope.GUILD, description = "Developer tools for testing JonnyBot (never on the live bot)")
+    @TopLevelSlashCommandData(scope = CommandScope.GUILD, description = "Developer tools for testing the bot (never on the live bot)")
     @Test({})
     @JDASlashCommand(name = "dev", subcommand = "ping", description = "Replies with pong")
     public void onPing(GuildSlashEvent event) {

@@ -58,7 +58,7 @@ public class AutoDeleteAdminApi implements AdminRouteExtension {
             GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, rule.channelId());
             String problem = channel == null ? "This channel no longer exists."
                     : guild.getSelfMember().hasPermission(channel, Permission.VIEW_CHANNEL, Permission.MESSAGE_MANAGE) ? null
-                    : "JonnyBot needs the View Channel and Manage Messages permissions in #" + channel.getName() + ".";
+                    : "The bot needs the View Channel and Manage Messages permissions in #" + channel.getName() + ".";
             DataArray filters = DataArray.empty();
             for (Filter f : Filter.values()) if (rule.filters().contains(f)) filters.add(f.name());
             rules.add(DataObject.empty().put("channelId", Long.toString(rule.channelId())).put("channelName", channel == null ? null : channel.getName())
@@ -83,7 +83,7 @@ public class AutoDeleteAdminApi implements AdminRouteExtension {
             channel = guild.getChannelById(GuildMessageChannel.class, Long.parseLong(raw));
             if (channel == null) problems.add("That channel doesn't exist in this server.");
             else if (!guild.getSelfMember().hasPermission(channel, Permission.VIEW_CHANNEL, Permission.MESSAGE_MANAGE)) {
-                problems.add("JonnyBot needs the View Channel and Manage Messages permissions in #" + channel.getName() + " to delete messages there.");
+                problems.add("The bot needs the View Channel and Manage Messages permissions in #" + channel.getName() + " to delete messages there.");
             }
         }
         Set<Filter> filters = EnumSet.noneOf(Filter.class);
@@ -92,7 +92,7 @@ public class AutoDeleteAdminApi implements AdminRouteExtension {
             try {
                 filters.add(Filter.valueOf(given.getString(i).strip().toUpperCase(Locale.ROOT)));
             } catch (IllegalArgumentException e) {
-                problems.add("One of the filters isn't one JonnyBot knows.");
+                problems.add("One of the filters isn't one the bot knows.");
             }
         }
         List<String> words = new ArrayList<>();

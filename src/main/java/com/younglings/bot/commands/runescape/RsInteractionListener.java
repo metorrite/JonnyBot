@@ -266,7 +266,7 @@ public class RsInteractionListener extends ListenerAdapter {
                 }
                 Container confirm = Containers.card(Containers.WARNING,
                         TextDisplay.of("### Unlink " + rsn + "?"),
-                        TextDisplay.of("This removes the link between your Discord account and **" + rsn + "** everywhere JonnyBot is, not just in this server. Historical stats are kept."),
+                        TextDisplay.of("This removes the link between your Discord account and **" + rsn + "** everywhere the bot is, not just in this server. Historical stats are kept."),
                         ActionRow.of(
                                 Button.danger("rs_unlink_confirm:" + rsn, "Yes, Unlink"),
                                 Button.secondary("rs_unlink_cancel:_", "Cancel")));

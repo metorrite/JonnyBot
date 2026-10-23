@@ -224,9 +224,9 @@ public class EventBoardPanels {
         if (settings.boardChannelId() == null) return "Shared board: there is no live board channel yet. Choose or make one on the Channels tab.";
         if (!shown(event.status())) return "The board is posted once the event starts.";
         GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, settings.boardChannelId());
-        if (channel == null) return "The board channel isn't a channel JonnyBot can post in (it may have been deleted, or it is a forum or category).";
+        if (channel == null) return "The board channel isn't a channel the bot can post in (it may have been deleted, or it is a forum or category).";
         if (!guild.getSelfMember().hasPermission(channel, Permission.VIEW_CHANNEL, Permission.MESSAGE_SEND, Permission.MESSAGE_ATTACH_FILES)) {
-            return "JonnyBot needs to see, send messages and attach files in #" + channel.getName() + ".";
+            return "The bot needs to see, send messages and attach files in #" + channel.getName() + ".";
         }
 
         byte[] png = null;

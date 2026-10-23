@@ -99,7 +99,7 @@ public class StarboardAdminApi implements AdminRouteExtension {
                 channelId = Long.parseLong(raw);
                 GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, channelId);
                 if (channel == null) problems.add("That channel doesn't exist in this server.");
-                else if (!channel.canTalk()) problems.add("JonnyBot can't post in #" + channel.getName() + ". It needs permission to view the channel and send messages there.");
+                else if (!channel.canTalk()) problems.add("The bot can't post in #" + channel.getName() + ". It needs permission to view the channel and send messages there.");
             }
         }
         if (enabled && channelId == null) problems.add("Choose the starboard channel before switching it on.");

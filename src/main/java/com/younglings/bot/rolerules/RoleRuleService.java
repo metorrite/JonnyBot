@@ -66,7 +66,7 @@ public class RoleRuleService {
         if (role.isPublicRole()) return "@everyone cannot be given or taken.";
         if (syncOwned(guild).contains(role.getIdLong())) return "@" + role.getName() + " is kept by the clan role sync (Member / Guest / Unverified), which always wins, so rules cannot change it.";
         if (staffRoles(guild).contains(role.getIdLong())) return "@" + role.getName() + " is one of this server's staff permission roles, which rules never give or take away.";
-        if (!MemberApi.safeToAssign(guild, role)) return "JonnyBot will not hand out @" + role.getName() + ": it is above the bot's own role, managed by an integration, or carries powerful permissions.";
+        if (!MemberApi.safeToAssign(guild, role)) return "The bot will not hand out @" + role.getName() + ": it is above the bot's own role, managed by an integration, or carries powerful permissions.";
         return null;
     }
 

@@ -2,13 +2,14 @@ package com.younglings.bot.access;
 
 import java.util.Arrays;
 import java.util.Optional;
+import com.younglings.bot.config.BotBrand;
 
 /**
  * The restricted areas of the website that the owner can let people into by hand (see {@link AccessGrantService}). Adding a new restricted
  * area is one line here; the website names the same key when it asks whether someone may enter.
  */
 public enum AccessArea {
-    JONNYBOT("jonnybot", "JonnyBot website"),
+    JONNYBOT("jonnybot", BotBrand.NAME + " website"),
     HUB("hub", "Clans hub"),
     DASHBOARD("dashboard", "Bot dashboard");
 

@@ -137,7 +137,7 @@ class EventBoardPanelsTest {
         assertEquals("Only bingo events have a board.", panels.refresh(GUILD, EVENT));
 
         event(BingoTemplate.KEY, Status.RUNNING, "{\"boardChannelId\":\"999\"," + BOARD + "}");
-        assertTrue(panels.refresh(GUILD, EVENT).startsWith("The board channel isn't a channel JonnyBot can post in"));
+        assertTrue(panels.refresh(GUILD, EVENT).startsWith("The board channel isn't a channel the bot can post in"));
 
         verify(channel, never()).sendMessage(any(CharSequence.class));
         verify(repository, never()).setPanel(anyLong(), anyLong(), eq(0L));
@@ -150,7 +150,7 @@ class EventBoardPanelsTest {
         when(self.hasPermission(any(GuildChannel.class), any(Permission[].class))).thenReturn(false);
         when(guild.getSelfMember()).thenReturn(self);
 
-        assertEquals("JonnyBot needs to see, send messages and attach files in #bingo.", panels.refresh(GUILD, EVENT));
+        assertEquals("The bot needs to see, send messages and attach files in #bingo.", panels.refresh(GUILD, EVENT));
     }
 
     // ---------- each player's or team's own board ----------

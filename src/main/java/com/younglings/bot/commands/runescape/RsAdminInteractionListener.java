@@ -870,7 +870,7 @@ public class RsAdminInteractionListener extends ListenerAdapter {
     private void doUnlinkPrompt(ComponentInteraction event, String rsn) {
         Container confirm = Containers.card(Containers.WARNING,
                 TextDisplay.of("### Unlink " + rsn + "?"),
-                TextDisplay.of("This removes **" + rsn + "** from this server. The account stays with its owner in any other server JonnyBot is in, and they can link it here again. Historical stats are kept."),
+                TextDisplay.of("This removes **" + rsn + "** from this server. The account stays with its owner in any other server the bot is in, and they can link it here again. Historical stats are kept."),
                 ActionRow.of(
                         Button.danger("rsnadmin_unlink_confirm:" + rsn, "Yes, Unlink"),
                         Button.secondary("rsnadmin_unlink_cancel:_", "Cancel")

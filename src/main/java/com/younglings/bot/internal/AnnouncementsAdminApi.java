@@ -115,7 +115,7 @@ public class AnnouncementsAdminApi implements AdminRouteExtension {
         if (c.channelId() != null) {
             GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, c.channelId());
             if (channel == null) problems.add("That channel doesn't exist in this server.");
-            else if (!channel.canTalk()) problems.add("JonnyBot can't post in #" + channel.getName() + ". It needs permission to view and send messages (and embed links) there.");
+            else if (!channel.canTalk()) problems.add("The bot can't post in #" + channel.getName() + ". It needs permission to view and send messages (and embed links) there.");
         }
         if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.that_ban_announcement_can_t_be"), problems);
         return c;

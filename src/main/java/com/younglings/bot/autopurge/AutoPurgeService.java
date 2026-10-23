@@ -46,7 +46,7 @@ public class AutoPurgeService {
     public static String problemWith(GuildMessageChannel channel) {
         Guild guild = channel.getGuild();
         if (!guild.getSelfMember().hasPermission(channel, NEEDED)) {
-            return "JonnyBot needs the View Channel, Read Message History and Manage Messages permissions in #" + channel.getName() + " to clean it.";
+            return "The bot needs the View Channel, Read Message History and Manage Messages permissions in #" + channel.getName() + " to clean it.";
         }
         return null;
     }

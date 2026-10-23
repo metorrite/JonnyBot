@@ -96,7 +96,7 @@ public class AutomodAdminApi implements AdminRouteExtension {
             if (!rawLog.isEmpty()) {
                 GuildMessageChannel logTarget = rawLog.matches("\\d{1,20}") ? guild.getChannelById(GuildMessageChannel.class, Long.parseLong(rawLog)) : null;
                 if (logTarget == null) problems.add(rule.label() + ": the log channel isn't in this server.");
-                else if (!logTarget.canTalk()) problems.add(rule.label() + ": JonnyBot can't post in #" + logTarget.getName() + ".");
+                else if (!logTarget.canTalk()) problems.add(rule.label() + ": the bot can't post in #" + logTarget.getName() + ".");
                 else logChannel = logTarget.getIdLong();
             }
             RuleConfig rc = new RuleConfig(item.getBoolean("enabled", false), item.getBoolean("warn", false), item.getInt("limit", 0), item.getInt("seconds", 0),
@@ -107,7 +107,7 @@ public class AutomodAdminApi implements AdminRouteExtension {
         Set<Long> roles = ids(body, "exemptRoles", problems, "role", id -> guild.getRoleById(id) != null);
         Set<Long> channels = ids(body, "exemptChannels", problems, "channel", id -> guild.getGuildChannelById(id) != null);
         boolean enabled = body.getBoolean("enabled", false);
-        if (enabled && !guild.getSelfMember().hasPermission(Permission.MESSAGE_MANAGE)) problems.add("JonnyBot needs the Manage Messages permission to delete messages.");
+        if (enabled && !guild.getSelfMember().hasPermission(Permission.MESSAGE_MANAGE)) problems.add("The bot needs the Manage Messages permission to delete messages.");
         if (enabled && rules.values().stream().noneMatch(RuleConfig::enabled)) problems.add("Switch at least one rule on, or turn automod off.");
         if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.automod_can_t_be_saved_yet"), problems.stream().distinct().toList());
         repository.save(new Config(guild.getIdLong(), enabled, roles, channels, rules));

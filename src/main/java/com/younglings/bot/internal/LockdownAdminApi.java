@@ -105,7 +105,7 @@ public class LockdownAdminApi implements AdminRouteExtension {
                 long id = Long.parseLong(raw);
                 StandardGuildMessageChannel channel = guild.getChannelById(StandardGuildMessageChannel.class, id);
                 if (channel == null) problems.add("A channel in the lockdown set doesn't exist or isn't a text channel.");
-                else if (!LockdownService.canManage(guild, channel)) problems.add("JonnyBot can't manage permissions in #" + channel.getName() + ", so it can't lock it.");
+                else if (!LockdownService.canManage(guild, channel)) problems.add("The bot can't manage permissions in #" + channel.getName() + ", so it can't lock it.");
                 else ids.add(id);
             }
             if (ids.size() > Config.MAX_CHANNELS) problems.add("At most " + Config.MAX_CHANNELS + " channels can be in the lockdown set.");

@@ -45,7 +45,7 @@ public class DevSnapshotCommand {
                 target = null;
             }
             if (target == null) {
-                Containers.replyEphemeral(event, Containers.WARNING, "JonnyBot isn't in a server with that ID.");
+                Containers.replyEphemeral(event, Containers.WARNING, "The bot isn't in a server with that ID.");
                 return;
             }
         }

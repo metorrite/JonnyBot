@@ -105,7 +105,7 @@ public class WelcomeService {
      */
     public TestResult sendTest(Guild guild, Member actor, WelcomeConfig config) {
         GuildMessageChannel channel = postableChannel(guild, config);
-        if (channel == null) throw new IllegalStateException("Choose a channel JonnyBot can post in.");
+        if (channel == null) throw new IllegalStateException("Choose a channel the bot can post in.");
 
         MessageCreateData post;
         try {
