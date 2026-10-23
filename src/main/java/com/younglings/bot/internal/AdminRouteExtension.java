@@ -21,6 +21,15 @@ public interface AdminRouteExtension {
      */
     DataObject route(Guild guild, Member actor, String method, String[] parts, Supplier<DataObject> body);
 
+    /**
+     * Whether this extension lets {@code actor}, who has NO dashboard access in this server, use this exact path (e.g. a clan website editor
+     * using the site editor's routes, T-368). Only for paths {@link #route} answers itself, which must then check the person's own rights on
+     * every request; nothing else in the dashboard opens up. The rate limit and audit log still apply. Default: nobody.
+     */
+    default boolean admits(Guild guild, Member actor, String method, String[] parts) {
+        return false;
+    }
+
     /** A refusal with the status and message the website should see, for extensions outside this package (which can't reach {@code ApiError}). */
     static RuntimeException refuse(int status, String message) {
         return new TicketAdminApi.ApiError(status, message);

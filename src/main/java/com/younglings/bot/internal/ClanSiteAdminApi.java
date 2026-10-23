@@ -10,6 +10,8 @@ import com.younglings.bot.clansite.ClanSiteLayoutRulesV2;
 import com.younglings.bot.clansite.ClanSiteRepository;
 import com.younglings.bot.clansite.ClanSiteRules;
 import com.younglings.bot.clansite.ClanSiteService;
+import com.younglings.bot.clansite.SiteRoleGuard;
+import com.younglings.bot.clansite.SiteRoles;
 import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.notice.BotOwners;
@@ -58,22 +60,61 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
     private final ClanProfileService profiles;
     private final BotOwners owners;
     private final Premium premium;
+    private final SiteRoleGuard siteRoles;
     /** Layout saves and restores per server (on top of the per-person admin limit): the editor autosaves, so a burst of 3 and then one a second. */
     private final RateLimiter layoutSaves = new RateLimiter(3, 1_000);
+    static final int MAX_ROLES_PER_LIST = 20;
 
     public ClanSiteAdminApi(ClanSiteRepository repository, ClanSiteLayoutRepository layouts, ClanSiteService sites, ClanProfileService profiles, BotOwners owners,
-                            Premium premium) {
+                            Premium premium, SiteRoleGuard siteRoles) {
         this.repository = repository;
         this.layouts = layouts;
         this.sites = sites;
         this.profiles = profiles;
         this.owners = owners;
         this.premium = premium;
+        this.siteRoles = siteRoles;
+    }
+
+    /**
+     * The site role each route needs (T-368, docs/BUILDER-V3.md 8.2), or null for one the bot's owner decides (takedown, restore) or that
+     * doesn't exist. Reading and saving the draft: editor. Publishing, unpublishing, restoring a version: admin, or editor with "Editors may
+     * publish" on. The site's settings, its roles, the v1 blocks and the export: admin. Deleting and handing the site over: owner.
+     */
+    static SiteRoles.Action actionFor(String method, String[] parts) {
+        if (parts.length < 1 || !parts[0].equals("clan-site")) return null;
+        String sub = parts.length > 1 ? parts[1] : "";
+        boolean get = method.equals("GET");
+        return switch (sub) {
+            case "" -> get ? SiteRoles.Action.EDIT : SiteRoles.Action.SETTINGS;
+            case "layout" -> {
+                if (parts.length == 2) yield SiteRoles.Action.EDIT;
+                if (parts.length == 3 && parts[2].equals("publish")) yield SiteRoles.Action.PUBLISH;
+                if (parts[2].equals("versions")) yield parts.length == 5 && parts[4].equals("restore") ? SiteRoles.Action.PUBLISH : SiteRoles.Action.EDIT;
+                yield SiteRoles.Action.EDIT;
+            }
+            case "publish", "unpublish" -> SiteRoles.Action.PUBLISH;
+            case "roles" -> parts.length == 3 && parts[2].equals("hand-over") ? SiteRoles.Action.OWN : SiteRoles.Action.SETTINGS;
+            case "delete" -> SiteRoles.Action.OWN;
+            case "takedown", "restore" -> null;
+            default -> SiteRoles.Action.SETTINGS;
+        };
+    }
+
+    /** Editors without dashboard access may use the editor's own routes (reading the site and its layout, saving, versions, and publishing). */
+    @Override
+    public boolean admits(Guild guild, Member actor, String method, String[] parts) {
+        if (actionFor(method, parts) == null) return false;
+        boolean editorPath = parts.length == 1 ? method.equals("GET") : parts[1].equals("layout");
+        return editorPath && siteRoles.allows(guild, actor, SiteRoles.Action.EDIT);
     }
 
     @Override
     public DataObject route(Guild guild, Member actor, String method, String[] parts, Supplier<DataObject> body) {
         if (parts.length < 1 || !parts[0].equals("clan-site")) return null;
+        SiteRoles.Action action = actionFor(method, parts);
+        if (action != null && !siteRoles.allows(guild, actor, action)) throw new ApiError(403, Text.of(guild, "dashboard.the_website_can_t_be_saved"), List.of(refusal(action)));
+        if (parts.length >= 2 && parts[1].equals("roles")) return roles(guild, actor, method, parts, body);
         if (parts.length == 1) {
             if (method.equals("GET")) return get(guild, actor);
             AdminRouteExtension.requireMethod(method, "PUT");
@@ -106,7 +147,7 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
         if (parts.length != 2) return null;
         return switch (parts[1]) {
             case "layout" -> {
-                if (method.equals("GET")) yield layout(guild);
+                if (method.equals("GET")) yield layout(guild).put("you", youJson(guild, actor));
                 AdminRouteExtension.requireMethod(method, "PUT");
                 yield saveLayout(guild, actor, body.get());
             }
@@ -153,6 +194,7 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
                 .put("profileProblem", profileProblem(id, profile))
                 .put("site", siteJson(site))
                 .put("blocks", blocks)
+                .put("you", youJson(guild, actor))
                 .put("limits", DataObject.empty().put("title", ClanSiteRules.MAX_TITLE).put("blocksPerPage", ClanSiteRules.MAX_BLOCKS_PER_PAGE)
                         .put("markdown", ClanSiteRules.MAX_MARKDOWN).put("links", ClanSiteRules.MAX_LINKS).put("url", ClanSiteRules.MAX_URL));
     }
@@ -284,6 +326,8 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
         }
         if (clean == null) throw new ApiError(400, Text.of(guild, "dashboard.the_website_can_t_be_saved"), distinct(problems));
         int rev = layouts.saveDraft(guild.getIdLong(), clean, Math.max(0, body.getInt("baseRev", 0)), actor.getIdLong());
+        // whoever starts a site's builder layout claims it (an owner of the site, 8.2), unless someone already has
+        if (rev == 1) siteRoles.claim(guild.getIdLong(), actor.getIdLong());
         if (rev < 0) {
             throw new ApiError(409, Text.of(guild, "dashboard.the_website_can_t_be_saved"),
                     List.of("Someone saved this site from another tab or window. Reload to see the newest version."));
@@ -399,7 +443,108 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
         }
         layouts.delete(id);
         repository.delete(id);
+        siteRoles.delete(id);
         return get(guild, actor);
+    }
+
+    // ---------- site roles (T-368, docs/BUILDER-V3.md 8.2) ----------
+
+    private static String refusal(SiteRoles.Action action) {
+        return switch (action) {
+            case EDIT -> "Only the site's editors can do that.";
+            case PUBLISH -> "Only the site's admins can publish or go back to an old version (an admin can let editors publish too).";
+            case SETTINGS -> "Only the site's admins can change that.";
+            case OWN -> "Only the site's owner (the server owner, or whoever set the site up) can do that.";
+        };
+    }
+
+    /**
+     * {@code GET clan-site/roles}: the site's role settings, the clan Member role used when no member roles are set, and the asker's own role.
+     * {@code PUT clan-site/roles} {@code {editorRoleIds, memberRoleIds, staffRoleIds, editorsMayPublish}}: admin. {@code POST
+     * clan-site/roles/hand-over} {@code {userId}} (null: back to the server owner alone): owner.
+     */
+    DataObject roles(Guild guild, Member actor, String method, String[] parts, Supplier<DataObject> body) {
+        long id = guild.getIdLong();
+        if (parts.length == 3 && parts[2].equals("hand-over")) {
+            AdminRouteExtension.requireMethod(method, "POST");
+            DataObject b = body.get();
+            String raw = b.isNull("userId") ? null : b.getString("userId", null);
+            Long to = null;
+            if (raw != null) {
+                long userId = parseId(raw);
+                Member target = userId == 0 ? null : guild.getMemberById(userId);
+                if (target == null) {
+                    try {
+                        target = userId == 0 ? null : guild.retrieveMemberById(userId).complete();
+                    } catch (RuntimeException e) {
+                        target = null;
+                    }
+                }
+                if (target == null || target.getUser().isBot()) throw new ApiError(400, Text.of(guild, "dashboard.the_website_can_t_be_saved"), List.of("Pick someone in this server."));
+                to = userId;
+            }
+            siteRoles.handOver(id, to, actor.getIdLong());
+            return rolesJson(guild, actor);
+        }
+        if (parts.length != 2) return null;
+        if (method.equals("GET")) return rolesJson(guild, actor);
+        AdminRouteExtension.requireMethod(method, "PUT");
+        DataObject b = body.get();
+        List<String> problems = new ArrayList<>();
+        List<Long> editors = roleIds(guild, b, "editorRoleIds", false, problems);
+        List<Long> members = roleIds(guild, b, "memberRoleIds", true, problems);
+        List<Long> staff = roleIds(guild, b, "staffRoleIds", false, problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.the_website_can_t_be_saved"), distinct(problems));
+        SiteRoles.Settings current = siteRoles.settings(id);
+        siteRoles.save(id, new SiteRoles.Settings(editors, members, staff, b.getBoolean("editorsMayPublish", false), current.claimedBy()), actor.getIdLong());
+        return rolesJson(guild, actor);
+    }
+
+    /** A list of role ids of this server: at most {@link #MAX_ROLES_PER_LIST}, each a role that exists; @everyone only as a member role. */
+    private static List<Long> roleIds(Guild guild, DataObject body, String key, boolean everyoneAllowed, List<String> problems) {
+        DataArray raw = body.optArray(key).orElse(DataArray.empty());
+        if (raw.length() > MAX_ROLES_PER_LIST) {
+            problems.add("Pick up to " + MAX_ROLES_PER_LIST + " roles in each list.");
+            return List.of();
+        }
+        Set<Long> out = new LinkedHashSet<>();
+        for (int i = 0; i < raw.length(); i++) {
+            long roleId = parseId(raw.getString(i, ""));
+            if (roleId == 0 || guild.getRoleById(roleId) == null) problems.add("One of the roles doesn't exist any more. Reload the page.");
+            else if (roleId == guild.getIdLong() && !everyoneAllowed) problems.add("@everyone can't be an editor or staff role.");
+            else out.add(roleId);
+        }
+        return List.copyOf(out);
+    }
+
+    private static long parseId(String raw) {
+        try {
+            return raw != null && raw.matches("[0-9]{15,20}") ? Long.parseLong(raw) : 0;
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    private DataObject rolesJson(Guild guild, Member actor) {
+        SiteRoles.Settings s = siteRoles.settings(guild.getIdLong());
+        return DataObject.empty().put("editorRoleIds", idsJson(s.editorRoleIds())).put("memberRoleIds", idsJson(s.memberRoleIds()))
+                .put("staffRoleIds", idsJson(s.staffRoleIds())).put("editorsMayPublish", s.editorsMayPublish())
+                .put("claimedBy", s.claimedBy() == null ? null : String.valueOf(s.claimedBy()))
+                .put("you", youJson(guild, actor));
+    }
+
+    /** The asker's own role on the site and what it lets them do, so the editor shows only what will work. */
+    private DataObject youJson(Guild guild, Member actor) {
+        SiteRoles.Role role = siteRoles.roleOf(guild, actor);
+        SiteRoles.Settings s = siteRoles.settings(guild.getIdLong());
+        return DataObject.empty().put("role", role.key()).put("canPublish", SiteRoles.allows(role, SiteRoles.Action.PUBLISH, s))
+                .put("canChangeSettings", SiteRoles.allows(role, SiteRoles.Action.SETTINGS, s)).put("isOwner", role == SiteRoles.Role.OWNER);
+    }
+
+    private static DataArray idsJson(List<Long> ids) {
+        DataArray out = DataArray.empty();
+        for (Long id : ids) out.add(String.valueOf(id));
+        return out;
     }
 
     // ---------- export ----------
