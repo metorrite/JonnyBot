@@ -6,8 +6,34 @@ on:
   pull_request:
     branches: [ master, dev ]
 
+# A release (PR into master, or the push to master) skips `build` when a green dev push run already built the exact same tree
+# (.github/scripts/release_skip.py, docs/CI.md). Every other run builds as before. `ci` is the one job to require.
 jobs:
+  decide:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      heavy: ${{ steps.release.outputs.heavy }}
+      reason: ${{ steps.release.outputs.reason }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Release skip decision tests
+        run: python3 -m unittest discover -s .github/scripts -p "test_*.py"
+
+      # Not a release: says so and changes nothing. A release: skips only on a tree match with a green dev run that ran `build`.
+      - name: Release - skip what dev already proved
+        id: release
+        run: python3 .github/scripts/release_skip.py --workflow build-test.yml --group "heavy=build"
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
   build:
+    needs: decide
+    if: needs.decide.outputs.heavy != 'skip'
     runs-on: ubuntu-latest
 
     # A throwaway database (trust auth, no password: nothing here is a secret) for the headless startup check (StartupWiringTest): it builds the bot's whole service and command wiring
@@ -54,3 +80,22 @@ jobs:
 
       - name: Verify with Maven
         run: mvn clean verify
+
+  # The single check to require: green when every job above passed or was skipped (a release dev already proved), red otherwise.
+  ci:
+    needs: [decide, build]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Why build ran or was skipped
+        run: echo "$REASON"
+        env:
+          REASON: ${{ needs.decide.outputs.reason }}
+
+      - name: All jobs passed or were skipped
+        if: ${{ !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
+        run: echo "ok"
+
+      - name: A job failed or was cancelled
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: exit 1
