@@ -59,6 +59,7 @@ class HubEventsRuneClansTest {
     private HubEventsApi api;
     private DashboardAccess access;
     private JDA jda;
+    private EventCohostRepository cohosts;
     private Guild host;
 
     @BeforeAll
@@ -81,7 +82,7 @@ class HubEventsRuneClansTest {
         Mockito.when(profiles.publicView(Mockito.anyLong(), Mockito.anyBoolean())).thenReturn(Optional.empty());
         HubModerationRepository moderation = Mockito.mock(HubModerationRepository.class);
         Mockito.when(moderation.barredIds()).thenReturn(java.util.Set.of());
-        EventCohostRepository cohosts = Mockito.mock(EventCohostRepository.class);
+        cohosts = Mockito.mock(EventCohostRepository.class);
         Mockito.when(cohosts.forEvent(Mockito.anyLong())).thenReturn(List.of());
         access = Mockito.mock(DashboardAccess.class);
         Mockito.when(access.tierOf(Mockito.any(), Mockito.any())).thenReturn(DashboardAccess.Tier.NONE);
@@ -176,5 +177,42 @@ class HubEventsRuneClansTest {
         assertEquals(Long.toString(HOST), manage.getString("guildId"));
         assertEquals(Long.toString(id), manage.getString("eventId"));
         assertTrue(api.one(jda, Long.toString(id), Long.toString(STRANGER)).isNull("manage"));
+    }
+
+    @Test
+    void aPlayerCanLeaveFromRuneClansOnlyWhileSignupsAreOpen() {
+        long open = event(HOST, "Leave me", EventRules.Scope.PUBLIC, EventRules.Status.SIGNUPS);
+        long running = event(HOST, "Too late", EventRules.Scope.PUBLIC, EventRules.Status.SIGNUPS);
+        service.join(HOST, open, HOST, PLAYER, null, true, null);
+        service.join(HOST, running, HOST, PLAYER, null, true, null);
+        // straight to running in the table: the start checks (objectives etc.) aren't what this test is about
+        new EventRepository(supplier).moveStage(HOST, running, EventRules.Status.SIGNUPS, EventRules.Status.RUNNING);
+
+        assertEquals(200, api.leave(jda, Long.toString(open), Long.toString(PLAYER)).status());
+        assertEquals(404, api.leave(jda, Long.toString(open), Long.toString(PLAYER)).status(), "not in it any more");
+        assertEquals(409, api.leave(jda, Long.toString(running), Long.toString(PLAYER)).status(), "it has started");
+        assertEquals(400, api.leave(jda, Long.toString(open), "nobody").status());
+    }
+
+    @Test
+    void aPlayerCanJoinThroughACoHostTheyAreIn() {
+        long id = event(HOST, "Co-hosted", EventRules.Scope.PUBLIC, EventRules.Status.SIGNUPS);
+        Guild other = Mockito.mock(Guild.class);
+        Mockito.when(other.getIdLong()).thenReturn(OTHER);
+        Mockito.when(other.getName()).thenReturn("Other server");
+        Mockito.when(other.getMemberById(PLAYER)).thenReturn(Mockito.mock(Member.class));
+        Mockito.when(jda.getGuildById(OTHER)).thenReturn(other);
+        Mockito.when(jda.getUserById(PLAYER).getMutualGuilds()).thenReturn(List.of(host, other));
+        Mockito.when(cohosts.forEvent(id)).thenReturn(List.of(new EventCohostRepository.Cohost(id, OTHER, EventCohostRepository.Status.ACCEPTED, 9L, 9L, null, null)));
+
+        DataArray joinWith = api.one(jda, Long.toString(id), Long.toString(PLAYER)).getArray("joinWith");
+        assertEquals(1, joinWith.length());
+        assertEquals("cohost-1", joinWith.getObject(0).getString("key"));
+        assertEquals("Other server", joinWith.getObject(0).getString("name"));
+        assertFalse(joinWith.toString().contains(Long.toString(OTHER)), "no server id");
+
+        assertEquals(400, api.join(jda, Long.toString(id), Long.toString(PLAYER), "cohost-2").status(), "no such co-host");
+        assertEquals(200, api.join(jda, Long.toString(id), Long.toString(PLAYER), "cohost-1").status());
+        assertEquals(OTHER, new EventRepository(supplier).participant(id, PLAYER).orElseThrow().guildId(), "joined through the co-host");
     }
 }
