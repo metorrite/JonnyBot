@@ -2,6 +2,7 @@ package com.younglings.bot.internal;
 
 import com.younglings.bot.clanprofile.ClanProfile;
 import com.younglings.bot.clansite.SiteRoleGuard;
+import com.younglings.bot.clansite.SiteRoles;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.utils.data.DataArray;
@@ -13,7 +14,7 @@ import java.util.regex.Pattern;
 
 /**
  * Who is looking at a clan website (T-368, docs/BUILDER-V3.md 8.2):
- * {@code GET /internal/directory/sites/{slug}/viewer?userId=} answers {@code {role, inGuild, staff, canEdit, canPublish, linkedRsns}}.
+ * {@code GET /internal/directory/sites/{slug}/viewer?userId=} answers {@code {role, inGuild, staff, canEdit, canPublish, linkedRsns, guildId}}.
  * The website must take {@code userId} from the signed-in session only, never from the visitor (the same rule as the "my link" route),
  * and must not keep the answer across people; the bot caches it for a minute per person and site. Without a {@code userId} the answer is
  * {@code visitor}. Ten answers a second per site at most. The other {@code sites/...} routes are {@link DirectoryClanSiteRoutes}'.
@@ -46,7 +47,7 @@ public class SiteViewerRoutes implements DirectoryRouteModule {
         }
         String userId = request.query("userId");
         if (userId == null || userId.isEmpty()) {
-            request.send(200, json(null));
+            request.send(200, json(null, null));
             return true;
         }
         if (!SNOWFLAKE.matcher(userId).matches()) {
@@ -60,16 +61,21 @@ public class SiteViewerRoutes implements DirectoryRouteModule {
             request.sendError(503, "Discord didn't answer; try again");
             return true;
         }
-        request.send(200, json(viewer));
+        request.send(200, json(viewer, guild.getId()));
         return true;
     }
 
-    static DataObject json(SiteRoleGuard.Viewer viewer) {
+    /**
+     * The answer. {@code guildId} is given only to the site's editors and above (people who are in that server and run its site), so the
+     * website can open the editor and the site admin, which use the server-keyed {@code /internal/admin/} routes; nobody else ever gets it.
+     */
+    static DataObject json(SiteRoleGuard.Viewer viewer, String guildId) {
         if (viewer == null) {
             return DataObject.empty().put("role", "visitor").put("inGuild", false).put("staff", false).put("canEdit", false).put("canPublish", false)
-                    .put("linkedRsns", DataArray.empty());
+                    .put("linkedRsns", DataArray.empty()).putNull("guildId");
         }
         return DataObject.empty().put("role", viewer.role().key()).put("inGuild", viewer.inGuild()).put("staff", viewer.staff())
-                .put("canEdit", viewer.canEdit()).put("canPublish", viewer.canPublish()).put("linkedRsns", DataArray.fromCollection(viewer.linkedRsns()));
+                .put("canEdit", viewer.canEdit()).put("canPublish", viewer.canPublish()).put("linkedRsns", DataArray.fromCollection(viewer.linkedRsns()))
+                .put("guildId", viewer.role().atLeast(SiteRoles.Role.EDITOR) ? guildId : null);
     }
 }

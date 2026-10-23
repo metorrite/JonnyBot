@@ -49,19 +49,25 @@ class ClanSiteRoleRoutesTest {
 
     @Test
     void theViewerAnswer() {
-        DataObject visitor = SiteViewerRoutes.json(null);
+        String guildId = "8".repeat(18);
+        DataObject visitor = SiteViewerRoutes.json(null, guildId);
         assertEquals("visitor", visitor.getString("role"));
         assertFalse(visitor.getBoolean("canEdit"));
         assertEquals(0, visitor.getArray("linkedRsns").length());
+        assertTrue(visitor.isNull("guildId"));
 
-        DataObject editor = SiteViewerRoutes.json(new SiteRoleGuard.Viewer(SiteRoles.Role.EDITOR, true, true, true, false, List.of("Zezima")));
+        DataObject member = SiteViewerRoutes.json(new SiteRoleGuard.Viewer(SiteRoles.Role.MEMBER, true, false, false, false, List.of("Zezima")), guildId);
+        assertEquals("member", member.getString("role"));
+        assertEquals("Zezima", member.getArray("linkedRsns").getString(0));
+        assertFalse(member.toString().matches(".*[0-9]{15,}.*"), "no Discord ids for anyone who doesn't run the site");
+
+        DataObject editor = SiteViewerRoutes.json(new SiteRoleGuard.Viewer(SiteRoles.Role.EDITOR, true, true, true, false, List.of()), guildId);
         assertEquals("editor", editor.getString("role"));
         assertTrue(editor.getBoolean("inGuild"));
         assertTrue(editor.getBoolean("staff"));
         assertTrue(editor.getBoolean("canEdit"));
         assertFalse(editor.getBoolean("canPublish"));
-        assertEquals("Zezima", editor.getArray("linkedRsns").getString(0));
-        assertFalse(editor.toString().matches(".*[0-9]{15,}.*"), "no Discord ids in the answer");
+        assertEquals(guildId, editor.getString("guildId"), "an editor gets the server id, to open the editor and the site admin");
     }
 
     @Test
