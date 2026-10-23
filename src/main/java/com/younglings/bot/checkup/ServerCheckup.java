@@ -55,8 +55,8 @@ public final class ServerCheckup {
 
         boolean anyRole = s.verifiedClanRoleId() != null || s.verifiedNonClanRoleId() != null || s.unverifiedRoleId() != null || s.onboardingRoleId() != null;
         if (anyRole && !view.botCanManageRoles()) {
-            out.add(new Finding(Level.ERROR, "Roles", "JonnyBot can't manage roles",
-                    "Verification gives and takes roles, but JonnyBot doesn't have the Manage Roles permission. In Discord, open Server Settings, then Roles, and give JonnyBot's role Manage Roles.", null));
+            out.add(new Finding(Level.ERROR, "Roles", "The bot can't manage roles",
+                    "Verification gives and takes roles, but the bot doesn't have the Manage Roles permission. In Discord, open Server Settings, then Roles, and give the bot's role Manage Roles.", null));
         }
         role(out, view, "Verified clan member", s.verifiedClanRoleId());
         role(out, view, "Verified, not in the clan", s.verifiedNonClanRoleId());
@@ -89,7 +89,7 @@ public final class ServerCheckup {
                     fine = false;
                 } else if (!c.canView() || !c.canSend()) {
                     out.add(new Finding(Level.ERROR, "Announcements", group.name() + ": can't post in #" + c.name(),
-                            "JonnyBot " + (c.canView() ? "can see this channel but isn't allowed to send messages in it." : "can't see this channel."), "tracking"));
+                            "The bot " + (c.canView() ? "can see this channel but isn't allowed to send messages in it." : "can't see this channel."), "tracking"));
                     fine = false;
                 } else if (!c.canEmbed()) {
                     out.add(new Finding(Level.WARN, "Announcements", group.name() + ": can't embed links in #" + c.name(), "Its posts are cards, which won't show without the Embed Links permission.", "tracking"));
@@ -113,13 +113,13 @@ public final class ServerCheckup {
         if (c == null) {
             out.add(new Finding(Level.ERROR, area, label + " was deleted", "That channel no longer exists. Choose another.", page));
         } else if (!c.canView()) {
-            out.add(new Finding(Level.ERROR, area, "JonnyBot can't see #" + c.name(), label + ": give JonnyBot the View Channel permission there.", page));
+            out.add(new Finding(Level.ERROR, area, "The bot can't see #" + c.name(), label + ": give the bot the View Channel permission there.", page));
         } else if (!c.canSend()) {
-            out.add(new Finding(Level.ERROR, area, "JonnyBot can't send messages in #" + c.name(), label + ": give JonnyBot the Send Messages permission there.", page));
+            out.add(new Finding(Level.ERROR, area, "The bot can't send messages in #" + c.name(), label + ": give the bot the Send Messages permission there.", page));
         } else if (embeds && !c.canEmbed()) {
-            out.add(new Finding(Level.WARN, area, "JonnyBot can't embed links in #" + c.name(), label + ": its cards won't show without the Embed Links permission.", page));
+            out.add(new Finding(Level.WARN, area, "The bot can't embed links in #" + c.name(), label + ": its cards won't show without the Embed Links permission.", page));
         } else {
-            out.add(new Finding(Level.OK, area, label + ": #" + c.name(), "JonnyBot can post there.", null));
+            out.add(new Finding(Level.OK, area, label + ": #" + c.name(), "The bot can post there.", null));
         }
     }
 
@@ -131,10 +131,10 @@ public final class ServerCheckup {
         } else if (r.managed()) {
             out.add(new Finding(Level.ERROR, "Roles", "@" + r.name() + " can't be handed out", label + ": it belongs to an integration, which Discord doesn't let any bot give.", "settings"));
         } else if (!r.botCanGive()) {
-            out.add(new Finding(Level.ERROR, "Roles", "@" + r.name() + " is above JonnyBot's role",
-                    label + ": in Server Settings, then Roles, drag JonnyBot's role above @" + r.name() + " so it can give it out.", "settings"));
+            out.add(new Finding(Level.ERROR, "Roles", "@" + r.name() + " is above the bot's role",
+                    label + ": in Server Settings, then Roles, drag the bot's role above @" + r.name() + " so it can give it out.", "settings"));
         } else {
-            out.add(new Finding(Level.OK, "Roles", label + ": @" + r.name(), "JonnyBot can give it out.", null));
+            out.add(new Finding(Level.OK, "Roles", label + ": @" + r.name(), "The bot can give it out.", null));
         }
     }
 }

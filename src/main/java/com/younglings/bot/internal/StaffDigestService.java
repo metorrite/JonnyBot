@@ -99,7 +99,7 @@ public class StaffDigestService {
         Settings s = repository.settings(guild.getIdLong());
         if (s.channelId() == null) return "Pick a channel first.";
         GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, s.channelId());
-        if (channel == null || !channel.canTalk()) return "JonnyBot can't post in that channel. Check the channel and its permissions.";
+        if (channel == null || !channel.canTalk()) return "The bot can't post in that channel. Check the channel and its permissions.";
         channel.sendMessageComponents(List.of(post(facts(guild)))).useComponentsV2(true).setAllowedMentions(List.of())
                 .queue(ok -> {}, e -> log.warn("Could not post the staff digest in {}", guild.getId(), e));
         return null;

@@ -78,7 +78,7 @@ public class MessageLogAdminApi implements AdminRouteExtension {
             return current;
         }
         if (!channel.canTalk()) {
-            problems.add("JonnyBot can't post in #" + channel.getName() + ". It needs permission to view the channel and send messages (and embed links) there.");
+            problems.add("The bot can't post in #" + channel.getName() + ". It needs permission to view the channel and send messages (and embed links) there.");
             return current;
         }
         return channel.getIdLong();

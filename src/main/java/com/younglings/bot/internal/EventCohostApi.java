@@ -235,7 +235,7 @@ public class EventCohostApi implements AdminRouteExtension {
         long id = idOf(body.getString("panelChannelId", ""), "channel");
         net.dv8tion.jda.api.entities.channel.concrete.TextChannel channel = guild.getTextChannelById(id);
         if (channel == null) throw new ApiError(400, "That channel isn't a text channel in this server.");
-        if (!CohostPanels.canPost(channel)) throw new ApiError(400, "JonnyBot needs to see and send messages in #" + channel.getName() + ".");
+        if (!CohostPanels.canPost(channel)) throw new ApiError(400, "The bot needs to see and send messages in #" + channel.getName() + ".");
         return id;
     }
 
@@ -339,7 +339,7 @@ public class EventCohostApi implements AdminRouteExtension {
 
     private static String nameOf(Guild any, long guildId) {
         Guild g = any.getJDA().getGuildById(guildId);
-        return g == null ? "A server JonnyBot has left" : g.getName();
+        return g == null ? "A server the bot has left" : g.getName();
     }
 
     private static long idOf(String raw, String what) {

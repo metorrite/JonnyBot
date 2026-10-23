@@ -93,7 +93,7 @@ public class SuggestionAdminApi implements AdminRouteExtension {
                 channelId = Long.parseLong(raw);
                 GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, channelId);
                 if (channel == null) problems.add("That channel doesn't exist in this server.");
-                else if (!channel.canTalk()) problems.add("JonnyBot can't post in #" + channel.getName() + ". It needs permission to view the channel and send messages there.");
+                else if (!channel.canTalk()) problems.add("The bot can't post in #" + channel.getName() + ". It needs permission to view the channel and send messages there.");
             }
         }
         if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.the_suggestions_channel_can_t_be"), problems);

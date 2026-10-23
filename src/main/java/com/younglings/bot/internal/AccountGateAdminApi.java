@@ -76,7 +76,7 @@ public class AccountGateAdminApi implements AdminRouteExtension {
             }
         }
         if (action == Action.KICK && !guild.getSelfMember().hasPermission(Permission.KICK_MEMBERS)) {
-            problems.add("JonnyBot needs the Kick Members permission to remove new accounts. Give it that in Discord, or choose to alert only.");
+            problems.add("The bot needs the Kick Members permission to remove new accounts. Give it that in Discord, or choose to alert only.");
         }
 
         Long channelId = current.alertChannelId();
@@ -90,7 +90,7 @@ public class AccountGateAdminApi implements AdminRouteExtension {
                 channelId = Long.parseLong(raw);
                 GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, channelId);
                 if (channel == null) problems.add("That channel doesn't exist in this server.");
-                else if (!channel.canTalk()) problems.add("JonnyBot can't post in #" + channel.getName() + ". It needs permission to view the channel and send messages there.");
+                else if (!channel.canTalk()) problems.add("The bot can't post in #" + channel.getName() + ". It needs permission to view the channel and send messages there.");
             }
         }
 
@@ -104,10 +104,10 @@ public class AccountGateAdminApi implements AdminRouteExtension {
             }
         }
         if (nameRulesEnabled && nameAction == Action.KICK && !guild.getSelfMember().hasPermission(Permission.KICK_MEMBERS)) {
-            problems.add("JonnyBot needs the Kick Members permission to remove people whose name matches a rule.");
+            problems.add("The bot needs the Kick Members permission to remove people whose name matches a rule.");
         }
         if (nameRulesEnabled && nameAction == Action.BAN && !guild.getSelfMember().hasPermission(Permission.BAN_MEMBERS)) {
-            problems.add("JonnyBot needs the Ban Members permission to ban people whose name matches a rule.");
+            problems.add("The bot needs the Ban Members permission to ban people whose name matches a rule.");
         }
         List<String> nameRules = current.nameRules();
         if (body.hasKey("nameRules")) {

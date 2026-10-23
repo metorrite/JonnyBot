@@ -65,7 +65,7 @@ public class CitadelWheelPoster {
         if (current.channelId() == null) throw new CannotPost("Choose the channel winners are posted in on the dashboard's Citadel wheel page first.");
         GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, current.channelId());
         if (channel == null) throw new CannotPost("The channel chosen for wheel posts no longer exists. Choose another on the dashboard.");
-        if (!channel.canTalk()) throw new CannotPost("JonnyBot can't post in #" + channel.getName() + ". It needs to see the channel and send messages and attach files there.");
+        if (!channel.canTalk()) throw new CannotPost("The bot can't post in #" + channel.getName() + ". It needs to see the channel and send messages and attach files there.");
         return channel;
     }
 

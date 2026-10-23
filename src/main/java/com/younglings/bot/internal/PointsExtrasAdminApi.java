@@ -67,7 +67,7 @@ public class PointsExtrasAdminApi implements AdminRouteExtension {
         for (RoleReward r : repository.roleRewards(guild.getIdLong())) {
             Role role = guild.getRoleById(r.roleId());
             String problem = role == null ? "This role no longer exists." : RolePanelService.canGive(guild, role) ? null
-                    : "JonnyBot can't hand out @" + role.getName() + " (it sits above JonnyBot's role, is managed, or has powerful permissions).";
+                    : "The bot can't hand out @" + role.getName() + " (it sits above the bot's role, is managed, or has powerful permissions).";
             out.add(DataObject.empty().put("id", Long.toString(r.id())).put("threshold", r.threshold()).put("roleId", Long.toString(r.roleId()))
                     .put("roleName", role == null ? null : role.getName()).put("removeLower", r.removeLower()).put("problem", problem));
         }
@@ -87,7 +87,7 @@ public class PointsExtrasAdminApi implements AdminRouteExtension {
         List<String> problems = new ArrayList<>();
         Role role = rawRole.matches("\\d{1,20}") ? guild.getRoleById(Long.parseLong(rawRole)) : null;
         if (role == null) problems.add("Choose a role.");
-        else if (!RolePanelService.canGive(guild, role)) problems.add("@" + role.getName() + " can't be handed out (it is managed by an integration, sits above JonnyBot's role, or has powerful permissions).");
+        else if (!RolePanelService.canGive(guild, role)) problems.add("@" + role.getName() + " can't be handed out (it is managed by an integration, sits above the bot's role, or has powerful permissions).");
         problems.addAll(PointsExtrasRules.roleRewardProblems(threshold, role == null ? -1 : role.getIdLong(), others));
         if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.that_role_reward_can_t_be"), problems);
         boolean saved = repository.saveRoleReward(new RoleReward(id, guildId, threshold, role.getIdLong(), body.getBoolean("removeLower", false)));
