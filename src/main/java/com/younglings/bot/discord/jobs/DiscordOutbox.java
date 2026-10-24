@@ -68,8 +68,8 @@ public class DiscordOutbox {
         return job;
     }
 
-    /** The jobs with these ids that belong to this server and person. */
-    public List<DiscordJob> find(Collection<Long> ids, long guildId, long actorId) {
+    /** The jobs with these ids that this person asked for (about this server, when given). */
+    public List<DiscordJob> find(Collection<Long> ids, Long guildId, long actorId) {
         return repository.find(ids, guildId, actorId);
     }
 
@@ -78,7 +78,7 @@ public class DiscordOutbox {
     }
 
     /** Sends one of this person's failed jobs again (the website's Retry). */
-    public boolean retry(long id, long guildId, long actorId) {
+    public boolean retry(long id, Long guildId, long actorId) {
         boolean again = repository.requeue(id, guildId, actorId);
         if (again && jda != null) lane.execute(this::drain);
         return again;

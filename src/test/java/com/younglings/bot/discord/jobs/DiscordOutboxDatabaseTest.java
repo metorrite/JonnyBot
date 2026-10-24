@@ -124,6 +124,8 @@ class DiscordOutboxDatabaseTest {
             assertEquals(1, outbox.find(List.of(refused.id()), GUILD, ACTOR).size());
             assertEquals(0, outbox.find(List.of(refused.id()), OTHER_GUILD, ACTOR).size());
             assertEquals(0, outbox.find(List.of(refused.id()), GUILD, ACTOR + 1).size());
+            assertEquals(1, outbox.find(List.of(refused.id()), null, ACTOR).size(), "a clan site asks without the server");
+            assertEquals(0, outbox.find(List.of(refused.id()), null, ACTOR + 1).size());
             assertFalse(outbox.find(List.of(refused.id()), GUILD, ACTOR).getFirst().toJson().hasKey("payload"), "never the payload");
         } finally {
             clean(connections);

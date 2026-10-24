@@ -106,14 +106,17 @@ public class DiscordJobRepository {
         }
     }
 
-    /** The jobs with these ids that belong to this server and this person (others are left out, as if they didn't exist). */
-    public List<DiscordJob> find(Collection<Long> ids, long guildId, long actorId) {
+    /**
+     * The jobs with these ids that this person asked for (others are left out, as if they didn't exist); with a {@code guildId}, only those
+     * about that server.
+     */
+    public List<DiscordJob> find(Collection<Long> ids, Long guildId, long actorId) {
         if (ids.isEmpty()) return List.of();
         try (Connection c = connectionSupplier.getConnection();
-             PreparedStatement s = c.prepareStatement("SELECT " + COLUMNS + " FROM younglings.discord_job WHERE id = ANY (?) AND guild_id = ? AND actor_id = ? ORDER BY id")) {
+             PreparedStatement s = c.prepareStatement("SELECT " + COLUMNS + " FROM younglings.discord_job WHERE id = ANY (?) AND (CAST(? AS BIGINT) IS NULL OR guild_id = ?) AND actor_id = ? ORDER BY id")) {
             s.setArray(1, c.createArrayOf("bigint", ids.toArray()));
-            s.setLong(2, guildId);
-            s.setLong(3, actorId);
+            setGuild(s, 2, guildId);
+            s.setLong(4, actorId);
             List<DiscordJob> jobs = new ArrayList<>();
             try (ResultSet rs = s.executeQuery()) {
                 while (rs.next()) jobs.add(read(rs));
@@ -187,15 +190,15 @@ public class DiscordJobRepository {
         }
     }
 
-    /** Sends a failed job again from the start (the website's Retry). False when it isn't this person's failed job in this server. */
-    public boolean requeue(long id, long guildId, long actorId) {
+    /** Sends a failed job again from the start (the website's Retry). False when it isn't this person's failed job (in this server, when given). */
+    public boolean requeue(long id, Long guildId, long actorId) {
         try (Connection c = connectionSupplier.getConnection();
              PreparedStatement s = c.prepareStatement("UPDATE younglings.discord_job SET state = 'queued', attempts = 0, waits = 0, last_error = NULL, next_attempt_at = now(), updated_at = now() "
-                     + "WHERE id = ? AND guild_id = ? AND actor_id = ? AND state = 'failed' AND (dedupe_key IS NULL OR NOT EXISTS (SELECT 1 FROM younglings.discord_job o "
+                     + "WHERE id = ? AND (CAST(? AS BIGINT) IS NULL OR guild_id = ?) AND actor_id = ? AND state = 'failed' AND (dedupe_key IS NULL OR NOT EXISTS (SELECT 1 FROM younglings.discord_job o "
                      + "WHERE o.dedupe_key = discord_job.dedupe_key AND o.state IN ('queued', 'retrying')))")) {
             s.setLong(1, id);
-            s.setLong(2, guildId);
-            s.setLong(3, actorId);
+            setGuild(s, 2, guildId);
+            s.setLong(4, actorId);
             return s.executeUpdate() == 1;
         } catch (SQLException e) {
             throw new IllegalStateException("Could not requeue job " + id, e);
@@ -232,6 +235,17 @@ public class DiscordJobRepository {
             return s.executeUpdate();
         } catch (SQLException e) {
             throw new IllegalStateException("Could not sweep jobs", e);
+        }
+    }
+
+    /** Fills two placeholders, {@code (? IS NULL OR guild_id = ?)}, with an optional server. */
+    private static void setGuild(PreparedStatement s, int index, Long guildId) throws SQLException {
+        if (guildId == null) {
+            s.setNull(index, java.sql.Types.BIGINT);
+            s.setNull(index + 1, java.sql.Types.BIGINT);
+        } else {
+            s.setLong(index, guildId);
+            s.setLong(index + 1, guildId);
         }
     }
 

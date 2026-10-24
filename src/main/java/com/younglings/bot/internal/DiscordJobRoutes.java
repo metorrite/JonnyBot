@@ -17,11 +17,12 @@ import java.util.Locale;
 /**
  * The website's view of the Discord job outbox (T-456), under {@code /internal/discord-jobs}. Never waits on Discord: it reads the job table.
  * <ul>
- *   <li>{@code GET ?guildId=&actorId=&ids=1,2,3} → {@code {jobs: [{id, kind, state, attempts, error, result, nextAttemptAt, updatedAt}]}}</li>
- *   <li>{@code POST /{id}/retry?guildId=&actorId=} → the job, queued again (only a failed one)</li>
+ *   <li>{@code GET ?actorId=&ids=1,2,3[&guildId=]} → {@code {jobs: [{id, kind, state, attempts, error, result, nextAttemptAt, updatedAt}]}}</li>
+ *   <li>{@code POST /{id}/retry?actorId=[&guildId=]} → the job, queued again (only a failed one)</li>
  * </ul>
  * Like the {@code /internal/me/} routes, {@code actorId} is trusted: the website takes it from the signed-in session. A person only ever sees
- * their own jobs in the server named; any other id reads as missing.
+ * their own jobs (only those about the server named, when one is); any other id reads as missing. A clan site knows its address, not its
+ * server, so the server is optional.
  */
 @BService
 public class DiscordJobRoutes implements InternalRouteModule {
@@ -57,16 +58,20 @@ public class DiscordJobRoutes implements InternalRouteModule {
     }
 
     Answer route(String method, String rest, String rawGuild, String rawActor, String rawIds) {
-        long guildId = id(rawGuild);
         long actorId = id(rawActor);
-        if (guildId == 0 || actorId == 0) return new Answer(400, error("Give guildId and actorId."));
+        if (actorId == 0) return new Answer(400, error("Give actorId."));
+        Long guildId = null;
+        if (rawGuild != null && !rawGuild.isBlank()) {
+            guildId = id(rawGuild);
+            if (guildId == 0) return new Answer(400, error("guildId is a server id."));
+        }
         String[] parts = rest.replaceAll("^/+|/+$", "").split("/");
         if (method.equals("GET") && (rest.isEmpty() || rest.equals("/"))) return list(guildId, actorId, rawIds);
         if (method.equals("POST") && parts.length == 2 && parts[1].equals("retry")) return retry(guildId, actorId, parts[0]);
         return new Answer(404, error("Not found"));
     }
 
-    private Answer list(long guildId, long actorId, String rawIds) {
+    private Answer list(Long guildId, long actorId, String rawIds) {
         if (rawIds == null || rawIds.isBlank()) return new Answer(400, error("Give the job ids."));
         List<Long> ids = new ArrayList<>();
         for (String raw : rawIds.split(",")) {
@@ -81,7 +86,7 @@ public class DiscordJobRoutes implements InternalRouteModule {
         return new Answer(200, DataObject.empty().put("jobs", jobs));
     }
 
-    private Answer retry(long guildId, long actorId, String rawId) {
+    private Answer retry(Long guildId, long actorId, String rawId) {
         long id = number(rawId);
         if (id <= 0) return new Answer(400, error("A job id is a number."));
         if (!outbox.retry(id, guildId, actorId)) return new Answer(409, error("Only a change that failed can be tried again."));
