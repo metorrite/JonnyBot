@@ -376,6 +376,9 @@ public final class ClanSiteLayoutRulesV2 {
         }
         out.put("padding", responsive(cell, "padding", "none", ClanSiteLayoutRulesV2::space, label + " has a cell with unknown spacing.", problems));
         out.put("valign", choice(cell, "valign", ALIGN, "start", label + " has a cell with an unknown alignment.", problems));
+        // left to right (builder v3 F20, T-421): optional, and full width ("stretch") is stored as no field, the same as the website does
+        String halign = choice(cell, "halign", ALIGN, "stretch", label + " has a cell with an unknown left-to-right alignment.", problems);
+        if (!halign.equals("stretch")) out.put("halign", halign);
         out.put("surface", choice(cell, "surface", SURFACES, "none", label + " has a cell with an unknown look.", problems));
         hide(cell, out, label, problems);
         DataArray widgets = cell.optArray("widgets").orElse(DataArray.empty());
