@@ -210,7 +210,10 @@ class SiteApiTenantDatabaseTest {
 
     @Test
     void aBotlessSiteGetsTheSameClanDataByServerIdAndNeedsBotForDiscordOnlyRoutes() {
+        // a first read seeds the server's rank list on the way (ClanPointsRepository), so warm every route up before comparing
+        for (String route : SiteApi.TENANT_ROUTES) call(guildA, route);
         for (String route : SiteApi.TENANT_ROUTES) {
+            cache.clear();
             DataObject withoutBot = callWithoutBot(GUILD_A, route);
             if (SiteApi.DISCORD_ROUTES.contains(route)) {
                 assertEquals(SiteApi.needsBot().toString(), withoutBot.toString(), route + " needs Discord");
