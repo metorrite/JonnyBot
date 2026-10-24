@@ -1,0 +1,2339 @@
+{
+  "v": 2,
+  "look": {
+    "theme": "modern",
+    "mode": "dark",
+    "accent": "#c0392b",
+    "logo": null,
+    "banner": null
+  },
+  "style": {
+    "colours": {
+      "accent2": "#e67e22",
+      "bg": "#0f0b0b",
+      "surface": "#1a1313",
+      "border": "#3a2424"
+    },
+    "fonts": {
+      "heading": "bebas-neue",
+      "body": "inter"
+    },
+    "radius": "sm",
+    "density": "compact",
+    "glow": "soft",
+    "buttons": "solid"
+  },
+  "header": {
+    "layout": "logo-left",
+    "logo": {
+      "show": true,
+      "text": "name",
+      "height": 44
+    },
+    "slots": {
+      "left": [],
+      "right": [
+        {
+          "kind": "citadel-timer",
+          "settings": {
+            "label": "Reset"
+          }
+        },
+        {
+          "kind": "discord"
+        }
+      ]
+    },
+    "sticky": true,
+    "transparent": "home",
+    "height": "compact",
+    "mobile": "drawer",
+    "nav": [
+      {
+        "id": "warbn136",
+        "label": "Home",
+        "link": {
+          "kind": "page",
+          "pageId": "warbphome"
+        }
+      },
+      {
+        "id": "warbn137",
+        "label": "PvM",
+        "link": {
+          "kind": "page",
+          "pageId": "warbppvm"
+        },
+        "children": [
+          {
+            "id": "warbn138",
+            "label": "Boss kills",
+            "link": {
+              "kind": "page",
+              "pageId": "warbppvm"
+            },
+            "description": "Kills per boss, and a page for each one"
+          },
+          {
+            "id": "warbn139",
+            "label": "Drop log",
+            "link": {
+              "kind": "page",
+              "pageId": "warbpdrops"
+            },
+            "description": "Every drop the warband has had"
+          },
+          {
+            "id": "warbn140",
+            "label": "Hall of fame",
+            "link": {
+              "kind": "page",
+              "pageId": "warbpfame"
+            },
+            "description": "Records and who holds them"
+          }
+        ]
+      },
+      {
+        "id": "warbn141",
+        "label": "Leaderboards",
+        "link": {
+          "kind": "page",
+          "pageId": "warbpboards"
+        }
+      },
+      {
+        "id": "warbn142",
+        "label": "Events",
+        "link": {
+          "kind": "page",
+          "pageId": "warbpevents"
+        },
+        "badge": "events"
+      },
+      {
+        "id": "warbn143",
+        "label": "Members",
+        "link": {
+          "kind": "page",
+          "pageId": "warbpmembers"
+        }
+      },
+      {
+        "id": "warbn144",
+        "label": "Join",
+        "link": {
+          "kind": "page",
+          "pageId": "warbpjoin"
+        }
+      }
+    ]
+  },
+  "footer": {
+    "showSocial": true,
+    "badge": true,
+    "columns": [
+      {
+        "title": "{clan}",
+        "links": [
+          {
+            "label": "Home",
+            "link": {
+              "kind": "page",
+              "pageId": "warbphome"
+            }
+          },
+          {
+            "label": "Members",
+            "link": {
+              "kind": "page",
+              "pageId": "warbpmembers"
+            }
+          },
+          {
+            "label": "Join the warband",
+            "link": {
+              "kind": "page",
+              "pageId": "warbpjoin"
+            }
+          }
+        ]
+      },
+      {
+        "title": "Bossing",
+        "links": [
+          {
+            "label": "Boss kills",
+            "link": {
+              "kind": "page",
+              "pageId": "warbppvm"
+            }
+          },
+          {
+            "label": "Drop log",
+            "link": {
+              "kind": "page",
+              "pageId": "warbpdrops"
+            }
+          },
+          {
+            "label": "Hall of fame",
+            "link": {
+              "kind": "page",
+              "pageId": "warbpfame"
+            }
+          },
+          {
+            "label": "Leaderboards",
+            "link": {
+              "kind": "page",
+              "pageId": "warbpboards"
+            }
+          }
+        ]
+      },
+      {
+        "title": "Talk to us",
+        "links": [
+          {
+            "label": "Events",
+            "link": {
+              "kind": "page",
+              "pageId": "warbpevents"
+            }
+          },
+          {
+            "label": "Discord",
+            "link": {
+              "kind": "invite"
+            }
+          }
+        ]
+      }
+    ],
+    "text": "{clan}. Gear up, show up, split the loot."
+  },
+  "pages": [
+    {
+      "id": "warbphome",
+      "title": "Home",
+      "path": "",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "warbs008",
+          "width": "full",
+          "background": {
+            "kind": "accent"
+          },
+          "padding": {
+            "lg": {
+              "y": "xl",
+              "x": "lg"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "label": "Banner",
+          "rows": [
+            {
+              "id": "warbr007",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "warbc004",
+                  "span": {
+                    "lg": 7,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "warbw001",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "{clan}",
+                        "subtitle": "{tagline}",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "warbw002",
+                      "type": "text",
+                      "v": 1,
+                      "settings": {
+                        "markdown": "Raids, reapers and rare drops, several nights a week. Bring your best gear and your sense of humour: we teach new raiders and we celebrate every purple.",
+                        "align": "left",
+                        "width": "readable"
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "warbw003",
+                      "type": "button-row",
+                      "v": 1,
+                      "settings": {
+                        "buttons": [
+                          {
+                            "label": "Join the warband",
+                            "link": {
+                              "kind": "page",
+                              "pageId": "warbpjoin"
+                            },
+                            "style": "primary"
+                          },
+                          {
+                            "label": "See our kills",
+                            "link": {
+                              "kind": "page",
+                              "pageId": "warbppvm"
+                            },
+                            "style": "secondary"
+                          }
+                        ],
+                        "align": "left",
+                        "size": "large",
+                        "fullWidth": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "warbc006",
+                  "span": {
+                    "lg": 5,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "warbw005",
+                      "type": "stat-tiles",
+                      "v": 2,
+                      "settings": {
+                        "cards": [
+                          {
+                            "metric": "kills",
+                            "label": "Boss kills",
+                            "link": null
+                          },
+                          {
+                            "metric": "members",
+                            "label": "Raiders",
+                            "link": null
+                          },
+                          {
+                            "metric": "xpWeek",
+                            "label": "XP this week",
+                            "link": null
+                          },
+                          {
+                            "metric": "totalXp",
+                            "label": "Total XP",
+                            "link": null
+                          }
+                        ],
+                        "columns": "2"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "warbs021",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "warbr015",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "warbc010",
+                  "span": {
+                    "lg": 4,
+                    "md": 6,
+                    "base": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "warbw009",
+                      "type": "kill-tracker",
+                      "v": 1,
+                      "settings": {
+                        "title": "Kills this week",
+                        "period": "week",
+                        "limit": 10
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "warbc012",
+                  "span": {
+                    "lg": 4,
+                    "md": 6,
+                    "base": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "warbw011",
+                      "type": "drop-log",
+                      "v": 1,
+                      "settings": {
+                        "title": "Latest drops",
+                        "period": "month",
+                        "showGrid": false,
+                        "limit": 8
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "warbc014",
+                  "span": {
+                    "lg": 4,
+                    "md": 12,
+                    "base": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "warbw013",
+                      "type": "events",
+                      "v": 1,
+                      "settings": {
+                        "title": "Next raids",
+                        "limit": 4,
+                        "showImages": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "warbr020",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "warbc017",
+                  "span": {
+                    "lg": 8,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "warbw016",
+                      "type": "hub-events",
+                      "v": 1,
+                      "settings": {
+                        "title": "Competitions",
+                        "limit": 3,
+                        "showFinished": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "warbc019",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "warbw018",
+                      "type": "discord-online",
+                      "v": 1,
+                      "settings": {
+                        "title": "Who's online",
+                        "show": "names",
+                        "groups": true,
+                        "limit": 16
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "warbs027",
+          "width": "wide",
+          "background": {
+            "kind": "surface"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "label": "Join",
+          "rows": [
+            {
+              "id": "warbr026",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "warbc023",
+                  "span": {
+                    "lg": 8,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "warbw022",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "New to bossing?",
+                        "subtitle": "We run teaching trips every week. Nobody gets left behind and nobody gets shouted at.",
+                        "size": "medium",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h2"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "warbc025",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "warbw024",
+                      "type": "discord-join",
+                      "v": 1,
+                      "settings": {
+                        "title": "Find a team",
+                        "text": "Teams form in our Discord every evening. Say hi and say what you want to kill.",
+                        "buttonLabel": "Open the Discord"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "warbppvm",
+      "title": "Boss kills",
+      "path": "pvm",
+      "hidden": false,
+      "access": "public",
+      "origin": {
+        "template": "pvm",
+        "v": 1
+      },
+      "sections": [
+        {
+          "id": "warbs028",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "warbr029",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "warbc030",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "warbw031",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "PvM and bosses",
+                        "subtitle": "Boss kills and notable drops from members' adventure logs. Pick a boss for its full breakdown.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "warbs032",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "warbr033",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "warbc034",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "warbw035",
+                      "type": "button-row",
+                      "v": 1,
+                      "settings": {
+                        "buttons": [
+                          {
+                            "label": "Open the drop log",
+                            "link": {
+                              "kind": "page",
+                              "pageId": "warbpdrops"
+                            },
+                            "style": "primary"
+                          }
+                        ],
+                        "align": "left",
+                        "size": "medium",
+                        "fullWidth": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "warbr036",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "warbc037",
+                  "span": {
+                    "lg": 7,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "warbw038",
+                      "type": "kill-tracker",
+                      "v": 1,
+                      "settings": {
+                        "title": "Boss kills",
+                        "period": "all",
+                        "limit": 25
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "warbc039",
+                  "span": {
+                    "lg": 5,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "warbw040",
+                      "type": "drops",
+                      "v": 1,
+                      "settings": {
+                        "title": "Recent drops",
+                        "limit": 10
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "warbpboss",
+      "title": "Boss page",
+      "path": "boss",
+      "hidden": false,
+      "access": "public",
+      "template": "boss",
+      "origin": {
+        "template": "boss",
+        "v": 1
+      },
+      "sections": [
+        {
+          "id": "warbs041",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "warbr042",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "warbc043",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "warbw044",
+                      "type": "boss-detail",
+                      "v": 1,
+                      "settings": {
+                        "period": "all",
+                        "limit": 25
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "warbpdrops",
+      "title": "Drop log",
+      "path": "drops",
+      "hidden": false,
+      "access": "public",
+      "origin": {
+        "template": "drops",
+        "v": 1
+      },
+      "sections": [
+        {
+          "id": "warbs045",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "warbr046",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "warbc047",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "warbw048",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Drop log",
+                        "subtitle": "The clan's drops as a collection log. Items turn up in colour as they're received.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "warbs049",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "warbr050",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "warbc051",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "warbw052",
+                      "type": "drop-log",
+                      "v": 1,
+                      "settings": {
+                        "title": "",
+                        "period": "all",
+                        "showGrid": true,
+                        "limit": 25
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "warbpitem",
+      "title": "Item page",
+      "path": "item",
+      "hidden": false,
+      "access": "public",
+      "template": "item",
+      "origin": {
+        "template": "item",
+        "v": 1
+      },
+      "sections": [
+        {
+          "id": "warbs053",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "warbr054",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "warbc055",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "warbw056",
+                      "type": "item-detail",
+                      "v": 1,
+                      "settings": {
+                        "period": "all",
+                        "limit": 25
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "warbpboards",
+      "title": "Leaderboards",
+      "path": "leaderboards",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "warbs060",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "warbr059",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "warbc058",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "warbw057",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Leaderboards",
+                        "subtitle": "Who's been busiest. Pick a time frame on any board.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "warbs071",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "warbr067",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "warbc062",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "warbw061",
+                      "type": "kill-tracker",
+                      "v": 1,
+                      "settings": {
+                        "title": "Most boss kills",
+                        "period": "month",
+                        "limit": 15
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "warbc064",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "warbw063",
+                      "type": "leaderboard",
+                      "v": 1,
+                      "settings": {
+                        "title": "Top XP gainers",
+                        "metric": "xp",
+                        "period": "month",
+                        "visitorPeriods": true,
+                        "limit": 15
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "warbc066",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "warbw065",
+                      "type": "top-list",
+                      "v": 1,
+                      "settings": {
+                        "title": "Highest total level",
+                        "metric": "level",
+                        "limit": 15
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "warbr070",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "warbc069",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "warbw068",
+                      "type": "event-standings",
+                      "v": 1,
+                      "settings": {
+                        "title": "Current competition",
+                        "limit": 15
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "warbpevents",
+      "title": "Events",
+      "path": "events",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "warbs075",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "warbr074",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "warbc073",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "warbw072",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Raids and events",
+                        "subtitle": "Teaching trips, mass kills and competitions. Times are in your own timezone.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "warbs084",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "warbr080",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "warbc077",
+                  "span": {
+                    "lg": 7,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "warbw076",
+                      "type": "events",
+                      "v": 1,
+                      "settings": {
+                        "title": "Coming up",
+                        "limit": 8,
+                        "showImages": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "warbc079",
+                  "span": {
+                    "lg": 5,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "warbw078",
+                      "type": "signups",
+                      "v": 1,
+                      "settings": {
+                        "title": "Open signups",
+                        "limit": 5,
+                        "showNames": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "warbr083",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "warbc082",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "warbw081",
+                      "type": "hub-events",
+                      "v": 1,
+                      "settings": {
+                        "title": "Competitions",
+                        "limit": 6,
+                        "showFinished": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "warbpevent",
+      "title": "Event page",
+      "path": "event",
+      "hidden": false,
+      "access": "public",
+      "template": "event",
+      "origin": {
+        "template": "event",
+        "v": 1
+      },
+      "sections": [
+        {
+          "id": "warbs085",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "warbr086",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "warbc087",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "warbw088",
+                      "type": "event-detail",
+                      "v": 1,
+                      "settings": {
+                        "showPrizes": true,
+                        "showStandings": true,
+                        "limit": 10
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "warbpfame",
+      "title": "Hall of fame",
+      "path": "hall-of-fame",
+      "hidden": false,
+      "access": "public",
+      "origin": {
+        "template": "hall-of-fame",
+        "v": 1
+      },
+      "sections": [
+        {
+          "id": "warbs089",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "warbr090",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "warbc091",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "warbw092",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Hall of fame",
+                        "subtitle": "The clan's records and the members who hold them.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "warbs093",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "warbr094",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "warbc095",
+                  "span": {
+                    "lg": 8,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "warbw096",
+                      "type": "hall-of-fame",
+                      "v": 1,
+                      "settings": {
+                        "title": "",
+                        "showDays": true,
+                        "showClub": true,
+                        "showStreaks": true,
+                        "showVeterans": true,
+                        "limit": 8
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "warbc097",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "warbw098",
+                      "type": "milestones",
+                      "v": 1,
+                      "settings": {
+                        "title": "Milestones",
+                        "limit": 10
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "warbpmembers",
+      "title": "Members",
+      "path": "members",
+      "hidden": false,
+      "access": "public",
+      "origin": {
+        "template": "members",
+        "v": 1
+      },
+      "sections": [
+        {
+          "id": "warbs099",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "warbr100",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "warbc101",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "warbw102",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Members",
+                        "subtitle": "Everyone currently in the clan. Open a member to see their stats, gains, Citadel record and adventure log.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "warbs103",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "warbr104",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "warbc105",
+                  "span": {
+                    "lg": 9,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "warbw106",
+                      "type": "member-directory",
+                      "v": 1,
+                      "settings": {
+                        "title": "",
+                        "style": "list",
+                        "limit": 100,
+                        "sort": "rank",
+                        "showRank": true,
+                        "showLevel": true,
+                        "showXp": false,
+                        "showJoined": false,
+                        "search": true,
+                        "rankFilter": true,
+                        "linkPages": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "warbc107",
+                  "span": {
+                    "lg": 3,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "warbw108",
+                      "type": "rank-breakdown",
+                      "v": 1,
+                      "settings": {
+                        "title": "Ranks",
+                        "limit": 20,
+                        "style": "ring",
+                        "showEmpty": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "warbpmember",
+      "title": "Member page",
+      "path": "member",
+      "hidden": false,
+      "access": "public",
+      "template": "member",
+      "sections": [
+        {
+          "id": "warbs112",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "warbr111",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "warbc110",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "warbw109",
+                      "type": "member-card",
+                      "v": 1,
+                      "settings": {
+                        "showBio": true,
+                        "showTotals": true,
+                        "showNextRank": true,
+                        "showCompare": false,
+                        "comparePage": null
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "warbs123",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "warbr117",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "warbc114",
+                  "span": {
+                    "lg": 8,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "warbw113",
+                      "type": "member-xp-chart",
+                      "v": 1,
+                      "settings": {
+                        "title": "XP over time",
+                        "days": "90",
+                        "gains": "week"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "warbc116",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "warbw115",
+                      "type": "member-badges",
+                      "v": 1,
+                      "settings": {
+                        "title": "Badges",
+                        "limit": 10,
+                        "style": "chips"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "warbr122",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "warbc119",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "warbw118",
+                      "type": "member-adventure-log",
+                      "v": 1,
+                      "settings": {
+                        "title": "Kills and drops",
+                        "limit": 12,
+                        "showDetails": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "warbc121",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "warbw120",
+                      "type": "member-skills",
+                      "v": 1,
+                      "settings": {
+                        "title": "Skills",
+                        "limit": 30,
+                        "style": "table",
+                        "sort": "level",
+                        "showProgress": true,
+                        "showRank": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "warbpjoin",
+      "title": "Join",
+      "path": "join",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "warbs127",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "warbr126",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "warbc125",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "warbw124",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Join the warband",
+                        "subtitle": "What we ask, what you get, and how to get in.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "warbs135",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "warbr134",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "warbc130",
+                  "span": {
+                    "lg": 7,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "warbw128",
+                      "type": "text",
+                      "v": 1,
+                      "settings": {
+                        "markdown": "## What we ask\n- Combat 120+ and a gear setup you're happy to bring\n- Discord with a working microphone for raids\n- Show up when you sign up, and tell us when you can't\n\n## What you get\n- Weekly teaching trips for every raid and most group bosses\n- Split loot, always, and a drop log that remembers your best day\n- People to kill things with at any hour",
+                        "align": "left",
+                        "width": "readable"
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "warbw129",
+                      "type": "faq",
+                      "v": 1,
+                      "settings": {
+                        "title": "Questions",
+                        "items": [
+                          {
+                            "q": "I've never raided. Can I still join?",
+                            "a": "Yes. Tell us in the Discord and you'll be on the next teaching trip."
+                          },
+                          {
+                            "q": "Do you split drops?",
+                            "a": "Always, unless the team agrees otherwise before the kill."
+                          },
+                          {
+                            "q": "Is there an activity requirement?",
+                            "a": "Turn up to something once a month. Life comes first; just let us know."
+                          }
+                        ]
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "warbc133",
+                  "span": {
+                    "lg": 5,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "warbw131",
+                      "type": "recruiting",
+                      "v": 1,
+                      "settings": {
+                        "title": "Apply",
+                        "buttonLabel": "Apply now",
+                        "showRequirements": true
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "warbw132",
+                      "type": "discord-join",
+                      "v": 1,
+                      "settings": {
+                        "title": "Talk to us first",
+                        "text": "Questions before you apply? Ask in our Discord.",
+                        "buttonLabel": "Join the Discord"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

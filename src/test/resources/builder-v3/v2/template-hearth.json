@@ -3,11 +3,15 @@
   "look": {
     "theme": "minimal",
     "mode": "light",
-    "accent": null,
+    "accent": "#e8743b",
     "logo": null,
     "banner": null
   },
   "style": {
+    "fonts": {
+      "heading": "playfair-display",
+      "body": "nunito"
+    },
     "radius": "lg",
     "density": "airy",
     "glow": "soft",
@@ -20,42 +24,15 @@
       "text": "name",
       "height": 40
     },
-    "nav": [
-      {
-        "id": "heart0068",
-        "label": "Home",
-        "link": {
-          "kind": "page",
-          "pageId": "heart0001"
-        }
-      },
-      {
-        "id": "heart0069",
-        "label": "Events",
-        "link": {
-          "kind": "page",
-          "pageId": "heart0002"
-        }
-      },
-      {
-        "id": "heart0070",
-        "label": "Community",
-        "link": {
-          "kind": "page",
-          "pageId": "heart0003"
-        }
-      },
-      {
-        "id": "heart0071",
-        "label": "Join us",
-        "link": {
-          "kind": "page",
-          "pageId": "heart0004"
-        }
-      }
-    ],
     "slots": {
-      "left": [],
+      "left": [
+        {
+          "kind": "online-count",
+          "settings": {
+            "label": "on Discord"
+          }
+        }
+      ],
       "right": [
         {
           "kind": "discord"
@@ -65,9 +42,54 @@
     "sticky": true,
     "transparent": "never",
     "height": "normal",
-    "mobile": "drawer"
+    "mobile": "drawer",
+    "nav": [
+      {
+        "id": "heartn077",
+        "label": "Home",
+        "link": {
+          "kind": "page",
+          "pageId": "heartphome"
+        }
+      },
+      {
+        "id": "heartn078",
+        "label": "Events",
+        "link": {
+          "kind": "page",
+          "pageId": "heartpevents"
+        },
+        "badge": "events"
+      },
+      {
+        "id": "heartn079",
+        "label": "Community",
+        "link": {
+          "kind": "page",
+          "pageId": "heartpcommunity"
+        }
+      },
+      {
+        "id": "heartn080",
+        "label": "Have your say",
+        "link": {
+          "kind": "page",
+          "pageId": "heartpsay"
+        }
+      },
+      {
+        "id": "heartn081",
+        "label": "Join us",
+        "link": {
+          "kind": "page",
+          "pageId": "heartpjoin"
+        }
+      }
+    ]
   },
   "footer": {
+    "showSocial": true,
+    "badge": true,
     "columns": [
       {
         "title": "{clan}",
@@ -76,14 +98,14 @@
             "label": "Home",
             "link": {
               "kind": "page",
-              "pageId": "heart0001"
+              "pageId": "heartphome"
             }
           },
           {
             "label": "Join us",
             "link": {
               "kind": "page",
-              "pageId": "heart0004"
+              "pageId": "heartpjoin"
             }
           }
         ]
@@ -95,14 +117,21 @@
             "label": "Events",
             "link": {
               "kind": "page",
-              "pageId": "heart0002"
+              "pageId": "heartpevents"
             }
           },
           {
             "label": "Community",
             "link": {
               "kind": "page",
-              "pageId": "heart0003"
+              "pageId": "heartpcommunity"
+            }
+          },
+          {
+            "label": "Have your say",
+            "link": {
+              "kind": "page",
+              "pageId": "heartpsay"
             }
           },
           {
@@ -114,21 +143,18 @@
         ]
       }
     ],
-    "text": "{clan}. Come for the XP, stay for the people.",
-    "showSocial": true,
-    "badge": true
+    "text": "{clan}. Come for the XP, stay for the people."
   },
   "pages": [
     {
-      "id": "heart0001",
+      "id": "heartphome",
       "title": "Home",
       "path": "",
       "hidden": false,
       "access": "public",
       "sections": [
         {
-          "id": "heart0008",
-          "label": "Welcome",
+          "id": "hearts004",
           "width": "full",
           "background": {
             "kind": "accent"
@@ -144,9 +170,10 @@
               "mode": "auto"
             }
           },
+          "label": "Welcome",
           "rows": [
             {
-              "id": "heart0007",
+              "id": "heartr003",
               "gap": {
                 "lg": "md"
               },
@@ -158,7 +185,7 @@
               },
               "cells": [
                 {
-                  "id": "heart0006",
+                  "id": "heartc002",
                   "span": {
                     "lg": 12
                   },
@@ -169,7 +196,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "heart0005",
+                      "id": "heartw001",
                       "type": "clan-header",
                       "v": 1,
                       "settings": {
@@ -186,8 +213,7 @@
           ]
         },
         {
-          "id": "heart0014",
-          "label": "Hello",
+          "id": "hearts016",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -205,7 +231,7 @@
           },
           "rows": [
             {
-              "id": "heart0013",
+              "id": "heartr009",
               "gap": {
                 "lg": "md"
               },
@@ -217,18 +243,19 @@
               },
               "cells": [
                 {
-                  "id": "heart0010",
+                  "id": "heartc006",
                   "span": {
-                    "lg": 7
+                    "lg": 7,
+                    "md": 12
                   },
                   "padding": {
-                    "lg": "md"
+                    "lg": "none"
                   },
                   "valign": "start",
-                  "surface": "panel",
+                  "surface": "none",
                   "widgets": [
                     {
-                      "id": "heart0009",
+                      "id": "heartw005",
                       "type": "text",
                       "v": 1,
                       "settings": {
@@ -241,9 +268,10 @@
                   ]
                 },
                 {
-                  "id": "heart0012",
+                  "id": "heartc008",
                   "span": {
-                    "lg": 5
+                    "lg": 5,
+                    "md": 12
                   },
                   "padding": {
                     "lg": "none"
@@ -252,7 +280,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "heart0011",
+                      "id": "heartw007",
                       "type": "events",
                       "v": 1,
                       "settings": {
@@ -265,12 +293,124 @@
                   ]
                 }
               ]
+            },
+            {
+              "id": "heartr015",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "heartc011",
+                  "span": {
+                    "lg": 7,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "heartw010",
+                      "type": "channel-feed",
+                      "v": 1,
+                      "settings": {
+                        "title": "Latest news",
+                        "channel": "",
+                        "limit": 4,
+                        "showAuthors": true,
+                        "showImages": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "heartc014",
+                  "span": {
+                    "lg": 5,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "heartw012",
+                      "type": "links",
+                      "v": 2,
+                      "settings": {
+                        "title": "Find your way",
+                        "style": "list",
+                        "links": [
+                          {
+                            "label": "Upcoming events",
+                            "link": {
+                              "kind": "page",
+                              "pageId": "heartpevents"
+                            }
+                          },
+                          {
+                            "label": "Meet the community",
+                            "link": {
+                              "kind": "page",
+                              "pageId": "heartpcommunity"
+                            }
+                          },
+                          {
+                            "label": "Polls and signups",
+                            "link": {
+                              "kind": "page",
+                              "pageId": "heartpsay"
+                            }
+                          },
+                          {
+                            "label": "Join us",
+                            "link": {
+                              "kind": "page",
+                              "pageId": "heartpjoin"
+                            }
+                          },
+                          {
+                            "label": "Our Discord",
+                            "link": {
+                              "kind": "invite"
+                            }
+                          }
+                        ]
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "heartw013",
+                      "type": "discord-online",
+                      "v": 1,
+                      "settings": {
+                        "title": "Around right now",
+                        "show": "names+avatars",
+                        "groups": true,
+                        "limit": 12
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
             }
           ]
         },
         {
-          "id": "heart0020",
-          "label": "Around the clan",
+          "id": "hearts020",
           "width": "wide",
           "background": {
             "kind": "surface"
@@ -286,119 +426,10 @@
               "mode": "auto"
             }
           },
-          "rows": [
-            {
-              "id": "heart0019",
-              "gap": {
-                "lg": "md"
-              },
-              "align": "stretch",
-              "height": {
-                "lg": {
-                  "mode": "auto"
-                }
-              },
-              "cells": [
-                {
-                  "id": "heart0016",
-                  "span": {
-                    "lg": 7
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "heart0015",
-                      "type": "activity-feed",
-                      "v": 1,
-                      "settings": {
-                        "title": "What everyone's been up to",
-                        "limit": 8
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                },
-                {
-                  "id": "heart0018",
-                  "span": {
-                    "lg": 5
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "heart0017",
-                      "type": "links",
-                      "v": 2,
-                      "settings": {
-                        "title": "Find your way",
-                        "style": "list",
-                        "links": [
-                          {
-                            "label": "Upcoming events",
-                            "link": {
-                              "kind": "page",
-                              "pageId": "heart0002"
-                            }
-                          },
-                          {
-                            "label": "Meet the community",
-                            "link": {
-                              "kind": "page",
-                              "pageId": "heart0003"
-                            }
-                          },
-                          {
-                            "label": "Join us",
-                            "link": {
-                              "kind": "page",
-                              "pageId": "heart0004"
-                            }
-                          },
-                          {
-                            "label": "Our Discord",
-                            "link": {
-                              "kind": "invite"
-                            }
-                          }
-                        ]
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "id": "heart0024",
           "label": "Recap",
-          "width": "content",
-          "background": {
-            "kind": "none"
-          },
-          "padding": {
-            "lg": {
-              "y": "lg",
-              "x": "md"
-            }
-          },
-          "height": {
-            "lg": {
-              "mode": "auto"
-            }
-          },
           "rows": [
             {
-              "id": "heart0023",
+              "id": "heartr019",
               "gap": {
                 "lg": "md"
               },
@@ -410,7 +441,7 @@
               },
               "cells": [
                 {
-                  "id": "heart0022",
+                  "id": "heartc018",
                   "span": {
                     "lg": 12
                   },
@@ -421,7 +452,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "heart0021",
+                      "id": "heartw017",
                       "type": "weekly-recap",
                       "v": 1,
                       "settings": {
@@ -436,27 +467,24 @@
             }
           ]
         }
-      ],
-      "seo": {
-        "description": "{clan}: a friendly RuneScape clan. Events, news and good company."
-      }
+      ]
     },
     {
-      "id": "heart0002",
+      "id": "heartpevents",
       "title": "Events",
       "path": "events",
       "hidden": false,
       "access": "public",
       "sections": [
         {
-          "id": "heart0028",
-          "width": "content",
+          "id": "hearts024",
+          "width": "wide",
           "background": {
             "kind": "none"
           },
           "padding": {
             "lg": {
-              "y": "lg",
+              "y": "md",
               "x": "md"
             }
           },
@@ -467,7 +495,7 @@
           },
           "rows": [
             {
-              "id": "heart0027",
+              "id": "heartr023",
               "gap": {
                 "lg": "md"
               },
@@ -479,7 +507,7 @@
               },
               "cells": [
                 {
-                  "id": "heart0026",
+                  "id": "heartc022",
                   "span": {
                     "lg": 12
                   },
@@ -490,13 +518,16 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "heart0025",
-                      "type": "text",
+                      "id": "heartw021",
+                      "type": "heading",
                       "v": 1,
                       "settings": {
-                        "markdown": "## Events\nSomething on most nights. Everyone is welcome, whatever your level.",
+                        "text": "Events",
+                        "subtitle": "Something on most nights. Everyone is welcome, whatever your level.",
+                        "size": "large",
                         "align": "left",
-                        "width": "readable"
+                        "colour": "",
+                        "level": "h1"
                       },
                       "unmet": "hide"
                     }
@@ -507,7 +538,7 @@
           ]
         },
         {
-          "id": "heart0035",
+          "id": "hearts035",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -525,7 +556,7 @@
           },
           "rows": [
             {
-              "id": "heart0034",
+              "id": "heartr029",
               "gap": {
                 "lg": "md"
               },
@@ -537,9 +568,10 @@
               },
               "cells": [
                 {
-                  "id": "heart0030",
+                  "id": "heartc026",
                   "span": {
-                    "lg": 8
+                    "lg": 8,
+                    "md": 12
                   },
                   "padding": {
                     "lg": "none"
@@ -548,7 +580,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "heart0029",
+                      "id": "heartw025",
                       "type": "hub-events",
                       "v": 1,
                       "settings": {
@@ -561,9 +593,10 @@
                   ]
                 },
                 {
-                  "id": "heart0033",
+                  "id": "heartc028",
                   "span": {
-                    "lg": 4
+                    "lg": 4,
+                    "md": 12
                   },
                   "padding": {
                     "lg": "none"
@@ -572,7 +605,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "heart0032",
+                      "id": "heartw027",
                       "type": "event-standings",
                       "v": 1,
                       "settings": {
@@ -584,29 +617,9 @@
                   ]
                 }
               ]
-            }
-          ]
-        },
-        {
-          "id": "heart0039",
-          "width": "wide",
-          "background": {
-            "kind": "surface"
-          },
-          "padding": {
-            "lg": {
-              "y": "lg",
-              "x": "md"
-            }
-          },
-          "height": {
-            "lg": {
-              "mode": "auto"
-            }
-          },
-          "rows": [
+            },
             {
-              "id": "heart0038",
+              "id": "heartr034",
               "gap": {
                 "lg": "md"
               },
@@ -618,9 +631,10 @@
               },
               "cells": [
                 {
-                  "id": "heart0037",
+                  "id": "heartc031",
                   "span": {
-                    "lg": 12
+                    "lg": 8,
+                    "md": 12
                   },
                   "padding": {
                     "lg": "none"
@@ -629,13 +643,38 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "heart0036",
+                      "id": "heartw030",
                       "type": "events",
                       "v": 1,
                       "settings": {
                         "title": "On Discord",
                         "limit": 8,
                         "showImages": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "heartc033",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "heartw032",
+                      "type": "signups",
+                      "v": 1,
+                      "settings": {
+                        "title": "Sign up",
+                        "limit": 3,
+                        "showNames": true
                       },
                       "unmet": "hide"
                     }
@@ -648,21 +687,21 @@
       ]
     },
     {
-      "id": "heart0003",
+      "id": "heartpcommunity",
       "title": "Community",
       "path": "community",
       "hidden": false,
       "access": "public",
       "sections": [
         {
-          "id": "heart0043",
-          "width": "content",
+          "id": "hearts039",
+          "width": "wide",
           "background": {
             "kind": "none"
           },
           "padding": {
             "lg": {
-              "y": "lg",
+              "y": "md",
               "x": "md"
             }
           },
@@ -673,7 +712,7 @@
           },
           "rows": [
             {
-              "id": "heart0042",
+              "id": "heartr038",
               "gap": {
                 "lg": "md"
               },
@@ -685,7 +724,7 @@
               },
               "cells": [
                 {
-                  "id": "heart0041",
+                  "id": "heartc037",
                   "span": {
                     "lg": 12
                   },
@@ -696,13 +735,16 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "heart0040",
-                      "type": "text",
+                      "id": "heartw036",
+                      "type": "heading",
                       "v": 1,
                       "settings": {
-                        "markdown": "## Our community\nThe people who make {clan} what it is.",
+                        "text": "Our community",
+                        "subtitle": "The people who make {clan} what it is.",
+                        "size": "large",
                         "align": "left",
-                        "width": "readable"
+                        "colour": "",
+                        "level": "h1"
                       },
                       "unmet": "hide"
                     }
@@ -713,7 +755,7 @@
           ]
         },
         {
-          "id": "heart0051",
+          "id": "hearts051",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -731,7 +773,7 @@
           },
           "rows": [
             {
-              "id": "heart0050",
+              "id": "heartr047",
               "gap": {
                 "lg": "md"
               },
@@ -743,9 +785,10 @@
               },
               "cells": [
                 {
-                  "id": "heart0045",
+                  "id": "heartc042",
                   "span": {
-                    "lg": 4
+                    "lg": 4,
+                    "md": 12
                   },
                   "padding": {
                     "lg": "none"
@@ -754,7 +797,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "heart0044",
+                      "id": "heartw040",
                       "type": "stat-tiles",
                       "v": 2,
                       "settings": {
@@ -770,25 +813,12 @@
                             "link": null
                           }
                         ],
-                        "columns": "4"
+                        "columns": "2"
                       },
                       "unmet": "hide"
-                    }
-                  ]
-                },
-                {
-                  "id": "heart0047",
-                  "span": {
-                    "lg": 4
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
+                    },
                     {
-                      "id": "heart0046",
+                      "id": "heartw041",
                       "type": "top-xp",
                       "v": 1,
                       "settings": {
@@ -804,9 +834,10 @@
                   ]
                 },
                 {
-                  "id": "heart0049",
+                  "id": "heartc044",
                   "span": {
-                    "lg": 4
+                    "lg": 4,
+                    "md": 12
                   },
                   "padding": {
                     "lg": "none"
@@ -815,40 +846,45 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "heart0048",
-                      "type": "clan-stats",
+                      "id": "heartw043",
+                      "type": "activity-feed",
                       "v": 1,
                       "settings": {
-                        "title": "By the numbers"
+                        "title": "What everyone's been up to",
+                        "limit": 10
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "heartc046",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "heartw045",
+                      "type": "milestones",
+                      "v": 1,
+                      "settings": {
+                        "title": "Well done!",
+                        "limit": 8
                       },
                       "unmet": "hide"
                     }
                   ]
                 }
               ]
-            }
-          ]
-        },
-        {
-          "id": "heart0055",
-          "width": "wide",
-          "background": {
-            "kind": "surface"
-          },
-          "padding": {
-            "lg": {
-              "y": "lg",
-              "x": "md"
-            }
-          },
-          "height": {
-            "lg": {
-              "mode": "auto"
-            }
-          },
-          "rows": [
+            },
             {
-              "id": "heart0054",
+              "id": "heartr050",
               "gap": {
                 "lg": "md"
               },
@@ -860,7 +896,7 @@
               },
               "cells": [
                 {
-                  "id": "heart0053",
+                  "id": "heartc049",
                   "span": {
                     "lg": 12
                   },
@@ -871,7 +907,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "heart0052",
+                      "id": "heartw048",
                       "type": "roster",
                       "v": 1,
                       "settings": {
@@ -896,15 +932,76 @@
       ]
     },
     {
-      "id": "heart0004",
-      "title": "Join us",
-      "path": "join",
+      "id": "heartpsay",
+      "title": "Have your say",
+      "path": "have-your-say",
       "hidden": false,
       "access": "public",
       "sections": [
         {
-          "id": "heart0063",
-          "width": "content",
+          "id": "hearts055",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "heartr054",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "heartc053",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "heartw052",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Have your say",
+                        "subtitle": "Vote on what we do next and put your name down for upcoming trips. It's the same as on Discord.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "hearts061",
+          "width": "wide",
           "background": {
             "kind": "none"
           },
@@ -921,7 +1018,7 @@
           },
           "rows": [
             {
-              "id": "heart0062",
+              "id": "heartr060",
               "gap": {
                 "lg": "md"
               },
@@ -933,9 +1030,10 @@
               },
               "cells": [
                 {
-                  "id": "heart0058",
+                  "id": "heartc057",
                   "span": {
-                    "lg": 7
+                    "lg": 6,
+                    "md": 12
                   },
                   "padding": {
                     "lg": "none"
@@ -944,18 +1042,172 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "heart0056",
+                      "id": "heartw056",
+                      "type": "polls",
+                      "v": 1,
+                      "settings": {
+                        "title": "Polls",
+                        "limit": 6,
+                        "showClosed": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "heartc059",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "heartw058",
+                      "type": "signups",
+                      "v": 1,
+                      "settings": {
+                        "title": "Signups",
+                        "limit": 6,
+                        "showNames": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "heartpjoin",
+      "title": "Join us",
+      "path": "join",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "hearts065",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "heartr064",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "heartc063",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "heartw062",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Come and join us",
+                        "subtitle": "We'd love to have you.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "hearts076",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "heartr072",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "heartc068",
+                  "span": {
+                    "lg": 7,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "heartw066",
                       "type": "text",
                       "v": 1,
                       "settings": {
-                        "markdown": "## Come and join us\nWe'd love to have you. Hop on Discord, say hello, and someone will invite you in game.",
+                        "markdown": "Hop on Discord, say hello, and someone will invite you in game. No level needed, no XP targets: just be kind.",
                         "align": "left",
                         "width": "readable"
                       },
                       "unmet": "hide"
                     },
                     {
-                      "id": "heart0057",
+                      "id": "heartw067",
                       "type": "faq",
                       "v": 1,
                       "settings": {
@@ -967,7 +1219,11 @@
                           },
                           {
                             "q": "How do I join?",
-                            "a": "Apply on our Discord and a recruiter will invite you in game."
+                            "a": "Say hello on our Discord and a recruiter will invite you in game."
+                          },
+                          {
+                            "q": "Is it okay if I'm quiet?",
+                            "a": "Of course. Pop in when you like; nobody keeps score."
                           }
                         ]
                       },
@@ -976,9 +1232,10 @@
                   ]
                 },
                 {
-                  "id": "heart0061",
+                  "id": "heartc071",
                   "span": {
-                    "lg": 5
+                    "lg": 5,
+                    "md": 12
                   },
                   "padding": {
                     "lg": "none"
@@ -987,7 +1244,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "heart0059",
+                      "id": "heartw069",
                       "type": "recruiting",
                       "v": 1,
                       "settings": {
@@ -998,7 +1255,7 @@
                       "unmet": "hide"
                     },
                     {
-                      "id": "heart0060",
+                      "id": "heartw070",
                       "type": "discord-join",
                       "v": 1,
                       "settings": {
@@ -1011,29 +1268,9 @@
                   ]
                 }
               ]
-            }
-          ]
-        },
-        {
-          "id": "heart0067",
-          "width": "content",
-          "background": {
-            "kind": "none"
-          },
-          "padding": {
-            "lg": {
-              "y": "lg",
-              "x": "md"
-            }
-          },
-          "height": {
-            "lg": {
-              "mode": "auto"
-            }
-          },
-          "rows": [
+            },
             {
-              "id": "heart0066",
+              "id": "heartr075",
               "gap": {
                 "lg": "md"
               },
@@ -1045,7 +1282,7 @@
               },
               "cells": [
                 {
-                  "id": "heart0065",
+                  "id": "heartc074",
                   "span": {
                     "lg": 12
                   },
@@ -1056,11 +1293,12 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "heart0064",
+                      "id": "heartw073",
                       "type": "alliances",
                       "v": 1,
                       "settings": {
-                        "title": "Friends of the clan"
+                        "title": "Friends of the clan",
+                        "limit": 40
                       },
                       "unmet": "hide"
                     }
