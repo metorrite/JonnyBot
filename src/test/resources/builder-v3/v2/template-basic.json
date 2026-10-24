@@ -211,7 +211,9 @@
                       "type": "text",
                       "v": 1,
                       "settings": {
-                        "markdown": "## Welcome to {clan}\nWe're a friendly RuneScape clan. Have a look around, meet the members and say hello on our Discord."
+                        "markdown": "## Welcome to {clan}\nWe're a friendly RuneScape clan. Have a look around, meet the members and say hello on our Discord.",
+                        "align": "left",
+                        "width": "readable"
                       },
                       "unmet": "hide"
                     }
@@ -290,12 +292,31 @@
                     {
                       "id": "basic0015",
                       "type": "stat-tiles",
-                      "v": 1,
+                      "v": 2,
                       "settings": {
-                        "members": true,
-                        "xpWeek": true,
-                        "xpMonth": true,
-                        "kills": true
+                        "cards": [
+                          {
+                            "metric": "members",
+                            "label": "",
+                            "link": null
+                          },
+                          {
+                            "metric": "xpWeek",
+                            "label": "",
+                            "link": null
+                          },
+                          {
+                            "metric": "xpMonth",
+                            "label": "",
+                            "link": null
+                          },
+                          {
+                            "metric": "kills",
+                            "label": "",
+                            "link": null
+                          }
+                        ],
+                        "columns": "4"
                       },
                       "unmet": "hide"
                     }
@@ -377,7 +398,11 @@
                       "v": 1,
                       "settings": {
                         "title": "Top XP this week",
-                        "limit": 8
+                        "limit": 8,
+                        "showDay": true,
+                        "showWeek": true,
+                        "showMonth": true,
+                        "defaultTab": "week"
                       },
                       "unmet": "hide"
                     }
@@ -445,7 +470,9 @@
                       "type": "text",
                       "v": 1,
                       "settings": {
-                        "markdown": "## Our members\nEveryone in {clan}, by rank."
+                        "markdown": "## Our members\nEveryone in {clan}, by rank.",
+                        "align": "left",
+                        "width": "readable"
                       },
                       "unmet": "hide"
                     }
@@ -504,7 +531,12 @@
                         "title": "Members",
                         "limit": 100,
                         "showJoined": true,
-                        "search": true
+                        "showRank": true,
+                        "showLevel": false,
+                        "showXp": false,
+                        "search": true,
+                        "rankFilter": true,
+                        "sort": "rank"
                       },
                       "unmet": "hide"
                     }
@@ -569,7 +601,9 @@
                       "type": "text",
                       "v": 1,
                       "settings": {
-                        "markdown": "## Events\nBoss nights, skilling competitions and bingos. Sign up on Discord."
+                        "markdown": "## Events\nBoss nights, skilling competitions and bingos. Sign up on Discord.",
+                        "align": "left",
+                        "width": "readable"
                       },
                       "unmet": "hide"
                     }
@@ -717,7 +751,9 @@
                       "type": "text",
                       "v": 1,
                       "settings": {
-                        "markdown": "## About {clan}\nTell visitors who you are: what the clan enjoys, when you play and what makes it a good home."
+                        "markdown": "## About {clan}\nTell visitors who you are: what the clan enjoys, when you play and what makes it a good home.",
+                        "align": "left",
+                        "width": "readable"
                       },
                       "unmet": "hide"
                     }
@@ -830,7 +866,8 @@
                       "type": "alliances",
                       "v": 1,
                       "settings": {
-                        "title": "Our allies"
+                        "title": "Our allies",
+                        "limit": 40
                       },
                       "unmet": "hide"
                     }
