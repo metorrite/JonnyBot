@@ -5,6 +5,7 @@ import com.younglings.bot.clansite.SiteRoles;
 import com.younglings.bot.premium.Premium;
 import com.younglings.bot.premium.PremiumDatabaseInitializer;
 import com.younglings.bot.premium.PremiumGuildRepository;
+import com.younglings.bot.premium.PremiumSwitch;
 import com.younglings.bot.testsupport.LocalDatabase;
 import com.younglings.bot.upload.ImageUploadService;
 import com.younglings.bot.upload.UploadedImageDatabaseInitializer;
@@ -63,6 +64,8 @@ class SitePictureDatabaseTest {
 
     @BeforeEach
     void setUp() throws Exception {
+        // the free and premium limits exist only while Premium is switched on (T-422)
+        PremiumSwitch.forceForTests(true);
         premium = new Premium(new PremiumGuildRepository(supplier, new PremiumDatabaseInitializer(supplier)));
         repository = new UploadedImageRepository(supplier, new UploadedImageDatabaseInitializer(supplier));
         images = new ImageUploadService(repository);
@@ -81,6 +84,11 @@ class SitePictureDatabaseTest {
         when(g.getIdLong()).thenReturn(id);
         when(g.getId()).thenReturn(String.valueOf(id));
         return g;
+    }
+
+    @AfterEach
+    void switchBack() {
+        PremiumSwitch.forceForTests(null);
     }
 
     @AfterEach
@@ -111,6 +119,13 @@ class SitePictureDatabaseTest {
 
     private int status(Runnable call) {
         return assertThrows(TicketAdminApi.ApiError.class, call::run).status;
+    }
+
+    @Test
+    void premiumSwitchedOffGivesAFreeSiteThePremiumLimit() {
+        PremiumSwitch.forceForTests(false);
+
+        assertEquals(200, upload(guild, 1).getLong("limit"), "T-422: everything is free while PREMIUM_ENABLED is unset");
     }
 
     @Test
