@@ -2,6 +2,8 @@ package com.younglings.bot.internal;
 
 import com.younglings.bot.configure.GuildSettingsService;
 import com.younglings.bot.configure.WebsiteLink;
+import com.younglings.bot.discord.jobs.DiscordJob;
+import com.younglings.bot.discord.jobs.DiscordOutbox;
 import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.announcement.PostMarkup;
@@ -45,9 +47,11 @@ public class ClanAdminApi {
     private final CommunitySettings communitySettings;
     private final GuildSettingsService guildSettings;
     private final SiteCache cache;
+    private final DiscordOutbox outbox;
 
     public ClanAdminApi(MemberProfileRepository members, ClanPointsRepository points, SiteNewsService news, SiteStatsRepository stats, TrackingRepository tracking,
-                        CommunitySettings communitySettings, GuildSettingsService guildSettings, SiteCache cache) {
+                        CommunitySettings communitySettings, GuildSettingsService guildSettings, SiteCache cache, DiscordOutbox outbox) {
+        this.outbox = outbox;
         this.guildSettings = guildSettings;
         this.cache = cache;
         this.members = members;
@@ -241,15 +245,11 @@ public class ClanAdminApi {
         if (channel == null) throw new ApiError(400, Text.of(guild, "dashboard.that_isn_t_a_text_channel"));
         if (!channel.canTalk()) throw new ApiError(400, Text.of(guild, "dashboard.jonnybot_can_t_post_in", channel.getName()));
 
-        try {
-            channel.sendMessageComponents(java.util.List.of(parsed.toContainer(com.younglings.bot.discord.Containers.PRIMARY))).useComponentsV2(true)
-                    .setAllowedMentions(java.util.EnumSet.noneOf(net.dv8tion.jda.api.entities.Message.MentionType.class)).complete();
-        } catch (Exception e) {
-            log.warn("Dashboard post to {} failed", channelId, e);
-            throw new ApiError(502, Text.of(guild, "dashboard.discord_wouldn_t_let_the_message"));
-        }
-        log.info("Dashboard: {} posted a message in #{}", actor.getId(), channel.getName());
-        return DataObject.empty().put("ok", true).put("posted", true).put("warnings", warnings);
+        // T-456: queued, so the dashboard answers at once; ChannelPostJob posts it, waiting out Discord's rate limits, and the page follows it
+        DiscordJob job = outbox.enqueue(ChannelPostJob.KIND, guild.getIdLong(), actor.getIdLong(), null,
+                DataObject.empty().put("channelId", Long.toString(channelId)).put("text", text));
+        log.info("Dashboard: {} queued a message for #{} (job {})", actor.getId(), channel.getName(), job.id());
+        return DataObject.empty().put("ok", true).put("posted", false).put("queued", true).put("job", job.ticket()).put("warnings", warnings);
     }
 
     // ---------- community settings ----------

@@ -1,6 +1,9 @@
 package com.younglings.bot.internal;
 
 import com.younglings.bot.discord.DiscordLookups;
+import com.younglings.bot.discord.jobs.DiscordJob;
+import com.younglings.bot.discord.jobs.DiscordJobs;
+import com.younglings.bot.discord.jobs.DiscordOutbox;
 import com.sun.net.httpserver.HttpExchange;
 import com.younglings.bot.commands.runescape.RsInteractionListener;
 import com.younglings.bot.commands.poll.PollOption;
@@ -75,13 +78,15 @@ public class MemberApi {
     private final MemberEventsApi events;
     private final HighlightMemberApi highlights;
     private final ChatLevelMemberApi chatLevel;
+    private final DiscordOutbox outbox;
     // Per member: a handful of quick clicks is normal, a sustained flood is not. Reads are far cheaper than writes.
     private final RateLimiter writes = new RateLimiter(8, 1_500);
     private final RateLimiter reads = new RateLimiter(40, 500);
 
     public MemberApi(MemberProfileRepository repository, PlayerLinkRepository links, PollService pollService, SignupService signupService, MemberAccess memberAccess,
                      Debouncer debouncer, SiteCache cache, CommunitySettings community, SiteStatsRepository stats, RsInteractionListener rsLinks, MemberEventsApi events,
-                     HighlightMemberApi highlights, ChatLevelMemberApi chatLevel) {
+                     HighlightMemberApi highlights, ChatLevelMemberApi chatLevel, DiscordOutbox outbox) {
+        this.outbox = outbox;
         this.highlights = highlights;
         this.chatLevel = chatLevel;
         this.rsLinks = rsLinks;
@@ -225,7 +230,7 @@ public class MemberApi {
         Member member = ServerProfile.resolveMember(guild, userId);
         if (member == null) throw new Rejected(403, NOT_IN_SERVER);
         try {
-            return ServerProfile.setNickname(member, body);
+            return ServerProfile.setNickname(outbox, guild, member, body);
         } catch (ServerProfile.Refused e) {
             throw e;
         } catch (RuntimeException e) {
@@ -238,7 +243,7 @@ public class MemberApi {
         Member member = ServerProfile.resolveMember(guild, userId);
         if (member == null) throw new Rejected(403, NOT_IN_SERVER);
         try {
-            return ServerProfile.setColorRole(guild, member, body);
+            return ServerProfile.setColorRole(outbox, guild, member, body);
         } catch (ServerProfile.Refused e) {
             throw e;
         } catch (RuntimeException e) {
@@ -389,6 +394,13 @@ public class MemberApi {
         return DataObject.empty().put("roles", array);
     }
 
+    /** The job's half of a self-role change: gives or takes the role in Discord. */
+    static void applySelfRole(Guild guild, Member member, Role role, boolean on) {
+        if (member.getRoles().contains(role) == on) return;
+        if (on) DiscordJobs.send(guild.addRoleToMember(member, role).reason("Self-assigned on the website"));
+        else DiscordJobs.send(guild.removeRoleFromMember(member, role).reason("Removed on the website"));
+    }
+
     private DataObject toggleRole(Guild guild, long userId, DataObject body) {
         long roleId = parseId(body.getString("roleId", null), "roleId");
         boolean on = body.getBoolean("on", true);
@@ -399,14 +411,16 @@ public class MemberApi {
         if (!safeToAssign(guild, role)) throw new Rejected(403, "That role can't be assigned from here.");
 
         Member member = memberOf(guild, userId);
-        try {
-            if (on) guild.addRoleToMember(member, role).reason("Self-assigned on the website").complete();
-            else guild.removeRoleFromMember(member, role).reason("Removed on the website").complete();
-        } catch (Exception e) {
-            log.warn("Self-role {} for {} failed", roleId, userId, e);
-            throw new Rejected(502, "Discord wouldn't change that role.");
+        // T-456: queued, so the page never waits on Discord; the website follows the job. The newest choice for this role wins.
+        DiscordJob job = outbox.enqueue(SelfRoleJob.KIND, guild.getIdLong(), userId, "self-role:" + guild.getIdLong() + ":" + userId + ":" + roleId,
+                DataObject.empty().put("userId", Long.toString(member.getIdLong())).put("roleId", Long.toString(roleId)).put("on", on));
+        DataObject answer = roles(guild, userId);
+        // show the role as it will be, not as Discord has it this instant
+        for (int i = 0; i < answer.getArray("roles").length(); i++) {
+            DataObject row = answer.getArray("roles").getObject(i);
+            if (row.getString("roleId", "").equals(Long.toString(roleId))) row.put("has", on);
         }
-        return roles(guild, userId);
+        return answer.put("job", job.ticket());
     }
 
     // ---------- polls ----------

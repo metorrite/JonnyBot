@@ -53,6 +53,7 @@ class MemberApiClanSiteTest {
     private MemberEventsApi events;
     private CommunitySettings community;
     private MemberApi api;
+    private com.younglings.bot.discord.jobs.DiscordOutbox outbox;
     private Guild guild;
     private Member member;
 
@@ -62,8 +63,9 @@ class MemberApiClanSiteTest {
         links = mock(PlayerLinkRepository.class);
         events = mock(MemberEventsApi.class);
         community = mock(CommunitySettings.class);
+        outbox = mock(com.younglings.bot.discord.jobs.DiscordOutbox.class);
         api = new MemberApi(profiles, links, mock(PollService.class), mock(SignupService.class), mock(MemberAccess.class), mock(Debouncer.class), new SiteCache(), community,
-                mock(SiteStatsRepository.class), mock(RsInteractionListener.class), events, mock(HighlightMemberApi.class), mock(ChatLevelMemberApi.class));
+                mock(SiteStatsRepository.class), mock(RsInteractionListener.class), events, mock(HighlightMemberApi.class), mock(ChatLevelMemberApi.class), outbox);
 
         guild = mock(Guild.class);
         when(guild.getIdLong()).thenReturn(CLAN_GUILD);
@@ -156,13 +158,15 @@ class MemberApiClanSiteTest {
         assertFalse(profile.body().getBoolean("canChangeNickname"));
 
         when(community.siteMemberOptions(CLAN_GUILD)).thenReturn(new SiteMemberOptions(true, false));
-        @SuppressWarnings("unchecked")
-        AuditableRestAction<Void> rename = mock(AuditableRestAction.class);
-        when(member.modifyNickname(eq("New"))).thenReturn(rename);
+        // T-456: the change is queued as a Discord job and the answer comes at once; the request never talks to Discord
+        when(outbox.enqueue(eq("member.nickname"), eq(CLAN_GUILD), anyLong(), any(), any())).thenReturn(new com.younglings.bot.discord.jobs.DiscordJob(77, "member.nickname",
+                CLAN_GUILD, USER, null, net.dv8tion.jda.api.utils.data.DataObject.empty(), com.younglings.bot.discord.jobs.DiscordJob.State.QUEUED, 0, 0, null, null, null, null, null));
         Reply renamed = call("POST", "nickname", null, "{\"userId\":\"" + USER + "\",\"nickname\":\"New\"}", true);
         assertEquals(200, renamed.status());
         assertEquals("New", renamed.body().getString("nickname"));
-        verify(rename).complete();
+        assertEquals("77", renamed.body().getObject("job").getString("id"));
+        assertEquals("queued", renamed.body().getObject("job").getString("state"));
+        verify(member, never()).modifyNickname(any());
         assertEquals(400, call("POST", "nickname", null, "{\"userId\":\"" + USER + "\",\"nickname\":\"" + "x".repeat(33) + "\"}", true).status());
     }
 

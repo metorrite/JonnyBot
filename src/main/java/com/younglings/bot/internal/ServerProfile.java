@@ -1,6 +1,9 @@
 package com.younglings.bot.internal;
 
 import com.younglings.bot.discord.DiscordLookups;
+import com.younglings.bot.discord.jobs.DiscordJob;
+import com.younglings.bot.discord.jobs.DiscordJobs;
+import com.younglings.bot.discord.jobs.DiscordOutbox;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Role;
@@ -14,6 +17,9 @@ import java.util.List;
  * {@code /internal/member}, {@code /internal/nickname} and {@code /internal/color-role} ({@link InternalApiServer}) and a clan site's
  * {@code sites/{slug}/me/server-profile|nickname|color-role} ({@link DirectoryClanSiteMemberRoutes}, T-369), so the rules are the same in
  * both. The user id always comes from the caller's verified login session; every call acts on that one member in the one server given.
+ * <p>
+ * A change is checked here and then queued as a Discord job (T-456), so the website answers at once; {@link NicknameJob} and
+ * {@link ColorRoleJob} make it in Discord, waiting out rate limits, and the website follows the job's state.
  */
 final class ServerProfile {
     static final int MAX_NICKNAME_LENGTH = 32; // Discord's own limit
@@ -58,41 +64,63 @@ final class ServerProfile {
                 .put("colorRole", colorRoleKey);
     }
 
-    /** Sets (or with a blank or null {@code nickname}, clears) the member's nickname. */
-    static DataObject setNickname(Member member, DataObject body) {
+    static final String NICKNAME_JOB = "member.nickname";
+    static final String COLOR_ROLE_JOB = "member.color-role";
+
+    /**
+     * Queues setting (or with a blank or null {@code nickname}, clearing) the member's nickname. Answers the nickname asked for and the job
+     * that makes it; a nickname change still waiting is replaced by this one.
+     */
+    static DataObject setNickname(DiscordOutbox outbox, Guild guild, Member member, DataObject body) {
         String nickname = body.isNull("nickname") ? null : body.getString("nickname").trim();
         if (nickname != null && nickname.isEmpty()) nickname = null;
         if (nickname != null && nickname.length() > MAX_NICKNAME_LENGTH) {
             throw new Refused(400, "Nickname must be " + MAX_NICKNAME_LENGTH + " characters or fewer");
         }
-        member.modifyNickname(nickname).complete();
-        return DataObject.empty().put("nickname", nickname);
+        long guildId = guild.getIdLong();
+        DiscordJob job = outbox.enqueue(NICKNAME_JOB, guildId, member.getIdLong(), "nickname:" + guildId + ":" + member.getIdLong(),
+                DataObject.empty().put("userId", Long.toString(member.getIdLong())).put("nickname", nickname));
+        return DataObject.empty().put("nickname", nickname).put("job", job.ticket());
     }
 
-    /** Swaps the member's colour role for {@code color} (a {@link ColorRoleCatalog} key), or removes it for null; creates the role if missing. */
-    static DataObject setColorRole(Guild guild, Member member, DataObject body) {
+    /** Queues swapping the member's colour role for {@code color} (a {@link ColorRoleCatalog} key), or removing it for null. */
+    static DataObject setColorRole(DiscordOutbox outbox, Guild guild, Member member, DataObject body) {
         String colorKey = body.isNull("color") ? null : body.getString("color");
         if (colorKey != null && !ColorRoleCatalog.isValidKey(colorKey)) throw new Refused(400, "Unknown color: " + colorKey);
+        DiscordJob job = outbox.enqueue(COLOR_ROLE_JOB, guild.getIdLong(), member.getIdLong(), "color-role:" + guild.getIdLong() + ":" + member.getIdLong(),
+                DataObject.empty().put("userId", Long.toString(member.getIdLong())).put("color", colorKey));
+        return DataObject.empty().put("colorRole", colorKey).put("job", job.ticket());
+    }
 
+    /** The job's half: sets the nickname in Discord. */
+    static void applyNickname(Member member, String nickname) {
+        DiscordJobs.send(member.modifyNickname(nickname));
+    }
+
+    /** The job's half: swaps the colour role in Discord, creating the role if the server doesn't have it yet. */
+    static void applyColorRole(Guild guild, Member member, String colorKey) {
         List<Role> toRemove = new ArrayList<>();
         for (Role role : member.getRoles()) {
-            if (ColorRoleCatalog.isColorRoleName(role.getName())) toRemove.add(role);
+            if (ColorRoleCatalog.isColorRoleName(role.getName()) && (colorKey == null || !role.getName().equalsIgnoreCase(ColorRoleCatalog.roleName(colorKey)))) {
+                toRemove.add(role);
+            }
         }
         List<Role> toAdd = new ArrayList<>();
-        if (colorKey != null) toAdd.add(ensureColorRole(guild, colorKey));
-        if (!toAdd.isEmpty() || !toRemove.isEmpty()) guild.modifyMemberRoles(member, toAdd, toRemove).complete();
-        return DataObject.empty().put("colorRole", colorKey);
+        if (colorKey != null) {
+            Role wanted = ensureColorRole(guild, colorKey);
+            if (!member.getRoles().contains(wanted)) toAdd.add(wanted);
+        }
+        if (!toAdd.isEmpty() || !toRemove.isEmpty()) DiscordJobs.send(guild.modifyMemberRoles(member, toAdd, toRemove));
     }
 
     private static Role ensureColorRole(Guild guild, String colorKey) {
         String roleName = ColorRoleCatalog.roleName(colorKey);
         List<Role> existing = guild.getRolesByName(roleName, true);
         if (!existing.isEmpty()) return existing.getFirst();
-        return guild.createRole()
+        return DiscordJobs.send(guild.createRole()
                 .setName(roleName)
                 .setColor(ColorRoleCatalog.colorFor(colorKey))
                 .setMentionable(false)
-                .setHoisted(false)
-                .complete();
+                .setHoisted(false));
     }
 }
