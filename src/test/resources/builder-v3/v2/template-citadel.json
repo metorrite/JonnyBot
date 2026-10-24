@@ -1,0 +1,5099 @@
+{
+  "v": 2,
+  "look": {
+    "theme": "parchment",
+    "mode": "dark",
+    "accent": "#c9a227",
+    "logo": null,
+    "banner": null
+  },
+  "style": {
+    "fonts": {
+      "heading": "cinzel",
+      "body": "crimson-pro"
+    },
+    "radius": "sm",
+    "density": "normal",
+    "glow": "soft",
+    "buttons": "outline"
+  },
+  "header": {
+    "layout": "logo-left",
+    "logo": {
+      "show": true,
+      "text": "name",
+      "height": 44
+    },
+    "nav": [
+      {
+        "id": "citn0089",
+        "label": "Home",
+        "link": {
+          "kind": "page",
+          "pageId": "ptplhome"
+        }
+      },
+      {
+        "id": "citn0090",
+        "label": "Clan",
+        "children": [
+          {
+            "id": "citn0091",
+            "label": "Members",
+            "link": {
+              "kind": "page",
+              "pageId": "ptplmembers"
+            }
+          },
+          {
+            "id": "citn0092",
+            "label": "About us",
+            "link": {
+              "kind": "page",
+              "pageId": "citabout"
+            }
+          },
+          {
+            "id": "citn0093",
+            "label": "Hall of fame",
+            "link": {
+              "kind": "page",
+              "pageId": "ptplhalloffame"
+            }
+          },
+          {
+            "id": "citn0094",
+            "label": "History",
+            "link": {
+              "kind": "page",
+              "pageId": "ptplhistory"
+            }
+          },
+          {
+            "id": "citn0095",
+            "label": "Compare",
+            "link": {
+              "kind": "page",
+              "pageId": "ptplcompare"
+            }
+          }
+        ]
+      },
+      {
+        "id": "citn0096",
+        "label": "Stats",
+        "children": [
+          {
+            "id": "citn0097",
+            "label": "Clan stats",
+            "link": {
+              "kind": "page",
+              "pageId": "ptplstats"
+            }
+          },
+          {
+            "id": "citn0098",
+            "label": "Leaderboards",
+            "link": {
+              "kind": "page",
+              "pageId": "ptplleaderboards"
+            }
+          },
+          {
+            "id": "citn0099",
+            "label": "Recaps",
+            "link": {
+              "kind": "page",
+              "pageId": "ptplrecaps"
+            }
+          },
+          {
+            "id": "citn0100",
+            "label": "Citadel",
+            "link": {
+              "kind": "page",
+              "pageId": "ptplcitadel"
+            }
+          },
+          {
+            "id": "citn0101",
+            "label": "Coffer",
+            "link": {
+              "kind": "page",
+              "pageId": "ptplcoffer"
+            }
+          }
+        ]
+      },
+      {
+        "id": "citn0102",
+        "label": "PvM",
+        "children": [
+          {
+            "id": "citn0103",
+            "label": "Bosses",
+            "link": {
+              "kind": "page",
+              "pageId": "ptplpvm"
+            }
+          },
+          {
+            "id": "citn0104",
+            "label": "Drop log",
+            "link": {
+              "kind": "page",
+              "pageId": "ptpldrops"
+            }
+          }
+        ]
+      },
+      {
+        "id": "citn0105",
+        "label": "Events",
+        "children": [
+          {
+            "id": "citn0106",
+            "label": "Upcoming",
+            "link": {
+              "kind": "page",
+              "pageId": "ptplevents"
+            }
+          },
+          {
+            "id": "citn0107",
+            "label": "Calendar",
+            "link": {
+              "kind": "page",
+              "pageId": "ptplcalendar"
+            }
+          },
+          {
+            "id": "citn0108",
+            "label": "Signups",
+            "link": {
+              "kind": "page",
+              "pageId": "ptplsignups"
+            }
+          },
+          {
+            "id": "citn0109",
+            "label": "Polls",
+            "link": {
+              "kind": "page",
+              "pageId": "ptplpolls"
+            }
+          }
+        ]
+      },
+      {
+        "id": "citn0110",
+        "label": "Join us",
+        "link": {
+          "kind": "page",
+          "pageId": "citjoin"
+        }
+      }
+    ],
+    "slots": {
+      "left": [
+        {
+          "kind": "citadel-timer",
+          "settings": {
+            "label": "Reset"
+          }
+        }
+      ],
+      "right": [
+        {
+          "kind": "online-count"
+        },
+        {
+          "kind": "search"
+        },
+        {
+          "kind": "bell"
+        },
+        {
+          "kind": "profile"
+        }
+      ]
+    },
+    "sticky": true,
+    "transparent": "home",
+    "height": "tall",
+    "mobile": "drawer"
+  },
+  "footer": {
+    "columns": [
+      {
+        "title": "{clan}",
+        "links": [
+          {
+            "label": "About us",
+            "link": {
+              "kind": "page",
+              "pageId": "citabout"
+            }
+          },
+          {
+            "label": "Join us",
+            "link": {
+              "kind": "page",
+              "pageId": "citjoin"
+            }
+          }
+        ]
+      },
+      {
+        "title": "Clan",
+        "links": [
+          {
+            "label": "Members",
+            "link": {
+              "kind": "page",
+              "pageId": "ptplmembers"
+            }
+          },
+          {
+            "label": "Hall of fame",
+            "link": {
+              "kind": "page",
+              "pageId": "ptplhalloffame"
+            }
+          }
+        ]
+      },
+      {
+        "title": "Stats",
+        "links": [
+          {
+            "label": "Clan stats",
+            "link": {
+              "kind": "page",
+              "pageId": "ptplstats"
+            }
+          },
+          {
+            "label": "Citadel",
+            "link": {
+              "kind": "page",
+              "pageId": "ptplcitadel"
+            }
+          }
+        ]
+      },
+      {
+        "title": "Events",
+        "links": [
+          {
+            "label": "Upcoming",
+            "link": {
+              "kind": "page",
+              "pageId": "ptplevents"
+            }
+          },
+          {
+            "label": "Discord",
+            "link": {
+              "kind": "invite"
+            }
+          }
+        ]
+      }
+    ],
+    "text": "{clan}. Forged in the Citadel.",
+    "showSocial": true,
+    "badge": true
+  },
+  "pages": [
+    {
+      "id": "ptplhome",
+      "title": "Home",
+      "path": "",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "hms004",
+          "width": "full",
+          "background": {
+            "kind": "image",
+            "image": "https://runeclans.com/bingo-looks/grid-runescape.jpg",
+            "overlay": 75
+          },
+          "padding": {
+            "lg": {
+              "y": "xl",
+              "x": "lg"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "hmr003",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "hmc002",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "hmw001",
+                      "type": "clan-header",
+                      "v": 1,
+                      "settings": {
+                        "showBanner": true,
+                        "showTagline": true,
+                        "align": "left"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "hms016",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "hmr015",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "hmc009",
+                  "span": {
+                    "lg": 3,
+                    "md": 6,
+                    "base": 12
+                  },
+                  "order": {
+                    "md": 2,
+                    "base": 2
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "hmw005",
+                      "type": "top-xp",
+                      "v": 1,
+                      "settings": {
+                        "title": "Top XP gainers",
+                        "limit": 8,
+                        "showDay": true,
+                        "showWeek": true,
+                        "showMonth": true,
+                        "defaultTab": "week"
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "hmw006",
+                      "type": "activity-feed",
+                      "v": 1,
+                      "settings": {
+                        "title": "Clan activity",
+                        "limit": 8
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "hmw007",
+                      "type": "milestones",
+                      "v": 1,
+                      "settings": {
+                        "title": "Milestones",
+                        "limit": 6
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "hmw008",
+                      "type": "citadel-chart",
+                      "v": 1,
+                      "settings": {
+                        "title": "Citadel",
+                        "weeks": 6,
+                        "series": "both"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "hmc012",
+                  "span": {
+                    "lg": 6,
+                    "md": 12,
+                    "base": 12
+                  },
+                  "order": {
+                    "md": 1,
+                    "base": 1
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "hmw010",
+                      "type": "stat-tiles",
+                      "v": 2,
+                      "settings": {
+                        "cards": [
+                          {
+                            "metric": "members",
+                            "label": "",
+                            "link": null
+                          },
+                          {
+                            "metric": "xpWeek",
+                            "label": "",
+                            "link": null
+                          },
+                          {
+                            "metric": "xpMonth",
+                            "label": "",
+                            "link": null
+                          },
+                          {
+                            "metric": "kills",
+                            "label": "",
+                            "link": null
+                          }
+                        ],
+                        "columns": "4"
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "hmw011",
+                      "type": "channel-feed",
+                      "v": 1,
+                      "settings": {
+                        "title": "News",
+                        "channel": "",
+                        "limit": 5,
+                        "showAuthors": true,
+                        "showImages": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "hmc014",
+                  "span": {
+                    "lg": 3,
+                    "md": 6,
+                    "base": 12
+                  },
+                  "order": {
+                    "md": 3,
+                    "base": 3
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "hmw013",
+                      "type": "discord-online",
+                      "v": 1,
+                      "settings": {
+                        "title": "Online on Discord",
+                        "show": "names",
+                        "groups": true,
+                        "limit": 24
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "origin": {
+        "template": "home",
+        "v": 1
+      },
+      "seo": {
+        "description": "{clan}: our clan hall. Members, stats, PvM, events and more."
+      }
+    },
+    {
+      "id": "ptplmembers",
+      "title": "Members",
+      "path": "members",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "mbs004",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "mbr003",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "mbc002",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "mbw001",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Members",
+                        "subtitle": "Everyone currently in the clan. Open a member to see their stats, gains, Citadel record and adventure log.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "mbs010",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "mbr009",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "mbc006",
+                  "span": {
+                    "lg": 9,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "mbw005",
+                      "type": "member-directory",
+                      "v": 1,
+                      "settings": {
+                        "title": "",
+                        "style": "list",
+                        "limit": 100,
+                        "sort": "rank",
+                        "showRank": true,
+                        "showLevel": true,
+                        "showXp": false,
+                        "showJoined": false,
+                        "search": true,
+                        "rankFilter": true,
+                        "linkPages": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "mbc008",
+                  "span": {
+                    "lg": 3,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "mbw007",
+                      "type": "rank-breakdown",
+                      "v": 1,
+                      "settings": {
+                        "title": "Ranks",
+                        "limit": 20,
+                        "style": "ring",
+                        "showEmpty": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "origin": {
+        "template": "members",
+        "v": 1
+      }
+    },
+    {
+      "id": "ptplmember",
+      "title": "Member page",
+      "path": "member",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "mps004",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "mpr003",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "mpc002",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "mpw001",
+                      "type": "member-card",
+                      "v": 1,
+                      "settings": {
+                        "showBio": true,
+                        "showTotals": true,
+                        "showNextRank": true,
+                        "showCompare": true,
+                        "comparePage": {
+                          "kind": "page",
+                          "pageId": "ptplcompare"
+                        }
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "mps023",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "mpr009",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "mpc006",
+                  "span": {
+                    "lg": 8,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "mpw005",
+                      "type": "member-xp-chart",
+                      "v": 1,
+                      "settings": {
+                        "title": "XP over time",
+                        "days": "90",
+                        "gains": "week"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "mpc008",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "mpw007",
+                      "type": "member-badges",
+                      "v": 1,
+                      "settings": {
+                        "title": "Badges",
+                        "limit": 10,
+                        "style": "chips"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "mpr012",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "mpc011",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "mpw010",
+                      "type": "member-skills",
+                      "v": 1,
+                      "settings": {
+                        "title": "Skills",
+                        "limit": 30,
+                        "style": "grid",
+                        "sort": "game",
+                        "showProgress": true,
+                        "showRank": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "mpr017",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "mpc014",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "mpw013",
+                      "type": "member-citadel",
+                      "v": 1,
+                      "settings": {
+                        "title": "Citadel",
+                        "weeks": 12,
+                        "showGrid": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "mpc016",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "mpw015",
+                      "type": "member-points",
+                      "v": 1,
+                      "settings": {
+                        "title": "Clan points",
+                        "limit": 8
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "mpr022",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "mpc019",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "mpw018",
+                      "type": "member-adventure-log",
+                      "v": 1,
+                      "settings": {
+                        "title": "Adventure log",
+                        "limit": 10,
+                        "showDetails": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "mpc021",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "mpw020",
+                      "type": "member-recap",
+                      "v": 1,
+                      "settings": {
+                        "title": "Recap",
+                        "period": "week",
+                        "limit": 3
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "template": "member",
+      "origin": {
+        "template": "member",
+        "v": 1
+      }
+    },
+    {
+      "id": "ptplcompare",
+      "title": "Compare",
+      "path": "compare",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "cms004",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "cmr003",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "cmc002",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "cmw001",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Compare members",
+                        "subtitle": "Pick two members to see them side by side, skill by skill.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "cms008",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "cmr007",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "cmc006",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "cmw005",
+                      "type": "compare",
+                      "v": 1,
+                      "settings": {
+                        "title": "",
+                        "left": "",
+                        "right": "",
+                        "showSkills": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "origin": {
+        "template": "compare",
+        "v": 1
+      }
+    },
+    {
+      "id": "ptplhalloffame",
+      "title": "Hall of fame",
+      "path": "hall-of-fame",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "hfs004",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "hfr003",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "hfc002",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "hfw001",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Hall of fame",
+                        "subtitle": "The clan's records and the members who hold them.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "hfs010",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "hfr009",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "hfc006",
+                  "span": {
+                    "lg": 8,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "hfw005",
+                      "type": "hall-of-fame",
+                      "v": 1,
+                      "settings": {
+                        "title": "",
+                        "showDays": true,
+                        "showClub": true,
+                        "showStreaks": true,
+                        "showVeterans": true,
+                        "limit": 8
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "hfc008",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "hfw007",
+                      "type": "milestones",
+                      "v": 1,
+                      "settings": {
+                        "title": "Milestones",
+                        "limit": 10
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "origin": {
+        "template": "hall-of-fame",
+        "v": 1
+      }
+    },
+    {
+      "id": "ptplhistory",
+      "title": "Clan history",
+      "path": "history",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "hss004",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "hsr003",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "hsc002",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "hsw001",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Clan history",
+                        "subtitle": "How the clan has grown, and who's come and gone.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "hss010",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "hsr009",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "hsc006",
+                  "span": {
+                    "lg": 5,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "hsw005",
+                      "type": "joins-chart",
+                      "v": 1,
+                      "settings": {
+                        "title": "Members over time",
+                        "points": 60
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "hsc008",
+                  "span": {
+                    "lg": 7,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "hsw007",
+                      "type": "clan-history",
+                      "v": 1,
+                      "settings": {
+                        "title": "Recent joins, leaves and promotions",
+                        "showTimeline": true,
+                        "showPromotions": true,
+                        "limit": 25
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "origin": {
+        "template": "history",
+        "v": 1
+      }
+    },
+    {
+      "id": "citabout",
+      "title": "About us",
+      "path": "about",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "cits0004",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "citr0003",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "citc0002",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "citw0001",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "About {clan}",
+                        "subtitle": "Who we are, what we do, and the people we play with.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "cits0018",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "citr0009",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "citc0006",
+                  "span": {
+                    "lg": 7,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "citw0005",
+                      "type": "text",
+                      "v": 1,
+                      "settings": {
+                        "markdown": "## Welcome to {clan}\nWe're a RuneScape clan for every kind of player: skillers, bossers, Citadel regulars and people who just like the chat.\n\n- Weekly events and competitions\n- A busy Discord\n- Help for new players, always",
+                        "align": "left",
+                        "width": "readable"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "citc0008",
+                  "span": {
+                    "lg": 5,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "citw0007",
+                      "type": "image",
+                      "v": 2,
+                      "settings": {
+                        "image": {
+                          "src": "https://runeclans.com/bingo-looks/pyramid-runescape.jpg",
+                          "alt": "One of our clan event boards"
+                        },
+                        "caption": "Our clan events",
+                        "height": "medium",
+                        "link": null,
+                        "rounded": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "citr0012",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "citc0011",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "citw0010",
+                      "type": "gallery",
+                      "v": 1,
+                      "settings": {
+                        "title": "Clan events in pictures",
+                        "pictures": [
+                          {
+                            "image": {
+                              "src": "https://runeclans.com/bingo-looks/grid-runescape.jpg",
+                              "alt": "A clan event board"
+                            },
+                            "caption": ""
+                          },
+                          {
+                            "image": {
+                              "src": "https://runeclans.com/bingo-looks/path-runescape.jpg",
+                              "alt": "A clan event board"
+                            },
+                            "caption": ""
+                          },
+                          {
+                            "image": {
+                              "src": "https://runeclans.com/bingo-looks/pyramid-runescape.jpg",
+                              "alt": "A clan event board"
+                            },
+                            "caption": ""
+                          },
+                          {
+                            "image": {
+                              "src": "https://runeclans.com/bingo-looks/tree-runescape.jpg",
+                              "alt": "A clan event board"
+                            },
+                            "caption": ""
+                          },
+                          {
+                            "image": {
+                              "src": "https://runeclans.com/bingo-looks/convergence-runescape.jpg",
+                              "alt": "A clan event board"
+                            },
+                            "caption": ""
+                          },
+                          {
+                            "image": {
+                              "src": "https://runeclans.com/bingo-looks/grid-classic.jpg",
+                              "alt": "A clan event board"
+                            },
+                            "caption": ""
+                          }
+                        ],
+                        "layout": "grid",
+                        "columns": 3,
+                        "lightbox": true,
+                        "captions": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "citr0017",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "citc0014",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "citw0013",
+                      "type": "video",
+                      "v": 1,
+                      "settings": {
+                        "title": "Necromancy in RuneScape",
+                        "url": "https://www.youtube.com/watch?v=HpGFbcxzJ-k",
+                        "caption": "Jagex's official trailer"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "citc0016",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "citw0015",
+                      "type": "clan-stats",
+                      "v": 1,
+                      "settings": {
+                        "title": "The clan in numbers"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "cits0043",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "citr0021",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "citc0020",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "citw0019",
+                      "type": "divider",
+                      "v": 1,
+                      "settings": {
+                        "label": "Around the clan",
+                        "style": "fade",
+                        "space": "md",
+                        "colour": ""
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "citr0028",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "citc0023",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "citw0022",
+                      "type": "clan-goals",
+                      "v": 1,
+                      "settings": {
+                        "title": "Clan goals",
+                        "goals": [
+                          {
+                            "label": "Grow to 250 members",
+                            "metric": "members",
+                            "target": 250
+                          },
+                          {
+                            "label": "1 billion XP this month",
+                            "metric": "xpMonth",
+                            "target": 1000000000
+                          }
+                        ]
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "citc0025",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "citw0024",
+                      "type": "alliances",
+                      "v": 1,
+                      "settings": {
+                        "title": "Our allies",
+                        "limit": 40
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "citc0027",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "citw0026",
+                      "type": "event-standings",
+                      "v": 1,
+                      "settings": {
+                        "title": "Event standings",
+                        "limit": 10
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "citr0033",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "citc0030",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "citw0029",
+                      "type": "adventure-log",
+                      "v": 1,
+                      "settings": {
+                        "title": "Adventure log",
+                        "limit": 8,
+                        "tabs": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "citc0032",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "citw0031",
+                      "type": "runesync-activity",
+                      "v": 1,
+                      "settings": {
+                        "title": "Live from the game",
+                        "limit": 6
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "citr0036",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "citc0035",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "citw0034",
+                      "type": "quick-links",
+                      "v": 1,
+                      "settings": {
+                        "title": "Find your way",
+                        "tiles": [
+                          {
+                            "icon": "users",
+                            "label": "Members",
+                            "description": "Everyone in the clan",
+                            "link": {
+                              "kind": "page",
+                              "pageId": "ptplmembers"
+                            }
+                          },
+                          {
+                            "icon": "calendar",
+                            "label": "Events",
+                            "description": "What's on this week",
+                            "link": {
+                              "kind": "page",
+                              "pageId": "ptplevents"
+                            }
+                          },
+                          {
+                            "icon": "trophy",
+                            "label": "Hall of fame",
+                            "description": "Our records",
+                            "link": {
+                              "kind": "page",
+                              "pageId": "ptplhalloffame"
+                            }
+                          }
+                        ],
+                        "columns": 3,
+                        "look": "tiles"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "citr0039",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "citc0038",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "citw0037",
+                      "type": "spacer",
+                      "v": 1,
+                      "settings": {
+                        "height": 32,
+                        "phoneHalf": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "citr0042",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "citc0041",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "citw0040",
+                      "type": "links",
+                      "v": 2,
+                      "settings": {
+                        "title": "Elsewhere",
+                        "style": "list",
+                        "links": [
+                          {
+                            "label": "RuneScape",
+                            "link": {
+                              "kind": "url",
+                              "href": "https://www.runescape.com/"
+                            }
+                          },
+                          {
+                            "label": "Our Discord",
+                            "link": {
+                              "kind": "invite"
+                            }
+                          }
+                        ]
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ptplstats",
+      "title": "Clan stats",
+      "path": "stats",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "sts004",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "str003",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "stc002",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "stw001",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Clan stats",
+                        "subtitle": "XP, Citadel activity, joins and leaves, live from the clan's bot.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "sts025",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "str007",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "stc006",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "stw005",
+                      "type": "stat-tiles",
+                      "v": 2,
+                      "settings": {
+                        "cards": [
+                          {
+                            "metric": "members",
+                            "label": "",
+                            "link": null
+                          },
+                          {
+                            "metric": "xpWeek",
+                            "label": "",
+                            "link": null
+                          },
+                          {
+                            "metric": "xpMonth",
+                            "label": "",
+                            "link": null
+                          },
+                          {
+                            "metric": "kills",
+                            "label": "",
+                            "link": null
+                          }
+                        ],
+                        "columns": "4"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "str012",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "stc009",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "stw008",
+                      "type": "xp-chart",
+                      "v": 1,
+                      "settings": {
+                        "title": "XP gained by the clan",
+                        "months": 6
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "stc011",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "stw010",
+                      "type": "citadel-chart",
+                      "v": 1,
+                      "settings": {
+                        "title": "Citadel caps and visits per week",
+                        "weeks": 12,
+                        "series": "both"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "str017",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "stc014",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "stw013",
+                      "type": "joins-chart",
+                      "v": 1,
+                      "settings": {
+                        "title": "Members over time",
+                        "points": 30
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "stc016",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "stw015",
+                      "type": "rank-breakdown",
+                      "v": 1,
+                      "settings": {
+                        "title": "Rank breakdown",
+                        "limit": 20,
+                        "style": "ring",
+                        "showEmpty": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "str024",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "stc019",
+                  "span": {
+                    "lg": 4,
+                    "md": 6
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "stw018",
+                      "type": "top-list",
+                      "v": 1,
+                      "settings": {
+                        "title": "Highest total XP",
+                        "metric": "xp",
+                        "limit": 10
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "stc021",
+                  "span": {
+                    "lg": 4,
+                    "md": 6
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "stw020",
+                      "type": "leaderboard",
+                      "v": 1,
+                      "settings": {
+                        "title": "Most Citadel caps",
+                        "metric": "citadel",
+                        "period": "all",
+                        "visitorPeriods": false,
+                        "limit": 10
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "stc023",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "stw022",
+                      "type": "kill-tracker",
+                      "v": 1,
+                      "settings": {
+                        "title": "Most boss kills",
+                        "period": "all",
+                        "limit": 10
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "origin": {
+        "template": "stats",
+        "v": 1
+      }
+    },
+    {
+      "id": "ptplleaderboards",
+      "title": "Leaderboards",
+      "path": "leaderboards",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "lbs004",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "lbr003",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "lbc002",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "lbw001",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Leaderboards",
+                        "subtitle": "Who gained the most XP, who capped the Citadel, and who joined, for any time frame you pick.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "lbs015",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "lbr009",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "lbc006",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "lbw005",
+                      "type": "leaderboard",
+                      "v": 1,
+                      "settings": {
+                        "title": "Top XP gainers",
+                        "metric": "xp",
+                        "period": "month",
+                        "visitorPeriods": true,
+                        "limit": 15
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "lbc008",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "lbw007",
+                      "type": "leaderboard",
+                      "v": 1,
+                      "settings": {
+                        "title": "Most Citadel caps",
+                        "metric": "citadel",
+                        "period": "month",
+                        "visitorPeriods": true,
+                        "limit": 15
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "lbr014",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "lbc011",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "lbw010",
+                      "type": "leaderboard",
+                      "v": 1,
+                      "settings": {
+                        "title": "Newest members",
+                        "metric": "joins",
+                        "period": "month",
+                        "visitorPeriods": true,
+                        "limit": 15
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "lbc013",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "lbw012",
+                      "type": "top-xp",
+                      "v": 1,
+                      "settings": {
+                        "title": "Top XP this week",
+                        "limit": 8,
+                        "showDay": true,
+                        "showWeek": true,
+                        "showMonth": true,
+                        "defaultTab": "week"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "origin": {
+        "template": "leaderboards",
+        "v": 1
+      }
+    },
+    {
+      "id": "ptplrecaps",
+      "title": "Recaps",
+      "path": "recaps",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "rcs004",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "rcr003",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "rcc002",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "rcw001",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Recaps",
+                        "subtitle": "Your clan's week, month or year in review. Each member's own recap is on their member page.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "rcs010",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "rcr009",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "rcc006",
+                  "span": {
+                    "lg": 7,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "rcw005",
+                      "type": "recap",
+                      "v": 1,
+                      "settings": {
+                        "title": "The whole clan",
+                        "period": "last-week",
+                        "visitorPeriods": true,
+                        "showTop": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "rcc008",
+                  "span": {
+                    "lg": 5,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "rcw007",
+                      "type": "weekly-recap",
+                      "v": 1,
+                      "settings": {
+                        "title": "Last week",
+                        "showTop": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "origin": {
+        "template": "recaps",
+        "v": 1
+      }
+    },
+    {
+      "id": "ptplcitadel",
+      "title": "Citadel",
+      "path": "citadel",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "cts004",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "ctr003",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ctc002",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ctw001",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Citadel attendance",
+                        "subtitle": "Every member by every Citadel week: who capped and who visited.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "cts013",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "ctr009",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ctc006",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ctw005",
+                      "type": "citadel-timer",
+                      "v": 1,
+                      "settings": {
+                        "title": "Weekly reset",
+                        "day": "3",
+                        "hour": 0,
+                        "daily": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "ctc008",
+                  "span": {
+                    "lg": 8,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ctw007",
+                      "type": "citadel-chart",
+                      "v": 1,
+                      "settings": {
+                        "title": "Caps and visits per week",
+                        "weeks": 12,
+                        "series": "both"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "ctr012",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ctc011",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ctw010",
+                      "type": "citadel-grid",
+                      "v": 1,
+                      "settings": {
+                        "title": "",
+                        "weeks": 12,
+                        "limit": 50
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "origin": {
+        "template": "citadel",
+        "v": 1
+      }
+    },
+    {
+      "id": "ptplcoffer",
+      "title": "Clan coffer",
+      "path": "coffer",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "cfs004",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "cfr003",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "cfc002",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "cfw001",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Clan coffer",
+                        "subtitle": "What members have donated and how it's been given back. Individual balances stay private.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "cfs008",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "cfr007",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "cfc006",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "cfw005",
+                      "type": "coffer",
+                      "v": 1,
+                      "settings": {
+                        "title": "",
+                        "showDonors": true,
+                        "showGiveaways": true,
+                        "limit": 10
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "origin": {
+        "template": "coffer",
+        "v": 1
+      }
+    },
+    {
+      "id": "ptplpvm",
+      "title": "PvM",
+      "path": "pvm",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "pvs004",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "pvr003",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "pvc002",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "pvw001",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "PvM and bosses",
+                        "subtitle": "Boss kills and notable drops from members' adventure logs. Pick a boss for its full breakdown.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "pvs013",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "pvr007",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "pvc006",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "pvw005",
+                      "type": "button-row",
+                      "v": 1,
+                      "settings": {
+                        "buttons": [
+                          {
+                            "label": "Open the drop log",
+                            "link": {
+                              "kind": "page",
+                              "pageId": "ptpldrops"
+                            },
+                            "style": "primary"
+                          }
+                        ],
+                        "align": "left",
+                        "size": "medium",
+                        "fullWidth": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "pvr012",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "pvc009",
+                  "span": {
+                    "lg": 7,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "pvw008",
+                      "type": "kill-tracker",
+                      "v": 1,
+                      "settings": {
+                        "title": "Boss kills",
+                        "period": "all",
+                        "limit": 25
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "pvc011",
+                  "span": {
+                    "lg": 5,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "pvw010",
+                      "type": "drops",
+                      "v": 1,
+                      "settings": {
+                        "title": "Recent drops",
+                        "limit": 10
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "origin": {
+        "template": "pvm",
+        "v": 1
+      }
+    },
+    {
+      "id": "ptplboss",
+      "title": "Boss page",
+      "path": "boss",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "bss004",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "bsr003",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "bsc002",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "bsw001",
+                      "type": "boss-detail",
+                      "v": 1,
+                      "settings": {
+                        "period": "all",
+                        "limit": 25
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "template": "boss",
+      "origin": {
+        "template": "boss",
+        "v": 1
+      }
+    },
+    {
+      "id": "ptpldrops",
+      "title": "Drop log",
+      "path": "drops",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "drs004",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "drr003",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "drc002",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "drw001",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Drop log",
+                        "subtitle": "The clan's drops as a collection log. Items turn up in colour as they're received.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "drs008",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "drr007",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "drc006",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "drw005",
+                      "type": "drop-log",
+                      "v": 1,
+                      "settings": {
+                        "title": "",
+                        "period": "all",
+                        "showGrid": true,
+                        "limit": 25
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "origin": {
+        "template": "drops",
+        "v": 1
+      }
+    },
+    {
+      "id": "ptplitem",
+      "title": "Item page",
+      "path": "item",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "its004",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "itr003",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "itc002",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "itw001",
+                      "type": "item-detail",
+                      "v": 1,
+                      "settings": {
+                        "period": "all",
+                        "limit": 25
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "template": "item",
+      "origin": {
+        "template": "item",
+        "v": 1
+      }
+    },
+    {
+      "id": "ptplevents",
+      "title": "Events",
+      "path": "events",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "evs004",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "evr003",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "evc002",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "evw001",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Events",
+                        "subtitle": "What's coming up in the clan. Times are shown in your own timezone.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "evs014",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "evr007",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "evc006",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "evw005",
+                      "type": "button-row",
+                      "v": 1,
+                      "settings": {
+                        "buttons": [
+                          {
+                            "label": "Open the calendar",
+                            "link": {
+                              "kind": "page",
+                              "pageId": "ptplcalendar"
+                            },
+                            "style": "primary"
+                          }
+                        ],
+                        "align": "left",
+                        "size": "medium",
+                        "fullWidth": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "evr010",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "evc009",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "evw008",
+                      "type": "hub-events",
+                      "v": 1,
+                      "settings": {
+                        "title": "Events and competitions",
+                        "limit": 6,
+                        "showFinished": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "evr013",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "evc012",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "evw011",
+                      "type": "events",
+                      "v": 1,
+                      "settings": {
+                        "title": "Coming up",
+                        "limit": 8,
+                        "showImages": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "origin": {
+        "template": "events",
+        "v": 1
+      }
+    },
+    {
+      "id": "ptplcalendar",
+      "title": "Event calendar",
+      "path": "calendar",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "cas004",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "car003",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "cac002",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "caw001",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Event calendar",
+                        "subtitle": "Upcoming events by day. Times are shown in your own timezone.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "cas008",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "car007",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "cac006",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "caw005",
+                      "type": "events-calendar",
+                      "v": 1,
+                      "settings": {
+                        "title": "",
+                        "showDiscord": true,
+                        "showHub": true,
+                        "weekStart": "mon"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "origin": {
+        "template": "calendar",
+        "v": 1
+      }
+    },
+    {
+      "id": "ptplevent",
+      "title": "Event page",
+      "path": "event",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "eds004",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "edr003",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "edc002",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "edw001",
+                      "type": "event-detail",
+                      "v": 1,
+                      "settings": {
+                        "showPrizes": true,
+                        "showStandings": true,
+                        "limit": 10
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "template": "event",
+      "origin": {
+        "template": "event",
+        "v": 1
+      }
+    },
+    {
+      "id": "ptplsignups",
+      "title": "Signups",
+      "path": "signups",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "sus004",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "sur003",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "suc002",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "suw001",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Signups",
+                        "subtitle": "Sign up for events and groups. It's the same list as the one on Discord.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "sus008",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "sur007",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "suc006",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "suw005",
+                      "type": "signups",
+                      "v": 1,
+                      "settings": {
+                        "title": "",
+                        "limit": 10,
+                        "showNames": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "origin": {
+        "template": "signups",
+        "v": 1
+      }
+    },
+    {
+      "id": "ptplpolls",
+      "title": "Polls",
+      "path": "polls",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "pls004",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "plr003",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "plc002",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "plw001",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Polls",
+                        "subtitle": "The clan's polls. Members vote here or on Discord.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "pls008",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "plr007",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "plc006",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "plw005",
+                      "type": "polls",
+                      "v": 1,
+                      "settings": {
+                        "title": "",
+                        "limit": 10,
+                        "showClosed": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "origin": {
+        "template": "polls",
+        "v": 1
+      }
+    },
+    {
+      "id": "citjoin",
+      "title": "Join us",
+      "path": "join",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "cits0047",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "citr0046",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "citc0045",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "citw0044",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Join {clan}",
+                        "subtitle": "Everyone is welcome. Here's how to get in.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "cits0061",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "citr0052",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "citc0049",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "citw0048",
+                      "type": "recruiting",
+                      "v": 1,
+                      "settings": {
+                        "title": "We're recruiting",
+                        "buttonLabel": "Apply now",
+                        "showRequirements": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "citc0051",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "citw0050",
+                      "type": "discord-join",
+                      "v": 1,
+                      "settings": {
+                        "title": "Join our Discord",
+                        "text": "Chat, events and clan news all happen on our Discord.",
+                        "buttonLabel": "Join the Discord"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "citr0057",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "citc0054",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "citw0053",
+                      "type": "countdown",
+                      "v": 1,
+                      "settings": {
+                        "title": "Next recruitment night",
+                        "until": "2027-01-02T19:00:00.000Z",
+                        "done": "Recruitment night is on now!"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "citc0056",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "citw0055",
+                      "type": "faq",
+                      "v": 1,
+                      "settings": {
+                        "title": "Questions",
+                        "items": [
+                          {
+                            "q": "Do I need to be a certain level?",
+                            "a": "No, everyone is welcome."
+                          },
+                          {
+                            "q": "How do I join?",
+                            "a": "Join our Discord and a recruiter will invite you in game."
+                          },
+                          {
+                            "q": "Do I have to cap at the Citadel?",
+                            "a": "No, but it helps the clan and you get points for it."
+                          }
+                        ]
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "citr0060",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "citc0059",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "citw0058",
+                      "type": "roster",
+                      "v": 1,
+                      "settings": {
+                        "title": "Say hello to the clan",
+                        "limit": 25,
+                        "showJoined": false,
+                        "showRank": true,
+                        "showLevel": true,
+                        "showXp": false,
+                        "search": true,
+                        "rankFilter": true,
+                        "sort": "rank"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "citaccount",
+      "title": "My account",
+      "path": "account",
+      "hidden": true,
+      "access": "public",
+      "sections": [
+        {
+          "id": "cits0065",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "citr0064",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "citc0063",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "citw0062",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Your account",
+                        "subtitle": "Your linked name, goals, events and privacy.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "cits0088",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "citr0070",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "citc0067",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "citw0066",
+                      "type": "account-link",
+                      "v": 1,
+                      "settings": {
+                        "title": "Your RuneScape name"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "citc0069",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "citw0068",
+                      "type": "server-profile",
+                      "v": 1,
+                      "settings": {
+                        "title": "Your server profile",
+                        "showColour": true,
+                        "showOnline": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "citr0075",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "citc0072",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "citw0071",
+                      "type": "my-goals",
+                      "v": 1,
+                      "settings": {
+                        "title": "My goals",
+                        "showDone": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "citc0074",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "citw0073",
+                      "type": "my-notices",
+                      "v": 1,
+                      "settings": {
+                        "title": "Notices",
+                        "limit": 5
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "citr0082",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "citc0077",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "citw0076",
+                      "type": "my-events",
+                      "v": 1,
+                      "settings": {
+                        "title": "My events",
+                        "showOpen": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "citc0079",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "citw0078",
+                      "type": "my-signups",
+                      "v": 1,
+                      "settings": {
+                        "title": "Signups",
+                        "limit": 5
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "citc0081",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "citw0080",
+                      "type": "my-polls",
+                      "v": 1,
+                      "settings": {
+                        "title": "Open polls",
+                        "limit": 5,
+                        "showResults": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "citr0087",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "citc0084",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "citw0083",
+                      "type": "my-coffer",
+                      "v": 1,
+                      "settings": {
+                        "title": "My coffer",
+                        "limit": 5
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "citc0086",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "citw0085",
+                      "type": "member-privacy",
+                      "v": 1,
+                      "settings": {
+                        "title": "My member page",
+                        "showDms": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "template": "account"
+    }
+  ]
+}
