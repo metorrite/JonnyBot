@@ -74,7 +74,7 @@ public class ClanProfileAdminApi implements AdminRouteExtension {
                 .put("currentClanName", clan).put("verified", ProfileRules.verified(p, clan)).put("verifiedClanName", p.verifiedClanName())
                 .put("listing", ProfileRules.listing(p, clan).name()).put("suspended", p.suspended()).put("suspendedReason", p.suspendedReason())
                 .put("memberCount", clan == null ? 0 : service.memberCount(guildId))
-                .put("suggestedName", clan == null ? serverName : clan)
+                .put("suggestedName", clan != null ? clan : serverName != null ? serverName : "")
                 .put("options", options())
                 .put("limits", DataObject.empty().put("name", ProfileRules.MAX_NAME).put("tagline", ProfileRules.MAX_TAGLINE)
                         .put("description", ProfileRules.MAX_DESCRIPTION).put("requirements", ProfileRules.MAX_REQUIREMENTS));

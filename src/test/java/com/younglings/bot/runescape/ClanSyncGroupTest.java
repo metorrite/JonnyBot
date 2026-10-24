@@ -129,4 +129,55 @@ class ClanSyncGroupTest {
         assertTrue(results.containsKey(2L));
         assertTrue(!results.containsKey(1L));
     }
+
+    private void botlessClan(long id, String clan) {
+        when(settings.getEffective(id)).thenReturn(new GuildSettings(id, clan, null, null, null, null, null, null, null, true, clan, null, null));
+    }
+
+    @Test
+    void theDailyPollingIncludesTheClansOfBotlessSites() {
+        botlessClan(20L, "YOUNGLINGS");
+        botlessClan(21L, "Only Online");
+        botlessClan(22L, null);
+
+        var groups = ClanSyncScheduler.groupByClan(List.of(one, two), List.of(20L, 21L, 22L), id -> settings.getEffective(id).clanName());
+
+        assertEquals(2, groups.size(), "a bot-less site with no clan name is left out");
+        assertEquals(List.of(one, two), groups.get("younglings").guilds());
+        assertEquals(List.of(20L), groups.get("younglings").botlessGuildIds(), "the same clan as two bot servers: still one group");
+        assertEquals(List.of(), groups.get("only online").guilds());
+        assertEquals(List.of(21L), groups.get("only online").botlessGuildIds(), "a clan only a bot-less site shows is polled too");
+    }
+
+    @Test
+    void aBotlessSiteGetsItsOwnRosterRowsFromTheSharedFetchWithNothingPostedInDiscord() {
+        botlessClan(20L, "Younglings");
+        TrackingEventRouter router = mock(TrackingEventRouter.class);
+        RsnRenameService renames = mock(RsnRenameService.class);
+        service = new ClanSyncService(apiClient, clanMembers, coordinator, renames, settings, router, mock(WeeklyDigestRepository.class),
+                mock(TrackingIconCatalog.class), mock(VerificationRoleSyncService.class), mock(PlayerLinkService.class));
+        when(clanMembers.getAll(20L, true)).thenReturn(List.of(row(20L, "A"), row(20L, "Gone")));
+
+        Map<Long, ClanSyncService.SyncResult> results = service.syncAndPollGroup(List.of(one), List.of(20L));
+
+        verify(apiClient, times(1)).fetchClanRoster(anyString());
+        verify(coordinator, times(1)).submitAll(any());
+        verify(clanMembers).upsert(eq(20L), eq("New"), anyString(), org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong());
+        verify(clanMembers).markInactive(20L, "gone");
+        assertEquals(2, results.get(20L).newMembers(), "B and New were not on that site's roster yet");
+        assertEquals(1, results.get(20L).departedMembers());
+        verify(router, times(1)).dispatchAll(eq(one), any()); // only the bot's own server gets join/leave posts
+        verify(renames, times(1)).detectAndNotify(eq(one), any(), any(), any(), any(), any()); // and only it is checked for renames
+        org.mockito.Mockito.verifyNoMoreInteractions(renames);
+    }
+
+    @Test
+    void aClanOnlyBotlessSitesShowIsFetchedOnItsOwn() {
+        botlessClan(20L, "Only Online");
+
+        Map<Long, ClanSyncService.SyncResult> results = service.syncAndPollGroup(List.of(), List.of(20L));
+
+        verify(apiClient, times(1)).fetchClanRoster("Only Online");
+        assertEquals(3, results.get(20L).rosterSize());
+    }
 }

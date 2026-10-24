@@ -176,6 +176,18 @@ class BillingDatabaseTest {
     }
 
     @Test
+    void aBotlessSiteNeverStartsTheLeaveGrace() throws Exception {
+        com.younglings.bot.clansite.BotlessSiteRepository botless = mock(com.younglings.bot.clansite.BotlessSiteRepository.class);
+        org.mockito.Mockito.when(botless.contains(GUILD)).thenReturn(true);
+        billing = new Billing(repository, grants, new Premium(grants), retention, mock(BotConfig.class), botless);
+        billing.apply(event(GUILD, "evt_paid", "active", false, 0), "x", now);
+
+        leftDaysAgo(GUILD, 20); // a departure on record from before the site went bot-less
+        assertEquals(new SitePlan("premium", periodEnd, null, "stripe"), billing.plan(GUILD, false, now), "no grace, never dropped to free");
+        assertTrue(billing.toReconcile(now).stream().noneMatch(s -> s.guildId() == GUILD), "its subscription is never cancelled for the bot's absence");
+    }
+
+    @Test
     void noDepartureOnRecordCountsAsPresent() {
         billing.apply(event(OTHER, "evt_paid", "active", false, 0), "x", now);
         assertEquals("premium", billing.plan(OTHER, false, now).tier());
