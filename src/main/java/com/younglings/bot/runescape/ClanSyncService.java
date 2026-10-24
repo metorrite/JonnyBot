@@ -126,10 +126,20 @@ public class ClanSyncService {
      * server's, is skipped. A server that fails is logged and does not stop the others. The answer holds one result per server that was synced.
      */
     public Map<Long, SyncResult> syncAndPollGroup(List<Guild> guilds) {
-        Map<Long, SyncResult> results = new HashMap<>();
-        if (guilds.isEmpty()) return results;
+        return syncAndPollGroup(guilds, List.of());
+    }
 
-        String clanName = getClanName(guilds.get(0).getIdLong());
+    /**
+     * {@link #syncAndPollGroup(List)} with bot-less sites of the same clan too ({@code botlessGuildIds}: servers the bot isn't in whose clan
+     * website shows this clan). Their roster rows, join dates and roster events are stored by server id like any other server's, so their site
+     * shows the clan's stats; nothing is posted or changed in Discord for them (no join/leave posts, rename checks or roles), since the bot isn't
+     * there. The clan is still fetched and polled once for the whole group.
+     */
+    public Map<Long, SyncResult> syncAndPollGroup(List<Guild> guilds, List<Long> botlessGuildIds) {
+        Map<Long, SyncResult> results = new HashMap<>();
+        if (guilds.isEmpty() && botlessGuildIds.isEmpty()) return results;
+
+        String clanName = getClanName(guilds.isEmpty() ? botlessGuildIds.get(0) : guilds.get(0).getIdLong());
         if (clanName == null) return results;
         String key = clanKey(clanName);
         List<Guild> members = new ArrayList<>();
@@ -137,12 +147,18 @@ public class ClanSyncService {
             String name = getClanName(guild.getIdLong());
             if (name != null && key.equals(clanKey(name))) members.add(guild);
         }
+        List<Long> botlessMembers = new ArrayList<>();
+        for (long guildId : botlessGuildIds) {
+            String name = getClanName(guildId);
+            if (name != null && key.equals(clanKey(name))) botlessMembers.add(guildId);
+        }
 
         // one fetch for the whole group
         List<RuneScapeApiClient.ClanMember> roster = apiClient.fetchClanRoster(clanName);
         if (roster.isEmpty()) return results;
 
         Map<Guild, RosterChange> changes = new java.util.LinkedHashMap<>();
+        Map<Long, RosterChange> botlessChanges = new java.util.LinkedHashMap<>();
         Set<String> allNewLower = new HashSet<>();
         for (Guild guild : members) {
             try {
@@ -153,7 +169,14 @@ public class ClanSyncService {
                 log.error("Clan roster refresh failed for guild {}", guild.getIdLong(), e);
             }
         }
-        if (changes.isEmpty()) return results;
+        for (long guildId : botlessMembers) {
+            try {
+                botlessChanges.put(guildId, refreshRoster(guildId, null, roster));
+            } catch (Exception e) {
+                log.error("Clan roster refresh failed for the bot-less site of guild {}", guildId, e);
+            }
+        }
+        if (changes.isEmpty() && botlessChanges.isEmpty()) return results;
 
         // Only kept for names that just appeared (in any of the servers) — the rename check is the only thing
         // that needs the full profile result, not just pass/fail, and there's no reason to hold onto
@@ -178,6 +201,8 @@ public class ClanSyncService {
                 log.error("Clan sync follow-up failed for guild {}", guild.getIdLong(), e);
             }
         }
+        botlessChanges.forEach((guildId, change) -> results.put(guildId,
+                new SyncResult(roster.size(), change.newLower().size(), change.departedLower().size(), tally.polled(), tally.pollFailed())));
         return results;
     }
 
@@ -199,7 +224,11 @@ public class ClanSyncService {
 
     /** {@link #refreshRoster(Guild, String)} with the clan list already fetched (non-empty), so several servers of one clan can share the one fetch. */
     private RosterChange refreshRoster(Guild guild, List<RuneScapeApiClient.ClanMember> roster) {
-        long guildId = guild.getIdLong();
+        return refreshRoster(guild.getIdLong(), guild, roster);
+    }
+
+    /** The refresh for a server by id; {@code guild} null for a bot-less site's server, where the join and leave posts are left out. */
+    private RosterChange refreshRoster(long guildId, Guild guild, List<RuneScapeApiClient.ClanMember> roster) {
         // One refresh at a time: a manual refresh and the daily sync both read "who was in the roster", change it,
         // and announce the difference, so two at once would each announce the same join.
         synchronized (rosterLock) {
@@ -262,7 +291,7 @@ public class ClanSyncService {
                     joinLeaveEntries.add(new ClassifiedEntry(TrackingGroup.CLAN_JOINS_LEAVES, iconPrefix + "**" + name + "** left the clan. (" + todayDisplay + ")"));
                     weeklyDigestRepository.recordRosterEvent(guildId, name, "LEAVE");
                 }
-                trackingEventRouter.dispatchAll(guild, joinLeaveEntries);
+                if (guild != null) trackingEventRouter.dispatchAll(guild, joinLeaveEntries);
             }
 
             return new RosterChange(roster, before, newNames, newLower, departedNames, departedLower);

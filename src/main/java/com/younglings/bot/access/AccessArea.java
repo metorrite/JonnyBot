@@ -11,7 +11,9 @@ import com.younglings.bot.config.BotBrand;
 public enum AccessArea {
     JONNYBOT("jonnybot", BotBrand.NAME + " website"),
     HUB("hub", "Clans hub"),
-    DASHBOARD("dashboard", "Bot dashboard");
+    DASHBOARD("dashboard", "Bot dashboard"),
+    /** Running a clan website for a server the bot isn't in (a bot-less site); only a grant lets someone in, never being a beta server's admin. */
+    SITE_BUILDER_BETA("site-builder-beta", "Site builder without the bot (beta)");
 
     private final String key;
     private final String label;

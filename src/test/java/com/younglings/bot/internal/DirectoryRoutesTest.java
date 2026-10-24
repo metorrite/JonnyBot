@@ -45,6 +45,7 @@ class DirectoryRoutesTest {
     private final HubEventsApi hubEvents = mock(HubEventsApi.class);
     private final ClanSiteService sites = mock(ClanSiteService.class);
     private final SiteApi siteApi = mock(SiteApi.class);
+    private final com.younglings.bot.clansite.BotlessSiteRepository botless = mock(com.younglings.bot.clansite.BotlessSiteRepository.class);
     private final JDA jda = mock(JDA.class);
     private final ClanProfile clan = new ClanProfile(GUILD, ClanProfile.Visibility.PUBLIC, "younglings", "Younglings", null, null, null, null, null, Set.of(),
             ClanProfile.Recruiting.CLOSED, null, null, false, null, null, null, null, null, null);
@@ -68,7 +69,7 @@ class DirectoryRoutesTest {
                 new DirectoryClanSiteRoutes(sites, siteApi, repository, mock(com.younglings.bot.clansite.ClanSiteLayoutRepository.class),
                         mock(com.younglings.bot.clansite.ClanSitePluginFeed.class)),
                 new DirectorySlugRoutes(repository),
-                section));
+                section), botless);
         when(repository.bySlug("younglings")).thenReturn(Optional.of(clan));
         when(service.publicView(GUILD, true)).thenReturn(Optional.of(clan));
         when(service.publicView(eq(clan), any(), eq(true))).thenReturn(Optional.of(clan));

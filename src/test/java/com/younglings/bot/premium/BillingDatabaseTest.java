@@ -53,7 +53,7 @@ class BillingDatabaseTest {
         grants = new PremiumGuildRepository(supplier, initializer);
         repository = new BillingRepository(supplier, initializer);
         retention = new GuildRetentionRepository(supplier);
-        billing = new Billing(repository, grants, new Premium(grants), retention, mock(BotConfig.class));
+        billing = new Billing(repository, grants, new Premium(grants), retention, mock(BotConfig.class), mock(com.younglings.bot.clansite.BotlessSiteRepository.class));
         now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         periodEnd = now.plus(Duration.ofDays(30));
         cleanUp();
@@ -173,6 +173,18 @@ class BillingDatabaseTest {
         assertEquals(SitePlan.FREE, billing.plan(GUILD, false, now));
         assertEquals(List.of(GUILD), billing.toReconcile(now).stream().map(Subscription::guildId).filter(g -> g == GUILD).toList(),
                 "its renewing subscription goes to the website to be cancelled");
+    }
+
+    @Test
+    void aBotlessSiteNeverStartsTheLeaveGrace() throws Exception {
+        com.younglings.bot.clansite.BotlessSiteRepository botless = mock(com.younglings.bot.clansite.BotlessSiteRepository.class);
+        org.mockito.Mockito.when(botless.contains(GUILD)).thenReturn(true);
+        billing = new Billing(repository, grants, new Premium(grants), retention, mock(BotConfig.class), botless);
+        billing.apply(event(GUILD, "evt_paid", "active", false, 0), "x", now);
+
+        leftDaysAgo(GUILD, 20); // a departure on record from before the site went bot-less
+        assertEquals(new SitePlan("premium", periodEnd, null, "stripe"), billing.plan(GUILD, false, now), "no grace, never dropped to free");
+        assertTrue(billing.toReconcile(now).stream().noneMatch(s -> s.guildId() == GUILD), "its subscription is never cancelled for the bot's absence");
     }
 
     @Test
