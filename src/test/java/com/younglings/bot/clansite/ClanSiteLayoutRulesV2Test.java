@@ -244,6 +244,28 @@ class ClanSiteLayoutRulesV2Test {
     }
 
     @Test
+    void aCellsLeftToRightAlignmentIsKeptAndFullWidthStoredAsNoField() {
+        for (String value : List.of("start", "center", "end", "stretch")) {
+            DataObject layout = good();
+            firstCell(layout).put("halign", value);
+            List<String> problems = new ArrayList<>();
+            DataObject out = DataObject.fromJson(ClanSiteLayoutRulesV2.clean(layout, ClanSiteLayoutRulesV2.Limits.PREMIUM, problems));
+            assertTrue(problems.isEmpty(), value + ": " + problems);
+            if (value.equals("stretch")) assertFalse(firstCell(out).hasKey("halign"), "full width is the default, stored as no field");
+            else assertEquals(value, firstCell(out).getString("halign"), value);
+        }
+        DataObject untouched = DataObject.fromJson(ClanSiteLayoutRulesV2.clean(good(), ClanSiteLayoutRulesV2.Limits.PREMIUM, new ArrayList<>()));
+        assertFalse(firstCell(untouched).hasKey("halign"), "a layout without it gets none");
+        DataObject bad = good();
+        firstCell(bad).put("halign", "middle");
+        assertTrue(has(problems(bad), "unknown left-to-right alignment"));
+    }
+
+    private static DataObject firstCell(DataObject layout) {
+        return layout.getArray("pages").getObject(0).getArray("sections").getObject(0).getArray("rows").getObject(0).getArray("cells").getObject(0);
+    }
+
+    @Test
     void missingOptionalValuesGetTheDesignDefaults() {
         DataObject w = DataObject.empty().put("id", nextId()).put("type", "heading");
         DataObject c = DataObject.empty().put("id", nextId()).put("span", resp(12)).put("widgets", DataArray.empty().add(w));
@@ -356,10 +378,31 @@ class ClanSiteLayoutRulesV2Test {
         seo.getArray("pages").getObject(0).put("seo", DataObject.empty().put("image", "http://insecure.example.test/x.png"));
         assertTrue(has(problems(seo), "sharing picture"));
 
+        for (DataObject bad : List.of(DataObject.empty().put("template", "Bad Id").put("v", 1), DataObject.empty().put("template", "members").put("v", 0),
+                DataObject.empty().put("template", "members").put("v", 1).put("extra", true), DataObject.empty().put("template", "members").put("v", "1"))) {
+            DataObject origin = good();
+            origin.getArray("pages").getObject(1).put("origin", bad);
+            assertTrue(has(problems(origin), "broken page template note"), bad.toString());
+        }
+
         DataObject duplicateIds = good();
         String id = duplicateIds.getArray("pages").getObject(0).getString("id");
         duplicateIds.getArray("pages").getObject(1).getArray("sections").getObject(0).put("id", id);
         assertTrue(has(problems(duplicateIds), "share the id"));
+    }
+
+    @Test
+    void pageTemplateOriginIsKept() {
+        // F14: a page made from a page template remembers it; saving must not drop it, or "Reset to template" disappears after a reload
+        DataObject layout = good();
+        layout.getArray("pages").getObject(1).put("origin", DataObject.empty().put("template", "hall-of-fame").put("v", 3));
+        List<String> problems = new ArrayList<>();
+        DataObject out = DataObject.fromJson(ClanSiteLayoutRulesV2.clean(layout, ClanSiteLayoutRulesV2.Limits.PREMIUM, problems));
+        assertTrue(problems.isEmpty(), problems.toString());
+        DataObject origin = out.getArray("pages").getObject(1).getObject("origin");
+        assertEquals("hall-of-fame", origin.getString("template"));
+        assertEquals(3, origin.getInt("v"));
+        assertFalse(out.getArray("pages").getObject(0).hasKey("origin"));
     }
 
     @Test
