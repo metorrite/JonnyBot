@@ -12,6 +12,7 @@ import com.younglings.bot.clansite.ClanSiteRules;
 import com.younglings.bot.clansite.ClanSiteService;
 import com.younglings.bot.clansite.SiteRoleGuard;
 import com.younglings.bot.clansite.SiteRoles;
+import com.younglings.bot.discord.DiscordLookups;
 import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.notice.BotOwners;
@@ -490,14 +491,7 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
                     // the bot can't see who is in a server it isn't in: any Discord user id will do
                     if (userId == 0) throw new ApiError(400, Text.of(c.guildId(), "dashboard.the_website_can_t_be_saved"), List.of("Give a Discord user ID (17 to 20 digits)."));
                 } else {
-                    Member target = userId == 0 ? null : c.guild().getMemberById(userId);
-                    if (target == null) {
-                        try {
-                            target = userId == 0 ? null : c.guild().retrieveMemberById(userId).complete();
-                        } catch (RuntimeException e) {
-                            target = null;
-                        }
-                    }
+                    Member target = userId == 0 ? null : DiscordLookups.memberOrSlow(c.guild(), userId);
                     if (target == null || target.getUser().isBot()) throw new ApiError(400, Text.of(c.guildId(), "dashboard.the_website_can_t_be_saved"), List.of("Pick someone in this server."));
                 }
                 to = userId;

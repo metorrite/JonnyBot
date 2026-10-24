@@ -206,6 +206,8 @@ public class InternalApiServer {
             Guild guild = adminGuild(exchange, homeGuildId);
             if (guild == null) return;
             ticketAdminApi.handle(exchange, guild);
+        } catch (com.younglings.bot.discord.DiscordLookups.Slow e) {
+            sendSlow(exchange);
         } catch (Exception e) {
             log.error("Internal API admin request failed", e);
             sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));
@@ -264,6 +266,8 @@ public class InternalApiServer {
                 return;
             }
             memberApi.handle(exchange, guild);
+        } catch (com.younglings.bot.discord.DiscordLookups.Slow e) {
+            sendSlow(exchange);
         } catch (Exception e) {
             log.error("Internal API member request failed", e);
             sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));
@@ -280,6 +284,8 @@ public class InternalApiServer {
                 return;
             }
             pluginApi.handle(exchange);
+        } catch (com.younglings.bot.discord.DiscordLookups.Slow e) {
+            sendSlow(exchange);
         } catch (Exception e) {
             log.error("Internal API plugin request failed", e);
             sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));
@@ -295,6 +301,8 @@ public class InternalApiServer {
                 return;
             }
             module.handle(exchange);
+        } catch (com.younglings.bot.discord.DiscordLookups.Slow e) {
+            sendSlow(exchange);
         } catch (Exception e) {
             log.error("Internal API request to {} failed: {}", module.prefix(), e.getClass().getSimpleName());
             sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));
@@ -310,6 +318,8 @@ public class InternalApiServer {
                 return;
             }
             directoryApi.handle(exchange, jda);
+        } catch (com.younglings.bot.discord.DiscordLookups.Slow e) {
+            sendSlow(exchange);
         } catch (Exception e) {
             log.error("Internal API directory request failed", e);
             sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));
@@ -324,6 +334,8 @@ public class InternalApiServer {
                 return;
             }
             formsApi.handle(exchange, jda);
+        } catch (com.younglings.bot.discord.DiscordLookups.Slow e) {
+            sendSlow(exchange);
         } catch (Exception e) {
             log.error("Internal API forms request failed", e);
             sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));
@@ -335,6 +347,8 @@ public class InternalApiServer {
             Guild guild = authorize(exchange, secret, guildId, "GET");
             if (guild == null) return;
             siteApi.handle(exchange, guild);
+        } catch (com.younglings.bot.discord.DiscordLookups.Slow e) {
+            sendSlow(exchange);
         } catch (Exception e) {
             log.error("Internal API site request failed", e);
             sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));
@@ -361,6 +375,8 @@ public class InternalApiServer {
             if (guild == null) return;
 
             sendJson(exchange, 200, buildOnlineMembers(guild));
+        } catch (com.younglings.bot.discord.DiscordLookups.Slow e) {
+            sendSlow(exchange);
         } catch (Exception e) {
             log.error("Internal API /online-members request failed", e);
             sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));
@@ -373,6 +389,8 @@ public class InternalApiServer {
             if (guild == null) return;
 
             sendJson(exchange, 200, buildScheduledEvents(guild));
+        } catch (com.younglings.bot.discord.DiscordLookups.Slow e) {
+            sendSlow(exchange);
         } catch (Exception e) {
             log.error("Internal API /events request failed", e);
             sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));
@@ -399,6 +417,8 @@ public class InternalApiServer {
             sendJson(exchange, 200, buildMemberInfo(member));
         } catch (NumberFormatException e) {
             sendJson(exchange, 400, DataObject.empty().put("error", "userId must be numeric"));
+        } catch (com.younglings.bot.discord.DiscordLookups.Slow e) {
+            sendSlow(exchange);
         } catch (Exception e) {
             log.error("Internal API /member request failed", e);
             sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));
@@ -424,6 +444,8 @@ public class InternalApiServer {
             sendJson(exchange, 200, result);
         } catch (ServerProfile.Refused e) {
             sendJson(exchange, e.status, DataObject.empty().put("error", e.getMessage()));
+        } catch (com.younglings.bot.discord.DiscordLookups.Slow e) {
+            sendSlow(exchange);
         } catch (Exception e) {
             log.error("Internal API /nickname request failed", e);
             sendJson(exchange, 500, DataObject.empty().put("error",
@@ -448,6 +470,8 @@ public class InternalApiServer {
             sendJson(exchange, 200, result);
         } catch (ServerProfile.Refused e) {
             sendJson(exchange, e.status, DataObject.empty().put("error", e.getMessage()));
+        } catch (com.younglings.bot.discord.DiscordLookups.Slow e) {
+            sendSlow(exchange);
         } catch (Exception e) {
             log.error("Internal API /color-role request failed", e);
             sendJson(exchange, 500, DataObject.empty().put("error",
@@ -540,6 +564,8 @@ public class InternalApiServer {
             try (OutputStream responseBody = exchange.getResponseBody()) {
                 responseBody.write(data);
             }
+        } catch (com.younglings.bot.discord.DiscordLookups.Slow e) {
+            sendSlow(exchange);
         } catch (Exception e) {
             log.error("Internal API image request failed", e);
             sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));
@@ -573,10 +599,17 @@ public class InternalApiServer {
             try (OutputStream responseBody = exchange.getResponseBody()) {
                 responseBody.write(data);
             }
+        } catch (com.younglings.bot.discord.DiscordLookups.Slow e) {
+            sendSlow(exchange);
         } catch (Exception e) {
             log.error("Internal API wheel GIF request failed", e);
             sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));
         }
+    }
+
+    /** Discord didn't answer a who-is-this question in time ({@link com.younglings.bot.discord.DiscordLookups.Slow}): a 503 the website can retry. */
+    static void sendSlow(HttpExchange exchange) throws IOException {
+        sendJson(exchange, 503, DataObject.empty().put("error", com.younglings.bot.discord.DiscordLookups.Slow.MESSAGE).put("code", "DISCORD_SLOW"));
     }
 
     static void sendJson(HttpExchange exchange, int statusCode, DataObject payload) throws IOException {

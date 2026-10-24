@@ -1,5 +1,6 @@
 package com.younglings.bot.beta;
 
+import com.younglings.bot.discord.DiscordLookups;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.Guild;
@@ -54,13 +55,8 @@ public class BetaAccessService {
         remembered.clear();
     }
 
+    /** Null when they're not in that server; {@link DiscordLookups.Slow} when Discord didn't answer in time (never remembered). */
     private static Member memberIn(Guild guild, long userId) {
-        Member cached = guild.getMemberById(userId);
-        if (cached != null) return cached;
-        try {
-            return guild.retrieveMemberById(userId).complete();
-        } catch (Exception e) {
-            return null; // not in that server (or Discord could not say)
-        }
+        return DiscordLookups.memberOrSlow(guild, userId);
     }
 }

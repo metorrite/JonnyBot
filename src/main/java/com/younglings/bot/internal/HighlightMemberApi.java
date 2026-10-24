@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.discord.DiscordLookups;
 import com.younglings.bot.highlight.HighlightConfig;
 import com.younglings.bot.highlight.HighlightRepository;
 import com.younglings.bot.highlight.HighlightRepository.Keyword;
@@ -36,13 +37,9 @@ public class HighlightMemberApi {
     }
 
     private static Member member(Guild guild, long userId) {
-        Member member = guild.getMemberById(userId);
-        if (member != null) return member;
-        try {
-            return guild.retrieveMemberById(userId).complete();
-        } catch (Exception e) {
-            throw new Refused(403, "Join the Discord server first.");
-        }
+        Member member = DiscordLookups.memberOrSlow(guild, userId);
+        if (member == null) throw new Refused(403, "Join the Discord server first.");
+        return member;
     }
 
     public DataObject get(Guild guild, long userId) {

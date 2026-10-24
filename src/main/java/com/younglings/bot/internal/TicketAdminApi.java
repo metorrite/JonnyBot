@@ -10,6 +10,7 @@ import com.younglings.bot.commands.ticket.HelpPanels;
 import com.younglings.bot.commands.ticket.HelpRules;
 import com.younglings.bot.commands.ticket.TicketRules;
 import com.younglings.bot.commands.ticket.TicketService;
+import com.younglings.bot.discord.DiscordLookups;
 import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminJson.BadRequest;
 import com.younglings.bot.permission.DashboardAccess;
@@ -62,6 +63,8 @@ public class TicketAdminApi {
     private static final String ACTOR_HEADER = "X-Actor-Id";
     private static final String PREFIX = "/internal/admin/";
     private static final int MAX_PAGE = 100;
+    /** The longest the server picker waits on Discord, in total, for the servers whose members the bot hasn't cached. */
+    private static final java.time.Duration GUILD_LIST_BUDGET = java.time.Duration.ofMillis(2500);
 
     private final DashboardAccess access;
     private final TicketRepository repository;
@@ -183,6 +186,8 @@ public class TicketAdminApi {
             InternalApiServer.sendJson(exchange, e.status, body);
         } catch (BadRequest e) {
             InternalApiServer.sendJson(exchange, 400, DataObject.empty().put("error", e.getMessage()));
+        } catch (DiscordLookups.Slow e) {
+            InternalApiServer.sendSlow(exchange);
         } catch (Exception e) {
             log.error("Admin API request {} {} failed", exchange.getRequestMethod(), exchange.getRequestURI().getPath(), e);
             InternalApiServer.sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));
@@ -200,8 +205,12 @@ public class TicketAdminApi {
             DataArray guilds = DataArray.empty();
             long actorId = actorIdOf(exchange);
             if (actorId != 0) {
-                for (Guild guild : jda.getGuilds()) {
-                    Member member = memberIn(guild, actorId);
+                // asked of every server at once, with one shared wait: a server Discord is slow about is left out this time, not waited on
+                List<Guild> all = jda.getGuilds();
+                List<DiscordLookups.MemberLookup> found = DiscordLookups.memberInEach(all, actorId, GUILD_LIST_BUDGET);
+                for (int i = 0; i < all.size(); i++) {
+                    Guild guild = all.get(i);
+                    Member member = found.get(i).member();
                     if (member == null) continue;
                     Tier tier = access.tierOf(guild, member);
                     boolean coordinator = tier == Tier.NONE && access.isEventCoordinator(guild, member);
@@ -229,14 +238,9 @@ public class TicketAdminApi {
         }
     }
 
+    /** The asker in this server, or null when they aren't in it; throws {@link DiscordLookups.Slow} (a 503) when Discord didn't answer in time. */
     private static Member memberIn(Guild guild, long userId) {
-        Member cached = guild.getMemberById(userId);
-        if (cached != null) return cached;
-        try {
-            return guild.retrieveMemberById(userId).complete();
-        } catch (Exception e) {
-            return null; // not in the server (or Discord couldn't say) — no access
-        }
+        return DiscordLookups.memberOrSlow(guild, userId);
     }
 
     private Member actorOf(HttpExchange exchange, Guild guild) {
@@ -966,11 +970,7 @@ public class TicketAdminApi {
     private static String nameOf(Guild guild, long userId) {
         String cached = cachedNameOf(guild, userId);
         if (cached != null) return cached;
-        try {
-            return guild.getJDA().retrieveUserById(userId).complete().getName();
-        } catch (Exception e) {
-            return null;
-        }
+        return DiscordLookups.userName(guild.getJDA(), userId); // null when Discord is slow: the page shows the id
     }
 
     private static String query(HttpExchange exchange, String name) {
