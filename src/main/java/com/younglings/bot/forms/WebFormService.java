@@ -1,6 +1,7 @@
 package com.younglings.bot.forms;
 
 import com.younglings.bot.commands.ticket.TicketService;
+import com.younglings.bot.discord.DiscordLookups;
 import com.younglings.bot.forms.WebForms.Answer;
 import com.younglings.bot.forms.WebForms.Checked;
 import com.younglings.bot.forms.WebForms.Form;
@@ -190,14 +191,9 @@ public class WebFormService {
 
     // ---------- small helpers ----------
 
+    /** Null when they're not in the server; {@link DiscordLookups.Slow} (a 503) when Discord didn't answer in time. */
     private static Member memberOf(Guild guild, long userId) {
-        Member cached = guild.getMemberById(userId);
-        if (cached != null) return cached;
-        try {
-            return guild.retrieveMemberById(userId).complete();
-        } catch (RuntimeException e) {
-            return null;
-        }
+        return DiscordLookups.memberOrSlow(guild, userId);
     }
 
     private static String trim(String text, int max) {

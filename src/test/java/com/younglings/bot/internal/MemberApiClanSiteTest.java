@@ -122,6 +122,27 @@ class MemberApiClanSiteTest {
     }
 
     @Test
+    void whenDiscordHangsTheMemberCheckAnswers503NotAWrongNo() throws Exception {
+        com.younglings.bot.discord.DiscordLookups.forgetAll();
+        try {
+            @SuppressWarnings("unchecked")
+            CacheRestAction<Member> hanging = mock(CacheRestAction.class);
+            when(hanging.submit()).thenReturn(new java.util.concurrent.CompletableFuture<>());
+            when(guild.retrieveMemberById(STRANGER)).thenReturn(hanging);
+
+            long started = System.nanoTime();
+            Reply r = call("GET", "server-profile", "userId=" + STRANGER, null, true);
+            long tookMs = (System.nanoTime() - started) / 1_000_000;
+
+            assertEquals(503, r.status());
+            assertEquals("DISCORD_SLOW", r.body().getString("code"));
+            org.junit.jupiter.api.Assertions.assertTrue(tookMs < 3_000, "took " + tookMs + " ms");
+        } finally {
+            com.younglings.bot.discord.DiscordLookups.forgetAll();
+        }
+    }
+
+    @Test
     void settingsAreReadAndSavedForTheClanSitesServer() throws Exception {
         assertEquals(200, call("GET", "settings", "userId=" + USER, null, true).status());
         verify(profiles).getProfile(CLAN_GUILD, USER);

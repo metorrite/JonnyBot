@@ -12,6 +12,7 @@ import com.younglings.bot.clansite.ClanSiteRules;
 import com.younglings.bot.clansite.ClanSiteService;
 import com.younglings.bot.clansite.SiteRoleGuard;
 import com.younglings.bot.clansite.SiteRoles;
+import com.younglings.bot.discord.DiscordLookups;
 import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.notice.BotOwners;
@@ -472,14 +473,7 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
             Long to = null;
             if (raw != null) {
                 long userId = parseId(raw);
-                Member target = userId == 0 ? null : guild.getMemberById(userId);
-                if (target == null) {
-                    try {
-                        target = userId == 0 ? null : guild.retrieveMemberById(userId).complete();
-                    } catch (RuntimeException e) {
-                        target = null;
-                    }
-                }
+                Member target = userId == 0 ? null : DiscordLookups.memberOrSlow(guild, userId);
                 if (target == null || target.getUser().isBot()) throw new ApiError(400, Text.of(guild, "dashboard.the_website_can_t_be_saved"), List.of("Pick someone in this server."));
                 to = userId;
             }

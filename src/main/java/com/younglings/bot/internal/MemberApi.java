@@ -8,6 +8,7 @@ import com.younglings.bot.commands.poll.PollSession;
 import com.younglings.bot.commands.signup.SignupService;
 import com.younglings.bot.commands.signup.SignupSession;
 import com.younglings.bot.commands.signup.SubmissionField;
+import com.younglings.bot.discord.DiscordLookups;
 import com.younglings.bot.member.MemberProfileRepository;
 import com.younglings.bot.permission.MemberAccess;
 import com.younglings.bot.member.MemberProfileRepository.Goal;
@@ -201,6 +202,8 @@ public class MemberApi {
         } catch (com.younglings.bot.events.EventProblem e) {
             // the event engine's own refusals already say why in words a member can read
             InternalApiServer.sendJson(exchange, e.status(), DataObject.empty().put("error", e.getMessage()));
+        } catch (DiscordLookups.Slow e) {
+            InternalApiServer.sendSlow(exchange);
         } catch (Exception e) {
             log.error("Member API request {} failed", exchange.getRequestURI().getPath(), e);
             InternalApiServer.sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));
@@ -259,14 +262,8 @@ public class MemberApi {
     private DataObject submitLink(Guild guild, long userId, DataObject body) {
         String rsn = body.getString("rsn", "").strip().replaceAll("\\s+", " ");
         if (!RSN.matcher(rsn).matches()) throw new Rejected(400, "RuneScape names are 1 to 12 letters, numbers, spaces, hyphens or underscores.");
-        net.dv8tion.jda.api.entities.Member member = guild.getMemberById(userId);
-        if (member == null) {
-            try {
-                member = guild.retrieveMemberById(userId).complete();
-            } catch (Exception e) {
-                throw new Rejected(403, "Join the Discord server first, then link your name.");
-            }
-        }
+        net.dv8tion.jda.api.entities.Member member = DiscordLookups.memberOrSlow(guild, userId);
+        if (member == null) throw new Rejected(403, "Join the Discord server first, then link your name.");
 
         var result = rsLinks.submitLinkRequest(guild, member, userId, rsn);
         cache.invalidate("me");
@@ -379,14 +376,7 @@ public class MemberApi {
     // ---------- self-assignable roles ----------
 
     private DataObject roles(Guild guild, long userId) {
-        Member member = guild.getMemberById(userId);
-        if (member == null) {
-            try {
-                member = guild.retrieveMemberById(userId).complete();
-            } catch (Exception e) {
-                throw new Rejected(404, "You're not in the server.");
-            }
-        }
+        Member member = memberOf(guild, userId);
         DataArray array = DataArray.empty();
         for (SelfRole configured : repository.selfRoles(guild.getIdLong())) {
             Role role = guild.getRoleById(configured.roleId());
@@ -408,12 +398,7 @@ public class MemberApi {
         if (role == null) throw new Rejected(404, "That role no longer exists.");
         if (!safeToAssign(guild, role)) throw new Rejected(403, "That role can't be assigned from here.");
 
-        Member member;
-        try {
-            member = guild.retrieveMemberById(userId).complete();
-        } catch (Exception e) {
-            throw new Rejected(404, "You're not in the server.");
-        }
+        Member member = memberOf(guild, userId);
         try {
             if (on) guild.addRoleToMember(member, role).reason("Self-assigned on the website").complete();
             else guild.removeRoleFromMember(member, role).reason("Removed on the website").complete();
@@ -427,13 +412,9 @@ public class MemberApi {
     // ---------- polls ----------
 
     private Member memberOf(Guild guild, long userId) {
-        Member member = guild.getMemberById(userId);
-        if (member != null) return member;
-        try {
-            return guild.retrieveMemberById(userId).complete();
-        } catch (Exception e) {
-            throw new Rejected(404, "You're not in the server.");
-        }
+        Member member = DiscordLookups.memberOrSlow(guild, userId);
+        if (member == null) throw new Rejected(404, "You're not in the server.");
+        return member;
     }
 
     /** Which options the member has picked in each active poll. */

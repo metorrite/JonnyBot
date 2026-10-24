@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.discord.DiscordLookups;
 import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.rolekeep.RoleKeepRepository;
@@ -132,14 +133,7 @@ public class RoleKeepAdminApi implements AdminRouteExtension {
 
     private static Member memberOf(Guild guild, DataObject body) {
         long userId = parseId(body.getString("userId", ""));
-        Member member = guild.getMemberById(userId);
-        if (member == null) {
-            try {
-                member = guild.retrieveMemberById(userId).complete();
-            } catch (RuntimeException e) {
-                member = null;
-            }
-        }
+        Member member = DiscordLookups.memberOrSlow(guild, userId);
         if (member == null) throw new ApiError(404, Text.of(guild, "dashboard.that_person_is_not_in_this"));
         return member;
     }

@@ -1,5 +1,6 @@
 package com.younglings.bot.access;
 
+import com.younglings.bot.discord.DiscordLookups;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.Guild;
@@ -42,6 +43,8 @@ public class AccessGrantService {
         boolean allowed;
         try {
             allowed = matches(repository.all(), jda, area, userId, Instant.ofEpochMilli(now));
+        } catch (DiscordLookups.Slow e) {
+            throw e; // Discord didn't say whether they're in a granted server: the asker gets "try again", not a wrong no
         } catch (RuntimeException e) {
             return false; // the list could not be read: closed, and not remembered
         }
@@ -69,13 +72,8 @@ public class AccessGrantService {
         remembered.clear();
     }
 
+    /** Null when they're not in that server; {@link DiscordLookups.Slow} when Discord didn't answer in time (never remembered). */
     private static Member memberIn(Guild guild, long userId) {
-        Member cached = guild.getMemberById(userId);
-        if (cached != null) return cached;
-        try {
-            return guild.retrieveMemberById(userId).complete();
-        } catch (Exception e) {
-            return null; // not in that server (or Discord could not say)
-        }
+        return DiscordLookups.memberOrSlow(guild, userId);
     }
 }
