@@ -40,6 +40,7 @@ import java.util.regex.Pattern;
  *   them, editors by Discord user id; Discord roles answer as unavailable</li>
  *   <li>{@code GET|PUT clan-site/clan-name} {@code {clanName}}: the RuneScape clan the site shows (stored as the server's clan name, which the
  *   daily clan sync and the stats read); not verified while the builder is in beta</li>
+ *   <li>{@code GET setup}, and {@code PUT setup} with only {@code {clanName}}: the same clan name, for the website's guided setup</li>
  *   <li>{@code GET|PUT clan-profile}: the clan profile (its address, name and visibility); {@code clan-profile/verify} needs the bot</li>
  *   <li>{@code PUT|DELETE images/site/{slot}}: the site's logo and banner; {@code site-pictures...}: its picture library</li>
  *   <li>{@code GET structure}: empty lists with {@code botless: true} (no roles or channels can be seen); {@code GET audit}: the site's changes</li>
@@ -114,7 +115,7 @@ public class BotlessAdminApi {
             }
 
             SiteCaller caller = SiteCaller.botless(facts, jda);
-            boolean onBeta = owners.isOwner(jda, facts.userId()) || accessGrants.allows(jda, AccessArea.SITE_BUILDER_BETA, facts.userId());
+            boolean onBeta = onBeta(jda, facts.userId());
             if (parts.length == 1 && parts[0].equals("whoami")) {
                 AdminRouteExtension.requireMethod(method, "GET");
                 InternalApiServer.sendJson(exchange, 200, whoami(caller, facts, onBeta));
@@ -150,6 +151,32 @@ public class BotlessAdminApi {
         }
     }
 
+    /**
+     * {@code GET /internal/admin/beta-testers/me}: {@code {betaTester}}, whether the asker ({@code X-Actor-Id}, trusted like the {@code guilds}
+     * list once the internal secret was checked) may run a clan website without the bot: on the beta list, or the bot's owner. It names no
+     * server, so anyone signed in may ask, whether or not they share a server with the bot. The internal secret was already checked.
+     */
+    public void handleBetaTesterMe(HttpExchange exchange, JDA jda) throws IOException {
+        if (!exchange.getRequestMethod().equalsIgnoreCase("GET")) {
+            InternalApiServer.sendJson(exchange, 405, DataObject.empty().put("error", "Method not allowed"));
+            return;
+        }
+        String raw = exchange.getRequestHeaders().getFirst(ACTOR_HEADER);
+        long userId = 0;
+        if (raw != null && raw.strip().matches("[0-9]{15,20}")) {
+            try {
+                userId = Long.parseLong(raw.strip());
+            } catch (NumberFormatException e) {
+                userId = 0;
+            }
+        }
+        InternalApiServer.sendJson(exchange, 200, DataObject.empty().put("betaTester", userId != 0 && onBeta(jda, userId)));
+    }
+
+    private boolean onBeta(JDA jda, long userId) {
+        return owners.isOwner(jda, userId) || accessGrants.allows(jda, AccessArea.SITE_BUILDER_BETA, userId);
+    }
+
     /** {@code null} for a path that doesn't exist; a {@link #needsBot} refusal for one that exists only with the bot. */
     private DataObject route(HttpExchange exchange, SiteCaller c, String method, String[] parts) {
         if (parts.length == 0) return null;
@@ -162,6 +189,10 @@ public class BotlessAdminApi {
                 if (parts.length == 2 && parts[1].equals("delete")) botless.remove(c.guildId());
                 if (parts.length == 1) answer.put("botless", true).put("clanName", guildSettings.getEffective(c.guildId()).clanName());
                 return answer;
+            }
+            case "setup" -> {
+                if (parts.length != 1) throw needsBot();
+                return setup(c, method, body);
             }
             case "clan-profile" -> {
                 if (parts.length != 1) throw needsBot();
@@ -204,15 +235,37 @@ public class BotlessAdminApi {
             return DataObject.empty().put("clanName", guildSettings.getEffective(c.guildId()).clanName()).put("verified", false);
         }
         AdminRouteExtension.requireMethod(method, "PUT");
+        String saved = saveClanName(c, body.get());
+        return DataObject.empty().put("clanName", saved).put("verified", false);
+    }
+
+    /**
+     * {@code GET setup}: the server's setup as far as a bot-less site has one ({@code clanName}; no clan features without the bot). {@code PUT setup}
+     * {@code {clanName}}: the guided setup's Clan info step, the same as {@code PUT clan-site/clan-name}; any other setting needs the bot.
+     */
+    private DataObject setup(SiteCaller c, String method, Supplier<DataObject> body) {
+        if (method.equals("GET")) require(c, SiteRoles.Action.EDIT);
+        else {
+            AdminRouteExtension.requireMethod(method, "PUT");
+            DataObject b = body.get();
+            if (!b.keys().equals(java.util.Set.of("clanName"))) throw needsBot();
+            saveClanName(c, b);
+        }
+        var settings = guildSettings.getEffective(c.guildId());
+        return DataObject.empty().put("clanName", settings.clanName()).put("clanEnabled", false).put("clanActive", false)
+                .put("inviteUrl", settings.inviteUrl()).put("verified", false).put("botless", true).put("botPresent", false);
+    }
+
+    /** Stores {@code {clanName}} (null or empty clears it) as the server's clan name: admin. Answers the name now stored, or null. */
+    private String saveClanName(SiteCaller c, DataObject b) {
         require(c, SiteRoles.Action.SETTINGS);
-        DataObject b = body.get();
         String raw = b.isNull("clanName") ? "" : b.getString("clanName", "").strip().replaceAll("\\s+", " ");
         String problem = clanNameProblem(raw);
         if (problem != null) throw new ApiError(400, "The clan name can't be saved.", List.of(problem));
         guildSettings.updateClanName(c.guildId(), raw.isEmpty() ? null : raw);
         if (!raw.isEmpty()) clanSync.syncSoon(c.guildId()); // the stats fill in now, not at the next midnight
         log.info("Bot-less site of guild {}: {} set the clan name to '{}'", c.guildId(), c.userId(), raw);
-        return DataObject.empty().put("clanName", raw.isEmpty() ? null : raw).put("verified", false);
+        return raw.isEmpty() ? null : raw;
     }
 
     /** Why a clan name can't be used, or null (an empty one clears it). */

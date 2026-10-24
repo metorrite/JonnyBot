@@ -19,7 +19,7 @@ import java.util.Optional;
  *   <li>{@code GET|POST sites/{slug}/discord/me?userId=}: a signed-in member's own choice to be left out of the online names
  *   ({@code {"hidden": true}}); the user id comes only from the website's verified session</li>
  * </ul>
- * A bot-less site (the bot isn't in its server) answers {@code {"needsBot": true}} to all of these.
+ * A bot-less site (the bot isn't in its server) answers {@code {"needsBot": true}} to all of these, and to any other {@code data/discord/...} route.
  * Each site gets 10 requests a second (bursts of 20); answers are cached per server by {@link SiteDiscordService}.
  */
 @BService
@@ -39,7 +39,13 @@ public class DirectorySiteDiscordRoutes implements DirectoryRouteModule {
         if (!request.head().equals("sites")) return false;
         boolean data = parts.length == 5 && parts[2].equals("data") && parts[3].equals("discord") && (parts[4].equals("online") || parts[4].equals("feed"));
         boolean me = parts.length == 4 && parts[2].equals("discord") && parts[3].equals("me");
-        if (!data && !me) return false;
+        if (!data && !me) {
+            // any other data/discord/... route: a bot-less site still says the bot is needed, the rest is left to the other modules
+            boolean discordData = parts.length >= 5 && parts[2].equals("data") && parts[3].equals("discord");
+            if (!discordData || guild(request, parts[1]) != null || !botless(request, parts[1])) return false;
+            if (request.requireGet()) request.send(200, SiteApi.needsBot());
+            return true;
+        }
 
         if (!perSite.tryAcquire(parts[1])) {
             request.sendError(429, "Too many requests");

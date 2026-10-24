@@ -29,11 +29,22 @@ import java.util.function.Supplier;
  *   <li>{@code DELETE site-builder-beta/{userId}}: takes them off</li>
  * </ul>
  * The same entries show (and can be removed) on the full access list ({@code access-grants}) under "Site builder without the bot (beta)".
+ * <p>
+ * The website's owner console names the same list "beta testers" ({@code packages/dashboard/src/lib/betaTestersLogic.ts}); these routes answer it
+ * from the same entries, owner only too:
+ * <ul>
+ *   <li>{@code GET beta-testers}: {@code {testers: [{userId, note, addedBy, addedAt}]}}</li>
+ *   <li>{@code PUT beta-testers/{userId}} {@code {note}}: adds the person, or changes their note; answers the list</li>
+ *   <li>{@code DELETE beta-testers/{userId}}: takes them off; answers the list</li>
+ * </ul>
+ * {@code GET beta-testers/me} ({@code {betaTester}}, anyone signed in) is answered before any server is looked up, by
+ * {@link BotlessAdminApi#handleBetaTesterMe}.
  */
 @BService
 public class SiteBuilderBetaAdminApi implements AdminRouteExtension {
     private static final Logger log = LoggerFactory.getLogger(SiteBuilderBetaAdminApi.class);
     static final String ROOT = "site-builder-beta";
+    static final String TESTERS = "beta-testers";
     private static final int MAX_NOTE = 120;
     private static final int MAX_USERS = 500;
 
@@ -49,8 +60,9 @@ public class SiteBuilderBetaAdminApi implements AdminRouteExtension {
 
     @Override
     public DataObject route(Guild guild, Member actor, String method, String[] parts, Supplier<DataObject> body) {
-        if (parts.length < 1 || !parts[0].equals(ROOT)) return null;
+        if (parts.length < 1 || !(parts[0].equals(ROOT) || parts[0].equals(TESTERS))) return null;
         if (!owners.isOwner(guild.getJDA(), actor.getIdLong())) throw new ApiError(403, Text.of(guild, "dashboard.only_the_bot_owner_can_see"));
+        if (parts[0].equals(TESTERS)) return testersRoute(actor.getIdLong(), method, parts, body);
         if (parts.length == 1) {
             if (method.equals("POST")) return add(actor.getIdLong(), body.get());
             AdminRouteExtension.requireMethod(method, "GET");
@@ -77,19 +89,68 @@ public class SiteBuilderBetaAdminApi implements AdminRouteExtension {
         return DataObject.empty().put("area", AccessArea.SITE_BUILDER_BETA.key()).put("users", users);
     }
 
+    private DataObject testersRoute(long actorId, String method, String[] parts, Supplier<DataObject> body) {
+        if (parts.length == 1) {
+            AdminRouteExtension.requireMethod(method, "GET");
+            return testers();
+        }
+        if (parts.length != 2) return null;
+        long userId = userId(parts[1]);
+        if (method.equals("PUT")) {
+            put(actorId, userId, body.get().getString("note", ""));
+            return testers();
+        }
+        AdminRouteExtension.requireMethod(method, "DELETE");
+        remove(userId);
+        return testers();
+    }
+
+    /** The list in the website's shape, the entries still in force only. */
+    DataObject testers() {
+        Instant now = Instant.now();
+        DataArray testers = DataArray.empty();
+        for (AccessGrant g : entries()) {
+            if (g.expired(now)) continue;
+            testers.add(DataObject.empty().put("userId", Long.toString(g.userId())).put("note", g.note()).put("addedBy", Long.toString(g.grantedBy()))
+                    .put("addedAt", g.grantedAt().toString()));
+        }
+        return DataObject.empty().put("testers", testers);
+    }
+
+    /** Adds the person with the note, or changes the note when they are already on the list. */
+    void put(long actorId, long userId, String rawNote) {
+        String note = note(rawNote);
+        Instant now = Instant.now();
+        List<AccessGrant> current = entries();
+        List<AccessGrant> mine = current.stream().filter(g -> g.userId() == userId && !g.expired(now)).toList();
+        if (mine.isEmpty()) {
+            add(actorId, userId, note, current.size());
+            return;
+        }
+        for (AccessGrant g : mine) if (!g.note().equals(note)) repository.updateNote(g.id(), note);
+        service.listChanged();
+    }
+
     DataObject add(long actorId, DataObject body) {
         long userId = userId(body.getString("userId", ""));
-        String note = body.getString("note", "").strip();
-        if (note.length() > MAX_NOTE) throw new ApiError(400, "Keep the note under " + MAX_NOTE + " characters.");
+        String note = note(body.getString("note", ""));
         List<AccessGrant> current = entries();
         boolean listed = current.stream().anyMatch(g -> g.userId() == userId && !g.expired(Instant.now()));
-        if (!listed) {
-            if (current.size() >= MAX_USERS) throw new ApiError(400, "The beta list is full. Remove someone first.");
-            repository.add(AccessArea.SITE_BUILDER_BETA, userId, null, null, note, actorId, null);
-            service.listChanged();
-            log.info("Site builder beta: {} added user {}", actorId, userId);
-        }
+        if (!listed) add(actorId, userId, note, current.size());
         return list();
+    }
+
+    private void add(long actorId, long userId, String note, int listed) {
+        if (listed >= MAX_USERS) throw new ApiError(400, "The beta list is full. Remove someone first.");
+        repository.add(AccessArea.SITE_BUILDER_BETA, userId, null, null, note, actorId, null);
+        service.listChanged();
+        log.info("Site builder beta: {} added user {}", actorId, userId);
+    }
+
+    private static String note(String raw) {
+        String note = raw == null ? "" : raw.strip();
+        if (note.length() > MAX_NOTE) throw new ApiError(400, "Keep the note under " + MAX_NOTE + " characters.");
+        return note;
     }
 
     DataObject remove(long userId) {

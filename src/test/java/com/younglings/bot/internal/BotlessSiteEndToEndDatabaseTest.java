@@ -300,6 +300,69 @@ class BotlessSiteEndToEndDatabaseTest {
         verify(ticketAdmin, never()).handleGuildList(any(), any());
     }
 
+    /** A request that names no server (no {@code X-Guild-Id}, no facts), as the website's {@code betaTester} call sends it. */
+    private Answer noServer(String method, String path, Long actorId) throws Exception {
+        HttpRequest.Builder request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/internal/admin/" + path)).timeout(java.time.Duration.ofSeconds(20))
+                .header("X-Internal-Secret", SECRET).method(method, HttpRequest.BodyPublishers.noBody());
+        if (actorId != null) request.header("X-Actor-Id", Long.toString(actorId));
+        HttpResponse<String> response = http.send(request.build(), HttpResponse.BodyHandlers.ofString());
+        return new Answer(response.statusCode(), response.body().isBlank() ? DataObject.empty() : DataObject.fromJson(response.body()));
+    }
+
+    @Test
+    void betaTestersMeAnswersAnyoneSignedInWithoutAServer() throws Exception {
+        org.mockito.Mockito.clearInvocations(ticketAdmin);
+        Answer stranger = noServer("GET", "beta-testers/me", STRANGER);
+        assertEquals(200, stranger.status(), stranger.body().toString());
+        assertFalse(stranger.body().getBoolean("betaTester"));
+        onBeta(ADMIN);
+        assertTrue(noServer("GET", "beta-testers/me", ADMIN).body().getBoolean("betaTester"));
+        assertFalse(noServer("GET", "beta-testers/me", null).body().getBoolean("betaTester"), "nobody signed in is no");
+        assertEquals(405, noServer("POST", "beta-testers/me", ADMIN).status());
+        verify(ticketAdmin, never()).handle(any(), any());
+    }
+
+    @Test
+    void layoutAndRolesSayBotPresentFalseAndTakeEditorUserIds() throws Exception {
+        onBeta(ADMIN);
+        Answer layout = as(ADMIN, true, "GET", "clan-site/layout", null);
+        assertEquals(200, layout.status(), layout.body().toString());
+        assertFalse(layout.body().getBoolean("botPresent", true));
+        assertTrue(layout.body().getBoolean("botless"));
+        Answer roles = as(ADMIN, true, "GET", "clan-site/roles", null);
+        assertFalse(roles.body().getBoolean("botPresent", true));
+        assertTrue(roles.body().getBoolean("botless"));
+        assertEquals(0, roles.body().getArray("editorUserIds").length());
+
+        StringBuilder many = new StringBuilder();
+        for (int i = 0; i < ClanSiteAdminApi.MAX_ROLES_PER_LIST + 1; i++) many.append(i == 0 ? "" : ",").append('"').append(BASE + 800 + i).append('"');
+        assertEquals(400, as(ADMIN, true, "PUT", "clan-site/roles", "{\"editorUserIds\":[" + many + "]}").status(), "at most 20 editors by user id");
+        Answer saved = as(ADMIN, true, "PUT", "clan-site/roles", "{\"editorUserIds\":[\"" + EDITOR + "\"]}");
+        assertEquals(200, saved.status(), saved.body().toString());
+        assertFalse(saved.body().getBoolean("botPresent", true));
+        assertEquals(1, saved.body().getArray("editorUserIds").length());
+    }
+
+    @Test
+    void putSetupWithOnlyTheClanNameWorksWithoutTheBot() throws Exception {
+        onBeta(ADMIN);
+        onBeta(EDITOR);
+        Answer saved = as(ADMIN, true, "PUT", "setup", "{\"clanName\":\"Lantern  Hollow\"}");
+        assertEquals(200, saved.status(), saved.body().toString());
+        assertEquals("Lantern Hollow", saved.body().getString("clanName"));
+        assertEquals("Lantern Hollow", settings.getEffective(BOTLESS).clanName(), "the same name clan-site/clan-name stores");
+        assertEquals("Lantern Hollow", as(ADMIN, true, "GET", "clan-site/clan-name", null).body().getString("clanName"));
+        assertEquals("Lantern Hollow", as(ADMIN, true, "GET", "setup", null).body().getString("clanName"));
+        assertTrue(audited("setup"));
+
+        assertEquals(400, as(ADMIN, true, "PUT", "setup", "{\"clanName\":\"<script>\"}").status());
+        Answer more = as(ADMIN, true, "PUT", "setup", "{\"clanName\":\"Other\",\"clanEnabled\":true}");
+        assertEquals(409, more.status(), "any other setting needs the bot");
+        assertTrue(more.body().getBoolean("needsBot"));
+        assertEquals(403, as(EDITOR, false, "PUT", "setup", "{\"clanName\":\"Other\"}").status(), "the clan name is for the site's admins");
+        assertEquals("Lantern Hollow", settings.getEffective(BOTLESS).clanName());
+    }
+
     private static boolean audited(String path) throws Exception {
         try (Connection c = db.getConnection(); PreparedStatement s = c.prepareStatement("SELECT COUNT(*) FROM younglings.admin_audit WHERE guild_id = ? AND path = ?")) {
             s.setLong(1, BOTLESS);

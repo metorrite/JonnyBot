@@ -174,7 +174,8 @@ public class InternalApiServer {
      * {@link TicketAdminApi} checks who is asking and does the rest. The server comes from the {@code X-Guild-Id}
      * header; without one it is the bot's home server, so the clan website's own admin console keeps working
      * unchanged. Whoever is asking is always checked against <em>that</em> server, never the home server's rules.
-     * {@code /internal/admin/guilds} is the one route with no server: it lists the servers the asker may manage.
+     * {@code /internal/admin/guilds} and {@code /internal/admin/beta-testers/me} are the routes with no server: the servers the asker may manage,
+     * and whether they may run a clan website without the bot.
      * <p>
      * A server the bot isn't in (named in {@code X-Guild-Id}) goes to {@link BotlessAdminApi}, which serves a bot-less clan website's routes on
      * the website's signed sign-in facts ({@link ActorFacts}); a server the bot is in never looks at those facts.
@@ -190,6 +191,10 @@ public class InternalApiServer {
             String path = exchange.getRequestURI().getPath();
             if (path.equals("/internal/admin/guilds") || path.equals("/internal/admin/guilds/")) {
                 ticketAdminApi.handleGuildList(exchange, jda);
+                return;
+            }
+            if (path.equals("/internal/admin/beta-testers/me") || path.equals("/internal/admin/beta-testers/me/")) {
+                botlessAdmin.handleBetaTesterMe(exchange, jda);
                 return;
             }
 

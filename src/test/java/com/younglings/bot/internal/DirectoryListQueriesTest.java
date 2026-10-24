@@ -67,7 +67,7 @@ class DirectoryListQueriesTest {
         when(clanSync.getClanName(anyLong())).thenAnswer(inv -> "Clan " + inv.getArgument(0));
         when(clanSync.countRoster(anyLong(), anyBoolean())).thenReturn(40);
         ClanProfileService service = new ClanProfileService(repository, clanSync, mock(PlayerLinkService.class));
-        DirectoryApi api = new DirectoryApi(repository, service, mock(SiteStatsRepository.class), List.of());
+        DirectoryApi api = new DirectoryApi(repository, service, mock(SiteStatsRepository.class), List.of(), mock(com.younglings.bot.clansite.BotlessSiteRepository.class));
 
         assertEquals(200, call(api, "/internal/directory/clans"));
 
@@ -88,7 +88,7 @@ class DirectoryListQueriesTest {
         SiteStatsRepository stats = mock(SiteStatsRepository.class);
         when(stats.xpGains(anyLong(), any())).thenReturn(List.of());
         ClanProfileService service = new ClanProfileService(repository, clanSync, mock(PlayerLinkService.class));
-        DirectoryApi api = new DirectoryApi(repository, service, stats, List.of());
+        DirectoryApi api = new DirectoryApi(repository, service, stats, List.of(), mock(com.younglings.bot.clansite.BotlessSiteRepository.class));
 
         assertEquals(200, call(api, "/internal/directory/leaderboards"));
 

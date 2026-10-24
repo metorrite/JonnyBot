@@ -46,9 +46,11 @@ All under `/internal/admin/`, with `X-Guild-Id` naming the server and the signed
 | Route | Who | What |
 |---|---|---|
 | `GET whoami` | anyone with valid facts | 200 always: `{allowed, tier ("ADMIN" or "NONE"), botless: true, id, siteRole, beta, notOnBeta, isOwner, guildId (when allowed), areas}` |
-| `clan-site...` | by site role | Every site builder route, the same as a bot-present server (`GET/PUT clan-site`, `clan-site/layout`, `.../publish`, `.../versions...`, `clan-site/publish`, `unpublish`, `delete`, `export`, `roles`, `roles/hand-over`). `GET clan-site` also has `botless: true` and `clanName`. |
+| `clan-site...` | by site role | Every site builder route, the same as a bot-present server (`GET/PUT clan-site`, `clan-site/layout`, `.../publish`, `.../versions...`, `clan-site/publish`, `unpublish`, `delete`, `export`, `roles`, `roles/hand-over`). `GET clan-site` also has `botless: true` and `clanName`; `GET clan-site/layout` and `clan-site/roles` (GET and PUT) have `botPresent: false` and `botless: true`. `PUT clan-site/roles` takes `editorUserIds` (up to 20). |
 | `GET clan-site/clan-name` | editor | `{clanName, verified: false}` |
 | `PUT clan-site/clan-name` `{clanName}` | admin | The RuneScape clan the site shows (letters, digits, spaces, `-`, `_`, up to 20; empty clears it). Not verified while in beta. Stored as the server's clan name, which the stats and clan sync read; a sync of that clan starts right away. |
+| `GET setup` | editor | `{clanName, clanEnabled: false, clanActive: false, inviteUrl, verified: false, botless: true, botPresent: false}` |
+| `PUT setup` `{clanName}` | admin | The website's guided setup (Clan info step): the same as `PUT clan-site/clan-name`. A body with any other key is 409 `needsBot`. |
 | `GET\|PUT clan-profile` | admin | The clan profile (address, name, visibility). `clan-profile/verify` needs the bot. |
 | `PUT\|DELETE images/site/{slot}` | admin | The site's logo and banner. |
 | `site-pictures...` | editor | The site's picture library, as on a bot-present server. |
@@ -65,7 +67,8 @@ Writes are rate limited per person and written to the server's audit log, as on 
   `feed`, `records`, `citadel-grid`, `history`, `pvm`, `drops`, `bosses`, `boss`, `item`, `drop-log`, `member`, `member/skill`,
   `member/recap` answer as usual. The Discord-only ones (`events`, `polls`, `signups`, `coffer`) answer `{"needsBot": true}`;
   `notifications` has only the activity lines, empty events, polls and signups, and `needsBot: true`.
-- `GET sites/{slug}/data/discord/online|feed` and `GET|POST sites/{slug}/discord/me`: `{"needsBot": true}`.
+- `GET sites/{slug}/data/discord/...` (any of them) and `GET|POST sites/{slug}/discord/me`: `{"needsBot": true}`.
+- `GET clans/{slug}/events` for a bot-less site's clan: `{"events": [], "needsBot": true, "generatedAt"}`.
 - `GET sites/{slug}/viewer?userId=`: the claimant is `owner`, editors by user id are `editor` (with `guildId`), everyone else `guest`
   (without the bot nobody can tell who is in the server); `botless: true`.
 
@@ -79,6 +82,15 @@ The bot's owner manages the list from the console (home server, owner only). The
 | `GET site-builder-beta` | `{area: "site-builder-beta", users: [{userId, note, grantedBy, grantedAt, expiresAt, expired}]}` |
 | `POST site-builder-beta` `{userId, note?}` | Adds the person (adding them again keeps one entry). |
 | `DELETE site-builder-beta/{userId}` | Takes them off (404 when they aren't on it). |
+
+The website's owner console (runeclans `/admin/beta-testers`) uses its own names for the same entries, owner only too:
+
+| Route | What |
+|---|---|
+| `GET beta-testers` | `{testers: [{userId, note, addedBy, addedAt}]}` (entries in force only) |
+| `PUT beta-testers/{userId}` `{note}` | Adds the person, or changes their note. Answers the list. |
+| `DELETE beta-testers/{userId}` | Takes them off (404 when they aren't on it). Answers the list. |
+| `GET beta-testers/me` | **Anyone signed in**, no `X-Guild-Id` needed: `{betaTester: bool}` for `X-Actor-Id` (on the list, or a bot owner). Answered before any server is looked up, so a tester who shares no server with the bot gets an answer too. |
 
 `whoami` on any server reports the area as `areas["site-builder-beta"]`, from a grant alone (being a beta server's admin doesn't count).
 

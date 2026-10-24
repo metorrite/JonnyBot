@@ -158,7 +158,7 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
         if (parts.length != 2) return null;
         return switch (parts[1]) {
             case "layout" -> {
-                if (method.equals("GET")) yield layout(c).put("you", youJson(c));
+                if (method.equals("GET")) yield botPresence(c, layout(c).put("you", youJson(c)));
                 AdminRouteExtension.requireMethod(method, "PUT");
                 yield saveLayout(c, body.get());
             }
@@ -574,11 +574,16 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
         SiteRoles.Settings s = siteRoles.settings(c.guildId());
         DataObject discordRoles = DataObject.empty().put("available", !c.botless());
         if (c.botless()) discordRoles.put("reason", DISCORD_ROLES_UNAVAILABLE);
-        return DataObject.empty().put("editorRoleIds", idsJson(s.editorRoleIds())).put("memberRoleIds", idsJson(s.memberRoleIds()))
+        return botPresence(c, DataObject.empty().put("editorRoleIds", idsJson(s.editorRoleIds())).put("memberRoleIds", idsJson(s.memberRoleIds()))
                 .put("staffRoleIds", idsJson(s.staffRoleIds())).put("editorsMayPublish", s.editorsMayPublish())
                 .put("editorUserIds", idsJson(s.editorUserIds())).put("discordRoles", discordRoles)
                 .put("claimedBy", s.claimedBy() == null ? null : String.valueOf(s.claimedBy()))
-                .put("you", youJson(c));
+                .put("you", youJson(c)));
+    }
+
+    /** On a bot-less site, {@code botPresent: false} (the website's name for it) and {@code botless: true}; a bot-present answer is unchanged. */
+    private static DataObject botPresence(SiteCaller c, DataObject answer) {
+        return c.botless() ? answer.put("botPresent", false).put("botless", true) : answer;
     }
 
     /** The asker's own role on the site and what it lets them do, so the editor shows only what will work. */

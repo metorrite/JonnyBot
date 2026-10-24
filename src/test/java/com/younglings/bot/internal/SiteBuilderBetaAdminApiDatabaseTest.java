@@ -115,4 +115,31 @@ class SiteBuilderBetaAdminApiDatabaseTest {
     void aUserIdMustBeOne() {
         assertEquals(400, assertThrows(ApiError.class, () -> call(OWNER, "POST", "site-builder-beta", DataObject.empty().put("userId", "12"))).status);
     }
+
+    /** The website's names for the same list (runeclans {@code betaTestersLogic.ts}): {@code beta-testers}, PUT with a note, answers the list. */
+    @Test
+    void theWebsitesBetaTestersRoutesUseTheSameEntries() {
+        DataObject added = call(OWNER, "PUT", "beta-testers/" + TESTER, DataObject.empty().put("note", "Lantern Hollow's leader"));
+        assertEquals(1, added.getArray("testers").length());
+        DataObject t = added.getArray("testers").getObject(0);
+        assertEquals(Long.toString(TESTER), t.getString("userId"));
+        assertEquals("Lantern Hollow's leader", t.getString("note"));
+        assertEquals(Long.toString(OWNER), t.getString("addedBy"));
+        assertTrue(java.time.Instant.parse(t.getString("addedAt")).isBefore(java.time.Instant.now().plusSeconds(5)));
+        assertTrue(service.allows(jda, AccessArea.SITE_BUILDER_BETA, TESTER), "a site-builder-beta grant");
+        assertEquals(1, call(OWNER, "GET", "site-builder-beta", DataObject.empty()).getArray("users").length(), "and shows on the old route");
+
+        DataObject renamed = call(OWNER, "PUT", "beta-testers/" + TESTER, DataObject.empty().put("note", "co-leader"));
+        assertEquals(1, renamed.getArray("testers").length(), "a second PUT changes the note, not the count");
+        assertEquals("co-leader", renamed.getArray("testers").getObject(0).getString("note"));
+        assertEquals("co-leader", call(OWNER, "GET", "beta-testers", DataObject.empty()).getArray("testers").getObject(0).getString("note"));
+
+        assertEquals(0, call(OWNER, "DELETE", "beta-testers/" + TESTER, DataObject.empty()).getArray("testers").length());
+        assertFalse(service.allows(jda, AccessArea.SITE_BUILDER_BETA, TESTER));
+
+        assertEquals(403, assertThrows(ApiError.class, () -> call(STRANGER, "GET", "beta-testers", DataObject.empty())).status);
+        assertEquals(403, assertThrows(ApiError.class, () -> call(STRANGER, "PUT", "beta-testers/" + STRANGER, DataObject.empty())).status);
+        assertEquals(400, assertThrows(ApiError.class, () -> call(OWNER, "PUT", "beta-testers/12", DataObject.empty())).status);
+        assertEquals(400, assertThrows(ApiError.class, () -> call(OWNER, "PUT", "beta-testers/" + TESTER, DataObject.empty().put("note", "n".repeat(121)))).status);
+    }
 }

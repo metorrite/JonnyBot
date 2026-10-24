@@ -86,4 +86,33 @@ class ActorFactsTest {
         assertThrows(ActorFacts.Invalid.class, () -> ActorFacts.verify(garbage, ActorFacts.sign(garbage, SECRET), SECRET, GUILD, NOW));
         assertThrows(ActorFacts.Invalid.class, () -> ActorFacts.verify("a", "b", null, GUILD, NOW), "no secret configured");
     }
+
+    /**
+     * The website's own fixed vector (runeclans {@code packages/api-client/tests/actorFacts.test.mjs}): the exact headers its signer makes are
+     * accepted here, so the two sides can't drift apart. Ids made at runtime as there.
+     */
+    @Test
+    void theWebsitesFixedVectorIsAccepted() throws Exception {
+        String secret = "rc-test-secret";
+        long user = Long.parseLong("1".repeat(18));
+        long guild = Long.parseLong("2".repeat(18));
+        long iat = 1_760_000_000L;
+        String actor = "eyJ2IjoxLCJ1c2VySWQiOiIxMTExMTExMTExMTExMTExMTEiLCJndWlsZElkIjoiMjIyMjIyMjIyMjIyMjIyMjIyIiwiYWRtaW4iOnRydWUsIm93bmVyIjpmYWxzZSwiaWF0IjoxNzYwMDAwMDAwLCJleHAiOjE3NjAwMDAzMDB9";
+        String sig = "815303523e424fc260a5665362990623015fd548d174c4337d72d16e7009e1d0";
+
+        assertEquals("{\"v\":1,\"userId\":\"" + user + "\",\"guildId\":\"" + guild + "\",\"admin\":true,\"owner\":false,\"iat\":" + iat + ",\"exp\":" + (iat + 300) + "}",
+                new String(Base64.getUrlDecoder().decode(actor), StandardCharsets.UTF_8));
+        assertEquals(sig, ActorFacts.sign(actor, secret), "the same HMAC as the website's");
+        // the bot only checks facts, never makes them, so it reads the website's exact string rather than rebuilding it
+
+        ActorFacts f = ActorFacts.verify(actor, sig, secret, guild, iat + 10);
+        assertEquals(user, f.userId());
+        assertEquals(guild, f.guildId());
+        assertTrue(f.admin());
+        assertFalse(f.owner());
+        assertEquals(iat, f.iat());
+        assertEquals(iat + 300, f.exp());
+        assertThrows(ActorFacts.Invalid.class, () -> ActorFacts.verify(actor, sig, secret, guild, iat + 300), "expired at exp");
+        assertThrows(ActorFacts.Invalid.class, () -> ActorFacts.verify(actor, sig, "other", guild, iat + 10));
+    }
 }
