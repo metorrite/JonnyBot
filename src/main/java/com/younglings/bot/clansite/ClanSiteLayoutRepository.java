@@ -61,6 +61,27 @@ public class ClanSiteLayoutRepository {
         ));
     }
 
+    /** A server's layouts without their documents: revisions, times and whether a published copy exists (the bot owner's site list, T-423). */
+    public record Summary(long guildId, int draftRev, int publishedRev, boolean hasPublished, Instant updatedAt, Instant publishedAt) {}
+
+    /** Every server's layout summary, read without the (large) documents. */
+    public List<Summary> summaries() {
+        List<Summary> list = new ArrayList<>();
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(
+                     "SELECT guild_id, draft_rev, published_rev, published IS NOT NULL AS has_published, updated_at, published_at FROM younglings.clan_site_layout ORDER BY guild_id");
+             ResultSet rs = statement.executeQuery()) {
+            while (rs.next()) {
+                list.add(new Summary(rs.getLong("guild_id"), rs.getInt("draft_rev"), rs.getInt("published_rev"), rs.getBoolean("has_published"),
+                        instant(rs, "updated_at"), instant(rs, "published_at")));
+            }
+            return list;
+        } catch (SQLException e) {
+            log.error("Failed to read the clan website layouts", e);
+            throw new RuntimeException("Failed to read the clan website layouts", e);
+        }
+    }
+
     public Optional<Layouts> byGuild(long guildId) {
         try (Connection connection = connectionSupplier.getConnection();
              PreparedStatement statement = connection.prepareStatement(
