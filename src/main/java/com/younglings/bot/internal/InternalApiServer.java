@@ -78,10 +78,12 @@ public class InternalApiServer {
     private final CitadelWinners citadelWinners;
     private final FormsPublicApi formsApi;
     private final java.util.List<InternalRouteModule> routeModules;
+    private final BotlessAdminApi botlessAdmin;
     private JDA jda;
 
     public InternalApiServer(BotConfig botConfig, TicketAdminApi ticketAdminApi, SiteApi siteApi, DirectoryApi directoryApi, PluginApi pluginApi, MemberApi memberApi, ImageUploadService imageUploads,
-                             CitadelWinners citadelWinners, FormsPublicApi formsApi, java.util.List<InternalRouteModule> routeModules) {
+                             CitadelWinners citadelWinners, FormsPublicApi formsApi, java.util.List<InternalRouteModule> routeModules, BotlessAdminApi botlessAdmin) {
+        this.botlessAdmin = botlessAdmin;
         this.formsApi = formsApi;
         this.citadelWinners = citadelWinners;
         this.routeModules = java.util.List.copyOf(routeModules);
@@ -173,6 +175,9 @@ public class InternalApiServer {
      * header; without one it is the bot's home server, so the clan website's own admin console keeps working
      * unchanged. Whoever is asking is always checked against <em>that</em> server, never the home server's rules.
      * {@code /internal/admin/guilds} is the one route with no server: it lists the servers the asker may manage.
+     * <p>
+     * A server the bot isn't in (named in {@code X-Guild-Id}) goes to {@link BotlessAdminApi}, which serves a bot-less clan website's routes on
+     * the website's signed sign-in facts ({@link ActorFacts}); a server the bot is in never looks at those facts.
      */
     private void handleAdmin(HttpExchange exchange, String secret, long homeGuildId) throws IOException {
         try {
@@ -188,6 +193,11 @@ public class InternalApiServer {
                 return;
             }
 
+            Long botless = botlessGuild(exchange);
+            if (botless != null) {
+                botlessAdmin.handle(exchange, botless, jda, secret);
+                return;
+            }
             Guild guild = adminGuild(exchange, homeGuildId);
             if (guild == null) return;
             ticketAdminApi.handle(exchange, guild);
@@ -195,6 +205,21 @@ public class InternalApiServer {
             log.error("Internal API admin request failed", e);
             sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));
         }
+    }
+
+    /** The server {@code X-Guild-Id} names when it is a valid id of a server the bot isn't in (a bot-less site's), else null. */
+    private Long botlessGuild(HttpExchange exchange) {
+        String raw = exchange.getRequestHeaders().getFirst(GUILD_HEADER);
+        if (raw == null || raw.isBlank() || !raw.strip().matches("[0-9]{15,20}")) return null;
+        long id;
+        try {
+            id = Long.parseLong(raw.strip());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+        // Only once every server has loaded, and never for one Discord says is in an outage: a server the bot IS in must never pass as bot-less.
+        if (jda.getStatus() != JDA.Status.CONNECTED || jda.isUnavailable(id)) return null;
+        return jda.getGuildById(id) == null ? id : null;
     }
 
     /** The server an admin request is about, or {@code null} after the error has been sent. */

@@ -1,5 +1,6 @@
 package com.younglings.bot.premium;
 
+import com.younglings.bot.clansite.BotlessSiteRepository;
 import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.premium.BillingRules.Decision;
 import com.younglings.bot.premium.BillingRules.SitePlan;
@@ -58,13 +59,16 @@ public class Billing {
     private final PremiumGuildRepository grants;
     private final Premium premium;
     private final GuildRetentionRepository retention;
+    private final BotlessSiteRepository botless;
     private final String reconcileUrl;
     private final String secret;
     private final ScheduledExecutorService executor = BotScheduler.lane("billing-reconcile");
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(TIMEOUT).build();
     private volatile JDA jda;
 
-    public Billing(BillingRepository repository, PremiumGuildRepository grants, Premium premium, GuildRetentionRepository retention, BotConfig config) {
+    public Billing(BillingRepository repository, PremiumGuildRepository grants, Premium premium, GuildRetentionRepository retention, BotConfig config,
+                   BotlessSiteRepository botless) {
+        this.botless = botless;
         this.repository = repository;
         this.grants = grants;
         this.premium = premium;
@@ -109,12 +113,13 @@ public class Billing {
 
     /**
      * The plan a clan website has. {@code botPresent}: whether the bot is in the server right now; false with no departure on record (the bot's
-     * guild cache is still loading, say) counts as present, so a site never loses its plan on a restart.
+     * guild cache is still loading, say) counts as present, so a site never loses its plan on a restart. A bot-less site (run without the bot,
+     * {@link BotlessSiteRepository}) always counts as present: the bot was never meant to be there, so the leave grace never starts.
      */
     public SitePlan plan(long guildId, boolean botPresent, Instant now) {
         Grant grant = grants.grant(guildId);
         if (grant == null) return SitePlan.FREE;
-        Instant leftAt = botPresent ? null : retention.leftAt(guildId);
+        Instant leftAt = botPresent || botless.contains(guildId) ? null : retention.leftAt(guildId);
         Subscription sub = BillingRules.SOURCE_STRIPE.equals(grant.source()) ? repository.subscription(guildId).orElse(null) : null;
         return BillingRules.plan(grant, sub, leftAt, now);
     }
@@ -165,6 +170,7 @@ public class Billing {
     List<Subscription> toReconcile(Instant now) {
         List<Subscription> due = new ArrayList<>();
         for (Subscription sub : repository.all()) {
+            if (botless.contains(sub.guildId())) continue; // never "left": a bot-less site's plan isn't cancelled for the bot's absence
             if (BillingRules.shouldReconcile(sub, retention.leftAt(sub.guildId()), now)) due.add(sub);
         }
         return due;

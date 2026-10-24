@@ -26,7 +26,8 @@ import java.util.Optional;
  *   <li>{@code GET sites/{slug}/data/{route}}: that site's clan data, the same answers the clan site's own routes give the home server, for
  *   every route in {@link SiteApi#TENANT_ROUTES} (members, overview, leaderboard, recap, feed, records, citadel-grid, history, coffer, polls,
  *   signups, events, pvm, drops, bosses, boss, item, drop-log, member/skill, notifications; T-364) with the same query parameters; a recap is
- *   always the clan's, never one member's</li>
+ *   always the clan's, never one member's. For a bot-less site (the bot isn't in its server) the same answers come from the stats stored by
+ *   server id, and the Discord-only routes ({@link SiteApi#DISCORD_ROUTES}) answer {@code {"needsBot": true}}</li>
  * </ul>
  */
 @BService
@@ -74,7 +75,10 @@ public class DirectoryClanSiteRoutes implements DirectoryRouteModule {
             String route = parts.length == 4 ? parts[3] : parts[3] + "/" + parts[4]; // member/skill is the one two-part answer
             Optional<ClanSite> site = request.viewable(parts[1]).flatMap(p -> sites.visible(p.guildId()));
             Guild guild = site.isEmpty() ? null : request.jda().getGuildById(site.get().guildId());
-            DataObject data = guild == null ? null : siteApi.tenant(guild, route, request.exchange());
+            // A bot-less site's clan data is stored by server id like any other; its Discord-only routes answer {"needsBot": true}.
+            boolean botless = guild == null && site.isPresent() && sites.botless(site.get().guildId());
+            DataObject data = guild != null ? siteApi.tenant(guild, route, request.exchange())
+                    : botless ? siteApi.tenant(site.get().guildId(), null, route, request.exchange()) : null;
             if (data == null) request.sendError(404, "Not found");
             else request.send(200, data);
             return true;
@@ -113,6 +117,7 @@ public class DirectoryClanSiteRoutes implements DirectoryRouteModule {
             blocks.add(DataObject.empty().put("page", b.page()).put("position", b.position()).put("kind", b.kind().name()).put("body", jsonObject(b.body())));
         }
         return DataObject.empty().put("slug", p.slug()).put("clan", request.clanJson(p)).put("template", site.template().name())
+                .put("botless", sites.botless(site.guildId()) && request.jda().getGuildById(site.guildId()) == null)
                 .put("theme", jsonObject(site.theme())).put("pages", jsonArray(site.pages())).put("blocks", blocks)
                 .put("publishedAt", site.publishedAt() == null ? null : site.publishedAt().toString())
                 .put("plan", com.younglings.bot.premium.Billing.planJson(site.guildId(), request.jda().getGuildById(site.guildId()) != null)) // T-366

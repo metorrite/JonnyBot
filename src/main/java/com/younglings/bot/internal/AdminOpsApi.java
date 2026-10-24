@@ -216,6 +216,10 @@ public class AdminOpsApi {
     // ---------- audit log ----------
 
     DataObject audit(Guild guild, String limitRaw, String actor, String search) {
+        return audit(guild.getIdLong(), limitRaw, actor, search);
+    }
+
+    DataObject audit(long guildId, String limitRaw, String actor, String search) {
         int limit = 100;
         try {
             if (limitRaw != null) limit = Math.max(1, Math.min(500, Integer.parseInt(limitRaw.trim())));
@@ -223,7 +227,7 @@ public class AdminOpsApi {
             // keep the default
         }
         DataArray entries = DataArray.empty();
-        for (var e : store.recentAudit(guild.getIdLong(), limit, actor, search)) {
+        for (var e : store.recentAudit(guildId, limit, actor, search)) {
             entries.add(DataObject.empty().put("id", e.id()).put("actorId", e.actorId()).put("actorName", e.actorName()).put("method", e.method()).put("path", e.path())
                     .put("status", e.status()).put("at", iso(e.at())));
         }

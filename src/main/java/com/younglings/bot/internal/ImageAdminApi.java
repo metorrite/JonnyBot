@@ -29,17 +29,22 @@ public class ImageAdminApi {
     }
 
     DataObject upload(Guild guild, Member actor, String scope, String slot, DataObject body) {
-        if (!ImageUploadService.isKnownSlot(scope, slot)) throw new ApiError(404, Text.of(guild, "dashboard.not_found"));
+        return upload(guild.getIdLong(), actor.getIdLong(), scope, slot, body);
+    }
+
+    /** {@link #upload(Guild, Member, String, String, DataObject)} by server id (a bot-less site's logo and banner, {@link BotlessAdminApi}). */
+    DataObject upload(long guildId, long actorId, String scope, String slot, DataObject body) {
+        if (!ImageUploadService.isKnownSlot(scope, slot)) throw new ApiError(404, Text.of(guildId, "dashboard.not_found"));
         byte[] data;
         try {
             data = Base64.getDecoder().decode(body.getString("data", ""));
         } catch (IllegalArgumentException e) {
-            throw new ApiError(400, Text.of(guild, "dashboard.that_file_couldn_t_be_read"));
+            throw new ApiError(400, Text.of(guildId, "dashboard.that_file_couldn_t_be_read"));
         }
 
         try {
-            UploadedImageRepository.Saved saved = images.save(guild.getIdLong(), scope, slot, data);
-            log.info("Dashboard: {} uploaded a picture for {}/{} ({} bytes)", actor.getId(), scope, slot, data.length);
+            UploadedImageRepository.Saved saved = images.save(guildId, scope, slot, data);
+            log.info("Dashboard: {} uploaded a picture for {}/{} ({} bytes)", actorId, scope, slot, data.length);
             return DataObject.empty().put("token", saved.token()).put("version", saved.version());
         } catch (ImageUploadService.InvalidImageException e) {
             throw new ApiError(400, e.getMessage());
@@ -47,9 +52,13 @@ public class ImageAdminApi {
     }
 
     DataObject remove(Guild guild, Member actor, String scope, String slot) {
-        if (!ImageUploadService.isKnownSlot(scope, slot)) throw new ApiError(404, Text.of(guild, "dashboard.not_found"));
-        boolean removed = images.remove(guild.getIdLong(), scope, slot);
-        if (removed) log.info("Dashboard: {} removed the picture for {}/{}", actor.getId(), scope, slot);
+        return remove(guild.getIdLong(), actor.getIdLong(), scope, slot);
+    }
+
+    DataObject remove(long guildId, long actorId, String scope, String slot) {
+        if (!ImageUploadService.isKnownSlot(scope, slot)) throw new ApiError(404, Text.of(guildId, "dashboard.not_found"));
+        boolean removed = images.remove(guildId, scope, slot);
+        if (removed) log.info("Dashboard: {} removed the picture for {}/{}", actorId, scope, slot);
         return DataObject.empty().put("removed", removed);
     }
 }

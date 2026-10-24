@@ -53,7 +53,7 @@ class BillingDatabaseTest {
         grants = new PremiumGuildRepository(supplier, initializer);
         repository = new BillingRepository(supplier, initializer);
         retention = new GuildRetentionRepository(supplier);
-        billing = new Billing(repository, grants, new Premium(grants), retention, mock(BotConfig.class));
+        billing = new Billing(repository, grants, new Premium(grants), retention, mock(BotConfig.class), mock(com.younglings.bot.clansite.BotlessSiteRepository.class));
         now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         periodEnd = now.plus(Duration.ofDays(30));
         cleanUp();

@@ -57,8 +57,13 @@ public class ClanProfileAdminApi implements AdminRouteExtension {
     }
 
     DataObject get(Guild guild) {
-        ClanProfile p = service.profileOf(guild.getIdLong());
-        String clan = service.clanNameOf(guild.getIdLong());
+        return get(guild.getIdLong(), guild.getName());
+    }
+
+    /** The profile of any server; {@code serverName} (null for a bot-less site, whose server the bot can't see) only suggests a name. */
+    DataObject get(long guildId, String serverName) {
+        ClanProfile p = service.profileOf(guildId);
+        String clan = service.clanNameOf(guildId);
         DataArray focus = DataArray.empty();
         for (Focus f : Focus.values()) if (p.focus().contains(f)) focus.add(f.name());
         return DataObject.empty()
@@ -68,8 +73,8 @@ public class ClanProfileAdminApi implements AdminRouteExtension {
                 .put("leaderboardOptIn", p.leaderboardOptIn())
                 .put("currentClanName", clan).put("verified", ProfileRules.verified(p, clan)).put("verifiedClanName", p.verifiedClanName())
                 .put("listing", ProfileRules.listing(p, clan).name()).put("suspended", p.suspended()).put("suspendedReason", p.suspendedReason())
-                .put("memberCount", clan == null ? 0 : service.memberCount(guild.getIdLong()))
-                .put("suggestedName", clan == null ? guild.getName() : clan)
+                .put("memberCount", clan == null ? 0 : service.memberCount(guildId))
+                .put("suggestedName", clan == null ? serverName : clan)
                 .put("options", options())
                 .put("limits", DataObject.empty().put("name", ProfileRules.MAX_NAME).put("tagline", ProfileRules.MAX_TAGLINE)
                         .put("description", ProfileRules.MAX_DESCRIPTION).put("requirements", ProfileRules.MAX_REQUIREMENTS));
@@ -86,7 +91,11 @@ public class ClanProfileAdminApi implements AdminRouteExtension {
     }
 
     DataObject save(Guild guild, Member actor, DataObject body) {
-        long guildId = guild.getIdLong();
+        return save(guild.getIdLong(), guild.getName(), actor.getIdLong(), body);
+    }
+
+    /** {@link #save(Guild, Member, DataObject)} for any server ({@code serverName} null for a bot-less site). */
+    DataObject save(long guildId, String serverName, long actorId, DataObject body) {
         ClanProfile current = service.profileOf(guildId);
         String clan = service.clanNameOf(guildId);
         List<String> problems = new ArrayList<>();
@@ -143,7 +152,8 @@ public class ClanProfileAdminApi implements AdminRouteExtension {
                 problems.add("Another clan uses the address \"" + slug + "\", or gave it up less than " + ProfileRules.SLUG_GRACE.toDays() + " days ago. Choose another.");
             }
         } else if (slug == null) {
-            slug = freeSlug(ProfileRules.slugify(name.isBlank() ? (clan == null ? guild.getName() : clan) : name), guildId);
+            String fallback = clan != null ? clan : serverName != null ? serverName : "clan";
+            slug = freeSlug(ProfileRules.slugify(name.isBlank() ? fallback : name), guildId);
         }
 
         if (problems.isEmpty() && visibility != current.visibility()) {
@@ -152,12 +162,12 @@ public class ClanProfileAdminApi implements AdminRouteExtension {
         } else if (problems.isEmpty() && visibility != Visibility.PRIVATE && current.suspended()) {
             problems.add(ProfileRules.visibilityProblem(current, clan, visibility));
         }
-        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.the_clan_profile_can_t_be"), problems.stream().filter(p -> p != null).distinct().toList());
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guildId, "dashboard.the_clan_profile_can_t_be"), problems.stream().filter(p -> p != null).distinct().toList());
 
         repository.saveContent(new ClanProfile(guildId, visibility, slug, name.strip(), tagline.strip(), description.strip(), blank(logoUrl), colour, blank(timezone),
                 focus, recruiting, requirements.strip(), blank(applyUrl), leaderboardOptIn, null, null, null, null, null, null));
-        log.info("Dashboard: {} saved the clan profile ({})", actor.getId(), visibility);
-        return get(guild);
+        log.info("Dashboard: {} saved the clan profile ({})", actorId, visibility);
+        return get(guildId, serverName);
     }
 
     DataObject verify(Guild guild, Member actor) {
