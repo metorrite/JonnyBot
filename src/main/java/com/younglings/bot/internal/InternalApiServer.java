@@ -78,11 +78,14 @@ public class InternalApiServer {
     private final CitadelWinners citadelWinners;
     private final FormsPublicApi formsApi;
     private final java.util.List<InternalRouteModule> routeModules;
+    private final com.younglings.bot.discord.jobs.DiscordOutbox outbox;
     private final BotlessAdminApi botlessAdmin;
     private JDA jda;
 
     public InternalApiServer(BotConfig botConfig, TicketAdminApi ticketAdminApi, SiteApi siteApi, DirectoryApi directoryApi, PluginApi pluginApi, MemberApi memberApi, ImageUploadService imageUploads,
-                             CitadelWinners citadelWinners, FormsPublicApi formsApi, java.util.List<InternalRouteModule> routeModules, BotlessAdminApi botlessAdmin) {
+                             CitadelWinners citadelWinners, FormsPublicApi formsApi, java.util.List<InternalRouteModule> routeModules, BotlessAdminApi botlessAdmin,
+                             com.younglings.bot.discord.jobs.DiscordOutbox outbox) {
+        this.outbox = outbox;
         this.botlessAdmin = botlessAdmin;
         this.formsApi = formsApi;
         this.citadelWinners = citadelWinners;
@@ -439,8 +442,8 @@ public class InternalApiServer {
                 return;
             }
 
-            DataObject result = ServerProfile.setNickname(member, body);
-            log.info("Set nickname for member {} in guild {}", member.getId(), guildId);
+            DataObject result = ServerProfile.setNickname(outbox, guild, member, body);
+            log.info("Queued a nickname change for member {} in guild {}", member.getId(), guildId);
             sendJson(exchange, 200, result);
         } catch (ServerProfile.Refused e) {
             sendJson(exchange, e.status, DataObject.empty().put("error", e.getMessage()));
@@ -465,8 +468,8 @@ public class InternalApiServer {
                 return;
             }
 
-            DataObject result = ServerProfile.setColorRole(guild, member, body);
-            log.info("Set color role '{}' for member {} in guild {}", result.getString("colorRole", null), member.getId(), guildId);
+            DataObject result = ServerProfile.setColorRole(outbox, guild, member, body);
+            log.info("Queued color role '{}' for member {} in guild {}", result.getString("colorRole", null), member.getId(), guildId);
             sendJson(exchange, 200, result);
         } catch (ServerProfile.Refused e) {
             sendJson(exchange, e.status, DataObject.empty().put("error", e.getMessage()));

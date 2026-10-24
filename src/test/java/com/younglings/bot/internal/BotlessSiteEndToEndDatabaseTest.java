@@ -119,7 +119,8 @@ class BotlessSiteEndToEndDatabaseTest {
             return null;
         }).when(ticketAdmin).handle(any(), any());
         InternalApiServer server = new InternalApiServer(config, ticketAdmin, mock(SiteApi.class), mock(DirectoryApi.class), mock(PluginApi.class),
-                mock(MemberApi.class), images, mock(com.younglings.bot.tracking.CitadelWinners.class), mock(FormsPublicApi.class), List.of(), botlessAdmin);
+                mock(MemberApi.class), images, mock(com.younglings.bot.tracking.CitadelWinners.class), mock(FormsPublicApi.class), List.of(), botlessAdmin,
+                mock(com.younglings.bot.discord.jobs.DiscordOutbox.class));
         JDA jda = mock(JDA.class);
         when(jda.getStatus()).thenReturn(JDA.Status.CONNECTED);
         Guild home = mock(Guild.class);
