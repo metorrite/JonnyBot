@@ -43,13 +43,16 @@ public class AccessGrantRepository {
                     CHECK ((user_id IS NOT NULL AND guild_id IS NULL AND min_level IS NULL)
                         OR (user_id IS NULL AND guild_id IS NOT NULL AND min_level IS NOT NULL))
                 );
-                """
+                """,
+                // Who a user grant's person is, as Discord last said: the list shows it without asking Discord again.
+                "ALTER TABLE younglings.access_grant ADD COLUMN IF NOT EXISTS user_name TEXT NULL;",
+                "ALTER TABLE younglings.access_grant ADD COLUMN IF NOT EXISTS avatar_url TEXT NULL;"
         ));
     }
 
     public List<AccessGrant> all() {
         List<AccessGrant> grants = new ArrayList<>();
-        String sql = "SELECT id, area, user_id, guild_id, min_level, note, granted_by, granted_at, expires_at FROM younglings.access_grant ORDER BY id";
+        String sql = "SELECT id, area, user_id, guild_id, min_level, note, granted_by, granted_at, expires_at, user_name, avatar_url FROM younglings.access_grant ORDER BY id";
         try (Connection connection = connectionSupplier.getConnection();
              Statement statement = connection.createStatement();
              ResultSet rs = statement.executeQuery(sql)) {
@@ -64,7 +67,8 @@ public class AccessGrantRepository {
                 if (area.isEmpty() || (hasUser == hasGuild) || (hasGuild && level.isEmpty())) continue; // unknown or malformed: lets nobody in
                 Timestamp expires = rs.getTimestamp("expires_at");
                 grants.add(new AccessGrant(rs.getLong("id"), area.get(), hasUser ? userId : null, hasGuild ? guildId : null, hasGuild ? level.get() : null,
-                        rs.getString("note"), rs.getLong("granted_by"), rs.getTimestamp("granted_at").toInstant(), expires == null ? null : expires.toInstant()));
+                        rs.getString("note"), rs.getLong("granted_by"), rs.getTimestamp("granted_at").toInstant(), expires == null ? null : expires.toInstant(),
+                        rs.getString("user_name"), rs.getString("avatar_url")));
             }
             return grants;
         } catch (SQLException e) {
@@ -105,6 +109,23 @@ public class AccessGrantRepository {
         } catch (SQLException e) {
             log.error("Failed to change the note of access grant {}", id, e);
             throw new RuntimeException("Failed to change the access grant", e);
+        }
+    }
+
+    /** Remembers who a user is on all of their grants (what Discord just said), so the list can name them without asking. */
+    public void rememberUser(long userId, String userName, String avatarUrl) {
+        String sql = "UPDATE younglings.access_grant SET user_name = ?, avatar_url = ? WHERE user_id = ? "
+                + "AND (user_name IS DISTINCT FROM ? OR avatar_url IS DISTINCT FROM ?)";
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, userName);
+            statement.setString(2, avatarUrl);
+            statement.setLong(3, userId);
+            statement.setString(4, userName);
+            statement.setString(5, avatarUrl);
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            log.warn("Failed to remember the name of access-grant user {}", userId, e);
         }
     }
 

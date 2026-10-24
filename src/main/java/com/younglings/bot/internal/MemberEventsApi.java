@@ -2,6 +2,7 @@ package com.younglings.bot.internal;
 
 import com.younglings.bot.clanprofile.ClanProfileRepository;
 import com.younglings.bot.clanprofile.JoinLinks;
+import com.younglings.bot.discord.DiscordLookups;
 import com.younglings.bot.events.BingoBoardView;
 import com.younglings.bot.events.BingoTemplate;
 import com.younglings.bot.events.EventProblem;
@@ -81,14 +82,7 @@ public class MemberEventsApi {
 
     /** Taking part needs the Discord, so someone who isn't in the server is told to join it, with the clan's link when it has one. */
     private void requireInServer(Guild guild, long userId) {
-        Member member = guild.getMemberById(userId);
-        if (member == null) {
-            try {
-                member = guild.retrieveMemberById(userId).complete();
-            } catch (RuntimeException e) {
-                member = null;
-            }
-        }
+        Member member = DiscordLookups.memberOrSlow(guild, userId);
         if (member == null) throw new EventProblem(403, notInServerMessage(guild));
     }
 

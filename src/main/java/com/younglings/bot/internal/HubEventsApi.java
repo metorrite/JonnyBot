@@ -5,6 +5,7 @@ import com.younglings.bot.alliance.AllianceRules;
 import com.younglings.bot.clanprofile.ClanProfile;
 import com.younglings.bot.clanprofile.ClanProfileService;
 import com.younglings.bot.clanprofile.JoinLinks;
+import com.younglings.bot.discord.DiscordLookups;
 import com.younglings.bot.events.EventCohostRepository;
 import com.younglings.bot.events.EventListing;
 import com.younglings.bot.events.EventRepository.Participant;
@@ -352,14 +353,12 @@ public class HubEventsApi {
         return out;
     }
 
-    /** Whether someone is in a server, asking Discord when they aren't in the cache. */
+    /**
+     * Whether someone is in a server, asking Discord when they aren't in the cache. Throws {@link DiscordLookups.Slow} (a 503) when Discord
+     * didn't answer in time, so a slow Discord never turns into a wrong "join the server first".
+     */
     private static boolean inServer(Guild guild, long userId) {
-        if (guild.getMemberById(userId) != null) return true;
-        try {
-            return guild.retrieveMemberById(userId).complete() != null;
-        } catch (RuntimeException ex) {
-            return false;
-        }
+        return DiscordLookups.memberOrSlow(guild, userId) != null;
     }
 
     /** Whether an event is on the hub right now: listed, and its server not barred from listing. */

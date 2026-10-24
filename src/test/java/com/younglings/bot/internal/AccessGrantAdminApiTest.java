@@ -121,6 +121,66 @@ class AccessGrantAdminApiTest {
         assertEquals(404, assertThrows(TicketAdminApi.ApiError.class, () -> api.route(guild, actor, "DELETE", new String[]{"access-grants", "9"}, DataObject::empty)).status);
     }
 
+    @SuppressWarnings("unchecked")
+    private static <T> net.dv8tion.jda.api.requests.restaction.CacheRestAction<T> hanging() {
+        net.dv8tion.jda.api.requests.restaction.CacheRestAction<T> action = mock(net.dv8tion.jda.api.requests.restaction.CacheRestAction.class);
+        when(action.submit()).thenReturn(new java.util.concurrent.CompletableFuture<>());
+        return action;
+    }
+
+    @Test
+    void theListNeverWaitsOnDiscordEvenWhenEveryLookupHangs() {
+        com.younglings.bot.discord.DiscordLookups.forgetAll();
+        java.time.Instant at = java.time.Instant.parse("2026-10-23T00:00:00Z");
+        List<com.younglings.bot.access.AccessGrant> grants = new java.util.ArrayList<>();
+        for (int i = 0; i < 40; i++) grants.add(new com.younglings.bot.access.AccessGrant(i, AccessArea.HUB, 900_000_000_000_000_000L + i, null, null, "", 7L, at, null));
+        grants.add(new com.younglings.bot.access.AccessGrant(99, AccessArea.HUB, 900_000_000_000_000_099L, null, null, "", 7L, at, null, "stored", "https://cdn.example/s.png"));
+        when(repository.all()).thenReturn(grants);
+        when(guild.getJDA().retrieveUserById(anyLong())).thenAnswer(i -> hanging());
+
+        try {
+            long started = System.nanoTime();
+            var listed = api.list(guild).getArray("grants");
+            long tookMs = (System.nanoTime() - started) / 1_000_000;
+
+            org.junit.jupiter.api.Assertions.assertTrue(tookMs < 2_000, "the list took " + tookMs + " ms");
+            assertNull(listed.getObject(0).getString("userName", null), "Discord hasn't said: the id alone");
+            assertEquals("stored", listed.getObject(40).getString("userName"), "the name stored with the grant");
+            assertEquals("https://cdn.example/s.png", listed.getObject(40).getString("avatarUrl"));
+            // only the first few unknown people are asked about, in the background
+            verify(guild.getJDA(), org.mockito.Mockito.times(20)).retrieveUserById(anyLong());
+        } finally {
+            com.younglings.bot.discord.DiscordLookups.forgetAll();
+        }
+    }
+
+    @Test
+    void addingAPersonStoresTheirNameAndTheBackgroundAnswerIsStoredToo() {
+        com.younglings.bot.discord.DiscordLookups.forgetAll();
+        try {
+            java.util.concurrent.CompletableFuture<net.dv8tion.jda.api.entities.User> late = new java.util.concurrent.CompletableFuture<>();
+            @SuppressWarnings("unchecked")
+            net.dv8tion.jda.api.requests.restaction.CacheRestAction<net.dv8tion.jda.api.entities.User> action = mock(net.dv8tion.jda.api.requests.restaction.CacheRestAction.class);
+            when(action.submit()).thenReturn(late);
+            when(guild.getJDA().retrieveUserById(577853260153618443L)).thenReturn(action);
+
+            long started = System.nanoTime();
+            api.route(guild, actor, "POST", new String[]{"access-grants"}, AccessGrantAdminApiTest::userGrant);
+            long tookMs = (System.nanoTime() - started) / 1_000_000;
+            org.junit.jupiter.api.Assertions.assertTrue(tookMs < 3_000, "adding took " + tookMs + " ms");
+            verify(repository, never()).rememberUser(anyLong(), any(), any());
+
+            net.dv8tion.jda.api.entities.User user = mock(net.dv8tion.jda.api.entities.User.class);
+            when(user.getIdLong()).thenReturn(577853260153618443L);
+            when(user.getName()).thenReturn("newcomer");
+            when(user.getEffectiveAvatarUrl()).thenReturn("https://cdn.example/n.png");
+            late.complete(user);
+            verify(repository).rememberUser(577853260153618443L, "newcomer", "https://cdn.example/n.png");
+        } finally {
+            com.younglings.bot.discord.DiscordLookups.forgetAll();
+        }
+    }
+
     @Test
     void otherRoutesAreNotThisExtensions() {
         assertNull(api.route(guild, actor, "GET", new String[]{"beta-guilds"}, DataObject::empty));

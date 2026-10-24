@@ -2,6 +2,7 @@ package com.younglings.bot.clansite;
 
 import com.younglings.bot.configure.GuildSettings;
 import com.younglings.bot.configure.GuildSettingsService;
+import com.younglings.bot.discord.DiscordLookups;
 import com.younglings.bot.permission.DashboardAccess;
 import com.younglings.bot.runescape.PlayerLinkService;
 import net.dv8tion.jda.api.entities.Guild;
@@ -40,6 +41,7 @@ class SiteRoleGuardTest {
 
     @BeforeEach
     void setUp() {
+        DiscordLookups.forgetAll();
         repository = mock(SiteRoleRepository.class);
         access = mock(DashboardAccess.class);
         GuildSettingsService settings = mock(GuildSettingsService.class);
@@ -69,7 +71,7 @@ class SiteRoleGuardTest {
         CacheRestAction<Member> action = mock(CacheRestAction.class);
         ErrorResponseException error = mock(ErrorResponseException.class);
         when(error.getErrorResponse()).thenReturn(why);
-        when(action.complete()).thenThrow(error);
+        when(action.submit()).thenReturn(java.util.concurrent.CompletableFuture.failedFuture(error));
         when(guild.retrieveMemberById(USER)).thenReturn(action);
     }
 
@@ -104,7 +106,7 @@ class SiteRoleGuardTest {
     void aDiscordOutageIsNeverCachedAsAGuest() {
         when(guild.getMemberById(USER)).thenReturn(null);
         notInServer(ErrorResponse.UNKNOWN_CHANNEL);
-        assertThrows(ErrorResponseException.class, () -> guard.viewer(guild, USER));
+        assertThrows(DiscordLookups.Slow.class, () -> guard.viewer(guild, USER));
         Member member = editor();
         when(guild.getMemberById(USER)).thenReturn(member);
         assertEquals(SiteRoles.Role.EDITOR, guard.viewer(guild, USER).role(), "the next ask looks again");

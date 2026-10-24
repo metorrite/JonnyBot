@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.discord.DiscordLookups;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Role;
@@ -31,16 +32,11 @@ final class ServerProfile {
 
     /**
      * Cache-first, then a one-off REST fetch on a miss: the bot caches only online members, and these calls are rare website actions, so
-     * the occasional extra round trip is fine. {@code null} if the user isn't in the server at all.
+     * the occasional extra round trip is fine. {@code null} if the user isn't in the server at all; {@link DiscordLookups.Slow} (a 503) when
+     * Discord didn't answer in time.
      */
     static Member resolveMember(Guild guild, long userId) {
-        Member cached = guild.getMemberById(userId);
-        if (cached != null) return cached;
-        try {
-            return guild.retrieveMemberById(userId).complete();
-        } catch (Exception e) {
-            return null;
-        }
+        return DiscordLookups.memberOrSlow(guild, userId);
     }
 
     /** The member's names, avatar and current colour key. */
