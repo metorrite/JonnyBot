@@ -244,6 +244,28 @@ class ClanSiteLayoutRulesV2Test {
     }
 
     @Test
+    void aCellsLeftToRightAlignmentIsKeptAndFullWidthStoredAsNoField() {
+        for (String value : List.of("start", "center", "end", "stretch")) {
+            DataObject layout = good();
+            firstCell(layout).put("halign", value);
+            List<String> problems = new ArrayList<>();
+            DataObject out = DataObject.fromJson(ClanSiteLayoutRulesV2.clean(layout, ClanSiteLayoutRulesV2.Limits.PREMIUM, problems));
+            assertTrue(problems.isEmpty(), value + ": " + problems);
+            if (value.equals("stretch")) assertFalse(firstCell(out).hasKey("halign"), "full width is the default, stored as no field");
+            else assertEquals(value, firstCell(out).getString("halign"), value);
+        }
+        DataObject untouched = DataObject.fromJson(ClanSiteLayoutRulesV2.clean(good(), ClanSiteLayoutRulesV2.Limits.PREMIUM, new ArrayList<>()));
+        assertFalse(firstCell(untouched).hasKey("halign"), "a layout without it gets none");
+        DataObject bad = good();
+        firstCell(bad).put("halign", "middle");
+        assertTrue(has(problems(bad), "unknown left-to-right alignment"));
+    }
+
+    private static DataObject firstCell(DataObject layout) {
+        return layout.getArray("pages").getObject(0).getArray("sections").getObject(0).getArray("rows").getObject(0).getArray("cells").getObject(0);
+    }
+
+    @Test
     void missingOptionalValuesGetTheDesignDefaults() {
         DataObject w = DataObject.empty().put("id", nextId()).put("type", "heading");
         DataObject c = DataObject.empty().put("id", nextId()).put("span", resp(12)).put("widgets", DataArray.empty().add(w));
