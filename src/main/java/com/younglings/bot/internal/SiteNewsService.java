@@ -41,7 +41,7 @@ import java.util.regex.Pattern;
 public class SiteNewsService {
     private static final Logger log = LoggerFactory.getLogger(SiteNewsService.class);
     private static final long CACHE_MILLIS = 60_000;
-    private static final int PER_CHANNEL = 8;
+    private static final int PER_CHANNEL = 25; // a clan site's channel feed shows up to 25 posts from one channel (T-365)
     private static final Pattern USER = Pattern.compile("<@!?(\\d+)>");
     private static final Pattern ROLE = Pattern.compile("<@&(\\d+)>");
     private static final Pattern CHANNEL = Pattern.compile("<#(\\d+)>");
@@ -120,8 +120,13 @@ public class SiteNewsService {
 
     /** The newest posts across the chosen channels, newest first, at most {@code limit}. */
     public DataArray latest(Guild guild, int limit) {
+        return latest(guild, channels(guild.getIdLong()), limit);
+    }
+
+    /** The newest posts across {@code chosen} (some of this server's news channels), newest first, at most {@code limit}. */
+    public DataArray latest(Guild guild, List<NewsChannel> chosen, int limit) {
         List<DataObject> all = new ArrayList<>();
-        for (NewsChannel configured : channels(guild.getIdLong())) {
+        for (NewsChannel configured : chosen) {
             all.addAll(postsFor(guild, configured));
         }
         all.sort(Comparator.comparing((DataObject p) -> p.getString("postedAt")).reversed());

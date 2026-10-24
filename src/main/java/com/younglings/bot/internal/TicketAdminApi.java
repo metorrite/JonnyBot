@@ -155,7 +155,8 @@ public class TicketAdminApi {
                 InternalApiServer.sendJson(exchange, 200, who);
                 return;
             }
-            if (tier == Tier.NONE && !(coordinator && DashboardAccess.coordinatorMayUse(method, parts))) {
+            if (tier == Tier.NONE && !(coordinator && DashboardAccess.coordinatorMayUse(method, parts))
+                    && !(actor != null && extensions.stream().anyMatch(e -> e.admits(guild, actor, method, parts)))) {
                 InternalApiServer.sendJson(exchange, 403, DataObject.empty().put("error", "You don't have access to the dashboard."));
                 return;
             }

@@ -118,11 +118,27 @@ public class MemberApi {
         return !role.isPublicRole() && !role.isManaged() && guild.getSelfMember().canInteract(role) && dangerousIn(role.getPermissions()).isEmpty();
     }
 
+    /** The home site's {@code /internal/me/<route>}. */
     public void handle(HttpExchange exchange, Guild guild) throws IOException {
+        String path = exchange.getRequestURI().getPath();
+        String route = path.startsWith(PREFIX) ? path.substring(PREFIX.length()) : "";
+        if (route.endsWith("/")) route = route.substring(0, route.length() - 1);
+        handle(exchange, guild, route, false);
+    }
+
+    /** Why a clan site's "me" action was refused for someone who isn't in that Discord server. */
+    static final String NOT_IN_SERVER = "Join the clan's Discord server to do this.";
+
+    /**
+     * One "me" action ({@code settings}, {@code goals}, {@code polls/vote}, ...) in {@code guild}: the home site's, or a clan site's
+     * ({@code sites/{slug}/me/<route>}, {@link DirectoryClanSiteMemberRoutes}, T-369). Every action reads and writes only that server's rows.
+     *
+     * @param clanSite a clan site's call: the user must be in {@code guild} (refused with 403 before anything is read or written), and the
+     *                 server profile routes ({@code server-profile}, {@code nickname}, {@code color-role}) are open, each change only while
+     *                 the server allows it ({@link CommunitySettings#siteMemberOptions}); the home site keeps its own endpoints for those
+     */
+    public void handle(HttpExchange exchange, Guild guild, String route, boolean clanSite) throws IOException {
         try {
-            String path = exchange.getRequestURI().getPath();
-            String route = path.startsWith(PREFIX) ? path.substring(PREFIX.length()) : "";
-            if (route.endsWith("/")) route = route.substring(0, route.length() - 1);
             String method = exchange.getRequestMethod().toUpperCase();
 
             DataObject body = method.equals("GET") || method.equals("DELETE") ? DataObject.empty() : readBody(exchange);
@@ -130,8 +146,12 @@ public class MemberApi {
             if (!(method.equals("GET") ? reads : writes).tryAcquire(Long.toString(userId))) {
                 throw new Rejected(429, "You're doing that too fast — give it a moment.");
             }
+            if (clanSite && ServerProfile.resolveMember(guild, userId) == null) throw new Rejected(403, NOT_IN_SERVER);
 
             DataObject result = switch (route) {
+                case "server-profile" -> clanSite && method.equals("GET") ? serverProfile(guild, userId) : null;
+                case "nickname" -> clanSite && method.equals("POST") ? setNickname(guild, userId, body) : null;
+                case "color-role" -> clanSite && method.equals("POST") ? setColorRole(guild, userId, body) : null;
                 case "settings" -> method.equals("GET") ? getSettings(guild, userId) : method.equals("PUT") ? saveSettings(guild, userId, body) : null;
                 case "goals" -> switch (method) {
                     case "GET" -> goals(guild, userId);
@@ -174,6 +194,8 @@ public class MemberApi {
             }
         } catch (Rejected e) {
             InternalApiServer.sendJson(exchange, e.status, DataObject.empty().put("error", e.getMessage()));
+        } catch (ServerProfile.Refused e) {
+            InternalApiServer.sendJson(exchange, e.status, DataObject.empty().put("error", e.getMessage()));
         } catch (HighlightMemberApi.Refused e) {
             InternalApiServer.sendJson(exchange, e.status, DataObject.empty().put("error", e.getMessage()));
         } catch (com.younglings.bot.events.EventProblem e) {
@@ -182,6 +204,42 @@ public class MemberApi {
         } catch (Exception e) {
             log.error("Member API request {} failed", exchange.getRequestURI().getPath(), e);
             InternalApiServer.sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));
+        }
+    }
+
+    // ---------- the server profile on a clan site (T-369) ----------
+
+    /** The member's names, avatar and colour in this server, and which of them the server lets members change from its site. */
+    private DataObject serverProfile(Guild guild, long userId) {
+        Member member = ServerProfile.resolveMember(guild, userId);
+        if (member == null) throw new Rejected(403, NOT_IN_SERVER);
+        CommunitySettings.SiteMemberOptions options = community.siteMemberOptions(guild.getIdLong());
+        return ServerProfile.info(member).put("canChangeNickname", options.nickname()).put("canChangeColor", options.color());
+    }
+
+    private DataObject setNickname(Guild guild, long userId, DataObject body) {
+        if (!community.siteMemberOptions(guild.getIdLong()).nickname()) throw new Rejected(403, "This clan doesn't let members change their nickname from the website.");
+        Member member = ServerProfile.resolveMember(guild, userId);
+        if (member == null) throw new Rejected(403, NOT_IN_SERVER);
+        try {
+            return ServerProfile.setNickname(member, body);
+        } catch (ServerProfile.Refused e) {
+            throw e;
+        } catch (RuntimeException e) {
+            throw new Rejected(502, "Couldn't change your nickname: the bot may not have permission in this server.");
+        }
+    }
+
+    private DataObject setColorRole(Guild guild, long userId, DataObject body) {
+        if (!community.siteMemberOptions(guild.getIdLong()).color()) throw new Rejected(403, "This clan doesn't let members change their name colour from the website.");
+        Member member = ServerProfile.resolveMember(guild, userId);
+        if (member == null) throw new Rejected(403, NOT_IN_SERVER);
+        try {
+            return ServerProfile.setColorRole(guild, member, body);
+        } catch (ServerProfile.Refused e) {
+            throw e;
+        } catch (RuntimeException e) {
+            throw new Rejected(502, "Couldn't change your colour: the bot may not have permission in this server.");
         }
     }
 

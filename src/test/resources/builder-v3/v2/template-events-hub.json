@@ -1,0 +1,1165 @@
+{
+  "v": 2,
+  "look": {
+    "theme": "modern",
+    "mode": "dark",
+    "accent": "#8b5cf6",
+    "logo": null,
+    "banner": null
+  },
+  "style": {
+    "colours": {
+      "accent2": "#ec4899",
+      "bg": "#120f1c",
+      "surface": "#1b1729",
+      "border": "#2e2745"
+    },
+    "fonts": {
+      "heading": "playfair-display",
+      "body": "lato"
+    },
+    "radius": "lg",
+    "density": "normal",
+    "glow": "soft",
+    "buttons": "solid"
+  },
+  "header": {
+    "layout": "logo-right",
+    "logo": {
+      "show": true,
+      "text": "name",
+      "height": 40
+    },
+    "slots": {
+      "left": [],
+      "right": [
+        {
+          "kind": "discord",
+          "settings": {
+            "label": "Join in"
+          }
+        }
+      ]
+    },
+    "sticky": true,
+    "transparent": "never",
+    "height": "normal",
+    "mobile": "drawer",
+    "announcement": {
+      "tone": "info",
+      "text": "New here? Every event is open to all members. Sign up on the Signups page or in Discord.",
+      "link": {
+        "kind": "page",
+        "pageId": "evhubpsignups"
+      }
+    },
+    "nav": [
+      {
+        "id": "evhubn067",
+        "label": "Home",
+        "link": {
+          "kind": "page",
+          "pageId": "evhubphome"
+        }
+      },
+      {
+        "id": "evhubn068",
+        "label": "Calendar",
+        "link": {
+          "kind": "page",
+          "pageId": "evhubpcalendar"
+        },
+        "badge": "events"
+      },
+      {
+        "id": "evhubn069",
+        "label": "Competitions",
+        "link": {
+          "kind": "page",
+          "pageId": "evhubpcomps"
+        }
+      },
+      {
+        "id": "evhubn070",
+        "label": "Signups",
+        "link": {
+          "kind": "page",
+          "pageId": "evhubpsignups"
+        }
+      },
+      {
+        "id": "evhubn071",
+        "label": "Polls",
+        "link": {
+          "kind": "page",
+          "pageId": "evhubppolls"
+        }
+      }
+    ]
+  },
+  "footer": {
+    "showSocial": true,
+    "badge": true,
+    "columns": [
+      {
+        "title": "What's on",
+        "links": [
+          {
+            "label": "Calendar",
+            "link": {
+              "kind": "page",
+              "pageId": "evhubpcalendar"
+            }
+          },
+          {
+            "label": "Competitions",
+            "link": {
+              "kind": "page",
+              "pageId": "evhubpcomps"
+            }
+          }
+        ]
+      },
+      {
+        "title": "Join in",
+        "links": [
+          {
+            "label": "Signups",
+            "link": {
+              "kind": "page",
+              "pageId": "evhubpsignups"
+            }
+          },
+          {
+            "label": "Polls",
+            "link": {
+              "kind": "page",
+              "pageId": "evhubppolls"
+            }
+          },
+          {
+            "label": "Discord",
+            "link": {
+              "kind": "invite"
+            }
+          }
+        ]
+      }
+    ],
+    "text": "{clan}. There's always something on."
+  },
+  "pages": [
+    {
+      "id": "evhubphome",
+      "title": "Home",
+      "path": "",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "evhubs007",
+          "width": "full",
+          "background": {
+            "kind": "accent"
+          },
+          "padding": {
+            "lg": {
+              "y": "xl",
+              "x": "lg"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "label": "Welcome",
+          "rows": [
+            {
+              "id": "evhubr006",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "evhubc003",
+                  "span": {
+                    "lg": 7,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "evhubw001",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "{clan}",
+                        "subtitle": "{tagline}",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "evhubw002",
+                      "type": "button-row",
+                      "v": 1,
+                      "settings": {
+                        "buttons": [
+                          {
+                            "label": "See the calendar",
+                            "link": {
+                              "kind": "page",
+                              "pageId": "evhubpcalendar"
+                            },
+                            "style": "primary"
+                          },
+                          {
+                            "label": "Sign up for something",
+                            "link": {
+                              "kind": "page",
+                              "pageId": "evhubpsignups"
+                            },
+                            "style": "secondary"
+                          }
+                        ],
+                        "align": "left",
+                        "size": "medium",
+                        "fullWidth": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "evhubc005",
+                  "span": {
+                    "lg": 5,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "evhubw004",
+                      "type": "events",
+                      "v": 1,
+                      "settings": {
+                        "title": "Next up",
+                        "limit": 3,
+                        "showImages": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "evhubs021",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "evhubr012",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "evhubc009",
+                  "span": {
+                    "lg": 8,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "evhubw008",
+                      "type": "hub-events",
+                      "v": 1,
+                      "settings": {
+                        "title": "Competitions running now",
+                        "limit": 3,
+                        "showFinished": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "evhubc011",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "evhubw010",
+                      "type": "event-standings",
+                      "v": 1,
+                      "settings": {
+                        "title": "Standings",
+                        "limit": 10
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "evhubr020",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "evhubc014",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "evhubw013",
+                      "type": "signups",
+                      "v": 1,
+                      "settings": {
+                        "title": "Open signups",
+                        "limit": 3,
+                        "showNames": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "evhubc016",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "evhubw015",
+                      "type": "polls",
+                      "v": 1,
+                      "settings": {
+                        "title": "Vote now",
+                        "limit": 2,
+                        "showClosed": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "evhubc019",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "evhubw017",
+                      "type": "discord-online",
+                      "v": 1,
+                      "settings": {
+                        "title": "Online now",
+                        "show": "count",
+                        "groups": true,
+                        "limit": 24
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "evhubw018",
+                      "type": "citadel-timer",
+                      "v": 1,
+                      "settings": {
+                        "title": "Weekly reset",
+                        "day": "3",
+                        "hour": 0,
+                        "daily": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "evhubpcalendar",
+      "title": "Calendar",
+      "path": "calendar",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "evhubs025",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "evhubr024",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "evhubc023",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "evhubw022",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Calendar",
+                        "subtitle": "Every event, clan and Discord. Times are in your own timezone.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "evhubs031",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "evhubr030",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "evhubc027",
+                  "span": {
+                    "lg": 9,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "evhubw026",
+                      "type": "events-calendar",
+                      "v": 1,
+                      "settings": {
+                        "title": "",
+                        "showDiscord": true,
+                        "showHub": true,
+                        "weekStart": "mon"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "evhubc029",
+                  "span": {
+                    "lg": 3,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "evhubw028",
+                      "type": "events",
+                      "v": 1,
+                      "settings": {
+                        "title": "Coming up",
+                        "limit": 6,
+                        "showImages": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "evhubpcomps",
+      "title": "Competitions",
+      "path": "competitions",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "evhubs035",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "evhubr034",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "evhubc033",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "evhubw032",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Competitions",
+                        "subtitle": "Bingos, skill races and boss hunts, with live standings.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "evhubs044",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "evhubr038",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "evhubc037",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "evhubw036",
+                      "type": "hub-events",
+                      "v": 1,
+                      "settings": {
+                        "title": "",
+                        "limit": 9,
+                        "showFinished": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "evhubr043",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "evhubc040",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "evhubw039",
+                      "type": "event-standings",
+                      "v": 1,
+                      "settings": {
+                        "title": "Current standings",
+                        "limit": 20
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "evhubc042",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "evhubw041",
+                      "type": "recap",
+                      "v": 1,
+                      "settings": {
+                        "title": "Last week's best",
+                        "period": "last-week",
+                        "visitorPeriods": true,
+                        "showTop": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "evhubpevent",
+      "title": "Event page",
+      "path": "event",
+      "hidden": false,
+      "access": "public",
+      "template": "event",
+      "origin": {
+        "template": "event",
+        "v": 1
+      },
+      "sections": [
+        {
+          "id": "evhubs045",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "evhubr046",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "evhubc047",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "evhubw048",
+                      "type": "event-detail",
+                      "v": 1,
+                      "settings": {
+                        "showPrizes": true,
+                        "showStandings": true,
+                        "limit": 10
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "evhubpsignups",
+      "title": "Signups",
+      "path": "signups",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "evhubs052",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "evhubr051",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "evhubc050",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "evhubw049",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Signups",
+                        "subtitle": "Put your name down. It's the same list as the one on Discord.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "evhubs058",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "evhubr057",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "evhubc054",
+                  "span": {
+                    "lg": 8,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "evhubw053",
+                      "type": "signups",
+                      "v": 1,
+                      "settings": {
+                        "title": "",
+                        "limit": 10,
+                        "showNames": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "evhubc056",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "evhubw055",
+                      "type": "discord-join",
+                      "v": 1,
+                      "settings": {
+                        "title": "Sign up on Discord",
+                        "text": "Prefer Discord? Every signup sheet is posted there too.",
+                        "buttonLabel": "Join the Discord"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "evhubppolls",
+      "title": "Polls",
+      "path": "polls",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "evhubs062",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "evhubr061",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "evhubc060",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "evhubw059",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Polls",
+                        "subtitle": "Help decide what we do next.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "evhubs066",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "evhubr065",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "evhubc064",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "evhubw063",
+                      "type": "polls",
+                      "v": 1,
+                      "settings": {
+                        "title": "",
+                        "limit": 10,
+                        "showClosed": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

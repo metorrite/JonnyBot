@@ -1,0 +1,132 @@
+package com.younglings.bot.clansite;
+
+import com.younglings.bot.configure.GuildSettingsService;
+import com.younglings.bot.permission.DashboardAccess;
+import com.younglings.bot.runescape.PlayerLink;
+import com.younglings.bot.runescape.PlayerLinkService;
+import io.github.freya022.botcommands.api.core.service.annotations.BService;
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.Role;
+import net.dv8tion.jda.api.exceptions.ErrorResponseException;
+import net.dv8tion.jda.api.requests.ErrorResponse;
+
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+
+/**
+ * Works out a person's role on a server's clan website ({@link SiteRoles}) from Discord and the bot's settings, and is the one check every
+ * clan website write goes through (T-368, docs/BUILDER-V3.md 8.2): the website never decides who may edit or publish. The viewer answer
+ * the public site asks for is cached for a minute per person and site, so a role change reaches the site within a minute; changing the
+ * site's role settings clears that server's answers at once.
+ */
+@BService
+public class SiteRoleGuard {
+    static final long CACHE_MILLIS = 60_000;
+    private static final int SWEEP_THRESHOLD = 5_000;
+
+    /** What the website is told about a signed-in person on a site. {@code linkedRsns} are their own linked RuneScape names in that server. */
+    public record Viewer(SiteRoles.Role role, boolean inGuild, boolean staff, boolean canEdit, boolean canPublish, List<String> linkedRsns) {}
+
+    private record Cached(Viewer viewer, long until) {}
+
+    private final SiteRoleRepository repository;
+    private final DashboardAccess access;
+    private final GuildSettingsService guildSettings;
+    private final PlayerLinkService links;
+    private final ConcurrentHashMap<String, Cached> viewers = new ConcurrentHashMap<>();
+
+    public SiteRoleGuard(SiteRoleRepository repository, DashboardAccess access, GuildSettingsService guildSettings, PlayerLinkService links) {
+        this.repository = repository;
+        this.access = access;
+        this.guildSettings = guildSettings;
+        this.links = links;
+    }
+
+    public SiteRoles.Settings settings(long guildId) {
+        return repository.get(guildId);
+    }
+
+    /** The facts about someone in the server ({@code member} null: signed in but not in it). */
+    public SiteRoles.Facts facts(Guild guild, long userId, Member member) {
+        Long clanMemberRole = guildSettings.getEffective(guild.getIdLong()).verifiedClanRoleId();
+        if (member == null) return new SiteRoles.Facts(userId, false, false, false, Set.of(), clanMemberRole);
+        Set<Long> held = new HashSet<>();
+        for (Role role : member.getRoles()) held.add(role.getIdLong());
+        return new SiteRoles.Facts(userId, true, member.isOwner(), access.tierOf(guild, member) != DashboardAccess.Tier.NONE, held, clanMemberRole);
+    }
+
+    public SiteRoles.Role roleOf(Guild guild, Member member) {
+        return SiteRoles.resolve(facts(guild, member.getIdLong(), member), repository.get(guild.getIdLong()));
+    }
+
+    /** Whether {@code member} may do {@code action} on this server's site. */
+    public boolean allows(Guild guild, Member member, SiteRoles.Action action) {
+        if (member == null) return false;
+        SiteRoles.Settings s = repository.get(guild.getIdLong());
+        return SiteRoles.allows(SiteRoles.resolve(facts(guild, member.getIdLong(), member), s), action, s);
+    }
+
+    /** The viewer answer for {@code userId}, cached for a minute. Looks the person up in the server when they aren't in the member cache. */
+    public Viewer viewer(Guild guild, long userId) {
+        String key = guild.getId() + ":" + userId;
+        long now = System.currentTimeMillis();
+        Cached hit = viewers.get(key);
+        if (hit != null && hit.until() > now) return hit.viewer();
+        if (viewers.size() > SWEEP_THRESHOLD) viewers.entrySet().removeIf(e -> e.getValue().until() <= now);
+
+        SiteRoles.Settings s = repository.get(guild.getIdLong());
+        SiteRoles.Facts facts = facts(guild, userId, memberOf(guild, userId));
+        SiteRoles.Role role = SiteRoles.resolve(facts, s);
+        List<String> rsns = facts.inGuild() ? links.getLinksForUser(guild.getIdLong(), userId).stream().map(PlayerLink::rsn).toList() : List.of();
+        Viewer viewer = new Viewer(role, facts.inGuild(), SiteRoles.isStaff(role, facts, s), SiteRoles.allows(role, SiteRoles.Action.EDIT, s),
+                SiteRoles.allows(role, SiteRoles.Action.PUBLISH, s), rsns);
+        viewers.put(key, new Cached(viewer, now + CACHE_MILLIS));
+        return viewer;
+    }
+
+    /** Forgets the cached viewer answers for a server, after its role settings changed. */
+    public void forget(long guildId) {
+        String prefix = guildId + ":";
+        viewers.keySet().removeIf(k -> k.startsWith(prefix));
+    }
+
+    /** Stores the role lists and the switch, and drops the cached answers that depended on them. */
+    public void save(long guildId, SiteRoles.Settings settings, long actorId) {
+        repository.save(guildId, settings, actorId);
+        forget(guildId);
+    }
+
+    /** Hands the site to {@code userId} (null: back to the server owner alone). */
+    public void handOver(long guildId, Long userId, long actorId) {
+        repository.setClaimedBy(guildId, userId, actorId);
+        forget(guildId);
+    }
+
+    /** The first person to set the site up becomes the one who claimed it (an owner of the site), unless someone already did. */
+    public void claim(long guildId, long userId) {
+        if (repository.claimIfUnclaimed(guildId, userId)) forget(guildId);
+    }
+
+    public void delete(long guildId) {
+        repository.delete(guildId);
+        forget(guildId);
+    }
+
+    /**
+     * The person as a member of the server, or null when they aren't in it. Any other failure (Discord didn't answer) is thrown, so a
+     * passing outage never caches someone as a guest.
+     */
+    private static Member memberOf(Guild guild, long userId) {
+        Member cached = guild.getMemberById(userId);
+        if (cached != null) return cached;
+        try {
+            return guild.retrieveMemberById(userId).complete();
+        } catch (ErrorResponseException e) {
+            if (e.getErrorResponse() == ErrorResponse.UNKNOWN_MEMBER || e.getErrorResponse() == ErrorResponse.UNKNOWN_USER) return null;
+            throw e;
+        }
+    }
+}

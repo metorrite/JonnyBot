@@ -1,0 +1,631 @@
+{
+  "v": 2,
+  "look": {
+    "theme": "minimal",
+    "mode": "light",
+    "accent": "#2563eb",
+    "logo": null,
+    "banner": null
+  },
+  "style": {
+    "fonts": {
+      "heading": "playfair-display",
+      "body": "inter"
+    },
+    "radius": "md",
+    "density": "normal",
+    "glow": "off",
+    "buttons": "solid"
+  },
+  "header": {
+    "layout": "logo-left",
+    "logo": {
+      "show": true,
+      "text": "name",
+      "height": 36
+    },
+    "slots": {
+      "left": [],
+      "right": [
+        {
+          "kind": "discord"
+        }
+      ]
+    },
+    "sticky": true,
+    "transparent": "never",
+    "height": "compact",
+    "mobile": "dropdown",
+    "nav": [
+      {
+        "id": "onepn035",
+        "label": "About",
+        "link": {
+          "kind": "page",
+          "pageId": "onepphome",
+          "anchor": "about"
+        }
+      },
+      {
+        "id": "onepn036",
+        "label": "Numbers",
+        "link": {
+          "kind": "page",
+          "pageId": "onepphome",
+          "anchor": "numbers"
+        }
+      },
+      {
+        "id": "onepn037",
+        "label": "Events",
+        "link": {
+          "kind": "page",
+          "pageId": "onepphome",
+          "anchor": "events"
+        }
+      },
+      {
+        "id": "onepn038",
+        "label": "Join",
+        "link": {
+          "kind": "page",
+          "pageId": "onepphome",
+          "anchor": "join"
+        }
+      }
+    ]
+  },
+  "footer": {
+    "showSocial": true,
+    "badge": true,
+    "columns": [],
+    "text": "{clan}. Made with care by its members."
+  },
+  "pages": [
+    {
+      "id": "onepphome",
+      "title": "Home",
+      "path": "",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "oneps007",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "xl",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "label": "Welcome",
+          "rows": [
+            {
+              "id": "onepr003",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "onepc002",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "onepw001",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "{clan}",
+                        "subtitle": "{tagline}",
+                        "size": "large",
+                        "align": "center",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "onepr006",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "onepc005",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "onepw004",
+                      "type": "button-row",
+                      "v": 1,
+                      "settings": {
+                        "buttons": [
+                          {
+                            "label": "Join us",
+                            "link": {
+                              "kind": "page",
+                              "pageId": "onepphome",
+                              "anchor": "join"
+                            },
+                            "style": "primary"
+                          },
+                          {
+                            "label": "Our Discord",
+                            "link": {
+                              "kind": "invite"
+                            },
+                            "style": "secondary"
+                          }
+                        ],
+                        "align": "center",
+                        "size": "medium",
+                        "fullWidth": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "oneps013",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "anchor": "about",
+          "label": "About",
+          "rows": [
+            {
+              "id": "onepr012",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "onepc009",
+                  "span": {
+                    "lg": 7,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "onepw008",
+                      "type": "text",
+                      "v": 1,
+                      "settings": {
+                        "markdown": "## About us\n{clan} is a RuneScape clan for people who like to play together. We skill, we boss, we visit the Citadel and we help each other out.\n\nWhatever your level, there's a place for you here.",
+                        "align": "left",
+                        "width": "readable"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "onepc011",
+                  "span": {
+                    "lg": 5,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "onepw010",
+                      "type": "rank-breakdown",
+                      "v": 1,
+                      "settings": {
+                        "title": "Our ranks",
+                        "limit": 8,
+                        "style": "bars",
+                        "showEmpty": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "oneps022",
+          "width": "wide",
+          "background": {
+            "kind": "surface"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "anchor": "numbers",
+          "label": "Numbers",
+          "rows": [
+            {
+              "id": "onepr016",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "onepc015",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "onepw014",
+                      "type": "stat-tiles",
+                      "v": 2,
+                      "settings": {
+                        "cards": [
+                          {
+                            "metric": "members",
+                            "label": "",
+                            "link": null
+                          },
+                          {
+                            "metric": "xpWeek",
+                            "label": "",
+                            "link": null
+                          },
+                          {
+                            "metric": "xpMonth",
+                            "label": "",
+                            "link": null
+                          },
+                          {
+                            "metric": "kills",
+                            "label": "",
+                            "link": null
+                          }
+                        ],
+                        "columns": "4"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "onepr021",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "onepc018",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "onepw017",
+                      "type": "top-xp",
+                      "v": 1,
+                      "settings": {
+                        "title": "Top XP gainers",
+                        "limit": 5,
+                        "showDay": true,
+                        "showWeek": true,
+                        "showMonth": true,
+                        "defaultTab": "week"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "onepc020",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "onepw019",
+                      "type": "xp-chart",
+                      "v": 1,
+                      "settings": {
+                        "title": "Clan XP per month",
+                        "months": 6
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "oneps028",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "anchor": "events",
+          "label": "Events",
+          "rows": [
+            {
+              "id": "onepr027",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "onepc024",
+                  "span": {
+                    "lg": 7,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "onepw023",
+                      "type": "events",
+                      "v": 1,
+                      "settings": {
+                        "title": "Coming up",
+                        "limit": 4,
+                        "showImages": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "onepc026",
+                  "span": {
+                    "lg": 5,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "onepw025",
+                      "type": "citadel-timer",
+                      "v": 1,
+                      "settings": {
+                        "title": "Citadel reset",
+                        "day": "3",
+                        "hour": 0,
+                        "daily": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "oneps034",
+          "width": "wide",
+          "background": {
+            "kind": "accent"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "anchor": "join",
+          "label": "Join",
+          "rows": [
+            {
+              "id": "onepr033",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "onepc030",
+                  "span": {
+                    "lg": 7,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "onepw029",
+                      "type": "faq",
+                      "v": 1,
+                      "settings": {
+                        "title": "Questions",
+                        "items": [
+                          {
+                            "q": "Do I need to be a certain level?",
+                            "a": "No, everyone is welcome."
+                          },
+                          {
+                            "q": "How do I join?",
+                            "a": "Join our Discord and ask for an invite; someone will add you in game."
+                          },
+                          {
+                            "q": "Is there anything I have to do?",
+                            "a": "Be friendly. That's it."
+                          }
+                        ]
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "onepc032",
+                  "span": {
+                    "lg": 5,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "onepw031",
+                      "type": "discord-join",
+                      "v": 1,
+                      "settings": {
+                        "title": "Join {clan}",
+                        "text": "Everything starts on our Discord. Say hello and we'll invite you in game.",
+                        "buttonLabel": "Join the Discord"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

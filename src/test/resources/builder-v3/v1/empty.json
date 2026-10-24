@@ -1,0 +1,19 @@
+{
+  "v": 1,
+  "look": {
+    "theme": "modern",
+    "mode": "dark",
+    "accent": null,
+    "logo": null,
+    "banner": null
+  },
+  "pages": [
+    {
+      "id": "enqxsyacch",
+      "title": "Home",
+      "path": "",
+      "hidden": false,
+      "sections": []
+    }
+  ]
+}

@@ -1,0 +1,90 @@
+[
+  { "file": "v1-version.json", "why": "v is not 2", "at": "v", "schema": true },
+  { "file": "unknown-field.json", "why": "a section has a field the format doesn't have", "at": "pages[0].sections[0]", "schema": true },
+  { "file": "duplicate-id.json", "why": "two sections share an id", "at": "pages[0].sections[1].id", "schema": false },
+  {
+    "file": "broken-id.json",
+    "why": "a widget id with capitals",
+    "at": "pages[0].sections[1].rows[0].cells[0].widgets[0].id",
+    "schema": true
+  },
+  { "file": "home-not-first.json", "why": "the first page has an address", "at": "pages[0].path", "schema": false },
+  { "file": "reserved-path.json", "why": "a page at /admin (reserved)", "at": "pages[1].path", "schema": false },
+  { "file": "duplicate-path.json", "why": "two pages at the same address", "at": "pages[2].path", "schema": false },
+  { "file": "two-member-templates.json", "why": "two pages with the member template", "at": "pages[4].template", "schema": false },
+  { "file": "home-template.json", "why": "Home is a template page", "at": "pages[0].template", "schema": false },
+  { "file": "span-13.json", "why": "a cell 13 columns wide", "at": "pages[0].sections[1].rows[0].cells[0].span", "schema": true },
+  { "file": "span-fraction.json", "why": "a tablet span of 4.5", "at": "pages[0].sections[1].rows[0].cells[0].span", "schema": true },
+  {
+    "file": "viewport-row.json",
+    "why": "a row with a viewport height (sections only)",
+    "at": "pages[0].sections[1].rows[0].height",
+    "schema": true
+  },
+  {
+    "file": "height-too-small.json",
+    "why": "a fixed height of 40 px",
+    "at": "pages[0].sections[1].rows[0].cells[0].widgets[0].height",
+    "schema": true
+  },
+  { "file": "viewport-too-tall.json", "why": "a section at 120% of the screen", "at": "pages[0].sections[0].height", "schema": true },
+  { "file": "bad-space.json", "why": "a gap token that doesn't exist", "at": "pages[0].sections[1].rows[0].gap", "schema": true },
+  {
+    "file": "missing-lg.json",
+    "why": "a responsive value without its desktop value",
+    "at": "pages[0].sections[0].padding",
+    "schema": true
+  },
+  { "file": "no-rows.json", "why": "a section without rows", "at": "pages[0].sections[0].rows", "schema": true },
+  { "file": "seven-cells.json", "why": "a row with 7 cells", "at": "pages[0].sections[1].rows[1].cells", "schema": true },
+  { "file": "nine-widgets.json", "why": "a cell with 9 widgets", "at": "pages[0].sections[1].rows[0].cells[0].widgets", "schema": true },
+  { "file": "eighty-one-widgets.json", "why": "a page with 81 widgets", "at": "pages[1].sections", "schema": false },
+  {
+    "file": "widget-type.json",
+    "why": "a widget type with spaces",
+    "at": "pages[0].sections[1].rows[0].cells[0].widgets[0].type",
+    "schema": true
+  },
+  {
+    "file": "settings-too-big.json",
+    "why": "a widget with 9 KB of settings",
+    "at": "pages[0].sections[1].rows[0].cells[0].widgets[0].settings",
+    "schema": false
+  },
+  { "file": "http-link.json", "why": "a menu link to an http address", "at": "header.nav[2].children[0].link", "schema": true },
+  {
+    "file": "link-to-missing-page.json",
+    "why": "a menu item linking to a page that doesn't exist",
+    "at": "header.nav[1].link",
+    "schema": false
+  },
+  {
+    "file": "nested-dropdown.json",
+    "why": "a dropdown item with its own dropdown",
+    "at": "header.nav[2].children[0].children",
+    "schema": true
+  },
+  { "file": "forty-one-nav-items.json", "why": "41 menu items", "at": "header.nav", "schema": true },
+  {
+    "file": "two-search-slots.json",
+    "why": "the search box in the header twice (left, then right)",
+    "at": "header.slots.right[0]",
+    "schema": false
+  },
+  {
+    "file": "duplicate-anchor.json",
+    "why": "two sections on a page with the same anchor",
+    "at": "pages[0].sections[1].anchor",
+    "schema": false
+  },
+  { "file": "overlay-95.json", "why": "a picture overlay of 95%", "at": "pages[0].sections[0].background.overlay", "schema": true },
+  {
+    "file": "image-without-picture.json",
+    "why": "a picture background with no picture",
+    "at": "pages[0].sections[0].background.image",
+    "schema": false
+  },
+  { "file": "bad-accent.json", "why": "a clan colour that isn't #rrggbb", "at": "look.accent", "schema": true },
+  { "file": "logo-height.json", "why": "a 200 px header logo", "at": "header.logo.height", "schema": true },
+  { "file": "too-big.json", "why": "a layout over 256 KB", "at": "", "schema": false }
+]

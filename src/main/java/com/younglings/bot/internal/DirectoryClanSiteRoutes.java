@@ -23,8 +23,10 @@ import java.util.Optional;
  *   than {@link com.younglings.bot.clanprofile.ProfileRules#SLUG_GRACE} ago, so its old subdomain forwards (T-290)</li>
  *   <li>{@code GET sites/{slug}/data/plugin/{activity|drops|runesync}?limit=}: the clan's recent plugin events from the RuneClans hub, for the
  *   builder's activity widgets ({@link ClanSitePluginFeed}, T-303)</li>
- *   <li>{@code GET sites/{slug}/data/{members|overview|leaderboard|recap}}: that site's clan data, the same answers the clan site's own
- *   routes give the home server ({@link SiteApi#TENANT_ROUTES}); a recap is always the clan's, never one member's</li>
+ *   <li>{@code GET sites/{slug}/data/{route}}: that site's clan data, the same answers the clan site's own routes give the home server, for
+ *   every route in {@link SiteApi#TENANT_ROUTES} (members, overview, leaderboard, recap, feed, records, citadel-grid, history, coffer, polls,
+ *   signups, events, pvm, drops, bosses, boss, item, drop-log, member/skill, notifications; T-364) with the same query parameters; a recap is
+ *   always the clan's, never one member's</li>
  * </ul>
  */
 @BService
@@ -65,11 +67,14 @@ public class DirectoryClanSiteRoutes implements DirectoryRouteModule {
             else request.send(200, feed);
             return true;
         }
-        if (parts.length == 4 && parts[2].equals("data")) {
+        // Only the tenant routes are claimed here, so other modules' data routes (data/discord/*, T-365) still reach their module.
+        if ((parts.length == 4 || parts.length == 5) && parts[2].equals("data")
+                && SiteApi.TENANT_ROUTES.contains(parts.length == 4 ? parts[3] : parts[3] + "/" + parts[4])) {
             if (!request.requireGet()) return true;
+            String route = parts.length == 4 ? parts[3] : parts[3] + "/" + parts[4]; // member/skill is the one two-part answer
             Optional<ClanSite> site = request.viewable(parts[1]).flatMap(p -> sites.visible(p.guildId()));
             Guild guild = site.isEmpty() ? null : request.jda().getGuildById(site.get().guildId());
-            DataObject data = guild == null ? null : siteApi.tenant(guild, parts[3], request.exchange());
+            DataObject data = guild == null ? null : siteApi.tenant(guild, route, request.exchange());
             if (data == null) request.sendError(404, "Not found");
             else request.send(200, data);
             return true;
@@ -110,6 +115,7 @@ public class DirectoryClanSiteRoutes implements DirectoryRouteModule {
         return DataObject.empty().put("slug", p.slug()).put("clan", request.clanJson(p)).put("template", site.template().name())
                 .put("theme", jsonObject(site.theme())).put("pages", jsonArray(site.pages())).put("blocks", blocks)
                 .put("publishedAt", site.publishedAt() == null ? null : site.publishedAt().toString())
+                .put("plan", com.younglings.bot.premium.Billing.planJson(site.guildId(), request.jda().getGuildById(site.guildId()) != null)) // T-366
                 .put("layout", layouts.byGuild(site.guildId()).map(l -> l.published()).filter(raw -> raw != null && !raw.isBlank()).map(DirectoryClanSiteRoutes::jsonObject).orElse(null));
     }
 

@@ -1,0 +1,519 @@
+{
+  "v": 2,
+  "look": {
+    "theme": "modern",
+    "mode": "dark",
+    "accent": "#f97316",
+    "logo": null,
+    "banner": null
+  },
+  "style": {
+    "colours": {
+      "accent2": "#facc15",
+      "bg": "#1c1410",
+      "surface": "#271c16",
+      "border": "#3d2b21"
+    },
+    "fonts": {
+      "heading": "playfair-display",
+      "body": "nunito"
+    },
+    "radius": "xl",
+    "density": "airy",
+    "glow": "soft",
+    "buttons": "soft"
+  },
+  "header": {
+    "layout": "logo-left",
+    "logo": {
+      "show": true,
+      "text": "name",
+      "height": 40
+    },
+    "slots": {
+      "left": [],
+      "right": [
+        {
+          "kind": "online-count",
+          "settings": {
+            "label": "around the fire"
+          }
+        },
+        {
+          "kind": "discord"
+        }
+      ]
+    },
+    "sticky": false,
+    "transparent": "never",
+    "height": "normal",
+    "mobile": "drawer",
+    "nav": [
+      {
+        "id": "campn028",
+        "label": "Home",
+        "link": {
+          "kind": "page",
+          "pageId": "campphome"
+        }
+      },
+      {
+        "id": "campn029",
+        "label": "About us",
+        "link": {
+          "kind": "page",
+          "pageId": "camppabout"
+        }
+      }
+    ]
+  },
+  "footer": {
+    "showSocial": true,
+    "badge": true,
+    "columns": [
+      {
+        "title": "{clan}",
+        "links": [
+          {
+            "label": "Home",
+            "link": {
+              "kind": "page",
+              "pageId": "campphome"
+            }
+          },
+          {
+            "label": "About us",
+            "link": {
+              "kind": "page",
+              "pageId": "camppabout"
+            }
+          },
+          {
+            "label": "Discord",
+            "link": {
+              "kind": "invite"
+            }
+          }
+        ]
+      }
+    ],
+    "text": "{clan}. Small clan, big hearts."
+  },
+  "pages": [
+    {
+      "id": "campphome",
+      "title": "Home",
+      "path": "",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "camps008",
+          "width": "wide",
+          "background": {
+            "kind": "surface"
+          },
+          "padding": {
+            "lg": {
+              "y": "xl",
+              "x": "lg"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "label": "Welcome",
+          "rows": [
+            {
+              "id": "campr007",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "campc004",
+                  "span": {
+                    "lg": 7,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "campw001",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Welcome to {clan}",
+                        "subtitle": "{tagline}",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "campw002",
+                      "type": "text",
+                      "v": 1,
+                      "settings": {
+                        "markdown": "We're a small group of friends who play RuneScape together. Grab a seat by the fire: there's always someone to chat with.",
+                        "align": "left",
+                        "width": "readable"
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "campw003",
+                      "type": "button-row",
+                      "v": 1,
+                      "settings": {
+                        "buttons": [
+                          {
+                            "label": "Join the Discord",
+                            "link": {
+                              "kind": "invite"
+                            },
+                            "style": "primary"
+                          },
+                          {
+                            "label": "About us",
+                            "link": {
+                              "kind": "page",
+                              "pageId": "camppabout"
+                            },
+                            "style": "quiet"
+                          }
+                        ],
+                        "align": "left",
+                        "size": "medium",
+                        "fullWidth": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "campc006",
+                  "span": {
+                    "lg": 5,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "campw005",
+                      "type": "discord-online",
+                      "v": 1,
+                      "settings": {
+                        "title": "Around the fire",
+                        "show": "names+avatars",
+                        "groups": true,
+                        "limit": 16
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "camps015",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "campr014",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "campc010",
+                  "span": {
+                    "lg": 7,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "campw009",
+                      "type": "channel-feed",
+                      "v": 1,
+                      "settings": {
+                        "title": "Latest from Discord",
+                        "channel": "",
+                        "limit": 5,
+                        "showAuthors": true,
+                        "showImages": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "campc013",
+                  "span": {
+                    "lg": 5,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "campw011",
+                      "type": "events",
+                      "v": 1,
+                      "settings": {
+                        "title": "Next hangout",
+                        "limit": 3,
+                        "showImages": true
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "campw012",
+                      "type": "polls",
+                      "v": 1,
+                      "settings": {
+                        "title": "Have your say",
+                        "limit": 2,
+                        "showClosed": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "camppabout",
+      "title": "About us",
+      "path": "about",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "camps019",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "campr018",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "campc017",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "campw016",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "About {clan}",
+                        "subtitle": "Who we are and how to join.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "camps027",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "campr026",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "campc022",
+                  "span": {
+                    "lg": 7,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "campw020",
+                      "type": "text",
+                      "v": 1,
+                      "settings": {
+                        "markdown": "## Who we are\nA handful of players who'd rather do things together: skilling chats, Citadel visits, the odd boss and a lot of nonsense on Discord.\n\n## What we ask\nBe kind, keep it friendly, and say hello now and then.",
+                        "align": "left",
+                        "width": "readable"
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "campw021",
+                      "type": "milestones",
+                      "v": 1,
+                      "settings": {
+                        "title": "Recent achievements",
+                        "limit": 5
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "campc025",
+                  "span": {
+                    "lg": 5,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "campw023",
+                      "type": "roster",
+                      "v": 1,
+                      "settings": {
+                        "title": "Who's here",
+                        "limit": 50,
+                        "showJoined": false,
+                        "showRank": true,
+                        "showLevel": false,
+                        "showXp": false,
+                        "search": false,
+                        "rankFilter": false,
+                        "sort": "rank"
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "campw024",
+                      "type": "discord-join",
+                      "v": 1,
+                      "settings": {
+                        "title": "Pull up a seat",
+                        "text": "Chat, events and clan news all happen on our Discord.",
+                        "buttonLabel": "Join the Discord"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

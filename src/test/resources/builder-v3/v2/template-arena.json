@@ -1,0 +1,2625 @@
+{
+  "v": 2,
+  "look": {
+    "theme": "minimal",
+    "mode": "dark",
+    "accent": "#0ea5e9",
+    "logo": null,
+    "banner": null
+  },
+  "style": {
+    "colours": {
+      "accent2": "#a3e635",
+      "bg": "#0b1017",
+      "surface": "#121a24",
+      "border": "#1f2a37"
+    },
+    "fonts": {
+      "heading": "bebas-neue",
+      "body": "lato"
+    },
+    "radius": "none",
+    "density": "normal",
+    "glow": "off",
+    "buttons": "outline"
+  },
+  "header": {
+    "layout": "logo-right",
+    "logo": {
+      "show": true,
+      "text": "name",
+      "height": 40
+    },
+    "slots": {
+      "left": [
+        {
+          "kind": "online-count",
+          "settings": {
+            "label": "online"
+          }
+        }
+      ],
+      "right": [
+        {
+          "kind": "discord"
+        }
+      ]
+    },
+    "sticky": true,
+    "transparent": "never",
+    "height": "compact",
+    "mobile": "dropdown",
+    "nav": [
+      {
+        "id": "arenan157",
+        "label": "Home",
+        "link": {
+          "kind": "page",
+          "pageId": "arenaphome"
+        }
+      },
+      {
+        "id": "arenan158",
+        "label": "Competitions",
+        "link": {
+          "kind": "page",
+          "pageId": "arenapcomps"
+        },
+        "badge": "events"
+      },
+      {
+        "id": "arenan159",
+        "label": "Leaderboards",
+        "link": {
+          "kind": "page",
+          "pageId": "arenapboards"
+        }
+      },
+      {
+        "id": "arenan160",
+        "label": "Recaps",
+        "link": {
+          "kind": "page",
+          "pageId": "arenaprecaps"
+        }
+      },
+      {
+        "id": "arenan161",
+        "label": "Members",
+        "link": {
+          "kind": "page",
+          "pageId": "arenapmembers"
+        },
+        "children": [
+          {
+            "id": "arenan162",
+            "label": "All members",
+            "link": {
+              "kind": "page",
+              "pageId": "arenapmembers"
+            },
+            "description": "Everyone in the clan"
+          },
+          {
+            "id": "arenan163",
+            "label": "Head to head",
+            "link": {
+              "kind": "page",
+              "pageId": "arenapcompare"
+            },
+            "description": "Two members, skill by skill"
+          }
+        ]
+      },
+      {
+        "id": "arenan164",
+        "label": "Records",
+        "link": {
+          "kind": "page",
+          "pageId": "arenapfame"
+        }
+      },
+      {
+        "id": "arenan165",
+        "label": "Join",
+        "link": {
+          "kind": "page",
+          "pageId": "arenapjoin"
+        }
+      }
+    ]
+  },
+  "footer": {
+    "showSocial": true,
+    "badge": true,
+    "columns": [
+      {
+        "title": "Compete",
+        "links": [
+          {
+            "label": "Competitions",
+            "link": {
+              "kind": "page",
+              "pageId": "arenapcomps"
+            }
+          },
+          {
+            "label": "Leaderboards",
+            "link": {
+              "kind": "page",
+              "pageId": "arenapboards"
+            }
+          },
+          {
+            "label": "Recaps",
+            "link": {
+              "kind": "page",
+              "pageId": "arenaprecaps"
+            }
+          },
+          {
+            "label": "Records",
+            "link": {
+              "kind": "page",
+              "pageId": "arenapfame"
+            }
+          }
+        ]
+      },
+      {
+        "title": "People",
+        "links": [
+          {
+            "label": "Members",
+            "link": {
+              "kind": "page",
+              "pageId": "arenapmembers"
+            }
+          },
+          {
+            "label": "Head to head",
+            "link": {
+              "kind": "page",
+              "pageId": "arenapcompare"
+            }
+          },
+          {
+            "label": "Join",
+            "link": {
+              "kind": "page",
+              "pageId": "arenapjoin"
+            }
+          }
+        ]
+      },
+      {
+        "title": "{clan}",
+        "links": [
+          {
+            "label": "Clan stats",
+            "link": {
+              "kind": "page",
+              "pageId": "arenapstats"
+            }
+          },
+          {
+            "label": "Discord",
+            "link": {
+              "kind": "invite"
+            }
+          }
+        ]
+      }
+    ],
+    "text": "{clan}. Every week is a new leaderboard."
+  },
+  "pages": [
+    {
+      "id": "arenaphome",
+      "title": "Home",
+      "path": "",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "arenas007",
+          "width": "full",
+          "background": {
+            "kind": "surface"
+          },
+          "padding": {
+            "lg": {
+              "y": "xl",
+              "x": "lg"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "label": "Banner",
+          "rows": [
+            {
+              "id": "arenar006",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "arenac003",
+                  "span": {
+                    "lg": 8,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw001",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "{clan}",
+                        "subtitle": "{tagline}",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "arenaw002",
+                      "type": "button-row",
+                      "v": 1,
+                      "settings": {
+                        "buttons": [
+                          {
+                            "label": "Current competition",
+                            "link": {
+                              "kind": "page",
+                              "pageId": "arenapcomps"
+                            },
+                            "style": "primary"
+                          },
+                          {
+                            "label": "Leaderboards",
+                            "link": {
+                              "kind": "page",
+                              "pageId": "arenapboards"
+                            },
+                            "style": "secondary"
+                          }
+                        ],
+                        "align": "left",
+                        "size": "medium",
+                        "fullWidth": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "arenac005",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw004",
+                      "type": "citadel-timer",
+                      "v": 1,
+                      "settings": {
+                        "title": "Week ends in",
+                        "day": "3",
+                        "hour": 0,
+                        "daily": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "arenas025",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "arenar012",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "arenac009",
+                  "span": {
+                    "lg": 8,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw008",
+                      "type": "hub-events",
+                      "v": 1,
+                      "settings": {
+                        "title": "Live and upcoming",
+                        "limit": 3,
+                        "showFinished": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "arenac011",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw010",
+                      "type": "event-standings",
+                      "v": 1,
+                      "settings": {
+                        "title": "Standings",
+                        "limit": 10
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "arenar019",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "arenac014",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw013",
+                      "type": "leaderboard",
+                      "v": 1,
+                      "settings": {
+                        "title": "XP this week",
+                        "metric": "xp",
+                        "period": "week",
+                        "visitorPeriods": true,
+                        "limit": 10
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "arenac016",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw015",
+                      "type": "kill-tracker",
+                      "v": 1,
+                      "settings": {
+                        "title": "Kills this week",
+                        "period": "week",
+                        "limit": 10
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "arenac018",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw017",
+                      "type": "recap",
+                      "v": 1,
+                      "settings": {
+                        "title": "Last week's podium",
+                        "period": "last-week",
+                        "visitorPeriods": true,
+                        "showTop": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "arenar024",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "arenac021",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw020",
+                      "type": "clan-goals",
+                      "v": 1,
+                      "settings": {
+                        "title": "Clan targets",
+                        "goals": [
+                          {
+                            "label": "5 billion XP this month",
+                            "metric": "xpMonth",
+                            "target": 5000000000
+                          },
+                          {
+                            "label": "1,000 boss kills this week",
+                            "metric": "kills",
+                            "target": 1000
+                          }
+                        ]
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "arenac023",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw022",
+                      "type": "stat-tiles",
+                      "v": 2,
+                      "settings": {
+                        "cards": [
+                          {
+                            "metric": "xpToday",
+                            "label": "XP today",
+                            "link": null
+                          },
+                          {
+                            "metric": "xpWeek",
+                            "label": "XP this week",
+                            "link": null
+                          },
+                          {
+                            "metric": "kills",
+                            "label": "Boss kills",
+                            "link": null
+                          },
+                          {
+                            "metric": "members",
+                            "label": "Competitors",
+                            "link": null
+                          }
+                        ],
+                        "columns": "2"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "arenapcomps",
+      "title": "Competitions",
+      "path": "competitions",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "arenas029",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "arenar028",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "arenac027",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw026",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Competitions",
+                        "subtitle": "Skill races, boss hunts and bingos. Join one in our Discord; standings update through the day.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "arenas039",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "arenar035",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "arenac031",
+                  "span": {
+                    "lg": 8,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw030",
+                      "type": "hub-events",
+                      "v": 1,
+                      "settings": {
+                        "title": "Competitions",
+                        "limit": 8,
+                        "showFinished": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "arenac034",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw032",
+                      "type": "event-standings",
+                      "v": 1,
+                      "settings": {
+                        "title": "Standings",
+                        "limit": 20
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "arenaw033",
+                      "type": "signups",
+                      "v": 1,
+                      "settings": {
+                        "title": "Sign up",
+                        "limit": 3,
+                        "showNames": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "arenar038",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "arenac037",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw036",
+                      "type": "events-calendar",
+                      "v": 1,
+                      "settings": {
+                        "title": "Schedule",
+                        "showDiscord": false,
+                        "showHub": true,
+                        "weekStart": "mon"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "arenapevent",
+      "title": "Event page",
+      "path": "event",
+      "hidden": false,
+      "access": "public",
+      "template": "event",
+      "origin": {
+        "template": "event",
+        "v": 1
+      },
+      "sections": [
+        {
+          "id": "arenas040",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "arenar041",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "arenac042",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw043",
+                      "type": "event-detail",
+                      "v": 1,
+                      "settings": {
+                        "showPrizes": true,
+                        "showStandings": true,
+                        "limit": 10
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "arenapboards",
+      "title": "Leaderboards",
+      "path": "leaderboards",
+      "hidden": false,
+      "access": "public",
+      "origin": {
+        "template": "leaderboards",
+        "v": 1
+      },
+      "sections": [
+        {
+          "id": "arenas044",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "arenar045",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "arenac046",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw047",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Leaderboards",
+                        "subtitle": "Who gained the most XP, who capped the Citadel, and who joined, for any time frame you pick.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "arenas048",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "arenar049",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "arenac050",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw051",
+                      "type": "leaderboard",
+                      "v": 1,
+                      "settings": {
+                        "title": "Top XP gainers",
+                        "metric": "xp",
+                        "period": "month",
+                        "visitorPeriods": true,
+                        "limit": 15
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "arenac052",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw053",
+                      "type": "leaderboard",
+                      "v": 1,
+                      "settings": {
+                        "title": "Most Citadel caps",
+                        "metric": "citadel",
+                        "period": "month",
+                        "visitorPeriods": true,
+                        "limit": 15
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "arenar054",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "arenac055",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw056",
+                      "type": "leaderboard",
+                      "v": 1,
+                      "settings": {
+                        "title": "Newest members",
+                        "metric": "joins",
+                        "period": "month",
+                        "visitorPeriods": true,
+                        "limit": 15
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "arenac057",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw058",
+                      "type": "top-xp",
+                      "v": 1,
+                      "settings": {
+                        "title": "Top XP this week",
+                        "limit": 8,
+                        "showDay": true,
+                        "showWeek": true,
+                        "showMonth": true,
+                        "defaultTab": "week"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "arenaprecaps",
+      "title": "Recaps",
+      "path": "recaps",
+      "hidden": false,
+      "access": "public",
+      "origin": {
+        "template": "recaps",
+        "v": 1
+      },
+      "sections": [
+        {
+          "id": "arenas059",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "arenar060",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "arenac061",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw062",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Recaps",
+                        "subtitle": "Your clan's week, month or year in review. Each member's own recap is on their member page.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "arenas063",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "arenar064",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "arenac065",
+                  "span": {
+                    "lg": 7,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw066",
+                      "type": "recap",
+                      "v": 1,
+                      "settings": {
+                        "title": "The whole clan",
+                        "period": "last-week",
+                        "visitorPeriods": true,
+                        "showTop": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "arenac067",
+                  "span": {
+                    "lg": 5,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw068",
+                      "type": "weekly-recap",
+                      "v": 1,
+                      "settings": {
+                        "title": "Last week",
+                        "showTop": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "arenapmembers",
+      "title": "Members",
+      "path": "members",
+      "hidden": false,
+      "access": "public",
+      "origin": {
+        "template": "members",
+        "v": 1
+      },
+      "sections": [
+        {
+          "id": "arenas069",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "arenar070",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "arenac071",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw072",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Members",
+                        "subtitle": "Everyone currently in the clan. Open a member to see their stats, gains, Citadel record and adventure log.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "arenas073",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "arenar074",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "arenac075",
+                  "span": {
+                    "lg": 9,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw076",
+                      "type": "member-directory",
+                      "v": 1,
+                      "settings": {
+                        "title": "",
+                        "style": "list",
+                        "limit": 100,
+                        "sort": "rank",
+                        "showRank": true,
+                        "showLevel": true,
+                        "showXp": false,
+                        "showJoined": false,
+                        "search": true,
+                        "rankFilter": true,
+                        "linkPages": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "arenac077",
+                  "span": {
+                    "lg": 3,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw078",
+                      "type": "rank-breakdown",
+                      "v": 1,
+                      "settings": {
+                        "title": "Ranks",
+                        "limit": 20,
+                        "style": "ring",
+                        "showEmpty": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "arenapmember",
+      "title": "Member page",
+      "path": "member",
+      "hidden": false,
+      "access": "public",
+      "template": "member",
+      "origin": {
+        "template": "member",
+        "v": 1
+      },
+      "sections": [
+        {
+          "id": "arenas079",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "arenar080",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "arenac081",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw082",
+                      "type": "member-card",
+                      "v": 1,
+                      "settings": {
+                        "showBio": true,
+                        "showTotals": true,
+                        "showNextRank": true,
+                        "showCompare": true,
+                        "comparePage": {
+                          "kind": "page",
+                          "pageId": "arenapcompare"
+                        }
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "arenas083",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "arenar084",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "arenac085",
+                  "span": {
+                    "lg": 8,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw086",
+                      "type": "member-xp-chart",
+                      "v": 1,
+                      "settings": {
+                        "title": "XP over time",
+                        "days": "90",
+                        "gains": "week"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "arenac087",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw088",
+                      "type": "member-badges",
+                      "v": 1,
+                      "settings": {
+                        "title": "Badges",
+                        "limit": 10,
+                        "style": "chips"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "arenar089",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "arenac090",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw091",
+                      "type": "member-skills",
+                      "v": 1,
+                      "settings": {
+                        "title": "Skills",
+                        "limit": 30,
+                        "style": "grid",
+                        "sort": "game",
+                        "showProgress": true,
+                        "showRank": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "arenar092",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "arenac093",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw094",
+                      "type": "member-citadel",
+                      "v": 1,
+                      "settings": {
+                        "title": "Citadel",
+                        "weeks": 12,
+                        "showGrid": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "arenac095",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw096",
+                      "type": "member-points",
+                      "v": 1,
+                      "settings": {
+                        "title": "Clan points",
+                        "limit": 8
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "arenar097",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "arenac098",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw099",
+                      "type": "member-adventure-log",
+                      "v": 1,
+                      "settings": {
+                        "title": "Adventure log",
+                        "limit": 10,
+                        "showDetails": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "arenac100",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw101",
+                      "type": "member-recap",
+                      "v": 1,
+                      "settings": {
+                        "title": "Recap",
+                        "period": "week",
+                        "limit": 3
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "arenapcompare",
+      "title": "Head to head",
+      "path": "head-to-head",
+      "hidden": false,
+      "access": "public",
+      "origin": {
+        "template": "compare",
+        "v": 1
+      },
+      "sections": [
+        {
+          "id": "arenas102",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "arenar103",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "arenac104",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw105",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Compare members",
+                        "subtitle": "Pick two members to see them side by side, skill by skill.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "arenas106",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "arenar107",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "arenac108",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw109",
+                      "type": "compare",
+                      "v": 1,
+                      "settings": {
+                        "title": "",
+                        "left": "",
+                        "right": "",
+                        "showSkills": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "arenapfame",
+      "title": "Records",
+      "path": "records",
+      "hidden": false,
+      "access": "public",
+      "origin": {
+        "template": "hall-of-fame",
+        "v": 1
+      },
+      "sections": [
+        {
+          "id": "arenas110",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "arenar111",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "arenac112",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw113",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Hall of fame",
+                        "subtitle": "The clan's records and the members who hold them.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "arenas114",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "arenar115",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "arenac116",
+                  "span": {
+                    "lg": 8,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw117",
+                      "type": "hall-of-fame",
+                      "v": 1,
+                      "settings": {
+                        "title": "",
+                        "showDays": true,
+                        "showClub": true,
+                        "showStreaks": true,
+                        "showVeterans": true,
+                        "limit": 8
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "arenac118",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw119",
+                      "type": "milestones",
+                      "v": 1,
+                      "settings": {
+                        "title": "Milestones",
+                        "limit": 10
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "arenapstats",
+      "title": "Clan stats",
+      "path": "stats",
+      "hidden": false,
+      "access": "public",
+      "origin": {
+        "template": "stats",
+        "v": 1
+      },
+      "sections": [
+        {
+          "id": "arenas120",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "arenar121",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "arenac122",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw123",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Clan stats",
+                        "subtitle": "XP, Citadel activity, joins and leaves, live from the clan's bot.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "arenas124",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "arenar125",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "arenac126",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw127",
+                      "type": "stat-tiles",
+                      "v": 2,
+                      "settings": {
+                        "cards": [
+                          {
+                            "metric": "members",
+                            "label": "",
+                            "link": null
+                          },
+                          {
+                            "metric": "xpWeek",
+                            "label": "",
+                            "link": null
+                          },
+                          {
+                            "metric": "xpMonth",
+                            "label": "",
+                            "link": null
+                          },
+                          {
+                            "metric": "kills",
+                            "label": "",
+                            "link": null
+                          }
+                        ],
+                        "columns": "4"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "arenar128",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "arenac129",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw130",
+                      "type": "xp-chart",
+                      "v": 1,
+                      "settings": {
+                        "title": "XP gained by the clan",
+                        "months": 6
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "arenac131",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw132",
+                      "type": "citadel-chart",
+                      "v": 1,
+                      "settings": {
+                        "title": "Citadel caps and visits per week",
+                        "weeks": 12,
+                        "series": "both"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "arenar133",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "arenac134",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw135",
+                      "type": "joins-chart",
+                      "v": 1,
+                      "settings": {
+                        "title": "Members over time",
+                        "points": 30
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "arenac136",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw137",
+                      "type": "rank-breakdown",
+                      "v": 1,
+                      "settings": {
+                        "title": "Rank breakdown",
+                        "limit": 20,
+                        "style": "ring",
+                        "showEmpty": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "arenar138",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "arenac139",
+                  "span": {
+                    "lg": 4,
+                    "md": 6
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw140",
+                      "type": "top-list",
+                      "v": 1,
+                      "settings": {
+                        "title": "Highest total XP",
+                        "metric": "xp",
+                        "limit": 10
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "arenac141",
+                  "span": {
+                    "lg": 4,
+                    "md": 6
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw142",
+                      "type": "leaderboard",
+                      "v": 1,
+                      "settings": {
+                        "title": "Most Citadel caps",
+                        "metric": "citadel",
+                        "period": "all",
+                        "visitorPeriods": false,
+                        "limit": 10
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "arenac143",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw144",
+                      "type": "kill-tracker",
+                      "v": 1,
+                      "settings": {
+                        "title": "Most boss kills",
+                        "period": "all",
+                        "limit": 10
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "arenapjoin",
+      "title": "Join",
+      "path": "join",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "arenas148",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "arenar147",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "arenac146",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw145",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Think you can top the board?",
+                        "subtitle": "Join, pick a competition and find out.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "arenas156",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "arenar155",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "arenac151",
+                  "span": {
+                    "lg": 7,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw149",
+                      "type": "text",
+                      "v": 1,
+                      "settings": {
+                        "markdown": "## How competitions work\n- A new skill or boss competition starts most weeks; the schedule is on the Competitions page.\n- Sign up in our Discord. Your gains count from the start time, wherever you are in game.\n- Prizes come from the clan coffer and are paid in game.",
+                        "align": "left",
+                        "width": "readable"
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "arenaw150",
+                      "type": "faq",
+                      "v": 1,
+                      "settings": {
+                        "title": "Questions",
+                        "items": [
+                          {
+                            "q": "Do I have to be good to join?",
+                            "a": "No. Most competitions have prizes for the biggest improvement, not only the top spot."
+                          },
+                          {
+                            "q": "How is XP tracked?",
+                            "a": "From the RuneScape hiscores, checked by our bot through the day."
+                          },
+                          {
+                            "q": "Can I enter late?",
+                            "a": "Yes, until the halfway point; you just start behind."
+                          }
+                        ]
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "arenac154",
+                  "span": {
+                    "lg": 5,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw152",
+                      "type": "recruiting",
+                      "v": 1,
+                      "settings": {
+                        "title": "Join {clan}",
+                        "buttonLabel": "Apply now",
+                        "showRequirements": true
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "arenaw153",
+                      "type": "discord-join",
+                      "v": 1,
+                      "settings": {
+                        "title": "Competitions live on Discord",
+                        "text": "Chat, events and clan news all happen on our Discord.",
+                        "buttonLabel": "Join the Discord"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

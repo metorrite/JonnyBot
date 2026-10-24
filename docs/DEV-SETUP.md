@@ -81,6 +81,7 @@ Every environment variable the bot reads. Each one can also go in the git-ignore
 | `OWNER_IDS` | Comma-separated Discord ids of the bot's owners (Super admin, owner-only commands). | Nobody is an owner. |
 | `ADMIN_ROLE_ID` | The env-default Admin role for the home server: it and every role above it may use admin commands. Servers set their own on the dashboard. | Fails closed: nobody passes the env-default admin check. |
 | `BOT_STATUS` | The bot's Discord status text. | `bot.activity` from `config.properties`. |
+| `PREMIUM_ENABLED` | `1` (or `true`) brings Premium back for clan websites (T-422): free servers get the free page, widget, version and picture limits again. Keep it equal to the website's `PREMIUM_ENABLED`. | Off: everything is free for now; every server gets the website's Premium features and limits (nothing is granted or stored). Faster polling and the server profile still follow the plans. |
 | `LANGUAGE_PACKS_ENABLED` | `true` offers the machine-drafted language packs (T-099, docs/TRANSLATION.md) on the dashboard's Language page. | Off: only English can be picked (a server that already picked a pack keeps it). |
 
 **Internal API and website**
@@ -90,6 +91,7 @@ Every environment variable the bot reads. Each one can also go in the git-ignore
 | `INTERNAL_API_SECRET` | The shared secret the website sends (must equal the site's `JONNYBOT_INTERNAL_API_SECRET`). | The internal API doesn't start (no dashboard, no site data). |
 | `INTERNAL_API_PORT` | Port of the internal API. | `8081`. |
 | `SITE_URL` | The website's public address, no trailing slash: where `/wrapped` gets recap images and links to. | `/wrapped` says it isn't set up. |
+| `BILLING_RECONCILE_URL` | The runeclans website's billing reconcile route, e.g. `https://runeclans.com/api/billing/reconcile` (T-366). Once a day the bot sends it the paid subscriptions of servers it left 14+ days ago (with `INTERNAL_API_SECRET`), and the website sets them to cancel at the period end. | Nothing is sent; those subscriptions keep renewing until cancelled by hand. |
 | `JONNYBOT_SITE_URL` | The address put in the User-Agent of every request the bot makes to a third party. | `https://jonnybot.rsyounglings.com`. |
 
 **Dev bot safety**

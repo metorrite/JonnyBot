@@ -1,0 +1,1237 @@
+{
+  "v": 2,
+  "look": {
+    "theme": "modern",
+    "mode": "light",
+    "accent": "#16a34a",
+    "logo": null,
+    "banner": null
+  },
+  "style": {
+    "colours": {
+      "accent2": "#0d9488"
+    },
+    "fonts": {
+      "heading": "playfair-display",
+      "body": "lato"
+    },
+    "radius": "md",
+    "density": "compact",
+    "glow": "off",
+    "buttons": "solid"
+  },
+  "header": {
+    "layout": "logo-left",
+    "logo": {
+      "show": true,
+      "text": "name",
+      "height": 36
+    },
+    "slots": {
+      "left": [],
+      "right": [
+        {
+          "kind": "search"
+        },
+        {
+          "kind": "discord"
+        }
+      ]
+    },
+    "sticky": true,
+    "transparent": "never",
+    "height": "normal",
+    "mobile": "drawer",
+    "nav": [
+      {
+        "id": "skiln072",
+        "label": "Home",
+        "link": {
+          "kind": "page",
+          "pageId": "skilphome"
+        }
+      },
+      {
+        "id": "skiln073",
+        "label": "Leaderboards",
+        "link": {
+          "kind": "page",
+          "pageId": "skilpboards"
+        }
+      },
+      {
+        "id": "skiln074",
+        "label": "Progress",
+        "link": {
+          "kind": "page",
+          "pageId": "skilpprogress"
+        }
+      },
+      {
+        "id": "skiln075",
+        "label": "Members",
+        "link": {
+          "kind": "page",
+          "pageId": "skilpmembers"
+        }
+      },
+      {
+        "id": "skiln076",
+        "label": "Join",
+        "link": {
+          "kind": "page",
+          "pageId": "skilpjoin"
+        }
+      }
+    ]
+  },
+  "footer": {
+    "showSocial": true,
+    "badge": true,
+    "columns": [
+      {
+        "title": "{clan}",
+        "links": [
+          {
+            "label": "Home",
+            "link": {
+              "kind": "page",
+              "pageId": "skilphome"
+            }
+          },
+          {
+            "label": "Members",
+            "link": {
+              "kind": "page",
+              "pageId": "skilpmembers"
+            }
+          },
+          {
+            "label": "Join",
+            "link": {
+              "kind": "page",
+              "pageId": "skilpjoin"
+            }
+          }
+        ]
+      },
+      {
+        "title": "XP",
+        "links": [
+          {
+            "label": "Leaderboards",
+            "link": {
+              "kind": "page",
+              "pageId": "skilpboards"
+            }
+          },
+          {
+            "label": "Progress",
+            "link": {
+              "kind": "page",
+              "pageId": "skilpprogress"
+            }
+          },
+          {
+            "label": "Discord",
+            "link": {
+              "kind": "invite"
+            }
+          }
+        ]
+      }
+    ],
+    "text": "{clan}. One more level."
+  },
+  "pages": [
+    {
+      "id": "skilphome",
+      "title": "Home",
+      "path": "",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "skils007",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "xl",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "label": "Numbers",
+          "rows": [
+            {
+              "id": "skilr006",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "skilc003",
+                  "span": {
+                    "lg": 8,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "skilw001",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "{clan}",
+                        "subtitle": "{tagline}",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "skilw002",
+                      "type": "stat-tiles",
+                      "v": 2,
+                      "settings": {
+                        "cards": [
+                          {
+                            "metric": "xpToday",
+                            "label": "XP today",
+                            "link": null
+                          },
+                          {
+                            "metric": "xpWeek",
+                            "label": "XP this week",
+                            "link": {
+                              "kind": "page",
+                              "pageId": "skilpboards"
+                            }
+                          },
+                          {
+                            "metric": "totalXp",
+                            "label": "Total XP",
+                            "link": null
+                          },
+                          {
+                            "metric": "avgLevel",
+                            "label": "Average level",
+                            "link": null
+                          }
+                        ],
+                        "columns": "4"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "skilc005",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "skilw004",
+                      "type": "clan-goals",
+                      "v": 1,
+                      "settings": {
+                        "title": "This month's goals",
+                        "goals": [
+                          {
+                            "label": "2 billion XP this month",
+                            "metric": "xpMonth",
+                            "target": 2000000000
+                          },
+                          {
+                            "label": "Average total level 2,200",
+                            "metric": "avgLevel",
+                            "target": 2200
+                          }
+                        ]
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "skils016",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "skilr015",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "skilc009",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "skilw008",
+                      "type": "top-xp",
+                      "v": 1,
+                      "settings": {
+                        "title": "Top gainers",
+                        "limit": 10,
+                        "showDay": true,
+                        "showWeek": true,
+                        "showMonth": true,
+                        "defaultTab": "week"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "skilc011",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "skilw010",
+                      "type": "milestones",
+                      "v": 1,
+                      "settings": {
+                        "title": "Latest milestones",
+                        "limit": 8
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "skilc014",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "skilw012",
+                      "type": "xp-chart",
+                      "v": 1,
+                      "settings": {
+                        "title": "Clan XP per month",
+                        "months": 6
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "skilw013",
+                      "type": "hub-events",
+                      "v": 1,
+                      "settings": {
+                        "title": "Skill competitions",
+                        "limit": 2,
+                        "showFinished": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "skilpboards",
+      "title": "Leaderboards",
+      "path": "leaderboards",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "skils020",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "skilr019",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "skilc018",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "skilw017",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Leaderboards",
+                        "subtitle": "Pick a time frame on any board.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "skils031",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "skilr025",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "skilc022",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "skilw021",
+                      "type": "leaderboard",
+                      "v": 1,
+                      "settings": {
+                        "title": "XP gained",
+                        "metric": "xp",
+                        "period": "week",
+                        "visitorPeriods": true,
+                        "limit": 15
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "skilc024",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "skilw023",
+                      "type": "leaderboard",
+                      "v": 1,
+                      "settings": {
+                        "title": "XP gained this month",
+                        "metric": "xp",
+                        "period": "month",
+                        "visitorPeriods": false,
+                        "limit": 15
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "skilr030",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "skilc027",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "skilw026",
+                      "type": "top-list",
+                      "v": 1,
+                      "settings": {
+                        "title": "Highest total XP",
+                        "metric": "xp",
+                        "limit": 15
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "skilc029",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "skilw028",
+                      "type": "top-list",
+                      "v": 1,
+                      "settings": {
+                        "title": "Highest total level",
+                        "metric": "level",
+                        "limit": 15
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "skilpprogress",
+      "title": "Progress",
+      "path": "progress",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "skils035",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "skilr034",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "skilc033",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "skilw032",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Progress",
+                        "subtitle": "How the clan is growing, month by month.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "skils049",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "skilr040",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "skilc037",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "skilw036",
+                      "type": "xp-chart",
+                      "v": 1,
+                      "settings": {
+                        "title": "XP per month",
+                        "months": 6
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "skilc039",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "skilw038",
+                      "type": "joins-chart",
+                      "v": 1,
+                      "settings": {
+                        "title": "Members over time",
+                        "points": 30
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "skilr045",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "skilc042",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "skilw041",
+                      "type": "clan-goals",
+                      "v": 1,
+                      "settings": {
+                        "title": "Clan goals",
+                        "goals": [
+                          {
+                            "label": "Reach 200 members",
+                            "metric": "members",
+                            "target": 200
+                          },
+                          {
+                            "label": "500 billion total XP",
+                            "metric": "totalXp",
+                            "target": 500000000000
+                          },
+                          {
+                            "label": "2 billion XP this month",
+                            "metric": "xpMonth",
+                            "target": 2000000000
+                          }
+                        ]
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "skilc044",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "skilw043",
+                      "type": "recap",
+                      "v": 1,
+                      "settings": {
+                        "title": "Clan recap",
+                        "period": "last-week",
+                        "visitorPeriods": true,
+                        "showTop": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "skilr048",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "skilc047",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "skilw046",
+                      "type": "adventure-log",
+                      "v": 1,
+                      "settings": {
+                        "title": "Adventure log",
+                        "limit": 15,
+                        "tabs": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "skilpmembers",
+      "title": "Members",
+      "path": "members",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "skils053",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "skilr052",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "skilc051",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "skilw050",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Members",
+                        "subtitle": "Everyone in the clan, with their level and XP.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "skils060",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "skilr059",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "skilc055",
+                  "span": {
+                    "lg": 9,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "skilw054",
+                      "type": "roster",
+                      "v": 1,
+                      "settings": {
+                        "title": "",
+                        "limit": 500,
+                        "showJoined": false,
+                        "showRank": true,
+                        "showLevel": true,
+                        "showXp": true,
+                        "search": true,
+                        "rankFilter": true,
+                        "sort": "xp"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "skilc058",
+                  "span": {
+                    "lg": 3,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "skilw056",
+                      "type": "rank-breakdown",
+                      "v": 1,
+                      "settings": {
+                        "title": "Ranks",
+                        "limit": 20,
+                        "style": "ring",
+                        "showEmpty": false
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "skilw057",
+                      "type": "clan-stats",
+                      "v": 1,
+                      "settings": {
+                        "title": "By the numbers"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "skilpjoin",
+      "title": "Join",
+      "path": "join",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "skils064",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "skilr063",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "skilc062",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "skilw061",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Join {clan}",
+                        "subtitle": "Skill with people who'll notice your level-ups.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "skils071",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "skilr070",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "skilc066",
+                  "span": {
+                    "lg": 7,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "skilw065",
+                      "type": "text",
+                      "v": 1,
+                      "settings": {
+                        "markdown": "## What to expect\n- A skill competition most weekends, with prizes\n- XP leaderboards for every week and month\n- Shout-outs for every 99, 120 and max cape\n\nNo XP requirement. If you skill, you'll fit in.",
+                        "align": "left",
+                        "width": "readable"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "skilc069",
+                  "span": {
+                    "lg": 5,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "skilw067",
+                      "type": "recruiting",
+                      "v": 1,
+                      "settings": {
+                        "title": "Join us",
+                        "buttonLabel": "Apply now",
+                        "showRequirements": true
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "skilw068",
+                      "type": "discord-join",
+                      "v": 1,
+                      "settings": {
+                        "title": "Say hello",
+                        "text": "Chat, events and clan news all happen on our Discord.",
+                        "buttonLabel": "Join the Discord"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

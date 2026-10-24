@@ -1,0 +1,198 @@
+{
+  "v": 2,
+  "look": { "theme": "minimal", "mode": "light", "accent": null, "logo": null, "banner": null },
+  "style": {},
+  "header": {
+    "layout": "logo-left",
+    "logo": { "show": true, "text": "name", "height": 40 },
+    "nav": [{ "id": "56qllok2w5", "label": "Home", "link": { "kind": "page", "pageId": "i1affb6ayn" } }],
+    "slots": { "left": [], "right": [] },
+    "sticky": false,
+    "transparent": "never",
+    "height": "normal",
+    "mobile": "drawer"
+  },
+  "footer": { "columns": [], "showSocial": false, "badge": true },
+  "pages": [
+    {
+      "id": "i1affb6ayn",
+      "title": "Home",
+      "path": "",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "psnfy7qgwm",
+          "width": "wide",
+          "background": { "kind": "none" },
+          "padding": { "lg": { "y": "lg", "x": "md" } },
+          "height": { "lg": { "mode": "auto" } },
+          "rows": [
+            {
+              "id": "4g2gff9uhk",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "frxld5lrn8",
+                  "span": { "lg": 12 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "gsvu1abdxx",
+                      "type": "carousel",
+                      "v": 1,
+                      "settings": {
+                        "slides": [
+                          {
+                            "title": "Welcome to our clan",
+                            "text": "Bossing, skilling and good company every evening.",
+                            "cta": "Join us",
+                            "href": "",
+                            "image": "",
+                            "art": "clans"
+                          },
+                          {
+                            "title": "Weekly events",
+                            "text": "Bingo, competitions and boss nights all week.",
+                            "cta": "",
+                            "href": "",
+                            "image": "",
+                            "art": "events"
+                          }
+                        ]
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "75kmr2snps",
+          "width": "wide",
+          "background": { "kind": "none" },
+          "padding": { "lg": { "y": "lg", "x": "md" } },
+          "height": { "lg": { "mode": "auto" } },
+          "rows": [
+            {
+              "id": "pcvkp0t393",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "jscbpxppbo",
+                  "span": { "lg": 8 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "k7iblya37z",
+                      "type": "text",
+                      "v": 1,
+                      "settings": {
+                        "markdown": "## Welcome to our clan\nTell visitors what your clan is about: what you do together, when you play and who fits in."
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "hmzy9dsmnr",
+                  "span": { "lg": 4 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "e98nuzzzja",
+                      "type": "events",
+                      "v": 1,
+                      "settings": { "title": "Coming up", "limit": 3, "showImages": true },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "2t0vpsje46",
+                      "type": "discord-join",
+                      "v": 1,
+                      "settings": {
+                        "title": "Join our Discord",
+                        "text": "Chat, events and clan news all happen on our Discord.",
+                        "buttonLabel": "Join the Discord"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "krj8dftawn",
+          "width": "wide",
+          "background": { "kind": "surface" },
+          "padding": { "lg": { "y": "lg", "x": "md" } },
+          "height": { "lg": { "mode": "auto" } },
+          "rows": [
+            {
+              "id": "yqt9km2svy",
+              "gap": { "lg": "md" },
+              "align": "stretch",
+              "height": { "lg": { "mode": "auto" } },
+              "cells": [
+                {
+                  "id": "hi9kvy8krq",
+                  "span": { "lg": 4 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "m3osaa2lwt",
+                      "type": "top-xp",
+                      "v": 1,
+                      "settings": { "title": "Top XP this week", "limit": 8 },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "7n5o3colr1",
+                  "span": { "lg": 4 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "a8owxuo008",
+                      "type": "weekly-recap",
+                      "v": 1,
+                      "settings": { "title": "Last week", "showTop": true },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "mya84yjnsx",
+                  "span": { "lg": 4 },
+                  "padding": { "lg": "none" },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [{ "id": "bn7ks9q7x1", "type": "clan-stats", "v": 1, "settings": { "title": "Clan stats" }, "unmet": "hide" }]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

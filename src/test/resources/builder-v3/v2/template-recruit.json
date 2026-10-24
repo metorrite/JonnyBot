@@ -1,0 +1,772 @@
+{
+  "v": 2,
+  "look": {
+    "theme": "parchment",
+    "mode": "light",
+    "accent": null,
+    "logo": null,
+    "banner": null
+  },
+  "style": {
+    "fonts": {
+      "heading": "cormorant-garamond",
+      "body": "source-serif-4"
+    },
+    "radius": "md",
+    "density": "normal",
+    "glow": "off",
+    "buttons": "solid"
+  },
+  "header": {
+    "layout": "logo-center",
+    "logo": {
+      "show": true,
+      "text": "name",
+      "height": 56
+    },
+    "slots": {
+      "left": [],
+      "right": []
+    },
+    "sticky": true,
+    "transparent": "never",
+    "height": "tall",
+    "mobile": "dropdown",
+    "nav": [
+      {
+        "id": "recrun043",
+        "label": "About",
+        "link": {
+          "kind": "page",
+          "pageId": "recruphome",
+          "anchor": "about"
+        }
+      },
+      {
+        "id": "recrun044",
+        "label": "Why join",
+        "link": {
+          "kind": "page",
+          "pageId": "recruphome",
+          "anchor": "why"
+        }
+      },
+      {
+        "id": "recrun045",
+        "label": "Questions",
+        "link": {
+          "kind": "page",
+          "pageId": "recruphome",
+          "anchor": "faq"
+        }
+      },
+      {
+        "id": "recrun046",
+        "label": "Apply",
+        "link": {
+          "kind": "page",
+          "pageId": "recrupapply"
+        }
+      }
+    ]
+  },
+  "footer": {
+    "showSocial": true,
+    "badge": true,
+    "columns": [
+      {
+        "title": "{clan}",
+        "links": [
+          {
+            "label": "About us",
+            "link": {
+              "kind": "page",
+              "pageId": "recruphome",
+              "anchor": "about"
+            }
+          },
+          {
+            "label": "Apply",
+            "link": {
+              "kind": "page",
+              "pageId": "recrupapply"
+            }
+          },
+          {
+            "label": "Discord",
+            "link": {
+              "kind": "invite"
+            }
+          }
+        ]
+      }
+    ],
+    "text": "{clan} is recruiting. All levels welcome."
+  },
+  "pages": [
+    {
+      "id": "recruphome",
+      "title": "Home",
+      "path": "",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "recrus007",
+          "width": "full",
+          "background": {
+            "kind": "accent"
+          },
+          "padding": {
+            "lg": {
+              "y": "xl",
+              "x": "lg"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "label": "Welcome",
+          "rows": [
+            {
+              "id": "recrur003",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "recruc002",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "recruw001",
+                      "type": "clan-header",
+                      "v": 1,
+                      "settings": {
+                        "showBanner": true,
+                        "showTagline": true,
+                        "align": "center"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "recrur006",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "recruc005",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "recruw004",
+                      "type": "button-row",
+                      "v": 1,
+                      "settings": {
+                        "buttons": [
+                          {
+                            "label": "Apply now",
+                            "link": {
+                              "kind": "page",
+                              "pageId": "recrupapply"
+                            },
+                            "style": "primary"
+                          },
+                          {
+                            "label": "Chat with us first",
+                            "link": {
+                              "kind": "invite"
+                            },
+                            "style": "secondary"
+                          }
+                        ],
+                        "align": "center",
+                        "size": "large",
+                        "fullWidth": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "recrus013",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "anchor": "about",
+          "label": "About",
+          "rows": [
+            {
+              "id": "recrur012",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "recruc009",
+                  "span": {
+                    "lg": 7,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "recruw008",
+                      "type": "text",
+                      "v": 1,
+                      "settings": {
+                        "markdown": "## Who we are\n{clan} is a RuneScape clan looking for new members. We boss, skill, run events every week and help each other out. All levels welcome.",
+                        "align": "left",
+                        "width": "readable"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "recruc011",
+                  "span": {
+                    "lg": 5,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "recruw010",
+                      "type": "stat-tiles",
+                      "v": 2,
+                      "settings": {
+                        "cards": [
+                          {
+                            "metric": "members",
+                            "label": "",
+                            "link": null
+                          },
+                          {
+                            "metric": "xpWeek",
+                            "label": "",
+                            "link": null
+                          },
+                          {
+                            "metric": "xpMonth",
+                            "label": "",
+                            "link": null
+                          },
+                          {
+                            "metric": "kills",
+                            "label": "",
+                            "link": null
+                          }
+                        ],
+                        "columns": "2"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "recrus024",
+          "width": "wide",
+          "background": {
+            "kind": "surface"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "anchor": "why",
+          "label": "Why join",
+          "rows": [
+            {
+              "id": "recrur020",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "recruc015",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "recruw014",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Something every week",
+                        "subtitle": "Skill competitions, boss trips and Citadel nights, with prizes from the clan coffer.",
+                        "size": "small",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h3"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "recruc017",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "recruw016",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "People who help",
+                        "subtitle": "Ask anything in our Discord: quest help, gear advice or a team for that boss.",
+                        "size": "small",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h3"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "recruc019",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "recruw018",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "No pressure",
+                        "subtitle": "No XP targets and no level requirement. Play your way; we'll cheer you on.",
+                        "size": "small",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h3"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "recrur023",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "recruc022",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "recruw021",
+                      "type": "events",
+                      "v": 1,
+                      "settings": {
+                        "title": "What's coming up",
+                        "limit": 3,
+                        "showImages": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "recrus031",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "anchor": "faq",
+          "label": "Questions",
+          "rows": [
+            {
+              "id": "recrur030",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "recruc026",
+                  "span": {
+                    "lg": 7,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "recruw025",
+                      "type": "faq",
+                      "v": 1,
+                      "settings": {
+                        "title": "Questions",
+                        "items": [
+                          {
+                            "q": "Do I need to be a certain level?",
+                            "a": "No, everyone is welcome."
+                          },
+                          {
+                            "q": "How do I join?",
+                            "a": "Apply on our Discord and a recruiter will invite you in game."
+                          },
+                          {
+                            "q": "Do I have to be active every day?",
+                            "a": "No. Play when you can; just say hello now and then."
+                          },
+                          {
+                            "q": "Can I join with an alt or an ironman?",
+                            "a": "Yes, ironmen and alts are welcome too."
+                          }
+                        ]
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "recruc029",
+                  "span": {
+                    "lg": 5,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "recruw027",
+                      "type": "recruiting",
+                      "v": 1,
+                      "settings": {
+                        "title": "Join us",
+                        "buttonLabel": "Apply now",
+                        "showRequirements": true
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "recruw028",
+                      "type": "discord-join",
+                      "v": 1,
+                      "settings": {
+                        "title": "Say hello first",
+                        "text": "Not sure yet? Come and chat with us on Discord.",
+                        "buttonLabel": "Join the Discord"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "recrupapply",
+      "title": "Apply",
+      "path": "apply",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "recrus042",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "recrur038",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "recruc034",
+                  "span": {
+                    "lg": 8,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "recruw032",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Apply to {clan}",
+                        "subtitle": "",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "recruw033",
+                      "type": "text",
+                      "v": 1,
+                      "settings": {
+                        "markdown": "## How to apply\n1. Join our Discord.\n2. Say hello in the welcome channel and tell us your RuneScape name.\n3. A recruiter invites you to the clan in game, usually the same day.",
+                        "align": "left",
+                        "width": "readable"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "recruc037",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "recruw035",
+                      "type": "discord-join",
+                      "v": 1,
+                      "settings": {
+                        "title": "Step 1",
+                        "text": "Join the {clan} Discord.",
+                        "buttonLabel": "Join the Discord"
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "recruw036",
+                      "type": "recruiting",
+                      "v": 1,
+                      "settings": {
+                        "title": "Our requirements",
+                        "buttonLabel": "Apply now",
+                        "showRequirements": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "recrur041",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "recruc040",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "recruw039",
+                      "type": "faq",
+                      "v": 1,
+                      "settings": {
+                        "title": "Before you apply",
+                        "items": [
+                          {
+                            "q": "How long does it take?",
+                            "a": "Usually a few hours. A recruiter will message you on Discord."
+                          },
+                          {
+                            "q": "What if I'm in another clan?",
+                            "a": "Leave it in game before the invite; we'll keep a spot for you."
+                          }
+                        ]
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -285,6 +285,15 @@ public class BotConfig {
         return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
     }
 
+    /**
+     * The runeclans website's billing reconcile route ({@code https://runeclans.com/api/billing/reconcile}, T-366): once a day the bot sends it the
+     * subscriptions of servers it left 14+ days ago, to be cancelled at the period end. {@code null} if unset: nothing is sent.
+     */
+    public String getBillingReconcileUrl() {
+        String url = envOrDotenv("BILLING_RECONCILE_URL");
+        return url == null ? null : url.trim();
+    }
+
     /** A RuneSync server setting ({@code RUNESYNC_*}, e.g. {@code RUNESYNC_MIN_CLIENT_VERSION}); null when unset. */
     public String getRuneSyncSetting(String name) {
         if (!name.startsWith("RUNESYNC_")) throw new IllegalArgumentException("Only RUNESYNC_ settings are served here");
@@ -491,6 +500,15 @@ public class BotConfig {
     public boolean getLanguagePacksEnabled() {
         String raw = envOrDotenv("LANGUAGE_PACKS_ENABLED");
         return raw != null && raw.trim().equalsIgnoreCase("true");
+    }
+
+    /**
+     * Whether Premium exists for clan websites (T-422). Off by default ("everything is free for now"): every server gets the website's
+     * Premium features and limits until {@code PREMIUM_ENABLED=1} (or true). Keep it equal to the website's switch of the same name.
+     */
+    public boolean getPremiumEnabled() {
+        String raw = envOrDotenv("PREMIUM_ENABLED");
+        return raw != null && (raw.trim().equals("1") || raw.trim().equalsIgnoreCase("true"));
     }
 
     /**

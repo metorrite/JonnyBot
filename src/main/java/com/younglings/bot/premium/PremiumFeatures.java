@@ -19,6 +19,27 @@ public final class PremiumFeatures {
     public static final String FAST_POLLING = "polling.fast";
     /** The bot's server avatar, banner and bio. */
     public static final String BRANDING_PROFILE = "branding.profile";
+    /** Builder v3 (T-363, docs/BUILDER-V3.md 10.2 {@code site.limits}): how many pages a clan website may have. */
+    public static final String SITE_PAGES = "site.limits.pages";
+    /** Builder v3: how many widgets one page of a clan website may hold. */
+    public static final String SITE_WIDGETS_PER_PAGE = "site.limits.widgets";
+    /** Builder v3: how many published versions of a clan website can be seen and restored. */
+    public static final String SITE_VERSIONS = "site.versions";
+    /** Builder v3 (T-408, docs/BUILDER-V3.md 5.4 and decision Q8): how many pictures a clan website's picture library may hold. */
+    public static final String SITE_PICTURES = "site.pictures";
+    // Builder v3 on/off features (T-366, docs/BUILDER-V3.md section 10.2). The website reads the plan from the bot and never decides on its own.
+    /** The premium widgets and layout features of the site editor (custom spans, resize, breakpoint overrides). */
+    public static final String SITE_EDITOR = "site.editor";
+    /** The site's own colours, fonts, corners, density, glow and buttons. */
+    public static final String SITE_STYLE = "site.style";
+    /** Visitors may pick a theme for the site. */
+    public static final String SITE_USER_THEMES = "site.userThemes";
+    /** Every page of the site's own admin dashboard (free sites get Overview, Status and Plan). */
+    public static final String SITE_ADMIN_FULL = "site.admin.full";
+    /** The bigger page and widget limits as one switch ({@link #SITE_PAGES}, {@link #SITE_WIDGETS_PER_PAGE} hold the numbers). */
+    public static final String SITE_LIMITS = "site.limits";
+    /** The "Made with RuneClans" footer badge may be turned off. */
+    public static final String SITE_NO_BADGE = "site.noBadge";
 
     /** {@code unlockedBy}: the tiers that get the feature (or the premium value of a limit). {@code freeValue}/{@code premiumValue}: null for a plain on/off feature. */
     public record Feature(String key, String title, String description, Set<String> unlockedBy, Long freeValue, Long premiumValue) {
@@ -30,7 +51,17 @@ public final class PremiumFeatures {
     private static final List<Feature> ALL = List.of(
             new Feature(FAST_POLLING, "Faster player updates", "Your clan's players are refreshed every hour instead of every three hours, ahead of other clans in the queue.",
                     Set.of(TIER_PREMIUM), null, null),
-            new Feature(BRANDING_PROFILE, "Server profile", "Give the bot its own avatar, banner and bio in your server.", Set.of(TIER_PREMIUM), null, null));
+            new Feature(BRANDING_PROFILE, "Server profile", "Give the bot its own avatar, banner and bio in your server.", Set.of(TIER_PREMIUM), null, null),
+            new Feature(SITE_PAGES, "Website pages", "Up to 24 pages on your clan website instead of 12.", Set.of(TIER_PREMIUM), 12L, 24L),
+            new Feature(SITE_WIDGETS_PER_PAGE, "Widgets a page", "Up to 80 widgets on each page of your clan website instead of 40.", Set.of(TIER_PREMIUM), 40L, 80L),
+            new Feature(SITE_VERSIONS, "Website versions", "Go back to any of your last 30 published versions instead of the last 3.", Set.of(TIER_PREMIUM), 3L, 30L),
+            new Feature(SITE_PICTURES, "Website pictures", "Upload up to 200 pictures for your clan website instead of 10.", Set.of(TIER_PREMIUM), 10L, 200L),
+            new Feature(SITE_EDITOR, "Full site editor", "Every widget, custom column widths, resizing and separate layouts for phones and tablets.", Set.of(TIER_PREMIUM), null, null),
+            new Feature(SITE_STYLE, "Site style", "Your own colours, fonts, corners and spacing on your clan website.", Set.of(TIER_PREMIUM), null, null),
+            new Feature(SITE_USER_THEMES, "Visitor themes", "Let visitors pick the theme they read your website in.", Set.of(TIER_PREMIUM), null, null),
+            new Feature(SITE_ADMIN_FULL, "Full site admin", "Every page of your website's admin dashboard.", Set.of(TIER_PREMIUM), null, null),
+            new Feature(SITE_LIMITS, "Bigger website", "More pages, and more widgets on each page.", Set.of(TIER_PREMIUM), null, null),
+            new Feature(SITE_NO_BADGE, "No footer badge", "Turn off the \"Made with RuneClans\" badge at the bottom of your website.", Set.of(TIER_PREMIUM), null, null));
 
     private static final Map<String, Feature> BY_KEY = ALL.stream().collect(java.util.stream.Collectors.toUnmodifiableMap(Feature::key, f -> f));
 
