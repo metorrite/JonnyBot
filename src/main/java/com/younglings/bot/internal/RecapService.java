@@ -10,7 +10,6 @@ import com.younglings.bot.member.MemberProfileRepository;
 import com.younglings.bot.runescape.RuneScapeSkillCatalog;
 import com.younglings.bot.runescape.WeeklyDigestRepository;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
-import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.utils.data.DataArray;
 import net.dv8tion.jda.api.utils.data.DataObject;
 
@@ -51,17 +50,16 @@ public class RecapService {
     }
 
     /** @return the recap, or {@code null} for a period or member that doesn't exist */
-    public DataObject build(Guild guild, String scope, String rsnRaw, String periodToken) {
-        long guildId = guild.getIdLong();
+    public DataObject build(long guildId, String scope, String rsnRaw, String periodToken) {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         RecapPeriod period = RecapPeriod.parse(periodToken, now, stats.firstSnapshotAt(guildId)).orElse(null);
         if (period == null) return null;
 
-        if ("clan".equals(scope)) return clan(guild, period);
+        if ("clan".equals(scope)) return clan(guildId, period);
         if (!"member".equals(scope) || rsnRaw == null || rsnRaw.isBlank()) return null;
 
         MemberRow member = stats.members(guildId).stream().filter(m -> m.rsn().equalsIgnoreCase(rsnRaw.trim())).findFirst().orElse(null);
-        return member == null ? null : member(guild, member, period);
+        return member == null ? null : member(guildId, member, period);
     }
 
     // ---------- shared pieces ----------
@@ -177,8 +175,7 @@ public class RecapService {
 
     // ---------- the clan ----------
 
-    private DataObject clan(Guild guild, RecapPeriod period) {
-        long guildId = guild.getIdLong();
+    private DataObject clan(long guildId, RecapPeriod period) {
         Set<String> hiddenBoards = profiles.hiddenRsns(guildId, true);
         Set<String> hiddenLogs = profiles.hiddenRsns(guildId, false);
 
@@ -227,8 +224,7 @@ public class RecapService {
 
     // ---------- one member ----------
 
-    private DataObject member(Guild guild, MemberRow member, RecapPeriod period) {
-        long guildId = guild.getIdLong();
+    private DataObject member(long guildId, MemberRow member, RecapPeriod period) {
         Set<String> hiddenBoards = profiles.hiddenRsns(guildId, true);
         boolean logHidden = profiles.hiddenRsns(guildId, false).contains(member.rsn().toLowerCase());
 

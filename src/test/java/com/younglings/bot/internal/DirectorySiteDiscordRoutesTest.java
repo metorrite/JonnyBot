@@ -22,6 +22,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -42,6 +43,9 @@ class DirectorySiteDiscordRoutesTest {
     private final SiteDiscordService discord = mock(SiteDiscordService.class);
     private final JDA jda = mock(JDA.class);
     private final Guild guild = mock(Guild.class);
+    private final com.younglings.bot.clansite.BotlessSiteRepository botless = mock(com.younglings.bot.clansite.BotlessSiteRepository.class);
+    /** The real tenant routing (a bot-less site's Discord-only routes answer before anything else is touched). */
+    private final SiteApi siteApi = mock(SiteApi.class, org.mockito.Mockito.CALLS_REAL_METHODS);
     private final ClanProfile clan = new ClanProfile(GUILD, ClanProfile.Visibility.PUBLIC, "younglings", "Younglings", null, null, null, null, null, Set.of(),
             ClanProfile.Recruiting.CLOSED, null, null, false, null, null, null, null, null, null);
     private DirectoryApi api;
@@ -49,9 +53,9 @@ class DirectorySiteDiscordRoutesTest {
     @BeforeEach
     void setUp() {
         api = new DirectoryApi(repository, service, mock(SiteStatsRepository.class), List.of(
-                new DirectoryClanSiteRoutes(sites, mock(SiteApi.class), repository, mock(com.younglings.bot.clansite.ClanSiteLayoutRepository.class),
+                new DirectoryClanSiteRoutes(sites, siteApi, repository, mock(com.younglings.bot.clansite.ClanSiteLayoutRepository.class),
                         mock(com.younglings.bot.clansite.ClanSitePluginFeed.class)),
-                new DirectorySiteDiscordRoutes(sites, discord)));
+                new DirectorySiteDiscordRoutes(sites, discord)), botless);
         when(repository.bySlug("younglings")).thenReturn(Optional.of(clan));
         when(service.publicView(GUILD, true)).thenReturn(Optional.of(clan));
         when(service.publicView(eq(clan), any(), eq(true))).thenReturn(Optional.of(clan));
@@ -131,5 +135,30 @@ class DirectorySiteDiscordRoutesTest {
     void otherSiteRoutesStillReachTheirModule() throws Exception {
         assertEquals(404, call("GET", "/internal/directory/sites/younglings/data/discord/other", null).status());
         verify(discord, never()).feed(any(), any(), anyInt());
+    }
+
+    /** The website (runeclans A1) shows its "Needs RuneClan Bot" placeholder for any {"needsBot": true} answer from these routes. */
+    @Test
+    void aBotlessSitesDiscordDataPollsSignupsAndEventsSayTheyNeedTheBot() throws Exception {
+        when(jda.getGuildById(GUILD)).thenReturn(null);
+        when(sites.botless(GUILD)).thenReturn(true);
+        when(botless.contains(GUILD)).thenReturn(true);
+        for (String path : new String[]{"sites/younglings/data/discord/online", "sites/younglings/data/discord/feed", "sites/younglings/data/discord/events",
+                "sites/younglings/data/polls", "sites/younglings/data/signups", "clans/younglings/events"}) {
+            Reply reply = call("GET", "/internal/directory/" + path, null);
+            assertEquals(200, reply.status(), path);
+            assertTrue(reply.body().getBoolean("needsBot"), path);
+        }
+        assertEquals(0, call("GET", "/internal/directory/clans/younglings/events", null).body().getArray("events").length());
+        verify(discord, never()).online(any());
+    }
+
+    @Test
+    void aClanWhoseServerTheBotLeftButIsNotBotlessHasPlainEmptyEvents() throws Exception {
+        when(jda.getGuildById(GUILD)).thenReturn(null);
+        Reply reply = call("GET", "/internal/directory/clans/younglings/events", null);
+        assertEquals(200, reply.status());
+        assertFalse(reply.body().hasKey("needsBot"));
+        assertEquals(404, call("GET", "/internal/directory/sites/younglings/data/discord/other", null).status());
     }
 }

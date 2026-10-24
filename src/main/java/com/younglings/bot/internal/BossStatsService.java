@@ -4,7 +4,6 @@ import com.younglings.bot.internal.SiteStatsRepository.ActivityRow;
 import com.younglings.bot.member.MemberProfileRepository;
 import com.younglings.bot.tracking.DropItemCatalog;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
-import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.utils.data.DataArray;
 import net.dv8tion.jda.api.utils.data.DataObject;
 
@@ -68,8 +67,7 @@ public class BossStatsService {
         return new BossRef(WikiCatalog.slug(rawName), clean, null);
     }
 
-    private Gathered gather(Guild guild, String periodToken) {
-        long guildId = guild.getIdLong();
+    private Gathered gather(long guildId, String periodToken) {
         RecapPeriod period = period(guildId, periodToken);
         if (period == null) return null;
 
@@ -186,8 +184,8 @@ public class BossStatsService {
     // ---------- routes ----------
 
     /** Every boss with its kills, players and drops over the window — the page that lists them all. */
-    public DataObject bosses(Guild guild, String periodToken) {
-        Gathered g = gather(guild, periodToken);
+    public DataObject bosses(long guildId, String periodToken) {
+        Gathered g = gather(guildId, periodToken);
         if (g == null) return null;
 
         Map<String, BossRef> refs = new LinkedHashMap<>();
@@ -223,8 +221,8 @@ public class BossStatsService {
     }
 
     /** One boss in full: its picture, everyone's kills and drops, the drop-table grid, and the drop list. */
-    public DataObject boss(Guild guild, String bossKey, String periodToken) {
-        Gathered g = gather(guild, periodToken);
+    public DataObject boss(long guildId, String bossKey, String periodToken) {
+        Gathered g = gather(guildId, periodToken);
         if (g == null || bossKey == null) return null;
 
         var catalogued = catalog.byKey(bossKey);
@@ -273,8 +271,8 @@ public class BossStatsService {
     }
 
     /** One item in full: how often, who got it, when, and which bosses it comes from. */
-    public DataObject item(Guild guild, String itemKey, String periodToken, String bossKey) {
-        Gathered g = gather(guild, periodToken);
+    public DataObject item(long guildId, String itemKey, String periodToken, String bossKey) {
+        Gathered g = gather(guildId, periodToken);
         if (g == null || itemKey == null) return null;
 
         List<DropEvent> events = g.drops().stream().filter(e -> e.itemKey().equals(itemKey) && (bossKey == null || bossKey.isBlank() || (e.boss() != null && e.boss().key().equals(bossKey)))).toList();
@@ -313,8 +311,8 @@ public class BossStatsService {
     }
 
     /** The drop log: a grid of every item (greyed at zero) over a list of the actual drops, for chosen bosses and a window. */
-    public DataObject drops(Guild guild, String periodToken, String bossesCsv) {
-        Gathered g = gather(guild, periodToken);
+    public DataObject drops(long guildId, String periodToken, String bossesCsv) {
+        Gathered g = gather(guildId, periodToken);
         if (g == null) return null;
 
         Set<String> selected = new HashSet<>();

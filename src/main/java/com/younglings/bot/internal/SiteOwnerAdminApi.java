@@ -38,7 +38,8 @@ import java.util.stream.Collectors;
  * owner's alone and runs in the console's own server (the home server); the server it is about is in the path. Reached only through
  * {@link TicketAdminApi}, which has already checked the asker and audit-logs every change.
  * <ul>
- *   <li>{@code GET owner-sites}: every server with a clan profile, a site or a layout, plus the servers the bot is in (for a test site)</li>
+ *   <li>{@code GET owner-sites}: every server with a clan profile, a site or a layout, plus the servers the bot is in (for a test site);
+ *   {@code botless} marks a site run without the bot (docs/BOTLESS-SITES.md)</li>
  *   <li>{@code GET owner-sites/{guildId}}: one of them</li>
  *   <li>{@code POST owner-sites/{guildId}/address} {@code {slug?, displayName?}}: the address with the same reserved-word and taken checks
  *   as the clan's own Clan profile page (an unchanged address is kept)</li>
@@ -144,7 +145,8 @@ public class SiteOwnerAdminApi implements AdminRouteExtension {
         Guild known = home.getJDA().getGuildById(id);
         Long claimedBy = siteRoles.settings(id).claimedBy();
         DataObject out = DataObject.empty().put("guildId", Long.toString(id)).put("serverName", known == null ? null : known.getName())
-                .put("botPresent", known != null).put("serverOwnerId", known == null ? null : known.getOwnerId())
+                .put("botPresent", known != null).put("botless", known == null && siteService.botless(id))
+                .put("serverOwnerId", known == null ? null : known.getOwnerId())
                 .put("siteOwnerId", claimedBy == null ? null : claimedBy.toString()).put("inBeta", inBeta)
                 .put("slug", profile == null ? null : profile.slug()).put("displayName", profile == null ? null : profile.displayName())
                 .put("visibility", profile == null ? null : profile.visibility().name()).put("suspended", profile != null && profile.suspended());
