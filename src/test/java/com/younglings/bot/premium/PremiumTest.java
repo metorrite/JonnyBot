@@ -1,6 +1,7 @@
 package com.younglings.bot.premium;
 
 import com.younglings.bot.premium.PremiumGuildRepository.Grant;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -32,6 +33,31 @@ class PremiumTest {
     void setUp() {
         repository = mock(PremiumGuildRepository.class);
         premium = new Premium(repository);
+        PremiumSwitch.forceForTests(true);
+    }
+
+    @AfterEach
+    void switchBack() {
+        PremiumSwitch.forceForTests(null);
+    }
+
+    @Test
+    void premiumSwitchedOffUnlocksEveryWebsiteFeatureAndNothingElse() {
+        when(repository.activeGrant(1L)).thenReturn(null);
+        PremiumSwitch.forceForTests(false);
+
+        for (PremiumFeatures.Feature f : PremiumFeatures.all()) {
+            if (!f.key().startsWith("site.")) continue;
+            assertTrue(premium.allows(1L, f.key()), f.key());
+            if (f.isLimit()) assertEquals(Optional.of(f.premiumValue()), premium.limit(1L, f.key()), f.key());
+        }
+        assertFalse(premium.allows(1L, PremiumFeatures.FAST_POLLING), "outside the website the plans still decide");
+        assertFalse(premium.allows(1L, PremiumFeatures.BRANDING_PROFILE));
+        assertNull(premium.tierOf(1L), "nothing is granted or stored");
+
+        PremiumSwitch.forceForTests(true);
+        assertFalse(premium.allows(1L, PremiumFeatures.SITE_EDITOR), "switched on, a server without a plan is free again");
+        assertEquals(Optional.of(12L), premium.limit(1L, PremiumFeatures.SITE_PAGES));
     }
 
     private static Grant grant(long guildId, String tier, Instant end) {

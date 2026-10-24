@@ -503,6 +503,15 @@ public class BotConfig {
     }
 
     /**
+     * Whether Premium exists for clan websites (T-422). Off by default ("everything is free for now"): every server gets the website's
+     * Premium features and limits until {@code PREMIUM_ENABLED=1} (or true). Keep it equal to the website's switch of the same name.
+     */
+    public boolean getPremiumEnabled() {
+        String raw = envOrDotenv("PREMIUM_ENABLED");
+        return raw != null && (raw.trim().equals("1") || raw.trim().equalsIgnoreCase("true"));
+    }
+
+    /**
      * Whether the data-retention sweep only reports what it would delete. On by default, so nothing is ever removed until the
      * operator has seen what a sweep would do and sets {@code GUILD_DATA_RETENTION_DRY_RUN=false}.
      */

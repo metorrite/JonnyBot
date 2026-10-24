@@ -50,13 +50,14 @@ public class Premium {
         return grant == null ? null : grant.tier();
     }
 
+    /** Website features ({@code site.*}) are unlocked for everyone while {@link PremiumSwitch} is off (T-422). */
     public boolean allows(long guildId, String featureKey) {
-        return PremiumFeatures.allows(tierOf(guildId), featureKey);
+        return PremiumFeatures.allows(PremiumSwitch.tierFor(tierOf(guildId), featureKey), featureKey);
     }
 
-    /** The number for a limit on this server's plan; empty if {@code featureKey} isn't a limit. */
+    /** The number for a limit on this server's plan; empty if {@code featureKey} isn't a limit. Website limits follow {@link PremiumSwitch}. */
     public Optional<Long> limit(long guildId, String featureKey) {
-        return PremiumFeatures.limit(tierOf(guildId), featureKey);
+        return PremiumFeatures.limit(PremiumSwitch.tierFor(tierOf(guildId), featureKey), featureKey);
     }
 
     /** The servers whose plan unlocks the feature right now. */
