@@ -116,30 +116,31 @@ public class SiteApi {
             // already caches too, but this protects the bot's database from several instances or a cold start.
             String cacheKey = route + "?" + exchange.getRequestURI().getRawQuery();
             final String finalRoute = route;
+            long id = guild.getIdLong();
             DataObject result = cache.get(cacheKey, ttlMillis(route), () -> switch (finalRoute) {
                 case "online" -> online(guild);
                 case "events" -> events(guild);
-                case "members" -> members(guild);
-                case "overview" -> overview(guild);
-                case "member" -> member(guild, query(exchange, "rsn"));
-                case "member/skill" -> memberSkill(guild, query(exchange, "rsn"), query(exchange, "skill"));
-                case "leaderboard" -> leaderboard(guild, query(exchange, "month"), query(exchange, "period"));
-                case "coffer" -> coffer(guild);
-                case "feed" -> feed(guild, query(exchange, "limit"), query(exchange, "kind"));
-                case "records" -> records(guild);
-                case "citadel-grid" -> citadelGrid(guild, query(exchange, "weeks"));
-                case "history" -> history(guild);
-                case "polls" -> polls(guild);
-                case "signups" -> signups(guild);
+                case "members" -> members(id);
+                case "overview" -> overview(id);
+                case "member" -> member(id, query(exchange, "rsn"));
+                case "member/skill" -> memberSkill(id, query(exchange, "rsn"), query(exchange, "skill"));
+                case "leaderboard" -> leaderboard(id, query(exchange, "month"), query(exchange, "period"));
+                case "coffer" -> coffer(id);
+                case "feed" -> feed(id, query(exchange, "limit"), query(exchange, "kind"));
+                case "records" -> records(id);
+                case "citadel-grid" -> citadelGrid(id, query(exchange, "weeks"));
+                case "history" -> history(id);
+                case "polls" -> polls(id);
+                case "signups" -> signups(id);
                 case "news" -> DataObject.empty().put("posts", news.latest(guild, 14));
-                case "recap" -> recap.build(guild, query(exchange, "scope"), query(exchange, "rsn"), query(exchange, "period"));
-                case "pvm" -> pvm(guild);
-                case "drops" -> drops(guild);
-                case "options" -> DataObject.empty().put("navEventBubble", community.navEventBubble(guild.getIdLong()));
-                case "bosses" -> bossStats.bosses(guild, query(exchange, "period"));
-                case "boss" -> bossStats.boss(guild, query(exchange, "boss"), query(exchange, "period"));
-                case "item" -> bossStats.item(guild, query(exchange, "item"), query(exchange, "period"), query(exchange, "boss"));
-                case "drop-log" -> bossStats.drops(guild, query(exchange, "period"), query(exchange, "bosses"));
+                case "recap" -> recap.build(id, query(exchange, "scope"), query(exchange, "rsn"), query(exchange, "period"));
+                case "pvm" -> pvm(id);
+                case "drops" -> drops(id);
+                case "options" -> DataObject.empty().put("navEventBubble", community.navEventBubble(id));
+                case "bosses" -> bossStats.bosses(id, query(exchange, "period"));
+                case "boss" -> bossStats.boss(id, query(exchange, "boss"), query(exchange, "period"));
+                case "item" -> bossStats.item(id, query(exchange, "item"), query(exchange, "period"), query(exchange, "boss"));
+                case "drop-log" -> bossStats.drops(id, query(exchange, "period"), query(exchange, "bosses"));
                 case "me" -> me(guild, query(exchange, "userId"));
                 default -> null;
             });
@@ -175,31 +176,52 @@ public class SiteApi {
      * that list is public in the game. No Discord user ids, link rows or "me" data are ever in these answers.
      */
     public DataObject tenant(Guild guild, String route, HttpExchange exchange) {
+        return tenant(guild.getIdLong(), guild, route, exchange);
+    }
+
+    /**
+     * The routes of {@link #TENANT_ROUTES} that need the bot in the server: Discord's scheduled events, and the polls, signup sheets and coffer
+     * members post through the bot's commands. A site whose server the bot isn't in (a bot-less site) gets {@link #needsBot()} for these.
+     */
+    public static final java.util.Set<String> DISCORD_ROUTES = java.util.Set.of("events", "polls", "signups", "coffer");
+
+    /** What a Discord-only route answers for a bot-less site, so the widget can say the bot is needed instead of looking empty. */
+    public static DataObject needsBot() {
+        return DataObject.empty().put("needsBot", true);
+    }
+
+    /**
+     * {@link #tenant(Guild, String, HttpExchange)} by server id, for a site whose server the bot may not be in ({@code guild} null): the clan's
+     * stats are stored by server id, so every route but {@link #DISCORD_ROUTES} answers the same; those answer {@link #needsBot()}, and the
+     * bell ({@code notifications}) has only the activity lines.
+     */
+    public DataObject tenant(long guildId, Guild guild, String route, HttpExchange exchange) {
         if (!TENANT_ROUTES.contains(route)) return null;
-        String cacheKey = route + "?" + exchange.getRequestURI().getRawQuery() + "#g" + guild.getIdLong();
+        if (guild == null && DISCORD_ROUTES.contains(route)) return needsBot();
+        String cacheKey = route + "?" + exchange.getRequestURI().getRawQuery() + "#g" + guildId;
         return cache.get(cacheKey, ttlMillis(route), () -> switch (route) {
-            case "members" -> members(guild);
-            case "overview" -> overview(guild);
-            case "leaderboard" -> leaderboard(guild, query(exchange, "month"), query(exchange, "period"), true);
-            case "recap" -> tenantRecap(guild, query(exchange, "period"));
-            case "feed" -> feed(guild, query(exchange, "limit"), query(exchange, "kind"));
-            case "records" -> records(guild, true);
-            case "citadel-grid" -> citadelGrid(guild, query(exchange, "weeks"));
-            case "history" -> history(guild, true);
-            case "coffer" -> coffer(guild, true);
-            case "polls" -> polls(guild);
-            case "signups" -> signups(guild, true);
+            case "members" -> members(guildId);
+            case "overview" -> overview(guildId);
+            case "leaderboard" -> leaderboard(guildId, query(exchange, "month"), query(exchange, "period"), true);
+            case "recap" -> tenantRecap(guildId, query(exchange, "period"));
+            case "feed" -> feed(guildId, query(exchange, "limit"), query(exchange, "kind"));
+            case "records" -> records(guildId, true);
+            case "citadel-grid" -> citadelGrid(guildId, query(exchange, "weeks"));
+            case "history" -> history(guildId, true);
+            case "coffer" -> coffer(guildId, true);
+            case "polls" -> polls(guildId);
+            case "signups" -> signups(guildId, true);
             case "events" -> events(guild);
-            case "pvm" -> pvm(guild);
-            case "drops" -> drops(guild);
-            case "bosses" -> bossStats.bosses(guild, query(exchange, "period"));
-            case "boss" -> bossStats.boss(guild, query(exchange, "boss"), query(exchange, "period"));
-            case "item" -> bossStats.item(guild, query(exchange, "item"), query(exchange, "period"), query(exchange, "boss"));
-            case "drop-log" -> bossStats.drops(guild, query(exchange, "period"), query(exchange, "bosses"));
-            case "member/skill" -> tenantMemberSkill(guild, query(exchange, "rsn"), query(exchange, "skill"));
-            case "member" -> visibleMember(guild, query(exchange, "rsn")) == null ? null : member(guild, query(exchange, "rsn"));
-            case "member/recap" -> visibleMember(guild, query(exchange, "rsn")) == null ? null : recap.build(guild, "member", query(exchange, "rsn"), query(exchange, "period"));
-            case "notifications" -> notifications(guild);
+            case "pvm" -> pvm(guildId);
+            case "drops" -> drops(guildId);
+            case "bosses" -> bossStats.bosses(guildId, query(exchange, "period"));
+            case "boss" -> bossStats.boss(guildId, query(exchange, "boss"), query(exchange, "period"));
+            case "item" -> bossStats.item(guildId, query(exchange, "item"), query(exchange, "period"), query(exchange, "boss"));
+            case "drop-log" -> bossStats.drops(guildId, query(exchange, "period"), query(exchange, "bosses"));
+            case "member/skill" -> tenantMemberSkill(guildId, query(exchange, "rsn"), query(exchange, "skill"));
+            case "member" -> visibleMember(guildId, query(exchange, "rsn")) == null ? null : member(guildId, query(exchange, "rsn"));
+            case "member/recap" -> visibleMember(guildId, query(exchange, "rsn")) == null ? null : recap.build(guildId, "member", query(exchange, "rsn"), query(exchange, "period"));
+            case "notifications" -> guild == null ? notifications(guildId, null).put("needsBot", true) : notifications(guildId, guild);
             default -> null;
         });
     }
@@ -209,18 +231,17 @@ public class SiteApi {
      * a current member of this server's clan who hasn't hidden themselves from the rankings. {@code null} otherwise, and the route answers 404,
      * so a hidden member's page looks the same as a name that isn't in the clan.
      */
-    MemberRow visibleMember(Guild guild, String rsn) {
+    MemberRow visibleMember(long guildId, String rsn) {
         if (rsn == null || rsn.isBlank()) return null;
-        long guildId = guild.getIdLong();
         MemberRow row = stats.members(guildId).stream().filter(m -> m.rsn().equalsIgnoreCase(rsn.trim())).findFirst().orElse(null);
         return row == null || !shown(profiles.hiddenRsns(guildId, true), row.rsn()) ? null : row;
     }
 
     /** The clan's recap for a clan site: the list of new members' names leaves out members hidden from the rankings (the count stays whole). */
-    DataObject tenantRecap(Guild guild, String period) {
-        DataObject answer = recap.build(guild, "clan", null, period);
+    DataObject tenantRecap(long guildId, String period) {
+        DataObject answer = recap.build(guildId, "clan", null, period);
         if (answer == null || !answer.hasKey("roster")) return answer;
-        Set<String> hiddenBoards = profiles.hiddenRsns(guild.getIdLong(), true);
+        Set<String> hiddenBoards = profiles.hiddenRsns(guildId, true);
         DataObject roster = answer.getObject("roster");
         DataArray names = DataArray.empty();
         DataArray all = roster.getArray("newMembers");
@@ -232,9 +253,9 @@ public class SiteApi {
     }
 
     /** One skill's XP series for a clan site: only for a current member of that clan who hasn't hidden themselves from the rankings. */
-    DataObject tenantMemberSkill(Guild guild, String rsn, String skillRaw) {
-        MemberRow row = visibleMember(guild, rsn);
-        return row == null ? null : memberSkill(guild, row.rsn(), skillRaw);
+    DataObject tenantMemberSkill(long guildId, String rsn, String skillRaw) {
+        MemberRow row = visibleMember(guildId, rsn);
+        return row == null ? null : memberSkill(guildId, row.rsn(), skillRaw);
     }
 
     private static final int NOTIFICATION_ITEMS = 5;
@@ -245,9 +266,14 @@ public class SiteApi {
      * sheets and the newest few activity lines. Each list is short and newest (or soonest) first; built from the answers above, so it follows
      * their privacy rules.
      */
-    DataObject notifications(Guild guild) {
+    DataObject notifications(long guildId, Guild guild) {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         DataArray events = DataArray.empty();
+        DataArray polls = DataArray.empty();
+        DataArray signups = DataArray.empty();
+        // A bot-less site (guild null) has no Discord events, polls or signup sheets: only the activity lines.
+        if (guild == null) return DataObject.empty().put("events", events).put("polls", polls).put("signups", signups)
+                .put("feed", feed(guildId, Integer.toString(NOTIFICATION_ITEMS), null).getArray("items"));
         guild.getScheduledEvents().stream()
                 .filter(e -> e.getStatus() == ScheduledEvent.Status.ACTIVE
                         || (e.getStatus() == ScheduledEvent.Status.SCHEDULED && e.getStartTime().isBefore(now.plus(EVENTS_SOON))))
@@ -255,22 +281,20 @@ public class SiteApi {
                 .forEach(e -> events.add(DataObject.empty().put("id", e.getId()).put("name", e.getName()).put("status", e.getStatus().name())
                         .put("startTime", e.getStartTime().toString()).put("url", "https://discord.com/events/" + guild.getId() + "/" + e.getId())));
 
-        DataArray polls = DataArray.empty();
-        for (DataObject poll : objects(polls(guild).getArray("polls"))) {
+        for (DataObject poll : objects(polls(guildId).getArray("polls"))) {
             if (polls.length() >= NOTIFICATION_ITEMS) break;
             if (poll.getBoolean("active")) polls.add(DataObject.empty().put("id", poll.getString("id")).put("title", poll.getString("title"))
                     .put("createdAt", poll.getString("createdAt")).put("closesAt", poll.getString("closesAt", null)).put("url", poll.getString("url", null)));
         }
 
-        DataArray signups = DataArray.empty();
-        for (DataObject sheet : objects(signups(guild, true).getArray("signups"))) {
+        for (DataObject sheet : objects(signups(guildId, true).getArray("signups"))) {
             if (signups.length() >= NOTIFICATION_ITEMS) break;
             if (!sheet.getBoolean("paused")) signups.add(DataObject.empty().put("id", sheet.getString("id")).put("title", sheet.getString("title"))
                     .put("createdAt", sheet.getString("createdAt")).put("entries", sheet.getArray("entries").length()).put("max", sheet.isNull("max") ? null : sheet.getInt("max")));
         }
 
         return DataObject.empty().put("events", events).put("polls", polls).put("signups", signups)
-                .put("feed", feed(guild, Integer.toString(NOTIFICATION_ITEMS), null).getArray("items"));
+                .put("feed", feed(guildId, Integer.toString(NOTIFICATION_ITEMS), null).getArray("items"));
     }
 
     private static List<DataObject> objects(DataArray array) {
@@ -440,13 +464,13 @@ public class SiteApi {
         return ranks;
     }
 
-    DataObject members(Guild guild) {
-        List<MemberRow> members = stats.members(guild.getIdLong());
+    DataObject members(long guildId) {
+        List<MemberRow> members = stats.members(guildId);
         DataArray array = DataArray.empty();
         members.stream()
                 .sorted(Comparator.comparingInt(MemberRow::rankOrder).reversed().thenComparing(m -> m.rsn().toLowerCase()))
                 .forEach(m -> array.add(memberJson(m)));
-        return DataObject.empty().put("members", array).put("ranks", ranksJson(guild.getIdLong(), members));
+        return DataObject.empty().put("members", array).put("ranks", ranksJson(guildId, members));
     }
 
     // ---------- clan overview: leaderboards and charts ----------
@@ -466,8 +490,7 @@ public class SiteApi {
         return array;
     }
 
-    DataObject overview(Guild guild) {
-        long guildId = guild.getIdLong();
+    DataObject overview(long guildId) {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         List<MemberRow> members = stats.members(guildId);
 
@@ -566,8 +589,11 @@ public class SiteApi {
     }
 
     DataObject member(Guild guild, String rsn) {
+        return member(guild.getIdLong(), rsn);
+    }
+
+    DataObject member(long guildId, String rsn) {
         if (rsn == null || rsn.isBlank()) return null;
-        long guildId = guild.getIdLong();
 
         MemberRow row = stats.members(guildId).stream().filter(m -> m.rsn().equalsIgnoreCase(rsn.trim())).findFirst().orElse(null);
         if (row == null) return null;
@@ -654,7 +680,7 @@ public class SiteApi {
     // ---------- activity feed, records, history, polls, PvM and drops ----------
 
     /** The clan's newest notable adventure-log entries (level-ups, milestones, quests, boss kills, drops, pets, caps…). */
-    DataObject feed(Guild guild, String limitRaw, String kindRaw) {
+    DataObject feed(long guildId, String limitRaw, String kindRaw) {
         int limit = 40;
         try {
             if (limitRaw != null) limit = Math.max(1, Math.min(100, Integer.parseInt(limitRaw.trim())));
@@ -670,9 +696,9 @@ public class SiteApi {
             }
         }
 
-        Set<String> hiddenLogs = profiles.hiddenRsns(guild.getIdLong(), false);
+        Set<String> hiddenLogs = profiles.hiddenRsns(guildId, false);
         DataArray items = DataArray.empty();
-        for (var row : stats.recentActivities(guild.getIdLong(), limit * 6)) {
+        for (var row : stats.recentActivities(guildId, limit * 6)) {
             if (!shown(hiddenLogs, row.rsn())) continue;
             ActivityKinds.Kind kind = ActivityKinds.kindOf(row.text());
             if (kind == ActivityKinds.Kind.OTHER || kind == ActivityKinds.Kind.CITADEL_VISIT) continue;
@@ -716,12 +742,15 @@ public class SiteApi {
     }
 
     DataObject records(Guild guild) {
-        return records(guild, false);
+        return records(guild.getIdLong());
+    }
+
+    DataObject records(long guildId) {
+        return records(guildId, false);
     }
 
     /** @param strict a clan site's answer: the longest-serving list leaves out members hidden from the rankings too */
-    DataObject records(Guild guild, boolean strict) {
-        long guildId = guild.getIdLong();
+    DataObject records(long guildId, boolean strict) {
         Set<String> hiddenBoards = profiles.hiddenRsns(guildId, true);
         DataArray days = DataArray.empty();
         stats.biggestDays(guildId, 30).stream().filter(d -> shown(hiddenBoards, d.rsn())).limit(8).forEach(d -> days.add(DataObject.empty().put("rsn", d.rsn()).put("date", d.date().toString()).put("xp", d.xp())));
@@ -741,7 +770,7 @@ public class SiteApi {
         return DataObject.empty().put("biggestDays", days).put("twoHundredClub", club).put("capStreaks", streaks).put("veterans", veterans);
     }
 
-    DataObject citadelGrid(Guild guild, String weeksRaw) {
+    DataObject citadelGrid(long guildId, String weeksRaw) {
         int weeks = 12;
         try {
             if (weeksRaw != null) weeks = Math.max(4, Math.min(26, Integer.parseInt(weeksRaw.trim())));
@@ -754,9 +783,9 @@ public class SiteApi {
 
         Map<String, int[]> grid = new LinkedHashMap<>();
         final int weekCount = weeks;
-        Set<String> hiddenBoards = profiles.hiddenRsns(guild.getIdLong(), true);
-        stats.members(guild.getIdLong()).stream().filter(m -> shown(hiddenBoards, m.rsn())).forEach(m -> grid.put(m.rsn(), new int[weekCount]));
-        for (var cell : stats.citadelGrid(guild.getIdLong(), weeks)) {
+        Set<String> hiddenBoards = profiles.hiddenRsns(guildId, true);
+        stats.members(guildId).stream().filter(m -> shown(hiddenBoards, m.rsn())).forEach(m -> grid.put(m.rsn(), new int[weekCount]));
+        for (var cell : stats.citadelGrid(guildId, weeks)) {
             int[] row = grid.get(cell.rsn());
             int index = weekStarts.indexOf(cell.weekStart());
             if (row != null && index >= 0) row[index] = cell.capped() ? 2 : 1;
@@ -776,13 +805,12 @@ public class SiteApi {
         return DataObject.empty().put("weeks", weekArray).put("members", rows);
     }
 
-    DataObject history(Guild guild) {
-        return history(guild, false);
+    DataObject history(long guildId) {
+        return history(guildId, false);
     }
 
     /** @param strict a clan site's answer: the timeline and "close to promotion" leave out members hidden from the rankings (the counts stay whole) */
-    DataObject history(Guild guild, boolean strict) {
-        long guildId = guild.getIdLong();
+    DataObject history(long guildId, boolean strict) {
         List<MemberRow> members = stats.members(guildId);
         var events = stats.rosterEvents(guildId, 200);
         Set<String> hiddenBoards = strict ? profiles.hiddenRsns(guildId, true) : Set.of();
@@ -833,12 +861,15 @@ public class SiteApi {
      * the member's linked RuneScape name, or "A member" if they haven't linked one.
      */
     DataObject signups(Guild guild) {
-        return signups(guild, false);
+        return signups(guild.getIdLong());
+    }
+
+    DataObject signups(long guildId) {
+        return signups(guildId, false);
     }
 
     /** @param strict a clan site's answer: a member hidden from the rankings shows as "A member" here too */
-    DataObject signups(Guild guild, boolean strict) {
-        long guildId = guild.getIdLong();
+    DataObject signups(long guildId, boolean strict) {
         Set<String> hiddenBoards = strict ? profiles.hiddenRsns(guildId, true) : Set.of();
         DataArray array = DataArray.empty();
         for (var sheet : stats.activeSignups(guildId)) {
@@ -869,9 +900,9 @@ public class SiteApi {
         return DataObject.empty().put("signups", array);
     }
 
-    DataObject polls(Guild guild) {
+    DataObject polls(long guildId) {
         DataArray array = DataArray.empty();
-        var allPolls = stats.polls(guild.getIdLong(), 20);
+        var allPolls = stats.polls(guildId, 20);
         var closing = community.closesAt(allPolls.stream().map(SiteStatsRepository.PollRow::id).toList());
         for (var poll : allPolls) {
             DataArray options = DataArray.empty();
@@ -881,15 +912,14 @@ public class SiteApi {
                     .put("anonymous", poll.anonymous()).put("multiple", poll.multiple()).put("totalVotes", total).put("active", "ACTIVE".equalsIgnoreCase(poll.status()))
                     .put("createdAt", poll.createdAt().toString()).put("closedAt", poll.closedAt() == null ? null : poll.closedAt().toString())
                     .put("closesAt", closing.get(poll.id()) == null || !"ACTIVE".equalsIgnoreCase(poll.status()) ? null : closing.get(poll.id()).toString())
-                    .put("url", poll.messageId() == null ? null : "https://discord.com/channels/" + guild.getId() + "/" + poll.channelId() + "/" + poll.messageId())
+                    .put("url", poll.messageId() == null ? null : "https://discord.com/channels/" + guildId + "/" + poll.channelId() + "/" + poll.messageId())
                     .put("options", options));
         }
         return DataObject.empty().put("polls", array);
     }
 
     /** Boss kill tallies from the adventure log: per boss, and who has killed it most. Only covers what the bot has seen since it began polling. */
-    DataObject pvm(Guild guild) {
-        long guildId = guild.getIdLong();
+    DataObject pvm(long guildId) {
         Map<String, Map<String, Integer>> byBoss = new HashMap<>();
         Map<String, Integer> byPlayer = new HashMap<>();
         Set<String> hiddenLogs = profiles.hiddenRsns(guildId, false);
@@ -921,11 +951,11 @@ public class SiteApi {
     }
 
     /** Notable drops recorded in adventure logs, newest first, with a tally of which items drop most. */
-    DataObject drops(Guild guild) {
+    DataObject drops(long guildId) {
         DataArray recent = DataArray.empty();
         Map<String, Integer> tally = new HashMap<>();
-        Set<String> hiddenLogs = profiles.hiddenRsns(guild.getIdLong(), false);
-        for (var row : stats.activitiesStartingWith(guild.getIdLong(), "I found")) {
+        Set<String> hiddenLogs = profiles.hiddenRsns(guildId, false);
+        for (var row : stats.activitiesStartingWith(guildId, "I found")) {
             if (!shown(hiddenLogs, row.rsn())) continue;
             var item = ActivityKinds.dropOf(row.text());
             if (item.isEmpty()) continue;
@@ -941,7 +971,7 @@ public class SiteApi {
     // ---------- one skill's XP over time ----------
 
     /** One skill's XP over the last 90 days, one point per UTC day (that day's last snapshot). */
-    DataObject memberSkill(Guild guild, String rsn, String skillRaw) {
+    DataObject memberSkill(long guildId, String rsn, String skillRaw) {
         if (rsn == null || skillRaw == null) return null;
         int skillId;
         try {
@@ -963,13 +993,12 @@ public class SiteApi {
     // ---------- month-by-month leaderboards ----------
 
     /** Top XP gainers, Citadel cappers and roster changes for one calendar month ({@code month} is {@code YYYY-MM}; blank means this month), plus the months that have data. */
-    DataObject leaderboard(Guild guild, String monthRaw, String periodRaw) {
-        return leaderboard(guild, monthRaw, periodRaw, false);
+    DataObject leaderboard(long guildId, String monthRaw, String periodRaw) {
+        return leaderboard(guildId, monthRaw, periodRaw, false);
     }
 
     /** @param strict a clan site's answer: who joined and left leaves out members hidden from the rankings too */
-    DataObject leaderboard(Guild guild, String monthRaw, String periodRaw, boolean strict) {
-        long guildId = guild.getIdLong();
+    DataObject leaderboard(long guildId, String monthRaw, String periodRaw, boolean strict) {
         YearMonth current = YearMonth.now(ZoneOffset.UTC);
 
         OffsetDateTime from;
@@ -1029,13 +1058,12 @@ public class SiteApi {
 
     // ---------- the clan coffer (totals only) ----------
 
-    DataObject coffer(Guild guild) {
-        return coffer(guild, false);
+    DataObject coffer(long guildId) {
+        return coffer(guildId, false);
     }
 
     /** @param strict a clan site's answer: the top donors leave out names hidden from the rankings (the totals stay whole) */
-    DataObject coffer(Guild guild, boolean strict) {
-        long guildId = guild.getIdLong();
+    DataObject coffer(long guildId, boolean strict) {
         var totals = stats.cofferTotals(guildId);
         Set<String> hiddenBoards = strict ? profiles.hiddenRsns(guildId, true) : Set.of();
 

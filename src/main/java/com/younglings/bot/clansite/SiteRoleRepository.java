@@ -42,12 +42,14 @@ public class SiteRoleRepository {
                     updated_by BIGINT NULL,
                     updated_at TIMESTAMPTZ NULL
                 );
-                """
+                """,
+                // editors named by Discord user id, for a site whose server the bot isn't in
+                "ALTER TABLE younglings.clan_site_roles ADD COLUMN IF NOT EXISTS editor_user_ids BIGINT[] NOT NULL DEFAULT '{}';"
         ));
     }
 
     public SiteRoles.Settings get(long guildId) {
-        String sql = "SELECT editor_role_ids, member_role_ids, staff_role_ids, editors_may_publish, claimed_by FROM younglings.clan_site_roles WHERE guild_id = ?";
+        String sql = "SELECT editor_role_ids, member_role_ids, staff_role_ids, editors_may_publish, claimed_by, editor_user_ids FROM younglings.clan_site_roles WHERE guild_id = ?";
         try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
             s.setLong(1, guildId);
             try (ResultSet rs = s.executeQuery()) {
@@ -55,7 +57,7 @@ public class SiteRoleRepository {
                 long claimed = rs.getLong("claimed_by");
                 Long claimedBy = rs.wasNull() ? null : claimed;
                 return new SiteRoles.Settings(ids(rs.getArray("editor_role_ids")), ids(rs.getArray("member_role_ids")), ids(rs.getArray("staff_role_ids")),
-                        rs.getBoolean("editors_may_publish"), claimedBy);
+                        rs.getBoolean("editors_may_publish"), claimedBy, ids(rs.getArray("editor_user_ids")));
             }
         } catch (SQLException e) {
             log.error("Failed to read the clan website roles of guild {}", guildId, e);
@@ -63,14 +65,15 @@ public class SiteRoleRepository {
         }
     }
 
-    /** Stores the role lists and the switch; who claimed the site is left as it is. */
+    /** Stores the role lists, the editors named by user id and the switch; who claimed the site is left as it is. */
     public void save(long guildId, SiteRoles.Settings settings, long actorId) {
         String sql = """
-                INSERT INTO younglings.clan_site_roles (guild_id, editor_role_ids, member_role_ids, staff_role_ids, editors_may_publish, updated_by, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO younglings.clan_site_roles (guild_id, editor_role_ids, member_role_ids, staff_role_ids, editors_may_publish, updated_by, updated_at,
+                    editor_user_ids)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT (guild_id) DO UPDATE SET editor_role_ids = EXCLUDED.editor_role_ids, member_role_ids = EXCLUDED.member_role_ids,
                     staff_role_ids = EXCLUDED.staff_role_ids, editors_may_publish = EXCLUDED.editors_may_publish,
-                    updated_by = EXCLUDED.updated_by, updated_at = EXCLUDED.updated_at
+                    updated_by = EXCLUDED.updated_by, updated_at = EXCLUDED.updated_at, editor_user_ids = EXCLUDED.editor_user_ids
                 """;
         try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
             s.setLong(1, guildId);
@@ -80,6 +83,7 @@ public class SiteRoleRepository {
             s.setBoolean(5, settings.editorsMayPublish());
             s.setLong(6, actorId);
             s.setTimestamp(7, Timestamp.from(Instant.now()));
+            s.setArray(8, c.createArrayOf("BIGINT", settings.editorUserIds().toArray()));
             s.executeUpdate();
         } catch (SQLException e) {
             log.error("Failed to save the clan website roles of guild {}", guildId, e);
