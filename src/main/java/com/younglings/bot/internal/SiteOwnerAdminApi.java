@@ -1,6 +1,5 @@
 package com.younglings.bot.internal;
 
-import com.younglings.bot.discord.DiscordLookups;
 import com.younglings.bot.access.AccessLevel;
 import com.younglings.bot.beta.BetaGuildRepository;
 import com.younglings.bot.clanprofile.ClanProfile;
@@ -11,6 +10,7 @@ import com.younglings.bot.clansite.ClanSiteLayoutRepository;
 import com.younglings.bot.clansite.ClanSiteRepository;
 import com.younglings.bot.clansite.ClanSiteService;
 import com.younglings.bot.clansite.SiteRoleGuard;
+import com.younglings.bot.discord.DiscordLookups;
 import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.notice.BotOwners;

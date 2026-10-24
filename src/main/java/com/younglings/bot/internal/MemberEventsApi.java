@@ -1,8 +1,8 @@
 package com.younglings.bot.internal;
 
-import com.younglings.bot.discord.DiscordLookups;
 import com.younglings.bot.clanprofile.ClanProfileRepository;
 import com.younglings.bot.clanprofile.JoinLinks;
+import com.younglings.bot.discord.DiscordLookups;
 import com.younglings.bot.events.BingoBoardView;
 import com.younglings.bot.events.BingoTemplate;
 import com.younglings.bot.events.EventProblem;

@@ -1,7 +1,7 @@
 package com.younglings.bot.clansite;
 
-import com.younglings.bot.discord.DiscordLookups;
 import com.younglings.bot.configure.GuildSettingsService;
+import com.younglings.bot.discord.DiscordLookups;
 import com.younglings.bot.permission.DashboardAccess;
 import com.younglings.bot.runescape.PlayerLink;
 import com.younglings.bot.runescape.PlayerLinkService;

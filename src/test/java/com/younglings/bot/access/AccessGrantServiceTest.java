@@ -102,6 +102,25 @@ class AccessGrantServiceTest {
     }
 
     @Test
+    void whenDiscordHangsTheCheckSaysTryAgainAndRemembersNothing() {
+        com.younglings.bot.discord.DiscordLookups.forgetAll();
+        try {
+            when(repository.all()).thenReturn(List.of(server(AccessArea.JONNYBOT, AccessLevel.MEMBER)));
+            @SuppressWarnings("unchecked")
+            net.dv8tion.jda.api.requests.restaction.CacheRestAction<Member> hanging = mock(net.dv8tion.jda.api.requests.restaction.CacheRestAction.class);
+            when(hanging.submit()).thenReturn(new java.util.concurrent.CompletableFuture<>());
+            when(guild.retrieveMemberById(LISTED)).thenReturn(hanging);
+
+            org.junit.jupiter.api.Assertions.assertThrows(com.younglings.bot.discord.DiscordLookups.Slow.class, () -> service.allows(jda, AccessArea.JONNYBOT, LISTED));
+
+            when(guild.getMemberById(LISTED)).thenReturn(member);
+            assertTrue(service.allows(jda, AccessArea.JONNYBOT, LISTED), "the slow answer was not remembered as a no");
+        } finally {
+            com.younglings.bot.discord.DiscordLookups.forgetAll();
+        }
+    }
+
+    @Test
     void anUnreadableListIsClosedAndNotRemembered() {
         when(repository.all()).thenThrow(new RuntimeException("db down")).thenReturn(List.of(user(AccessArea.HUB, LISTED, null)));
 

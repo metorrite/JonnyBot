@@ -1,7 +1,7 @@
 package com.younglings.bot.forms;
 
-import com.younglings.bot.discord.DiscordLookups;
 import com.younglings.bot.commands.ticket.TicketService;
+import com.younglings.bot.discord.DiscordLookups;
 import com.younglings.bot.forms.WebForms.Answer;
 import com.younglings.bot.forms.WebForms.Checked;
 import com.younglings.bot.forms.WebForms.Form;

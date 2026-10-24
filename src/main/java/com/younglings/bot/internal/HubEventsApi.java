@@ -1,11 +1,11 @@
 package com.younglings.bot.internal;
 
-import com.younglings.bot.discord.DiscordLookups;
 import com.younglings.bot.alliance.AllianceRepository;
 import com.younglings.bot.alliance.AllianceRules;
 import com.younglings.bot.clanprofile.ClanProfile;
 import com.younglings.bot.clanprofile.ClanProfileService;
 import com.younglings.bot.clanprofile.JoinLinks;
+import com.younglings.bot.discord.DiscordLookups;
 import com.younglings.bot.events.EventCohostRepository;
 import com.younglings.bot.events.EventListing;
 import com.younglings.bot.events.EventRepository.Participant;

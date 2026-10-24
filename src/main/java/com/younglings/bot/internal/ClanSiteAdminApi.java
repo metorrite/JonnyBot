@@ -1,6 +1,5 @@
 package com.younglings.bot.internal;
 
-import com.younglings.bot.discord.DiscordLookups;
 import com.younglings.bot.clanprofile.ClanProfile;
 import com.younglings.bot.clanprofile.ClanProfileService;
 import com.younglings.bot.clansite.ClanSite;
@@ -13,6 +12,7 @@ import com.younglings.bot.clansite.ClanSiteRules;
 import com.younglings.bot.clansite.ClanSiteService;
 import com.younglings.bot.clansite.SiteRoleGuard;
 import com.younglings.bot.clansite.SiteRoles;
+import com.younglings.bot.discord.DiscordLookups;
 import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.notice.BotOwners;
