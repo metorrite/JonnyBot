@@ -163,6 +163,20 @@ public class ClanSiteRepository {
         SiteInvalidator.signal(SiteInvalidator.Area.HUB);
     }
 
+    /** Every server's site row, for the bot owner's site list (T-423). */
+    public List<ClanSite> all() {
+        List<ClanSite> list = new ArrayList<>();
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement("SELECT " + COLUMNS + " FROM younglings.clan_site ORDER BY guild_id");
+             ResultSet rs = statement.executeQuery()) {
+            while (rs.next()) list.add(read(rs));
+            return list;
+        } catch (SQLException e) {
+            log.error("Failed to read the clan websites", e);
+            throw new RuntimeException("Failed to read the clan websites", e);
+        }
+    }
+
     public Optional<ClanSite> byGuild(long guildId) {
         try (Connection connection = connectionSupplier.getConnection();
              PreparedStatement statement = connection.prepareStatement("SELECT " + COLUMNS + " FROM younglings.clan_site WHERE guild_id = ?")) {
