@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.discord.DiscordLookups;
 import com.younglings.bot.access.AccessLevel;
 import com.younglings.bot.beta.BetaGuildRepository;
 import com.younglings.bot.clanprofile.ClanProfile;
@@ -199,14 +200,7 @@ public class SiteOwnerAdminApi implements AdminRouteExtension {
             long userId = parseId(raw);
             Guild target = guild.getJDA().getGuildById(id);
             if (target == null) throw new ApiError(404, Text.of(guild, "dashboard.the_bot_isn_t_in_that_server"));
-            Member member = userId == 0 ? null : target.getMemberById(userId);
-            if (member == null && userId != 0) {
-                try {
-                    member = target.retrieveMemberById(userId).complete();
-                } catch (RuntimeException e) {
-                    member = null;
-                }
-            }
+            Member member = userId == 0 ? null : DiscordLookups.memberOrSlow(target, userId);
             if (member == null || member.getUser().isBot())
                 throw new ApiError(400, Text.of(guild, "dashboard.the_website_can_t_be_saved"), List.of("Pick someone in that server (a Discord user ID)."));
             to = userId;

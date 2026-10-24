@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.discord.DiscordLookups;
 import com.younglings.bot.events.EventProblem;
 import com.younglings.bot.events.EventRepository;
 import com.younglings.bot.events.EventRepository.Claim;
@@ -528,14 +529,7 @@ public class EventsAdminApi implements AdminRouteExtension {
             }
         }
         if (userId == null) throw new ApiError(400, Text.of(guild, "dashboard.i_couldn_t_find_use_a", text));
-        Member member = guild.getMemberById(userId);
-        if (member == null) {
-            try {
-                member = guild.retrieveMemberById(userId).complete();
-            } catch (RuntimeException e) {
-                member = null;
-            }
-        }
+        Member member = DiscordLookups.memberOrSlow(guild, userId);
         if (member == null || member.getUser().isBot()) throw new ApiError(400, Text.of(guild, "dashboard.isn_t_a_member_of_this", text));
         return userId;
     }

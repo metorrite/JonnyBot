@@ -1,5 +1,6 @@
 package com.younglings.bot.clansite;
 
+import com.younglings.bot.discord.DiscordLookups;
 import com.younglings.bot.configure.GuildSettingsService;
 import com.younglings.bot.permission.DashboardAccess;
 import com.younglings.bot.runescape.PlayerLink;
@@ -8,8 +9,6 @@ import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Role;
-import net.dv8tion.jda.api.exceptions.ErrorResponseException;
-import net.dv8tion.jda.api.requests.ErrorResponse;
 
 import java.util.HashSet;
 import java.util.List;
@@ -120,13 +119,6 @@ public class SiteRoleGuard {
      * passing outage never caches someone as a guest.
      */
     private static Member memberOf(Guild guild, long userId) {
-        Member cached = guild.getMemberById(userId);
-        if (cached != null) return cached;
-        try {
-            return guild.retrieveMemberById(userId).complete();
-        } catch (ErrorResponseException e) {
-            if (e.getErrorResponse() == ErrorResponse.UNKNOWN_MEMBER || e.getErrorResponse() == ErrorResponse.UNKNOWN_USER) return null;
-            throw e;
-        }
+        return DiscordLookups.memberOrSlow(guild, userId);
     }
 }

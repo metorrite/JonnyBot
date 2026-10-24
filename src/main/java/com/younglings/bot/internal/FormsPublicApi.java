@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.discord.DiscordLookups;
 import com.sun.net.httpserver.HttpExchange;
 import com.younglings.bot.forms.WebFormRepository;
 import com.younglings.bot.forms.WebFormService;
@@ -105,6 +106,8 @@ public class FormsPublicApi {
             InternalApiServer.sendJson(exchange, e.status(), error);
         } catch (IllegalArgumentException e) {
             InternalApiServer.sendJson(exchange, 400, DataObject.empty().put("error", "That request could not be read."));
+        } catch (com.younglings.bot.discord.DiscordLookups.Slow e) {
+            InternalApiServer.sendSlow(exchange);
         } catch (Exception e) {
             log.error("Forms API request {} failed", exchange.getRequestURI().getPath(), e);
             InternalApiServer.sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));
@@ -128,12 +131,9 @@ public class FormsPublicApi {
         return json;
     }
 
+    /** Whether they're in the server; {@link DiscordLookups.Slow} (a 503) when Discord didn't answer in time, never a wrong "join first". */
     private static boolean memberExists(Guild guild, long userId) {
-        try {
-            return guild.retrieveMemberById(userId).complete() != null;
-        } catch (RuntimeException e) {
-            return false;
-        }
+        return DiscordLookups.memberOrSlow(guild, userId) != null;
     }
 
     private static long optionalUser(String rawQuery) {
