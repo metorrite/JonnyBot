@@ -19,6 +19,7 @@ import java.util.Optional;
  *   <li>{@code GET|POST sites/{slug}/discord/me?userId=}: a signed-in member's own choice to be left out of the online names
  *   ({@code {"hidden": true}}); the user id comes only from the website's verified session</li>
  * </ul>
+ * A bot-less site (the bot isn't in its server) answers {@code {"needsBot": true}} to all of these.
  * Each site gets 10 requests a second (bursts of 20); answers are cached per server by {@link SiteDiscordService}.
  */
 @BService
@@ -45,6 +46,11 @@ public class DirectorySiteDiscordRoutes implements DirectoryRouteModule {
             return true;
         }
         Guild guild = guild(request, parts[1]);
+        if (guild == null && botless(request, parts[1])) {
+            // the bot isn't in a bot-less site's server, so nothing of Discord can be shown; the widget says why
+            if (data ? request.requireGet() : true) request.send(200, SiteApi.needsBot());
+            return true;
+        }
         if (data) {
             if (!request.requireGet()) return true;
             if (guild == null) {
@@ -86,6 +92,11 @@ public class DirectorySiteDiscordRoutes implements DirectoryRouteModule {
     private Guild guild(DirectoryRequest request, String slug) {
         Optional<ClanSite> site = request.viewable(slug).flatMap(p -> sites.visible(p.guildId()));
         return site.isEmpty() ? null : request.jda().getGuildById(site.get().guildId());
+    }
+
+    /** Whether the site at {@code slug} is a live bot-less one. */
+    private boolean botless(DirectoryRequest request, String slug) {
+        return request.viewable(slug).flatMap(p -> sites.visible(p.guildId())).map(site -> sites.botless(site.guildId())).orElse(false);
     }
 
     private static int limit(DirectoryRequest request) {

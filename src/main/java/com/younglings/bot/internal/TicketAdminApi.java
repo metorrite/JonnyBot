@@ -150,7 +150,11 @@ public class TicketAdminApi {
                 who.put("beta", beta);
                 // Per restricted area: the beta rule above, or a grant on the owner's access list for that area. Fails closed.
                 DataObject areas = DataObject.empty();
-                for (AccessArea area : AccessArea.values()) areas.put(area.key(), beta || accessGrants.allows(guild.getJDA(), area, askerId));
+                for (AccessArea area : AccessArea.values()) {
+                    // the bot-less site builder is opened by a grant alone (BotlessAdminApi), so it reports just that
+                    boolean granted = accessGrants.allows(guild.getJDA(), area, askerId);
+                    areas.put(area.key(), area == AccessArea.SITE_BUILDER_BETA ? granted : beta || granted);
+                }
                 who.put("areas", areas);
                 InternalApiServer.sendJson(exchange, 200, who);
                 return;

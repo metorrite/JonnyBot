@@ -58,6 +58,37 @@ public class SiteRoleGuard {
         return new SiteRoles.Facts(userId, true, member.isOwner(), access.tierOf(guild, member) != DashboardAccess.Tier.NONE, held, clanMemberRole);
     }
 
+    /**
+     * The facts about someone in a server the bot isn't in, as the website signed them: whether they own the server and whether they may manage
+     * it (Administrator or Manage Server). They count as in the server; no Discord roles are known there, and no clan Member role.
+     */
+    public static SiteRoles.Facts factsWithoutBot(long userId, boolean guildOwner, boolean admin) {
+        return new SiteRoles.Facts(userId, true, guildOwner, admin || guildOwner, Set.of(), null);
+    }
+
+    /** The person's role on this server's site, from facts already looked up ({@link #facts} or {@link #factsWithoutBot}). */
+    public SiteRoles.Role roleOf(long guildId, SiteRoles.Facts facts) {
+        return SiteRoles.resolve(facts, repository.get(guildId));
+    }
+
+    /** Whether the person these facts describe may do {@code action} on this server's site. */
+    public boolean allows(long guildId, SiteRoles.Facts facts, SiteRoles.Action action) {
+        if (facts == null) return false;
+        SiteRoles.Settings s = repository.get(guildId);
+        return SiteRoles.allows(SiteRoles.resolve(facts, s), action, s);
+    }
+
+    /**
+     * The viewer answer for a bot-less site (the bot isn't in its server): owner and editors by user id ({@link SiteRoles#resolveWithoutBot}),
+     * everyone else a guest; no linked names, since links are made in Discord. Not cached: it is one database read.
+     */
+    public Viewer viewerWithoutBot(long guildId, Long userId) {
+        SiteRoles.Settings s = repository.get(guildId);
+        SiteRoles.Role role = SiteRoles.resolveWithoutBot(userId, s);
+        return new Viewer(role, false, role.atLeast(SiteRoles.Role.EDITOR), SiteRoles.allows(role, SiteRoles.Action.EDIT, s),
+                SiteRoles.allows(role, SiteRoles.Action.PUBLISH, s), List.of());
+    }
+
     public SiteRoles.Role roleOf(Guild guild, Member member) {
         return SiteRoles.resolve(facts(guild, member.getIdLong(), member), repository.get(guild.getIdLong()));
     }
