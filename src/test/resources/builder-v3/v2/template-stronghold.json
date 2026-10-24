@@ -26,7 +26,7 @@
     },
     "nav": [
       {
-        "id": "citn0089",
+        "id": "strn0089",
         "label": "Home",
         "link": {
           "kind": "page",
@@ -34,11 +34,11 @@
         }
       },
       {
-        "id": "citn0090",
+        "id": "strn0090",
         "label": "Clan",
         "children": [
           {
-            "id": "citn0091",
+            "id": "strn0091",
             "label": "Members",
             "link": {
               "kind": "page",
@@ -46,15 +46,15 @@
             }
           },
           {
-            "id": "citn0092",
+            "id": "strn0092",
             "label": "About us",
             "link": {
               "kind": "page",
-              "pageId": "citabout"
+              "pageId": "strabout"
             }
           },
           {
-            "id": "citn0093",
+            "id": "strn0093",
             "label": "Hall of fame",
             "link": {
               "kind": "page",
@@ -62,7 +62,7 @@
             }
           },
           {
-            "id": "citn0094",
+            "id": "strn0094",
             "label": "History",
             "link": {
               "kind": "page",
@@ -70,7 +70,7 @@
             }
           },
           {
-            "id": "citn0095",
+            "id": "strn0095",
             "label": "Compare",
             "link": {
               "kind": "page",
@@ -80,11 +80,11 @@
         ]
       },
       {
-        "id": "citn0096",
+        "id": "strn0096",
         "label": "Stats",
         "children": [
           {
-            "id": "citn0097",
+            "id": "strn0097",
             "label": "Clan stats",
             "link": {
               "kind": "page",
@@ -92,7 +92,7 @@
             }
           },
           {
-            "id": "citn0098",
+            "id": "strn0098",
             "label": "Leaderboards",
             "link": {
               "kind": "page",
@@ -100,7 +100,7 @@
             }
           },
           {
-            "id": "citn0099",
+            "id": "strn0099",
             "label": "Recaps",
             "link": {
               "kind": "page",
@@ -108,7 +108,7 @@
             }
           },
           {
-            "id": "citn0100",
+            "id": "strn0100",
             "label": "Citadel",
             "link": {
               "kind": "page",
@@ -116,7 +116,7 @@
             }
           },
           {
-            "id": "citn0101",
+            "id": "strn0101",
             "label": "Coffer",
             "link": {
               "kind": "page",
@@ -126,11 +126,11 @@
         ]
       },
       {
-        "id": "citn0102",
+        "id": "strn0102",
         "label": "PvM",
         "children": [
           {
-            "id": "citn0103",
+            "id": "strn0103",
             "label": "Bosses",
             "link": {
               "kind": "page",
@@ -138,7 +138,7 @@
             }
           },
           {
-            "id": "citn0104",
+            "id": "strn0104",
             "label": "Drop log",
             "link": {
               "kind": "page",
@@ -148,11 +148,11 @@
         ]
       },
       {
-        "id": "citn0105",
+        "id": "strn0105",
         "label": "Events",
         "children": [
           {
-            "id": "citn0106",
+            "id": "strn0106",
             "label": "Upcoming",
             "link": {
               "kind": "page",
@@ -160,7 +160,7 @@
             }
           },
           {
-            "id": "citn0107",
+            "id": "strn0107",
             "label": "Calendar",
             "link": {
               "kind": "page",
@@ -168,7 +168,7 @@
             }
           },
           {
-            "id": "citn0108",
+            "id": "strn0108",
             "label": "Signups",
             "link": {
               "kind": "page",
@@ -176,7 +176,7 @@
             }
           },
           {
-            "id": "citn0109",
+            "id": "strn0109",
             "label": "Polls",
             "link": {
               "kind": "page",
@@ -186,11 +186,11 @@
         ]
       },
       {
-        "id": "citn0110",
+        "id": "strn0110",
         "label": "Join us",
         "link": {
           "kind": "page",
-          "pageId": "citjoin"
+          "pageId": "strjoin"
         }
       }
     ],
@@ -232,14 +232,14 @@
             "label": "About us",
             "link": {
               "kind": "page",
-              "pageId": "citabout"
+              "pageId": "strabout"
             }
           },
           {
             "label": "Join us",
             "link": {
               "kind": "page",
-              "pageId": "citjoin"
+              "pageId": "strjoin"
             }
           }
         ]
@@ -571,7 +571,7 @@
         "v": 1
       },
       "seo": {
-        "description": "{clan}: our clan hall. Members, stats, PvM, events and more."
+        "description": "{clan}: our stronghold. Members, stats, PvM, events and more."
       }
     },
     {
@@ -1522,14 +1522,14 @@
       }
     },
     {
-      "id": "citabout",
+      "id": "strabout",
       "title": "About us",
       "path": "about",
       "hidden": false,
       "access": "public",
       "sections": [
         {
-          "id": "cits0004",
+          "id": "strs0004",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1547,7 +1547,7 @@
           },
           "rows": [
             {
-              "id": "citr0003",
+              "id": "strr0003",
               "gap": {
                 "lg": "md"
               },
@@ -1559,7 +1559,7 @@
               },
               "cells": [
                 {
-                  "id": "citc0002",
+                  "id": "strc0002",
                   "span": {
                     "lg": 12
                   },
@@ -1570,7 +1570,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "citw0001",
+                      "id": "strw0001",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -1590,7 +1590,7 @@
           ]
         },
         {
-          "id": "cits0018",
+          "id": "strs0018",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1608,7 +1608,7 @@
           },
           "rows": [
             {
-              "id": "citr0009",
+              "id": "strr0009",
               "gap": {
                 "lg": "md"
               },
@@ -1620,7 +1620,7 @@
               },
               "cells": [
                 {
-                  "id": "citc0006",
+                  "id": "strc0006",
                   "span": {
                     "lg": 7,
                     "md": 12
@@ -1632,7 +1632,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "citw0005",
+                      "id": "strw0005",
                       "type": "text",
                       "v": 1,
                       "settings": {
@@ -1645,7 +1645,7 @@
                   ]
                 },
                 {
-                  "id": "citc0008",
+                  "id": "strc0008",
                   "span": {
                     "lg": 5,
                     "md": 12
@@ -1657,7 +1657,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "citw0007",
+                      "id": "strw0007",
                       "type": "image",
                       "v": 2,
                       "settings": {
@@ -1677,7 +1677,7 @@
               ]
             },
             {
-              "id": "citr0012",
+              "id": "strr0012",
               "gap": {
                 "lg": "md"
               },
@@ -1689,7 +1689,7 @@
               },
               "cells": [
                 {
-                  "id": "citc0011",
+                  "id": "strc0011",
                   "span": {
                     "lg": 12
                   },
@@ -1700,7 +1700,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "citw0010",
+                      "id": "strw0010",
                       "type": "gallery",
                       "v": 1,
                       "settings": {
@@ -1761,7 +1761,7 @@
               ]
             },
             {
-              "id": "citr0017",
+              "id": "strr0017",
               "gap": {
                 "lg": "md"
               },
@@ -1773,7 +1773,7 @@
               },
               "cells": [
                 {
-                  "id": "citc0014",
+                  "id": "strc0014",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -1785,7 +1785,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "citw0013",
+                      "id": "strw0013",
                       "type": "video",
                       "v": 1,
                       "settings": {
@@ -1798,7 +1798,7 @@
                   ]
                 },
                 {
-                  "id": "citc0016",
+                  "id": "strc0016",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -1810,7 +1810,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "citw0015",
+                      "id": "strw0015",
                       "type": "clan-stats",
                       "v": 1,
                       "settings": {
@@ -1825,7 +1825,7 @@
           ]
         },
         {
-          "id": "cits0043",
+          "id": "strs0043",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1843,7 +1843,7 @@
           },
           "rows": [
             {
-              "id": "citr0021",
+              "id": "strr0021",
               "gap": {
                 "lg": "md"
               },
@@ -1855,7 +1855,7 @@
               },
               "cells": [
                 {
-                  "id": "citc0020",
+                  "id": "strc0020",
                   "span": {
                     "lg": 12
                   },
@@ -1866,7 +1866,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "citw0019",
+                      "id": "strw0019",
                       "type": "divider",
                       "v": 1,
                       "settings": {
@@ -1882,7 +1882,7 @@
               ]
             },
             {
-              "id": "citr0028",
+              "id": "strr0028",
               "gap": {
                 "lg": "md"
               },
@@ -1894,7 +1894,7 @@
               },
               "cells": [
                 {
-                  "id": "citc0023",
+                  "id": "strc0023",
                   "span": {
                     "lg": 4,
                     "md": 12
@@ -1906,7 +1906,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "citw0022",
+                      "id": "strw0022",
                       "type": "clan-goals",
                       "v": 1,
                       "settings": {
@@ -1929,7 +1929,7 @@
                   ]
                 },
                 {
-                  "id": "citc0025",
+                  "id": "strc0025",
                   "span": {
                     "lg": 4,
                     "md": 12
@@ -1941,7 +1941,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "citw0024",
+                      "id": "strw0024",
                       "type": "alliances",
                       "v": 1,
                       "settings": {
@@ -1953,7 +1953,7 @@
                   ]
                 },
                 {
-                  "id": "citc0027",
+                  "id": "strc0027",
                   "span": {
                     "lg": 4,
                     "md": 12
@@ -1965,7 +1965,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "citw0026",
+                      "id": "strw0026",
                       "type": "event-standings",
                       "v": 1,
                       "settings": {
@@ -1979,7 +1979,7 @@
               ]
             },
             {
-              "id": "citr0033",
+              "id": "strr0033",
               "gap": {
                 "lg": "md"
               },
@@ -1991,7 +1991,7 @@
               },
               "cells": [
                 {
-                  "id": "citc0030",
+                  "id": "strc0030",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -2003,7 +2003,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "citw0029",
+                      "id": "strw0029",
                       "type": "adventure-log",
                       "v": 1,
                       "settings": {
@@ -2016,7 +2016,7 @@
                   ]
                 },
                 {
-                  "id": "citc0032",
+                  "id": "strc0032",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -2028,7 +2028,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "citw0031",
+                      "id": "strw0031",
                       "type": "runesync-activity",
                       "v": 1,
                       "settings": {
@@ -2042,7 +2042,7 @@
               ]
             },
             {
-              "id": "citr0036",
+              "id": "strr0036",
               "gap": {
                 "lg": "md"
               },
@@ -2054,7 +2054,7 @@
               },
               "cells": [
                 {
-                  "id": "citc0035",
+                  "id": "strc0035",
                   "span": {
                     "lg": 12
                   },
@@ -2065,7 +2065,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "citw0034",
+                      "id": "strw0034",
                       "type": "quick-links",
                       "v": 1,
                       "settings": {
@@ -2109,7 +2109,7 @@
               ]
             },
             {
-              "id": "citr0039",
+              "id": "strr0039",
               "gap": {
                 "lg": "md"
               },
@@ -2121,7 +2121,7 @@
               },
               "cells": [
                 {
-                  "id": "citc0038",
+                  "id": "strc0038",
                   "span": {
                     "lg": 12
                   },
@@ -2132,7 +2132,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "citw0037",
+                      "id": "strw0037",
                       "type": "spacer",
                       "v": 1,
                       "settings": {
@@ -2146,7 +2146,7 @@
               ]
             },
             {
-              "id": "citr0042",
+              "id": "strr0042",
               "gap": {
                 "lg": "md"
               },
@@ -2158,7 +2158,7 @@
               },
               "cells": [
                 {
-                  "id": "citc0041",
+                  "id": "strc0041",
                   "span": {
                     "lg": 12
                   },
@@ -2169,7 +2169,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "citw0040",
+                      "id": "strw0040",
                       "type": "links",
                       "v": 2,
                       "settings": {
@@ -4458,14 +4458,14 @@
       }
     },
     {
-      "id": "citjoin",
+      "id": "strjoin",
       "title": "Join us",
       "path": "join",
       "hidden": false,
       "access": "public",
       "sections": [
         {
-          "id": "cits0047",
+          "id": "strs0047",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4483,7 +4483,7 @@
           },
           "rows": [
             {
-              "id": "citr0046",
+              "id": "strr0046",
               "gap": {
                 "lg": "md"
               },
@@ -4495,7 +4495,7 @@
               },
               "cells": [
                 {
-                  "id": "citc0045",
+                  "id": "strc0045",
                   "span": {
                     "lg": 12
                   },
@@ -4506,7 +4506,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "citw0044",
+                      "id": "strw0044",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -4526,7 +4526,7 @@
           ]
         },
         {
-          "id": "cits0061",
+          "id": "strs0061",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4544,7 +4544,7 @@
           },
           "rows": [
             {
-              "id": "citr0052",
+              "id": "strr0052",
               "gap": {
                 "lg": "md"
               },
@@ -4556,7 +4556,7 @@
               },
               "cells": [
                 {
-                  "id": "citc0049",
+                  "id": "strc0049",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -4568,7 +4568,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "citw0048",
+                      "id": "strw0048",
                       "type": "recruiting",
                       "v": 1,
                       "settings": {
@@ -4581,7 +4581,7 @@
                   ]
                 },
                 {
-                  "id": "citc0051",
+                  "id": "strc0051",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -4593,7 +4593,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "citw0050",
+                      "id": "strw0050",
                       "type": "discord-join",
                       "v": 1,
                       "settings": {
@@ -4608,7 +4608,7 @@
               ]
             },
             {
-              "id": "citr0057",
+              "id": "strr0057",
               "gap": {
                 "lg": "md"
               },
@@ -4620,7 +4620,7 @@
               },
               "cells": [
                 {
-                  "id": "citc0054",
+                  "id": "strc0054",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -4632,7 +4632,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "citw0053",
+                      "id": "strw0053",
                       "type": "countdown",
                       "v": 1,
                       "settings": {
@@ -4645,7 +4645,7 @@
                   ]
                 },
                 {
-                  "id": "citc0056",
+                  "id": "strc0056",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -4657,7 +4657,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "citw0055",
+                      "id": "strw0055",
                       "type": "faq",
                       "v": 1,
                       "settings": {
@@ -4684,7 +4684,7 @@
               ]
             },
             {
-              "id": "citr0060",
+              "id": "strr0060",
               "gap": {
                 "lg": "md"
               },
@@ -4696,7 +4696,7 @@
               },
               "cells": [
                 {
-                  "id": "citc0059",
+                  "id": "strc0059",
                   "span": {
                     "lg": 12
                   },
@@ -4707,7 +4707,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "citw0058",
+                      "id": "strw0058",
                       "type": "roster",
                       "v": 1,
                       "settings": {
@@ -4732,14 +4732,14 @@
       ]
     },
     {
-      "id": "citaccount",
+      "id": "straccount",
       "title": "My account",
       "path": "account",
       "hidden": true,
       "access": "public",
       "sections": [
         {
-          "id": "cits0065",
+          "id": "strs0065",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4757,7 +4757,7 @@
           },
           "rows": [
             {
-              "id": "citr0064",
+              "id": "strr0064",
               "gap": {
                 "lg": "md"
               },
@@ -4769,7 +4769,7 @@
               },
               "cells": [
                 {
-                  "id": "citc0063",
+                  "id": "strc0063",
                   "span": {
                     "lg": 12
                   },
@@ -4780,7 +4780,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "citw0062",
+                      "id": "strw0062",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -4800,7 +4800,7 @@
           ]
         },
         {
-          "id": "cits0088",
+          "id": "strs0088",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4818,7 +4818,7 @@
           },
           "rows": [
             {
-              "id": "citr0070",
+              "id": "strr0070",
               "gap": {
                 "lg": "md"
               },
@@ -4830,7 +4830,7 @@
               },
               "cells": [
                 {
-                  "id": "citc0067",
+                  "id": "strc0067",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -4842,7 +4842,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "citw0066",
+                      "id": "strw0066",
                       "type": "account-link",
                       "v": 1,
                       "settings": {
@@ -4853,7 +4853,7 @@
                   ]
                 },
                 {
-                  "id": "citc0069",
+                  "id": "strc0069",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -4865,7 +4865,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "citw0068",
+                      "id": "strw0068",
                       "type": "server-profile",
                       "v": 1,
                       "settings": {
@@ -4880,7 +4880,7 @@
               ]
             },
             {
-              "id": "citr0075",
+              "id": "strr0075",
               "gap": {
                 "lg": "md"
               },
@@ -4892,7 +4892,7 @@
               },
               "cells": [
                 {
-                  "id": "citc0072",
+                  "id": "strc0072",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -4904,7 +4904,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "citw0071",
+                      "id": "strw0071",
                       "type": "my-goals",
                       "v": 1,
                       "settings": {
@@ -4916,7 +4916,7 @@
                   ]
                 },
                 {
-                  "id": "citc0074",
+                  "id": "strc0074",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -4928,7 +4928,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "citw0073",
+                      "id": "strw0073",
                       "type": "my-notices",
                       "v": 1,
                       "settings": {
@@ -4942,7 +4942,7 @@
               ]
             },
             {
-              "id": "citr0082",
+              "id": "strr0082",
               "gap": {
                 "lg": "md"
               },
@@ -4954,7 +4954,7 @@
               },
               "cells": [
                 {
-                  "id": "citc0077",
+                  "id": "strc0077",
                   "span": {
                     "lg": 4,
                     "md": 12
@@ -4966,7 +4966,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "citw0076",
+                      "id": "strw0076",
                       "type": "my-events",
                       "v": 1,
                       "settings": {
@@ -4978,7 +4978,7 @@
                   ]
                 },
                 {
-                  "id": "citc0079",
+                  "id": "strc0079",
                   "span": {
                     "lg": 4,
                     "md": 12
@@ -4990,7 +4990,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "citw0078",
+                      "id": "strw0078",
                       "type": "my-signups",
                       "v": 1,
                       "settings": {
@@ -5002,7 +5002,7 @@
                   ]
                 },
                 {
-                  "id": "citc0081",
+                  "id": "strc0081",
                   "span": {
                     "lg": 4,
                     "md": 12
@@ -5014,7 +5014,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "citw0080",
+                      "id": "strw0080",
                       "type": "my-polls",
                       "v": 1,
                       "settings": {
@@ -5029,7 +5029,7 @@
               ]
             },
             {
-              "id": "citr0087",
+              "id": "strr0087",
               "gap": {
                 "lg": "md"
               },
@@ -5041,7 +5041,7 @@
               },
               "cells": [
                 {
-                  "id": "citc0084",
+                  "id": "strc0084",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5053,7 +5053,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "citw0083",
+                      "id": "strw0083",
                       "type": "my-coffer",
                       "v": 1,
                       "settings": {
@@ -5065,7 +5065,7 @@
                   ]
                 },
                 {
-                  "id": "citc0086",
+                  "id": "strc0086",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5077,7 +5077,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "citw0085",
+                      "id": "strw0085",
                       "type": "member-privacy",
                       "v": 1,
                       "settings": {
