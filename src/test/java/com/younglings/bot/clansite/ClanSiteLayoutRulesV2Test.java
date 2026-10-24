@@ -356,10 +356,31 @@ class ClanSiteLayoutRulesV2Test {
         seo.getArray("pages").getObject(0).put("seo", DataObject.empty().put("image", "http://insecure.example.test/x.png"));
         assertTrue(has(problems(seo), "sharing picture"));
 
+        for (DataObject bad : List.of(DataObject.empty().put("template", "Bad Id").put("v", 1), DataObject.empty().put("template", "members").put("v", 0),
+                DataObject.empty().put("template", "members").put("v", 1).put("extra", true), DataObject.empty().put("template", "members").put("v", "1"))) {
+            DataObject origin = good();
+            origin.getArray("pages").getObject(1).put("origin", bad);
+            assertTrue(has(problems(origin), "broken page template note"), bad.toString());
+        }
+
         DataObject duplicateIds = good();
         String id = duplicateIds.getArray("pages").getObject(0).getString("id");
         duplicateIds.getArray("pages").getObject(1).getArray("sections").getObject(0).put("id", id);
         assertTrue(has(problems(duplicateIds), "share the id"));
+    }
+
+    @Test
+    void pageTemplateOriginIsKept() {
+        // F14: a page made from a page template remembers it; saving must not drop it, or "Reset to template" disappears after a reload
+        DataObject layout = good();
+        layout.getArray("pages").getObject(1).put("origin", DataObject.empty().put("template", "hall-of-fame").put("v", 3));
+        List<String> problems = new ArrayList<>();
+        DataObject out = DataObject.fromJson(ClanSiteLayoutRulesV2.clean(layout, ClanSiteLayoutRulesV2.Limits.PREMIUM, problems));
+        assertTrue(problems.isEmpty(), problems.toString());
+        DataObject origin = out.getArray("pages").getObject(1).getObject("origin");
+        assertEquals("hall-of-fame", origin.getString("template"));
+        assertEquals(3, origin.getInt("v"));
+        assertFalse(out.getArray("pages").getObject(0).hasKey("origin"));
     }
 
     @Test
