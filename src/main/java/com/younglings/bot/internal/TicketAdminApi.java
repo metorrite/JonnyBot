@@ -1,6 +1,5 @@
 package com.younglings.bot.internal;
 
-import com.younglings.bot.discord.DiscordLookups;
 import com.younglings.bot.access.AccessArea;
 import com.younglings.bot.access.AccessGrantService;
 import com.younglings.bot.beta.BetaAccessService;
@@ -11,6 +10,7 @@ import com.younglings.bot.commands.ticket.HelpPanels;
 import com.younglings.bot.commands.ticket.HelpRules;
 import com.younglings.bot.commands.ticket.TicketRules;
 import com.younglings.bot.commands.ticket.TicketService;
+import com.younglings.bot.discord.DiscordLookups;
 import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminJson.BadRequest;
 import com.younglings.bot.permission.DashboardAccess;
@@ -182,7 +182,7 @@ public class TicketAdminApi {
             InternalApiServer.sendJson(exchange, e.status, body);
         } catch (BadRequest e) {
             InternalApiServer.sendJson(exchange, 400, DataObject.empty().put("error", e.getMessage()));
-        } catch (com.younglings.bot.discord.DiscordLookups.Slow e) {
+        } catch (DiscordLookups.Slow e) {
             InternalApiServer.sendSlow(exchange);
         } catch (Exception e) {
             log.error("Admin API request {} {} failed", exchange.getRequestMethod(), exchange.getRequestURI().getPath(), e);

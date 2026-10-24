@@ -10,9 +10,11 @@ import net.dv8tion.jda.api.requests.RestAction;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -20,6 +22,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.LongSupplier;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -27,7 +30,8 @@ import java.util.function.Supplier;
  * pages often have to ask Discord about a person; when Discord rate-limits that kind of question it makes the asker wait ~30 s, far past the
  * website's 8 s patience, and every request thread that waits is one fewer for everyone else. So every question here:
  * <ul>
- *   <li>tries JDA's cache, then a small cache of recent answers (names for 6 h, "no such person" for an hour, members for a minute);</li>
+ *   <li>tries JDA's cache, then a small cache of recent answers (names for 6 h, "no such user" for an hour, "not in that server" for a
+ *       minute). Members themselves are not kept, so a page never shows roles or a nickname older than JDA's own view;</li>
  *   <li>otherwise asks Discord and waits at most {@link #BUDGET}. A question still waiting keeps going in the background and fills the cache,
  *       so the next page load knows; the same question is never asked twice at once;</li>
  *   <li>says {@link Outcome#SLOW} when Discord didn't answer in time. Display code shows "unknown"; a check that decides access throws
@@ -40,7 +44,8 @@ public final class DiscordLookups {
     public static final Duration BUDGET = Duration.ofMillis(1500);
     static final long USER_TTL_MS = Duration.ofHours(6).toMillis();
     static final long UNKNOWN_TTL_MS = Duration.ofHours(1).toMillis();
-    static final long MEMBER_TTL_MS = Duration.ofMinutes(1).toMillis();
+    /** How long "not in that server" is believed. */
+    static final long NOT_MEMBER_TTL_MS = Duration.ofMinutes(1).toMillis();
     /** A question Discord hasn't answered in this long is asked afresh rather than waited on. */
     static final long STALE_IN_FLIGHT_MS = Duration.ofMinutes(2).toMillis();
     static final int MAX_ENTRIES = 5_000;
@@ -80,7 +85,8 @@ public final class DiscordLookups {
     private record InFlight<V>(CompletableFuture<V> future, long startedAt) {}
 
     private static final Map<Long, Entry<UserInfo>> users = lru();
-    private static final Map<MemberKey, Entry<Member>> members = lru();
+    /** Only "not in that server" answers: a {@code null} value. */
+    private static final Map<MemberKey, Entry<Member>> notMembers = lru();
     private static final Map<Long, InFlight<User>> usersAsked = new ConcurrentHashMap<>();
     private static final Map<MemberKey, InFlight<Member>> membersAsked = new ConcurrentHashMap<>();
     /** Replaceable so tests can move time. */
@@ -89,7 +95,7 @@ public final class DiscordLookups {
     private DiscordLookups() {}
 
     private static <K, V> Map<K, V> lru() {
-        return java.util.Collections.synchronizedMap(new LinkedHashMap<>(256, 0.75f, true) {
+        return Collections.synchronizedMap(new LinkedHashMap<>(256, 0.75f, true) {
             @Override
             protected boolean removeEldestEntry(Map.Entry<K, V> eldest) {
                 return size() > MAX_ENTRIES;
@@ -131,7 +137,7 @@ public final class DiscordLookups {
     }
 
     /** Asks Discord about a user without waiting; {@code then} gets the answer when one comes (never on a failure), on JDA's thread. */
-    public static void refreshUser(JDA jda, long userId, java.util.function.Consumer<UserInfo> then) {
+    public static void refreshUser(JDA jda, long userId, Consumer<UserInfo> then) {
         if (fresh(users, userId) != null) return; // answered recently (even "no such user"): nothing to ask
         CompletableFuture<User> asked = askUser(jda, userId);
         if (asked == null) return;
@@ -156,8 +162,7 @@ public final class DiscordLookups {
         Member cached = guild.getMemberById(userId);
         if (cached != null) return new MemberLookup(Outcome.FOUND, cached);
         MemberKey key = new MemberKey(guild.getIdLong(), userId);
-        Entry<Member> known = fresh(members, key);
-        if (known != null) return new MemberLookup(known.value() == null ? Outcome.ABSENT : Outcome.FOUND, known.value());
+        if (fresh(notMembers, key) != null) return new MemberLookup(Outcome.ABSENT, null);
         return await(askMember(guild, key), budget);
     }
 
@@ -166,11 +171,6 @@ public final class DiscordLookups {
         MemberLookup found = member(guild, userId, BUDGET);
         if (found.outcome() == Outcome.SLOW) throw new Slow();
         return found.member();
-    }
-
-    /** The member, or {@code null} when they aren't in the server or Discord didn't answer in time. Only where a wrong "not there" is harmless. */
-    public static Member memberOrNull(Guild guild, long userId) {
-        return member(guild, userId, BUDGET).member();
     }
 
     /**
@@ -186,8 +186,7 @@ public final class DiscordLookups {
                 continue;
             }
             MemberKey key = new MemberKey(guild.getIdLong(), userId);
-            Entry<Member> known = fresh(members, key);
-            if (known != null) pending.add(new MemberLookup(known.value() == null ? Outcome.ABSENT : Outcome.FOUND, known.value()));
+            if (fresh(notMembers, key) != null) pending.add(new MemberLookup(Outcome.ABSENT, null));
             else pending.add(askMember(guild, key));
         }
         long deadline = System.nanoTime() + budget.toNanos();
@@ -221,12 +220,8 @@ public final class DiscordLookups {
         if (future == null) return null;
         return future.whenComplete((member, error) -> {
             long now = clock.getAsLong();
-            if (member != null) {
-                members.put(key, new Entry<>(member, now + MEMBER_TTL_MS));
-                users.put(key.userId(), new Entry<>(UserInfo.of(member.getUser()), now + USER_TTL_MS));
-            } else if (error != null && isUnknown(error)) {
-                members.put(key, new Entry<>(null, now + MEMBER_TTL_MS));
-            }
+            if (member != null) users.put(key.userId(), new Entry<>(UserInfo.of(member.getUser()), now + USER_TTL_MS));
+            else if (error != null && isUnknown(error)) notMembers.put(key, new Entry<>(null, now + NOT_MEMBER_TTL_MS));
         });
     }
 
@@ -261,7 +256,7 @@ public final class DiscordLookups {
                 return future.join();
             } catch (CompletionException e) {
                 throw new ExecutionException(e.getCause());
-            } catch (java.util.concurrent.CancellationException e) {
+            } catch (CancellationException e) {
                 throw new ExecutionException(e);
             }
         }
@@ -270,7 +265,7 @@ public final class DiscordLookups {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new TimeoutException();
-        } catch (java.util.concurrent.CancellationException e) {
+        } catch (CancellationException e) {
             throw new ExecutionException(e);
         }
     }
@@ -295,7 +290,7 @@ public final class DiscordLookups {
     /** Forgets every remembered answer. For tests, and for nothing else. */
     public static void forgetAll() {
         users.clear();
-        members.clear();
+        notMembers.clear();
         usersAsked.clear();
         membersAsked.clear();
         clock = System::currentTimeMillis;

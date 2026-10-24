@@ -1,6 +1,5 @@
 package com.younglings.bot.internal;
 
-import com.younglings.bot.discord.DiscordLookups;
 import com.younglings.bot.discord.jobs.DiscordJob;
 import com.younglings.bot.discord.jobs.DiscordJobs;
 import com.younglings.bot.discord.jobs.DiscordOutbox;
@@ -12,6 +11,7 @@ import com.younglings.bot.commands.poll.PollSession;
 import com.younglings.bot.commands.signup.SignupService;
 import com.younglings.bot.commands.signup.SignupSession;
 import com.younglings.bot.commands.signup.SubmissionField;
+import com.younglings.bot.discord.DiscordLookups;
 import com.younglings.bot.member.MemberProfileRepository;
 import com.younglings.bot.permission.MemberAccess;
 import com.younglings.bot.member.MemberProfileRepository.Goal;
@@ -207,7 +207,7 @@ public class MemberApi {
         } catch (com.younglings.bot.events.EventProblem e) {
             // the event engine's own refusals already say why in words a member can read
             InternalApiServer.sendJson(exchange, e.status(), DataObject.empty().put("error", e.getMessage()));
-        } catch (com.younglings.bot.discord.DiscordLookups.Slow e) {
+        } catch (DiscordLookups.Slow e) {
             InternalApiServer.sendSlow(exchange);
         } catch (Exception e) {
             log.error("Member API request {} failed", exchange.getRequestURI().getPath(), e);
