@@ -1,6 +1,7 @@
 package com.younglings.bot.internal;
 
 import com.younglings.bot.database.SchemaBootstrapper;
+import com.younglings.bot.hubsites.SiteChannelMappings;
 import io.github.freya022.botcommands.api.core.db.ConnectionSupplier;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
@@ -34,6 +35,8 @@ import java.util.regex.Pattern;
  * <p>
  * Everything in a chosen channel becomes publicly visible on the website, which is why only an admin can pick
  * channels (and the dashboard says so plainly).
+ * <p>
+ * With {@code SITES_BACKEND=hub} the chosen channels are kept as mappings of the server's hub site ({@link SiteChannelMappings}).
  */
 @BService
 public class SiteNewsService {
@@ -48,9 +51,11 @@ public class SiteNewsService {
     private static final Pattern EMOJI = Pattern.compile("<a?:(\\w+):\\d+>");
 
     private final ConnectionSupplier connectionSupplier;
+    private final SiteChannelMappings mappings;
 
-    public SiteNewsService(ConnectionSupplier connectionSupplier) {
+    public SiteNewsService(ConnectionSupplier connectionSupplier, SiteChannelMappings mappings) {
         this.connectionSupplier = connectionSupplier;
+        this.mappings = mappings;
         SchemaBootstrapper.run(connectionSupplier, log, "site news", List.of(
                 "CREATE SCHEMA IF NOT EXISTS younglings;",
                 """
@@ -69,6 +74,8 @@ public class SiteNewsService {
     // ---------- which channels ----------
 
     public List<NewsChannel> channels(long guildId) {
+        var mapped = mappings.channels(guildId, SiteChannelMappings.Kind.NEWS);
+        if (mapped.isPresent()) return mapped.get().stream().map(m -> new NewsChannel(m.channelId(), m.label(), m.position())).toList();
         try (Connection c = connectionSupplier.getConnection();
              PreparedStatement s = c.prepareStatement("SELECT channel_id, label, position FROM younglings.site_news_channel WHERE guild_id = ? ORDER BY position, channel_id")) {
             s.setLong(1, guildId);
@@ -83,6 +90,14 @@ public class SiteNewsService {
     }
 
     public void replaceChannels(long guildId, List<NewsChannel> channels) {
+        if (!mappings.replace(guildId, SiteChannelMappings.Kind.NEWS, channels.stream().map(n -> new SiteChannelMappings.Mapped(n.channelId(), n.label(), n.position())).toList())) {
+            replaceOwn(guildId, channels);
+        }
+        AdminReads.forgetPrefix(CACHE_KEY);
+        SiteInvalidator.signal(guildId, SiteInvalidator.Area.NEWS);
+    }
+
+    private void replaceOwn(long guildId, List<NewsChannel> channels) {
         try (Connection c = connectionSupplier.getConnection()) {
             c.setAutoCommit(false);
             try {
@@ -109,8 +124,6 @@ public class SiteNewsService {
         } catch (SQLException e) {
             throw fail("save news channels", e);
         }
-        AdminReads.forgetPrefix(CACHE_KEY);
-        SiteInvalidator.signal(guildId, SiteInvalidator.Area.NEWS);
     }
 
     // ---------- the posts ----------

@@ -126,7 +126,7 @@ class OverallAdminDatabaseTest {
                 new SiteBuilderBetaAdminApi(grants, grantService, owners), mock(OverallOpsRoutes.class), roles, audit, config);
         InternalApiServer server = new InternalApiServer(config, mock(TicketAdminApi.class), mock(SiteApi.class), mock(DirectoryApi.class), mock(PluginApi.class),
                 mock(MemberApi.class), images, mock(com.younglings.bot.tracking.CitadelWinners.class), mock(FormsPublicApi.class), List.of(), botlessAdmin,
-                mock(com.younglings.bot.discord.jobs.DiscordOutbox.class), overallApi);
+                mock(com.younglings.bot.discord.jobs.DiscordOutbox.class), overallApi, com.younglings.bot.hubsites.HubSites.off());
         JDA jda = mock(JDA.class);
         when(jda.getStatus()).thenReturn(JDA.Status.CONNECTED);
         Guild home = mock(Guild.class);
