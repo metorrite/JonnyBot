@@ -67,6 +67,11 @@ public class AccessGrantService {
         return false;
     }
 
+    /** Whether the gates are read from (and so edited in) the RuneClans hub; the bot's own editors then refuse changes. */
+    public boolean editedInHub() {
+        return gates.fromHub();
+    }
+
     /** Forget what was remembered: the list just changed. */
     public void listChanged() {
         remembered.clear();
