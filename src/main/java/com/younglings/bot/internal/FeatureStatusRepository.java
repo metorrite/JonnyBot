@@ -133,7 +133,7 @@ public class FeatureStatusRepository {
         this.connectionSupplier = connectionSupplier;
     }
 
-    /** Every stored flag of this server, or {@code null} when the query failed (a missing table): the dashboard then reads those pages the old way. */
+    /** Every stored flag of this server, or {@code null} when the query failed (a missing table): those dots are then grey ("na"). */
     public Facts read(long guildId) {
         try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(SQL)) {
             s.setLong(1, guildId);

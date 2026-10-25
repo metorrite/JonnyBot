@@ -37,8 +37,9 @@ import java.util.stream.Collectors;
  * answer is the same rule the dashboard applied to that page's own read (runeclans packages/dashboard/src/lib/featureStatus.ts).
  * <p>
  * Read from the database (most of it in one query, {@link FeatureStatusRepository}) and the bot's in-memory copy of the server; never a call to Discord.
- * "na" means no dot: the Overview and the Feature map are views, and a page this person can't open (the Admin-only role pages for a Developer, the
- * owner's Snapshots) stays grey as it did. If the query fails every stored dot is "na", and the dashboard reads those pages the old way.
+ * "na" means no dot: the Overview and the Feature map are views, a page this person can't open (the Admin-only role pages for a Developer, the
+ * owner's Snapshots) stays grey as it did, and so does every stored dot if the query fails, as a failed read always left it. The dashboard reads a
+ * tab the old way only when this answer doesn't name it (a tab newer than this bot), or for every tab from an older bot without this route.
  * <p>
  * An {@link AdminRouteExtension}, so it gets the same dashboard access check as every per-server admin route.
  */

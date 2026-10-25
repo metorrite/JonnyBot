@@ -121,7 +121,7 @@ class FeatureStatusApiTest {
     }
 
     @Test
-    void aFailedQueryLeavesTheStoredDotsToTheDashboard() {
+    void aFailedQueryLeavesTheStoredDotsGrey() {
         Mockito.when(repository.read(G)).thenReturn(null);
         DataObject features = features(DashboardAccess.Tier.ADMIN, true);
         assertEquals("na", features.getString("/joins/welcome"));
