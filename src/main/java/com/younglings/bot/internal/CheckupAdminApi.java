@@ -57,8 +57,7 @@ public class CheckupAdminApi implements AdminRouteExtension {
             for (TrackingRepository.Destination d : tracking.getDestinations(guildId, group)) channels.add(d.channelId());
             groups.add(new ServerCheckup.TrackingState(group.displayName(), tracking.isEnabled(guildId, group), channels));
         }
-        List<Finding> findings = ServerCheckup.run(new JdaView(guild),
-                new ServerCheckup.Config(settings.getEffective(guildId), welcome.get(guildId), groups, community.pollChannel(guildId)));
+        List<Finding> findings = findings(guild, groups);
 
         DataArray list = DataArray.empty();
         int errors = 0;
@@ -74,6 +73,16 @@ public class CheckupAdminApi implements AdminRouteExtension {
                     .put("detail", f.detail()).put("page", f.page()));
         }
         return DataObject.empty().put("findings", list).put("errors", errors).put("warnings", warnings).put("ok", ok).put("intents", intents());
+    }
+
+    /**
+     * The checkup's findings with the clan activity groups already read (the feature status reads them for every group in one query, T-461). Only the
+     * bot's cache of the server and its own settings: never a call to Discord.
+     */
+    List<Finding> findings(Guild guild, List<ServerCheckup.TrackingState> groups) {
+        long guildId = guild.getIdLong();
+        return ServerCheckup.run(new JdaView(guild),
+                new ServerCheckup.Config(settings.getEffective(guildId), welcome.get(guildId), groups, community.pollChannel(guildId)));
     }
 
     /** Which of Discord's privileged intents the bot is running with (the others were refused in the Developer Portal). */
