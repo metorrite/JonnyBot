@@ -1,6 +1,9 @@
 package com.younglings.bot.internal;
 
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
+import com.younglings.bot.notice.BotOwners;
+import com.younglings.bot.plugin.RuneSyncService;
+import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.utils.data.DataObject;
 import org.junit.jupiter.api.Test;
@@ -15,21 +18,32 @@ import static org.mockito.Mockito.when;
 class OverallOpsRoutesTest {
     private final AdminOpsApi ops = mock(AdminOpsApi.class);
     private final RuneMetricsBudgetAdminApi budget = mock(RuneMetricsBudgetAdminApi.class);
-    private final OverallOpsRoutes routes = new OverallOpsRoutes(ops, budget);
+    private final RuneSyncService runeSync = mock(RuneSyncService.class);
+    private final BotOwners owners = mock(BotOwners.class);
+    private final JDA jda = mock(JDA.class);
+    private final OverallOpsRoutes routes = new OverallOpsRoutes(ops, budget, runeSync, owners);
     private final Guild home = mock(Guild.class);
 
     @Test
     void healthAndBudgetAnswerFromTheHomeServer() {
         when(ops.health(home)).thenReturn(DataObject.empty().put("uptimeSeconds", 5));
         when(budget.overview(home)).thenReturn(DataObject.empty().put("day", "2026-10-25"));
-        assertEquals(5, routes.route(home, "GET", new String[]{"health"}).getInt("uptimeSeconds"));
-        assertEquals("2026-10-25", routes.route(home, "GET", new String[]{"runemetrics-budget"}).getString("day"));
+        assertEquals(5, routes.route(jda, 1L, home, "GET", new String[]{"health"}).getInt("uptimeSeconds"));
+        assertEquals("2026-10-25", routes.route(jda, 1L, home, "GET", new String[]{"runemetrics-budget"}).getString("day"));
     }
 
     @Test
     void onlyReadingIsAllowedAndOtherPathsAreNotThese() {
-        assertEquals(405, assertThrows(ApiError.class, () -> routes.route(home, "POST", new String[]{"health"})).status);
-        assertNull(routes.route(home, "GET", new String[]{"health", "more"}));
-        assertNull(routes.route(home, "GET", new String[]{"admins"}));
+        assertEquals(405, assertThrows(ApiError.class, () -> routes.route(jda, 1L, home, "POST", new String[]{"health"})).status);
+        assertNull(routes.route(jda, 1L, home, "GET", new String[]{"health", "more"}));
+        assertNull(routes.route(jda, 1L, home, "GET", new String[]{"admins"}));
+    }
+
+    @Test
+    void runeSyncDiagnosticsAreForTheBotOwnerOnly() {
+        when(runeSync.diagnostic("RS-7K2M9Q", null)).thenReturn(null);
+        assertEquals(403, assertThrows(ApiError.class, () -> routes.route(jda, 1L, home, "GET", new String[]{"runesync", "diagnostics", "RS-7K2M9Q"})).status);
+        when(owners.isOwner(jda, 1L)).thenReturn(true);
+        assertEquals(405, assertThrows(ApiError.class, () -> routes.route(jda, 1L, home, "POST", new String[]{"runesync", "diagnostics", "RS-7K2M9Q"})).status);
     }
 }
