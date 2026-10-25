@@ -51,7 +51,7 @@ class SiteDiscordRulesTest {
 
     @Test
     void countGivesTheNumberOnly() {
-        DataObject answer = SiteDiscordRules.online(people, OnlineMode.COUNT, Set.of());
+        DataObject answer = SiteDiscordRules.online(people, OnlineMode.COUNT, Set.of(), 500, true);
 
         assertEquals(4, answer.getInt("total"), "bots, offline and invisible members are never counted");
         assertEquals("count", answer.getString("mode"));
@@ -61,7 +61,7 @@ class SiteDiscordRulesTest {
 
     @Test
     void namesAreGroupedByHoistedRoleWithNoAvatarsAndNoIds() {
-        DataObject answer = SiteDiscordRules.online(people, OnlineMode.NAMES, Set.of());
+        DataObject answer = SiteDiscordRules.online(people, OnlineMode.NAMES, Set.of(), 500, true);
         DataArray groups = answer.getArray("groups");
 
         assertEquals(3, groups.length());
@@ -81,7 +81,7 @@ class SiteDiscordRulesTest {
 
     @Test
     void avatarsOnlyInNamesAndAvatars() {
-        DataObject answer = SiteDiscordRules.online(people, OnlineMode.NAMES_AVATARS, Set.of());
+        DataObject answer = SiteDiscordRules.online(people, OnlineMode.NAMES_AVATARS, Set.of(), 500, true);
         String avatar = answer.getArray("groups").getObject(0).getArray("members").getObject(0).getString("avatarUrl");
 
         assertEquals("https://cdn.example/avatars/3.png?size=64", avatar);
@@ -89,7 +89,7 @@ class SiteDiscordRulesTest {
 
     @Test
     void aHiddenMemberIsCountedButNeverNamedNorPlacedInAGroup() {
-        DataObject answer = SiteDiscordRules.online(people, OnlineMode.NAMES_AVATARS, Set.of(3L));
+        DataObject answer = SiteDiscordRules.online(people, OnlineMode.NAMES_AVATARS, Set.of(3L), 100, true);
 
         assertEquals(4, answer.getInt("total"));
         assertEquals(3, answer.getInt("named"));
@@ -101,15 +101,36 @@ class SiteDiscordRulesTest {
     void namesAreCapped() {
         List<Person> crowd = new ArrayList<>();
         for (int i = 0; i < SiteDiscordRules.MAX_NAMED + 50; i++) crowd.add(person(100 + i, "m" + i, OnlineStatus.ONLINE, Group.ONLINE));
-        DataObject answer = SiteDiscordRules.online(crowd, OnlineMode.NAMES, Set.of());
+        DataObject answer = SiteDiscordRules.online(crowd, OnlineMode.NAMES, Set.of(), 500, true);
 
         assertEquals(SiteDiscordRules.MAX_NAMED + 50, answer.getInt("total"));
         assertEquals(SiteDiscordRules.MAX_NAMED, answer.getInt("named"));
     }
 
     @Test
+    void theSitesLimitCapsTheNamesAndTheRestAreCounted() {
+        DataObject answer = SiteDiscordRules.online(people, OnlineMode.NAMES, Set.of(), 2, true);
+
+        assertEquals(4, answer.getInt("total"));
+        assertEquals(2, answer.getInt("named"));
+        assertTrue(answer.getBoolean("groupByRole"));
+    }
+
+    @Test
+    void withoutGroupingEveryoneIsInOneOnlineGroupWithTheirAvatar() {
+        DataObject answer = SiteDiscordRules.online(people, OnlineMode.NAMES_AVATARS, Set.of(), 100, false);
+        DataArray groups = answer.getArray("groups");
+
+        assertFalse(answer.getBoolean("groupByRole"));
+        assertEquals(1, groups.length());
+        assertEquals("Online", groups.getObject(0).getString("name"));
+        assertEquals(4, groups.getObject(0).getArray("members").length());
+        for (int i = 0; i < 4; i++) assertTrue(groups.getObject(0).getArray("members").getObject(i).getString("avatarUrl").endsWith("?size=64"));
+    }
+
+    @Test
     void withoutPresenceTheAnswerSaysUnavailable() {
-        DataObject answer = SiteDiscordRules.onlineUnavailable(OnlineMode.NAMES);
+        DataObject answer = SiteDiscordRules.onlineUnavailable(OnlineMode.NAMES, true);
         assertTrue(answer.getBoolean("unavailable"));
         assertEquals(0, answer.getInt("total"));
     }

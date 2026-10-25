@@ -112,7 +112,8 @@ class OverallAdminDatabaseTest {
         when(owners.known(any())).thenReturn(Set.of(BUILT_IN));
         OverallAdmins overall = new OverallAdmins(new OverallAdminRepository(db), owners);
         SiteRoleGuard roles = new SiteRoleGuard(new SiteRoleRepository(db), mock(DashboardAccess.class), settings, mock(PlayerLinkService.class), overall);
-        ClanSiteAdminApi clanSite = new ClanSiteAdminApi(sites, layouts, siteService, profiles, owners, mock(Premium.class), roles);
+        ClanSiteAdminApi clanSite = new ClanSiteAdminApi(sites, layouts, siteService, profiles, owners, mock(Premium.class), roles,
+                mock(SiteDiscordService.class));
         ImageUploadService images = new ImageUploadService(new UploadedImageRepository(db, new UploadedImageDatabaseInitializer(db)));
         grants = new AccessGrantRepository(db);
         grantService = new AccessGrantService(grants);

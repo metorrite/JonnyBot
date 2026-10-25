@@ -48,6 +48,8 @@ import com.younglings.bot.config.BotBrand;
  *   {@code POST clan-site/layout/publish} takes an optional {@code {label}} and records a version; {@code GET clan-site/layout/versions},
  *   {@code GET clan-site/layout/versions/{id}} (with its layout) and {@code POST clan-site/layout/versions/{id}/restore} {@code {baseRev?}}
  *   (copies it into the draft; never publishes)</li>
+ *   <li>connections (N7): {@code GET|PUT clan-site/connections} and {@code POST clan-site/connections/connect|disconnect}, the site
+ *   admin's Discord server, data provider and Discord features ({@link SiteDiscordService})</li>
  * </ul>
  * Reached only through {@link TicketAdminApi}, which has already checked the asker may use the dashboard here and audit-logs every write.
  */
@@ -63,6 +65,7 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
     private final BotOwners owners;
     private final Premium premium;
     private final SiteRoleGuard siteRoles;
+    private final SiteDiscordService discord;
     /** Layout saves and restores per server (on top of the per-person admin limit): the editor autosaves, so a burst of 3 and then one a second. */
     private final RateLimiter layoutSaves = new RateLimiter(3, 1_000);
     static final int MAX_ROLES_PER_LIST = 20;
@@ -70,7 +73,7 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
     static final String DISCORD_ROLES_UNAVAILABLE = "Discord roles are unavailable without the bot: add RuneClan Bot to the server to pick roles, or name editors by Discord user ID.";
 
     public ClanSiteAdminApi(ClanSiteRepository repository, ClanSiteLayoutRepository layouts, ClanSiteService sites, ClanProfileService profiles, BotOwners owners,
-                            Premium premium, SiteRoleGuard siteRoles) {
+                            Premium premium, SiteRoleGuard siteRoles, SiteDiscordService discord) {
         this.repository = repository;
         this.layouts = layouts;
         this.sites = sites;
@@ -78,6 +81,7 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
         this.owners = owners;
         this.premium = premium;
         this.siteRoles = siteRoles;
+        this.discord = discord;
     }
 
     /**
@@ -129,6 +133,7 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
         SiteRoles.Action action = actionFor(method, parts);
         if (action != null && !c.may(siteRoles, action)) throw new ApiError(403, Text.of(c.guildId(), "dashboard.the_website_can_t_be_saved"), List.of(refusal(action)));
         if (parts.length >= 2 && parts[1].equals("roles")) return roles(c, method, parts, body);
+        if (parts.length >= 2 && parts[1].equals("connections")) return connections(c, method, parts, body);
         if (parts.length == 1) {
             if (method.equals("GET")) return get(c);
             AdminRouteExtension.requireMethod(method, "PUT");
@@ -462,6 +467,26 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
         repository.delete(id);
         siteRoles.delete(id);
         return get(c);
+    }
+
+    // ---------- connections (N7, the site admin's Connections page) ----------
+
+    /**
+     * {@code GET|PUT clan-site/connections}, {@code POST clan-site/connections/connect} {@code {guildId}} and {@code POST
+     * clan-site/connections/disconnect}: the site's Discord server, its data provider and its Discord features ({@link SiteDiscordService}).
+     * Admin, like the site's other settings.
+     */
+    DataObject connections(SiteCaller c, String method, String[] parts, Supplier<DataObject> body) {
+        if (parts.length == 2) {
+            if (method.equals("GET")) return botPresence(c, discord.connectionState(c));
+            AdminRouteExtension.requireMethod(method, "PUT");
+            return botPresence(c, discord.saveConnection(c, body.get()));
+        }
+        if (parts.length == 3 && (parts[2].equals("connect") || parts[2].equals("disconnect"))) {
+            AdminRouteExtension.requireMethod(method, "POST");
+            return botPresence(c, discord.connect(c, parts[2].equals("connect"), body.get()));
+        }
+        return null;
     }
 
     // ---------- site roles (T-368, docs/BUILDER-V3.md 8.2) ----------

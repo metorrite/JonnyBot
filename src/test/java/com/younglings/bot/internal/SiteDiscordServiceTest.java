@@ -1,5 +1,8 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.clansite.SiteConnectionStore;
+import com.younglings.bot.clansite.SiteConnectionStore.Channel;
+import com.younglings.bot.clansite.SiteConnectionStore.Connection;
 import com.younglings.bot.clansite.SiteDiscordSettings;
 import com.younglings.bot.clansite.SiteDiscordSettings.OnlineMode;
 import com.younglings.bot.config.IntentSwitches;
@@ -36,13 +39,17 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** Discord on a clan website over a mock server (T-365): off by default, never more than the mode allows, and only public channels. */
+/**
+ * Discord on a clan website over a mock server (T-365, N7): off by default, never more than the site's connection settings allow, only public
+ * channels, nothing at all while the server is disconnected, and the Connections page's saves.
+ */
 class SiteDiscordServiceTest {
     private static final long GUILD = Long.parseLong("7".repeat(18));
     private static final long PUBLIC = Long.parseLong("1".repeat(18));
     private static final long PRIVATE = Long.parseLong("2".repeat(18));
     private static final long ADULT = Long.parseLong("3".repeat(18));
 
+    private final SiteConnectionStore connections = mock(SiteConnectionStore.class);
     private final SiteDiscordSettings settings = mock(SiteDiscordSettings.class);
     private final SiteNewsService news = mock(SiteNewsService.class);
     private final MemberProfileRepository profiles = mock(MemberProfileRepository.class);
@@ -56,7 +63,7 @@ class SiteDiscordServiceTest {
     @BeforeEach
     void setUp() {
         IntentSwitches.allOn();
-        service = new SiteDiscordService(settings, news, profiles, new SiteCache());
+        service = new SiteDiscordService(connections, settings, news, profiles, new SiteCache());
         guild = mock(Guild.class);
         everyone = mock(Role.class);
         self = mock(SelfMember.class);
@@ -66,7 +73,21 @@ class SiteDiscordServiceTest {
         newsChannel = channel(PUBLIC, "news", false, true);
         staffChannel = channel(PRIVATE, "staff", false, false);
         channel(ADULT, "memes", true, true);
-        when(settings.onlineMode(GUILD)).thenReturn(OnlineMode.OFF);
+        site(OnlineMode.OFF);
+    }
+
+    /** The site's connections: its own server, connected, with this mode, 24 names grouped, 5 posts, events on, and these channels. */
+    private Connection site(OnlineMode mode, long... channelIds) {
+        return site(GUILD, mode, 24, true, 5, channelIds);
+    }
+
+    private Connection site(Long server, OnlineMode mode, int onlineLimit, boolean groups, int feedLimit, long... channelIds) {
+        List<Channel> channels = new java.util.ArrayList<>();
+        for (long id : channelIds) channels.add(new Channel(id, null, channels.size()));
+        Connection c = new Connection(GUILD, server, null, null, SiteConnectionStore.RUNECLAN_BOT, mode, onlineLimit, groups, feedLimit, true,
+                List.copyOf(channels), false);
+        when(connections.of(GUILD)).thenReturn(c);
+        return c;
     }
 
     @AfterEach
@@ -108,7 +129,7 @@ class SiteDiscordServiceTest {
 
     @Test
     void namesLeaveOutMembersWhoOptedOutOnEitherSwitch() {
-        when(settings.onlineMode(GUILD)).thenReturn(OnlineMode.NAMES);
+        site(OnlineMode.NAMES);
         List<Member> members = List.of(member(11, "Ann", OnlineStatus.ONLINE), member(12, "Ben", OnlineStatus.ONLINE), member(13, "Cat", OnlineStatus.IDLE));
         when(guild.getMembers()).thenReturn(members);
         when(settings.hiddenMembers(GUILD)).thenReturn(Set.of(12L));
@@ -126,7 +147,7 @@ class SiteDiscordServiceTest {
     @Test
     void withoutThePresenceIntentTheListIsUnavailable() {
         IntentSwitches.set(false, true);
-        when(settings.onlineMode(GUILD)).thenReturn(OnlineMode.COUNT);
+        site(OnlineMode.COUNT);
 
         assertTrue(service.online(guild).getBoolean("unavailable"));
     }
@@ -134,9 +155,7 @@ class SiteDiscordServiceTest {
     // ---------- feed ----------
 
     private void chosen(long... ids) {
-        List<SiteNewsService.NewsChannel> list = new java.util.ArrayList<>();
-        for (long id : ids) list.add(new SiteNewsService.NewsChannel(id, null, list.size()));
-        when(news.channels(GUILD)).thenReturn(list);
+        site(OnlineMode.OFF, ids);
     }
 
     @Test
@@ -145,7 +164,7 @@ class SiteDiscordServiceTest {
         DataObject post = DataObject.empty().put("id", "1").put("author", "Ann").put("avatarUrl", "https://cdn.example/a.png").put("text", "hi");
         when(news.latest(eq(guild), eq(List.of(new SiteNewsService.NewsChannel(PUBLIC, null, 0))), anyInt())).thenReturn(DataArray.empty().add(post));
 
-        DataObject feed = service.feed(guild, null, 10);
+        DataObject feed = service.feed(guild, null);
 
         assertFalse(feed.getBoolean("unavailable"));
         assertEquals(1, feed.getArray("channels").length());
@@ -161,19 +180,48 @@ class SiteDiscordServiceTest {
         chosen(PUBLIC, PRIVATE);
         when(news.latest(eq(guild), any(), anyInt())).thenReturn(DataArray.empty());
 
-        assertNull(service.feed(guild, Long.toString(PRIVATE), 10));
-        assertNull(service.feed(guild, Long.toString(ADULT), 10));
-        assertEquals(0, service.feed(guild, Long.toString(PUBLIC), 10).getArray("posts").length());
+        assertNull(service.feed(guild, Long.toString(PRIVATE)));
+        assertNull(service.feed(guild, Long.toString(ADULT)));
+        assertEquals(0, service.feed(guild, Long.toString(PUBLIC)).getArray("posts").length());
     }
 
     @Test
-    void theFeedAsksForAtMost25Posts() {
-        chosen(PUBLIC);
+    void theFeedAsksForTheSitesPostCountAndNeverMoreThan25() {
+        site(GUILD, OnlineMode.OFF, 24, true, 7, PUBLIC);
         when(news.latest(eq(guild), any(), anyInt())).thenReturn(DataArray.empty());
+        assertEquals(7, service.feed(guild, null).getInt("limit"));
+        verify(news).latest(eq(guild), any(), eq(7));
 
-        service.feed(guild, null, 500);
-
+        site(GUILD, OnlineMode.OFF, 24, true, 500, PUBLIC);
+        service.feed(guild, Long.toString(PUBLIC));
         verify(news).latest(eq(guild), any(), eq(25));
+    }
+
+    @Test
+    void aDisconnectedServerShowsNothing() {
+        site(null, OnlineMode.NAMES_AVATARS, 24, true, 5, PUBLIC);
+
+        assertNull(service.online(guild));
+        assertEquals(0, service.feed(guild, null).getArray("channels").length());
+        assertNull(service.feed(guild, Long.toString(PUBLIC)));
+        assertFalse(service.eventsShown(GUILD));
+        verify(guild, never()).getMembers();
+    }
+
+    @Test
+    void theOnlineListFollowsTheSitesLimitAndGrouping() {
+        site(GUILD, OnlineMode.NAMES_AVATARS, 1, false, 5);
+        List<Member> members = List.of(member(11, "Ann", OnlineStatus.ONLINE), member(12, "Ben", OnlineStatus.ONLINE));
+        when(guild.getMembers()).thenReturn(members);
+        when(settings.hiddenMembers(GUILD)).thenReturn(Set.of());
+
+        DataObject answer = service.online(guild);
+
+        assertEquals(2, answer.getInt("total"));
+        assertEquals(1, answer.getInt("named"));
+        assertFalse(answer.getBoolean("groupByRole"));
+        assertEquals("https://cdn.example/avatars/11.png?size=64",
+                answer.getArray("groups").getObject(0).getArray("members").getObject(0).getString("avatarUrl"), "N1: names and avatars sends avatars");
     }
 
     @Test
@@ -181,62 +229,90 @@ class SiteDiscordServiceTest {
         IntentSwitches.set(true, false);
         chosen(PUBLIC);
 
-        DataObject feed = service.feed(guild, null, 10);
+        DataObject feed = service.feed(guild, null);
 
         assertTrue(feed.getBoolean("unavailable"));
         verify(news, never()).latest(any(), any(), anyInt());
     }
 
-    // ---------- dashboard ----------
+    // ---------- the Connections page ----------
+
+    private SiteCaller admin() {
+        Member actor = mock(Member.class);
+        when(actor.getIdLong()).thenReturn(5L);
+        when(guild.getJDA()).thenReturn(null);
+        return SiteCaller.of(guild, actor);
+    }
 
     @Test
     void aPrivateOrAgeRestrictedChannelCantBeOptedIn() {
-        Member actor = mock(Member.class);
+        SiteCaller c = admin();
         for (long bad : new long[]{PRIVATE, ADULT}) {
-            DataObject body = DataObject.empty().put("onlineMode", "names")
-                    .put("channels", DataArray.empty().add(DataObject.empty().put("channelId", Long.toString(bad))));
-            TicketAdminApi.ApiError error = assertThrows(TicketAdminApi.ApiError.class, () -> service.save(guild, actor, body));
+            DataObject body = DataObject.empty().put("feed", DataObject.empty()
+                    .put("channels", DataArray.empty().add(DataObject.empty().put("channelId", Long.toString(bad)))));
+            TicketAdminApi.ApiError error = assertThrows(TicketAdminApi.ApiError.class, () -> service.saveConnection(c, body));
             assertEquals(403, error.status);
         }
-        verify(news, never()).replaceChannels(anyLong(), any());
-        verify(settings, never()).saveOnlineMode(anyLong(), any(), anyLong());
+        verify(connections, never()).saveFeatures(any(), anyLong());
     }
 
     @Test
-    void savingAModeAndPublicChannelsKeepsLeftOutFields() {
-        Member actor = mock(Member.class);
-        when(actor.getIdLong()).thenReturn(5L);
+    void savingKeepsLeftOutPartsAndChecksTheNumbers() {
+        SiteCaller c = admin();
+        Connection now = site(OnlineMode.NAMES, PUBLIC);
 
-        service.save(guild, actor, DataObject.empty().put("onlineMode", "count"));
-        verify(settings).saveOnlineMode(GUILD, OnlineMode.COUNT, 5L);
-        verify(news, never()).replaceChannels(anyLong(), any());
+        service.saveConnection(c, DataObject.empty().put("online", DataObject.empty().put("mode", "names+avatars").put("limit", 40)));
+        verify(connections).saveFeatures(now.withFeatures(OnlineMode.NAMES_AVATARS, 40, true, 5, true, now.channels()), 5L);
 
-        service.save(guild, actor, DataObject.empty().put("channels", DataArray.empty().add(DataObject.empty().put("channelId", Long.toString(PUBLIC)).put("label", "News"))));
-        verify(news).replaceChannels(GUILD, List.of(new SiteNewsService.NewsChannel(PUBLIC, "News", 0)));
+        service.saveConnection(c, DataObject.empty().put("feed", DataObject.empty().put("limit", 10)
+                .put("channels", DataArray.empty().add(DataObject.empty().put("channelId", Long.toString(PUBLIC)).put("label", "News")))).put("events", DataObject.empty().put("enabled", false)));
+        verify(connections).saveFeatures(now.withFeatures(OnlineMode.NAMES, 24, true, 10, false, List.of(new Channel(PUBLIC, "News", 0))), 5L);
 
-        assertEquals(400, assertThrows(TicketAdminApi.ApiError.class, () -> service.save(guild, actor, DataObject.empty().put("onlineMode", "everyone"))).status);
+        assertEquals(400, assertThrows(TicketAdminApi.ApiError.class, () -> service.saveConnection(c, DataObject.empty().put("online", DataObject.empty().put("mode", "everyone")))).status);
+        assertEquals(400, assertThrows(TicketAdminApi.ApiError.class, () -> service.saveConnection(c, DataObject.empty().put("online", DataObject.empty().put("limit", 0)))).status);
+        assertEquals(400, assertThrows(TicketAdminApi.ApiError.class, () -> service.saveConnection(c, DataObject.empty().put("feed", DataObject.empty().put("limit", 26)))).status);
     }
 
     @Test
-    void theSettingsPageShowsEachChannelsVerdict() {
-        chosen(PRIVATE);
+    void theConnectionsPageShowsTheServerTheProviderAndEachChannelsVerdict() {
+        site(OnlineMode.NAMES_AVATARS, PRIVATE);
         when(guild.getTextChannels()).thenReturn(List.of(newsChannel, staffChannel));
-        when(settings.onlineMode(GUILD)).thenReturn(OnlineMode.NAMES_AVATARS);
+        when(guild.getName()).thenReturn("Younglings");
 
-        DataObject state = service.adminState(guild);
+        DataObject state = service.connectionState(admin());
 
-        assertEquals("names+avatars", state.getString("onlineMode"));
-        assertTrue(state.getBoolean("presenceAvailable"));
-        DataObject staff = state.getArray("chosen").getObject(0);
+        assertTrue(state.getObject("server").getBoolean("connected"));
+        assertTrue(state.getObject("server").getBoolean("botPresent"));
+        assertEquals("Younglings", state.getObject("server").getString("name"));
+        assertEquals(SiteConnectionStore.RUNECLAN_BOT, state.getObject("provider").getString("id"));
+        assertTrue(state.getObject("provider").getArray("capabilities").toList().contains(SiteDiscordService.PRESENCE));
+        assertEquals("names+avatars", state.getObject("online").getString("mode"));
+        DataObject staff = state.getObject("feed").getArray("chosen").getObject(0);
         assertFalse(staff.getBoolean("eligible"));
         assertTrue(staff.getString("reason").contains("private"));
-        assertEquals(1, state.getArray("channels").length(), "a chosen channel isn't offered twice");
-        assertTrue(state.getArray("channels").getObject(0).getBoolean("eligible"));
+        assertEquals(1, state.getObject("feed").getArray("channels").length(), "a chosen channel isn't offered twice");
+    }
+
+    @Test
+    void onlyAServerAdminCanConnectAndOnlyTheSitesOwnServer() {
+        SiteCaller c = admin();
+        site(null, OnlineMode.OFF, 24, true, 5);
+        DataObject own = DataObject.empty().put("guildId", Long.toString(GUILD));
+
+        assertEquals(403, assertThrows(TicketAdminApi.ApiError.class, () -> service.connect(c, true, own)).status);
+        when(c.member().hasPermission(Permission.ADMINISTRATOR)).thenReturn(true);
+        assertEquals(400, assertThrows(TicketAdminApi.ApiError.class, () -> service.connect(c, true, DataObject.empty().put("guildId", "123456789012345678"))).status);
+        verify(connections, never()).setConnected(anyLong(), eq(true), anyLong());
+
+        service.connect(c, true, own);
+        verify(connections).setConnected(GUILD, true, 5L);
+        service.connect(c, false, DataObject.empty());
+        verify(connections).setConnected(GUILD, false, 5L);
     }
 
     @Test
     void aMembersOwnChoiceClearsTheCachedList() {
-        when(settings.onlineMode(GUILD)).thenReturn(OnlineMode.NAMES);
+        site(OnlineMode.NAMES);
         List<Member> members = List.of(member(11, "Ann", OnlineStatus.ONLINE));
         when(guild.getMembers()).thenReturn(members);
         when(settings.hiddenMembers(GUILD)).thenReturn(Set.of());

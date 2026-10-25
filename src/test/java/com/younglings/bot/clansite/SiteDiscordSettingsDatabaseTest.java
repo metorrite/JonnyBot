@@ -1,6 +1,5 @@
 package com.younglings.bot.clansite;
 
-import com.younglings.bot.clansite.SiteDiscordSettings.OnlineMode;
 import com.younglings.bot.testsupport.LocalDatabase;
 import io.github.freya022.botcommands.api.core.db.ConnectionSupplier;
 import org.junit.jupiter.api.AfterEach;
@@ -16,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** Discord on a clan website over real SQL (T-365): the online mode starts off and is kept per server, and a member's opt-out toggles. Skipped without a local database. */
+/** Discord on a clan website over real SQL (T-365): a member's opt-out toggles per server. Skipped without a local database. */
 class SiteDiscordSettingsDatabaseTest {
     private static final long GUILD = Long.parseLong("9".repeat(17)) + 365;
     private static final long OTHER = GUILD + 1;
@@ -46,17 +45,6 @@ class SiteDiscordSettingsDatabaseTest {
                 }
             }
         }
-    }
-
-    @Test
-    void theOnlineModeStartsOffAndIsKeptPerServer() {
-        assertEquals(OnlineMode.OFF, settings.onlineMode(GUILD));
-
-        settings.saveOnlineMode(GUILD, OnlineMode.NAMES_AVATARS, USER);
-        settings.saveOnlineMode(GUILD, OnlineMode.COUNT, USER);
-
-        assertEquals(OnlineMode.COUNT, settings.onlineMode(GUILD));
-        assertEquals(OnlineMode.OFF, settings.onlineMode(OTHER));
     }
 
     @Test

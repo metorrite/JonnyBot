@@ -69,7 +69,7 @@ class DirectoryRoutesTest {
                 new DirectoryClanSiteRoutes(sites, siteApi, repository, mock(com.younglings.bot.clansite.ClanSiteLayoutRepository.class),
                         mock(com.younglings.bot.clansite.ClanSitePluginFeed.class)),
                 new DirectorySlugRoutes(repository),
-                section), botless);
+                section), botless, mock(SiteDiscordService.class));
         when(repository.bySlug("younglings")).thenReturn(Optional.of(clan));
         when(service.publicView(GUILD, true)).thenReturn(Optional.of(clan));
         when(service.publicView(eq(clan), any(), eq(true))).thenReturn(Optional.of(clan));
