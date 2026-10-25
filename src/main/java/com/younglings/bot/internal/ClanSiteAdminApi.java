@@ -48,6 +48,8 @@ import com.younglings.bot.config.BotBrand;
  *   {@code POST clan-site/layout/publish} takes an optional {@code {label}} and records a version; {@code GET clan-site/layout/versions},
  *   {@code GET clan-site/layout/versions/{id}} (with its layout) and {@code POST clan-site/layout/versions/{id}/restore} {@code {baseRev?}}
  *   (copies it into the draft; never publishes)</li>
+ *   <li>connections (N7): {@code GET|PUT clan-site/connections} and {@code POST clan-site/connections/connect|disconnect}, the site
+ *   admin's Discord server, data provider and Discord features ({@link SiteDiscordService})</li>
  * </ul>
  * Reached only through {@link TicketAdminApi}, which has already checked the asker may use the dashboard here and audit-logs every write.
  */
