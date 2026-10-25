@@ -2,6 +2,7 @@ package com.younglings.bot.linkedroles;
 
 import com.younglings.bot.clanprofile.ClanProfileService;
 import com.younglings.bot.config.BotConfig;
+import com.younglings.bot.runeclans.RuneClansHubClient;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -11,7 +12,7 @@ import io.github.freya022.botcommands.api.core.service.annotations.BService;
 public class LinkedRolesService {
     private final LinkedRoles roles;
 
-    public LinkedRolesService(BotConfig config, LinkedRolesStore store, ClanProfileService clanProfiles) {
+    public LinkedRolesService(BotConfig config, LinkedRolesStore store, ClanProfileService clanProfiles, RuneClansHubClient hub) {
         String token;
         try {
             token = config.getToken();
@@ -19,7 +20,7 @@ public class LinkedRolesService {
             token = null;
         }
         this.roles = LinkedRoles.live(LinkedRolesSettings.from(config::getLinkedRolesSetting), store,
-                guildId -> clanProfiles.publicView(guildId, false).isPresent(), token);
+                guildId -> clanProfiles.publicView(guildId, false).isPresent(), RsLinkSource.hub(hub), token);
     }
 
     public LinkedRoles roles() {

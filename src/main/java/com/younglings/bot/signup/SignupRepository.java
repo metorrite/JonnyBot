@@ -14,6 +14,7 @@ import java.sql.*;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.OptionalLong;
 
 @BService
 public class SignupRepository {
@@ -101,7 +102,7 @@ public class SignupRepository {
                 if (resultSet.next()) {
                     long signupId = resultSet.getLong("signup_id");
                     log.info("Created {} signup {} for guild {}", type, signupId, guildId);
-                    SiteInvalidator.signal(SiteInvalidator.Area.SIGNUPS);
+                    SiteInvalidator.signal(guildId, SiteInvalidator.Area.SIGNUPS);
                     return signupId;
                 }
             }
@@ -307,7 +308,7 @@ public class SignupRepository {
             statement.executeUpdate();
 
             log.info("Set signup {} status to {}", signupId, status);
-            SiteInvalidator.signal(SiteInvalidator.Area.SIGNUPS);
+            SiteInvalidator.signalLater(() -> guildOfSignup(signupId), SiteInvalidator.Area.SIGNUPS);
 
         } catch (SQLException e) {
             log.error("Failed to set signup {} status to {}", signupId, status, e);
@@ -331,11 +332,24 @@ public class SignupRepository {
             statement.executeUpdate();
 
             log.info("Soft deleted signup {}", signupId);
-            SiteInvalidator.signal(SiteInvalidator.Area.SIGNUPS);
+            SiteInvalidator.signalLater(() -> guildOfSignup(signupId), SiteInvalidator.Area.SIGNUPS);
 
         } catch (SQLException e) {
             log.error("Failed to delete signup {}", signupId, e);
             throw new RuntimeException("Failed to delete signup", e);
+        }
+    }
+
+    /** The server of a signup sheet, for {@code SiteInvalidator} (it runs this on its own thread). */
+    private OptionalLong guildOfSignup(long signupId) {
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement("SELECT guild_id FROM younglings.signup WHERE signup_id = ?")) {
+            statement.setLong(1, signupId);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                return resultSet.next() ? OptionalLong.of(resultSet.getLong(1)) : OptionalLong.empty();
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read the server of signup " + signupId, e);
         }
     }
 
@@ -482,7 +496,7 @@ public class SignupRepository {
                 connection.commit();
                 if (added) {
                     log.info("Added entry rsn='{}' / Discord {} to signup {}", rsn, discordUserId, signupId);
-                    SiteInvalidator.signal(SiteInvalidator.Area.SIGNUPS);
+                    SiteInvalidator.signalLater(() -> guildOfSignup(signupId), SiteInvalidator.Area.SIGNUPS);
                 }
                 return added;
 
@@ -546,7 +560,7 @@ public class SignupRepository {
             if (removed) {
                 normalizePositions(connection, signupId);
                 log.info("Removed Discord user {} from signup {}", discordUserId, signupId);
-                SiteInvalidator.signal(SiteInvalidator.Area.SIGNUPS);
+                SiteInvalidator.signalLater(() -> guildOfSignup(signupId), SiteInvalidator.Area.SIGNUPS);
             }
 
             return removed;

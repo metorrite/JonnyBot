@@ -94,7 +94,7 @@ public class SiteNewsService {
             replaceOwn(guildId, channels);
         }
         AdminReads.forgetPrefix(CACHE_KEY);
-        SiteInvalidator.signal(SiteInvalidator.Area.NEWS);
+        SiteInvalidator.signal(guildId, SiteInvalidator.Area.NEWS);
     }
 
     private void replaceOwn(long guildId, List<NewsChannel> channels) {
