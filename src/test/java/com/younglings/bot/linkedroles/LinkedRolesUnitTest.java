@@ -143,4 +143,31 @@ class LinkedRolesUnitTest {
         env.put("LINKED_ROLES_DISCORD_API", "http://evil.example");
         assertFalse(LinkedRolesSettings.from(env::get).enabled());
     }
+
+    @Test
+    void theHubsRsLinkAnswerIsReadCarefully() {
+        long a = Long.parseLong("1".repeat(18));
+        long b = Long.parseLong("2".repeat(18));
+        long stranger = Long.parseLong("3".repeat(18));
+        DataObject answer = DataObject.fromJson("{\"links\":["
+                + "{\"discordId\":\"" + a + "\",\"rsn\":\"Zezima\",\"linkedAt\":\"2026-05-01T00:00:00Z\"},"
+                + "{\"discordId\":\"" + b + "\",\"rsn\":\"Not a valid name!\"},"
+                + "{\"discordId\":\"" + stranger + "\",\"rsn\":\"Woox\"},"
+                + "{\"discordId\":\"nope\",\"rsn\":\"Woox\"}, 7]}");
+        Map<Long, RsLinkSource.Current> got = RsLinkSource.parse(answer, java.util.List.of(a, b)).orElseThrow();
+        assertEquals(Map.of(a, new RsLinkSource.Current("Zezima", Instant.parse("2026-05-01T00:00:00Z"))), got,
+                "a bad name or an id nobody asked about is ignored");
+        assertTrue(RsLinkSource.parse(DataObject.fromJson("{}"), java.util.List.of(a)).isEmpty(), "an unexpected answer is not 'no links'");
+        assertEquals(Map.of(), RsLinkSource.parse(DataObject.fromJson("{\"links\":[]}"), java.util.List.of(a)).orElseThrow());
+        assertTrue(RsLinkSource.NONE.current(java.util.List.of(a)).isEmpty());
+    }
+
+    @Test
+    void rsLinkNamesAreCleaned() {
+        assertEquals("Zezima", LinkedRoles.cleanRsn("  Zezima "));
+        assertEquals("a b_c-1", LinkedRoles.cleanRsn("a b_c-1"));
+        assertNull(LinkedRoles.cleanRsn(""));
+        assertNull(LinkedRoles.cleanRsn("ThirteenChars"));
+        assertNull(LinkedRoles.cleanRsn("<script>"));
+    }
 }
