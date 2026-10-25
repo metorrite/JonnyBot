@@ -36,6 +36,9 @@ class ClanSiteRoleRoutesTest {
         assertEquals(Action.SETTINGS, action("GET", "clan-site/roles"));
         assertEquals(Action.SETTINGS, action("PUT", "clan-site/roles"));
         assertEquals(Action.OWN, action("POST", "clan-site/roles/hand-over"));
+        assertEquals(Action.SETTINGS, action("GET", "clan-site/roles/people"), "T-396: the role search is for admins");
+        assertEquals(Action.SETTINGS, action("GET", "clan-site/member-privacy"), "T-395: the privacy defaults are for admins");
+        assertEquals(Action.SETTINGS, action("PUT", "clan-site/member-privacy"));
         assertEquals(Action.OWN, action("POST", "clan-site/delete"));
         assertNull(action("POST", "clan-site/takedown"), "the bot's owner decides takedowns, not the site");
         assertNull(action("POST", "clan-site/restore"));

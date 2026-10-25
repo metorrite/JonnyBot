@@ -218,7 +218,7 @@ public class BotlessAdminApi {
     /** {@code null} for a path that doesn't exist; a {@link #needsBot} refusal for one that exists only with the bot. */
     private DataObject route(HttpExchange exchange, SiteCaller c, String method, String[] parts) {
         if (parts.length == 0) return null;
-        Supplier<DataObject> body = () -> body(exchange);
+        Supplier<DataObject> body = () -> method.equals("GET") ? AdminRouteExtension.queryOf(exchange.getRequestURI()) : body(exchange);
         switch (parts[0]) {
             case "clan-site" -> {
                 if (parts.length == 2 && parts[1].equals("clan-name")) return clanName(c, method, body);

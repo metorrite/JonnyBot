@@ -17,7 +17,8 @@ import java.util.function.Supplier;
 public interface AdminRouteExtension {
     /**
      * The answer, or {@code null} if {@code parts} (the path split on "/", after {@code /internal/admin/}) isn't this extension's. Throw
-     * {@link TicketAdminApi.ApiError} to refuse. {@code body} reads the request's JSON body when asked, so a GET never parses one.
+     * {@link TicketAdminApi.ApiError} to refuse. {@code body} reads the request's JSON body when asked, so a GET never parses one; for a GET
+     * it answers the query string's parameters instead ({@link #queryOf}).
      */
     DataObject route(Guild guild, Member actor, String method, String[] parts, Supplier<DataObject> body);
 
@@ -33,6 +34,23 @@ public interface AdminRouteExtension {
     /** A refusal with the status and message the website should see, for extensions outside this package (which can't reach {@code ApiError}). */
     static RuntimeException refuse(int status, String message) {
         return new TicketAdminApi.ApiError(status, message);
+    }
+
+    /**
+     * The request's query string as an object of strings (a name given twice keeps its first value), which a GET's {@code body} supplier
+     * answers instead of a JSON body, so a route can read {@code ?q=} without the exchange.
+     */
+    static DataObject queryOf(java.net.URI uri) {
+        DataObject out = DataObject.empty();
+        String raw = uri.getRawQuery();
+        if (raw == null || raw.isEmpty()) return out;
+        for (String pair : raw.split("&")) {
+            int eq = pair.indexOf('=');
+            String name = java.net.URLDecoder.decode(eq < 0 ? pair : pair.substring(0, eq), java.nio.charset.StandardCharsets.UTF_8);
+            String value = eq < 0 ? "" : java.net.URLDecoder.decode(pair.substring(eq + 1), java.nio.charset.StandardCharsets.UTF_8);
+            if (!name.isEmpty() && !out.hasKey(name)) out.put(name, value);
+        }
+        return out;
     }
 
     /** Throws a 405 unless {@code actual} is {@code expected}. */
