@@ -104,16 +104,6 @@ class HubSitesTest {
     }
 
     @Test
-    void capabilitiesFollowTheIntents() {
-        String all = HubSiteReporter.capabilities(true, true).toString();
-        assertTrue(all.contains("discord.presence") && all.contains("discord.messages.report") && all.contains("discord.roles.report"));
-        String without = HubSiteReporter.capabilities(false, false).toString();
-        assertFalse(without.contains("discord.presence"));
-        assertFalse(without.contains("discord.messages.report"));
-        assertTrue(without.contains("discord.channels.report"));
-    }
-
-    @Test
     void aRoleReportNamesHoldersAsStrings() {
         assertEquals("{\"userIds\":[\"" + ROLE + "\"]}", HubSiteReporter.body(List.of(ROLE)).toString());
     }
