@@ -45,13 +45,13 @@ final class StaleCache {
         if (entry != null && age < freshMs) return (T) entry.value();
         if (entry != null && age < maxStaleMs) {
             try {
-                refresh(key, loader);
+                refresh(key, freshMs, loader);
             } catch (DiscordLookups.Slow busy) {
                 // no worker free right now; the old answer is still good enough
             }
             return (T) entry.value();
         }
-        CompletableFuture<Object> future = refresh(key, loader);
+        CompletableFuture<Object> future = refresh(key, freshMs, loader);
         try {
             return (T) future.get(budgetMs, TimeUnit.MILLISECONDS);
         } catch (TimeoutException e) {
@@ -69,12 +69,19 @@ final class StaleCache {
     }
 
     /** Starts (or joins) the one load for {@code key}. */
-    private CompletableFuture<Object> refresh(String key, Supplier<?> loader) {
+    private CompletableFuture<Object> refresh(String key, long freshMs, Supplier<?> loader) {
         CompletableFuture<Object> existing = inFlight.get(key);
         if (existing != null) return existing;
         CompletableFuture<Object> fresh = new CompletableFuture<>();
         existing = inFlight.putIfAbsent(key, fresh);
         if (existing != null) return existing;
+        // A load may have finished between the caller reading its entry and taking this slot: serve that instead of loading again.
+        Entry latest = entries.get(key);
+        if (latest != null && clock.getAsLong() - latest.loadedAt() < freshMs) {
+            inFlight.remove(key, fresh);
+            fresh.complete(latest.value());
+            return fresh;
+        }
 
         long startedIn = epoch.get();
         try {

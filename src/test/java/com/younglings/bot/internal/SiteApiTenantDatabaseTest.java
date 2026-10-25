@@ -18,6 +18,7 @@ import com.younglings.bot.signup.SignupDatabaseInitializer;
 import com.younglings.bot.testsupport.LocalDatabase;
 import io.github.freya022.botcommands.api.core.db.ConnectionSupplier;
 import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.utils.data.DataArray;
 import net.dv8tion.jda.api.utils.data.DataObject;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -175,7 +176,7 @@ class SiteApiTenantDatabaseTest {
     @AfterEach
     void cleanUp() throws Exception {
         if (db == null) return;
-        for (String table : List.of("clan_member", "player_link", "member_profile", "coffer_donation", "clan_roster_event", "signup", "poll")) {
+        for (String table : List.of("clan_member", "player_link", "member_profile", "coffer_donation", "clan_roster_event", "signup", "poll", "member_privacy_default")) {
             sql("DELETE FROM younglings." + table + " WHERE guild_id IN (?, ?)", GUILD_A, GUILD_B);
         }
         for (String rsn : NAMES) {
@@ -279,6 +280,55 @@ class SiteApiTenantDatabaseTest {
             assertNotNull(api.tenant(guildB, route, exchange("rsn=" + OTHER + period)), route + ": the other server's own member");
         }
         assertNotNull(api.member(guildA, HIDDEN), "the home site's member page is unchanged");
+    }
+
+    private static java.util.Map<String, Boolean> pagePublic(DataObject members) {
+        java.util.Map<String, Boolean> out = new java.util.HashMap<>();
+        DataArray rows = members.getArray("members");
+        for (int i = 0; i < rows.length(); i++) out.put(rows.getObject(i).getString("rsn"), rows.getObject(i).getBoolean("pagePublic"));
+        return out;
+    }
+
+    @Test
+    void theRosterSaysWhoseMemberPageIsPrivate() {
+        java.util.Map<String, Boolean> shown = pagePublic(call(guildA, "members"));
+        assertEquals(Boolean.TRUE, shown.get(SHOWN), "T-416: a visible member's page can be opened");
+        assertEquals(Boolean.FALSE, shown.get(HIDDEN), "T-416: a member hidden from the rankings keeps their page private");
+    }
+
+    @Test
+    void privacyDefaultsHideMembersWhoHaveNotChosenAndNeverShowAHiddenOne() throws Exception {
+        String unlinked = "T395Unlinked";
+        sql("INSERT INTO younglings.clan_member (guild_id, rsn, clan_rank) VALUES (?, ?, 'Recruit')", GUILD_A, unlinked);
+        assertTrue(pagePublic(api.members(GUILD_A)).get(unlinked), "all defaults off: nothing changes");
+
+        profiles.savePrivacyDefaults(GUILD_A, new MemberProfileRepository.PrivacyDefaults(true, true, false), USER_SHOWN);
+        java.util.Map<String, Boolean> withDefaults = pagePublic(api.members(GUILD_A));
+        assertFalse(withDefaults.get(unlinked), "a member nobody linked follows the default");
+        assertFalse(withDefaults.get(SHOWN), "a member who never chose follows the default");
+        assertFalse(withDefaults.get(HIDDEN), "a member who hid themselves stays hidden");
+        assertNull(api.tenant(guildA, "member", exchange("rsn=" + SHOWN)), "and their page answers 404");
+        assertTrue(profiles.adventureLogHidden(GUILD_A, SHOWN), "the log default applies too");
+        assertTrue(profiles.adventureLogHidden(GUILD_A, unlinked));
+        assertFalse(profiles.hiddenDiscordUsers(GUILD_A).contains(USER_SHOWN), "the Discord link default is still off");
+
+        // the member chooses: their own toggles win over the defaults
+        profiles.saveProfile(new MemberProfileRepository.Profile(GUILD_A, USER_SHOWN, "", null, null, false, false, true, false, false, true));
+        java.util.Map<String, Boolean> chosen = pagePublic(api.members(GUILD_A));
+        assertTrue(chosen.get(SHOWN), "a member who chose to show stays shown");
+        assertFalse(chosen.get(unlinked));
+        assertFalse(profiles.adventureLogHidden(GUILD_A, SHOWN));
+
+        // a later save can't un-choose
+        profiles.saveProfile(new MemberProfileRepository.Profile(GUILD_A, USER_SHOWN, "bio", null, null, false, false, true, false, false));
+        assertTrue(profiles.getProfile(GUILD_A, USER_SHOWN).privacyChosen());
+
+        // the Discord link default hides everyone with a link who hasn't chosen
+        profiles.savePrivacyDefaults(GUILD_A, new MemberProfileRepository.PrivacyDefaults(false, false, true), USER_SHOWN);
+        assertEquals(java.util.Set.of(USER_HIDDEN), profiles.hiddenDiscordUsers(GUILD_A));
+        assertEquals(new MemberProfileRepository.PrivacyDefaults(false, false, true), profiles.privacyDefaults(GUILD_A));
+        profiles.deletePrivacyDefaults(GUILD_A);
+        assertEquals(MemberProfileRepository.PrivacyDefaults.NONE, profiles.privacyDefaults(GUILD_A));
     }
 
     @Test

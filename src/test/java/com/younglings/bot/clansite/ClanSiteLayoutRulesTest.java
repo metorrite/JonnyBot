@@ -161,6 +161,19 @@ class ClanSiteLayoutRulesTest {
     }
 
     @Test
+    void wizardTemplateIsKeptWhenItIsATemplateId() {
+        String hub = "hub:" + "0123abcd-0000-4000-8000-00000000abcd";
+        for (String id : List.of("guild-hall", "basic", hub)) {
+            DataObject layout = good().put("wizard", DataObject.empty().put("step", "theme").put("template", id));
+            assertEquals(id, DataObject.fromJson(ClanSiteLayoutRules.clean(layout, new ArrayList<>())).getObject("wizard").getString("template"));
+        }
+        for (String bad : List.of("Guild Hall", "hub:not-a-uuid", "x".repeat(41), "")) {
+            DataObject layout = good().put("wizard", DataObject.empty().put("step", "theme").put("template", bad));
+            assertFalse(DataObject.fromJson(ClanSiteLayoutRules.clean(layout, new ArrayList<>())).getObject("wizard").hasKey("template"));
+        }
+    }
+
+    @Test
     void logoAndBannerAreHttpsOrAnUpload() {
         assertTrue(ClanSiteLayoutRules.picture("https://cdn.example.test/logo.png"));
         assertTrue(ClanSiteLayoutRules.picture("/api/uploads/" + "a".repeat(32) + "?v=3"));

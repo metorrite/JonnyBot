@@ -164,6 +164,21 @@ public class SiteRoleGuard {
         return viewer;
     }
 
+    /** One person's role on a site and whether they count as staff there. */
+    public record Placed(Member member, SiteRoles.Role role, boolean staff) {}
+
+    /** Each member's role on this server's site, with the site's settings read once (the site admin's people search, T-396). */
+    public List<Placed> rolesOf(Guild guild, List<Member> members) {
+        SiteRoles.Settings s = repository.get(guild.getIdLong());
+        List<Placed> out = new java.util.ArrayList<>(members.size());
+        for (Member m : members) {
+            SiteRoles.Facts facts = facts(guild, m.getIdLong(), m);
+            SiteRoles.Role role = SiteRoles.resolve(facts, s);
+            out.add(new Placed(m, role, SiteRoles.isStaff(role, facts, s)));
+        }
+        return out;
+    }
+
     /** Forgets the cached viewer answers for a server, after its role settings changed. */
     public void forget(long guildId) {
         String prefix = guildId + ":";

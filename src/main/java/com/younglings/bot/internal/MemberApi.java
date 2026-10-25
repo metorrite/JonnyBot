@@ -295,14 +295,23 @@ public class MemberApi {
                 .put("dmGoals", p.dmGoals()).put("dmEvents", p.dmEvents()).put("hideDiscordLink", p.hideDiscordLink());
     }
 
+    /**
+     * The member's settings with the privacy that applies to them: until they choose their own toggles, the server's member privacy defaults
+     * (T-395) can turn a toggle on, and {@code privacyChosen} false says so.
+     */
     private DataObject getSettings(Guild guild, long userId) {
         DataArray rsns = DataArray.empty();
         links.getLinksForUser(guild.getIdLong(), userId).forEach(l -> rsns.add(l.rsn()));
-        return settingsJson(repository.getProfile(guild.getIdLong(), userId)).put("rsns", rsns);
+        Profile p = repository.getProfile(guild.getIdLong(), userId).withDefaults(repository.privacyDefaults(guild.getIdLong()));
+        return settingsJson(p).put("rsns", rsns).put("privacyChosen", p.privacyChosen());
     }
 
+    static final java.util.List<String> PRIVACY_KEYS = java.util.List.of("hideAdventureLog", "hideFromLeaderboards", "hideDiscordLink");
+
     private DataObject saveSettings(Guild guild, long userId, DataObject body) {
-        Profile current = repository.getProfile(guild.getIdLong(), userId);
+        // the privacy that applies now is what a toggle left out of the save keeps, so choosing never shows something a default hid
+        Profile current = repository.getProfile(guild.getIdLong(), userId).withDefaults(repository.privacyDefaults(guild.getIdLong()));
+        boolean chose = current.privacyChosen() || PRIVACY_KEYS.stream().anyMatch(body::hasKey);
 
         String bio = body.getString("bio", current.bio()).replaceAll("[\\p{Cntrl}&&[^\\n]]", "").strip();
         if (bio.length() > MAX_BIO) throw new Rejected(400, "Your bio can be at most " + MAX_BIO + " characters.");
@@ -321,7 +330,8 @@ public class MemberApi {
 
         repository.saveProfile(new Profile(guild.getIdLong(), userId, bio, accent, pinned,
                 body.getBoolean("hideAdventureLog", current.hideAdventureLog()), body.getBoolean("hideFromLeaderboards", current.hideFromLeaderboards()),
-                body.getBoolean("dmGoals", current.dmGoals()), body.getBoolean("dmEvents", current.dmEvents()), body.getBoolean("hideDiscordLink", current.hideDiscordLink())));
+                body.getBoolean("dmGoals", current.dmGoals()), body.getBoolean("dmEvents", current.dmEvents()), body.getBoolean("hideDiscordLink", current.hideDiscordLink()),
+                chose));
         cache.clear(); // a profile change can alter many cached answers (privacy toggles hide people from several lists) — cleared after the save so nothing re-caches the old answer
         return getSettings(guild, userId);
     }
