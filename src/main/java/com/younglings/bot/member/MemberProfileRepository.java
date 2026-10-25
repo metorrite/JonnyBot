@@ -54,6 +54,22 @@ public class MemberProfileRepository {
                 ALTER TABLE younglings.member_profile ADD COLUMN IF NOT EXISTS hide_discord_link BOOLEAN NOT NULL DEFAULT FALSE;
                 """,
 
+                // Added later (T-395): whether the member saved their privacy toggles since site defaults exist. Until then the server's
+                // member privacy defaults may hide them too; a toggle they turned on always stays on.
+                "ALTER TABLE younglings.member_profile ADD COLUMN IF NOT EXISTS privacy_chosen BOOLEAN NOT NULL DEFAULT FALSE;",
+
+                // The server's member privacy defaults (T-395, site admin's Member privacy page): what is hidden for members who haven't chosen.
+                """
+                CREATE TABLE IF NOT EXISTS younglings.member_privacy_default (
+                    guild_id BIGINT PRIMARY KEY,
+                    hide_from_leaderboards BOOLEAN NOT NULL DEFAULT FALSE,
+                    hide_adventure_log BOOLEAN NOT NULL DEFAULT FALSE,
+                    hide_discord_link BOOLEAN NOT NULL DEFAULT FALSE,
+                    updated_by BIGINT NULL,
+                    updated_at TIMESTAMPTZ NULL
+                );
+                """,
+
                 """
                 CREATE TABLE IF NOT EXISTS younglings.member_goal (
                     id BIGSERIAL PRIMARY KEY,
@@ -95,24 +111,100 @@ public class MemberProfileRepository {
 
     // ---------- profile settings ----------
 
+    /**
+     * {@code privacyChosen}: the member saved their privacy toggles, so the server's {@link PrivacyDefaults} no longer apply to them. Saving
+     * never turns it back off.
+     */
     public record Profile(long guildId, long userId, String bio, String accentColor, Integer pinnedSkill, boolean hideAdventureLog,
-                          boolean hideFromLeaderboards, boolean dmGoals, boolean dmEvents, boolean hideDiscordLink) {
+                          boolean hideFromLeaderboards, boolean dmGoals, boolean dmEvents, boolean hideDiscordLink, boolean privacyChosen) {
         public static Profile defaults(long guildId, long userId) {
-            return new Profile(guildId, userId, "", null, null, false, false, true, false, false);
+            return new Profile(guildId, userId, "", null, null, false, false, true, false, false, false);
+        }
+
+        /** A profile whose privacy toggles weren't chosen (yet). */
+        public Profile(long guildId, long userId, String bio, String accentColor, Integer pinnedSkill, boolean hideAdventureLog,
+                       boolean hideFromLeaderboards, boolean dmGoals, boolean dmEvents, boolean hideDiscordLink) {
+            this(guildId, userId, bio, accentColor, pinnedSkill, hideAdventureLog, hideFromLeaderboards, dmGoals, dmEvents, hideDiscordLink, false);
+        }
+
+        /**
+         * The privacy that applies: the member's own toggles once they chose them; before that, a toggle is on when they turned it on or the
+         * server's default turns it on. A default never shows anything a member hid.
+         */
+        public Profile withDefaults(PrivacyDefaults d) {
+            if (privacyChosen || d == null) return this;
+            return new Profile(guildId, userId, bio, accentColor, pinnedSkill, hideAdventureLog || d.hideAdventureLog(),
+                    hideFromLeaderboards || d.hideFromLeaderboards(), dmGoals, dmEvents, hideDiscordLink || d.hideDiscordLink(), false);
+        }
+    }
+
+    // ---------- the server's member privacy defaults (T-395) ----------
+
+    /** What is hidden for members who haven't chosen their own privacy toggles; all off (nothing hidden) until an admin changes them. */
+    public record PrivacyDefaults(boolean hideFromLeaderboards, boolean hideAdventureLog, boolean hideDiscordLink) {
+        public static final PrivacyDefaults NONE = new PrivacyDefaults(false, false, false);
+
+        public boolean any() {
+            return hideFromLeaderboards || hideAdventureLog || hideDiscordLink;
+        }
+    }
+
+    public PrivacyDefaults privacyDefaults(long guildId) {
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("""
+                     SELECT hide_from_leaderboards, hide_adventure_log, hide_discord_link FROM younglings.member_privacy_default WHERE guild_id = ?""")) {
+            s.setLong(1, guildId);
+            try (ResultSet rs = s.executeQuery()) {
+                if (!rs.next()) return PrivacyDefaults.NONE;
+                return new PrivacyDefaults(rs.getBoolean(1), rs.getBoolean(2), rs.getBoolean(3));
+            }
+        } catch (SQLException e) {
+            throw fail("read member privacy defaults", e);
+        }
+    }
+
+    public void savePrivacyDefaults(long guildId, PrivacyDefaults d, long actorId) {
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("""
+                     INSERT INTO younglings.member_privacy_default (guild_id, hide_from_leaderboards, hide_adventure_log, hide_discord_link, updated_by, updated_at)
+                     VALUES (?, ?, ?, ?, ?, NOW())
+                     ON CONFLICT (guild_id) DO UPDATE SET hide_from_leaderboards = EXCLUDED.hide_from_leaderboards,
+                         hide_adventure_log = EXCLUDED.hide_adventure_log, hide_discord_link = EXCLUDED.hide_discord_link,
+                         updated_by = EXCLUDED.updated_by, updated_at = NOW()""")) {
+            s.setLong(1, guildId);
+            s.setBoolean(2, d.hideFromLeaderboards());
+            s.setBoolean(3, d.hideAdventureLog());
+            s.setBoolean(4, d.hideDiscordLink());
+            s.setLong(5, actorId);
+            s.executeUpdate();
+        } catch (SQLException e) {
+            throw fail("save member privacy defaults", e);
+        }
+    }
+
+    /** Drops a server's defaults (its website was deleted, or the bot left for good). */
+    public void deletePrivacyDefaults(long guildId) {
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("DELETE FROM younglings.member_privacy_default WHERE guild_id = ?")) {
+            s.setLong(1, guildId);
+            s.executeUpdate();
+        } catch (SQLException e) {
+            throw fail("delete member privacy defaults", e);
         }
     }
 
     public Profile getProfile(long guildId, long userId) {
         try (Connection c = connectionSupplier.getConnection();
              PreparedStatement s = c.prepareStatement("""
-                     SELECT bio, accent_color, pinned_skill, hide_adventure_log, hide_from_leaderboards, dm_goals, dm_events, hide_discord_link
+                     SELECT bio, accent_color, pinned_skill, hide_adventure_log, hide_from_leaderboards, dm_goals, dm_events, hide_discord_link, privacy_chosen
                      FROM younglings.member_profile WHERE guild_id = ? AND discord_user_id = ?""")) {
             s.setLong(1, guildId);
             s.setLong(2, userId);
             try (ResultSet rs = s.executeQuery()) {
                 if (!rs.next()) return Profile.defaults(guildId, userId);
                 return new Profile(guildId, userId, rs.getString("bio"), rs.getString("accent_color"), (Integer) rs.getObject("pinned_skill"),
-                        rs.getBoolean("hide_adventure_log"), rs.getBoolean("hide_from_leaderboards"), rs.getBoolean("dm_goals"), rs.getBoolean("dm_events"), rs.getBoolean("hide_discord_link"));
+                        rs.getBoolean("hide_adventure_log"), rs.getBoolean("hide_from_leaderboards"), rs.getBoolean("dm_goals"), rs.getBoolean("dm_events"), rs.getBoolean("hide_discord_link"),
+                        rs.getBoolean("privacy_chosen"));
             }
         } catch (SQLException e) {
             throw fail("read a member profile", e);
@@ -123,12 +215,13 @@ public class MemberProfileRepository {
         try (Connection c = connectionSupplier.getConnection();
              PreparedStatement s = c.prepareStatement("""
                      INSERT INTO younglings.member_profile (guild_id, discord_user_id, bio, accent_color, pinned_skill, hide_adventure_log,
-                         hide_from_leaderboards, dm_goals, dm_events, hide_discord_link, updated_at)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                         hide_from_leaderboards, dm_goals, dm_events, hide_discord_link, privacy_chosen, updated_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
                      ON CONFLICT (guild_id, discord_user_id) DO UPDATE SET bio = EXCLUDED.bio, accent_color = EXCLUDED.accent_color,
                          pinned_skill = EXCLUDED.pinned_skill, hide_adventure_log = EXCLUDED.hide_adventure_log,
                          hide_from_leaderboards = EXCLUDED.hide_from_leaderboards, dm_goals = EXCLUDED.dm_goals,
-                         dm_events = EXCLUDED.dm_events, hide_discord_link = EXCLUDED.hide_discord_link, updated_at = NOW()""")) {
+                         dm_events = EXCLUDED.dm_events, hide_discord_link = EXCLUDED.hide_discord_link,
+                         privacy_chosen = younglings.member_profile.privacy_chosen OR EXCLUDED.privacy_chosen, updated_at = NOW()""")) {
             s.setLong(1, p.guildId());
             s.setLong(2, p.userId());
             s.setString(3, p.bio());
@@ -139,6 +232,7 @@ public class MemberProfileRepository {
             s.setBoolean(8, p.dmGoals());
             s.setBoolean(9, p.dmEvents());
             s.setBoolean(10, p.hideDiscordLink());
+            s.setBoolean(11, p.privacyChosen());
             s.executeUpdate();
         } catch (SQLException e) {
             throw fail("save a member profile", e);
@@ -149,7 +243,7 @@ public class MemberProfileRepository {
     public Profile getProfileForRsn(long guildId, String rsn) {
         try (Connection c = connectionSupplier.getConnection();
              PreparedStatement s = c.prepareStatement("""
-                     SELECT p.discord_user_id, p.bio, p.accent_color, p.pinned_skill, p.hide_adventure_log, p.hide_from_leaderboards, p.dm_goals, p.dm_events, p.hide_discord_link
+                     SELECT p.discord_user_id, p.bio, p.accent_color, p.pinned_skill, p.hide_adventure_log, p.hide_from_leaderboards, p.dm_goals, p.dm_events, p.hide_discord_link, p.privacy_chosen
                      FROM younglings.player_link l JOIN younglings.member_profile p ON p.guild_id = l.guild_id AND p.discord_user_id = l.discord_user_id
                      WHERE l.guild_id = ? AND LOWER(l.rsn) = LOWER(?)""")) {
             s.setLong(1, guildId);
@@ -157,19 +251,42 @@ public class MemberProfileRepository {
             try (ResultSet rs = s.executeQuery()) {
                 if (!rs.next()) return null;
                 return new Profile(guildId, rs.getLong("discord_user_id"), rs.getString("bio"), rs.getString("accent_color"), (Integer) rs.getObject("pinned_skill"),
-                        rs.getBoolean("hide_adventure_log"), rs.getBoolean("hide_from_leaderboards"), rs.getBoolean("dm_goals"), rs.getBoolean("dm_events"), rs.getBoolean("hide_discord_link"));
+                        rs.getBoolean("hide_adventure_log"), rs.getBoolean("hide_from_leaderboards"), rs.getBoolean("dm_goals"), rs.getBoolean("dm_events"), rs.getBoolean("hide_discord_link"),
+                        rs.getBoolean("privacy_chosen"));
             }
         } catch (SQLException e) {
             throw fail("read a profile by name", e);
         }
     }
 
-    /** Lower-cased RuneScape names whose owners hid them from rankings ({@code leaderboards = true}) or hid their adventure log. */
+    /**
+     * Whether {@code rsn}'s adventure log is hidden on this server: the linked member's own toggle once they chose, before that their toggle or
+     * the server's default; for a name nobody linked, the server's default.
+     */
+    public boolean adventureLogHidden(long guildId, String rsn) {
+        PrivacyDefaults d = privacyDefaults(guildId);
+        Profile p = getProfileForRsn(guildId, rsn);
+        return p == null ? d.hideAdventureLog() : p.withDefaults(d).hideAdventureLog();
+    }
+
+    /**
+     * Lower-cased RuneScape names whose owners hid them from rankings ({@code leaderboards = true}) or hid their adventure log. When the
+     * server's {@link PrivacyDefaults} hide that by default, also every current clan member whose name isn't linked to someone who chose
+     * their own privacy toggles (T-395): a member who never chose (or never linked) follows the default.
+     */
     public Set<String> hiddenRsns(long guildId, boolean leaderboards) {
         String column = leaderboards ? "hide_from_leaderboards" : "hide_adventure_log";
+        PrivacyDefaults d = privacyDefaults(guildId);
+        boolean byDefault = leaderboards ? d.hideFromLeaderboards() : d.hideAdventureLog();
+        String sql = "SELECT LOWER(l.rsn) AS rsn FROM younglings.player_link l JOIN younglings.member_profile p ON p.guild_id = l.guild_id AND p.discord_user_id = l.discord_user_id WHERE l.guild_id = ? AND p." + column;
+        if (byDefault) sql += " " + """
+                 UNION SELECT LOWER(m.rsn) AS rsn FROM younglings.clan_member m WHERE m.guild_id = ? AND m.active AND NOT EXISTS (
+                     SELECT 1 FROM younglings.player_link l JOIN younglings.member_profile p ON p.guild_id = l.guild_id AND p.discord_user_id = l.discord_user_id
+                     WHERE l.guild_id = m.guild_id AND LOWER(l.rsn) = LOWER(m.rsn) AND p.privacy_chosen)""";
         try (Connection c = connectionSupplier.getConnection();
-             PreparedStatement s = c.prepareStatement("SELECT LOWER(l.rsn) AS rsn FROM younglings.player_link l JOIN younglings.member_profile p ON p.guild_id = l.guild_id AND p.discord_user_id = l.discord_user_id WHERE l.guild_id = ? AND p." + column)) {
+             PreparedStatement s = c.prepareStatement(sql)) {
             s.setLong(1, guildId);
+            if (byDefault) s.setLong(2, guildId);
             Set<String> hidden = new HashSet<>();
             try (ResultSet rs = s.executeQuery()) {
                 while (rs.next()) hidden.add(rs.getString("rsn"));
@@ -180,11 +297,20 @@ public class MemberProfileRepository {
         }
     }
 
-    /** Discord users who asked not to be linked to their clan profile from the Who's Online list. */
+    /**
+     * Discord users who asked not to be linked to their clan profile from the Who's Online list; when the server's defaults hide that, also
+     * everyone with a linked name here who hasn't chosen their own privacy toggles.
+     */
     public Set<Long> hiddenDiscordUsers(long guildId) {
+        boolean byDefault = privacyDefaults(guildId).hideDiscordLink();
+        String sql = "SELECT discord_user_id FROM younglings.member_profile WHERE guild_id = ? AND hide_discord_link";
+        if (byDefault) sql += " " + """
+                 UNION SELECT l.discord_user_id FROM younglings.player_link l WHERE l.guild_id = ? AND NOT EXISTS (
+                     SELECT 1 FROM younglings.member_profile p WHERE p.guild_id = l.guild_id AND p.discord_user_id = l.discord_user_id AND p.privacy_chosen)""";
         try (Connection c = connectionSupplier.getConnection();
-             PreparedStatement s = c.prepareStatement("SELECT discord_user_id FROM younglings.member_profile WHERE guild_id = ? AND hide_discord_link")) {
+             PreparedStatement s = c.prepareStatement(sql)) {
             s.setLong(1, guildId);
+            if (byDefault) s.setLong(2, guildId);
             Set<Long> hidden = new HashSet<>();
             try (ResultSet rs = s.executeQuery()) {
                 while (rs.next()) hidden.add(rs.getLong(1));

@@ -111,7 +111,7 @@ class BotlessSiteEndToEndDatabaseTest {
                 new com.younglings.bot.access.OverallAdmins(new com.younglings.bot.access.OverallAdminRepository(db), owners));
         ClanSiteAdminApi clanSite = new ClanSiteAdminApi(sites, layouts, siteService, profiles, owners, mock(Premium.class), roles,
                 new SiteDiscordService(new SiteConnectionStore(db, new SiteDiscordSettings(db), new SiteNewsService(db)), new SiteDiscordSettings(db),
-                        new SiteNewsService(db), mock(MemberProfileRepository.class), new SiteCache()), mock(SiteAddressRoutes.class));
+                        new SiteNewsService(db), mock(MemberProfileRepository.class), new SiteCache()), mock(SiteAddressRoutes.class), mock(SiteMembersAdmin.class));
         ImageUploadService images = new ImageUploadService(new UploadedImageRepository(db, new UploadedImageDatabaseInitializer(db)));
         grants = new AccessGrantRepository(db);
         grantService = new AccessGrantService(GateSource.ownTables(null, grants::all, null));

@@ -50,6 +50,8 @@ import com.younglings.bot.config.BotBrand;
  *   (copies it into the draft; never publishes)</li>
  *   <li>connections (N7): {@code GET|PUT clan-site/connections} and {@code POST clan-site/connections/connect|disconnect}, the site
  *   admin's Discord server, data provider and Discord features ({@link SiteDiscordService})</li>
+ *   <li>members ({@link SiteMembersAdmin}): {@code GET|PUT clan-site/member-privacy} (T-395) and {@code GET clan-site/roles/people?q=&role=&page=}
+ *   (T-396), admin; for a GET, {@code body} holds the query string's parameters</li>
  * </ul>
  * Reached only through {@link TicketAdminApi}, which has already checked the asker may use the dashboard here and audit-logs every write.
  */
@@ -73,10 +75,12 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
     static final String DISCORD_ROLES_UNAVAILABLE = "Discord roles are unavailable without the bot: add RuneClan Bot to the server to pick roles, or name editors by Discord user ID.";
 
     private final SiteAddressRoutes address;
+    private final SiteMembersAdmin members;
 
     public ClanSiteAdminApi(ClanSiteRepository repository, ClanSiteLayoutRepository layouts, ClanSiteService sites, ClanProfileService profiles, BotOwners owners,
-                            Premium premium, SiteRoleGuard siteRoles, SiteDiscordService discord, SiteAddressRoutes address) {
+                            Premium premium, SiteRoleGuard siteRoles, SiteDiscordService discord, SiteAddressRoutes address, SiteMembersAdmin members) {
         this.address = address;
+        this.members = members;
         this.repository = repository;
         this.layouts = layouts;
         this.sites = sites;
@@ -135,7 +139,12 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
         if (parts.length < 1 || !parts[0].equals("clan-site")) return null;
         SiteRoles.Action action = actionFor(method, parts);
         if (action != null && !c.may(siteRoles, action)) throw new ApiError(403, Text.of(c.guildId(), "dashboard.the_website_can_t_be_saved"), List.of(refusal(action)));
+        if (parts.length == 3 && parts[1].equals("roles") && parts[2].equals("people")) {
+            AdminRouteExtension.requireMethod(method, "GET");
+            return members.people(c, body.get());
+        }
         if (parts.length >= 2 && parts[1].equals("roles")) return roles(c, method, parts, body);
+        if (parts.length == 2 && parts[1].equals("member-privacy")) return members.privacy(c, method, body);
         if (parts.length >= 2 && parts[1].equals("connections")) return connections(c, method, parts, body);
         if (parts.length >= 2 && parts.length <= 3 && parts[1].equals("address")) return address.route(c.guildId(), method, parts.length == 3 ? parts[2] : "", body);
         if (parts.length == 1) {
@@ -470,6 +479,7 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
         layouts.delete(id);
         repository.delete(id);
         siteRoles.delete(id);
+        members.forget(id);
         return get(c);
     }
 

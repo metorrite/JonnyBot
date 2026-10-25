@@ -1,7 +1,6 @@
 package com.younglings.bot.clansite;
 
 import com.younglings.bot.member.MemberProfileRepository;
-import com.younglings.bot.member.MemberProfileRepository.Profile;
 import com.younglings.bot.runeclans.RuneClansHubClient;
 import net.dv8tion.jda.api.utils.data.DataArray;
 import net.dv8tion.jda.api.utils.data.DataObject;
@@ -39,11 +38,7 @@ class ClanSitePluginFeedTest {
 
     private static MemberProfileRepository profiles(String hiddenRsn) {
         MemberProfileRepository profiles = mock(MemberProfileRepository.class);
-        if (hiddenRsn != null) {
-            Profile hidden = mock(Profile.class);
-            when(hidden.hideAdventureLog()).thenReturn(true);
-            when(profiles.getProfileForRsn(eq(GUILD), eq(hiddenRsn))).thenReturn(hidden);
-        }
+        if (hiddenRsn != null) when(profiles.adventureLogHidden(eq(GUILD), eq(hiddenRsn))).thenReturn(true);
         return profiles;
     }
 

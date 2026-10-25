@@ -467,12 +467,17 @@ public class SiteApi {
         return ranks;
     }
 
+    /**
+     * The whole in-game clan list. {@code pagePublic} (T-416): whether the member's own page can be opened ({@link #visibleMember}); false for a
+     * member hidden from the rankings, by their choice or the server's member privacy defaults, so the directory shows their name unlinked.
+     */
     DataObject members(long guildId) {
         List<MemberRow> members = stats.members(guildId);
+        Set<String> hiddenBoards = profiles.hiddenRsns(guildId, true);
         DataArray array = DataArray.empty();
         members.stream()
                 .sorted(Comparator.comparingInt(MemberRow::rankOrder).reversed().thenComparing(m -> m.rsn().toLowerCase()))
-                .forEach(m -> array.add(memberJson(m)));
+                .forEach(m -> array.add(memberJson(m).put("pagePublic", shown(hiddenBoards, m.rsn()))));
         return DataObject.empty().put("members", array).put("ranks", ranksJson(guildId, members));
     }
 
@@ -667,7 +672,7 @@ public class SiteApi {
         Profile chosen = profiles.getProfileForRsn(guildId, row.rsn());
         json.put("bio", chosen == null ? "" : chosen.bio()).put("accentColor", chosen == null ? null : chosen.accentColor())
                 .put("pinnedSkill", chosen == null ? null : chosen.pinnedSkill());
-        boolean hideLog = chosen != null && chosen.hideAdventureLog();
+        boolean hideLog = profiles.adventureLogHidden(guildId, row.rsn());
         json.put("adventureLogHidden", hideLog);
 
         // Adventure log.

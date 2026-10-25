@@ -1,7 +1,6 @@
 package com.younglings.bot.clansite;
 
 import com.younglings.bot.member.MemberProfileRepository;
-import com.younglings.bot.member.MemberProfileRepository.Profile;
 import com.younglings.bot.runeclans.RuneClansHubClient;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.utils.data.DataArray;
@@ -52,8 +51,7 @@ public class ClanSitePluginFeed {
     }
 
     private boolean hidden(long guildId, String rsn) {
-        Profile p = profiles.getProfileForRsn(guildId, rsn);
-        return p != null && p.hideAdventureLog();
+        return profiles.adventureLogHidden(guildId, rsn);
     }
 
     /**
