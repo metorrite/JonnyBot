@@ -119,34 +119,7 @@ public class SiteApi {
             // already caches too, but this protects the bot's database from several instances or a cold start.
             String cacheKey = route + "?" + exchange.getRequestURI().getRawQuery();
             final String finalRoute = route;
-            long id = guild.getIdLong();
-            DataObject result = cache.get(cacheKey, ttlMillis(route), () -> switch (finalRoute) {
-                case "online" -> online(guild);
-                case "events" -> events(guild);
-                case "members" -> members(id);
-                case "overview" -> overview(id);
-                case "member" -> member(id, query(exchange, "rsn"));
-                case "member/skill" -> memberSkill(id, query(exchange, "rsn"), query(exchange, "skill"));
-                case "leaderboard" -> leaderboard(id, query(exchange, "month"), query(exchange, "period"));
-                case "coffer" -> coffer(id);
-                case "feed" -> feed(id, query(exchange, "limit"), query(exchange, "kind"));
-                case "records" -> records(id);
-                case "citadel-grid" -> citadelGrid(id, query(exchange, "weeks"));
-                case "history" -> history(id);
-                case "polls" -> polls(id);
-                case "signups" -> signups(id);
-                case "news" -> DataObject.empty().put("posts", news.latest(guild, 14));
-                case "recap" -> recap.build(id, query(exchange, "scope"), query(exchange, "rsn"), query(exchange, "period"));
-                case "pvm" -> pvm(id);
-                case "drops" -> drops(id);
-                case "options" -> DataObject.empty().put("navEventBubble", community.navEventBubble(id));
-                case "bosses" -> bossStats.bosses(id, query(exchange, "period"));
-                case "boss" -> bossStats.boss(id, query(exchange, "boss"), query(exchange, "period"));
-                case "item" -> bossStats.item(id, query(exchange, "item"), query(exchange, "period"), query(exchange, "boss"));
-                case "drop-log" -> bossStats.drops(id, query(exchange, "period"), query(exchange, "bosses"));
-                case "me" -> me(guild, query(exchange, "userId"));
-                default -> null;
-            });
+            DataObject result = cache.get(cacheKey, ttlMillis(route), () -> answer(guild, finalRoute, exchange));
 
             if (result == null) {
                 InternalApiServer.sendJson(exchange, 404, DataObject.empty().put("error", "Not found"));
@@ -157,6 +130,55 @@ public class SiteApi {
             log.error("Site API request {} failed", exchange.getRequestURI().getPath(), e);
             InternalApiServer.sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));
         }
+    }
+
+    /** The home server's answer for one {@code /internal/site/} route, uncached; null for a route that doesn't exist. */
+    DataObject answer(Guild guild, String route, HttpExchange exchange) {
+        long id = guild.getIdLong();
+        return switch (route) {
+            case "online" -> online(guild);
+            case "events" -> events(guild);
+            case "members" -> members(id);
+            case "overview" -> overview(id);
+            case "member" -> member(id, query(exchange, "rsn"));
+            case "member/skill" -> memberSkill(id, query(exchange, "rsn"), query(exchange, "skill"));
+            case "leaderboard" -> leaderboard(id, query(exchange, "month"), query(exchange, "period"));
+            case "coffer" -> coffer(id);
+            case "feed" -> feed(id, query(exchange, "limit"), query(exchange, "kind"));
+            case "records" -> records(id);
+            case "citadel-grid" -> citadelGrid(id, query(exchange, "weeks"));
+            case "history" -> history(id);
+            case "polls" -> polls(id);
+            case "signups" -> signups(id);
+            case "news" -> DataObject.empty().put("posts", news.latest(guild, 14));
+            case "recap" -> recap.build(id, query(exchange, "scope"), query(exchange, "rsn"), query(exchange, "period"));
+            case "pvm" -> pvm(id);
+            case "drops" -> drops(id);
+            case "options" -> DataObject.empty().put("navEventBubble", community.navEventBubble(id));
+            case "bosses" -> bossStats.bosses(id, query(exchange, "period"));
+            case "boss" -> bossStats.boss(id, query(exchange, "boss"), query(exchange, "period"));
+            case "item" -> bossStats.item(id, query(exchange, "item"), query(exchange, "period"), query(exchange, "boss"));
+            case "drop-log" -> bossStats.drops(id, query(exchange, "period"), query(exchange, "bosses"));
+            case "me" -> me(guild, query(exchange, "userId"));
+            default -> null;
+        };
+    }
+
+    /**
+     * The answers only the home server's own site has, which {@link #TENANT_ROUTES} lack (T-519): the news channel, the site options, the
+     * signed-in member's link state ("me", by the {@code userId} the website takes from its session), the live Discord list and Discord's
+     * events (the home site always shows them; a clan site only when its settings say so).
+     */
+    public static final java.util.Set<String> HOME_ROUTES = java.util.Set.of("news", "options", "me", "online", "events");
+
+    /**
+     * The home server's site read by server id (T-519, {@link GuildSiteRoutes}): {@link #HOME_ROUTES} answer exactly as {@code /internal/site/}
+     * does, every other route is the clan-site answer ({@link #tenant}), with its privacy rules. Null for any other route.
+     */
+    public DataObject home(Guild guild, String route, HttpExchange exchange) {
+        if (!HOME_ROUTES.contains(route)) return tenant(guild, route, exchange);
+        String cacheKey = route + "?" + exchange.getRequestURI().getRawQuery() + "#g" + guild.getIdLong();
+        return cache.get(cacheKey, ttlMillis(route), () -> answer(guild, route, exchange));
     }
 
     /**
