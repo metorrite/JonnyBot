@@ -12,10 +12,10 @@ import java.util.Optional;
 /**
  * Discord on a clan website (builder v3, T-365), only while the site is published and the server is in the beta:
  * <ul>
- *   <li>{@code GET sites/{slug}/data/discord/online}: who's online, as much as the admin's mode allows ({@code count}, {@code names},
- *   {@code names+avatars}); 404 {@code disabled} while the mode is off; {@code unavailable} without the Presence intent</li>
- *   <li>{@code GET sites/{slug}/data/discord/feed?channel=&limit=}: the newest posts from the channels the admin opted in (all of them, or
- *   one), at most 25; 404 for a channel that isn't one of them</li>
+ *   <li>{@code GET sites/{slug}/data/discord/online}: who's online, as much as the site's mode allows ({@code count}, {@code names},
+ *   {@code names+avatars}); 404 {@code disabled} while the mode is off or the server is disconnected; {@code unavailable} without the Presence intent</li>
+ *   <li>{@code GET sites/{slug}/data/discord/feed?channel=}: the newest posts from the channels the admin opted in (all of them, or one),
+ *   as many as the site's feed setting (N7, at most 25); 404 for a channel that isn't one of them</li>
  *   <li>{@code GET|POST sites/{slug}/discord/me?userId=}: a signed-in member's own choice to be left out of the online names
  *   ({@code {"hidden": true}}); the user id comes only from the website's verified session</li>
  * </ul>
@@ -68,7 +68,7 @@ public class DirectorySiteDiscordRoutes implements DirectoryRouteModule {
                 if (online == null) request.sendError(404, "disabled");
                 else request.send(200, online);
             } else {
-                DataObject feed = discord.feed(guild, request.query("channel"), limit(request));
+                DataObject feed = discord.feed(guild, request.query("channel"));
                 if (feed == null) request.sendError(404, "Not found");
                 else request.send(200, feed);
             }
@@ -103,14 +103,5 @@ public class DirectorySiteDiscordRoutes implements DirectoryRouteModule {
     /** Whether the site at {@code slug} is a live bot-less one. */
     private boolean botless(DirectoryRequest request, String slug) {
         return request.viewable(slug).flatMap(p -> sites.visible(p.guildId())).map(site -> sites.botless(site.guildId())).orElse(false);
-    }
-
-    private static int limit(DirectoryRequest request) {
-        try {
-            String raw = request.query("limit");
-            return raw == null ? 10 : Integer.parseInt(raw);
-        } catch (NumberFormatException e) {
-            return 10;
-        }
     }
 }

@@ -48,11 +48,14 @@ import com.younglings.bot.config.BotBrand;
  *   {@code POST clan-site/layout/publish} takes an optional {@code {label}} and records a version; {@code GET clan-site/layout/versions},
  *   {@code GET clan-site/layout/versions/{id}} (with its layout) and {@code POST clan-site/layout/versions/{id}/restore} {@code {baseRev?}}
  *   (copies it into the draft; never publishes)</li>
+ *   <li>connections (N7): {@code GET|PUT clan-site/connections} and {@code POST clan-site/connections/connect|disconnect}, the site
+ *   admin's Discord server, data provider and Discord features ({@link SiteDiscordService})</li>
  * </ul>
  * Reached only through {@link TicketAdminApi}, which has already checked the asker may use the dashboard here and audit-logs every write.
  */
 @BService
 public class ClanSiteAdminApi implements AdminRouteExtension {
+    static final String ROOT = "clan-site";
     static final int MAX_REASON = 300;
 
     private final ClanSiteRepository repository;
@@ -62,6 +65,7 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
     private final BotOwners owners;
     private final Premium premium;
     private final SiteRoleGuard siteRoles;
+    private final SiteDiscordService discord;
     /** Layout saves and restores per server (on top of the per-person admin limit): the editor autosaves, so a burst of 3 and then one a second. */
     private final RateLimiter layoutSaves = new RateLimiter(3, 1_000);
     static final int MAX_ROLES_PER_LIST = 20;
@@ -69,7 +73,7 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
     static final String DISCORD_ROLES_UNAVAILABLE = "Discord roles are unavailable without the bot: add RuneClan Bot to the server to pick roles, or name editors by Discord user ID.";
 
     public ClanSiteAdminApi(ClanSiteRepository repository, ClanSiteLayoutRepository layouts, ClanSiteService sites, ClanProfileService profiles, BotOwners owners,
-                            Premium premium, SiteRoleGuard siteRoles) {
+                            Premium premium, SiteRoleGuard siteRoles, SiteDiscordService discord) {
         this.repository = repository;
         this.layouts = layouts;
         this.sites = sites;
@@ -77,6 +81,7 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
         this.owners = owners;
         this.premium = premium;
         this.siteRoles = siteRoles;
+        this.discord = discord;
     }
 
     /**
@@ -97,7 +102,8 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
                 yield SiteRoles.Action.EDIT;
             }
             case "publish", "unpublish" -> SiteRoles.Action.PUBLISH;
-            case "roles" -> parts.length == 3 && parts[2].equals("hand-over") ? SiteRoles.Action.OWN : SiteRoles.Action.SETTINGS;
+            case "roles" -> parts.length == 3 && (parts[2].equals("hand-over") || (parts[2].equals("admin-access") && !get))
+                    ? SiteRoles.Action.OWN : SiteRoles.Action.SETTINGS;
             case "delete" -> SiteRoles.Action.OWN;
             case "takedown", "restore" -> null;
             default -> SiteRoles.Action.SETTINGS;
@@ -127,6 +133,7 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
         SiteRoles.Action action = actionFor(method, parts);
         if (action != null && !c.may(siteRoles, action)) throw new ApiError(403, Text.of(c.guildId(), "dashboard.the_website_can_t_be_saved"), List.of(refusal(action)));
         if (parts.length >= 2 && parts[1].equals("roles")) return roles(c, method, parts, body);
+        if (parts.length >= 2 && parts[1].equals("connections")) return connections(c, method, parts, body);
         if (parts.length == 1) {
             if (method.equals("GET")) return get(c);
             AdminRouteExtension.requireMethod(method, "PUT");
@@ -462,6 +469,26 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
         return get(c);
     }
 
+    // ---------- connections (N7, the site admin's Connections page) ----------
+
+    /**
+     * {@code GET|PUT clan-site/connections}, {@code POST clan-site/connections/connect} {@code {guildId}} and {@code POST
+     * clan-site/connections/disconnect}: the site's Discord server, its data provider and its Discord features ({@link SiteDiscordService}).
+     * Admin, like the site's other settings.
+     */
+    DataObject connections(SiteCaller c, String method, String[] parts, Supplier<DataObject> body) {
+        if (parts.length == 2) {
+            if (method.equals("GET")) return botPresence(c, discord.connectionState(c));
+            AdminRouteExtension.requireMethod(method, "PUT");
+            return botPresence(c, discord.saveConnection(c, body.get()));
+        }
+        if (parts.length == 3 && (parts[2].equals("connect") || parts[2].equals("disconnect"))) {
+            AdminRouteExtension.requireMethod(method, "POST");
+            return botPresence(c, discord.connect(c, parts[2].equals("connect"), body.get()));
+        }
+        return null;
+    }
+
     // ---------- site roles (T-368, docs/BUILDER-V3.md 8.2) ----------
 
     private static String refusal(SiteRoles.Action action) {
@@ -499,6 +526,12 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
             siteRoles.handOver(id, to, c.userId());
             return rolesJson(c);
         }
+        if (parts.length == 3 && parts[2].equals("admin-access")) {
+            if (method.equals("GET")) return rolesJson(c);
+            AdminRouteExtension.requireMethod(method, "PUT");
+            siteRoles.saveAdminAccess(id, adminAccess(c, body.get()), c.userId());
+            return rolesJson(c);
+        }
         if (parts.length != 2) return null;
         if (method.equals("GET")) return rolesJson(c);
         AdminRouteExtension.requireMethod(method, "PUT");
@@ -513,6 +546,48 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
         if (!problems.isEmpty()) throw new ApiError(400, Text.of(c.guildId(), "dashboard.the_website_can_t_be_saved"), distinct(problems));
         siteRoles.save(id, new SiteRoles.Settings(editors, members, staff, b.getBoolean("editorsMayPublish", false), current.claimedBy(), editorUsers), c.userId());
         return rolesJson(c);
+    }
+
+    /**
+     * The Discord permissions the staff-server rule may ask for (N5), by the website's key: a member of the staff server holding it (or
+     * Administrator, or owning that server) may open the site admin.
+     */
+    static final java.util.Map<String, Long> STAFF_PERMISSIONS = java.util.Map.of(
+            "administrator", 0x8L, "manage_server", 0x20L, "manage_roles", 0x10000000L, "manage_channels", 0x10L,
+            "ban_members", 0x4L, "kick_members", 0x2L, "manage_messages", 0x2000L, "moderate_members", 0x10000000000L);
+
+    /**
+     * {@code PUT clan-site/roles/admin-access} {@code {userIds, roleIds, staffServerId, staffPermission}}: who else may open this site's admin
+     * panel, checked whole. The site's owner (and overall admins) only. Each list at most {@link #MAX_ROLES_PER_LIST}; roles must exist in the
+     * server (none on a bot-less site, which can't see roles); {@code staffServerId} null or a server id, {@code staffPermission} a key of
+     * {@link #STAFF_PERMISSIONS}. A key left out keeps what is stored.
+     */
+    private SiteRoles.AdminAccess adminAccess(SiteCaller c, DataObject b) {
+        SiteRoles.AdminAccess current = siteRoles.settings(c.guildId()).adminAccess();
+        List<String> problems = new ArrayList<>();
+        List<Long> users = b.hasKey("userIds") ? userIds(b, "userIds", problems) : current.userIds();
+        List<Long> roles = b.hasKey("roleIds") ? roleIds(c, b, "roleIds", false, problems) : current.roleIds();
+        Long server = current.staffServerId();
+        long permission = current.staffPermission();
+        if (b.hasKey("staffServerId")) {
+            String raw = b.isNull("staffServerId") ? "" : b.getString("staffServerId", "").strip();
+            if (raw.isEmpty()) server = null;
+            else if (parseId(raw) == 0) problems.add("The staff server must be a Discord server ID (17 to 20 digits).");
+            else server = parseId(raw);
+        }
+        if (b.hasKey("staffPermission")) {
+            Long bits = b.isNull("staffPermission") ? null : STAFF_PERMISSIONS.get(b.getString("staffPermission", ""));
+            if (bits == null && server != null) problems.add("Pick the permission staff need in that server.");
+            permission = bits == null ? 0 : bits;
+        }
+        if (server != null && permission == 0) problems.add("Pick the permission staff need in that server.");
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(c.guildId(), "dashboard.the_website_can_t_be_saved"), distinct(problems));
+        return new SiteRoles.AdminAccess(users, roles, server, permission);
+    }
+
+    private static String permissionKey(long bits) {
+        for (var e : STAFF_PERMISSIONS.entrySet()) if (e.getValue() == bits) return e.getKey();
+        return null;
     }
 
     /**
@@ -540,11 +615,11 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
         return List.copyOf(out);
     }
 
-    /** Editors named by Discord user id: at most {@link #MAX_ROLES_PER_LIST}, each 17 to 20 digits. */
+    /** People named by Discord user id (editors, or site admins): at most {@link #MAX_ROLES_PER_LIST}, each 17 to 20 digits. */
     private static List<Long> userIds(DataObject body, String key, List<String> problems) {
         DataArray raw = body.optArray(key).orElse(DataArray.empty());
         if (raw.length() > MAX_ROLES_PER_LIST) {
-            problems.add("Name up to " + MAX_ROLES_PER_LIST + " editors by their Discord user ID.");
+            problems.add("Name up to " + MAX_ROLES_PER_LIST + " people by their Discord user ID.");
             return List.of();
         }
         Set<Long> out = new LinkedHashSet<>();
@@ -572,6 +647,9 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
                 .put("staffRoleIds", idsJson(s.staffRoleIds())).put("editorsMayPublish", s.editorsMayPublish())
                 .put("editorUserIds", idsJson(s.editorUserIds())).put("discordRoles", discordRoles)
                 .put("claimedBy", s.claimedBy() == null ? null : String.valueOf(s.claimedBy()))
+                .put("adminAccess", DataObject.empty().put("userIds", idsJson(s.adminAccess().userIds())).put("roleIds", idsJson(s.adminAccess().roleIds()))
+                        .put("staffServerId", s.adminAccess().staffServerId() == null ? null : String.valueOf(s.adminAccess().staffServerId()))
+                        .put("staffPermission", permissionKey(s.adminAccess().staffPermission())))
                 .put("you", youJson(c)));
     }
 
@@ -585,7 +663,8 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
         SiteRoles.Role role = c.role(siteRoles);
         SiteRoles.Settings s = siteRoles.settings(c.guildId());
         return DataObject.empty().put("role", role.key()).put("canPublish", SiteRoles.allows(role, SiteRoles.Action.PUBLISH, s))
-                .put("canChangeSettings", SiteRoles.allows(role, SiteRoles.Action.SETTINGS, s)).put("isOwner", role == SiteRoles.Role.OWNER);
+                .put("canChangeSettings", SiteRoles.allows(role, SiteRoles.Action.SETTINGS, s)).put("isOwner", role == SiteRoles.Role.OWNER)
+                .put("overallAdmin", c.facts() != null ? c.facts().overallAdmin() : siteRoles.overallAdmin(c.jda(), c.userId()));
     }
 
     private static DataArray idsJson(List<Long> ids) {

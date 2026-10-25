@@ -120,7 +120,8 @@ class SiteApiTenantDatabaseTest {
         when(settings.getEffective(anyLong())).thenReturn(mock(GuildSettings.class));
         cache = new SiteCache();
         api = new SiteApi(stats, links, points, settings, digest, profiles, mock(SiteNewsService.class), mock(SignupService.class),
-                cache, new RecapService(stats, profiles, digest, settings), community, new BossStatsService(stats, profiles, catalog));
+                cache, new RecapService(stats, profiles, digest, settings), community, new BossStatsService(stats, profiles, catalog),
+                discordShowingEvents());
         guildA = guild(GUILD_A);
         guildB = guild(GUILD_B);
 
@@ -324,5 +325,12 @@ class SiteApiTenantDatabaseTest {
                 return rs.getLong(1);
             }
         }
+    }
+
+    /** The site's connections leave Discord events on, as for a site that never changed them. */
+    private static SiteDiscordService discordShowingEvents() {
+        SiteDiscordService discord = mock(SiteDiscordService.class);
+        when(discord.eventsShown(org.mockito.ArgumentMatchers.anyLong())).thenReturn(true);
+        return discord;
     }
 }

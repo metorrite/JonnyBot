@@ -38,6 +38,13 @@ public class BotOwners {
         return owners(jda).contains(userId) || config.getOwnerIds().contains(userId);
     }
 
+    /** Everyone known to own the bot right now (the application's owner or team, and {@code OWNER_IDS}), for showing the built-in admins. */
+    public Set<Long> known(JDA jda) {
+        Set<Long> all = new HashSet<>(owners(jda));
+        all.addAll(config.getOwnerIds());
+        return Set.copyOf(all);
+    }
+
     private Set<Long> owners(JDA jda) {
         if (clock.getAsLong() < nextLookupAt) return owners;
 

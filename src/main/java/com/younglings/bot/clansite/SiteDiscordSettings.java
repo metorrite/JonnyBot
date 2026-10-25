@@ -16,15 +16,15 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * Discord on a clan website (builder v3, T-365): how much the "who's online" widget may show, and which members asked not to be named in
- * it. Off until an admin picks a mode. The channel feed's channels are the server's website news channels ({@code site_news_channel}),
- * which are already per server.
+ * Discord on a clan website (builder v3, T-365): which members asked not to be named in the "who's online" list, and the online modes. The
+ * site's own Discord settings (the mode, the feeds' channels) are its connections now ({@link SiteConnectionStore}, N7); the old
+ * {@code site_discord_setting.online_mode} column is kept only as the source of that store's one-time copy.
  */
 @BService
 public class SiteDiscordSettings {
     private static final Logger log = LoggerFactory.getLogger(SiteDiscordSettings.class);
 
-    /** How much the online widget may show; a widget never shows more than this, whatever its own settings say. */
+    /** How much the site's online list shows: the one setting, on the site admin's Connections page. */
     public enum OnlineMode {
         OFF("off"), COUNT("count"), NAMES("names"), NAMES_AVATARS("names+avatars");
 
@@ -67,33 +67,6 @@ public class SiteDiscordSettings {
                     PRIMARY KEY (guild_id, discord_user_id)
                 );
                 """));
-    }
-
-    public OnlineMode onlineMode(long guildId) {
-        try (Connection c = connectionSupplier.getConnection();
-             PreparedStatement s = c.prepareStatement("SELECT online_mode FROM younglings.site_discord_setting WHERE guild_id = ?")) {
-            s.setLong(1, guildId);
-            try (ResultSet rs = s.executeQuery()) {
-                return rs.next() ? OnlineMode.parse(rs.getString(1)).orElse(OnlineMode.OFF) : OnlineMode.OFF;
-            }
-        } catch (SQLException e) {
-            throw fail("read the online mode", e);
-        }
-    }
-
-    public void saveOnlineMode(long guildId, OnlineMode mode, long actorId) {
-        try (Connection c = connectionSupplier.getConnection();
-             PreparedStatement s = c.prepareStatement("""
-                     INSERT INTO younglings.site_discord_setting (guild_id, online_mode, updated_by, updated_at) VALUES (?, ?, ?, NOW())
-                     ON CONFLICT (guild_id) DO UPDATE SET online_mode = EXCLUDED.online_mode, updated_by = EXCLUDED.updated_by, updated_at = NOW()
-                     """)) {
-            s.setLong(1, guildId);
-            s.setString(2, mode.key());
-            s.setLong(3, actorId);
-            s.executeUpdate();
-        } catch (SQLException e) {
-            throw fail("save the online mode", e);
-        }
     }
 
     /** Members who asked not to be named in the online widget; they are still counted. */

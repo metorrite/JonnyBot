@@ -76,23 +76,27 @@ public final class SiteDiscordRules {
     /**
      * The online answer for a mode other than off: {@code count} gives the number only; {@code names} adds display names grouped by hoisted
      * role (groups by role position, names alphabetical); {@code names+avatars} adds avatars. Hidden members are counted but never named,
-     * and they don't show inside a group either.
+     * and they don't show inside a group either. At most {@code limit} names (the site's one setting, N7) and never more than
+     * {@link #MAX_NAMED}; the rest are counted. {@code groupByRole} false puts everyone in one "Online" group.
      */
-    public static DataObject online(List<Person> people, OnlineMode mode, Set<Long> hidden) {
+    public static DataObject online(List<Person> people, OnlineMode mode, Set<Long> hidden, int limit, boolean groupByRole) {
         List<Person> online = people.stream().filter(SiteDiscordRules::online).toList();
-        DataObject answer = DataObject.empty().put("mode", mode.key()).put("unavailable", false).put("total", online.size());
+        DataObject answer = DataObject.empty().put("mode", mode.key()).put("unavailable", false).put("total", online.size())
+                .put("groupByRole", groupByRole);
         if (mode == OnlineMode.COUNT || mode == OnlineMode.OFF) return answer;
 
         List<Person> named = new ArrayList<>(online.stream().filter(p -> !hidden.contains(p.userId())).toList());
         named.sort(Comparator.comparing((Person p) -> p.group().position()).reversed()
                 .thenComparing(p -> p.displayName().toLowerCase()));
-        if (named.size() > MAX_NAMED) named = named.subList(0, MAX_NAMED);
+        int cap = Math.max(1, Math.min(MAX_NAMED, limit));
+        if (named.size() > cap) named = named.subList(0, cap);
 
         Map<Long, List<Person>> byGroup = new LinkedHashMap<>();
         Map<Long, Group> groups = new LinkedHashMap<>();
         for (Person p : named) {
-            groups.putIfAbsent(p.group().key(), p.group());
-            byGroup.computeIfAbsent(p.group().key(), k -> new ArrayList<>()).add(p);
+            Group group = groupByRole ? p.group() : Group.ONLINE;
+            groups.putIfAbsent(group.key(), group);
+            byGroup.computeIfAbsent(group.key(), k -> new ArrayList<>()).add(p);
         }
 
         DataArray groupArray = DataArray.empty();
@@ -109,7 +113,7 @@ public final class SiteDiscordRules {
     }
 
     /** The online answer while the Presence intent is off: nothing can be known, which is not the same as nobody being online. */
-    public static DataObject onlineUnavailable(OnlineMode mode) {
-        return DataObject.empty().put("mode", mode.key()).put("unavailable", true).put("total", 0);
+    public static DataObject onlineUnavailable(OnlineMode mode, boolean groupByRole) {
+        return DataObject.empty().put("mode", mode.key()).put("unavailable", true).put("total", 0).put("groupByRole", groupByRole);
     }
 }

@@ -80,11 +80,13 @@ public class InternalApiServer {
     private final java.util.List<InternalRouteModule> routeModules;
     private final com.younglings.bot.discord.jobs.DiscordOutbox outbox;
     private final BotlessAdminApi botlessAdmin;
+    private final OverallAdminApi overallAdmin;
     private JDA jda;
 
     public InternalApiServer(BotConfig botConfig, TicketAdminApi ticketAdminApi, SiteApi siteApi, DirectoryApi directoryApi, PluginApi pluginApi, MemberApi memberApi, ImageUploadService imageUploads,
                              CitadelWinners citadelWinners, FormsPublicApi formsApi, java.util.List<InternalRouteModule> routeModules, BotlessAdminApi botlessAdmin,
-                             com.younglings.bot.discord.jobs.DiscordOutbox outbox) {
+                             com.younglings.bot.discord.jobs.DiscordOutbox outbox, OverallAdminApi overallAdmin) {
+        this.overallAdmin = overallAdmin;
         this.outbox = outbox;
         this.botlessAdmin = botlessAdmin;
         this.formsApi = formsApi;
@@ -178,7 +180,7 @@ public class InternalApiServer {
      * header; without one it is the bot's home server, so the clan website's own admin console keeps working
      * unchanged. Whoever is asking is always checked against <em>that</em> server, never the home server's rules.
      * {@code /internal/admin/guilds} and {@code /internal/admin/beta-testers/me} are the routes with no server: the servers the asker may manage,
-     * and whether they may run a clan website without the bot.
+     * and whether they may run a clan website without the bot. {@code /internal/admin/overall/...} is the overall admin panel ({@link OverallAdminApi}, N5).
      * <p>
      * A server the bot isn't in (named in {@code X-Guild-Id}) goes to {@link BotlessAdminApi}, which serves a bot-less clan website's routes on
      * the website's signed sign-in facts ({@link ActorFacts}); a server the bot is in never looks at those facts.
@@ -198,6 +200,10 @@ public class InternalApiServer {
             }
             if (path.equals("/internal/admin/beta-testers/me") || path.equals("/internal/admin/beta-testers/me/")) {
                 botlessAdmin.handleBetaTesterMe(exchange, jda);
+                return;
+            }
+            if (OverallAdminApi.ours(path)) {
+                overallAdmin.handle(exchange, jda);
                 return;
             }
 
