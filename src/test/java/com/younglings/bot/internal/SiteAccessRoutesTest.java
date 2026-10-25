@@ -89,4 +89,16 @@ class SiteAccessRoutesTest {
         assertNull(ask(OVERALL, "POST", "structure"), "structure and audit are read-only here");
         assertNull(ask(0, "GET", "clan-site"), "nobody signed in");
     }
+
+    @Test
+    void siteAdminsMayChangeTheSitesLogoAndBannerButNobodyElse() {
+        assertNotNull(ask(OVERALL, "PUT", "images", "site", "logo"));
+        assertNotNull(ask(OVERALL, "DELETE", "images", "site", "banner"));
+        assertNotNull(ask(NAMED, "PUT", "images", "site", "logo"));
+        assertNull(ask(STRANGER, "PUT", "images", "site", "logo"));
+        assertNull(ask(0, "PUT", "images", "site", "logo"), "nobody signed in");
+        assertNull(ask(OVERALL, "GET", "images", "site", "logo"), "only writes");
+        assertNull(ask(OVERALL, "PUT", "images", "messages", "logo"), "the dashboard's own pictures stay closed");
+        assertNull(ask(OVERALL, "PUT", "images", "site"), "a slot is needed");
+    }
 }
