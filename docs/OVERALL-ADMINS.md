@@ -1,0 +1,89 @@
+# Overall RuneClans admins and site admin access (N5)
+
+Drake's decisions of 2026-10-24: an overall admin panel at runeclans.com/admin, overall admins who may open every clan site, and site owners who
+choose who else may open their own site's admin panel. This is the bot's side; the website's is in the runeclans repository
+(`packages/dashboard/src/lib/overallAdminLogic.ts`, `packages/api-client/src/serverFactsLogic.ts`).
+
+## 1. Who is an overall admin
+
+- **Built in:** the bot's owners, exactly as `BotOwners` decides: the Discord application's owner (or its team) plus `OWNER_IDS`. No Discord id is
+  written in the code. Drake is the application's owner, so he is the built-in admin with nothing to set up. A built-in admin can't be added or
+  removed through the panel; to change who is built in, change the Discord application's owner or `OWNER_IDS`.
+- **Added:** people a built-in admin added by Discord user id (`younglings.overall_admin`: `user_id`, `note`, `added_by`, `added_at`). Only a
+  built-in admin may add or remove them.
+- `OverallAdmins.isOverallAdmin(jda, userId)` is the one check. The added list is cached 30 seconds and dropped at once by every change made
+  through the API; a failed read keeps the last known list (it never adds anyone).
+
+## 2. What an overall admin may do
+
+- Use the whole panel: every clan site (`SiteOwnerAdminApi`'s routes), the beta testers, the premium access list. Only a built-in admin changes
+  the overall admins list.
+- Be the **owner of every clan site** (`SiteRoles.resolve`: `Facts.overallAdmin` gives `OWNER`), in the site's server or not, bot or no bot: open
+  its editor and its site admin, change its settings and its permissions, including who may open its site admin.
+
+The bot checks its own table on every request; the website sends nothing new for this. The website's `X-Actor-Id` (from its verified session)
+names the person, as for every admin route.
+
+## 3. The panel's routes (`/internal/admin/overall/...`)
+
+They name no server: `InternalApiServer` sends them to `OverallAdminApi` before any server is looked up, so an overall admin needs no place in
+the bot's home server. Every route but `whoami` needs an overall admin; writes are rate limited and audit-logged in the home server's log.
+
+| Route | Who | Answer |
+|---|---|---|
+| `GET overall/whoami` | anyone | `{overallAdmin, builtIn}` (always 200) |
+| `GET overall/admins` | overall admin | `{builtIn: [{userId}], admins: [{userId, note, addedBy, addedAt}], canManage}` |
+| `PUT overall/admins/{userId}` `{note?}` | built-in | the list; 400 for a built-in admin |
+| `DELETE overall/admins/{userId}` | built-in | the list; 400 for a built-in admin, 404 when not listed |
+| `GET overall/premium` | overall admin | `{grants: [{id, kind, targetId, startsAt, endsAt, note, grantedBy, grantedAt, active}], enforced: false}` |
+| `POST overall/premium` `{kind: "site"\|"user", targetId, startsAt?, endsAt?, note?}` | overall admin | the list (dates `YYYY-MM-DD`, UTC) |
+| `DELETE overall/premium/{id}` | overall admin | the list |
+| `overall/owner-sites...` | overall admin | `SiteOwnerAdminApi` (the T-423 console's routes) |
+| `overall/beta-testers...` | overall admin | `SiteBuilderBetaAdminApi`'s `beta-testers` routes |
+
+The old `owner-sites` and `beta-testers` routes in the home server stay as they were (the bot's owner only).
+
+**Premium access is structure only.** `younglings.premium_access_grant` is a separate table that nothing reads; `Premium` still reads only
+`premium_guild`, and premium stays off (`PREMIUM_ENABLED`). Reading these grants when premium is switched on is a deliberate later change.
+
+## 4. A site's own admin access
+
+Stored with the site's roles (`clan_site_roles`: `admin_user_ids`, `admin_role_ids`, `staff_server_id`, `staff_server_permission`), as
+`SiteRoles.AdminAccess`. Each one makes a person an `ADMIN` of that site (the OWNER/ADMIN/EDITOR model is unchanged, only extended):
+
+- **By Discord user id**, in the server or not (on a bot-less site's public pages too).
+- **By Discord role**: holders of one of the roles, where the bot is in the server (a bot-less site can't see roles and refuses them).
+- **The staff-server rule:** members of `staff_server_id` whose permissions there include `staff_server_permission` (Administrator always
+  counts), from the website's signed staff-server facts (section 5). Permissions offered: `administrator`, `manage_server`, `manage_roles`,
+  `manage_channels`, `ban_members`, `kick_members`, `manage_messages`, `moderate_members` (`ClanSiteAdminApi.STAFF_PERMISSIONS`).
+
+Routes: `GET clan-site/roles` now carries `adminAccess: {userIds, roleIds, staffServerId, staffPermission}` and `you.overallAdmin`;
+`PUT clan-site/roles/admin-access` `{userIds?, roleIds?, staffServerId?, staffPermission?}` (a key left out keeps what is stored) needs the site's
+**owner** (the server owner, whoever claimed the site, or an overall admin). Answers the roles.
+
+**People who aren't in the server, or who have no dashboard access, where the bot IS in the server:** `TicketAdminApi` asks
+`SiteAccessRoutes` before its 403. When the site lets the person in, only the site's own paths open: `clan-site...` (each route checks its own
+role), `site-pictures...` (editors), `GET structure` and `GET audit` (site admins; the audit is always filtered to `clan-site`). Every write
+is rate limited and audit-logged ("RuneClans admin" or "Site admin" when the person isn't a member). Editors without dashboard access now come
+in this way too, with the same rights as before.
+
+**Bot-less sites:** overall admins and people let in by the site's admin access come in without being on the beta list themselves (the site's
+owner was).
+
+**The public viewer** (`/internal/directory/sites/{slug}/viewer`) answers `owner` for an overall admin and `admin` for the site's admin access,
+so the website opens the site admin for them; it reads the staff-server facts from the same call. The cached answer follows a change within a
+minute (the admin list change clears every cached answer at once).
+
+## 5. Signed staff-server facts (the contract change)
+
+A new pair of headers, next to `X-RC-Actor` (which is unchanged):
+
+- `X-RC-Servers`: base64url (no padding) of compact JSON
+  `{"v":1,"userId":"<id>","servers":{"<server id>":"<permission bits, decimal>",...},"iat":<unix s>,"exp":<unix s>}`. Only servers where the
+  person owns the server or holds one of the staff permissions above (an owner gets them all), at most 100 from the website (the bot reads 200).
+- `X-RC-Servers-Sig`: lowercase hex HMAC-SHA256 over the exact `X-RC-Servers` string, keyed with the internal secret.
+- Checked (`ServerFacts`): the signature (constant time), `v == 1`, `iat <= now + 60`, `exp > now`, `exp - iat <= 300`, and `userId` is the
+  person the request is for. Anything off is simply no staff servers (they only add access).
+
+Unlike `X-RC-Actor` these aren't about the server a call names, so the website sends them on every call that names a server and on the site
+viewer call. Both sides pin the same fixed vector (`ServerFactsTest`, `packages/api-client/tests/serverFacts.test.mjs`).
