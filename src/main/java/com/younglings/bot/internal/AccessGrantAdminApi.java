@@ -103,6 +103,7 @@ public class AccessGrantAdminApi implements AdminRouteExtension {
     }
 
     DataObject add(Guild guild, Member actor, DataObject body) {
+        HubAccessEdits.refuseWhenInHub(service.editedInHub());
         AccessArea area = AccessArea.ofKey(body.getString("area", "")).orElseThrow(() -> new ApiError(400, Text.of(guild, "dashboard.choose_an_area")));
         String note = body.getString("note", "").strip();
         if (note.length() > MAX_NOTE) throw new ApiError(400, Text.of(guild, "dashboard.keep_the_note_under_characters", MAX_NOTE));
@@ -133,6 +134,7 @@ public class AccessGrantAdminApi implements AdminRouteExtension {
     }
 
     DataObject remove(Guild guild, String rawId) {
+        HubAccessEdits.refuseWhenInHub(service.editedInHub());
         long id;
         try {
             id = Long.parseLong(rawId.strip());

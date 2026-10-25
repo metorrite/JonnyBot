@@ -162,6 +162,32 @@ class DirectoryRoutesTest {
         assertEquals("Not found", call("GET", "/internal/directory/sites/younglings/other", null).body().getString("error"));
     }
 
+    /** T-505 (D-14): the website asks by the guild id on the hub's site record and gets exactly the slug route's answer. */
+    @Test
+    void theGuildIdAliasAnswersTheSameAsTheSlugRoute() throws Exception {
+        ClanSite site = new ClanSite(GUILD, true, true, ClanSite.Template.values()[0], "{}", "[]", null, null, null, null);
+        Guild guild = mock(Guild.class);
+        when(repository.get(GUILD)).thenReturn(Optional.of(clan));
+        when(sites.visible(GUILD)).thenReturn(Optional.of(site));
+        when(jda.getGuildById(GUILD)).thenReturn(guild);
+        when(siteApi.tenant(eq(guild), eq("members"), any())).thenReturn(DataObject.empty().put("members", 3));
+        when(siteApi.tenant(eq(guild), eq("member/skill"), any())).thenReturn(DataObject.empty().put("skillId", 3));
+
+        for (String rest : List.of("/data/members", "/data/member/skill?rsn=Someone&skill=3", "/data/a/b/c", "/other")) {
+            Reply bySlug = call("GET", "/internal/directory/sites/younglings" + rest, null);
+            Reply byGuild = call("GET", "/internal/directory/guilds/" + GUILD + rest, null);
+            assertEquals(bySlug.status(), byGuild.status(), rest);
+            assertEquals(bySlug.body().toString(), byGuild.body().toString(), rest);
+        }
+        assertEquals(200, call("GET", "/internal/directory/guilds/" + GUILD + "/data/members", null).status());
+        assertEquals(405, call("POST", "/internal/directory/guilds/" + GUILD + "/data/members", "{}").status(), "the method reaches the route too");
+
+        // the site record itself comes from the hub; a server with no viewable clan, or not a number, is not found
+        assertEquals(404, call("GET", "/internal/directory/guilds/" + GUILD, null).status());
+        assertEquals(404, call("GET", "/internal/directory/guilds/8/data/members", null).status());
+        assertEquals(404, call("GET", "/internal/directory/guilds/abc/data/members", null).status());
+    }
+
     @Test
     void aClanSitesTwoPartAnswerReachesTheTenantRoute() throws Exception {
         ClanSite site = new ClanSite(GUILD, true, true, ClanSite.Template.values()[0], "{}", "[]", null, null, null, null);

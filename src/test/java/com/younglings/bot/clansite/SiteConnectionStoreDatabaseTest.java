@@ -5,6 +5,7 @@ import com.younglings.bot.clansite.SiteConnectionStore.Connection;
 import com.younglings.bot.clansite.SiteDiscordSettings.OnlineMode;
 import com.younglings.bot.internal.SiteNewsService;
 import com.younglings.bot.testsupport.LocalDatabase;
+import com.younglings.bot.testsupport.SiteMappings;
 import io.github.freya022.botcommands.api.core.db.ConnectionSupplier;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -41,8 +42,8 @@ class SiteConnectionStoreDatabaseTest {
     @BeforeEach
     void setUp() throws Exception {
         discordSettings = new SiteDiscordSettings(supplier);
-        news = new SiteNewsService(supplier);
-        new SiteConnectionStore(supplier, discordSettings, news); // makes the tables
+        news = new SiteNewsService(supplier, SiteMappings.off(supplier));
+        new SiteConnectionStore(supplier, discordSettings, news, SiteMappings.off(supplier)); // makes the tables
         cleanUp();
         // what the bot dashboard stored before connections existed
         sql("INSERT INTO younglings.site_discord_setting (guild_id, online_mode) VALUES (?, 'names+avatars')", COPIED);
@@ -70,7 +71,7 @@ class SiteConnectionStoreDatabaseTest {
 
     @Test
     void theOneTimeCopyBringsTheDashboardsChoicesOverAndNeverAgain() {
-        SiteConnectionStore store = new SiteConnectionStore(supplier, discordSettings, news);
+        SiteConnectionStore store = new SiteConnectionStore(supplier, discordSettings, news, SiteMappings.off(supplier));
 
         Connection copied = store.of(COPIED);
         assertTrue(copied.copiedFromBot());
@@ -81,7 +82,7 @@ class SiteConnectionStoreDatabaseTest {
         // the admin turns the online list off and drops the channel here; the next start must not copy the old choices back
         store.saveFeatures(copied.withFeatures(OnlineMode.OFF, 10, false, 3, false, List.of()), ADMIN);
         news.replaceChannels(COPIED, List.of(new SiteNewsService.NewsChannel(OTHER_CHANNEL, null, 0))); // the home site's news, edited elsewhere
-        SiteConnectionStore restarted = new SiteConnectionStore(supplier, discordSettings, news);
+        SiteConnectionStore restarted = new SiteConnectionStore(supplier, discordSettings, news, SiteMappings.off(supplier));
 
         Connection after = restarted.of(COPIED);
         assertEquals(OnlineMode.OFF, after.onlineMode());
@@ -94,7 +95,7 @@ class SiteConnectionStoreDatabaseTest {
 
     @Test
     void aSiteWithNothingStoredGetsTheDefaults() {
-        Connection fresh = new SiteConnectionStore(supplier, discordSettings, news).of(FRESH);
+        Connection fresh = new SiteConnectionStore(supplier, discordSettings, news, SiteMappings.off(supplier)).of(FRESH);
 
         assertTrue(fresh.connected(), "a site starts connected to the server it was made for");
         assertEquals(SiteConnectionStore.RUNECLAN_BOT, fresh.providerId());
@@ -107,7 +108,7 @@ class SiteConnectionStoreDatabaseTest {
 
     @Test
     void featuresAndTheConnectionAreKeptApart() {
-        SiteConnectionStore store = new SiteConnectionStore(supplier, discordSettings, news);
+        SiteConnectionStore store = new SiteConnectionStore(supplier, discordSettings, news, SiteMappings.off(supplier));
         store.saveFeatures(store.of(FRESH).withFeatures(OnlineMode.COUNT, 24, true, 5, true,
                 List.of(new Channel(OTHER_CHANNEL, null, 0), new Channel(CHANNEL, "News", 1))), ADMIN);
 

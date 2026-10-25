@@ -306,6 +306,11 @@ public class BotConfig {
         return url == null ? null : url.trim();
     }
 
+    /** Where clan sites live: {@code bot} (unset, the default) or {@code hub} ({@code hubsites.HubSites}, T-505). Null when unset. */
+    public String getSitesBackend() {
+        return envOrDotenv("SITES_BACKEND");
+    }
+
     /** A RuneSync server setting ({@code RUNESYNC_*}, e.g. {@code RUNESYNC_MIN_CLIENT_VERSION}); null when unset. */
     public String getRuneSyncSetting(String name) {
         if (!name.startsWith("RUNESYNC_")) throw new IllegalArgumentException("Only RUNESYNC_ settings are served here");
@@ -319,6 +324,15 @@ public class BotConfig {
     public String getLinkSetting(String name) {
         if (!name.startsWith("LINK_")) throw new IllegalArgumentException("Only LINK_ settings are served here");
         return envOrDotenv(name);
+    }
+
+    /**
+     * {@code RSNLINK_DM_SECRET}: the secret runeclans-hub sends ({@code X-RsLink-Dm-Secret}) to have the bot DM RS Link codes for it (T-166).
+     * It opens only {@code /internal/rsnlink-dm/}. Null when unset (those routes are then closed).
+     */
+    public String getRsnLinkDmSecret() {
+        String secret = envOrDotenv("RSNLINK_DM_SECRET");
+        return secret == null || secret.isBlank() ? null : secret.strip();
     }
 
     /** A Discord Linked Roles setting ({@code LINKED_ROLES_*}, see {@code linkedroles.LinkedRolesSettings}); null when unset. */

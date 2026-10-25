@@ -158,6 +158,11 @@ class HubClientPartsTest {
         assertEquals(0, HubChanges.evict(cache, "plugin.event", DataObject.empty().put("type", "DROP")));
         assertEquals(1, HubChanges.evict(cache, "access.changed", DataObject.empty()));
         assertNull(cache.fresh("/v1/access/guilds/1"));
+        // a server's site and its role mappings (T-505): any site change empties them
+        cache.put("/v1/guilds/1/site", ok("s"), Set.of("sites"));
+        cache.put("/v1/guilds/1/role-mappings", ok("r"), Set.of("sites"));
+        assertEquals(2, HubChanges.evict(cache, "site.published", DataObject.empty()));
+        assertNull(cache.fresh("/v1/guilds/1/site"));
         assertEquals(0, HubChanges.evict(cache, null, null));
     }
 
