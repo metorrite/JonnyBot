@@ -72,6 +72,7 @@ Writes are rate limited per person and written to the server's audit log, as on 
   `notifications` has only the activity lines, empty events, polls and signups, and `needsBot: true`.
 - `GET sites/{slug}/data/discord/...` (any of them) and `GET|POST sites/{slug}/discord/me`: `{"needsBot": true}`.
 - `GET clans/{slug}/events` for a bot-less site's clan: `{"events": [], "needsBot": true, "generatedAt"}`.
+- `sites/{slug}/me/...` (a member's own actions: settings, link, goals, polls and so on), any method: 409 `{"error": "That needs RuneClan Bot...", "needsBot": true, "botless": true}`. Without the bot nobody's membership can be checked, so nothing is read or written (it used to be a plain 404).
 - `GET sites/{slug}/viewer?userId=`: the claimant is `owner`, editors by user id are `editor` (with `guildId`), everyone else `guest`
   (without the bot nobody can tell who is in the server); `botless: true`.
 
