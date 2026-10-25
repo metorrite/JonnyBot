@@ -26,7 +26,20 @@ public final class JdaLinkDmSender implements LinkDmSender {
     static final String NOT_ME = "rsnlink:notme:";
     static final String STOP = "rsnlink:stop:";
 
+    private final String notMePrefix;
+    private final String stopPrefix;
     private volatile JDA jda;
+
+    /** For the bot's own link service: its buttons are answered by {@link RsnLinkDmButtons}. */
+    JdaLinkDmSender() {
+        this(NOT_ME, STOP);
+    }
+
+    /** With other button ids, for codes sent on the hub's behalf ({@link HubDmRelay}), whose buttons go back to the hub. */
+    JdaLinkDmSender(String notMePrefix, String stopPrefix) {
+        this.notMePrefix = notMePrefix;
+        this.stopPrefix = stopPrefix;
+    }
 
     void attach(JDA jda) {
         this.jda = jda;
@@ -63,11 +76,11 @@ public final class JdaLinkDmSender implements LinkDmSender {
         JDA current = jda;
         if (current == null) return false;
         try {
-            User user = current.retrieveUserById(discordId).complete();
+            User user = current.retrieveUserById(discordId).timeout(10, TimeUnit.SECONDS).complete();
             if (user.isBot()) return false;
             user.openPrivateChannel()
                     .flatMap(channel -> channel.sendMessage(text(rsnDisplay, userCode, expiresInMinutes))
-                            .setComponents(ActionRow.of(Button.secondary(NOT_ME + pairingId, "Not me"), Button.danger(STOP + pairingId, "Stop these messages"))))
+                            .setComponents(ActionRow.of(Button.secondary(notMePrefix + pairingId, "Not me"), Button.danger(stopPrefix + pairingId, "Stop these messages"))))
                     .timeout(15, TimeUnit.SECONDS)
                     .complete();
             return true;

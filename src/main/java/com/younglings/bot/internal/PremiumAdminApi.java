@@ -69,17 +69,47 @@ public class PremiumAdminApi implements AdminRouteExtension {
         return null;
     }
 
+    /**
+     * The same routes for the overall admin panel, which names no server and whose admins need not be members of the home server. {@code parts} start
+     * with {@code premium-guilds}; the owner checks are the ones above, and the panel's caller has already audited a write.
+     */
+    public DataObject routeFor(Guild home, long actorId, String method, String[] parts, Supplier<DataObject> body) {
+        if (parts.length < 1 || !parts[0].equals("premium-guilds")) return null;
+        if (parts.length == 1) {
+            AdminRouteExtension.requireMethod(method, "GET");
+            return list(home, actorId);
+        }
+        if (parts.length == 2) {
+            if (method.equals("PUT")) return save(home, actorId, parts[1], body.get());
+            AdminRouteExtension.requireMethod(method, "DELETE");
+            return remove(home, actorId, parts[1]);
+        }
+        if (parts.length == 3 && parts[2].equals("history")) {
+            AdminRouteExtension.requireMethod(method, "GET");
+            return history(home, actorId, parts[1]);
+        }
+        return null;
+    }
+
     /** Whether this server has a plan in force. */
     boolean isPremium(Guild guild) {
         return repository.isPremium(guild.getIdLong());
     }
 
     DataObject list(Guild guild, Member actor) {
-        return list(guild, actor, Instant.now());
+        return list(guild, actor.getIdLong());
+    }
+
+    DataObject list(Guild guild, long actorId) {
+        return list(guild, actorId, Instant.now());
     }
 
     DataObject list(Guild guild, Member actor, Instant now) {
-        boolean owner = owners.isOwner(guild.getJDA(), actor.getIdLong());
+        return list(guild, actor.getIdLong(), now);
+    }
+
+    DataObject list(Guild guild, long actorId, Instant now) {
+        boolean owner = owners.isOwner(guild.getJDA(), actorId);
         DataArray guilds = DataArray.empty();
         DataArray endingSoon = DataArray.empty();
         if (owner) {
@@ -106,7 +136,11 @@ public class PremiumAdminApi implements AdminRouteExtension {
     }
 
     DataObject save(Guild guild, Member actor, String rawId, DataObject body) {
-        requireOwner(guild, actor);
+        return save(guild, actor.getIdLong(), rawId, body);
+    }
+
+    DataObject save(Guild guild, long actorId, String rawId, DataObject body) {
+        requireOwner(guild, actorId);
         long id = parseId(rawId);
         String label = body.getString("label", "").strip();
         if (label.length() > MAX_LABEL) throw new ApiError(400, Text.of(guild, "dashboard.keep_the_label_under_characters", MAX_LABEL));
@@ -123,20 +157,28 @@ public class PremiumAdminApi implements AdminRouteExtension {
         String source = body.isNull("source") || body.getString("source", "").isBlank() ? "manual" : PremiumFeatures.cleanTier(body.getString("source", ""));
         if (source == null) throw new ApiError(400, Text.of(guild, "dashboard.the_source_is_up_to_20"));
 
-        boolean changed = premium.grant(id, label, tier, expiresAt, note, source, actor.getIdLong());
-        log.info("Dashboard: {} {} server {} ({}) on plan '{}'{}", actor.getId(), changed ? "changed" : "put", id, label, tier, expiresAt == null ? "" : " until " + expiresAt);
-        return list(guild, actor);
+        boolean changed = premium.grant(id, label, tier, expiresAt, note, source, actorId);
+        log.info("Dashboard: {} {} server {} ({}) on plan '{}'{}", actorId, changed ? "changed" : "put", id, label, tier, expiresAt == null ? "" : " until " + expiresAt);
+        return list(guild, actorId);
     }
 
     DataObject remove(Guild guild, Member actor, String rawId) {
-        requireOwner(guild, actor);
+        return remove(guild, actor.getIdLong(), rawId);
+    }
+
+    DataObject remove(Guild guild, long actorId, String rawId) {
+        requireOwner(guild, actorId);
         long id = parseId(rawId);
-        if (!premium.revoke(id, actor.getIdLong())) throw new ApiError(404, Text.of(guild, "dashboard.that_server_isn_t_on_a"));
-        return list(guild, actor);
+        if (!premium.revoke(id, actorId)) throw new ApiError(404, Text.of(guild, "dashboard.that_server_isn_t_on_a"));
+        return list(guild, actorId);
     }
 
     DataObject history(Guild guild, Member actor, String rawId) {
-        requireOwner(guild, actor);
+        return history(guild, actor.getIdLong(), rawId);
+    }
+
+    DataObject history(Guild guild, long actorId, String rawId) {
+        requireOwner(guild, actorId);
         long id = parseId(rawId);
         DataArray entries = DataArray.empty();
         for (var e : repository.history(id, HISTORY_LIMIT)) {
@@ -170,7 +212,7 @@ public class PremiumAdminApi implements AdminRouteExtension {
         }
     }
 
-    private void requireOwner(Guild guild, Member actor) {
-        if (!owners.isOwner(guild.getJDA(), actor.getIdLong())) throw new ApiError(403, Text.of(guild, "dashboard.only_the_bot_owner_can_change_2"));
+    private void requireOwner(Guild guild, long actorId) {
+        if (!owners.isOwner(guild.getJDA(), actorId)) throw new ApiError(403, Text.of(guild, "dashboard.only_the_bot_owner_can_change_2"));
     }
 }
