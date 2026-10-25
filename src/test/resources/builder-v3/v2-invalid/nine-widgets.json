@@ -342,5 +342,12 @@
       "template": "account"
     }
   ],
-  "wizard": { "step": "done", "done": true, "slug": "green-angels", "name": "The Green Angels", "tagline": "Since 2009" }
+  "wizard": {
+    "step": "done",
+    "done": true,
+    "slug": "green-angels",
+    "name": "The Green Angels",
+    "tagline": "Since 2009",
+    "template": "guild-hall"
+  }
 }
