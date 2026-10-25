@@ -180,7 +180,7 @@ public class TicketAdminApi {
                 SiteCaller site = siteAccess.caller(exchange, guild, actorIdOf(exchange), actor, method, parts);
                 if (site != null) {
                     if (!method.equals("GET") && !adminWrites.tryAcquire(Long.toString(site.userId()))) throw new ApiError(429, Text.of(guild, "dashboard.you_re_doing_that_too_fast"));
-                    DataObject answer = SiteAccessRoutes.route(site, method, parts, () -> body(exchange), clanSiteAdmin, sitePictures, () -> AdminReads.cached(guild, "structure", () -> structure(guild)),
+                    DataObject answer = SiteAccessRoutes.route(site, method, parts, () -> body(exchange), clanSiteAdmin, sitePictures, imageAdmin, () -> AdminReads.cached(guild, "structure", () -> structure(guild)),
                             () -> ops.audit(guild, queryParam(exchange, "limit"), null, "clan-site"));
                     if (answer == null) {
                         InternalApiServer.sendJson(exchange, 404, DataObject.empty().put("error", "Not found"));

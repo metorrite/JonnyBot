@@ -21,6 +21,7 @@ import java.util.function.Supplier;
  * dashboard access; when it answers, only these paths open, each checked on the site role as usual:
  * <ul>
  *   <li>{@code clan-site...} ({@link ClanSiteAdminApi}, which checks the role each route needs) and {@code site-pictures...} (editors)</li>
+ *   <li>{@code PUT|DELETE images/site/{slot}}: the site's logo and banner (site admins, like the bot-less site's)</li>
  *   <li>{@code GET structure}: the server's roles and channels for the pickers (site admins)</li>
  *   <li>{@code GET audit}: the site's own changes only ({@code q} is always {@code clan-site}; site admins)</li>
  * </ul>
@@ -43,6 +44,7 @@ public class SiteAccessRoutes {
         return switch (parts[0]) {
             case ClanSiteAdminApi.ROOT, SitePictureAdminApi.PATH -> true;
             case "structure", "audit" -> parts.length == 1;
+            case "images" -> parts.length == 3 && parts[1].equals("site");
             default -> false;
         };
     }
@@ -51,6 +53,7 @@ public class SiteAccessRoutes {
     static SiteRoles.Action entry(String method, String[] parts) {
         return switch (parts[0]) {
             case "structure", "audit" -> method.equals("GET") ? SiteRoles.Action.SETTINGS : null;
+            case "images" -> method.equals("PUT") || method.equals("DELETE") ? SiteRoles.Action.SETTINGS : null;
             default -> SiteRoles.Action.EDIT;
         };
     }
@@ -76,10 +79,12 @@ public class SiteAccessRoutes {
 
     /** One of {@link #sitePath}'s routes for an admitted caller; {@code structure} and {@code audit} come from the dashboard's own code. */
     static DataObject route(SiteCaller c, String method, String[] parts, Supplier<DataObject> body, ClanSiteAdminApi clanSite, SitePictureAdminApi pictures,
-                            Supplier<DataObject> structure, Supplier<DataObject> audit) {
+                            ImageAdminApi images, Supplier<DataObject> structure, Supplier<DataObject> audit) {
         return switch (parts[0]) {
             case ClanSiteAdminApi.ROOT -> clanSite.route(c, method, parts, body);
             case SitePictureAdminApi.PATH -> pictures.route(c, method, parts, body);
+            case "images" -> method.equals("PUT") ? images.upload(c.guildId(), c.userId(), parts[1], parts[2], body.get())
+                    : images.remove(c.guildId(), c.userId(), parts[1], parts[2]);
             case "structure" -> structure.get();
             case "audit" -> audit.get();
             default -> null;
