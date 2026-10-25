@@ -39,7 +39,7 @@ class ClanSiteAdminApiRolesTest {
 
         ClanSiteApiUnderTest(ClanSiteLayoutRepository layouts, SiteRoleGuard guard) {
             api = new ClanSiteAdminApi(mock(ClanSiteRepository.class), layouts, mock(ClanSiteService.class), mock(ClanProfileService.class),
-                    mock(BotOwners.class), mock(Premium.class), guard, mock(SiteDiscordService.class));
+                    mock(BotOwners.class), mock(Premium.class), guard, mock(SiteDiscordService.class), mock(SiteAddressRoutes.class));
         }
     }
 
