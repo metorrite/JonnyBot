@@ -152,7 +152,7 @@ Every environment variable the bot reads. Each one can also go in the git-ignore
 | `LINKED_ROLES_REGISTER_ON_START` | `false` stops the bot registering the five metadata records with Discord when it starts (a PUT, so repeating it changes nothing). | Registers on every start while Linked Roles is on. |
 | `RSCLANS_HUB_ENABLED`, `RSCLANS_HUB_URL`, `RSCLANS_HUB_API_KEY` | **Deprecated** old names of the three settings above (the hub is now runeclans-hub). Still read for one release when the new name is unset; the bot logs a warning. | |
 
-Tests read `JONNYBOT_TEST_DATABASE_URL`, `JONNYBOT_TEST_LINK_DATABASE_URL`, `STARTUP_CHECK_DATABASE_URL` and `STARTUP_CHECK_REQUIRED` (section 5); the bot itself never does.
+Tests read `JONNYBOT_TEST_DATABASE_URL` (the older `JONNYBOT_TEST_DB_URL`, a JDBC URL, still works as a fallback), `JONNYBOT_TEST_LINK_DATABASE_URL`, `STARTUP_CHECK_DATABASE_URL` and `STARTUP_CHECK_REQUIRED` (section 5); the bot itself never does.
 
 ## 3b. Secret scan (pre-commit hook)
 
