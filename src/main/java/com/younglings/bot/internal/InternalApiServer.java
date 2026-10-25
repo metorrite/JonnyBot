@@ -308,8 +308,7 @@ public class InternalApiServer {
     /** A self-contained module (see {@link InternalRouteModule}): only the secret is checked here. */
     private void handleModule(HttpExchange exchange, String secret, InternalRouteModule module) throws IOException {
         try {
-            String provided = exchange.getRequestHeaders().getFirst(SECRET_HEADER);
-            if (provided == null || !constantTimeEquals(provided, secret)) {
+            if (!module.authorized(exchange, secret)) {
                 sendJson(exchange, 401, DataObject.empty().put("error", "Unauthorized"));
                 return;
             }
