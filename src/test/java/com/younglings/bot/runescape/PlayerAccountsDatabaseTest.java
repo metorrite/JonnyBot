@@ -5,7 +5,8 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import org.junit.jupiter.api.condition.EnabledIf;
+import com.younglings.bot.testsupport.TestDatabaseUrl;
 import org.mockito.Mockito;
 
 import java.sql.Connection;
@@ -21,11 +22,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Runs the account SQL against a real Postgres. Skipped unless {@code JONNYBOT_TEST_DB_URL} points at an <em>empty
+ * Runs the account SQL against a real Postgres. Skipped unless {@code JONNYBOT_TEST_DATABASE_URL} (or the older JDBC-form {@code JONNYBOT_TEST_DB_URL}) points at an <em>empty
  * scratch</em> database it may fill and wipe (e.g. {@code jdbc:postgresql://localhost:5432/jonnybot_scratch?user=..&password=..}):
  * never point it at a database that holds real data.
  */
-@EnabledIfEnvironmentVariable(named = "JONNYBOT_TEST_DB_URL", matches = ".+")
+@EnabledIf("com.younglings.bot.testsupport.TestDatabaseUrl#configured")
 class PlayerAccountsDatabaseTest {
     private static final long HOME = 1L;
     private static final long OTHER = 2L;
@@ -37,7 +38,7 @@ class PlayerAccountsDatabaseTest {
 
     @BeforeAll
     static void connect() {
-        String url = System.getenv("JONNYBOT_TEST_DB_URL");
+        String url = TestDatabaseUrl.jdbc();
         connections = Mockito.mock(ConnectionSupplier.class);
         try {
             Mockito.when(connections.getConnection()).thenAnswer(call -> DriverManager.getConnection(url));
@@ -59,7 +60,7 @@ class PlayerAccountsDatabaseTest {
     }
 
     private static void clean() throws SQLException {
-        try (Connection c = DriverManager.getConnection(System.getenv("JONNYBOT_TEST_DB_URL")); Statement s = c.createStatement()) {
+        try (Connection c = DriverManager.getConnection(TestDatabaseUrl.jdbc()); Statement s = c.createStatement()) {
             s.execute("TRUNCATE younglings.player_link, younglings.player_account, younglings.player_link_exclusion, younglings.player_activity RESTART IDENTITY");
             s.execute("TRUNCATE younglings.player_stats_snapshot RESTART IDENTITY CASCADE");
         }

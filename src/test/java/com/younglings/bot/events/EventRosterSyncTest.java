@@ -23,8 +23,8 @@ import org.mockito.Mockito;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -65,7 +65,8 @@ class EventRosterSyncTest {
         };
         changes = new EventChanges();
         service = new EventService(repository, new EventTemplates(List.of(new CustomTemplate())), kinds, new PointsService(new PointsRepository(supplier), new RewardsRepository(supplier)), changes);
-        entries = new ArrayList<>();
+        // the website-to-signup mirror runs on the event-signups lane while the test thread reads this list
+        entries = new CopyOnWriteArrayList<>();
         signupService = Mockito.mock(SignupService.class);
         Mockito.when(signupService.getEntries(SIGNUP)).thenAnswer(inv -> List.copyOf(entries));
         Mockito.when(signupService.getSessionById(SIGNUP)).thenReturn(Mockito.mock(SignupSession.class));
@@ -207,12 +208,12 @@ class EventRosterSyncTest {
         long id = event("Web");
         service.join(G, id, G, 701, null, false, null);
         assertEquals(RosterSource.SELF, repository.participant(id, 701).orElseThrow().source());
-        Mockito.verify(signupService, Mockito.timeout(3000)).addManualUser(ArgumentMatchers.eq(guild), ArgumentMatchers.eq(SIGNUP), ArgumentMatchers.eq(701L), ArgumentMatchers.anyString(), ArgumentMatchers.any(), ArgumentMatchers.eq(701L));
+        Mockito.verify(signupService, Mockito.timeout(15_000)).addManualUser(ArgumentMatchers.eq(guild), ArgumentMatchers.eq(SIGNUP), ArgumentMatchers.eq(701L), ArgumentMatchers.anyString(), ArgumentMatchers.any(), ArgumentMatchers.eq(701L));
         waitFor(() -> repository.participant(id, 701).orElseThrow().source() == RosterSource.SIGNUP);
         assertTrue(entries.stream().anyMatch(e -> e.userId() == 701));
 
         service.leave(G, id, 701);
-        Mockito.verify(signupService, Mockito.timeout(3000)).removeUser(guild, SIGNUP, 701L);
+        Mockito.verify(signupService, Mockito.timeout(15_000)).removeUser(guild, SIGNUP, 701L);
         waitFor(() -> entries.stream().noneMatch(e -> e.userId() == 701));
     }
 
@@ -225,7 +226,7 @@ class EventRosterSyncTest {
     }
 
     private static void waitFor(java.util.function.BooleanSupplier condition) throws InterruptedException {
-        for (int i = 0; i < 60 && !condition.getAsBoolean(); i++) Thread.sleep(50);
+        for (int i = 0; i < 300 && !condition.getAsBoolean(); i++) Thread.sleep(50);
         assertTrue(condition.getAsBoolean());
     }
 

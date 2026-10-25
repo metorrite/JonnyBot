@@ -25,7 +25,7 @@ import java.util.function.Supplier;
 /**
  * What each dashboard admin has set for themselves in one server, kept with the bot so it follows them from one computer to the next. For now: the starred
  * pages of the sidebar ({@code prefs/favorites}) and the Basic/Advanced view ({@code prefs/view}, {@code {mode: "basic"|"advanced"|null}}; null means never chosen). {@code GET} answers {@code {paths: ["/settings", ...]}} in the order they were starred, and {@code PUT}
- * with the same body replaces the list. A page is a dashboard path like {@code /event-manager}; the website knows which exist, the bot only checks the shape
+ * with the same body replaces the list. A page is a dashboard path like {@code /event-manager} or a tab of a section like {@code /roles/self-roles}; the website knows which exist, the bot only checks the shape
  * and keeps at most {@value #MAX_FAVORITES}. Everyone sees and changes only their own: the person is the one the request was made for.
  */
 @BService
@@ -33,7 +33,7 @@ public class DashboardPrefsApi implements AdminRouteExtension {
     private static final Logger log = LoggerFactory.getLogger(DashboardPrefsApi.class);
     public static final int MAX_FAVORITES = 20;
     static final Set<String> VIEW_MODES = Set.of("basic", "advanced");
-    private static final String SHAPE = "/[a-z][a-z0-9-]{0,39}";
+    private static final String SHAPE = "/[a-z][a-z0-9-]{0,39}(/[a-z][a-z0-9-]{0,39})?";
 
     private final ConnectionSupplier connectionSupplier;
 

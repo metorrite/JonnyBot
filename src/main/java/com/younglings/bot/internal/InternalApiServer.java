@@ -179,8 +179,8 @@ public class InternalApiServer {
      * {@link TicketAdminApi} checks who is asking and does the rest. The server comes from the {@code X-Guild-Id}
      * header; without one it is the bot's home server, so the clan website's own admin console keeps working
      * unchanged. Whoever is asking is always checked against <em>that</em> server, never the home server's rules.
-     * {@code /internal/admin/guilds} and {@code /internal/admin/beta-testers/me} are the routes with no server: the servers the asker may manage,
-     * and whether they may run a clan website without the bot. {@code /internal/admin/overall/...} is the overall admin panel ({@link OverallAdminApi}, N5).
+     * {@code /internal/admin/guilds}, {@code /internal/admin/editable-sites} and {@code /internal/admin/beta-testers/me} are the routes with no server: the servers the asker may manage,
+     * the servers whose clan website they may edit, and whether they may run a clan website without the bot. {@code /internal/admin/overall/...} is the overall admin panel ({@link OverallAdminApi}, N5).
      * <p>
      * A server the bot isn't in (named in {@code X-Guild-Id}) goes to {@link BotlessAdminApi}, which serves a bot-less clan website's routes on
      * the website's signed sign-in facts ({@link ActorFacts}); a server the bot is in never looks at those facts.
@@ -200,6 +200,10 @@ public class InternalApiServer {
             }
             if (path.equals("/internal/admin/beta-testers/me") || path.equals("/internal/admin/beta-testers/me/")) {
                 botlessAdmin.handleBetaTesterMe(exchange, jda);
+                return;
+            }
+            if (path.equals("/internal/admin/editable-sites") || path.equals("/internal/admin/editable-sites/")) {
+                botlessAdmin.handleEditableSites(exchange, jda);
                 return;
             }
             if (OverallAdminApi.ours(path)) {
