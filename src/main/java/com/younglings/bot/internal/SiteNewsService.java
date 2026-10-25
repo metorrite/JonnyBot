@@ -110,7 +110,7 @@ public class SiteNewsService {
             throw fail("save news channels", e);
         }
         AdminReads.forgetPrefix(CACHE_KEY);
-        SiteInvalidator.signal(SiteInvalidator.Area.NEWS);
+        SiteInvalidator.signal(guildId, SiteInvalidator.Area.NEWS);
     }
 
     // ---------- the posts ----------
