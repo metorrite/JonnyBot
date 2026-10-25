@@ -1,6 +1,6 @@
 package com.younglings.bot.clansite;
 
-import com.younglings.bot.beta.BetaGuildRepository;
+import com.younglings.bot.access.GateSource;
 import com.younglings.bot.config.BotConfig;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 
@@ -16,13 +16,13 @@ import java.util.Optional;
 @BService
 public class ClanSiteService {
     private final ClanSiteRepository sites;
-    private final BetaGuildRepository beta;
+    private final GateSource gates;
     private final BotConfig config;
     private final BotlessSiteRepository botless;
 
-    public ClanSiteService(ClanSiteRepository sites, BetaGuildRepository beta, BotConfig config, BotlessSiteRepository botless) {
+    public ClanSiteService(ClanSiteRepository sites, GateSource gates, BotConfig config, BotlessSiteRepository botless) {
         this.sites = sites;
-        this.beta = beta;
+        this.gates = gates;
         this.config = config;
         this.botless = botless;
     }
@@ -44,7 +44,7 @@ public class ClanSiteService {
 
     /** Whether a server may use the builder while it is in beta: the home server, one on the beta list, or a bot-less site. */
     public boolean inBeta(long guildId) {
-        return Objects.equals(config.getGuildId(), guildId) || beta.all().stream().anyMatch(b -> b.guildId() == guildId) || botless.contains(guildId);
+        return Objects.equals(config.getGuildId(), guildId) || gates.betaGuilds().stream().anyMatch(b -> b.guildId() == guildId) || botless.contains(guildId);
     }
 
     /** Whether this server's site runs without the bot ({@link BotlessSiteRepository}). */

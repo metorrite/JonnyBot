@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.access.GateSource;
 import com.younglings.bot.beta.BetaDatabaseInitializer;
 import com.younglings.bot.beta.BetaGuildRepository;
 import com.younglings.bot.clanprofile.ClanProfile;
@@ -82,7 +83,7 @@ class SiteOwnerAdminApiDatabaseTest {
         beta = new BetaGuildRepository(db, new BetaDatabaseInitializer(db));
         BotConfig config = mock(BotConfig.class);
         when(config.getGuildId()).thenReturn(HOME);
-        ClanSiteService service = new ClanSiteService(sites, beta, config, mock(com.younglings.bot.clansite.BotlessSiteRepository.class));
+        ClanSiteService service = new ClanSiteService(sites, GateSource.ownTables(beta::all, null, null), config, mock(com.younglings.bot.clansite.BotlessSiteRepository.class));
         roles = mock(SiteRoleGuard.class);
         when(roles.settings(anyLong())).thenReturn(new SiteRoles.Settings(List.of(), List.of(), List.of(), false, null));
         BotOwners owners = mock(BotOwners.class);

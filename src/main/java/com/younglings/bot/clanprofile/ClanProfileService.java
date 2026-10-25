@@ -1,5 +1,6 @@
 package com.younglings.bot.clanprofile;
 
+import com.younglings.bot.access.GateSource;
 import com.younglings.bot.runescape.ClanMemberRepository.ClanMemberRow;
 import com.younglings.bot.runescape.ClanSyncService;
 import com.younglings.bot.runescape.PlayerLink;
@@ -26,11 +27,13 @@ public class ClanProfileService {
     private final ClanProfileRepository repository;
     private final ClanSyncService clanSync;
     private final PlayerLinkService links;
+    private final GateSource hub;
 
-    public ClanProfileService(ClanProfileRepository repository, ClanSyncService clanSync, PlayerLinkService links) {
+    public ClanProfileService(ClanProfileRepository repository, ClanSyncService clanSync, PlayerLinkService links, GateSource hub) {
         this.repository = repository;
         this.clanSync = clanSync;
         this.links = links;
+        this.hub = hub;
     }
 
     /** The server's profile, or an empty private one if it has never saved any. */
@@ -52,7 +55,8 @@ public class ClanProfileService {
     /**
      * Checks that {@code actorId} is a leader of the server's clan, as far as JonnyBot can tell: the clan exists with a roster, no other
      * server has verified it, and one of the RuneScape names the person linked in this server is on the roster as an Owner or
-     * Deputy Owner. On success the verification is stored against the clan name, so renaming the clan later un-verifies it.
+     * Deputy Owner. On success the verification is stored against the clan name, so renaming the clan later un-verifies it, and (with
+     * RUNECLANS_HUB_ACCESS) sent to the hub.
      */
     public Verification verify(long guildId, long actorId) {
         String clan = clanNameOf(guildId);
@@ -72,6 +76,7 @@ public class ClanProfileService {
         if (problem != null) return new Verification(false, problem);
         repository.setVerified(guildId, clan, actorId);
         log.info("Clan '{}' verified for guild {} by {}", clan, guildId, actorId);
+        hub.clanVerified(clan, actorId);
         return new Verification(true, null);
     }
 
