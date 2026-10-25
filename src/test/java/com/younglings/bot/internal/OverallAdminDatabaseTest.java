@@ -123,7 +123,7 @@ class OverallAdminDatabaseTest {
                 new SitePictureAdminApi(images, mock(Premium.class), roles), new ImageAdminApi(images), mock(AdminOpsApi.class), audit, roles, botless, settings,
                 grantService, owners, mock(ClanSyncScheduler.class));
         OverallAdminApi overallApi = new OverallAdminApi(overall, owners, new PremiumAccessRepository(db), mock(SiteOwnerAdminApi.class),
-                new SiteBuilderBetaAdminApi(grants, grantService, owners), roles, audit, config);
+                new SiteBuilderBetaAdminApi(grants, grantService, owners), mock(OverallOpsRoutes.class), roles, audit, config);
         InternalApiServer server = new InternalApiServer(config, mock(TicketAdminApi.class), mock(SiteApi.class), mock(DirectoryApi.class), mock(PluginApi.class),
                 mock(MemberApi.class), images, mock(com.younglings.bot.tracking.CitadelWinners.class), mock(FormsPublicApi.class), List.of(), botlessAdmin,
                 mock(com.younglings.bot.discord.jobs.DiscordOutbox.class), overallApi);
