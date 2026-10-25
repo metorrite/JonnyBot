@@ -126,9 +126,12 @@ public class RoleToolkitService {
         return repository.plan(guild.getIdLong(), mode, source.getIdLong(), target.getIdLong(), actor.getIdLong(), ids);
     }
 
+    /** How long the dry run waits for Discord to list a role's members: it runs inside a website request, which gives up after 8 s. */
+    static final long LIST_WAIT_SECONDS = 6;
+
     /** Everyone holding the role (loaded from Discord if not cached). Separate so tests can stand in for Discord. */
     List<Member> membersWith(Guild guild, Role role) throws Exception {
-        return guild.findMembersWithRoles(role).get();
+        return guild.findMembersWithRoles(role).setTimeout(java.time.Duration.ofSeconds(LIST_WAIT_SECONDS)).get();
     }
 
     /** A person pressed Start (or Resume). Returns the reason it cannot, or null once it is running. */

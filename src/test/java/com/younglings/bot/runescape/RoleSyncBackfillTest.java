@@ -96,6 +96,7 @@ class RoleSyncBackfillTest {
     @SuppressWarnings("unchecked")
     private void members(Member... found) {
         Task<List<Member>> task = mock(Task.class);
+        when(task.setTimeout(any(java.time.Duration.class))).thenReturn(task);
         try {
             when(task.get()).thenReturn(List.of(found));
         } catch (Exception e) {

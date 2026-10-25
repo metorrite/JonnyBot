@@ -12,8 +12,25 @@ import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel;
 /** Posts an announcement for a staff member, by {@code /announce} or from the dashboard. The mention rules live in {@link AnnouncePolicy}. */
 @BService
 public class AnnounceService {
+    /** Where an announcement goes and what it says, checked: what {@link #send} posts, or what the dashboard queues for the bot to post later. */
+    public record Prepared(GuildMessageChannel channel, Plan plan) {}
+
     /** Posts the announcement, or throws {@link IllegalStateException} with a reason fit to show the sender. */
     public String send(Guild guild, Member sender, long channelId, String message, boolean everyone, boolean here, Long roleId) {
+        Prepared prepared = prepare(guild, sender, channelId, message, everyone, here, roleId);
+        Plan plan = prepared.plan();
+        prepared.channel().sendMessage(plan.content())
+                .setAllowedMentions(plan.parse())
+                .mentionRoles(plan.roleIds().stream().mapToLong(Long::longValue).toArray())
+                .complete();
+        return prepared.channel().getName();
+    }
+
+    /**
+     * Every check {@link #send} makes, without talking to Discord: the channel, the sender's own right to post there, and the pings they may make.
+     * Throws {@link IllegalStateException} with a reason fit to show the sender.
+     */
+    public Prepared prepare(Guild guild, Member sender, long channelId, String message, boolean everyone, boolean here, Long roleId) {
         GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, channelId);
         if (channel == null) throw new IllegalStateException("That channel isn't a channel the bot can post in.");
         if (!channel.canTalk()) throw new IllegalStateException("The bot can't post in #" + channel.getName() + ". It needs permission to view the channel and send messages there.");
@@ -27,11 +44,6 @@ public class AnnounceService {
         boolean mayMentionEveryone = sender.hasPermission(channel, Permission.MESSAGE_MENTION_EVERYONE);
         Plan plan = AnnouncePolicy.plan(message, ping, roleId, role != null && role.isMentionable(), mayMentionEveryone);
         if (!plan.ok()) throw new IllegalStateException(plan.refusal());
-
-        channel.sendMessage(plan.content())
-                .setAllowedMentions(plan.parse())
-                .mentionRoles(plan.roleIds().stream().mapToLong(Long::longValue).toArray())
-                .complete();
-        return channel.getName();
+        return new Prepared(channel, plan);
     }
 }

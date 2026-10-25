@@ -1,5 +1,7 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.discord.jobs.DiscordJob;
+import com.younglings.bot.discord.jobs.DiscordOutbox;
 import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.rolepanel.RolePanel;
@@ -26,7 +28,8 @@ import java.util.function.Supplier;
 /**
  * A server's role panels for the website: list, read, create, change, delete, and post one in a channel. A save is checked whole
  * before anything is stored, so a refused save changes nothing and says why. Reached only through {@link TicketAdminApi}, which has
- * already checked the asker may use the dashboard in this server and audit-logs every change.
+ * already checked the asker may use the dashboard in this server and audit-logs every change. Posting, attaching and taking a message down are
+ * checked here and then run as Discord jobs ({@link RolePanelJobs}, T-456): the answer comes at once with {@code job} for the page to follow.
  */
 @BService
 public class RolePanelAdminApi implements AdminRouteExtension {
@@ -35,10 +38,12 @@ public class RolePanelAdminApi implements AdminRouteExtension {
 
     private final RolePanelRepository repository;
     private final RolePanelService service;
+    private final DiscordOutbox outbox;
 
-    public RolePanelAdminApi(RolePanelRepository repository, RolePanelService service) {
+    public RolePanelAdminApi(RolePanelRepository repository, RolePanelService service, DiscordOutbox outbox) {
         this.repository = repository;
         this.service = service;
+        this.outbox = outbox;
     }
 
     @Override
@@ -178,10 +183,13 @@ public class RolePanelAdminApi implements AdminRouteExtension {
     DataObject delete(Guild guild, Member actor, String rawId) {
         RolePanel panel = find(guild, rawId);
         // take its message down too, so buttons that no longer do anything aren't left in a channel (a message it was attached to keeps everything but our reactions)
-        service.takeDown(guild, panel);
+        RolePanelService.TakeDown takeDown = RolePanelService.TakeDown.of(panel);
+        DiscordJob job = takeDown == null ? null
+                : outbox.enqueue(RolePanelJobs.TAKE_DOWN, guild.getIdLong(), actor.getIdLong(), null, RolePanelJobs.takeDownPayload(takeDown));
         repository.delete(guild.getIdLong(), panel.id());
         log.info("Dashboard: {} deleted role panel {} ({})", actor.getId(), panel.id(), panel.name());
-        return list(guild);
+        DataObject answer = list(guild);
+        return job == null ? answer : answer.put("job", job.ticket());
     }
 
     DataObject post(Guild guild, Member actor, String rawId, DataObject body) {
@@ -189,22 +197,28 @@ public class RolePanelAdminApi implements AdminRouteExtension {
         String link = body.isNull("messageLink") ? "" : body.getString("messageLink", "").strip();
         if (!link.isEmpty()) {
             try {
-                RolePanel attached = service.attach(guild, panel, link);
-                log.info("Dashboard: {} put role panel {} on the message {}", actor.getId(), panel.id(), link);
-                return json(attached);
+                service.checkAttach(guild, panel, link);
             } catch (RolePanelService.PostException e) {
                 throw new ApiError(400, e.getMessage());
             }
+            DiscordJob job = outbox.enqueue(RolePanelJobs.ATTACH, guild.getIdLong(), actor.getIdLong(), "rolepanel-attach:" + guild.getIdLong() + ":" + panel.id(),
+                    RolePanelJobs.attachPayload(panel.id(), link));
+            log.info("Dashboard: {} queued putting role panel {} on the message {} (job {})", actor.getId(), panel.id(), link, job.id());
+            return json(panel).put("job", job.ticket());
         }
         String channelText = body.getString("channelId", "").strip();
         if (!channelText.matches("\\d{1,20}")) throw new ApiError(400, Text.of(guild, "dashboard.choose_a_channel_to_post_in"));
+        long channelId = Long.parseLong(channelText);
         try {
-            RolePanel posted = service.post(guild, panel, Long.parseLong(channelText));
-            log.info("Dashboard: {} posted role panel {} in channel {}", actor.getId(), panel.id(), channelText);
-            return json(posted);
+            RolePanelService.checkPost(guild, panel, channelId);
         } catch (RolePanelService.PostException e) {
             throw new ApiError(400, e.getMessage());
         }
+        // a second press while the first waits replaces it, so one press posts once
+        DiscordJob job = outbox.enqueue(RolePanelJobs.POST, guild.getIdLong(), actor.getIdLong(), "rolepanel-post:" + guild.getIdLong() + ":" + panel.id(),
+                RolePanelJobs.postPayload(panel.id(), channelId));
+        log.info("Dashboard: {} queued role panel {} for channel {} (job {})", actor.getId(), panel.id(), channelText, job.id());
+        return json(panel).put("job", job.ticket());
     }
 
     private RolePanel find(Guild guild, String rawId) {
