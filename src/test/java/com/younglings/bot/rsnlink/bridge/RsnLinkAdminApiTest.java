@@ -46,4 +46,14 @@ class RsnLinkAdminApiTest {
         RuntimeException e = assertThrows(RuntimeException.class, () -> api(true).route(guild(), mock(Member.class), "GET", new String[]{"rsnlink", "overview"}, DataObject::empty));
         assertTrue(e.getMessage().contains("off"));
     }
+
+    @Test
+    void theOverallPanelAsksByUserIdAndTheOwnerRuleHolds() {
+        JDA jda = mock(JDA.class);
+        RuntimeException refused = assertThrows(RuntimeException.class, () -> api(false).routeFor(jda, 7L, "GET", new String[]{"rsnlink", "overview"}, DataObject::empty));
+        assertTrue(refused.getMessage().contains("owner"));
+        RuntimeException off = assertThrows(RuntimeException.class, () -> api(true).routeFor(jda, 7L, "GET", new String[]{"rsnlink", "overview"}, DataObject::empty));
+        assertTrue(off.getMessage().contains("off"));
+        assertNull(api(true).routeFor(jda, 7L, "GET", new String[]{"other"}, DataObject::empty));
+    }
 }
