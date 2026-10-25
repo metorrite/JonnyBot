@@ -40,9 +40,10 @@ public final class ProfileRules {
      * word ({@link #BLOCKED_WORDS}) or anywhere in the address ({@link #BLOCKED_ANYWHERE}, for words that are never innocent inside another).
      */
     static final Set<String> BLOCKED_WORDS = Set.of("official", "staff", "mod", "mods", "moderator", "moderators", "admin", "admins", "jmod", "jmods", "support",
-            "verified", "security", "nazi", "nazis", "rape", "porn", "sex");
+            "verified", "security", "nazi", "nazis", "rape", "rapist", "porn", "porno", "sex", "sexy", "anal", "nude", "nudes", "xxx", "hentai", "milf", "cock", "dick",
+            "pussy", "slut", "whore", "fag", "fags", "kike", "spic", "chink", "coon", "tranny");
     static final List<String> BLOCKED_ANYWHERE = List.of("jagex", "jmod", "runeclans", "rsclans", "fuck", "shit", "cunt", "nigg", "faggot", "retard", "hitler",
-            "kkk");
+            "kkk", "porn", "hentai", "nigger", "nigga");
 
     /** How long an address a clan gave up stays held for it (others can't take it; its old address forwards to the new one). */
     public static final java.time.Duration SLUG_GRACE = java.time.Duration.ofDays(30);
@@ -67,20 +68,64 @@ public final class ProfileRules {
 
     /** Why a slug can't be used, or null when it can. */
     public static String slugProblem(String slug) {
+        return slugProblem(slug, true);
+    }
+
+    /** {@link #slugProblem(String)}; {@code filter} false skips the offensive/impersonation word check (the owner's override, D4), never the shape or reserved words. */
+    public static String slugProblem(String slug, boolean filter) {
         if (slug == null || slug.length() < MIN_SLUG || slug.length() > MAX_SLUG) return "The address must be " + MIN_SLUG + " to " + MAX_SLUG + " characters.";
         if (!slug.matches("[a-z0-9]+(-[a-z0-9]+)*")) return "The address can only use lower-case letters, digits and single dashes.";
         if (RESERVED_SLUGS.contains(slug)) return "\"" + slug + "\" is reserved. Choose another address.";
-        if (blocked(slug)) return "That address can't be used: it could be mistaken for Jagex, the site or its staff, or it isn't suitable. Choose another.";
+        if (filter && blocked(slug)) return "That address can't be used: it could be mistaken for Jagex, the site or its staff, or it isn't suitable. Choose another.";
         return null;
     }
 
-    /** Whether a (well-formed) address holds a blocked word: as one of its dash-separated words, or anywhere for the never-innocent ones. */
+    /**
+     * Innocent words that contain a never-innocent-looking part, so the "anywhere" check lets them through (the Scunthorpe problem). Compared
+     * on the joined, normalised address with the allowed word cut out before the "anywhere" check.
+     */
+    static final List<String> ALLOWED_CONTAINING = List.of("scunthorpe", "cockburn", "dickens", "shitake", "shiitake", "mishit", "classhit");
+
+    /** Letters people swap for look-alike digits and symbols ("fvck" and "sh1t" are the same word). */
+    private static final java.util.Map<Character, Character> LEET = java.util.Map.of('0', 'o', '1', 'i', '3', 'e', '4', 'a', '5', 's', '7', 't', '8', 'b',
+            '@', 'a', '$', 's', '!', 'i');
+
+    /**
+     * Whether an address holds a blocked word. It is read the way a person reads it: split on dashes and digits into words, and a word is blocked
+     * only as a whole ("white-canal" is fine; "anal" would not be). The never-innocent parts are also looked for inside the joined address
+     * ("whiteporn"), after look-alike letters ("sh1t", "n1gg") are undone, repeated letters are squeezed ("fuuuck") and a few innocent words that
+     * merely contain one are cut out ("scunthorpe").
+     */
     static boolean blocked(String slug) {
-        for (String word : slug.split("-")) if (BLOCKED_WORDS.contains(word)) return true;
-        String joined = slug.replace("-", "");
-        for (String part : BLOCKED_ANYWHERE) if (joined.contains(part)) return true;
+        String lower = slug.toLowerCase(Locale.ROOT);
+        for (String variant : new String[]{lower, leet(lower)}) {
+            for (String word : variant.split("[^a-z]+")) {
+                if (word.isEmpty()) continue;
+                if (BLOCKED_WORDS.contains(word) || BLOCKED_WORDS.contains(squeezeLong(word))) return true;
+            }
+            String joined = variant.replaceAll("[^a-z]", "");
+            for (String ok : ALLOWED_CONTAINING) joined = joined.replace(ok, "");
+            for (java.util.regex.Pattern part : ANYWHERE_PATTERNS) if (part.matcher(joined).find()) return true;
+        }
         return false;
     }
+
+    private static String leet(String text) {
+        StringBuilder out = new StringBuilder(text.length());
+        for (char c : text.toCharArray()) out.append(LEET.getOrDefault(c, c));
+        return out.toString();
+    }
+
+    /** "seeex" becomes "sex": a run of three or more of the same letter is cut to one (two stay, since real words have them). */
+    private static String squeezeLong(String text) {
+        return text.replaceAll("(.)\\1{2,}", "$1");
+    }
+
+    /** Each never-innocent part allowing any letter to be repeated ("fuuuck"); built once. */
+    private static final List<java.util.regex.Pattern> ANYWHERE_PATTERNS = BLOCKED_ANYWHERE.stream()
+            .map(part -> java.util.regex.Pattern.compile(part.chars().mapToObj(c -> java.util.regex.Pattern.quote(String.valueOf((char) c)) + "+")
+                    .collect(java.util.stream.Collectors.joining())))
+            .toList();
 
     // ---------- fields ----------
 

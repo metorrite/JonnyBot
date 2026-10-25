@@ -154,4 +154,16 @@ class ProfileRulesTest {
         assertTrue(ProfileRules.visibilityProblem(profile(Visibility.PRIVATE, "Younglings", Instant.EPOCH), "Younglings", Visibility.PUBLIC).contains("suspended"));
         assertNull(ProfileRules.visibilityProblem(profile(Visibility.PUBLIC, "Younglings", Instant.EPOCH), "Younglings", Visibility.PRIVATE), "a suspended clan can always go private");
     }
+
+    @Test
+    void theAddressFilterReadsWholeWordsAndCatchesDisguises() {
+        // innocent words that merely contain a blocked part
+        for (String ok : new String[]{"white-canal", "whitecanal", "scunthorpe-clan", "mood-swing", "night-raiders", "essex-boys", "analyst-guild", "cockburn", "dickens"}) {
+            assertNull(ProfileRules.slugProblem(ok), ok + " should be allowed");
+        }
+        // hyphenated, joined, digit-split, look-alike letters and stretched letters
+        for (String bad : new String[]{"big-porn", "bigporn", "sex-clan", "sh1t-clan", "f-u-c-k", "fuuuck-clan", "nazi-club", "n1gger-clan", "seeex-clan", "clan-anal", "xxx-clan"}) {
+            assertNotNull(ProfileRules.slugProblem(bad), bad + " should be refused");
+        }
+    }
 }
