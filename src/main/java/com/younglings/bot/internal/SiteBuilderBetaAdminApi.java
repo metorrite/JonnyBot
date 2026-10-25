@@ -89,7 +89,8 @@ public class SiteBuilderBetaAdminApi implements AdminRouteExtension {
         return DataObject.empty().put("area", AccessArea.SITE_BUILDER_BETA.key()).put("users", users);
     }
 
-    private DataObject testersRoute(long actorId, String method, String[] parts, Supplier<DataObject> body) {
+    /** The {@code beta-testers} routes for an asker already checked (the owner here, an overall admin from {@link OverallAdminApi}). */
+    DataObject testersRoute(long actorId, String method, String[] parts, Supplier<DataObject> body) {
         if (parts.length == 1) {
             AdminRouteExtension.requireMethod(method, "GET");
             return testers();

@@ -114,8 +114,12 @@ public class BotlessAdminApi {
                 return;
             }
 
-            SiteCaller caller = SiteCaller.botless(facts, jda);
-            boolean onBeta = onBeta(jda, facts.userId());
+            java.util.Map<Long, Long> staff = ServerFacts.serversOf(exchange.getRequestHeaders().getFirst(ServerFacts.HEADER),
+                    exchange.getRequestHeaders().getFirst(ServerFacts.SIG_HEADER), secret, facts.userId(), clock.getAsLong());
+            SiteCaller caller = SiteCaller.botless(facts, siteRoles.factsWithoutBot(jda, facts.userId(), facts.owner(), facts.admin(), staff), jda);
+            // overall admins (N5) and the people this site's owner let into its admin panel come in without being on the beta list themselves
+            boolean onBeta = onBeta(jda, facts.userId()) || caller.facts().overallAdmin()
+                    || SiteRoles.siteAdmin(caller.facts(), siteRoles.settings(guildId));
             if (parts.length == 1 && parts[0].equals("whoami")) {
                 AdminRouteExtension.requireMethod(method, "GET");
                 InternalApiServer.sendJson(exchange, 200, whoami(caller, facts, onBeta));

@@ -1,14 +1,17 @@
 package com.younglings.bot.clansite;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
  * Who someone is on a clan website (T-368, docs/BUILDER-V3.md 8.2), decided from facts the caller looked up. Pure (no database, no Discord)
  * so the whole table can be tested. The roles, highest first:
  * <ul>
- *   <li>{@code OWNER}: the Discord server's owner, or the person who claimed the site, while they are in the server</li>
- *   <li>{@code ADMIN}: anyone the bot's dashboard lets in for that server ({@code DashboardAccess})</li>
+ *   <li>{@code OWNER}: the Discord server's owner, or the person who claimed the site, while they are in the server; and every overall
+ *   RuneClans admin (N5: the bot's owners and the people they named, {@code OverallAdmins}), on every site, in the server or not</li>
+ *   <li>{@code ADMIN}: anyone the bot's dashboard lets in for that server ({@code DashboardAccess}), and anyone the site's owner let into the
+ *   site admin ({@link AdminAccess}: by Discord user id, by a Discord role, or by the staff-server rule), in the server or not</li>
  *   <li>{@code EDITOR}: holds one of the site's editor roles, or is named as an editor by Discord user id (none by default; on a bot-less
  *   site, which can't see roles, only the user ids count)</li>
  *   <li>{@code MEMBER}: in the server and, when the site names member roles, holding one; with none named, the clan's Member role
@@ -48,14 +51,25 @@ public final class SiteRoles {
      * {@code editorUserIds} are people made editors by their Discord user id, for a site whose server the bot isn't in (it can't see roles there).
      */
     public record Settings(List<Long> editorRoleIds, List<Long> memberRoleIds, List<Long> staffRoleIds, boolean editorsMayPublish, Long claimedBy,
-                           List<Long> editorUserIds) {
-        public static final Settings DEFAULT = new Settings(List.of(), List.of(), List.of(), false, null, List.of());
+                           List<Long> editorUserIds, AdminAccess adminAccess) {
+        public static final Settings DEFAULT = new Settings(List.of(), List.of(), List.of(), false, null, List.of(), AdminAccess.NONE);
 
         public Settings {
             editorRoleIds = List.copyOf(editorRoleIds);
             memberRoleIds = List.copyOf(memberRoleIds);
             staffRoleIds = List.copyOf(staffRoleIds);
             editorUserIds = List.copyOf(editorUserIds);
+            if (adminAccess == null) adminAccess = AdminAccess.NONE;
+        }
+
+        /** Settings with nobody let into the site admin beyond the owner and the dashboard's admins. */
+        public Settings(List<Long> editorRoleIds, List<Long> memberRoleIds, List<Long> staffRoleIds, boolean editorsMayPublish, Long claimedBy,
+                        List<Long> editorUserIds) {
+            this(editorRoleIds, memberRoleIds, staffRoleIds, editorsMayPublish, claimedBy, editorUserIds, AdminAccess.NONE);
+        }
+
+        public Settings withAdminAccess(AdminAccess access) {
+            return new Settings(editorRoleIds, memberRoleIds, staffRoleIds, editorsMayPublish, claimedBy, editorUserIds, access);
         }
 
         /** Settings with no editors named by user id. */
@@ -65,21 +79,73 @@ public final class SiteRoles {
     }
 
     /**
-     * The facts about one signed-in person: whether they are in the server at all, own it, may use its dashboard, and which roles they hold.
-     * {@code clanMemberRoleId} is the clan's Member role from the server's verification setup (null when it isn't set up).
+     * Who besides the owner and the dashboard's admins may open a site's admin panel (N5), as the site's owner chose: people by Discord user id,
+     * holders of a Discord role of the server (only where the bot is in it), and the staff-server rule: members of the server
+     * {@code staffServerId} whose permissions there include {@code staffPermission} (one Discord permission bit; Administrator always counts),
+     * as Discord told the website at sign-in. A null {@code staffServerId} means no staff rule.
      */
-    public record Facts(long userId, boolean inGuild, boolean guildOwner, boolean dashboardAdmin, Set<Long> heldRoleIds, Long clanMemberRoleId) {
+    public record AdminAccess(List<Long> userIds, List<Long> roleIds, Long staffServerId, long staffPermission) {
+        public static final AdminAccess NONE = new AdminAccess(List.of(), List.of(), null, 0);
+
+        public AdminAccess {
+            userIds = List.copyOf(userIds);
+            roleIds = List.copyOf(roleIds);
+            if (staffServerId == null) staffPermission = 0;
+        }
+
+        /** Whether these facts meet the staff-server rule. */
+        public boolean staffRuleMet(Facts facts) {
+            if (staffServerId == null || staffPermission == 0) return false;
+            Long held = facts.staffServers().get(staffServerId);
+            if (held == null) return false;
+            return (held & ADMINISTRATOR) == ADMINISTRATOR || (held & staffPermission) == staffPermission;
+        }
+    }
+
+    /** Discord's Administrator permission bit. */
+    public static final long ADMINISTRATOR = 0x8L;
+
+    /**
+     * The facts about one signed-in person: whether they are in the server at all, own it, may use its dashboard, and which roles they hold.
+     * {@code clanMemberRoleId} is the clan's Member role from the server's verification setup (null when it isn't set up). {@code overallAdmin}:
+     * an overall RuneClans admin (N5), checked by the bot from its own list. {@code staffServers}: the servers where the website vouched the person
+     * holds staff permissions (server id to Discord permission bits, {@code ServerFacts}), for the staff-server rule; empty when unknown.
+     */
+    public record Facts(long userId, boolean inGuild, boolean guildOwner, boolean dashboardAdmin, Set<Long> heldRoleIds, Long clanMemberRoleId,
+                        boolean overallAdmin, Map<Long, Long> staffServers) {
         public Facts {
             heldRoleIds = Set.copyOf(heldRoleIds);
+            staffServers = staffServers == null ? Map.of() : Map.copyOf(staffServers);
         }
+
+        public Facts(long userId, boolean inGuild, boolean guildOwner, boolean dashboardAdmin, Set<Long> heldRoleIds, Long clanMemberRoleId) {
+            this(userId, inGuild, guildOwner, dashboardAdmin, heldRoleIds, clanMemberRoleId, false, Map.of());
+        }
+
+        public Facts withOverallAdmin(boolean overall) {
+            return new Facts(userId, inGuild, guildOwner, dashboardAdmin, heldRoleIds, clanMemberRoleId, overall, staffServers);
+        }
+
+        public Facts withStaffServers(Map<Long, Long> servers) {
+            return new Facts(userId, inGuild, guildOwner, dashboardAdmin, heldRoleIds, clanMemberRoleId, overallAdmin, servers);
+        }
+    }
+
+    /** Whether the site's owner let this person into the site admin (by user id, a held role, or the staff-server rule). */
+    public static boolean siteAdmin(Facts facts, Settings settings) {
+        AdminAccess a = settings.adminAccess();
+        if (a.userIds().contains(facts.userId())) return true;
+        if (facts.inGuild() && holdsAny(facts, a.roleIds())) return true;
+        return a.staffRuleMet(facts);
     }
 
     /** The person's role on the site. {@code facts} null means nobody is signed in. */
     public static Role resolve(Facts facts, Settings settings) {
         if (facts == null) return Role.VISITOR;
-        if (!facts.inGuild()) return Role.GUEST;
+        if (facts.overallAdmin()) return Role.OWNER;
+        if (!facts.inGuild()) return siteAdmin(facts, settings) ? Role.ADMIN : Role.GUEST;
         if (facts.guildOwner() || (settings.claimedBy() != null && settings.claimedBy() == facts.userId())) return Role.OWNER;
-        if (facts.dashboardAdmin()) return Role.ADMIN;
+        if (facts.dashboardAdmin() || siteAdmin(facts, settings)) return Role.ADMIN;
         if (holdsAny(facts, settings.editorRoleIds()) || settings.editorUserIds().contains(facts.userId())) return Role.EDITOR;
         if (!settings.memberRoleIds().isEmpty()) return holdsAny(facts, settings.memberRoleIds()) ? Role.MEMBER : Role.GUEST;
         if (facts.clanMemberRoleId() != null) return facts.heldRoleIds().contains(facts.clanMemberRoleId()) ? Role.MEMBER : Role.GUEST;
@@ -94,6 +160,7 @@ public final class SiteRoles {
     public static Role resolveWithoutBot(Long userId, Settings settings) {
         if (userId == null) return Role.VISITOR;
         if (settings.claimedBy() != null && settings.claimedBy().longValue() == userId) return Role.OWNER;
+        if (settings.adminAccess().userIds().contains(userId)) return Role.ADMIN;
         if (settings.editorUserIds().contains(userId)) return Role.EDITOR;
         return Role.GUEST;
     }

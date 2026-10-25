@@ -44,20 +44,30 @@ public class SiteRoleRepository {
                 );
                 """,
                 // editors named by Discord user id, for a site whose server the bot isn't in
-                "ALTER TABLE younglings.clan_site_roles ADD COLUMN IF NOT EXISTS editor_user_ids BIGINT[] NOT NULL DEFAULT '{}';"
+                "ALTER TABLE younglings.clan_site_roles ADD COLUMN IF NOT EXISTS editor_user_ids BIGINT[] NOT NULL DEFAULT '{}';",
+                // who else may open the site admin (N5): people by user id, Discord roles, and the staff-server rule
+                "ALTER TABLE younglings.clan_site_roles ADD COLUMN IF NOT EXISTS admin_user_ids BIGINT[] NOT NULL DEFAULT '{}';",
+                "ALTER TABLE younglings.clan_site_roles ADD COLUMN IF NOT EXISTS admin_role_ids BIGINT[] NOT NULL DEFAULT '{}';",
+                "ALTER TABLE younglings.clan_site_roles ADD COLUMN IF NOT EXISTS staff_server_id BIGINT NULL;",
+                "ALTER TABLE younglings.clan_site_roles ADD COLUMN IF NOT EXISTS staff_server_permission BIGINT NOT NULL DEFAULT 0;"
         ));
     }
 
     public SiteRoles.Settings get(long guildId) {
-        String sql = "SELECT editor_role_ids, member_role_ids, staff_role_ids, editors_may_publish, claimed_by, editor_user_ids FROM younglings.clan_site_roles WHERE guild_id = ?";
+        String sql = "SELECT editor_role_ids, member_role_ids, staff_role_ids, editors_may_publish, claimed_by, editor_user_ids, admin_user_ids, admin_role_ids, "
+                + "staff_server_id, staff_server_permission FROM younglings.clan_site_roles WHERE guild_id = ?";
         try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
             s.setLong(1, guildId);
             try (ResultSet rs = s.executeQuery()) {
                 if (!rs.next()) return SiteRoles.Settings.DEFAULT;
                 long claimed = rs.getLong("claimed_by");
                 Long claimedBy = rs.wasNull() ? null : claimed;
+                long staffServer = rs.getLong("staff_server_id");
+                Long staffServerId = rs.wasNull() ? null : staffServer;
+                SiteRoles.AdminAccess access = new SiteRoles.AdminAccess(ids(rs.getArray("admin_user_ids")), ids(rs.getArray("admin_role_ids")), staffServerId,
+                        rs.getLong("staff_server_permission"));
                 return new SiteRoles.Settings(ids(rs.getArray("editor_role_ids")), ids(rs.getArray("member_role_ids")), ids(rs.getArray("staff_role_ids")),
-                        rs.getBoolean("editors_may_publish"), claimedBy, ids(rs.getArray("editor_user_ids")));
+                        rs.getBoolean("editors_may_publish"), claimedBy, ids(rs.getArray("editor_user_ids")), access);
             }
         } catch (SQLException e) {
             log.error("Failed to read the clan website roles of guild {}", guildId, e);
@@ -88,6 +98,31 @@ public class SiteRoleRepository {
         } catch (SQLException e) {
             log.error("Failed to save the clan website roles of guild {}", guildId, e);
             throw new RuntimeException("Failed to save the clan website roles", e);
+        }
+    }
+
+    /** Stores who else may open the site admin (N5); the role lists and who claimed the site are left as they are. */
+    public void saveAdminAccess(long guildId, SiteRoles.AdminAccess access, long actorId) {
+        String sql = """
+                INSERT INTO younglings.clan_site_roles (guild_id, admin_user_ids, admin_role_ids, staff_server_id, staff_server_permission, updated_by, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (guild_id) DO UPDATE SET admin_user_ids = EXCLUDED.admin_user_ids, admin_role_ids = EXCLUDED.admin_role_ids,
+                    staff_server_id = EXCLUDED.staff_server_id, staff_server_permission = EXCLUDED.staff_server_permission,
+                    updated_by = EXCLUDED.updated_by, updated_at = EXCLUDED.updated_at
+                """;
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
+            s.setLong(1, guildId);
+            s.setArray(2, c.createArrayOf("BIGINT", access.userIds().toArray()));
+            s.setArray(3, c.createArrayOf("BIGINT", access.roleIds().toArray()));
+            if (access.staffServerId() == null) s.setNull(4, Types.BIGINT);
+            else s.setLong(4, access.staffServerId());
+            s.setLong(5, access.staffPermission());
+            s.setLong(6, actorId);
+            s.setTimestamp(7, Timestamp.from(Instant.now()));
+            s.executeUpdate();
+        } catch (SQLException e) {
+            log.error("Failed to save the site admin access of guild {}", guildId, e);
+            throw new RuntimeException("Failed to save the site admin access", e);
         }
     }
 
