@@ -15,6 +15,7 @@ import java.util.Optional;
  * highlights, level), plus {@code notices} (what the home site's {@code site/me} lists) and the server profile ({@code server-profile},
  * {@code nickname}, {@code color-role}; each change only while the server's admins allow it, {@link SiteMemberOptionsAdminApi}).
  * <p>
+ * A bot-less site (the bot isn't in its server) answers 409 {@code needsBot}: nobody's membership can be checked, so nothing is read or written.
  * Only for a published site, and only for someone who is in that Discord server: anyone else is refused before anything is read or
  * written. Like every "me" route, the {@code userId} (query for GET/DELETE, body for POST/PUT) must come from the visitor's verified login
  * session on the website, never from the browser; every action touches only that user's rows in this one server.
@@ -38,7 +39,12 @@ public class DirectoryClanSiteMemberRoutes implements DirectoryRouteModule {
         Optional<ClanSite> site = request.viewable(parts[1]).flatMap(p -> sites.visible(p.guildId()));
         Guild guild = site.isEmpty() ? null : request.jda().getGuildById(site.get().guildId());
         if (guild == null) {
-            request.sendError(404, "Not found");
+            // a bot-less site's server has no bot to know its members, so a member's actions can't be done there: say so, don't 404
+            if (site.isPresent() && sites.botless(site.get().guildId())) {
+                request.send(409, DataObject.empty().put("error", BotlessAdminApi.NEEDS_BOT).put("needsBot", true).put("botless", true));
+            } else {
+                request.sendError(404, "Not found");
+            }
             return true;
         }
         String route = parts.length == 4 ? parts[3] : parts[3] + "/" + parts[4];
