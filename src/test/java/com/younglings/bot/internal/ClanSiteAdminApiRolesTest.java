@@ -6,11 +6,14 @@ import com.younglings.bot.clansite.ClanSiteRepository;
 import com.younglings.bot.clansite.ClanSiteService;
 import com.younglings.bot.clansite.SiteRoleGuard;
 import com.younglings.bot.clansite.SiteRoles.Action;
+import com.younglings.bot.internal.CommunitySettings.SiteMemberOptions;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.notice.BotOwners;
 import com.younglings.bot.premium.Premium;
+import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.SelfMember;
 import net.dv8tion.jda.api.utils.data.DataObject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,8 +23,11 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -36,10 +42,12 @@ class ClanSiteAdminApiRolesTest {
     /** The real API with every collaborator mocked. */
     private static final class ClanSiteApiUnderTest {
         final ClanSiteAdminApi api;
+        final CommunitySettings community = mock(CommunitySettings.class);
 
         ClanSiteApiUnderTest(ClanSiteLayoutRepository layouts, SiteRoleGuard guard) {
             api = new ClanSiteAdminApi(mock(ClanSiteRepository.class), layouts, mock(ClanSiteService.class), mock(ClanProfileService.class),
-                    mock(BotOwners.class), mock(Premium.class), guard, mock(SiteDiscordService.class), mock(SiteAddressRoutes.class));
+                    mock(BotOwners.class), mock(Premium.class), guard, mock(SiteDiscordService.class), mock(SiteAddressRoutes.class),
+                    new SiteMemberOptionsAdminApi(community));
         }
     }
 
@@ -103,5 +111,34 @@ class ClanSiteAdminApiRolesTest {
         assertEquals(403, delete.status, "a dashboard admin who isn't the owner");
         ApiError handOver = assertThrows(ApiError.class, () -> api.api.route(guild, actor, "POST", path("clan-site/roles/hand-over"), DataObject::empty));
         assertEquals(403, handOver.status);
+    }
+
+    @Test
+    void siteAdminsReadAndSaveTheMemberOptions() {
+        when(guard.allows(eq(guild), eq(actor), any())).thenReturn(true);
+        when(guild.getIdLong()).thenReturn(7L);
+        SelfMember self = mock(SelfMember.class);
+        when(guild.getSelfMember()).thenReturn(self);
+        when(self.hasPermission(Permission.NICKNAME_MANAGE)).thenReturn(true);
+        when(api.community.siteMemberOptions(7L)).thenReturn(new SiteMemberOptions(false, false));
+
+        DataObject read = api.api.route(guild, actor, "GET", path("clan-site/member-options"), DataObject::empty);
+        assertFalse(read.getBoolean("nickname"));
+        assertTrue(read.getBoolean("canSetNicknames"));
+        assertFalse(read.getBoolean("canManageRoles"));
+
+        DataObject saved = api.api.route(guild, actor, "PUT", path("clan-site/member-options"), () -> DataObject.empty().put("color", true));
+        assertTrue(saved.getBoolean("color"));
+        assertFalse(saved.getBoolean("nickname"), "a key left out keeps its value");
+        verify(api.community).setSiteMemberOptions(7L, new SiteMemberOptions(false, true));
+    }
+
+    @Test
+    void editorsCantChangeTheMemberOptions() {
+        editorWithoutPublish();
+        assertFalse(api.api.admits(guild, actor, "PUT", path("clan-site/member-options")));
+        ApiError put = assertThrows(ApiError.class, () -> api.api.route(guild, actor, "PUT", path("clan-site/member-options"), () -> DataObject.empty().put("nickname", true)));
+        assertEquals(403, put.status);
+        verify(api.community, never()).setSiteMemberOptions(anyLong(), any());
     }
 }

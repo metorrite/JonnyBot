@@ -12,8 +12,9 @@ import java.util.function.Supplier;
 /**
  * What a server's members may change about themselves from its clan website (T-369): their nickname and their name colour, both off until
  * an admin turns them on. {@code GET site-member-options} and {@code PUT site-member-options {nickname?, color?}}; the reply also says
- * whether the bot has the permission each needs. Reached only through {@link TicketAdminApi}, which has already checked the asker may use
- * the dashboard in this server and audit-logs every change. The dashboard/site admin page for it is a linked ticket (website-first).
+ * whether the bot has the permission each needs. Reached through {@link TicketAdminApi}, which has already checked the asker may use
+ * the dashboard in this server and audit-logs every change, and as {@code clan-site/member-options} for the clan site's admins
+ * ({@link ClanSiteAdminApi}, site admin role), which is where the website shows the two switches.
  */
 @BService
 public class SiteMemberOptionsAdminApi implements AdminRouteExtension {
@@ -26,6 +27,11 @@ public class SiteMemberOptionsAdminApi implements AdminRouteExtension {
     @Override
     public DataObject route(Guild guild, Member actor, String method, String[] parts, Supplier<DataObject> body) {
         if (parts.length != 1 || !parts[0].equals("site-member-options")) return null;
+        return route(guild, method, body);
+    }
+
+    /** The GET or PUT itself, once the caller is known to be allowed. */
+    DataObject route(Guild guild, String method, Supplier<DataObject> body) {
         if (method.equals("GET")) return json(guild, settings.siteMemberOptions(guild.getIdLong()));
         AdminRouteExtension.requireMethod(method, "PUT");
         DataObject b = body.get();
