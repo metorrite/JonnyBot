@@ -135,7 +135,7 @@ public class OverallAdminApi {
                 yield sites.routes(home, actor, method, parts, body);
             }
             case SiteBuilderBetaAdminApi.TESTERS -> beta.testersRoute(actor, method, parts, body);
-            case OverallOpsRoutes.HEALTH, OverallOpsRoutes.BUDGET, OverallOpsRoutes.RUNESYNC -> ops.route(jda, actor, home(jda), method, parts);
+            case OverallOpsRoutes.HEALTH, OverallOpsRoutes.BUDGET, OverallOpsRoutes.RUNESYNC, OverallOpsRoutes.PREMIUM_GUILDS -> ops.route(jda, actor, home(jda), method, parts, body);
             default -> null;
         };
     }
