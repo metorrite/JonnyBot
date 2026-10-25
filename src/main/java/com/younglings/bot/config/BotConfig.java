@@ -326,6 +326,15 @@ public class BotConfig {
         return envOrDotenv(name);
     }
 
+    /**
+     * {@code RSNLINK_DM_SECRET}: the secret runeclans-hub sends ({@code X-RsLink-Dm-Secret}) to have the bot DM RS Link codes for it (T-166).
+     * It opens only {@code /internal/rsnlink-dm/}. Null when unset (those routes are then closed).
+     */
+    public String getRsnLinkDmSecret() {
+        String secret = envOrDotenv("RSNLINK_DM_SECRET");
+        return secret == null || secret.isBlank() ? null : secret.strip();
+    }
+
     /** A Discord Linked Roles setting ({@code LINKED_ROLES_*}, see {@code linkedroles.LinkedRolesSettings}); null when unset. */
     public String getLinkedRolesSetting(String name) {
         if (!name.startsWith("LINKED_ROLES_")) throw new IllegalArgumentException("Only LINKED_ROLES_ settings are served here");
