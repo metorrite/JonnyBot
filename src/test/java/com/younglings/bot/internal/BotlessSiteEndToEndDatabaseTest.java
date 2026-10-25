@@ -9,6 +9,8 @@ import com.younglings.bot.clansite.BotlessSiteRepository;
 import com.younglings.bot.clansite.ClanSiteLayoutRepository;
 import com.younglings.bot.clansite.ClanSiteRepository;
 import com.younglings.bot.clansite.ClanSiteService;
+import com.younglings.bot.clansite.SiteConnectionStore;
+import com.younglings.bot.clansite.SiteDiscordSettings;
 import com.younglings.bot.clansite.SiteRoleGuard;
 import com.younglings.bot.clansite.SiteRoleRepository;
 import com.younglings.bot.beta.BetaDatabaseInitializer;
@@ -17,6 +19,7 @@ import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.configure.GuildSettingsDatabaseInitializer;
 import com.younglings.bot.configure.GuildSettingsRepository;
 import com.younglings.bot.configure.GuildSettingsService;
+import com.younglings.bot.member.MemberProfileRepository;
 import com.younglings.bot.notice.BotOwners;
 import com.younglings.bot.permission.DashboardAccess;
 import com.younglings.bot.premium.Premium;
@@ -104,7 +107,9 @@ class BotlessSiteEndToEndDatabaseTest {
         ClanProfileService profiles = new ClanProfileService(new ClanProfileRepository(db), clanSync, mock(PlayerLinkService.class));
         SiteRoleGuard roles = new SiteRoleGuard(new SiteRoleRepository(db), mock(DashboardAccess.class), settings, mock(PlayerLinkService.class));
         BotOwners owners = mock(BotOwners.class);
-        ClanSiteAdminApi clanSite = new ClanSiteAdminApi(sites, layouts, siteService, profiles, owners, mock(Premium.class), roles);
+        ClanSiteAdminApi clanSite = new ClanSiteAdminApi(sites, layouts, siteService, profiles, owners, mock(Premium.class), roles,
+                new SiteDiscordService(new SiteConnectionStore(db, new SiteDiscordSettings(db), new SiteNewsService(db)), new SiteDiscordSettings(db),
+                        new SiteNewsService(db), mock(MemberProfileRepository.class), new SiteCache()));
         ImageUploadService images = new ImageUploadService(new UploadedImageRepository(db, new UploadedImageDatabaseInitializer(db)));
         grants = new AccessGrantRepository(db);
         grantService = new AccessGrantService(grants);

@@ -84,9 +84,12 @@ public class SiteApi {
     private final RecapService recap;
     private final CommunitySettings community;
     private final BossStatsService bossStats;
+    private final SiteDiscordService discord;
 
     public SiteApi(SiteStatsRepository stats, PlayerLinkRepository links, ClanPointsRepository points, GuildSettingsService settings, WeeklyDigestRepository rosterEvents,
-                   MemberProfileRepository profiles, SiteNewsService news, SignupService signupService, SiteCache cache, RecapService recap, CommunitySettings community, BossStatsService bossStats) {
+                   MemberProfileRepository profiles, SiteNewsService news, SignupService signupService, SiteCache cache, RecapService recap, CommunitySettings community, BossStatsService bossStats,
+                   SiteDiscordService discord) {
+        this.discord = discord;
         this.stats = stats;
         this.links = links;
         this.points = points;
@@ -211,7 +214,7 @@ public class SiteApi {
             case "coffer" -> coffer(guildId, true);
             case "polls" -> polls(guildId);
             case "signups" -> signups(guildId, true);
-            case "events" -> events(guild);
+            case "events" -> discord.eventsShown(guildId) ? events(guild) : DataObject.empty().put("events", DataArray.empty());
             case "pvm" -> pvm(guildId);
             case "drops" -> drops(guildId);
             case "bosses" -> bossStats.bosses(guildId, query(exchange, "period"));
@@ -274,7 +277,7 @@ public class SiteApi {
         // A bot-less site (guild null) has no Discord events, polls or signup sheets: only the activity lines.
         if (guild == null) return DataObject.empty().put("events", events).put("polls", polls).put("signups", signups)
                 .put("feed", feed(guildId, Integer.toString(NOTIFICATION_ITEMS), null).getArray("items"));
-        guild.getScheduledEvents().stream()
+        if (discord.eventsShown(guildId)) guild.getScheduledEvents().stream()
                 .filter(e -> e.getStatus() == ScheduledEvent.Status.ACTIVE
                         || (e.getStatus() == ScheduledEvent.Status.SCHEDULED && e.getStartTime().isBefore(now.plus(EVENTS_SOON))))
                 .sorted(Comparator.comparing(ScheduledEvent::getStartTime)).limit(NOTIFICATION_ITEMS)

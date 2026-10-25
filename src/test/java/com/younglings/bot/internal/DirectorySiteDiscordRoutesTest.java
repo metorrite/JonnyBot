@@ -25,7 +25,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -96,8 +95,8 @@ class DirectorySiteDiscordRoutesTest {
     }
 
     @Test
-    void theFeedPassesTheChannelAndLimit() throws Exception {
-        when(discord.feed(guild, "12", 5)).thenReturn(DataObject.empty().put("posts", "x"));
+    void theFeedPassesTheChannelButNotALimit() throws Exception {
+        when(discord.feed(guild, "12")).thenReturn(DataObject.empty().put("posts", "x"));
         assertEquals("x", call("GET", "/internal/directory/sites/younglings/data/discord/feed?channel=12&limit=5", null).body().getString("posts"));
         assertEquals(404, call("GET", "/internal/directory/sites/younglings/data/discord/feed?channel=99", null).status());
     }
@@ -134,7 +133,7 @@ class DirectorySiteDiscordRoutesTest {
     @Test
     void otherSiteRoutesStillReachTheirModule() throws Exception {
         assertEquals(404, call("GET", "/internal/directory/sites/younglings/data/discord/other", null).status());
-        verify(discord, never()).feed(any(), any(), anyInt());
+        verify(discord, never()).feed(any(), any());
     }
 
     /** The website (runeclans A1) shows its "Needs RuneClan Bot" placeholder for any {"needsBot": true} answer from these routes. */
