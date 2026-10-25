@@ -36,7 +36,7 @@ class FeatureStatusRepositoryDatabaseTest {
             com.younglings.bot.serverreminder.ServerReminderRepository.class, com.younglings.bot.autoreply.AutoReplyRepository.class,
             com.younglings.bot.customtag.CustomTagRepository.class, com.younglings.bot.embedder.EmbedderDatabaseInitializer.class,
             com.younglings.bot.feed.FeedRepository.class, com.younglings.bot.twitch.TwitchRepository.class, com.younglings.bot.kick.KickRepository.class,
-            com.younglings.bot.highlight.HighlightRepository.class, CommunitySettings.class, com.younglings.bot.giveaway.GiveawayRepository.class,
+            com.younglings.bot.highlight.HighlightRepository.class, com.younglings.bot.giveaway.GiveawayRepository.class,
             com.younglings.bot.suggestion.SuggestionRepository.class, com.younglings.bot.starboard.StarboardRepository.class,
             com.younglings.bot.ticket.TicketDatabaseInitializer.class, com.younglings.bot.forms.WebFormRepository.class,
             com.younglings.bot.points.PointsRepository.class, com.younglings.bot.chatlevel.ChatLevelRepository.class,
@@ -55,6 +55,7 @@ class FeatureStatusRepositoryDatabaseTest {
     static void connect() throws Exception {
         supplier = LocalDatabase.supplier();
         for (Class<?> owner : TABLE_OWNERS) owner.getConstructor(ConnectionSupplier.class).newInstance(supplier);
+        new CommunitySettings(supplier, com.younglings.bot.testsupport.SiteMappings.off(supplier)); // its tables too (it also takes the channel mappings)
     }
 
     @AfterEach

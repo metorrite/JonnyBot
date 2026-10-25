@@ -120,6 +120,7 @@ public class SiteBuilderBetaAdminApi implements AdminRouteExtension {
 
     /** Adds the person with the note, or changes the note when they are already on the list. */
     void put(long actorId, long userId, String rawNote) {
+        HubAccessEdits.refuseWhenInHub(service.editedInHub());
         String note = note(rawNote);
         Instant now = Instant.now();
         List<AccessGrant> current = entries();
@@ -133,6 +134,7 @@ public class SiteBuilderBetaAdminApi implements AdminRouteExtension {
     }
 
     DataObject add(long actorId, DataObject body) {
+        HubAccessEdits.refuseWhenInHub(service.editedInHub());
         long userId = userId(body.getString("userId", ""));
         String note = note(body.getString("note", ""));
         List<AccessGrant> current = entries();
@@ -155,6 +157,7 @@ public class SiteBuilderBetaAdminApi implements AdminRouteExtension {
     }
 
     DataObject remove(long userId) {
+        HubAccessEdits.refuseWhenInHub(service.editedInHub());
         boolean removed = false;
         for (AccessGrant g : entries()) if (g.userId() == userId) removed |= repository.delete(g.id());
         if (!removed) throw new ApiError(404, "That person isn't on the beta list.");

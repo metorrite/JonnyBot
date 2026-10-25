@@ -110,8 +110,8 @@ class BotlessSiteEndToEndDatabaseTest {
         SiteRoleGuard roles = new SiteRoleGuard(new SiteRoleRepository(db), mock(DashboardAccess.class), settings, mock(PlayerLinkService.class),
                 new com.younglings.bot.access.OverallAdmins(new com.younglings.bot.access.OverallAdminRepository(db), owners));
         ClanSiteAdminApi clanSite = new ClanSiteAdminApi(sites, layouts, siteService, profiles, owners, mock(Premium.class), roles,
-                new SiteDiscordService(new SiteConnectionStore(db, new SiteDiscordSettings(db), new SiteNewsService(db)), new SiteDiscordSettings(db),
-                        new SiteNewsService(db), mock(MemberProfileRepository.class), new SiteCache()), mock(SiteAddressRoutes.class),
+                new SiteDiscordService(new SiteConnectionStore(db, new SiteDiscordSettings(db), new SiteNewsService(db, com.younglings.bot.testsupport.SiteMappings.off(db)), com.younglings.bot.testsupport.SiteMappings.off(db)), new SiteDiscordSettings(db),
+                        new SiteNewsService(db, com.younglings.bot.testsupport.SiteMappings.off(db)), mock(MemberProfileRepository.class), new SiteCache()), mock(SiteAddressRoutes.class),
                 mock(SiteMemberOptionsAdminApi.class));
         ImageUploadService images = new ImageUploadService(new UploadedImageRepository(db, new UploadedImageDatabaseInitializer(db)));
         grants = new AccessGrantRepository(db);
@@ -128,7 +128,7 @@ class BotlessSiteEndToEndDatabaseTest {
         }).when(ticketAdmin).handle(any(), any());
         InternalApiServer server = new InternalApiServer(config, ticketAdmin, mock(SiteApi.class), mock(DirectoryApi.class), mock(PluginApi.class),
                 mock(MemberApi.class), images, mock(com.younglings.bot.tracking.CitadelWinners.class), mock(FormsPublicApi.class), List.of(), botlessAdmin,
-                mock(com.younglings.bot.discord.jobs.DiscordOutbox.class), mock(OverallAdminApi.class));
+                mock(com.younglings.bot.discord.jobs.DiscordOutbox.class), mock(OverallAdminApi.class), com.younglings.bot.hubsites.HubSites.off());
         JDA jda = mock(JDA.class);
         when(jda.getStatus()).thenReturn(JDA.Status.CONNECTED);
         Guild home = mock(Guild.class);

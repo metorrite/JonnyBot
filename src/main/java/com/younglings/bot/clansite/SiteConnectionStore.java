@@ -2,6 +2,7 @@ package com.younglings.bot.clansite;
 
 import com.younglings.bot.clansite.SiteDiscordSettings.OnlineMode;
 import com.younglings.bot.database.SchemaBootstrapper;
+import com.younglings.bot.hubsites.SiteChannelMappings;
 import com.younglings.bot.internal.SiteNewsService;
 import io.github.freya022.botcommands.api.core.db.ConnectionSupplier;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -30,6 +31,9 @@ import java.util.List;
  * One-time copy: when this table is first created, every server's online mode ({@code site_discord_setting}) and website channels
  * ({@code site_news_channel}) are copied in, so live sites keep what their admins chose on the bot dashboard. A server's row is only ever
  * copied while it has none, so later edits here are never overwritten.
+ * <p>
+ * With {@code SITES_BACKEND=hub} the feed channels are kept as mappings of the server's hub site ({@link SiteChannelMappings}); the rest
+ * stays here.
  */
 @BService
 public class SiteConnectionStore {
@@ -67,10 +71,12 @@ public class SiteConnectionStore {
     }
 
     private final ConnectionSupplier connectionSupplier;
+    private final SiteChannelMappings mappings;
 
     /** Takes the two older stores only so their tables exist before the one-time copy reads them. */
-    public SiteConnectionStore(ConnectionSupplier connectionSupplier, SiteDiscordSettings discordSettings, SiteNewsService news) {
+    public SiteConnectionStore(ConnectionSupplier connectionSupplier, SiteDiscordSettings discordSettings, SiteNewsService news, SiteChannelMappings mappings) {
         this.connectionSupplier = connectionSupplier;
+        this.mappings = mappings;
         SchemaBootstrapper.run(connectionSupplier, log, "site connections", List.of(
                 "CREATE SCHEMA IF NOT EXISTS younglings;",
                 """
@@ -141,7 +147,12 @@ public class SiteConnectionStore {
                      """)) {
             s.setLong(1, siteId);
             try (ResultSet rs = s.executeQuery()) {
-                if (!rs.next()) return Connection.defaults(siteId);
+                if (!rs.next()) {
+                    Connection defaults = Connection.defaults(siteId);
+                    List<Channel> mapped = mapped(siteId);
+                    return mapped == null ? defaults : defaults.withFeatures(defaults.onlineMode(), defaults.onlineLimit(), defaults.groupByRole(),
+                            defaults.feedLimit(), defaults.eventsEnabled(), mapped);
+                }
                 long discord = rs.getLong(1);
                 Long discordGuild = rs.wasNull() ? null : discord;
                 long by = rs.getLong(2);
@@ -149,11 +160,24 @@ public class SiteConnectionStore {
                 Timestamp at = rs.getTimestamp(3);
                 return new Connection(siteId, discordGuild, connectedBy, at == null ? null : at.toInstant(), rs.getString(4),
                         OnlineMode.parse(rs.getString(5)).orElse(OnlineMode.OFF), rs.getInt(6), rs.getBoolean(7), rs.getInt(8), rs.getBoolean(9),
-                        channels(c, siteId), rs.getBoolean(10));
+                        channelsOf(c, siteId), rs.getBoolean(10));
             }
         } catch (SQLException e) {
             throw fail("read a site's connections", e);
         }
+    }
+
+    /** The feed channels: the hub site's mappings under {@code SITES_BACKEND=hub}, else this store's own. */
+    private List<Channel> channelsOf(java.sql.Connection c, long siteId) throws SQLException {
+        List<Channel> mapped = mapped(siteId);
+        return mapped != null ? mapped : channels(c, siteId);
+    }
+
+    /** The hub site's mapped feed channels, or null when this store's own table holds them. */
+    private List<Channel> mapped(long siteId) {
+        return mappings.channels(siteId, SiteChannelMappings.Kind.FEED)
+                .map(list -> list.stream().map(m -> new Channel(m.channelId(), m.label(), m.position())).toList())
+                .orElse(null);
     }
 
     private static List<Channel> channels(java.sql.Connection c, long siteId) throws SQLException {
@@ -170,26 +194,13 @@ public class SiteConnectionStore {
 
     /** Saves the Discord features (the online list, the feeds' channels and post count, Discord events), keeping the server and provider. */
     public void saveFeatures(Connection next, long actorId) {
+        boolean mapped = mappings.replace(next.siteId(), SiteChannelMappings.Kind.FEED,
+                next.channels().stream().map(ch -> new SiteChannelMappings.Mapped(ch.channelId(), ch.label(), ch.position())).toList());
         try (java.sql.Connection c = connectionSupplier.getConnection()) {
             c.setAutoCommit(false);
             try {
                 upsert(c, next, actorId);
-                try (PreparedStatement delete = c.prepareStatement("DELETE FROM younglings.site_connection_channel WHERE guild_id = ?")) {
-                    delete.setLong(1, next.siteId());
-                    delete.executeUpdate();
-                }
-                try (PreparedStatement insert = c.prepareStatement(
-                        "INSERT INTO younglings.site_connection_channel (guild_id, channel_id, label, position) VALUES (?, ?, ?, ?)")) {
-                    int position = 0;
-                    for (Channel channel : next.channels()) {
-                        insert.setLong(1, next.siteId());
-                        insert.setLong(2, channel.channelId());
-                        insert.setString(3, channel.label());
-                        insert.setInt(4, position++);
-                        insert.addBatch();
-                    }
-                    insert.executeBatch();
-                }
+                if (!mapped) saveChannels(c, next);
                 c.commit();
             } catch (SQLException e) {
                 c.rollback();
@@ -197,6 +208,25 @@ public class SiteConnectionStore {
             }
         } catch (SQLException e) {
             throw fail("save a site's Discord features", e);
+        }
+    }
+
+    private static void saveChannels(java.sql.Connection c, Connection next) throws SQLException {
+        try (PreparedStatement delete = c.prepareStatement("DELETE FROM younglings.site_connection_channel WHERE guild_id = ?")) {
+            delete.setLong(1, next.siteId());
+            delete.executeUpdate();
+        }
+        try (PreparedStatement insert = c.prepareStatement(
+                "INSERT INTO younglings.site_connection_channel (guild_id, channel_id, label, position) VALUES (?, ?, ?, ?)")) {
+            int position = 0;
+            for (Channel channel : next.channels()) {
+                insert.setLong(1, next.siteId());
+                insert.setLong(2, channel.channelId());
+                insert.setString(3, channel.label());
+                insert.setInt(4, position++);
+                insert.addBatch();
+            }
+            insert.executeBatch();
         }
     }
 
