@@ -65,6 +65,7 @@ public class SiteSwitchAdminApi implements AdminRouteExtension {
 
     DataObject set(Member actor, String key, DataObject body) {
         SiteSwitch s = SiteSwitch.ofKey(key).orElseThrow(() -> new ApiError(404, Text.of(actor.getGuild(), "dashboard.that_is_not_a_switch")));
+        HubAccessEdits.refuseWhenInHub(gates.fromHub());
         if (!body.hasKey("enabled")) throw new ApiError(400, Text.of(actor.getGuild(), "dashboard.say_whether_the_switch_is_on"));
         boolean enabled = body.getBoolean("enabled");
         repository.set(s.key(), enabled, actor.getIdLong());

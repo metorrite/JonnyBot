@@ -79,6 +79,7 @@ public class BetaAdminApi implements AdminRouteExtension {
 
     DataObject save(Guild guild, Member actor, String rawId, DataObject body) {
         requireOwner(guild, actor);
+        HubAccessEdits.refuseWhenInHub(access.editedInHub());
         long id = parseId(rawId);
         String label = body.getString("label", "").strip();
         if (label.length() > MAX_LABEL) throw new ApiError(400, Text.of(guild, "dashboard.keep_the_label_under_characters", MAX_LABEL));
@@ -102,6 +103,7 @@ public class BetaAdminApi implements AdminRouteExtension {
 
     DataObject remove(Guild guild, Member actor, String rawId) {
         requireOwner(guild, actor);
+        HubAccessEdits.refuseWhenInHub(access.editedInHub());
         long id = parseId(rawId);
         if (!repository.delete(id)) throw new ApiError(404, Text.of(guild, "dashboard.that_server_isn_t_on_the"));
         access.listChanged();
