@@ -23,8 +23,6 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -41,6 +39,8 @@ import java.util.regex.Pattern;
 public class SiteNewsService {
     private static final Logger log = LoggerFactory.getLogger(SiteNewsService.class);
     private static final long CACHE_MILLIS = 60_000;
+    private static final long MAX_STALE_MILLIS = 60 * 60_000;
+    private static final String CACHE_KEY = "news|";
     private static final int PER_CHANNEL = 25; // a clan site's channel feed shows up to 25 posts from one channel (T-365)
     private static final Pattern USER = Pattern.compile("<@!?(\\d+)>");
     private static final Pattern ROLE = Pattern.compile("<@&(\\d+)>");
@@ -48,7 +48,6 @@ public class SiteNewsService {
     private static final Pattern EMOJI = Pattern.compile("<a?:(\\w+):\\d+>");
 
     private final ConnectionSupplier connectionSupplier;
-    private final Map<Long, Cached> cache = new ConcurrentHashMap<>();
 
     public SiteNewsService(ConnectionSupplier connectionSupplier) {
         this.connectionSupplier = connectionSupplier;
@@ -64,8 +63,6 @@ public class SiteNewsService {
                 );
                 """));
     }
-
-    private record Cached(long fetchedAt, List<DataObject> posts) {}
 
     public record NewsChannel(long channelId, String label, int position) {}
 
@@ -112,7 +109,7 @@ public class SiteNewsService {
         } catch (SQLException e) {
             throw fail("save news channels", e);
         }
-        cache.clear();
+        AdminReads.forgetPrefix(CACHE_KEY);
         SiteInvalidator.signal(SiteInvalidator.Area.NEWS);
     }
 
@@ -136,10 +133,19 @@ public class SiteNewsService {
         return array;
     }
 
+    /**
+     * One channel's posts, from the cache when it can be: a copy up to an hour old is shown at once while a new one is fetched, and a channel
+     * with nothing cached waits for Discord at most two seconds (then shows no posts this time, and the next visit finds them ready).
+     */
     private List<DataObject> postsFor(Guild guild, NewsChannel configured) {
-        Cached cached = cache.get(configured.channelId());
-        if (cached != null && System.currentTimeMillis() - cached.fetchedAt() < CACHE_MILLIS) return cached.posts();
+        try {
+            return AdminReads.cachedFor(CACHE_KEY + configured.channelId(), CACHE_MILLIS, MAX_STALE_MILLIS, () -> fetchPosts(guild, configured));
+        } catch (RuntimeException e) {
+            return List.of(); // Discord is slow or the channel couldn't be read; the next visit tries again
+        }
+    }
 
+    private List<DataObject> fetchPosts(Guild guild, NewsChannel configured) {
         List<DataObject> posts = new ArrayList<>();
         GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, configured.channelId());
         if (channel != null) {
@@ -150,10 +156,9 @@ public class SiteNewsService {
                 }
             } catch (Exception e) {
                 log.warn("Couldn't read news channel {}: {}", configured.channelId(), e.getMessage());
-                if (cached != null) return cached.posts(); // keep showing the last good copy
+                throw new IllegalStateException("news channel unreadable", e); // keeps showing the last good copy
             }
         }
-        cache.put(configured.channelId(), new Cached(System.currentTimeMillis(), posts));
         return posts;
     }
 

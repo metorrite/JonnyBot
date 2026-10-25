@@ -69,16 +69,22 @@ public class LinkedRolesApi implements InternalRouteModule {
         try {
             switch (route) {
                 case "connect" -> {
-                    Shared shared = roles.connect(userId, body.getString("accessToken", null), body.getString("refreshToken", null),
-                            body.getLong("expiresIn", 604800), body.getString("rsLinkRsn", null), instant(body.getString("rsLinkSince", null)));
+                    String accessToken = body.getString("accessToken", null);
+                    String refreshToken = body.getString("refreshToken", null);
+                    long expiresIn = body.getLong("expiresIn", 604800);
+                    String rsn = body.getString("rsLinkRsn", null);
+                    Instant since = instant(body.getString("rsLinkSince", null));
+                    Shared shared = AdminReads.withinBudget(() -> roles.connect(userId, accessToken, refreshToken, expiresIn, rsn, since));
                     InternalApiServer.sendJson(exchange, 200, view(Optional.of(shared)));
                 }
-                case "status" -> InternalApiServer.sendJson(exchange, 200, view(roles.status(userId)));
-                case "unlink" -> InternalApiServer.sendJson(exchange, 200, DataObject.empty().put("unlinked", roles.unlink(userId)));
+                case "status" -> InternalApiServer.sendJson(exchange, 200, view(AdminReads.withinBudget(() -> roles.status(userId))));
+                case "unlink" -> InternalApiServer.sendJson(exchange, 200, DataObject.empty().put("unlinked", AdminReads.withinBudget(() -> roles.unlink(userId))));
                 default -> InternalApiServer.sendJson(exchange, 404, error("not_found", "Not found"));
             }
         } catch (LinkedRoles.Problem p) {
             InternalApiServer.sendJson(exchange, p.status(), error(p.code(), p.getMessage()));
+        } catch (StaleCache.Late late) {
+            InternalApiServer.sendJson(exchange, 503, error("slow", "Discord is slow right now, so this is still being done. Check again in a minute."));
         } catch (RuntimeException e) {
             // the class name only: a message could carry a value from the request
             log.warn("Linked roles route {} failed: {}", route, e.getClass().getSimpleName());
