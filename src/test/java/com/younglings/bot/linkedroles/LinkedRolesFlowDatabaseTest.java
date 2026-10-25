@@ -28,8 +28,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -61,6 +63,7 @@ class LinkedRolesFlowDatabaseTest {
     private MutableClock clock;
     private LinkedRolesStore store;
     private LinkedRoles roles;
+    private LinkedRolesSettings settings;
 
     @BeforeAll
     static void connect() throws Exception {
@@ -75,7 +78,7 @@ class LinkedRolesFlowDatabaseTest {
         server.start();
         Map<String, String> env = new HashMap<>(LinkedRolesUnitTest.fullEnv());
         env.put("LINKED_ROLES_DISCORD_API", "http://127.0.0.1:" + server.getAddress().getPort() + "/api/v10");
-        LinkedRolesSettings settings = LinkedRolesSettings.from(env::get);
+        settings = LinkedRolesSettings.from(env::get);
         assertTrue(settings.enabled(), settings.problem());
         clock = new MutableClock(Instant.parse("2026-10-23T12:00:00Z"));
         store = new LinkedRolesStore(db);
@@ -218,6 +221,60 @@ class LinkedRolesFlowDatabaseTest {
         assertEquals(RSN, viaRsLink.profile().rsn());
         assertEquals("2026-05-01T00:00:00Z", connections.get(1).getObject("metadata").getString("linked_since"));
         assertEquals("1500", roles.status(USER).orElseThrow().values().get("total_level"));
+    }
+
+    @Test
+    void theHourlyPassFollowsRsLinkWithoutVerifyingAgain() throws Exception {
+        AtomicReference<Optional<Map<Long, RsLinkSource.Current>>> hub = new AtomicReference<>(Optional.empty());
+        List<List<Long>> asked = new CopyOnWriteArrayList<>();
+        roles = LinkedRoles.forTest(settings, store, DiscordRoleApi.http(settings), guild -> guild == GUILD, ids -> {
+            asked.add(List.copyOf(ids));
+            return hub.get();
+        }, clock);
+        roles.connect(USER, "access-0", "refresh-0", 604800, RSN, Instant.parse("2026-05-01T00:00:00Z"));
+        assertEquals("1", connections.get(0).getObject("metadata").getString("rsn_linked"));
+
+        clock.advance(Duration.ofHours(1));
+        assertEquals(0, roles.tick(), "the hub can't be asked: the name from sign-in stays");
+        assertEquals(List.of(List.of(USER)), asked);
+
+        hub.set(Optional.of(Map.of(USER, new RsLinkSource.Current(RSN, Instant.parse("2026-05-01T00:00:00Z")))));
+        clock.advance(Duration.ofHours(1));
+        assertEquals(0, roles.tick(), "the same link changes nothing");
+
+        hub.set(Optional.of(Map.of()));
+        clock.advance(Duration.ofHours(1));
+        assertEquals(1, roles.tick(), "an RS Link unlink is sent");
+        DataObject unlinked = connections.get(1);
+        assertEquals("0", unlinked.getObject("metadata").getString("rsn_linked"));
+        assertFalse(unlinked.hasKey("platform_username"));
+        assertEquals(null, roles.status(USER).orElseThrow().profile().rsn());
+
+        hub.set(Optional.of(Map.of(USER, new RsLinkSource.Current("LrTestNew", null))));
+        clock.advance(Duration.ofHours(1));
+        assertEquals(1, roles.tick(), "a new link is sent");
+        DataObject relinked = connections.get(2);
+        assertEquals("1", relinked.getObject("metadata").getString("rsn_linked"));
+        assertEquals("LrTestNew", relinked.getString("platform_username"));
+        assertEquals(clock.instant().truncatedTo(java.time.temporal.ChronoUnit.SECONDS).toString(), relinked.getObject("metadata").getString("linked_since"),
+                "with no link date from the hub, days linked count from now");
+
+        roles = LinkedRoles.forTest(settings, store, DiscordRoleApi.http(settings), guild -> guild == GUILD, ids -> {
+            throw new IllegalStateException("hub down");
+        }, clock);
+        clock.advance(Duration.ofHours(1));
+        assertEquals(0, roles.tick(), "a failing hub keeps what was there");
+        assertEquals("LrTestNew", roles.status(USER).orElseThrow().profile().rsn());
+    }
+
+    @Test
+    void aNameTheBotKeepsItselfWinsOverRsLink() throws Exception {
+        linkAndStats(2000, 120, false);
+        roles = LinkedRoles.forTest(settings, store, DiscordRoleApi.http(settings), guild -> guild == GUILD, ids -> Optional.of(Map.of()), clock);
+        verify();
+        clock.advance(Duration.ofHours(1));
+        assertEquals(0, roles.tick(), "no RS Link link, but the bot's own verified name still counts");
+        assertEquals("1", connections.get(0).getObject("metadata").getString("rsn_linked"));
     }
 
     @Test

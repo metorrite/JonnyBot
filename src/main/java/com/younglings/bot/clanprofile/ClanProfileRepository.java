@@ -212,7 +212,7 @@ public class ClanProfileRepository {
             } finally {
                 c.setAutoCommit(auto);
             }
-            SiteInvalidator.signal(SiteInvalidator.Area.HUB);
+            SiteInvalidator.signal(p.guildId(), SiteInvalidator.Area.HUB);
         } catch (SQLException e) {
             throw new RuntimeException("Failed to save the clan profile", e);
         }
@@ -283,7 +283,7 @@ public class ClanProfileRepository {
             s.setString(2, clanName);
             s.setLong(3, verifiedBy);
             s.executeUpdate();
-            SiteInvalidator.signal(SiteInvalidator.Area.HUB);
+            SiteInvalidator.signal(guildId, SiteInvalidator.Area.HUB);
         } catch (SQLException e) {
             throw new RuntimeException("Failed to record the verification", e);
         }
@@ -302,7 +302,7 @@ public class ClanProfileRepository {
                 s.setLong(2, guildId);
             }
             s.executeUpdate();
-            SiteInvalidator.signal(SiteInvalidator.Area.HUB);
+            SiteInvalidator.signal(guildId, SiteInvalidator.Area.HUB);
         } catch (SQLException e) {
             throw new RuntimeException("Failed to change the suspension", e);
         }
@@ -351,7 +351,7 @@ public class ClanProfileRepository {
                 s.setString(4, scope);
             }
             s.executeUpdate();
-            SiteInvalidator.signal(SiteInvalidator.Area.HUB);
+            SiteInvalidator.signal(guildId, SiteInvalidator.Area.HUB);
         } catch (SQLException e) {
             throw new RuntimeException("Failed to change whether the event is shared", e);
         }

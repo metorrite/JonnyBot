@@ -122,7 +122,7 @@ public class ClanSiteRepository {
             log.error("Failed to save the clan website blocks of guild {}", guildId, e);
             throw new RuntimeException("Failed to save the clan website blocks", e);
         }
-        SiteInvalidator.signal(SiteInvalidator.Area.HUB);
+        SiteInvalidator.signal(guildId, SiteInvalidator.Area.HUB);
     }
 
     /**
@@ -160,7 +160,7 @@ public class ClanSiteRepository {
             log.error("Failed to delete the clan website of guild {}", guildId, e);
             throw new RuntimeException("Failed to delete the clan website", e);
         }
-        SiteInvalidator.signal(SiteInvalidator.Area.HUB);
+        SiteInvalidator.signal(guildId, SiteInvalidator.Area.HUB);
     }
 
     /** Every server's site row, for the bot owner's site list (T-423). */
@@ -214,7 +214,7 @@ public class ClanSiteRepository {
             log.error("Failed to save the clan website of guild {}", site.guildId(), e);
             throw new RuntimeException("Failed to save the clan website", e);
         }
-        SiteInvalidator.signal(SiteInvalidator.Area.HUB);
+        SiteInvalidator.signal(site.guildId(), SiteInvalidator.Area.HUB);
     }
 
     private static Timestamp timestamp(Instant instant) {
