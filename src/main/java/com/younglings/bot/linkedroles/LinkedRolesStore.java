@@ -81,6 +81,15 @@ public class LinkedRolesStore {
         });
     }
 
+    /** The person's RS Link name changed on the hub since they verified (T-349); null clears it. */
+    public void updateRsLink(long userId, String rsLinkRsn, Instant rsLinkSince) {
+        exec("UPDATE younglings.linked_role_connection SET rslink_rsn = ?, rslink_since = ?, updated_at = NOW() WHERE discord_user_id = ?", s -> {
+            s.setString(1, rsLinkRsn);
+            s.setTimestamp(2, rsLinkSince == null ? null : Timestamp.from(rsLinkSince));
+            s.setLong(3, userId);
+        });
+    }
+
     public void markPushed(long userId, String fingerprint, Instant at) {
         exec("UPDATE younglings.linked_role_connection SET last_fingerprint = ?, last_pushed_at = ?, failures = 0, updated_at = NOW() WHERE discord_user_id = ?", s -> {
             s.setString(1, fingerprint);
