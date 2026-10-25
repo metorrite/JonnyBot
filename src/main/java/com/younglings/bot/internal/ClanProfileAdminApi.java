@@ -7,6 +7,8 @@ import com.younglings.bot.clanprofile.ClanProfile.Visibility;
 import com.younglings.bot.clanprofile.ClanProfileRepository;
 import com.younglings.bot.clanprofile.ClanProfileService;
 import com.younglings.bot.clanprofile.ProfileRules;
+import com.younglings.bot.clanprofile.SlugChangeRules;
+import com.younglings.bot.clanprofile.SlugChangeService;
 import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -35,10 +37,12 @@ public class ClanProfileAdminApi implements AdminRouteExtension {
 
     private final ClanProfileRepository repository;
     private final ClanProfileService service;
+    private final SlugChangeService addressChanges;
 
-    public ClanProfileAdminApi(ClanProfileRepository repository, ClanProfileService service) {
+    public ClanProfileAdminApi(ClanProfileRepository repository, ClanProfileService service, SlugChangeService addressChanges) {
         this.repository = repository;
         this.service = service;
+        this.addressChanges = addressChanges;
     }
 
     @Override
@@ -49,11 +53,54 @@ public class ClanProfileAdminApi implements AdminRouteExtension {
             AdminRouteExtension.requireMethod(method, "PUT");
             return save(guild, actor, body.get());
         }
+        if (parts[1].equals("address") && parts.length <= 3) return address(guild.getIdLong(), method, parts.length == 3 ? parts[2] : "", body);
         if (parts.length == 2 && parts[1].equals("verify")) {
             AdminRouteExtension.requireMethod(method, "POST");
             return verify(guild, actor);
         }
         return null;
+    }
+
+    /**
+     * The address change (D4): {@code GET clan-profile/address} (the address, a pending request and the cooldown), {@code POST clan-profile/address}
+     * {@code {slug}} (ask, or change the pending request), {@code POST .../address/lock-in} (change now) and {@code POST .../address/cancel}.
+     * Works for any server, bot-less ones too.
+     */
+    DataObject address(long guildId, String method, String sub, Supplier<DataObject> body) {
+        switch (sub) {
+            case "" -> {
+                if (method.equals("POST")) {
+                    var outcome = addressChanges.request(guildId, body.get().getString("slug", ""));
+                    if (!outcome.ok()) throw new ApiError(400, Text.of(guildId, "dashboard.the_clan_profile_can_t_be"), List.of(outcome.problem()));
+                } else {
+                    AdminRouteExtension.requireMethod(method, "GET");
+                }
+            }
+            case "lock-in" -> {
+                AdminRouteExtension.requireMethod(method, "POST");
+                var outcome = addressChanges.lockIn(guildId);
+                if (!outcome.ok()) throw new ApiError(400, Text.of(guildId, "dashboard.the_clan_profile_can_t_be"), List.of(outcome.problem()));
+            }
+            case "cancel" -> {
+                AdminRouteExtension.requireMethod(method, "POST");
+                addressChanges.cancel(guildId);
+            }
+            default -> {
+                return null;
+            }
+        }
+        return addressStatus(guildId);
+    }
+
+    private DataObject addressStatus(long guildId) {
+        SlugChangeRules.Status status = addressChanges.status(guildId);
+        ClanProfile p = service.profileOf(guildId);
+        DataObject pending = status.pendingSlug() == null ? null : DataObject.empty().put("slug", status.pendingSlug())
+                .put("requestedAt", status.requestedAt().toString()).put("appliesAt", status.appliesAt().toString());
+        return DataObject.empty().put("slug", p.slug()).put("pending", pending)
+                .put("cooldownUntil", status.cooldownUntil() == null ? null : status.cooldownUntil().toString())
+                .put("windowMinutes", SlugChangeRules.WINDOW.toMinutes()).put("cooldownDays", SlugChangeRules.COOLDOWN.toDays())
+                .put("forwardDays", ProfileRules.SLUG_GRACE.toDays());
     }
 
     DataObject get(Guild guild) {

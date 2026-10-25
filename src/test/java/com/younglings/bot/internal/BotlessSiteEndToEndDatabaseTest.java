@@ -115,7 +115,7 @@ class BotlessSiteEndToEndDatabaseTest {
         grants = new AccessGrantRepository(db);
         grantService = new AccessGrantService(grants);
         AdminToolsStore audit = new AdminToolsStore(db);
-        BotlessAdminApi botlessAdmin = new BotlessAdminApi(clanSite, new ClanProfileAdminApi(new ClanProfileRepository(db), profiles),
+        BotlessAdminApi botlessAdmin = new BotlessAdminApi(clanSite, new ClanProfileAdminApi(new ClanProfileRepository(db), profiles, new com.younglings.bot.clanprofile.SlugChangeService(new ClanProfileRepository(db), new com.younglings.bot.clanprofile.SlugChangeRepository(db))),
                 new SitePictureAdminApi(images, mock(Premium.class), roles), new ImageAdminApi(images), mock(AdminOpsApi.class), audit, roles, botless, settings,
                 grantService, owners, mock(ClanSyncScheduler.class));
 

@@ -233,8 +233,13 @@ public class BotlessAdminApi {
                 return setup(c, method, body);
             }
             case "clan-profile" -> {
-                if (parts.length != 1) throw needsBot();
+                if (parts.length > 1 && !parts[1].equals("address")) throw needsBot();
                 require(c, SiteRoles.Action.SETTINGS);
+                if (parts.length > 1) {
+                    DataObject answer = clanProfile.address(c.guildId(), method, parts.length == 3 ? parts[2] : "", body);
+                    if (answer == null) throw needsBot();
+                    return answer.put("botless", true);
+                }
                 if (method.equals("GET")) return clanProfile.get(c.guildId(), null).put("botless", true);
                 AdminRouteExtension.requireMethod(method, "PUT");
                 return clanProfile.save(c.guildId(), null, c.userId(), body.get()).put("botless", true);
