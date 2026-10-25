@@ -43,6 +43,8 @@ public final class ClanSiteLayoutRules {
     static final Pattern HEX = Pattern.compile("#[0-9a-fA-F]{6}");
     private static final Pattern STEP = Pattern.compile("[a-z-]{1,20}");
     private static final Pattern SLUG = Pattern.compile("[a-z0-9]+(-[a-z0-9]+)*");
+    /** The site template the setup started from: a built-in template's id, or {@code hub:<uuid>} for a community one. */
+    private static final Pattern WIZARD_TEMPLATE = Pattern.compile("[a-z0-9]+(-[a-z0-9]+)*|hub:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
     private static final Pattern UPLOAD = Pattern.compile("/api/uploads/[0-9a-f]{32}(\\?v=\\d{1,10})?");
     public static final int MAX_URL = 500;
     /** Paths a page can't have: the site's own files and the routes that are never a clan's. */
@@ -105,6 +107,8 @@ public final class ClanSiteLayoutRules {
         if (!name.isBlank()) progress.put("name", name.length() > 60 ? name.substring(0, 60) : name);
         String tagline = wizard.getString("tagline", "");
         if (!tagline.isBlank()) progress.put("tagline", tagline.length() > 120 ? tagline.substring(0, 120) : tagline);
+        String template = wizard.getString("template", "");
+        if (template.length() <= 40 && WIZARD_TEMPLATE.matcher(template).matches()) progress.put("template", template);
         return progress;
     }
 

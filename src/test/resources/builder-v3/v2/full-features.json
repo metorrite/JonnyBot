@@ -657,6 +657,7 @@
     "done": true,
     "slug": "green-angels",
     "name": "The Green Angels",
-    "tagline": "Since 2009"
+    "tagline": "Since 2009",
+    "template": "guild-hall"
   }
 }
