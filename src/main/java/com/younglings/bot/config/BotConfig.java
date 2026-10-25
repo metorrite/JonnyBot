@@ -294,6 +294,11 @@ public class BotConfig {
         return url == null ? null : url.trim();
     }
 
+    /** Where clan sites live: {@code bot} (unset, the default) or {@code hub} ({@code hubsites.HubSites}, T-505). Null when unset. */
+    public String getSitesBackend() {
+        return envOrDotenv("SITES_BACKEND");
+    }
+
     /** A RuneSync server setting ({@code RUNESYNC_*}, e.g. {@code RUNESYNC_MIN_CLIENT_VERSION}); null when unset. */
     public String getRuneSyncSetting(String name) {
         if (!name.startsWith("RUNESYNC_")) throw new IllegalArgumentException("Only RUNESYNC_ settings are served here");

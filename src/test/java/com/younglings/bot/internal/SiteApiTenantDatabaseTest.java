@@ -106,7 +106,7 @@ class SiteApiTenantDatabaseTest {
         digest = new WeeklyDigestRepository(db, initializer);
         points = new ClanPointsRepository(db, initializer);
         profiles = new MemberProfileRepository(db);
-        community = new CommunitySettings(db);
+        community = new CommunitySettings(db, com.younglings.bot.testsupport.SiteMappings.off(db));
         catalog = new WikiCatalog();
     }
 

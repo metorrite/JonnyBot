@@ -3,6 +3,8 @@ package com.younglings.bot.internal;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import com.younglings.bot.config.BotConfig;
+import com.younglings.bot.hubsites.HubSites;
+import com.younglings.bot.hubsites.SitesMoved;
 import com.younglings.bot.tracking.CitadelWinners;
 import com.younglings.bot.upload.ImageUploadService;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
@@ -81,11 +83,14 @@ public class InternalApiServer {
     private final com.younglings.bot.discord.jobs.DiscordOutbox outbox;
     private final BotlessAdminApi botlessAdmin;
     private final OverallAdminApi overallAdmin;
+    /** With {@code SITES_BACKEND=hub}, the site write routes answer "moved" ({@link SitesMoved}, T-506). */
+    private final HubSites hubSites;
     private JDA jda;
 
     public InternalApiServer(BotConfig botConfig, TicketAdminApi ticketAdminApi, SiteApi siteApi, DirectoryApi directoryApi, PluginApi pluginApi, MemberApi memberApi, ImageUploadService imageUploads,
                              CitadelWinners citadelWinners, FormsPublicApi formsApi, java.util.List<InternalRouteModule> routeModules, BotlessAdminApi botlessAdmin,
-                             com.younglings.bot.discord.jobs.DiscordOutbox outbox, OverallAdminApi overallAdmin) {
+                             com.younglings.bot.discord.jobs.DiscordOutbox outbox, OverallAdminApi overallAdmin, HubSites hubSites) {
+        this.hubSites = hubSites;
         this.overallAdmin = overallAdmin;
         this.outbox = outbox;
         this.botlessAdmin = botlessAdmin;
@@ -175,6 +180,16 @@ public class InternalApiServer {
     }
 
     /**
+     * Once the hub owns the sites ({@code SITES_BACKEND=hub}), a site write here would land on the old side: it answers
+     * {@code 409 {"moved": "hub"}} before anything is changed (T-506, D-19). True when it answered.
+     */
+    static boolean refusedAsMoved(HubSites hubSites, HttpExchange exchange) throws IOException {
+        if (!hubSites.movedToHub() || !SitesMoved.movedWrite(exchange.getRequestMethod(), exchange.getRequestURI().getPath())) return false;
+        sendJson(exchange, 409, SitesMoved.answer());
+        return true;
+    }
+
+    /**
      * The dashboard's routes: this checks the secret and finds the guild (any HTTP method), then
      * {@link TicketAdminApi} checks who is asking and does the rest. The server comes from the {@code X-Guild-Id}
      * header; without one it is the bot's home server, so the clan website's own admin console keeps working
@@ -194,6 +209,7 @@ public class InternalApiServer {
             }
 
             String path = exchange.getRequestURI().getPath();
+            if (refusedAsMoved(hubSites, exchange)) return;
             if (path.equals("/internal/admin/guilds") || path.equals("/internal/admin/guilds/")) {
                 ticketAdminApi.handleGuildList(exchange, jda);
                 return;
