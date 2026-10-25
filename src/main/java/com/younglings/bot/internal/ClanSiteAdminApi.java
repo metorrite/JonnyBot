@@ -72,8 +72,11 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
     /** What a bot-less site says about Discord roles (editor, member and staff roles): the bot would have to be in the server to see them. */
     static final String DISCORD_ROLES_UNAVAILABLE = "Discord roles are unavailable without the bot: add RuneClan Bot to the server to pick roles, or name editors by Discord user ID.";
 
+    private final SiteAddressRoutes address;
+
     public ClanSiteAdminApi(ClanSiteRepository repository, ClanSiteLayoutRepository layouts, ClanSiteService sites, ClanProfileService profiles, BotOwners owners,
-                            Premium premium, SiteRoleGuard siteRoles, SiteDiscordService discord) {
+                            Premium premium, SiteRoleGuard siteRoles, SiteDiscordService discord, SiteAddressRoutes address) {
+        this.address = address;
         this.repository = repository;
         this.layouts = layouts;
         this.sites = sites;
@@ -134,6 +137,7 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
         if (action != null && !c.may(siteRoles, action)) throw new ApiError(403, Text.of(c.guildId(), "dashboard.the_website_can_t_be_saved"), List.of(refusal(action)));
         if (parts.length >= 2 && parts[1].equals("roles")) return roles(c, method, parts, body);
         if (parts.length >= 2 && parts[1].equals("connections")) return connections(c, method, parts, body);
+        if (parts.length >= 2 && parts.length <= 3 && parts[1].equals("address")) return address.route(c.guildId(), method, parts.length == 3 ? parts[2] : "", body);
         if (parts.length == 1) {
             if (method.equals("GET")) return get(c);
             AdminRouteExtension.requireMethod(method, "PUT");
