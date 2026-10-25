@@ -6,6 +6,8 @@ import com.younglings.bot.clansite.SiteConnectionStore.Connection;
 import com.younglings.bot.clansite.SiteDiscordSettings;
 import com.younglings.bot.clansite.SiteDiscordSettings.OnlineMode;
 import com.younglings.bot.config.IntentSwitches;
+import com.younglings.bot.hubsites.HubSites;
+import com.younglings.bot.runeclans.RuneClansHubClient;
 import com.younglings.bot.member.MemberProfileRepository;
 import net.dv8tion.jda.api.OnlineStatus;
 import net.dv8tion.jda.api.Permission;
@@ -63,7 +65,7 @@ class SiteDiscordServiceTest {
     @BeforeEach
     void setUp() {
         IntentSwitches.allOn();
-        service = new SiteDiscordService(connections, settings, news, profiles, new SiteCache());
+        service = new SiteDiscordService(connections, settings, news, profiles, new SiteCache(), HubSites.off());
         guild = mock(Guild.class);
         everyone = mock(Role.class);
         self = mock(SelfMember.class);
@@ -195,6 +197,30 @@ class SiteDiscordServiceTest {
         site(GUILD, OnlineMode.OFF, 24, true, 500, PUBLIC);
         service.feed(guild, Long.toString(PUBLIC));
         verify(news).latest(eq(guild), any(), eq(25));
+    }
+
+    @Test
+    void withSitesOnTheHubThePublicSiteFollowsTheHubsSettingsAndKeepsTheBotsChannels() {
+        site(GUILD, OnlineMode.OFF, 24, true, 5, PUBLIC);
+        DataObject hubSettings = DataObject.empty()
+                .put("online", DataObject.empty().put("mode", "count").put("limit", 30).put("groupByRole", false))
+                .put("feed", DataObject.empty().put("limit", 9))
+                .put("events", DataObject.empty().put("enabled", false));
+        HubSites hub = HubSites.on(path -> path.equals("/v1/guilds/" + GUILD + "/site/settings")
+                ? new RuneClansHubClient.Read(new RuneClansHubClient.Answer(200, hubSettings), false, false) : null);
+        service = new SiteDiscordService(connections, settings, news, profiles, new SiteCache(), hub);
+        List<Member> members = List.of(member(11, "Ann", OnlineStatus.ONLINE));
+        when(guild.getMembers()).thenReturn(members);
+        when(news.latest(eq(guild), any(), anyInt())).thenReturn(DataArray.empty());
+
+        assertEquals(1, service.online(guild).getInt("total"), "the hub turned the online list on (count)");
+        service.feed(guild, Long.toString(PUBLIC));
+        verify(news).latest(eq(guild), eq(List.of(new SiteNewsService.NewsChannel(PUBLIC, null, 0))), eq(9));
+        assertFalse(service.eventsShown(GUILD));
+
+        // the hub down: the bot's own copy (online off)
+        service = new SiteDiscordService(connections, settings, news, profiles, new SiteCache(), HubSites.on(path -> null));
+        assertNull(service.online(guild));
     }
 
     @Test
