@@ -54,7 +54,7 @@ class DirectorySiteDiscordRoutesTest {
         api = new DirectoryApi(repository, service, mock(SiteStatsRepository.class), List.of(
                 new DirectoryClanSiteRoutes(sites, siteApi, repository, mock(com.younglings.bot.clansite.ClanSiteLayoutRepository.class),
                         mock(com.younglings.bot.clansite.ClanSitePluginFeed.class)),
-                new DirectorySiteDiscordRoutes(sites, discord)), botless);
+                new DirectorySiteDiscordRoutes(sites, discord)), botless, discord);
         when(repository.bySlug("younglings")).thenReturn(Optional.of(clan));
         when(service.publicView(GUILD, true)).thenReturn(Optional.of(clan));
         when(service.publicView(eq(clan), any(), eq(true))).thenReturn(Optional.of(clan));
@@ -99,6 +99,16 @@ class DirectorySiteDiscordRoutesTest {
         when(discord.feed(guild, "12")).thenReturn(DataObject.empty().put("posts", "x"));
         assertEquals("x", call("GET", "/internal/directory/sites/younglings/data/discord/feed?channel=12&limit=5", null).body().getString("posts"));
         assertEquals(404, call("GET", "/internal/directory/sites/younglings/data/discord/feed?channel=99", null).status());
+    }
+
+    @Test
+    void theClanSitesEventsFollowItsConnections() throws Exception {
+        when(discord.eventsShown(GUILD)).thenReturn(false);
+
+        DataObject answer = call("GET", "/internal/directory/clans/younglings/events?for=site", null).body();
+
+        assertEquals(0, answer.getArray("events").length(), "Discord events switched off (or the server disconnected) under Connections");
+        verify(discord).eventsShown(GUILD);
     }
 
     @Test

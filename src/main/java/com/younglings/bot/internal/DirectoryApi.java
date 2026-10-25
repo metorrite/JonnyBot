@@ -65,9 +65,13 @@ public class DirectoryApi {
     private final BotlessSiteRepository botless;
     private final TtlCache cache = new TtlCache();
 
+    /** The clan site's Connections (N7): whether its Discord events show on the site. */
+    private final SiteDiscordService discord;
+
     public DirectoryApi(ClanProfileRepository repository, ClanProfileService service, SiteStatsRepository stats, List<DirectoryRouteModule> modules,
-                        BotlessSiteRepository botless) {
+                        BotlessSiteRepository botless, SiteDiscordService discord) {
         this.botless = botless;
+        this.discord = discord;
         this.repository = repository;
         this.service = service;
         this.stats = stats;
@@ -104,7 +108,10 @@ public class DirectoryApi {
                 send(exchange, 404, DataObject.empty().put("error", "No such clan"));
                 return;
             }
-            DataObject answer = DataObject.empty().put("events", eventsJson(profile.get(), jda, EVENTS_PER_CLAN)).put("generatedAt", Instant.now().toString());
+            // ?for=site: the clan's own website asks, so its Connections decide (Discord events off, or the server disconnected: none)
+            boolean hidden = "site".equals(queryParam(exchange, "for")) && !discord.eventsShown(profile.get().guildId());
+            DataObject answer = DataObject.empty().put("events", hidden ? DataArray.empty() : eventsJson(profile.get(), jda, EVENTS_PER_CLAN))
+                    .put("generatedAt", Instant.now().toString());
             // a bot-less site's clan: its Discord events can't be read, so the widget says the bot is needed rather than looking empty
             if (jda.getGuildById(profile.get().guildId()) == null && botless.contains(profile.get().guildId())) answer.put("needsBot", true);
             send(exchange, 200, answer);

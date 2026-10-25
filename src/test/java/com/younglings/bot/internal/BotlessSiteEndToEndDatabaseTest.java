@@ -157,7 +157,7 @@ class BotlessSiteEndToEndDatabaseTest {
     private static void clean() throws Exception {
         try (Connection c = db.getConnection()) {
             for (String table : new String[]{"clan_site_layout_version", "clan_site_layout", "clan_site_block", "clan_site", "clan_profile", "clan_slug_hold",
-                    "clan_site_roles", "botless_site", "guild_settings", "admin_audit"}) {
+                    "clan_site_roles", "botless_site", "guild_settings", "admin_audit", "site_connection", "site_connection_channel"}) {
                 try (PreparedStatement s = c.prepareStatement("DELETE FROM younglings." + table + " WHERE guild_id IN (?, ?)")) {
                     s.setLong(1, BOTLESS);
                     s.setLong(2, HOME);
@@ -280,6 +280,37 @@ class BotlessSiteEndToEndDatabaseTest {
         assertEquals("editor", layout.body().getObject("you").getString("role"));
         assertEquals(403, as(EDITOR, false, "PUT", "clan-site", "{\"enabled\":true}").status(), "the site's settings are for admins");
         assertEquals(403, as(EDITOR, false, "GET", "clan-site/roles", null).status());
+    }
+
+    @Test
+    void connectionsWorkWithoutTheBotButOnlyAServerAdminConnects() throws Exception {
+        onBeta(ADMIN);
+        onBeta(EDITOR);
+        Answer state = as(ADMIN, true, "GET", "clan-site/connections", null);
+        assertEquals(200, state.status(), state.body().toString());
+        assertTrue(state.body().getObject("server").getBoolean("connected"));
+        assertFalse(state.body().getObject("server").getBoolean("botPresent"));
+        assertFalse(state.body().getObject("provider").getBoolean("ready"), "nothing can be supplied without the bot");
+        assertEquals(0, state.body().getObject("feed").getArray("channels").length());
+
+        Answer saved = as(ADMIN, true, "PUT", "clan-site/connections", "{\"online\":{\"mode\":\"names+avatars\",\"limit\":12},\"events\":{\"enabled\":false}}");
+        assertEquals(200, saved.status(), saved.body().toString());
+        assertEquals("names+avatars", saved.body().getObject("online").getString("mode"));
+        assertEquals(12, saved.body().getObject("online").getInt("limit"));
+        assertFalse(saved.body().getObject("events").getBoolean("enabled"));
+        assertEquals(409, as(ADMIN, true, "PUT", "clan-site/connections", "{\"feed\":{\"channels\":[{\"channelId\":\"" + BASE + "\"}]}}").status(),
+                "channels need the bot");
+
+        assertEquals(200, as(ADMIN, true, "POST", "clan-site/connections/disconnect", "{}").status());
+        assertFalse(as(ADMIN, true, "GET", "clan-site/connections", null).body().getObject("server").getBoolean("connected"));
+        // the editor isn't a site admin; and only someone Discord says runs the server may connect it
+        assertEquals(403, as(EDITOR, false, "POST", "clan-site/connections/connect", "{\"guildId\":\"" + BOTLESS + "\"}").status());
+        assertEquals(400, as(ADMIN, true, "POST", "clan-site/connections/connect", "{\"guildId\":\"" + HOME + "\"}").status(), "only the site's own server");
+        Answer back = as(ADMIN, true, "POST", "clan-site/connections/connect", "{\"guildId\":\"" + BOTLESS + "\"}");
+        assertEquals(200, back.status(), back.body().toString());
+        assertTrue(back.body().getObject("server").getBoolean("connected"));
+        assertEquals(Long.toString(ADMIN), back.body().getObject("server").getString("connectedBy"));
+        assertEquals("names+avatars", back.body().getObject("online").getString("mode"), "the features were kept");
     }
 
     @Test
