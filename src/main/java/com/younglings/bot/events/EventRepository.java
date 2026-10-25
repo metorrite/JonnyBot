@@ -361,7 +361,7 @@ public class EventRepository {
             try (ResultSet rs = s.executeQuery()) {
                 rs.next();
                 long created = rs.getLong(1);
-                SiteInvalidator.signal(SiteInvalidator.Area.EVENTS);
+                SiteInvalidator.signal(guildId, SiteInvalidator.Area.EVENTS);
                 return created;
             }
         } catch (SQLException e) {
@@ -374,6 +374,11 @@ public class EventRepository {
     }
 
     /** An event by id whatever server it belongs to: only for pages that aren't about one server (the events hub), which check the event is listed. */
+    /** The server that runs an event, for {@code SiteInvalidator} (it runs this on its own thread). */
+    private OptionalLong guildOfEvent(long eventId) {
+        return eventById(eventId).map(e -> OptionalLong.of(e.guildId())).orElse(OptionalLong.empty());
+    }
+
     public Optional<Event> eventById(long id) {
         return events("SELECT * FROM younglings.event WHERE id = ? AND id = ?", id, id).stream().findFirst();
     }
@@ -493,7 +498,7 @@ public class EventRepository {
             s.setLong(9, guildId);
             s.setLong(10, id);
             boolean updated = s.executeUpdate() == 1;
-            if (updated) SiteInvalidator.signal(SiteInvalidator.Area.EVENTS);
+            if (updated) SiteInvalidator.signal(guildId, SiteInvalidator.Area.EVENTS);
             return updated;
         } catch (SQLException e) {
             throw new RuntimeException("Failed to update the event", e);
@@ -508,7 +513,7 @@ public class EventRepository {
             s.setLong(2, guildId);
             s.setLong(3, id);
             boolean changed = s.executeUpdate() == 1;
-            if (changed) SiteInvalidator.signal(SiteInvalidator.Area.EVENTS);
+            if (changed) SiteInvalidator.signal(guildId, SiteInvalidator.Area.EVENTS);
             return changed;
         } catch (SQLException e) {
             throw new RuntimeException("Failed to archive the event", e);
@@ -534,7 +539,7 @@ public class EventRepository {
             s.setLong(2, guildId);
             s.setLong(3, id);
             boolean saved = s.executeUpdate() == 1;
-            if (saved) SiteInvalidator.signal(SiteInvalidator.Area.EVENTS);
+            if (saved) SiteInvalidator.signal(guildId, SiteInvalidator.Area.EVENTS);
             return saved;
         } catch (SQLException e) {
             throw new RuntimeException("Failed to save the event's settings", e);
@@ -550,7 +555,7 @@ public class EventRepository {
             s.setLong(3, id);
             s.setString(4, from.name());
             boolean moved = s.executeUpdate() == 1;
-            if (moved) SiteInvalidator.signal(SiteInvalidator.Area.EVENTS);
+            if (moved) SiteInvalidator.signal(guildId, SiteInvalidator.Area.EVENTS);
             return moved;
         } catch (SQLException e) {
             throw new RuntimeException("Failed to move the event", e);
@@ -1192,7 +1197,7 @@ public class EventRepository {
                         result = rs.next() ? Optional.of(rs.getString(1).equals("WAITING")) : Optional.empty();
                     }
                     c.commit();
-                    if (result.isPresent()) SiteInvalidator.signal(SiteInvalidator.Area.EVENTS);
+                    if (result.isPresent()) SiteInvalidator.signalLater(() -> guildOfEvent(eventId), SiteInvalidator.Area.EVENTS);
                     return result;
                 }
             } catch (SQLException | RuntimeException e) {
@@ -1432,7 +1437,7 @@ public class EventRepository {
                 boolean removed = s.executeUpdate() == 1;
                 clearStrayCaptains(c, eventId);
                 c.commit();
-                if (removed) SiteInvalidator.signal(SiteInvalidator.Area.EVENTS);
+                if (removed) SiteInvalidator.signalLater(() -> guildOfEvent(eventId), SiteInvalidator.Area.EVENTS);
                 return removed;
             } catch (SQLException | RuntimeException e) {
                 c.rollback();

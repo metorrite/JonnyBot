@@ -286,6 +286,18 @@ public class BotConfig {
     }
 
     /**
+     * The runeclans website that serves the clan sites (e.g. {@code https://runeclans.com}), no trailing slash: {@code SiteInvalidator} tells its
+     * {@code /api/revalidate} what changed, with per-site tags (T-393). {@code CLAN_SITES_URL}; {@code null} if unset, and then clan sites
+     * refresh on their timers.
+     */
+    public String getClanSitesUrl() {
+        String url = envOrDotenv("CLAN_SITES_URL");
+        if (url == null) return null;
+        url = url.trim();
+        return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
+    }
+
+    /**
      * The runeclans website's billing reconcile route ({@code https://runeclans.com/api/billing/reconcile}, T-366): once a day the bot sends it the
      * subscriptions of servers it left 14+ days ago, to be cancelled at the period end. {@code null} if unset: nothing is sent.
      */
@@ -307,6 +319,15 @@ public class BotConfig {
     public String getLinkSetting(String name) {
         if (!name.startsWith("LINK_")) throw new IllegalArgumentException("Only LINK_ settings are served here");
         return envOrDotenv(name);
+    }
+
+    /**
+     * {@code RSNLINK_DM_SECRET}: the secret runeclans-hub sends ({@code X-RsLink-Dm-Secret}) to have the bot DM RS Link codes for it (T-166).
+     * It opens only {@code /internal/rsnlink-dm/}. Null when unset (those routes are then closed).
+     */
+    public String getRsnLinkDmSecret() {
+        String secret = envOrDotenv("RSNLINK_DM_SECRET");
+        return secret == null || secret.isBlank() ? null : secret.strip();
     }
 
     /** A Discord Linked Roles setting ({@code LINKED_ROLES_*}, see {@code linkedroles.LinkedRolesSettings}); null when unset. */

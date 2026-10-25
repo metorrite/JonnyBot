@@ -20,10 +20,11 @@ class OverallOpsRoutesTest {
     private final AdminOpsApi ops = mock(AdminOpsApi.class);
     private final RuneMetricsBudgetAdminApi budget = mock(RuneMetricsBudgetAdminApi.class);
     private final RuneSyncService runeSync = mock(RuneSyncService.class);
+    private final PremiumAdminApi premium = mock(PremiumAdminApi.class);
     private final RsnLinkAdminApi rsLink = mock(RsnLinkAdminApi.class);
     private final BotOwners owners = mock(BotOwners.class);
     private final JDA jda = mock(JDA.class);
-    private final OverallOpsRoutes routes = new OverallOpsRoutes(ops, budget, runeSync, owners, rsLink);
+    private final OverallOpsRoutes routes = new OverallOpsRoutes(ops, budget, runeSync, owners, premium, rsLink);
     private final Guild home = mock(Guild.class);
 
     @Test
@@ -54,5 +55,11 @@ class OverallOpsRoutesTest {
         when(rsLink.routeFor(org.mockito.ArgumentMatchers.eq(jda), org.mockito.ArgumentMatchers.eq(1L), org.mockito.ArgumentMatchers.eq("GET"), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
                 .thenReturn(DataObject.empty().put("activeLinks", 3));
         assertEquals(3, routes.route(jda, 1L, home, "GET", new String[]{"rsnlink", "overview"}, DataObject::empty).getInt("activeLinks"));
+    }
+
+    @Test
+    void premiumPlansGoToThePlansApiAsTheAskingAdmin() {
+        when(premium.routeFor(org.mockito.ArgumentMatchers.eq(home), org.mockito.ArgumentMatchers.eq(1L), org.mockito.ArgumentMatchers.eq("GET"), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(DataObject.empty().put("canEdit", true));
+        assertEquals(true, routes.route(jda, 1L, home, "GET", new String[]{"premium-guilds"}, DataObject::empty).getBoolean("canEdit"));
     }
 }

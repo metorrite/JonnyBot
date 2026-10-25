@@ -12,7 +12,7 @@ import java.time.Instant;
 import java.util.function.Supplier;
 
 /**
- * The bot's own health and RuneMetrics budget for the overall admin panel ({@code overall/health}, {@code overall/runemetrics-budget}) the RS Link abuse view ({@code overall/rsnlink/...}, the bot's owner only, as before) and the RuneSync
+ * The bot's own health and RuneMetrics budget for the overall admin panel ({@code overall/health}, {@code overall/runemetrics-budget}) the plans per server ({@code overall/premium-guilds...}, the bot's owner only, as before) the RS Link abuse view ({@code overall/rsnlink/...}, the bot's owner only, as before) and the RuneSync
  * diagnostics viewer ({@code overall/runesync/diagnostics/{id}}, the bot's owner only as before). Read only: the
  * same answers the bot owner's dashboard gives, here for every overall admin, who need not be in any server. {@link OverallAdminApi} has already
  * checked the asker is an overall admin; the answers are about the whole bot, with the home server only supplying the roster and the words.
@@ -23,24 +23,28 @@ public class OverallOpsRoutes {
     static final String BUDGET = "runemetrics-budget";
     static final String RUNESYNC = "runesync";
     static final String RSNLINK = "rsnlink";
+    static final String PREMIUM_GUILDS = "premium-guilds";
 
     private final AdminOpsApi ops;
     private final RuneMetricsBudgetAdminApi budget;
     private final RuneSyncService runeSync;
     private final BotOwners owners;
+    private final PremiumAdminApi premium;
     private final RsnLinkAdminApi rsLink;
 
-    public OverallOpsRoutes(AdminOpsApi ops, RuneMetricsBudgetAdminApi budget, RuneSyncService runeSync, BotOwners owners, RsnLinkAdminApi rsLink) {
+    public OverallOpsRoutes(AdminOpsApi ops, RuneMetricsBudgetAdminApi budget, RuneSyncService runeSync, BotOwners owners, PremiumAdminApi premium, RsnLinkAdminApi rsLink) {
         this.ops = ops;
         this.budget = budget;
         this.runeSync = runeSync;
         this.owners = owners;
+        this.premium = premium;
         this.rsLink = rsLink;
     }
 
     /** {@code null} when the path is not one of these. */
     DataObject route(JDA jda, long actor, Guild home, String method, String[] parts, Supplier<DataObject> body) {
         if (parts.length >= 1 && parts[0].equals(RSNLINK)) return rsLink.routeFor(jda, actor, method, parts, body);
+        if (parts.length >= 1 && parts[0].equals(PREMIUM_GUILDS)) return premium.routeFor(home, actor, method, parts, body);
         if (parts.length == 3 && parts[0].equals(RUNESYNC) && parts[1].equals("diagnostics")) return diagnostic(jda, actor, method, parts[2]);
         if (parts.length != 1) return null;
         if (parts[0].equals(HEALTH)) {
