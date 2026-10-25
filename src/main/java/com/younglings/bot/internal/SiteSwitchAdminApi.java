@@ -3,6 +3,7 @@ package com.younglings.bot.internal;
 import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.notice.BotOwners;
+import com.younglings.bot.access.GateSource;
 import com.younglings.bot.siteaccess.SiteSwitch;
 import com.younglings.bot.siteaccess.SiteSwitchRepository;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -28,10 +29,12 @@ public class SiteSwitchAdminApi implements AdminRouteExtension {
 
     private final SiteSwitchRepository repository;
     private final BotOwners owners;
+    private final GateSource gates;
 
-    public SiteSwitchAdminApi(SiteSwitchRepository repository, BotOwners owners) {
+    public SiteSwitchAdminApi(SiteSwitchRepository repository, BotOwners owners, GateSource gates) {
         this.repository = repository;
         this.owners = owners;
+        this.gates = gates;
     }
 
     @Override
@@ -69,9 +72,9 @@ public class SiteSwitchAdminApi implements AdminRouteExtension {
         return list();
     }
 
-    /** What the website's gates read: key to open. A switch never set is closed. */
+    /** What the website's gates read: key to open. A switch never set is closed. From the hub with RUNECLANS_HUB_ACCESS ({@link GateSource}). */
     public DataObject states() {
-        Map<String, Boolean> stored = repository.all();
+        Map<String, Boolean> stored = gates.switches();
         DataObject states = DataObject.empty();
         for (SiteSwitch s : SiteSwitch.values()) states.put(s.key(), stored.getOrDefault(s.key(), false));
         return DataObject.empty().put("switches", states);

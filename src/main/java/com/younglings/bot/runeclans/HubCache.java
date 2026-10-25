@@ -21,7 +21,7 @@ final class HubCache {
     /** A cached answer and whether it is past {@link #FRESH}. */
     record Hit(RuneClansHubClient.Answer answer, boolean stale) {}
 
-    private record Entry(RuneClansHubClient.Answer answer, Set<String> tags, Instant storedAt) {}
+    private record Entry(RuneClansHubClient.Answer answer, Set<String> tags, Instant storedAt, Duration fresh) {}
 
     private final int maxEntries;
     private final Clock clock;
@@ -53,12 +53,18 @@ final class HubCache {
             entries.remove(key);
             return null;
         }
-        return new Hit(e.answer(), age.compareTo(FRESH) > 0);
+        return new Hit(e.answer(), age.compareTo(e.fresh()) > 0);
     }
 
     /** Keeps {@code answer} under {@code key}; {@code tags} name the hub items it shows ({@code clan:<id>}), for {@link #evictTag}. */
     synchronized void put(String key, RuneClansHubClient.Answer answer, Set<String> tags) {
-        entries.put(key, new Entry(answer, Set.copyOf(tags), clock.instant()));
+        put(key, answer, tags, FRESH);
+    }
+
+    /** The same, fresh for {@code fresh} instead of {@link #FRESH} (never past {@link #STALE_LIMIT}): for answers a hub change empties anyway. */
+    synchronized void put(String key, RuneClansHubClient.Answer answer, Set<String> tags, Duration fresh) {
+        Duration keep = fresh.compareTo(STALE_LIMIT) > 0 ? STALE_LIMIT : fresh;
+        entries.put(key, new Entry(answer, Set.copyOf(tags), clock.instant(), keep));
     }
 
     synchronized void evict(String key) {

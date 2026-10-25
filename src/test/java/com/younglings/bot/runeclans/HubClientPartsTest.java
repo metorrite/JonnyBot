@@ -130,6 +130,21 @@ class HubClientPartsTest {
     }
 
     @Test
+    void anAnswerCanStayFreshLonger() {
+        TestClock clock = new TestClock();
+        HubCache cache = new HubCache(10, clock);
+        cache.put("/v1/access/servers", ok("gates"), Set.of("access"), Duration.ofMinutes(10));
+        cache.put("long", ok("x"), Set.of(), Duration.ofHours(1));
+        clock.advance(HubCache.FRESH.plusSeconds(1));
+        assertNotNull(cache.fresh("/v1/access/servers"), "gates stay fresh 10 minutes");
+        clock.advance(Duration.ofMinutes(8));
+        assertNull(cache.fresh("/v1/access/servers"));
+        assertTrue(cache.lookup("/v1/access/servers").stale());
+        clock.advance(HubCache.STALE_LIMIT.minus(Duration.ofMinutes(10)));
+        assertNull(cache.lookup("long"), "never kept past the stale limit, however long it asked for");
+    }
+
+    @Test
     void hubChangesEmptyTheCache() {
         HubCache cache = new HubCache(100, new TestClock());
         cache.put("/v1/clans/a", ok("a"), Set.of(HubChanges.tag("clan", "a")));

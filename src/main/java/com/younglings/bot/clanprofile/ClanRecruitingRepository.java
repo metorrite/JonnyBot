@@ -73,6 +73,6 @@ public class ClanRecruitingRepository {
             log.error("Failed to save the recruiting post of guild {}", r.guildId(), e);
             throw new RuntimeException("Failed to save the recruiting post", e);
         }
-        SiteInvalidator.signal(SiteInvalidator.Area.HUB);
+        SiteInvalidator.signal(r.guildId(), SiteInvalidator.Area.HUB);
     }
 }
