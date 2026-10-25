@@ -107,4 +107,22 @@ class HubSitesTest {
     void aRoleReportNamesHoldersAsStrings() {
         assertEquals("{\"userIds\":[\"" + ROLE + "\"]}", HubSiteReporter.body(List.of(ROLE)).toString());
     }
+
+    @Test
+    void aSitesSettingsComeFromTheHubWhenItHasThem() {
+        DataObject settings = DataObject.empty()
+                .put("siteId", "site_abc").put("rev", 3)
+                .put("online", DataObject.empty().put("mode", "names").put("limit", 40).put("groupByRole", false).put("maxLimit", 100))
+                .put("feed", DataObject.empty().put("limit", 9).put("maxLimit", 25))
+                .put("events", DataObject.empty().put("enabled", false));
+        Stub hub = new Stub().answer("/v1/guilds/" + GUILD + "/site/settings", 200, settings);
+        assertEquals(Optional.of(new HubSites.SiteSettings("names", 40, false, 9, false)), HubSites.on(hub).settings(GUILD));
+
+        // no hub site, the hub down, the switch off or an incomplete answer: the bot keeps its own copy
+        assertEquals(Optional.empty(), HubSites.on(new Stub().answer("/v1/guilds/" + GUILD + "/site/settings", 404, DataObject.empty())).settings(GUILD));
+        assertEquals(Optional.empty(), HubSites.on(new Stub()).settings(GUILD));
+        assertEquals(Optional.empty(), HubSites.off().settings(GUILD));
+        assertEquals(Optional.empty(), HubSites.on(new Stub().answer("/v1/guilds/" + GUILD + "/site/settings", 200,
+                DataObject.empty().put("online", DataObject.empty().put("mode", "names")))).settings(GUILD));
+    }
 }

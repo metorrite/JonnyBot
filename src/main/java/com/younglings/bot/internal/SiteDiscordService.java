@@ -8,6 +8,7 @@ import com.younglings.bot.clansite.SiteDiscordRules.Refusal;
 import com.younglings.bot.clansite.SiteDiscordSettings;
 import com.younglings.bot.clansite.SiteDiscordSettings.OnlineMode;
 import com.younglings.bot.config.PrivilegedIntents;
+import com.younglings.bot.hubsites.HubSites;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.member.MemberProfileRepository;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -55,21 +56,36 @@ public class SiteDiscordService {
     private final SiteNewsService news;
     private final MemberProfileRepository profiles;
     private final SiteCache cache;
+    private final HubSites hubSites;
 
     public SiteDiscordService(SiteConnectionStore connections, SiteDiscordSettings settings, SiteNewsService news, MemberProfileRepository profiles,
-                              SiteCache cache) {
+                              SiteCache cache, HubSites hubSites) {
         this.connections = connections;
         this.settings = settings;
         this.news = news;
         this.profiles = profiles;
         this.cache = cache;
+        this.hubSites = hubSites;
+    }
+
+    /**
+     * The site's connection as the public site's answers follow it: with {@code SITES_BACKEND=hub}, the hub's settings (T-545: online list,
+     * feed limit, events) in place of the bot's copy; the server, provider and channel picks stay the bot's. The bot's copy when the hub has
+     * no answer.
+     */
+    Connection publicConnection(long guildId) {
+        Connection own = connections.of(guildId);
+        return hubSites.settings(guildId)
+                .map(s -> own.withFeatures(OnlineMode.parse(s.onlineMode()).orElse(own.onlineMode()), s.onlineLimit(), s.groupByRole(), s.feedLimit(),
+                        s.eventsEnabled(), own.channels()))
+                .orElse(own);
     }
 
     // ---------- the public site ----------
 
     /** The online answer, or null while the admin hasn't turned it on or the server is disconnected (the route says "disabled"). */
     public DataObject online(Guild guild) {
-        Connection connection = connections.of(guild.getIdLong());
+        Connection connection = publicConnection(guild.getIdLong());
         OnlineMode mode = connection.onlineMode();
         if (mode == OnlineMode.OFF || !connection.connected()) return null;
         if (!PrivilegedIntents.presence()) return SiteDiscordRules.onlineUnavailable(mode, connection.groupByRole());
@@ -89,7 +105,7 @@ public class SiteDiscordService {
      * Discord id); the site decides whether to show names. How many is the site's feed setting (N7), never what the asker sends.
      */
     public DataObject feed(Guild guild, String channelId) {
-        Connection connection = connections.of(guild.getIdLong());
+        Connection connection = publicConnection(guild.getIdLong());
         int capped = Math.max(1, Math.min(SiteDiscordRules.MAX_POSTS, connection.feedLimit()));
         List<SiteNewsService.NewsChannel> open = connection.connected() ? publicChannels(guild, connection) : List.of();
         List<SiteNewsService.NewsChannel> chosen = open;
@@ -130,7 +146,7 @@ public class SiteDiscordService {
 
     /** Whether the site shows the server's Discord events (the events widgets and the bell): connected and switched on. */
     public boolean eventsShown(long siteId) {
-        Connection connection = connections.of(siteId);
+        Connection connection = publicConnection(siteId);
         return connection.connected() && connection.eventsEnabled();
     }
 

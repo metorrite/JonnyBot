@@ -129,6 +129,37 @@ public class HubSites {
         return Optional.of(Set.copyOf(roles));
     }
 
+    /**
+     * A site's Discord feature settings as the hub keeps them (PHASE-2-SITES T-496): the online list's mode, size and grouping, how many
+     * posts a feed shows, and whether Discord events are on the site. The feed's channel picks stay bot mappings ({@link SiteChannelMappings}).
+     */
+    public record SiteSettings(String onlineMode, int onlineLimit, boolean groupByRole, int feedLimit, boolean eventsEnabled) {}
+
+    /**
+     * {@code GET /v1/guilds/{guildId}/site/settings} (T-545): the settings of the server's hub site, kept like the site lookup and emptied by
+     * the hub's {@code site.updated} change. Empty when off, when the server has no hub site, or when the hub can't say: the bot then uses
+     * its own copy ({@code SiteConnectionStore}), which the website keeps in step until the move.
+     */
+    public Optional<SiteSettings> settings(long guildId) {
+        if (!readsHub()) return Optional.empty();
+        RuneClansHubClient.Read read = hub.apply("/v1/guilds/" + guildId + "/site/settings");
+        if (read == null || read.answer() == null || !read.answer().ok() || read.answer().json() == null) return Optional.empty();
+        return Optional.ofNullable(parseSettings(read.answer().json()));
+    }
+
+    /** The settings in a hub answer ({@code {online: {mode, limit, groupByRole}, feed: {limit}, events: {enabled}}}), or null when incomplete. */
+    static SiteSettings parseSettings(DataObject json) {
+        DataObject online = json.optObject("online").orElse(null);
+        DataObject feed = json.optObject("feed").orElse(null);
+        DataObject events = json.optObject("events").orElse(null);
+        if (online == null || feed == null || events == null) return null;
+        String mode = online.getString("mode", "").strip();
+        int onlineLimit = online.getInt("limit", 0);
+        int feedLimit = feed.getInt("limit", 0);
+        if (mode.isEmpty() || onlineLimit < 1 || feedLimit < 1) return null;
+        return new SiteSettings(mode, onlineLimit, online.getBoolean("groupByRole", true), feedLimit, events.getBoolean("enabled", true));
+    }
+
     /** The site in a hub answer, or null when it lacks a site id. The server falls back to the one asked about. */
     static HubSite parse(DataObject json, long askedGuild) {
         String siteId = json.getString("siteId", "").strip();
