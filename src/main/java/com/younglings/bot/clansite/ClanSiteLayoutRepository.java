@@ -181,7 +181,7 @@ public class ClanSiteLayoutRepository {
             } finally {
                 connection.setAutoCommit(autoCommit);
             }
-            SiteInvalidator.signal(SiteInvalidator.Area.HUB);
+            SiteInvalidator.signal(guildId, SiteInvalidator.Area.HUB);
             return true;
         } catch (SQLException e) {
             log.error("Failed to publish the clan website layout of guild {}", guildId, e);
@@ -267,7 +267,7 @@ public class ClanSiteLayoutRepository {
             log.error("Failed to delete the clan website layout of guild {}", guildId, e);
             throw new RuntimeException("Failed to delete the clan website layout", e);
         }
-        SiteInvalidator.signal(SiteInvalidator.Area.HUB);
+        SiteInvalidator.signal(guildId, SiteInvalidator.Area.HUB);
     }
 
     private static Instant instant(ResultSet rs, String column) throws SQLException {

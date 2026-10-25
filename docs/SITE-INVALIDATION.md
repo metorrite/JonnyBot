@@ -10,6 +10,8 @@ The website caches what it reads from the bot (`next: { revalidate: N }`, 10 s t
 
 Needs `SITE_URL` set on the bot (the website's public address; locally `http://localhost:3000`) and the same `INTERNAL_API_SECRET` / `JONNYBOT_INTERNAL_API_SECRET` pair that already links the two. With either missing the bot says so once at startup and the timers apply.
 
+Clan sites (runeclans.com) are a second, optional target: `CLAN_SITES_URL` (e.g. `https://runeclans.com`). It gets the same shared tags plus per-site tags, see "Clan sites" below. Unset, clan sites refresh on their timers.
+
 ## Tag names
 
 Kept in step in two places: `SiteInvalidator.Area` (bot) and `src/lib/cacheTags.ts` (site).
@@ -32,7 +34,26 @@ Kept in step in two places: `SiteInvalidator.Area` (bot) and `src/lib/cacheTags.
 | `OPTIONS` | site:options | `CommunitySettings` (site options) |
 | `HUB` | hub:clans, hub:events, hub:leaderboards, hub:sites | `ClanProfileRepository` (profile, verification, suspension, shared events), `ClanSiteRepository` (a clan website saved) |
 
-**Clan sites (T-364).** A clan site's data read (`/internal/directory/sites/<slug>/data/<route>`) is tagged `hub:sites` plus `site:<route>` by `tagsForInternalPath`, so every signal above clears the same answer on every clan site as on the home site (`site:polls` clears every site's polls). The bot's own cache does the same: a clan site's answer is cached under `<route>?<query>#g<server id>`, and the `SiteCache.invalidate("<route>")` calls after poll and signup writes clear those keys with the home server's. Per-site tags (`site:<slug>:<key>`, builder v3 section 5.3) need the site's `/api/revalidate` to accept that shape first; until then the bot keeps sending the shared tags.
+## Clan sites (T-364, T-393)
+
+A builder v3 clan site tags each data read `site:<slug>`, `site:<slug>:<key>` and `clan-site:<slug>` (runeclans `packages/api-client/src/sites/siteData.ts`, `<key>` being the data source key from `packages/builder/src/v3/widgets`). A write that knows its server calls `SiteInvalidator.signal(guildId, Area...)`; a write that only knows a row (a poll vote, a signup entry, joining an event) calls `signalLater(() -> guildOf(row), Area...)`, and the lookup runs on the invalidator's own thread, never the write's. On flush the bot merges the areas per server, reads each server's site address (its clan profile slug) once, and sends `CLAN_SITES_URL` two kinds of request:
+
+1. the shared tags (as `SITE_URL` gets them, for the hub pages and v2 clan site reads);
+2. the per-site tags, in their own requests of at most 30, so a site that refuses their shape still gets the shared ones. They are never sent to `SITE_URL` (rsyounglings' route accepts only `site:<name>` / `hub:<name>`).
+
+| Bot `Area` | Per-site tags on the server's own site |
+|---|---|
+| `ROSTER` | `site:<slug>:roster`, `:overview`, `:member`, `:leaderboard`, `:records` |
+| `EVENTS` | `:calendarEvents`, `:discordEvents`, `:eventDetail`, `:eventStandings`, `:hubEvents` |
+| `POLLS` | `:polls` |
+| `SIGNUPS` | `:signups` |
+| `NEWS` | `:discordFeed` |
+| `OPTIONS` | none (site options are the home site's) |
+| `HUB` | the whole site: `site:<slug>` and `clan-site:<slug>` |
+
+So a poll vote in server A clears `site:<A's slug>:polls` and no other clan site's polls. A server without a site address (or one the website would refuse) sends only the shared tags. The website's route (runeclans `apps/runeclans/src/app/api/revalidate`, T-500) accepts `site:<name>`, `hub:<name>`, `site:<slug>:<key>` (key `[A-Za-z0-9-]{1,40}`) and `clan-site:<slug>`.
+
+When adding a v3 data source that shows bot data, add its key to the matching `Area` here. The bot's own `SiteCache` still clears every server's keys for a route after a poll or signup write (its answers live seconds; narrowing it is left for later).
 
 Not signalled (the timers cover them): player stat snapshots written by polling, Discord-side news messages, points and anything that is not in a table above. To cover another write, add one `SiteInvalidator.signal(Area.X)` after it succeeds; to add a page's tag, tag its fetch (`siteTag(path)` for `/internal/site` reads, `tagsForInternalPath` for `botCall`).
 
