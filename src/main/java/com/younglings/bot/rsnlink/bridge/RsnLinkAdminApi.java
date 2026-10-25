@@ -6,6 +6,7 @@ import com.younglings.bot.rsnlink.LinkAdmin;
 import com.younglings.bot.rsnlink.LinkException;
 import com.younglings.bot.rsnlink.LinkService;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
+import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.utils.data.DataObject;
@@ -38,12 +39,17 @@ public class RsnLinkAdminApi implements AdminRouteExtension {
 
     @Override
     public DataObject route(Guild guild, Member actor, String method, String[] parts, Supplier<DataObject> body) {
+        return routeFor(guild.getJDA(), actor.getIdLong(), method, parts, body);
+    }
+
+    /** The same routes for the overall admin panel, whose admins need not be members of any server: the asker is a user id. The owner check is the same. */
+    public DataObject routeFor(JDA jda, long actorId, String method, String[] parts, Supplier<DataObject> body) {
         if (parts.length < 1 || !parts[0].equals("rsnlink")) return null;
-        if (!owners.isOwner(guild.getJDA(), actor.getIdLong())) throw AdminRouteExtension.refuse(403, "Only the bot's owner can open the RS Link abuse view.");
+        if (!owners.isOwner(jda, actorId)) throw AdminRouteExtension.refuse(403, "Only the bot's owner can open the RS Link abuse view.");
         LinkService service = module.service();
         if (service == null) throw AdminRouteExtension.refuse(503, "The RS Link service is off (LINK_DATABASE_URL is not set).");
         LinkAdmin admin = new LinkAdmin(service);
-        String who = actor.getId();
+        String who = Long.toString(actorId);
         try {
             if (parts.length == 2) {
                 switch (parts[1]) {
