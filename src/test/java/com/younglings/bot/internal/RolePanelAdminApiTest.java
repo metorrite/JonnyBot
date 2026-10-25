@@ -35,7 +35,7 @@ class RolePanelAdminApiTest {
     @BeforeEach
     void setUp() {
         repository = mock(RolePanelRepository.class);
-        api = new RolePanelAdminApi(repository, mock(RolePanelService.class));
+        api = new RolePanelAdminApi(repository, mock(RolePanelService.class), com.younglings.bot.testsupport.QueuedJobs.outbox());
         guild = mock(Guild.class);
         when(guild.getIdLong()).thenReturn(5L);
         self = mock(SelfMember.class);

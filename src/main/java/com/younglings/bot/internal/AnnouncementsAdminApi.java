@@ -3,6 +3,8 @@ package com.younglings.bot.internal;
 import com.younglings.bot.ban.AnnounceService;
 import com.younglings.bot.ban.BanAnnouncementRepository;
 import com.younglings.bot.ban.BanAnnouncementService;
+import com.younglings.bot.discord.jobs.DiscordJob;
+import com.younglings.bot.discord.jobs.DiscordOutbox;
 import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.welcome.WelcomeConfig;
@@ -31,11 +33,13 @@ public class AnnouncementsAdminApi implements AdminRouteExtension {
     private final BanAnnouncementRepository repository;
     private final BanAnnouncementService banService;
     private final AnnounceService announceService;
+    private final DiscordOutbox outbox;
 
-    public AnnouncementsAdminApi(BanAnnouncementRepository repository, BanAnnouncementService banService, AnnounceService announceService) {
+    public AnnouncementsAdminApi(BanAnnouncementRepository repository, BanAnnouncementService banService, AnnounceService announceService, DiscordOutbox outbox) {
         this.repository = repository;
         this.banService = banService;
         this.announceService = announceService;
+        this.outbox = outbox;
     }
 
     @Override
@@ -92,17 +96,19 @@ public class AnnouncementsAdminApi implements AdminRouteExtension {
                 roleId = Long.parseLong(rawRole);
             }
         }
+        AnnounceService.Prepared prepared;
         try {
-            String channelName = announceService.send(guild, actor, Long.parseLong(rawChannel), body.getString("message", ""),
+            prepared = announceService.prepare(guild, actor, Long.parseLong(rawChannel), body.getString("message", ""),
                     body.getBoolean("everyone", false), body.getBoolean("here", false), roleId);
-            log.info("Dashboard: {} sent an announcement in #{}", actor.getId(), channelName);
-            return DataObject.empty().put("sent", true).put("channelName", channelName);
         } catch (IllegalStateException e) {
             throw new ApiError(400, e.getMessage());
-        } catch (RuntimeException e) {
-            log.warn("Dashboard announcement couldn't be posted", e);
-            throw new ApiError(400, Text.of(guild, "dashboard.discord_wouldn_t_let_the_announcement"));
         }
+        // queued, so the dashboard answers at once; AnnounceJob posts it and the page follows the job (never posted twice on an unclear failure)
+        var plan = prepared.plan();
+        DiscordJob job = outbox.enqueue(AnnounceJob.KIND, guild.getIdLong(), actor.getIdLong(), null,
+                AnnounceJob.payload(prepared.channel().getIdLong(), plan.content(), plan.parse(), plan.roleIds()));
+        log.info("Dashboard: {} queued an announcement for #{} (job {})", actor.getId(), prepared.channel().getName(), job.id());
+        return DataObject.empty().put("sent", false).put("queued", true).put("channelName", prepared.channel().getName()).put("job", job.ticket());
     }
 
     private WelcomeConfig parseAndCheck(Guild guild, DataObject body) {

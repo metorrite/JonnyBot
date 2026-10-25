@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -28,6 +29,7 @@ class LockdownAdminApiTest {
     private static final long GUILD = 5L;
     private LockdownService service;
     private DashboardAccess access;
+    private com.younglings.bot.discord.jobs.DiscordOutbox outbox;
     private LockdownAdminApi api;
     private Guild guild;
     private Member actor;
@@ -36,7 +38,8 @@ class LockdownAdminApiTest {
     void setUp() {
         service = mock(LockdownService.class);
         access = mock(DashboardAccess.class);
-        api = new LockdownAdminApi(service, access);
+        outbox = com.younglings.bot.testsupport.QueuedJobs.outbox();
+        api = new LockdownAdminApi(service, access, outbox);
         guild = mock(Guild.class);
         when(guild.getIdLong()).thenReturn(GUILD);
         actor = mock(Member.class);
@@ -99,5 +102,59 @@ class LockdownAdminApiTest {
         api.save(guild, actor, json("{\"channelIds\": [], \"keepTalkingRoleIds\": []}"));
 
         verify(service).saveConfig(new Config(GUILD, List.of(), List.of()));
+    }
+
+    private StandardGuildMessageChannel manageable(long id) {
+        StandardGuildMessageChannel channel = mock(StandardGuildMessageChannel.class);
+        when(channel.getName()).thenReturn("general");
+        when(channel.getIdLong()).thenReturn(id);
+        when(channel.getGuild()).thenReturn(guild);
+        when(guild.getChannelById(StandardGuildMessageChannel.class, id)).thenReturn(channel);
+        net.dv8tion.jda.api.entities.SelfMember self = mock(net.dv8tion.jda.api.entities.SelfMember.class);
+        when(self.hasPermission(org.mockito.ArgumentMatchers.eq(channel), any(net.dv8tion.jda.api.Permission[].class))).thenReturn(true);
+        when(guild.getSelfMember()).thenReturn(self);
+        return channel;
+    }
+
+    @Test
+    void lockingIsQueuedAsADiscordJobAndTheAnswerComesAtOnce() {
+        manageable(9L);
+
+        DataObject answer = api.route(guild, actor, "POST", new String[]{"lockdown", "lock"}, () -> json("{\"channelId\": \"9\", \"reason\": \"raid\"}"));
+
+        assertEquals("77", answer.getObject("job").getString("id"));
+        verify(outbox).enqueue(org.mockito.ArgumentMatchers.eq(LockdownJobs.LOCK), org.mockito.ArgumentMatchers.eq(GUILD), anyLong(), org.mockito.ArgumentMatchers.eq("lockdown-lock:" + GUILD + ":9"), any());
+        verify(service, never()).lock(any(), any(), anyLong(), any(), org.mockito.ArgumentMatchers.anyBoolean());
+    }
+
+    @Test
+    void aChannelThatIsAlreadyLockedIsRefusedWithoutQueueing() {
+        manageable(9L);
+        when(service.locks(GUILD)).thenReturn(List.of(new com.younglings.bot.lockdown.LockdownRepository.Lock(GUILD, 9L, 7L, java.time.Instant.EPOCH, "", false, "")));
+
+        var error = assertThrows(TicketAdminApi.ApiError.class, () -> api.route(guild, actor, "POST", new String[]{"lockdown", "lock"}, () -> json("{\"channelId\": \"9\"}")));
+
+        assertEquals(409, error.status);
+        verify(outbox, never()).enqueue(anyString(), anyLong(), anyLong(), any(), any());
+    }
+
+    @Test
+    void unlockingAChannelThatIsNotLockedIsRefusedWithoutQueueing() {
+        manageable(9L);
+
+        var error = assertThrows(TicketAdminApi.ApiError.class, () -> api.route(guild, actor, "POST", new String[]{"lockdown", "unlock"}, () -> json("{\"channelId\": \"9\"}")));
+
+        assertEquals(409, error.status);
+        verify(outbox, never()).enqueue(anyString(), anyLong(), anyLong(), any(), any());
+    }
+
+    @Test
+    void aLockdownIsQueuedAsOneJob() {
+        when(service.config(GUILD)).thenReturn(new Config(GUILD, List.of(1L, 2L), List.of()));
+
+        DataObject answer = api.route(guild, actor, "POST", new String[]{"lockdown", "start"}, () -> json("{}"));
+
+        assertEquals("77", answer.getObject("job").getString("id"));
+        verify(service, never()).start(any(), anyLong(), any());
     }
 }

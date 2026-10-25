@@ -101,7 +101,8 @@ public class RoleSyncBackfill {
 
         Map<Long, Member> members = new java.util.HashMap<>();
         try {
-            for (Member m : guild.retrieveMembersByIds(byUser.keySet()).get()) members.put(m.getIdLong(), m);
+            // a website request waits for this (and gives up after 8 s), so Discord gets a time limit; a slow answer reads as "try again"
+            for (Member m : guild.retrieveMembersByIds(byUser.keySet()).setTimeout(java.time.Duration.ofSeconds(6)).get()) members.put(m.getIdLong(), m);
         } catch (Exception e) {
             log.warn("Could not load the linked members of guild {} for the role fix", guildId, e);
             return new Plan(List.of(), byUser.size(), 0, "Discord could not list the members just now. Try again in a moment.");

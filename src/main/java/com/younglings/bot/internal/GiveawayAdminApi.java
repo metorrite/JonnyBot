@@ -1,5 +1,7 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.discord.jobs.DiscordJob;
+import com.younglings.bot.discord.jobs.DiscordOutbox;
 import com.younglings.bot.giveaway.Giveaway;
 import com.younglings.bot.giveaway.GiveawayRepository;
 import com.younglings.bot.giveaway.GiveawayService;
@@ -22,7 +24,8 @@ import java.util.List;
 import java.util.function.Supplier;
 
 /**
- * A server's giveaways for the website: list, start, end now, reroll, delete. A start is checked whole before anything is posted.
+ * A server's giveaways for the website: list, start, end now, reroll, delete. A start is checked whole before anything is posted. Whatever reaches
+ * Discord runs as a Discord job ({@link GiveawayJobs}, T-456): the answer is the list at once with {@code job} for the page to follow.
  * Reached only through {@link TicketAdminApi}, which has already checked the asker may use the dashboard in this server and audit-logs
  * every change.
  */
@@ -33,11 +36,11 @@ public class GiveawayAdminApi implements AdminRouteExtension {
     private static final Duration MAX = Duration.ofDays(60);
 
     private final GiveawayRepository repository;
-    private final GiveawayService service;
+    private final DiscordOutbox outbox;
 
-    public GiveawayAdminApi(GiveawayRepository repository, GiveawayService service) {
+    public GiveawayAdminApi(GiveawayRepository repository, DiscordOutbox outbox) {
         this.repository = repository;
-        this.service = service;
+        this.outbox = outbox;
     }
 
     @Override
@@ -87,7 +90,15 @@ public class GiveawayAdminApi implements AdminRouteExtension {
         Duration duration = Duration.ofMinutes(Math.max(0, minutes));
         if (duration.compareTo(MIN) < 0 || duration.compareTo(MAX) > 0) problems.add("It must run for between 1 minute and 60 days.");
         String channelText = body.getString("channelId", "").strip();
-        if (!channelText.matches("\\d{1,20}")) problems.add("Choose a channel to post it in.");
+        if (!channelText.matches("\\d{1,20}")) {
+            problems.add("Choose a channel to post it in.");
+        } else {
+            try {
+                GiveawayService.postable(guild, Long.parseLong(channelText));
+            } catch (GiveawayService.GiveawayException e) {
+                problems.add(e.getMessage());
+            }
+        }
         Long roleId = null;
         if (body.hasKey("requiredRoleId") && !body.isNull("requiredRoleId") && !body.getString("requiredRoleId", "").isBlank()) {
             String raw = body.getString("requiredRoleId").strip();
@@ -111,35 +122,33 @@ public class GiveawayAdminApi implements AdminRouteExtension {
         boolean reactionEntry = body.getBoolean("reactionEntry", false);
         if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.that_giveaway_can_t_be_started"), problems);
 
-        try {
-            Giveaway g = service.start(guild, Long.parseLong(channelText), prize, actor.getIdLong(), winners, Instant.now().plus(duration), roleId, winnerRoleId, dmWinners, reactionEntry);
-            log.info("Dashboard: {} started giveaway {} ({}) in channel {}", actor.getId(), g.id(), prize, channelText);
-            return list(guild);
-        } catch (GiveawayService.GiveawayException e) {
-            throw new ApiError(400, e.getMessage());
-        }
+        DiscordJob job = outbox.enqueue(GiveawayJobs.START, guild.getIdLong(), actor.getIdLong(), null,
+                GiveawayJobs.startPayload(Long.parseLong(channelText), prize, winners, Instant.now().plus(duration), roleId, winnerRoleId, dmWinners, reactionEntry));
+        log.info("Dashboard: {} queued a giveaway ({}) for channel {} (job {})", actor.getId(), prize, channelText, job.id());
+        return list(guild).put("job", job.ticket());
     }
 
     private DataObject act(Guild guild, Member actor, String rawId, boolean end) {
         Giveaway g = find(guild, rawId);
-        try {
-            if (end) service.end(guild, g); else service.reroll(guild, g);
-            log.info("Dashboard: {} {} giveaway {}", actor.getId(), end ? "ended" : "rerolled", g.id());
-            return list(guild);
-        } catch (GiveawayService.GiveawayException e) {
-            throw new ApiError(400, e.getMessage());
-        }
+        if (end && !g.open()) throw new ApiError(400, "That giveaway has already ended.");
+        if (!end && g.open()) throw new ApiError(400, "That giveaway is still running. End it first.");
+        // a second press while the first waits replaces it, so one press draws once
+        DiscordJob job = outbox.enqueue(end ? GiveawayJobs.END : GiveawayJobs.REROLL, guild.getIdLong(), actor.getIdLong(),
+                (end ? "giveaway-end:" : "giveaway-reroll:") + guild.getIdLong() + ":" + g.id(), GiveawayJobs.giveawayPayload(g.id()));
+        log.info("Dashboard: {} queued {} giveaway {} (job {})", actor.getId(), end ? "ending" : "rerolling", g.id(), job.id());
+        return list(guild).put("job", job.ticket());
     }
 
     DataObject delete(Guild guild, Member actor, String rawId) {
         Giveaway g = find(guild, rawId);
-        if (g.messageId() != null) {
-            GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, g.channelId());
-            if (channel != null) channel.deleteMessageById(g.messageId()).queue(ok -> {}, error -> {});
+        DiscordJob job = null;
+        if (g.messageId() != null && guild.getChannelById(GuildMessageChannel.class, g.channelId()) != null) {
+            job = outbox.enqueue(GiveawayJobs.DELETE, guild.getIdLong(), actor.getIdLong(), null, GiveawayJobs.deletePayload(g.channelId(), g.messageId()));
         }
         repository.delete(guild.getIdLong(), g.id());
         log.info("Dashboard: {} deleted giveaway {}", actor.getId(), g.id());
-        return list(guild);
+        DataObject answer = list(guild);
+        return job == null ? answer : answer.put("job", job.ticket());
     }
 
     private Giveaway find(Guild guild, String rawId) {

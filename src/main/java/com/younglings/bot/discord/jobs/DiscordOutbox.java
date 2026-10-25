@@ -43,18 +43,25 @@ public class DiscordOutbox {
 
     public DiscordOutbox(DiscordJobRepository repository, List<DiscordJobHandler> handlers) {
         this.repository = repository;
-        for (DiscordJobHandler handler : handlers) this.handlers.put(handler.kind(), handler);
+        for (DiscordJobHandler handler : handlers) {
+            for (String kind : handler.kinds()) this.handlers.put(kind, handler);
+        }
     }
 
     @BEventListener
     public void onJdaReady(InjectedJDAEvent event) {
         jda = event.getJda();
         lane.execute(() -> {
-            int recovered = repository.recover(handlers.values().stream().filter(DiscordJobHandler::idempotent).map(DiscordJobHandler::kind).toList());
+            int recovered = repository.recover(idempotentKinds());
             if (recovered > 0) log.info("Discord jobs: {} left running by the last run were put back or ended", recovered);
         });
         lane.scheduleWithFixedDelay(this::drain, 2, 1, TimeUnit.SECONDS);
         lane.scheduleWithFixedDelay(() -> repository.sweep(Instant.now().minus(KEEP_FINISHED)), 10, 60 * 60, TimeUnit.SECONDS);
+    }
+
+    /** The kinds that are safe to run twice: only these are tried again after a restart mid-way. */
+    List<String> idempotentKinds() {
+        return handlers.entrySet().stream().filter(e -> e.getValue().idempotent(e.getKey())).map(Map.Entry::getKey).sorted().toList();
     }
 
     /**
@@ -110,7 +117,7 @@ public class DiscordOutbox {
             log.debug("Discord job {} ({}) done after {} tries", job.id(), job.kind(), job.attempts());
         } catch (Throwable error) {
             int realTries = job.attempts() - job.waits();
-            Next next = DiscordJobs.after(error, realTries, job.waits(), handler.idempotent(), Instant.now());
+            Next next = DiscordJobs.after(error, realTries, job.waits(), handler.idempotent(job.kind()), Instant.now());
             switch (next) {
                 case Retry retry -> {
                     if (!retry.rateLimit()) log.info("Discord job {} ({}) will be tried again: {}", job.id(), job.kind(), error.toString());
