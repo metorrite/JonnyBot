@@ -113,12 +113,12 @@ class OverallAdminDatabaseTest {
         OverallAdmins overall = new OverallAdmins(new OverallAdminRepository(db), owners);
         SiteRoleGuard roles = new SiteRoleGuard(new SiteRoleRepository(db), mock(DashboardAccess.class), settings, mock(PlayerLinkService.class), overall);
         ClanSiteAdminApi clanSite = new ClanSiteAdminApi(sites, layouts, siteService, profiles, owners, mock(Premium.class), roles,
-                mock(SiteDiscordService.class));
+                mock(SiteDiscordService.class), mock(SiteAddressRoutes.class));
         ImageUploadService images = new ImageUploadService(new UploadedImageRepository(db, new UploadedImageDatabaseInitializer(db)));
         grants = new AccessGrantRepository(db);
         grantService = new AccessGrantService(grants);
         AdminToolsStore audit = new AdminToolsStore(db);
-        BotlessAdminApi botlessAdmin = new BotlessAdminApi(clanSite, new ClanProfileAdminApi(new ClanProfileRepository(db), profiles, new com.younglings.bot.clanprofile.SlugChangeService(new ClanProfileRepository(db), new com.younglings.bot.clanprofile.SlugChangeRepository(db))),
+        BotlessAdminApi botlessAdmin = new BotlessAdminApi(clanSite, new ClanProfileAdminApi(new ClanProfileRepository(db), profiles),
                 new SitePictureAdminApi(images, mock(Premium.class), roles), new ImageAdminApi(images), mock(AdminOpsApi.class), audit, roles, botless, settings,
                 grantService, owners, mock(ClanSyncScheduler.class));
         OverallAdminApi overallApi = new OverallAdminApi(overall, owners, new PremiumAccessRepository(db), mock(SiteOwnerAdminApi.class),
