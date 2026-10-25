@@ -105,8 +105,9 @@ class BotlessSiteEndToEndDatabaseTest {
         ClanSyncService clanSync = mock(ClanSyncService.class);
         when(clanSync.getClanName(anyLong())).thenAnswer(i -> settings.getEffective(i.getArgument(0)).clanName());
         ClanProfileService profiles = new ClanProfileService(new ClanProfileRepository(db), clanSync, mock(PlayerLinkService.class));
-        SiteRoleGuard roles = new SiteRoleGuard(new SiteRoleRepository(db), mock(DashboardAccess.class), settings, mock(PlayerLinkService.class));
         BotOwners owners = mock(BotOwners.class);
+        SiteRoleGuard roles = new SiteRoleGuard(new SiteRoleRepository(db), mock(DashboardAccess.class), settings, mock(PlayerLinkService.class),
+                new com.younglings.bot.access.OverallAdmins(new com.younglings.bot.access.OverallAdminRepository(db), owners));
         ClanSiteAdminApi clanSite = new ClanSiteAdminApi(sites, layouts, siteService, profiles, owners, mock(Premium.class), roles,
                 new SiteDiscordService(new SiteConnectionStore(db, new SiteDiscordSettings(db), new SiteNewsService(db)), new SiteDiscordSettings(db),
                         new SiteNewsService(db), mock(MemberProfileRepository.class), new SiteCache()));
@@ -125,7 +126,7 @@ class BotlessSiteEndToEndDatabaseTest {
         }).when(ticketAdmin).handle(any(), any());
         InternalApiServer server = new InternalApiServer(config, ticketAdmin, mock(SiteApi.class), mock(DirectoryApi.class), mock(PluginApi.class),
                 mock(MemberApi.class), images, mock(com.younglings.bot.tracking.CitadelWinners.class), mock(FormsPublicApi.class), List.of(), botlessAdmin,
-                mock(com.younglings.bot.discord.jobs.DiscordOutbox.class));
+                mock(com.younglings.bot.discord.jobs.DiscordOutbox.class), mock(OverallAdminApi.class));
         JDA jda = mock(JDA.class);
         when(jda.getStatus()).thenReturn(JDA.Status.CONNECTED);
         Guild home = mock(Guild.class);

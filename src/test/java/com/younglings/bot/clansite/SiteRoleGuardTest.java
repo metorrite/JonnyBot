@@ -49,7 +49,7 @@ class SiteRoleGuardTest {
         when(settings.getEffective(anyLong())).thenReturn(effective);
         PlayerLinkService links = mock(PlayerLinkService.class);
         when(links.getLinksForUser(anyLong(), anyLong())).thenReturn(List.of());
-        guard = new SiteRoleGuard(repository, access, settings, links);
+        guard = new SiteRoleGuard(repository, access, settings, links, mock(com.younglings.bot.access.OverallAdmins.class));
         guild = mock(Guild.class);
         when(guild.getIdLong()).thenReturn(GUILD);
         when(guild.getId()).thenReturn(String.valueOf(GUILD));

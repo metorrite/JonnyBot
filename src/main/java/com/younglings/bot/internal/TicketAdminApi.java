@@ -86,10 +86,19 @@ public class TicketAdminApi {
     private final List<AdminRouteExtension> extensions;
     private final BetaAccessService betaAccess;
     private final AccessGrantService accessGrants;
+    private final SiteAccessRoutes siteAccess;
+    private final ClanSiteAdminApi clanSiteAdmin;
+    private final SitePictureAdminApi sitePictures;
+    private final com.younglings.bot.access.OverallAdmins overallAdmins;
 
     public TicketAdminApi(DashboardAccess access, TicketRepository repository, TicketService service, ClanAdminApi clanAdmin, CommunityAdminApi communityAdmin, AdminOpsApi ops, AdminToolsStore auditStore,
                           HelpOnboarding onboarding, HelpPanels helpPanels, WelcomeAdminApi welcomeAdmin, ServerSetupAdminApi serverSetup, PermissionsAdminApi permissions, HubAdminApi hubAdmin, OverviewAdminApi overviewAdmin, ImageAdminApi imageAdmin, BetaAccessService betaAccess,
-                          AccessGrantService accessGrants, List<AdminRouteExtension> extensions) {
+                          AccessGrantService accessGrants, List<AdminRouteExtension> extensions, SiteAccessRoutes siteAccess, ClanSiteAdminApi clanSiteAdmin,
+                          SitePictureAdminApi sitePictures, com.younglings.bot.access.OverallAdmins overallAdmins) {
+        this.siteAccess = siteAccess;
+        this.clanSiteAdmin = clanSiteAdmin;
+        this.sitePictures = sitePictures;
+        this.overallAdmins = overallAdmins;
         this.accessGrants = accessGrants;
         this.extensions = extensions;
         log.info("Admin API ready with {} route extension(s): {}", extensions.size(), extensions.stream().map(e -> e.getClass().getSimpleName()).toList());
@@ -149,6 +158,8 @@ public class TicketAdminApi {
                 // Whether this person may use JonnyBot's website while it is closed: the clan's own admins, or admins of a trusted beta server.
                 // Worked out from the asker's id alone, because a beta tester usually isn't a member of the clan's server.
                 long askerId = actorIdOf(exchange);
+                // an overall RuneClans admin (N5) may open this server's site admin and editor, member or not
+                who.put("overallAdmin", askerId != 0 && overallAdmins.isOverallAdmin(guild.getJDA(), askerId));
                 boolean beta = tier != Tier.NONE || (askerId != 0 && betaAccess.managesAnyBetaGuild(guild.getJDA(), askerId));
                 who.put("beta", beta);
                 // Per restricted area: the beta rule above, or a grant on the owner's access list for that area. Fails closed.
@@ -161,6 +172,25 @@ public class TicketAdminApi {
                 who.put("areas", areas);
                 InternalApiServer.sendJson(exchange, 200, who);
                 return;
+            }
+            // the clan website's routes for people let in by the site itself, member or not (overall admins, site admins, editors; N5)
+            if (tier == Tier.NONE && !(coordinator && DashboardAccess.coordinatorMayUse(method, parts))) {
+                SiteCaller site = siteAccess.caller(exchange, guild, actorIdOf(exchange), actor, method, parts);
+                if (site != null) {
+                    if (!method.equals("GET") && !adminWrites.tryAcquire(Long.toString(site.userId()))) throw new ApiError(429, Text.of(guild, "dashboard.you_re_doing_that_too_fast"));
+                    DataObject answer = SiteAccessRoutes.route(site, method, parts, () -> body(exchange), clanSiteAdmin, sitePictures, () -> structure(guild),
+                            () -> ops.audit(guild, queryParam(exchange, "limit"), null, "clan-site"));
+                    if (answer == null) {
+                        InternalApiServer.sendJson(exchange, 404, DataObject.empty().put("error", "Not found"));
+                        return;
+                    }
+                    if (!method.equals("GET")) {
+                        String name = actor != null ? actor.getEffectiveName() : site.facts().overallAdmin() ? "RuneClans admin" : "Site admin";
+                        auditStore.audit(guild.getIdLong(), Long.toString(site.userId()), name, method, route, 200);
+                    }
+                    InternalApiServer.sendJson(exchange, 200, answer);
+                    return;
+                }
             }
             if (tier == Tier.NONE && !(coordinator && DashboardAccess.coordinatorMayUse(method, parts))
                     && !(actor != null && extensions.stream().anyMatch(e -> e.admits(guild, actor, method, parts)))) {

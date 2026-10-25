@@ -19,7 +19,8 @@ import java.util.regex.Pattern;
  * The website must take {@code userId} from the signed-in session only, never from the visitor (the same rule as the "my link" route),
  * and must not keep the answer across people; the bot caches it for a minute per person and site. Without a {@code userId} the answer is
  * {@code visitor}. Ten answers a second per site at most. A bot-less site (the bot isn't in its server) answers from its stored roles alone
- * ({@link SiteRoleGuard#viewerWithoutBot}), with {@code botless: true}. The other {@code sites/...} routes are {@link DirectoryClanSiteRoutes}'.
+ * ({@link SiteRoleGuard#viewerWithoutBot}), with {@code botless: true}. Overall admins (N5) are every site's owner; the site's own admin access
+ * counts too, the staff-server rule from the signed {@link ServerFacts} on this call. The other {@code sites/...} routes are {@link DirectoryClanSiteRoutes}'.
  */
 @BService
 public class SiteViewerRoutes implements DirectoryRouteModule {
@@ -27,11 +28,13 @@ public class SiteViewerRoutes implements DirectoryRouteModule {
 
     private final SiteRoleGuard guard;
     private final ClanSiteService sites;
+    private final com.younglings.bot.config.BotConfig config;
     private final RateLimiter perSite = new RateLimiter(10, 100);
 
-    public SiteViewerRoutes(SiteRoleGuard guard, ClanSiteService sites) {
+    public SiteViewerRoutes(SiteRoleGuard guard, ClanSiteService sites, com.younglings.bot.config.BotConfig config) {
         this.guard = guard;
         this.sites = sites;
+        this.config = config;
     }
 
     @Override
@@ -61,13 +64,17 @@ public class SiteViewerRoutes implements DirectoryRouteModule {
             request.sendError(400, "Bad userId");
             return true;
         }
+        // the person's signed staff servers, for the site admin's staff-server rule (N5); none when they are missing or don't check out
+        java.util.Map<Long, Long> staff = ServerFacts.serversOf(request.exchange().getRequestHeaders().getFirst(ServerFacts.HEADER),
+                request.exchange().getRequestHeaders().getFirst(ServerFacts.SIG_HEADER), config.getInternalApiSecret(), Long.parseLong(userId),
+                java.time.Instant.now().getEpochSecond());
         if (botless != null) {
-            request.send(200, json(guard.viewerWithoutBot(botless, Long.parseLong(userId)), siteKey).put("botless", true));
+            request.send(200, json(guard.viewerWithoutBot(request.jda(), botless, Long.parseLong(userId), staff), siteKey).put("botless", true));
             return true;
         }
         SiteRoleGuard.Viewer viewer;
         try {
-            viewer = guard.viewer(guild, Long.parseLong(userId));
+            viewer = guard.viewer(guild, Long.parseLong(userId), staff);
         } catch (RuntimeException e) {
             request.sendError(503, "Discord didn't answer; try again");
             return true;

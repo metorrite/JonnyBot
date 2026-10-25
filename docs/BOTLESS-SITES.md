@@ -26,6 +26,9 @@ passes as bot-less). Code: `internal/ActorFacts`, `internal/BotlessAdminApi`.
 
 ## 2. Who may do what
 
+Since N5 overall RuneClans admins own every site, and a site's owner may let more people into its site admin (by user id or the
+staff-server rule, which rides on its own signed header): see [OVERALL-ADMINS.md](OVERALL-ADMINS.md).
+
 - Not on the beta list: `whoami` answers `{"allowed": false, "notOnBeta": true, ...}`; every other route is 403 `{"notOnBeta": true}`.
   The bot's owners are always allowed.
 - **Owner** (site role): `owner: true` in the facts, or the person who claimed the site (the first to save its layout).

@@ -83,6 +83,15 @@ public class SiteOwnerAdminApi implements AdminRouteExtension {
     public DataObject route(Guild guild, Member actor, String method, String[] parts, Supplier<DataObject> body) {
         if (parts.length < 1 || !parts[0].equals(ROOT)) return null;
         requireOwner(guild, actor);
+        return routes(guild, actor.getIdLong(), method, parts, body);
+    }
+
+    /**
+     * The same routes for the overall admin panel (N5, {@link OverallAdminApi}), which has already checked the asker is an overall admin;
+     * {@code home} is the bot's home server (for the server list and the words), {@code parts} start with {@link #ROOT}.
+     */
+    DataObject routes(Guild guild, long actor, String method, String[] parts, Supplier<DataObject> body) {
+        if (parts.length < 1 || !parts[0].equals(ROOT)) return null;
         if (parts.length == 1) {
             AdminRouteExtension.requireMethod(method, "GET");
             return list(guild);
@@ -164,7 +173,7 @@ public class SiteOwnerAdminApi implements AdminRouteExtension {
 
     // ---------- writes ----------
 
-    DataObject address(Guild guild, Member actor, long id, DataObject body) {
+    DataObject address(Guild guild, long actor, long id, DataObject body) {
         ClanProfile current = profiles.get(id).orElseThrow(() -> new ApiError(404, Text.of(guild, "dashboard.that_server_has_no_clan_profile")));
         String slug = current.slug();
         String name = current.displayName();
@@ -185,7 +194,7 @@ public class SiteOwnerAdminApi implements AdminRouteExtension {
         }
         if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.the_website_can_t_be_saved"), problems.stream().distinct().toList());
         profiles.saveContent(withAddress(current, slug, name));
-        log.info("Owner console: {} set guild {} to address {} ({})", actor.getId(), id, slug, name);
+        log.info("Owner console: {} set guild {} to address {} ({})", actor, id, slug, name);
         return one(guild, id);
     }
 
@@ -195,7 +204,7 @@ public class SiteOwnerAdminApi implements AdminRouteExtension {
                 p.suspendedReason(), p.updatedAt());
     }
 
-    DataObject owner(Guild guild, Member actor, long id, DataObject body) {
+    DataObject owner(Guild guild, long actor, long id, DataObject body) {
         String raw = body.isNull("userId") ? null : body.getString("userId", null);
         Long to = null;
         if (raw != null && !raw.isBlank()) {
@@ -207,26 +216,26 @@ public class SiteOwnerAdminApi implements AdminRouteExtension {
                 throw new ApiError(400, Text.of(guild, "dashboard.the_website_can_t_be_saved"), List.of("Pick someone in that server (a Discord user ID)."));
             to = userId;
         }
-        siteRoles.handOver(id, to, actor.getIdLong());
-        log.info("Owner console: {} handed the site of guild {} to {}", actor.getId(), id, to == null ? "the server owner" : to);
+        siteRoles.handOver(id, to, actor);
+        log.info("Owner console: {} handed the site of guild {} to {}", actor, id, to == null ? "the server owner" : to);
         return one(guild, id);
     }
 
     /** Off ({@code reason} given, or the default) or on again ({@code reason} null), through the takedown, so the clan sees why. */
-    DataObject setDisabled(Guild guild, Member actor, long id, String reason) {
+    DataObject setDisabled(Guild guild, long actor, long id, String reason) {
         ClanSite current = sites.byGuild(id).orElseThrow(() -> new ApiError(404, Text.of(guild, "dashboard.the_website_can_t_be_saved"),
                 List.of("That server has no website yet.")));
         String clean = reason == null ? null : (reason.isBlank() ? DEFAULT_REASON : reason.strip());
         if (clean != null && clean.length() > MAX_REASON) throw new ApiError(400, Text.of(guild, "dashboard.give_a_reason_in_at_most", MAX_REASON));
         // off: not published while taken down; on again: live again if it was ever published and is switched on (the draft is untouched)
         boolean published = clean == null ? current.published() || (current.enabled() && current.publishedAt() != null) : false;
-        sites.save(new ClanSite(id, current.enabled(), published, current.template(), current.theme(), current.pages(), actor.getIdLong(), Instant.now(),
+        sites.save(new ClanSite(id, current.enabled(), published, current.template(), current.theme(), current.pages(), actor, Instant.now(),
                 current.publishedAt(), clean));
-        log.info("Owner console: {} switched the site of guild {} {}", actor.getId(), id, clean == null ? "on" : "off (" + clean + ")");
+        log.info("Owner console: {} switched the site of guild {} {}", actor, id, clean == null ? "on" : "off (" + clean + ")");
         return one(guild, id);
     }
 
-    DataObject delete(Guild guild, Member actor, long id, String confirm) {
+    DataObject delete(Guild guild, long actor, long id, String confirm) {
         String slug = profiles.get(id).map(ClanProfile::slug).orElse(null);
         String expected = slug == null || slug.isBlank() ? "delete" : slug;
         if (!expected.equals(confirm == null ? "" : confirm.strip().toLowerCase(Locale.ROOT)))
@@ -234,25 +243,25 @@ public class SiteOwnerAdminApi implements AdminRouteExtension {
         layouts.delete(id);
         sites.delete(id);
         siteRoles.delete(id);
-        log.info("Owner console: {} deleted the website of guild {}", actor.getId(), id);
+        log.info("Owner console: {} deleted the website of guild {}", actor, id);
         return list(guild);
     }
 
-    DataObject resetDraft(Guild guild, Member actor, long id) {
+    DataObject resetDraft(Guild guild, long actor, long id) {
         var found = layouts.byGuild(id).orElseThrow(() -> new ApiError(404, Text.of(guild, "dashboard.the_website_can_t_be_saved"),
                 List.of("That server has no draft.")));
         if (found.published() != null) {
-            if (layouts.saveDraft(id, found.published(), found.draftRev(), actor.getIdLong()) < 0)
+            if (layouts.saveDraft(id, found.published(), found.draftRev(), actor) < 0)
                 throw new ApiError(409, Text.of(guild, "dashboard.the_website_can_t_be_saved"), List.of("Someone saved the draft just now. Try again."));
         } else {
             // never published: no draft at all, so the editor starts the guided setup again
             layouts.delete(id);
         }
-        log.info("Owner console: {} reset the draft of guild {}", actor.getId(), id);
+        log.info("Owner console: {} reset the draft of guild {}", actor, id);
         return one(guild, id);
     }
 
-    DataObject testSite(Guild guild, Member actor, DataObject body) {
+    DataObject testSite(Guild guild, long actor, DataObject body) {
         long id = parseId(body.getString("guildId", ""));
         Guild target = id == 0 ? null : guild.getJDA().getGuildById(id);
         if (target == null) throw new ApiError(404, Text.of(guild, "dashboard.the_bot_isn_t_in_that_server"));
@@ -264,11 +273,11 @@ public class SiteOwnerAdminApi implements AdminRouteExtension {
         }
         ClanSite current = sites.byGuild(id).orElse(ClanSite.empty(id));
         if (!current.enabled()) {
-            sites.save(new ClanSite(id, true, current.published(), current.template(), current.theme(), current.pages(), actor.getIdLong(), Instant.now(),
+            sites.save(new ClanSite(id, true, current.published(), current.template(), current.theme(), current.pages(), actor, Instant.now(),
                     current.publishedAt(), current.takedownReason()));
         }
-        if (!siteService.inBeta(id)) beta.upsert(id, "Test site", AccessLevel.ADMINISTRATOR, actor.getIdLong());
-        log.info("Owner console: {} set up a test site for guild {}", actor.getId(), id);
+        if (!siteService.inBeta(id)) beta.upsert(id, "Test site", AccessLevel.ADMINISTRATOR, actor);
+        log.info("Owner console: {} set up a test site for guild {}", actor, id);
         return one(guild, id);
     }
 
