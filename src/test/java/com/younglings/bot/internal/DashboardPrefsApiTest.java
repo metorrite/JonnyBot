@@ -72,6 +72,13 @@ class DashboardPrefsApiTest {
     }
 
     @Test
+    void aTabOfASectionCanBeStarredToo() {
+        Member a = admin(1);
+        put(a, "{\"paths\":[\"/roles\",\"/roles/self-roles\"]}");
+        assertEquals(List.of("/roles", "/roles/self-roles"), get(a));
+    }
+
+    @Test
     void savingReplacesTheListAndEachAdminHasTheirOwn() {
         Member a = admin(1);
         Member b = admin(2);
@@ -89,7 +96,7 @@ class DashboardPrefsApiTest {
         Member a = admin(1);
         put(a, "{\"paths\":[\"/settings\",\"/settings\",\"/welcome\"]}");
         assertEquals(List.of("/settings", "/welcome"), get(a));
-        for (String bad : new String[]{"settings", "/Settings", "/a/b", "//evil.example", "/settings?x=1", ""}) {
+        for (String bad : new String[]{"settings", "/Settings", "/a/b/c", "/a//b", "/a/", "//evil.example", "/settings?x=1", ""}) {
             assertEquals(400, assertThrows(ApiError.class, () -> put(a, "{\"paths\":[\"" + bad + "\"]}")).status, bad);
         }
         assertEquals(List.of("/settings", "/welcome"), get(a), "a refused save changes nothing");
