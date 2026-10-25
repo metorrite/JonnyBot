@@ -38,7 +38,7 @@ class AccessGrantServiceTest {
         member = mock(Member.class);
         when(jda.getGuildById(SERVER)).thenReturn(guild);
         when(guild.getMemberById(STRANGER)).thenReturn(member);
-        service = new AccessGrantService(repository);
+        service = new AccessGrantService(GateSource.ownTables(null, repository::all, null));
         service.clock = now::get;
     }
 

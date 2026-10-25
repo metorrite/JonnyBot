@@ -1,5 +1,6 @@
 package com.younglings.bot.beta;
 
+import com.younglings.bot.access.GateSource;
 import com.younglings.bot.discord.DiscordLookups;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.JDA;
@@ -21,13 +22,13 @@ public class BetaAccessService {
 
     private record Answer(boolean allowed, long expiresAt) {}
 
-    private final BetaGuildRepository repository;
+    private final GateSource gates;
     private final Map<Long, Answer> remembered = new ConcurrentHashMap<>();
     /** Replaceable so tests can move time without waiting. */
     LongSupplier clock = System::currentTimeMillis;
 
-    public BetaAccessService(BetaGuildRepository repository) {
-        this.repository = repository;
+    public BetaAccessService(GateSource gates) {
+        this.gates = gates;
     }
 
     public boolean managesAnyBetaGuild(JDA jda, long userId) {
@@ -36,7 +37,7 @@ public class BetaAccessService {
         if (known != null && known.expiresAt() > now) return known.allowed();
 
         boolean allowed = false;
-        for (BetaGuildRepository.BetaGuild beta : repository.all()) {
+        for (BetaGuildRepository.BetaGuild beta : gates.betaGuilds()) {
             Guild guild = jda.getGuildById(beta.guildId());
             if (guild == null) continue;
             if (beta.level() == null) continue; // a level the code no longer knows lets nobody in

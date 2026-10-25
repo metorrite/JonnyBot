@@ -3,6 +3,7 @@ package com.younglings.bot.internal;
 import com.younglings.bot.access.AccessArea;
 import com.younglings.bot.access.AccessGrantRepository;
 import com.younglings.bot.access.AccessGrantService;
+import com.younglings.bot.access.GateSource;
 import com.younglings.bot.clanprofile.ClanProfileRepository;
 import com.younglings.bot.clanprofile.ClanProfileService;
 import com.younglings.bot.clansite.BotlessSiteRepository;
@@ -101,10 +102,10 @@ class BotlessSiteEndToEndDatabaseTest {
         }
         when(config.getInternalApiPort()).thenReturn(port);
         settings = new GuildSettingsService(new GuildSettingsRepository(db, new GuildSettingsDatabaseInitializer(db)), config);
-        ClanSiteService siteService = new ClanSiteService(sites, beta, config, botless);
+        ClanSiteService siteService = new ClanSiteService(sites, GateSource.ownTables(beta::all, null, null), config, botless);
         ClanSyncService clanSync = mock(ClanSyncService.class);
         when(clanSync.getClanName(anyLong())).thenAnswer(i -> settings.getEffective(i.getArgument(0)).clanName());
-        ClanProfileService profiles = new ClanProfileService(new ClanProfileRepository(db), clanSync, mock(PlayerLinkService.class));
+        ClanProfileService profiles = new ClanProfileService(new ClanProfileRepository(db), clanSync, mock(PlayerLinkService.class), GateSource.ownTables(null, null, null));
         BotOwners owners = mock(BotOwners.class);
         SiteRoleGuard roles = new SiteRoleGuard(new SiteRoleRepository(db), mock(DashboardAccess.class), settings, mock(PlayerLinkService.class),
                 new com.younglings.bot.access.OverallAdmins(new com.younglings.bot.access.OverallAdminRepository(db), owners));
@@ -113,7 +114,7 @@ class BotlessSiteEndToEndDatabaseTest {
                         new SiteNewsService(db), mock(MemberProfileRepository.class), new SiteCache()), mock(SiteAddressRoutes.class));
         ImageUploadService images = new ImageUploadService(new UploadedImageRepository(db, new UploadedImageDatabaseInitializer(db)));
         grants = new AccessGrantRepository(db);
-        grantService = new AccessGrantService(grants);
+        grantService = new AccessGrantService(GateSource.ownTables(null, grants::all, null));
         AdminToolsStore audit = new AdminToolsStore(db);
         BotlessAdminApi botlessAdmin = new BotlessAdminApi(clanSite, new ClanProfileAdminApi(new ClanProfileRepository(db), profiles),
                 new SitePictureAdminApi(images, mock(Premium.class), roles), new ImageAdminApi(images), mock(AdminOpsApi.class), audit, roles, botless, settings,

@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.access.GateSource;
 import com.younglings.bot.notice.BotOwners;
 import com.younglings.bot.siteaccess.SiteSwitchRepository;
 import net.dv8tion.jda.api.JDA;
@@ -35,7 +36,7 @@ class SiteSwitchAdminApiTest {
     void setUp() {
         repository = mock(SiteSwitchRepository.class);
         owners = mock(BotOwners.class);
-        api = new SiteSwitchAdminApi(repository, owners);
+        api = new SiteSwitchAdminApi(repository, owners, GateSource.ownTables(null, null, repository::all));
         guild = mock(Guild.class);
         when(guild.getJDA()).thenReturn(mock(JDA.class));
         actor = mock(Member.class);

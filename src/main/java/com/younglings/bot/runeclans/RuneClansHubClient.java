@@ -97,12 +97,17 @@ public class RuneClansHubClient {
      * is used while it is under 15 minutes old, marked stale. Null when off, or when the hub is down and nothing is cached.
      */
     public Read read(String path, String... tags) {
+        return read(path, HubCache.FRESH, tags);
+    }
+
+    /** {@link #read}, keeping a success fresh for {@code keepFresh} (at most 15 minutes): for answers that a tagged hub change empties. */
+    public Read read(String path, Duration keepFresh, String... tags) {
         if (!enabled()) return null;
         Answer fresh = cache.fresh(path);
         if (fresh != null) return new Read(fresh, true, false);
         Answer a = transport.call("GET", path, null);
         if (a != null && a.ok()) {
-            cache.put(path, a, Set.of(tags));
+            cache.put(path, a, Set.of(tags), keepFresh);
             return new Read(a, false, false);
         }
         if (HubRetry.worthRetrying(a)) {

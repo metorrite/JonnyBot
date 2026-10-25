@@ -2,6 +2,7 @@ package com.younglings.bot.internal;
 
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
+import com.younglings.bot.access.GateSource;
 import com.younglings.bot.clanprofile.ClanProfile;
 import com.younglings.bot.clanprofile.ClanProfileRepository;
 import com.younglings.bot.clanprofile.ClanProfileService;
@@ -66,7 +67,7 @@ class DirectoryListQueriesTest {
         when(repository.shared()).thenReturn(profiles);
         when(clanSync.getClanName(anyLong())).thenAnswer(inv -> "Clan " + inv.getArgument(0));
         when(clanSync.countRoster(anyLong(), anyBoolean())).thenReturn(40);
-        ClanProfileService service = new ClanProfileService(repository, clanSync, mock(PlayerLinkService.class));
+        ClanProfileService service = new ClanProfileService(repository, clanSync, mock(PlayerLinkService.class), GateSource.ownTables(null, null, null));
         DirectoryApi api = new DirectoryApi(repository, service, mock(SiteStatsRepository.class), List.of(), mock(com.younglings.bot.clansite.BotlessSiteRepository.class), mock(SiteDiscordService.class));
 
         assertEquals(200, call(api, "/internal/directory/clans"));
@@ -87,7 +88,7 @@ class DirectoryListQueriesTest {
         when(clanSync.getClanName(anyLong())).thenAnswer(inv -> "Clan " + inv.getArgument(0));
         SiteStatsRepository stats = mock(SiteStatsRepository.class);
         when(stats.xpGains(anyLong(), any())).thenReturn(List.of());
-        ClanProfileService service = new ClanProfileService(repository, clanSync, mock(PlayerLinkService.class));
+        ClanProfileService service = new ClanProfileService(repository, clanSync, mock(PlayerLinkService.class), GateSource.ownTables(null, null, null));
         DirectoryApi api = new DirectoryApi(repository, service, stats, List.of(), mock(com.younglings.bot.clansite.BotlessSiteRepository.class), mock(SiteDiscordService.class));
 
         assertEquals(200, call(api, "/internal/directory/leaderboards"));
@@ -100,7 +101,7 @@ class DirectoryListQueriesTest {
     void aMemberCountIsADatabaseCount() {
         ClanSyncService clanSync = mock(ClanSyncService.class);
         when(clanSync.countRoster(7L, true)).thenReturn(123);
-        ClanProfileService service = new ClanProfileService(mock(ClanProfileRepository.class), clanSync, mock(PlayerLinkService.class));
+        ClanProfileService service = new ClanProfileService(mock(ClanProfileRepository.class), clanSync, mock(PlayerLinkService.class), GateSource.ownTables(null, null, null));
         assertEquals(123, service.memberCount(7L));
         verify(clanSync, never()).getRoster(anyLong(), anyBoolean());
     }
