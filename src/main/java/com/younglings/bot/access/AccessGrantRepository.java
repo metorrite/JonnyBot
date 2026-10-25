@@ -99,6 +99,19 @@ public class AccessGrantRepository {
         }
     }
 
+    /** Changes one grant's note. */
+    public boolean updateNote(long id, String note) {
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement("UPDATE younglings.access_grant SET note = ? WHERE id = ?")) {
+            statement.setString(1, note);
+            statement.setLong(2, id);
+            return statement.executeUpdate() > 0;
+        } catch (SQLException e) {
+            log.error("Failed to change the note of access grant {}", id, e);
+            throw new RuntimeException("Failed to change the access grant", e);
+        }
+    }
+
     /** Remembers who a user is on all of their grants (what Discord just said), so the list can name them without asking. */
     public void rememberUser(long userId, String userName, String avatarUrl) {
         String sql = "UPDATE younglings.access_grant SET user_name = ?, avatar_url = ? WHERE user_id = ? "

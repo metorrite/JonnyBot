@@ -58,41 +58,47 @@ public class SitePictureAdminApi implements AdminRouteExtension {
 
     @Override
     public DataObject route(Guild guild, Member actor, String method, String[] parts, Supplier<DataObject> body) {
+        return route(SiteCaller.of(guild, actor), method, parts, body);
+    }
+
+    /** The routes for any caller, a bot-less site's included ({@link BotlessAdminApi}). */
+    DataObject route(SiteCaller c, String method, String[] parts, Supplier<DataObject> body) {
         if (!ours(parts)) return null;
-        if (!siteRoles.allows(guild, actor, SiteRoles.Action.EDIT))
+        if (!c.may(siteRoles, SiteRoles.Action.EDIT))
             throw new ApiError(403, "Only people who may edit this website can change its pictures.");
+        long guildId = c.guildId();
         if (parts.length == 2) {
             AdminRouteExtension.requireMethod(method, "DELETE");
-            boolean removed = images.removeFromLibrary(guild.getIdLong(), parts[1]);
-            if (!removed) throw new ApiError(404, Text.of(guild, "dashboard.not_found"));
-            log.info("Site pictures: {} removed a picture from guild {}", actor.getId(), guild.getId());
-            return library(guild).put("removed", true);
+            boolean removed = images.removeFromLibrary(guildId, parts[1]);
+            if (!removed) throw new ApiError(404, Text.of(guildId, "dashboard.not_found"));
+            log.info("Site pictures: {} removed a picture from guild {}", c.userId(), guildId);
+            return library(guildId).put("removed", true);
         }
-        if (method.equals("GET")) return library(guild);
+        if (method.equals("GET")) return library(guildId);
         AdminRouteExtension.requireMethod(method, "POST");
-        return upload(guild, actor, body.get());
+        return upload(guildId, c.userId(), body.get());
     }
 
     long limit(long guildId) {
         return premium.limit(guildId, PremiumFeatures.SITE_PICTURES).orElse(0L);
     }
 
-    private DataObject upload(Guild guild, Member actor, DataObject body) {
+    private DataObject upload(long guildId, long actorId, DataObject body) {
         byte[] data;
         try {
             data = Base64.getDecoder().decode(body.getString("data", ""));
         } catch (IllegalArgumentException e) {
-            throw new ApiError(400, Text.of(guild, "dashboard.that_file_couldn_t_be_read"));
+            throw new ApiError(400, Text.of(guildId, "dashboard.that_file_couldn_t_be_read"));
         }
-        long limit = limit(guild.getIdLong());
+        long limit = limit(guildId);
         UploadedImageRepository.Saved saved;
         try {
-            saved = images.addToLibrary(guild.getIdLong(), data, limit).orElseThrow(() -> new ApiError(409, fullMessage(guild.getIdLong(), limit)));
+            saved = images.addToLibrary(guildId, data, limit).orElseThrow(() -> new ApiError(409, fullMessage(guildId, limit)));
         } catch (ImageUploadService.InvalidImageException e) {
             throw new ApiError(400, e.getMessage());
         }
-        log.info("Site pictures: {} added a picture to guild {} ({} bytes)", actor.getId(), guild.getId(), data.length);
-        return library(guild).put("token", saved.token()).put("version", saved.version());
+        log.info("Site pictures: {} added a picture to guild {} ({} bytes)", actorId, guildId, data.length);
+        return library(guildId).put("token", saved.token()).put("version", saved.version());
     }
 
     /** Plain words for a full library: how to make room, and whether a bigger plan would help. */
@@ -104,15 +110,15 @@ public class SitePictureAdminApi implements AdminRouteExtension {
                 : "This website already has " + limit + " pictures, the most a free site can hold. Delete one, or go Premium for up to " + premiumLimit + ".";
     }
 
-    private DataObject library(Guild guild) {
-        List<UploadedImageRepository.Listed> pictures = images.library(guild.getIdLong());
+    private DataObject library(long guildId) {
+        List<UploadedImageRepository.Listed> pictures = images.library(guildId);
         DataArray list = DataArray.empty();
         long total = 0;
         for (UploadedImageRepository.Listed p : pictures) {
             total += p.bytes();
             list.add(DataObject.empty().put("token", p.token()).put("version", p.version()).put("contentType", p.contentType()).put("bytes", p.bytes()));
         }
-        return DataObject.empty().put("pictures", list).put("used", pictures.size()).put("limit", limit(guild.getIdLong())).put("bytes", total)
+        return DataObject.empty().put("pictures", list).put("used", pictures.size()).put("limit", limit(guildId)).put("bytes", total)
                 .put("maxBytes", ImageUploadService.MAX_BYTES);
     }
 }

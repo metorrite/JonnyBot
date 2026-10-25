@@ -1,5 +1,6 @@
 package com.younglings.bot.runescape;
 
+import com.younglings.bot.clansite.BotlessSiteRepository;
 import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
@@ -14,6 +15,8 @@ import java.time.Duration;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -44,11 +47,13 @@ public class ClanSyncScheduler {
 
     private final ClanSyncService clanSyncService;
     private final BotConfig botConfig;
+    private final BotlessSiteRepository botless;
     private final ScheduledExecutorService executor = BotScheduler.lane("clan-sync-scheduler");
 
-    public ClanSyncScheduler(ClanSyncService clanSyncService, BotConfig botConfig) {
+    public ClanSyncScheduler(ClanSyncService clanSyncService, BotConfig botConfig, BotlessSiteRepository botless) {
         this.clanSyncService = clanSyncService;
         this.botConfig = botConfig;
+        this.botless = botless;
     }
 
     @BEventListener
@@ -72,15 +77,61 @@ public class ClanSyncScheduler {
     }
 
     private void runForAllGuilds(JDA jda) {
-        for (var group : groupByClan(jda.getGuilds(), clanSyncService::getClanName).values()) {
+        List<Long> botlessIds = botlessWithoutBot(jda);
+        for (var group : groupByClan(jda.getGuilds(), botlessIds, clanSyncService::getClanName).values()) {
             try {
-                var results = clanSyncService.syncAndPollGroup(group);
+                var results = clanSyncService.syncAndPollGroup(group.guilds(), group.botlessGuildIds());
                 results.forEach((guildId, result) -> log.info("Scheduled clan sync for guild {}: {} in roster ({} new, {} departed), {}/{} updated successfully.",
                         guildId, result.rosterSize(), result.newMembers(), result.departedMembers(), result.polled(), result.rosterSize()));
             } catch (Exception e) {
-                log.error("Scheduled clan sync failed for the clan of guild {}", group.get(0).getIdLong(), e);
+                log.error("Scheduled clan sync failed for the clan '{}'", group.clanKey(), e);
             }
         }
+    }
+
+    /** The bot-less sites' servers the bot still isn't in (one it has joined since is synced as a server of its own). */
+    private List<Long> botlessWithoutBot(JDA jda) {
+        try {
+            return botless.sorted().stream().filter(id -> jda.getGuildById(id) == null).toList();
+        } catch (RuntimeException e) {
+            log.warn("Couldn't read the bot-less clan websites; syncing the bot's own servers only ({})", e.getClass().getSimpleName());
+            return List.of();
+        }
+    }
+
+    /**
+     * Syncs one bot-less site's clan now, in the background (its admin just set the clan name), instead of at the next midnight. Does nothing
+     * while auto-polling is off, like the daily run.
+     */
+    public void syncSoon(long guildId) {
+        if (!botConfig.getRunescapeAutoPollEnabled() || clanSyncService.getClanName(guildId) == null) return;
+        executor.execute(() -> {
+            try {
+                clanSyncService.syncAndPollGroup(List.of(), List.of(guildId));
+            } catch (Exception e) {
+                log.error("Clan sync for the bot-less site of guild {} failed", guildId, e);
+            }
+        });
+    }
+
+    /** One clan's servers: those the bot is in, and bot-less sites (by server id) that show the same clan. */
+    record ClanGroup(String clanKey, List<Guild> guilds, List<Long> botlessGuildIds) {}
+
+    /**
+     * {@link #groupByClan(java.util.Collection, java.util.function.Function)} with bot-less sites too: each clan once, with the bot's servers
+     * and the bot-less sites that show it, so a clan shared by both is still fetched and polled once.
+     */
+    static java.util.Map<String, ClanGroup> groupByClan(java.util.Collection<Guild> guilds, java.util.Collection<Long> botlessGuildIds,
+                                                        java.util.function.Function<Long, String> clanNameOf) {
+        java.util.Map<String, ClanGroup> groups = new java.util.LinkedHashMap<>();
+        groupByClan(guilds, clanNameOf).forEach((key, list) -> groups.put(key, new ClanGroup(key, list, new ArrayList<>())));
+        for (long guildId : botlessGuildIds) {
+            String clan = clanNameOf.apply(guildId);
+            if (clan == null) continue;
+            String key = ClanSyncService.clanKey(clan);
+            groups.computeIfAbsent(key, k -> new ClanGroup(k, new ArrayList<>(), new ArrayList<>())).botlessGuildIds().add(guildId);
+        }
+        return groups;
     }
 
     /**

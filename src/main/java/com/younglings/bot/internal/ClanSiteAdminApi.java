@@ -65,6 +65,8 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
     /** Layout saves and restores per server (on top of the per-person admin limit): the editor autosaves, so a burst of 3 and then one a second. */
     private final RateLimiter layoutSaves = new RateLimiter(3, 1_000);
     static final int MAX_ROLES_PER_LIST = 20;
+    /** What a bot-less site says about Discord roles (editor, member and staff roles): the bot would have to be in the server to see them. */
+    static final String DISCORD_ROLES_UNAVAILABLE = "Discord roles are unavailable without the bot: add RuneClan Bot to the server to pick roles, or name editors by Discord user ID.";
 
     public ClanSiteAdminApi(ClanSiteRepository repository, ClanSiteLayoutRepository layouts, ClanSiteService sites, ClanProfileService profiles, BotOwners owners,
                             Premium premium, SiteRoleGuard siteRoles) {
@@ -105,76 +107,85 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
     /** Editors without dashboard access may use the editor's own routes (reading the site and its layout, saving, versions, and publishing). */
     @Override
     public boolean admits(Guild guild, Member actor, String method, String[] parts) {
+        return admits(SiteCaller.of(guild, actor), method, parts);
+    }
+
+    boolean admits(SiteCaller c, String method, String[] parts) {
         if (actionFor(method, parts) == null) return false;
         boolean editorPath = parts.length == 1 ? method.equals("GET") : parts[1].equals("layout");
-        return editorPath && siteRoles.allows(guild, actor, SiteRoles.Action.EDIT);
+        return editorPath && c.may(siteRoles, SiteRoles.Action.EDIT);
     }
 
     @Override
     public DataObject route(Guild guild, Member actor, String method, String[] parts, Supplier<DataObject> body) {
+        return route(SiteCaller.of(guild, actor), method, parts, body);
+    }
+
+    /** {@link #route(Guild, Member, String, String[], Supplier)} for any caller, a bot-less site's included ({@link BotlessAdminApi}). */
+    DataObject route(SiteCaller c, String method, String[] parts, Supplier<DataObject> body) {
         if (parts.length < 1 || !parts[0].equals("clan-site")) return null;
         SiteRoles.Action action = actionFor(method, parts);
-        if (action != null && !siteRoles.allows(guild, actor, action)) throw new ApiError(403, Text.of(guild, "dashboard.the_website_can_t_be_saved"), List.of(refusal(action)));
-        if (parts.length >= 2 && parts[1].equals("roles")) return roles(guild, actor, method, parts, body);
+        if (action != null && !c.may(siteRoles, action)) throw new ApiError(403, Text.of(c.guildId(), "dashboard.the_website_can_t_be_saved"), List.of(refusal(action)));
+        if (parts.length >= 2 && parts[1].equals("roles")) return roles(c, method, parts, body);
         if (parts.length == 1) {
-            if (method.equals("GET")) return get(guild, actor);
+            if (method.equals("GET")) return get(c);
             AdminRouteExtension.requireMethod(method, "PUT");
-            return save(guild, actor, body.get());
+            return save(c, body.get());
         }
         if (parts.length == 3 && parts[1].equals("blocks")) {
             AdminRouteExtension.requireMethod(method, "PUT");
-            return saveBlocks(guild, actor, parts[2], body.get());
+            return saveBlocks(c, parts[2], body.get());
         }
         if (parts.length == 3 && parts[1].equals("layout") && parts[2].equals("publish")) {
             AdminRouteExtension.requireMethod(method, "POST");
-            return publishLayout(guild, actor, body.get());
+            return publishLayout(c, body.get());
         }
         if (parts.length >= 3 && parts[1].equals("layout") && parts[2].equals("versions")) {
             if (parts.length == 3) {
                 AdminRouteExtension.requireMethod(method, "GET");
-                return versions(guild);
+                return versions(c);
             }
-            long versionId = versionId(guild, parts[3]);
+            long versionId = versionId(c, parts[3]);
             if (parts.length == 4) {
                 AdminRouteExtension.requireMethod(method, "GET");
-                return version(guild, versionId);
+                return version(c, versionId);
             }
             if (parts.length == 5 && parts[4].equals("restore")) {
                 AdminRouteExtension.requireMethod(method, "POST");
-                return restoreVersion(guild, actor, versionId, body.get());
+                return restoreVersion(c, versionId, body.get());
             }
             return null;
         }
         if (parts.length != 2) return null;
         return switch (parts[1]) {
             case "layout" -> {
-                if (method.equals("GET")) yield layout(guild).put("you", youJson(guild, actor));
+                if (method.equals("GET")) yield botPresence(c, layout(c).put("you", youJson(c)));
                 AdminRouteExtension.requireMethod(method, "PUT");
-                yield saveLayout(guild, actor, body.get());
+                yield saveLayout(c, body.get());
             }
             case "delete" -> {
                 AdminRouteExtension.requireMethod(method, "POST");
-                yield delete(guild, actor, body.get().getString("confirm", ""));
+                yield delete(c, body.get().getString("confirm", ""));
             }
             case "export" -> {
                 AdminRouteExtension.requireMethod(method, "GET");
-                yield export(guild);
+                yield export(c);
             }
             case "publish" -> {
                 AdminRouteExtension.requireMethod(method, "POST");
-                yield publish(guild, actor, true);
+                yield publish(c, true);
             }
             case "unpublish" -> {
                 AdminRouteExtension.requireMethod(method, "POST");
-                yield publish(guild, actor, false);
+                yield publish(c, false);
             }
             case "takedown" -> {
                 AdminRouteExtension.requireMethod(method, "POST");
-                yield takedown(guild, actor, body.get().getString("reason", ""));
+                yield takedown(c, body.get().getString("reason", ""));
             }
             case "restore" -> {
                 AdminRouteExtension.requireMethod(method, "POST");
-                yield takedown(guild, actor, null);
+                yield takedown(c, null);
             }
             default -> null;
         };
@@ -182,20 +193,20 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
 
     // ---------- read ----------
 
-    DataObject get(Guild guild, Member actor) {
-        long id = guild.getIdLong();
+    DataObject get(SiteCaller c) {
+        long id = c.guildId();
         ClanSite site = sites.of(id);
         ClanProfile profile = profiles.profileOf(id);
         DataArray blocks = DataArray.empty();
         for (ClanSiteBlock b : repository.blocks(id)) blocks.add(blockJson(b));
         return DataObject.empty()
                 .put("inBeta", sites.inBeta(id))
-                .put("isOwner", owners.isOwner(guild.getJDA(), actor.getIdLong()))
+                .put("isOwner", owners.isOwner(c.jda(), c.userId()))
                 .put("slug", profile.slug())
                 .put("profileProblem", profileProblem(id, profile))
                 .put("site", siteJson(site))
                 .put("blocks", blocks)
-                .put("you", youJson(guild, actor))
+                .put("you", youJson(c))
                 .put("limits", DataObject.empty().put("title", ClanSiteRules.MAX_TITLE).put("blocksPerPage", ClanSiteRules.MAX_BLOCKS_PER_PAGE)
                         .put("markdown", ClanSiteRules.MAX_MARKDOWN).put("links", ClanSiteRules.MAX_LINKS).put("url", ClanSiteRules.MAX_URL));
     }
@@ -229,60 +240,60 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
 
     // ---------- writes ----------
 
-    private void requireBeta(Guild guild) {
-        if (!sites.inBeta(guild.getIdLong())) throw new ApiError(403, Text.of(guild, "dashboard.the_clan_website_builder_is_in"));
+    private void requireBeta(SiteCaller c) {
+        if (!sites.inBeta(c.guildId())) throw new ApiError(403, Text.of(c.guildId(), "dashboard.the_clan_website_builder_is_in"));
     }
 
-    DataObject save(Guild guild, Member actor, DataObject body) {
-        requireBeta(guild);
+    DataObject save(SiteCaller c, DataObject body) {
+        requireBeta(c);
         List<String> problems = new ArrayList<>();
-        ClanSite current = sites.of(guild.getIdLong());
+        ClanSite current = sites.of(c.guildId());
         ClanSite.Template template = ClanSite.Template.parse(body.getString("template", current.template().name())).orElse(null);
         if (template == null) problems.add("Pick one of the three templates.");
         String theme = ClanSiteRules.cleanTheme(body.optObject("theme").orElse(DataObject.empty()), problems);
         String pages = ClanSiteRules.cleanPages(body.optArray("pages").orElse(DataArray.empty()), problems);
-        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.the_website_can_t_be_saved"), distinct(problems));
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(c.guildId(), "dashboard.the_website_can_t_be_saved"), distinct(problems));
         boolean enabled = body.getBoolean("enabled", current.enabled());
-        ClanSite saved = new ClanSite(guild.getIdLong(), enabled, enabled && current.published(), template, theme, pages, actor.getIdLong(), Instant.now(),
+        ClanSite saved = new ClanSite(c.guildId(), enabled, enabled && current.published(), template, theme, pages, c.userId(), Instant.now(),
                 current.publishedAt(), current.takedownReason());
         repository.save(saved);
-        return get(guild, actor);
+        return get(c);
     }
 
-    DataObject saveBlocks(Guild guild, Member actor, String page, DataObject body) {
-        requireBeta(guild);
+    DataObject saveBlocks(SiteCaller c, String page, DataObject body) {
+        requireBeta(c);
         List<String> problems = new ArrayList<>();
-        List<ClanSiteBlock> blocks = ClanSiteRules.cleanBlocks(guild.getIdLong(), page, body.optArray("blocks").orElse(DataArray.empty()), problems);
-        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.those_blocks_can_t_be_saved"), distinct(problems));
-        repository.replaceBlocks(guild.getIdLong(), page, blocks);
-        return get(guild, actor);
+        List<ClanSiteBlock> blocks = ClanSiteRules.cleanBlocks(c.guildId(), page, body.optArray("blocks").orElse(DataArray.empty()), problems);
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(c.guildId(), "dashboard.those_blocks_can_t_be_saved"), distinct(problems));
+        repository.replaceBlocks(c.guildId(), page, blocks);
+        return get(c);
     }
 
-    DataObject publish(Guild guild, Member actor, boolean publish) {
-        ClanSite current = sites.of(guild.getIdLong());
+    DataObject publish(SiteCaller c, boolean publish) {
+        ClanSite current = sites.of(c.guildId());
         if (publish) {
-            requireBeta(guild);
+            requireBeta(c);
             List<String> problems = new ArrayList<>();
             if (!current.enabled()) problems.add("Switch the website on first.");
-            String profile = profileProblem(guild.getIdLong(), profiles.profileOf(guild.getIdLong()));
+            String profile = profileProblem(c.guildId(), profiles.profileOf(c.guildId()));
             if (profile != null) problems.add(profile);
             if (current.takedownReason() != null && !current.takedownReason().isBlank()) problems.add("This website was taken down by " + BotBrand.NAME + "'s owner: " + current.takedownReason());
-            if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.the_website_can_t_be_published"), problems);
+            if (!problems.isEmpty()) throw new ApiError(400, Text.of(c.guildId(), "dashboard.the_website_can_t_be_published"), problems);
         }
-        repository.save(new ClanSite(current.guildId(), current.enabled(), publish, current.template(), current.theme(), current.pages(), actor.getIdLong(),
+        repository.save(new ClanSite(current.guildId(), current.enabled(), publish, current.template(), current.theme(), current.pages(), c.userId(),
                 Instant.now(), publish ? Instant.now() : current.publishedAt(), current.takedownReason()));
-        return get(guild, actor);
+        return get(c);
     }
 
     /** The owner takes a site down (with a reason the clan sees) or lets it be published again ({@code reason} null). */
-    DataObject takedown(Guild guild, Member actor, String reason) {
-        if (!owners.isOwner(guild.getJDA(), actor.getIdLong())) throw new ApiError(403, Text.of(guild, "dashboard.only_jonnybot_owner_can_take_a"));
+    DataObject takedown(SiteCaller c, String reason) {
+        if (!owners.isOwner(c.jda(), c.userId())) throw new ApiError(403, Text.of(c.guildId(), "dashboard.only_jonnybot_owner_can_take_a"));
         String clean = reason == null ? null : reason.trim();
-        if (clean != null && (clean.length() < 5 || clean.length() > MAX_REASON)) throw new ApiError(400, Text.of(guild, "dashboard.give_a_reason_of_5_to", MAX_REASON));
-        ClanSite current = sites.of(guild.getIdLong());
+        if (clean != null && (clean.length() < 5 || clean.length() > MAX_REASON)) throw new ApiError(400, Text.of(c.guildId(), "dashboard.give_a_reason_of_5_to", MAX_REASON));
+        ClanSite current = sites.of(c.guildId());
         repository.save(new ClanSite(current.guildId(), current.enabled(), clean == null && current.published(), current.template(), current.theme(), current.pages(),
-                actor.getIdLong(), Instant.now(), current.publishedAt(), clean));
-        return get(guild, actor);
+                c.userId(), Instant.now(), current.publishedAt(), clean));
+        return get(c);
     }
 
     // ---------- builder v2 layout (T-301) ----------
@@ -291,8 +302,8 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
      * The draft and whether a published copy exists, for the editor. The draft is null before the first save. {@code limits} are v1's;
      * {@code limitsV2} are layout v2's (builder v3), with the page and widget counts and kept versions of this server's plan.
      */
-    DataObject layout(Guild guild) {
-        long id = guild.getIdLong();
+    DataObject layout(SiteCaller c) {
+        long id = c.guildId();
         var found = layouts.byGuild(id);
         DataObject limits = DataObject.empty().put("bytes", ClanSiteLayoutRules.MAX_BYTES).put("pages", ClanSiteLayoutRules.MAX_PAGES)
                 .put("sections", ClanSiteLayoutRules.MAX_SECTIONS).put("columns", ClanSiteLayoutRules.MAX_COLUMNS)
@@ -312,53 +323,53 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
     }
 
     /** {@code {layout, baseRev}}: the draft, checked whole; refused when another save landed since {@code baseRev}. */
-    DataObject saveLayout(Guild guild, Member actor, DataObject body) {
-        requireBeta(guild);
-        if (!layoutSaves.tryAcquire(guild.getId())) throw new ApiError(429, Text.of(guild, "dashboard.you_re_doing_that_too_fast"));
+    DataObject saveLayout(SiteCaller c, DataObject body) {
+        requireBeta(c);
+        if (!layoutSaves.tryAcquire(Long.toString(c.guildId()))) throw new ApiError(429, Text.of(c.guildId(), "dashboard.you_re_doing_that_too_fast"));
         List<String> problems = new ArrayList<>();
         String clean;
         try {
-            String stored = layouts.byGuild(guild.getIdLong()).map(ClanSiteLayoutRepository.Layouts::draft).orElse(null);
-            ClanSiteLayoutRulesV2.Limits limits = planLimits(guild.getIdLong()).keeping(stored);
+            String stored = layouts.byGuild(c.guildId()).map(ClanSiteLayoutRepository.Layouts::draft).orElse(null);
+            ClanSiteLayoutRulesV2.Limits limits = planLimits(c.guildId()).keeping(stored);
             clean = ClanSiteLayoutRules.clean(body.optObject("layout").orElse(null), limits, problems);
         } catch (RuntimeException e) {
             problems.add("The layout couldn't be read. Reload the page and try again.");
             clean = null;
         }
-        if (clean == null) throw new ApiError(400, Text.of(guild, "dashboard.the_website_can_t_be_saved"), distinct(problems));
-        int rev = layouts.saveDraft(guild.getIdLong(), clean, Math.max(0, body.getInt("baseRev", 0)), actor.getIdLong());
+        if (clean == null) throw new ApiError(400, Text.of(c.guildId(), "dashboard.the_website_can_t_be_saved"), distinct(problems));
+        int rev = layouts.saveDraft(c.guildId(), clean, Math.max(0, body.getInt("baseRev", 0)), c.userId());
         // whoever starts a site's builder layout claims it (an owner of the site, 8.2), unless someone already has
-        if (rev == 1) siteRoles.claim(guild.getIdLong(), actor.getIdLong());
+        if (rev == 1) siteRoles.claim(c.guildId(), c.userId());
         if (rev < 0) {
-            throw new ApiError(409, Text.of(guild, "dashboard.the_website_can_t_be_saved"),
+            throw new ApiError(409, Text.of(c.guildId(), "dashboard.the_website_can_t_be_saved"),
                     List.of("Someone saved this site from another tab or window. Reload to see the newest version."));
         }
-        return layout(guild);
+        return layout(c);
     }
 
     /**
      * Publishes the draft: the same checks as v1's publish (switched on, profile can carry a site, not taken down), then the copy, which is
      * also recorded as a version with the optional {@code label} (up to {@link ClanSiteLayoutRepository#MAX_VERSION_LABEL} characters).
      */
-    DataObject publishLayout(Guild guild, Member actor, DataObject body) {
-        if (layouts.byGuild(guild.getIdLong()).isEmpty()) {
-            throw new ApiError(400, Text.of(guild, "dashboard.the_website_can_t_be_published"), List.of("Save the site before publishing it."));
+    DataObject publishLayout(SiteCaller c, DataObject body) {
+        if (layouts.byGuild(c.guildId()).isEmpty()) {
+            throw new ApiError(400, Text.of(c.guildId(), "dashboard.the_website_can_t_be_published"), List.of("Save the site before publishing it."));
         }
         String label = body.isNull("label") ? null : body.getString("label", null);
         if (label != null && label.strip().length() > ClanSiteLayoutRepository.MAX_VERSION_LABEL) {
-            throw new ApiError(400, Text.of(guild, "dashboard.the_website_can_t_be_published"),
+            throw new ApiError(400, Text.of(c.guildId(), "dashboard.the_website_can_t_be_published"),
                     List.of("Keep the version name to " + ClanSiteLayoutRepository.MAX_VERSION_LABEL + " characters."));
         }
-        publish(guild, actor, true);
-        layouts.publishDraft(guild.getIdLong(), actor.getIdLong(), label);
-        return layout(guild);
+        publish(c, true);
+        layouts.publishDraft(c.guildId(), c.userId(), label);
+        return layout(c);
     }
 
     // ---------- versions (T-363, docs/BUILDER-V3.md 6.5) ----------
 
     /** The published versions this server's plan lets it see, newest first ({@code current}: the one the public site shows). */
-    DataObject versions(Guild guild) {
-        long id = guild.getIdLong();
+    DataObject versions(SiteCaller c) {
+        long id = c.guildId();
         int published = layouts.byGuild(id).map(ClanSiteLayoutRepository.Layouts::publishedRev).orElse(0);
         DataArray list = DataArray.empty();
         boolean currentSeen = false;
@@ -371,37 +382,37 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
     }
 
     /** One version with its layout, so the history can show or compare it. */
-    DataObject version(Guild guild, long versionId) {
-        long id = guild.getIdLong();
+    DataObject version(SiteCaller c, long versionId) {
+        long id = c.guildId();
         var found = layouts.version(id, versionId, keptVersions(id))
-                .orElseThrow(() -> new ApiError(404, Text.of(guild, "dashboard.the_website_can_t_be_saved"), List.of("That version doesn't exist any more.")));
+                .orElseThrow(() -> new ApiError(404, Text.of(c.guildId(), "dashboard.the_website_can_t_be_saved"), List.of("That version doesn't exist any more.")));
         return versionJson(found).put("layout", parse(found.layout(), true));
     }
 
     /** {@code {baseRev?}}: copies a version into the draft as a new revision; it goes public only when published again. */
-    DataObject restoreVersion(Guild guild, Member actor, long versionId, DataObject body) {
-        requireBeta(guild);
-        if (!layoutSaves.tryAcquire(guild.getId())) throw new ApiError(429, Text.of(guild, "dashboard.you_re_doing_that_too_fast"));
-        long id = guild.getIdLong();
+    DataObject restoreVersion(SiteCaller c, long versionId, DataObject body) {
+        requireBeta(c);
+        if (!layoutSaves.tryAcquire(Long.toString(c.guildId()))) throw new ApiError(429, Text.of(c.guildId(), "dashboard.you_re_doing_that_too_fast"));
+        long id = c.guildId();
         if (layouts.version(id, versionId, keptVersions(id)).isEmpty()) {
-            throw new ApiError(404, Text.of(guild, "dashboard.the_website_can_t_be_saved"), List.of("That version doesn't exist any more."));
+            throw new ApiError(404, Text.of(c.guildId(), "dashboard.the_website_can_t_be_saved"), List.of("That version doesn't exist any more."));
         }
-        int rev = layouts.restoreVersion(id, versionId, Math.max(0, body.getInt("baseRev", 0)), actor.getIdLong());
+        int rev = layouts.restoreVersion(id, versionId, Math.max(0, body.getInt("baseRev", 0)), c.userId());
         if (rev < 0) {
-            throw new ApiError(409, Text.of(guild, "dashboard.the_website_can_t_be_saved"),
+            throw new ApiError(409, Text.of(c.guildId(), "dashboard.the_website_can_t_be_saved"),
                     List.of("Someone saved this site from another tab or window. Reload to see the newest version."));
         }
-        return layout(guild);
+        return layout(c);
     }
 
-    private static long versionId(Guild guild, String raw) {
+    private static long versionId(SiteCaller c, String raw) {
         try {
             long id = Long.parseLong(raw);
             if (id > 0) return id;
         } catch (NumberFormatException ignored) {
             // falls through to the 404
         }
-        throw new ApiError(404, Text.of(guild, "dashboard.the_website_can_t_be_saved"), List.of("That version doesn't exist any more."));
+        throw new ApiError(404, Text.of(c.guildId(), "dashboard.the_website_can_t_be_saved"), List.of("That version doesn't exist any more."));
     }
 
     private static DataObject versionJson(ClanSiteLayoutRepository.Version v) {
@@ -422,7 +433,10 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
         return (int) Math.max(1, Math.min(ClanSiteLayoutRepository.KEPT_VERSIONS, kept));
     }
 
-    /** The site's plan in the layout answers ({@code {tier, until, graceUntil, source}}, tier "free" without one); the bot is in this server. */
+    /**
+     * The site's plan in the layout answers ({@code {tier, until, graceUntil, source}}, tier "free" without one). Counted as present: either the
+     * bot is in this server, or it is a bot-less site, which never starts the leave grace.
+     */
     DataObject planJson(long guildId) {
         return com.younglings.bot.premium.Billing.planJson(guildId, true);
     }
@@ -431,21 +445,21 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
      * Deletes the website (its v1 settings and blocks and its v2 layouts). {@code confirm} must be the site's address (or "delete" when it has
      * none), so a stray click can't do it. A site the bot's owner took down can't be deleted to clear the takedown.
      */
-    DataObject delete(Guild guild, Member actor, String confirm) {
-        long id = guild.getIdLong();
+    DataObject delete(SiteCaller c, String confirm) {
+        long id = c.guildId();
         ClanSite current = sites.of(id);
         if (current.takedownReason() != null && !current.takedownReason().isBlank()) {
-            throw new ApiError(403, Text.of(guild, "dashboard.the_website_can_t_be_saved"), List.of("This website was taken down by " + BotBrand.NAME + "'s owner, so it can't be deleted."));
+            throw new ApiError(403, Text.of(c.guildId(), "dashboard.the_website_can_t_be_saved"), List.of("This website was taken down by " + BotBrand.NAME + "'s owner, so it can't be deleted."));
         }
         String slug = profiles.profileOf(id).slug();
         String expected = slug == null || slug.isBlank() ? "delete" : slug;
         if (!expected.equals(confirm == null ? "" : confirm.strip().toLowerCase(java.util.Locale.ROOT))) {
-            throw new ApiError(400, Text.of(guild, "dashboard.the_website_can_t_be_saved"), List.of("Type " + expected + " to confirm."));
+            throw new ApiError(400, Text.of(c.guildId(), "dashboard.the_website_can_t_be_saved"), List.of("Type " + expected + " to confirm."));
         }
         layouts.delete(id);
         repository.delete(id);
         siteRoles.delete(id);
-        return get(guild, actor);
+        return get(c);
     }
 
     // ---------- site roles (T-368, docs/BUILDER-V3.md 8.2) ----------
@@ -464,8 +478,8 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
      * {@code PUT clan-site/roles} {@code {editorRoleIds, memberRoleIds, staffRoleIds, editorsMayPublish}}: admin. {@code POST
      * clan-site/roles/hand-over} {@code {userId}} (null: back to the server owner alone): owner.
      */
-    DataObject roles(Guild guild, Member actor, String method, String[] parts, Supplier<DataObject> body) {
-        long id = guild.getIdLong();
+    DataObject roles(SiteCaller c, String method, String[] parts, Supplier<DataObject> body) {
+        long id = c.guildId();
         if (parts.length == 3 && parts[2].equals("hand-over")) {
             AdminRouteExtension.requireMethod(method, "POST");
             DataObject b = body.get();
@@ -473,30 +487,45 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
             Long to = null;
             if (raw != null) {
                 long userId = parseId(raw);
-                Member target = userId == 0 ? null : DiscordLookups.memberOrSlow(guild, userId);
-                if (target == null || target.getUser().isBot()) throw new ApiError(400, Text.of(guild, "dashboard.the_website_can_t_be_saved"), List.of("Pick someone in this server."));
+                if (c.botless()) {
+                    // the bot can't see who is in a server it isn't in: any Discord user id will do
+                    if (userId == 0) throw new ApiError(400, Text.of(c.guildId(), "dashboard.the_website_can_t_be_saved"), List.of("Give a Discord user ID (17 to 20 digits)."));
+                } else {
+                    Member target = userId == 0 ? null : DiscordLookups.memberOrSlow(c.guild(), userId);
+                    if (target == null || target.getUser().isBot()) throw new ApiError(400, Text.of(c.guildId(), "dashboard.the_website_can_t_be_saved"), List.of("Pick someone in this server."));
+                }
                 to = userId;
             }
-            siteRoles.handOver(id, to, actor.getIdLong());
-            return rolesJson(guild, actor);
+            siteRoles.handOver(id, to, c.userId());
+            return rolesJson(c);
         }
         if (parts.length != 2) return null;
-        if (method.equals("GET")) return rolesJson(guild, actor);
+        if (method.equals("GET")) return rolesJson(c);
         AdminRouteExtension.requireMethod(method, "PUT");
         DataObject b = body.get();
         List<String> problems = new ArrayList<>();
-        List<Long> editors = roleIds(guild, b, "editorRoleIds", false, problems);
-        List<Long> members = roleIds(guild, b, "memberRoleIds", true, problems);
-        List<Long> staff = roleIds(guild, b, "staffRoleIds", false, problems);
-        if (!problems.isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.the_website_can_t_be_saved"), distinct(problems));
+        List<Long> editors = roleIds(c, b, "editorRoleIds", false, problems);
+        List<Long> members = roleIds(c, b, "memberRoleIds", true, problems);
+        List<Long> staff = roleIds(c, b, "staffRoleIds", false, problems);
         SiteRoles.Settings current = siteRoles.settings(id);
-        siteRoles.save(id, new SiteRoles.Settings(editors, members, staff, b.getBoolean("editorsMayPublish", false), current.claimedBy()), actor.getIdLong());
-        return rolesJson(guild, actor);
+        // editors by Discord user id: kept as they are unless the save names them (a page that doesn't know them yet never clears them)
+        List<Long> editorUsers = b.hasKey("editorUserIds") ? userIds(b, "editorUserIds", problems) : current.editorUserIds();
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(c.guildId(), "dashboard.the_website_can_t_be_saved"), distinct(problems));
+        siteRoles.save(id, new SiteRoles.Settings(editors, members, staff, b.getBoolean("editorsMayPublish", false), current.claimedBy(), editorUsers), c.userId());
+        return rolesJson(c);
     }
 
-    /** A list of role ids of this server: at most {@link #MAX_ROLES_PER_LIST}, each a role that exists; @everyone only as a member role. */
-    private static List<Long> roleIds(Guild guild, DataObject body, String key, boolean everyoneAllowed, List<String> problems) {
+    /**
+     * A list of role ids of this server: at most {@link #MAX_ROLES_PER_LIST}, each a role that exists; @everyone only as a member role. A bot-less
+     * site can't see the server's roles, so it takes none.
+     */
+    private static List<Long> roleIds(SiteCaller c, DataObject body, String key, boolean everyoneAllowed, List<String> problems) {
         DataArray raw = body.optArray(key).orElse(DataArray.empty());
+        if (c.botless()) {
+            if (raw.length() > 0) problems.add(DISCORD_ROLES_UNAVAILABLE);
+            return List.of();
+        }
+        Guild guild = c.guild();
         if (raw.length() > MAX_ROLES_PER_LIST) {
             problems.add("Pick up to " + MAX_ROLES_PER_LIST + " roles in each list.");
             return List.of();
@@ -505,8 +534,24 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
         for (int i = 0; i < raw.length(); i++) {
             long roleId = parseId(raw.getString(i, ""));
             if (roleId == 0 || guild.getRoleById(roleId) == null) problems.add("One of the roles doesn't exist any more. Reload the page.");
-            else if (roleId == guild.getIdLong() && !everyoneAllowed) problems.add("@everyone can't be an editor or staff role.");
+            else if (roleId == c.guildId() && !everyoneAllowed) problems.add("@everyone can't be an editor or staff role.");
             else out.add(roleId);
+        }
+        return List.copyOf(out);
+    }
+
+    /** Editors named by Discord user id: at most {@link #MAX_ROLES_PER_LIST}, each 17 to 20 digits. */
+    private static List<Long> userIds(DataObject body, String key, List<String> problems) {
+        DataArray raw = body.optArray(key).orElse(DataArray.empty());
+        if (raw.length() > MAX_ROLES_PER_LIST) {
+            problems.add("Name up to " + MAX_ROLES_PER_LIST + " editors by their Discord user ID.");
+            return List.of();
+        }
+        Set<Long> out = new LinkedHashSet<>();
+        for (int i = 0; i < raw.length(); i++) {
+            long userId = parseId(raw.getString(i, ""));
+            if (userId == 0) problems.add("A Discord user ID is 17 to 20 digits.");
+            else out.add(userId);
         }
         return List.copyOf(out);
     }
@@ -519,18 +564,26 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
         }
     }
 
-    private DataObject rolesJson(Guild guild, Member actor) {
-        SiteRoles.Settings s = siteRoles.settings(guild.getIdLong());
-        return DataObject.empty().put("editorRoleIds", idsJson(s.editorRoleIds())).put("memberRoleIds", idsJson(s.memberRoleIds()))
+    private DataObject rolesJson(SiteCaller c) {
+        SiteRoles.Settings s = siteRoles.settings(c.guildId());
+        DataObject discordRoles = DataObject.empty().put("available", !c.botless());
+        if (c.botless()) discordRoles.put("reason", DISCORD_ROLES_UNAVAILABLE);
+        return botPresence(c, DataObject.empty().put("editorRoleIds", idsJson(s.editorRoleIds())).put("memberRoleIds", idsJson(s.memberRoleIds()))
                 .put("staffRoleIds", idsJson(s.staffRoleIds())).put("editorsMayPublish", s.editorsMayPublish())
+                .put("editorUserIds", idsJson(s.editorUserIds())).put("discordRoles", discordRoles)
                 .put("claimedBy", s.claimedBy() == null ? null : String.valueOf(s.claimedBy()))
-                .put("you", youJson(guild, actor));
+                .put("you", youJson(c)));
+    }
+
+    /** On a bot-less site, {@code botPresent: false} (the website's name for it) and {@code botless: true}; a bot-present answer is unchanged. */
+    private static DataObject botPresence(SiteCaller c, DataObject answer) {
+        return c.botless() ? answer.put("botPresent", false).put("botless", true) : answer;
     }
 
     /** The asker's own role on the site and what it lets them do, so the editor shows only what will work. */
-    private DataObject youJson(Guild guild, Member actor) {
-        SiteRoles.Role role = siteRoles.roleOf(guild, actor);
-        SiteRoles.Settings s = siteRoles.settings(guild.getIdLong());
+    private DataObject youJson(SiteCaller c) {
+        SiteRoles.Role role = c.role(siteRoles);
+        SiteRoles.Settings s = siteRoles.settings(c.guildId());
         return DataObject.empty().put("role", role.key()).put("canPublish", SiteRoles.allows(role, SiteRoles.Action.PUBLISH, s))
                 .put("canChangeSettings", SiteRoles.allows(role, SiteRoles.Action.SETTINGS, s)).put("isOwner", role == SiteRoles.Role.OWNER);
     }
@@ -544,8 +597,8 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
     // ---------- export ----------
 
     /** Everything the clan wrote (look, pages, blocks) and the addresses of the images it used, for "Download my site". */
-    DataObject export(Guild guild) {
-        long id = guild.getIdLong();
+    DataObject export(SiteCaller c) {
+        long id = c.guildId();
         ClanSite site = sites.of(id);
         DataArray blocks = DataArray.empty();
         Set<String> images = new LinkedHashSet<>();

@@ -9,7 +9,8 @@ import java.util.Set;
  * <ul>
  *   <li>{@code OWNER}: the Discord server's owner, or the person who claimed the site, while they are in the server</li>
  *   <li>{@code ADMIN}: anyone the bot's dashboard lets in for that server ({@code DashboardAccess})</li>
- *   <li>{@code EDITOR}: holds one of the site's editor roles (none by default)</li>
+ *   <li>{@code EDITOR}: holds one of the site's editor roles, or is named as an editor by Discord user id (none by default; on a bot-less
+ *   site, which can't see roles, only the user ids count)</li>
  *   <li>{@code MEMBER}: in the server and, when the site names member roles, holding one; with none named, the clan's Member role
  *   (Server setup &gt; Verification) when it is set, else anyone in the server</li>
  *   <li>{@code GUEST}: signed in but not a member; {@code VISITOR}: not signed in</li>
@@ -42,14 +43,24 @@ public final class SiteRoles {
         OWN
     }
 
-    /** A site's role settings; empty lists and a false switch until an admin changes them. {@code claimedBy} is null when nobody claimed it. */
-    public record Settings(List<Long> editorRoleIds, List<Long> memberRoleIds, List<Long> staffRoleIds, boolean editorsMayPublish, Long claimedBy) {
-        public static final Settings DEFAULT = new Settings(List.of(), List.of(), List.of(), false, null);
+    /**
+     * A site's role settings; empty lists and a false switch until an admin changes them. {@code claimedBy} is null when nobody claimed it.
+     * {@code editorUserIds} are people made editors by their Discord user id, for a site whose server the bot isn't in (it can't see roles there).
+     */
+    public record Settings(List<Long> editorRoleIds, List<Long> memberRoleIds, List<Long> staffRoleIds, boolean editorsMayPublish, Long claimedBy,
+                           List<Long> editorUserIds) {
+        public static final Settings DEFAULT = new Settings(List.of(), List.of(), List.of(), false, null, List.of());
 
         public Settings {
             editorRoleIds = List.copyOf(editorRoleIds);
             memberRoleIds = List.copyOf(memberRoleIds);
             staffRoleIds = List.copyOf(staffRoleIds);
+            editorUserIds = List.copyOf(editorUserIds);
+        }
+
+        /** Settings with no editors named by user id. */
+        public Settings(List<Long> editorRoleIds, List<Long> memberRoleIds, List<Long> staffRoleIds, boolean editorsMayPublish, Long claimedBy) {
+            this(editorRoleIds, memberRoleIds, staffRoleIds, editorsMayPublish, claimedBy, List.of());
         }
     }
 
@@ -69,10 +80,22 @@ public final class SiteRoles {
         if (!facts.inGuild()) return Role.GUEST;
         if (facts.guildOwner() || (settings.claimedBy() != null && settings.claimedBy() == facts.userId())) return Role.OWNER;
         if (facts.dashboardAdmin()) return Role.ADMIN;
-        if (holdsAny(facts, settings.editorRoleIds())) return Role.EDITOR;
+        if (holdsAny(facts, settings.editorRoleIds()) || settings.editorUserIds().contains(facts.userId())) return Role.EDITOR;
         if (!settings.memberRoleIds().isEmpty()) return holdsAny(facts, settings.memberRoleIds()) ? Role.MEMBER : Role.GUEST;
         if (facts.clanMemberRoleId() != null) return facts.heldRoleIds().contains(facts.clanMemberRoleId()) ? Role.MEMBER : Role.GUEST;
         return Role.MEMBER;
+    }
+
+    /**
+     * The person's role on a bot-less site's public pages, where nothing vouches for them but their sign-in: the person who claimed the site is
+     * its owner and the editors named by user id are editors; everyone else signed in is a guest, because without the bot nobody can tell who is
+     * in the server. (The site's admin routes know more: there the website signs whether the person owns or manages the server.)
+     */
+    public static Role resolveWithoutBot(Long userId, Settings settings) {
+        if (userId == null) return Role.VISITOR;
+        if (settings.claimedBy() != null && settings.claimedBy().longValue() == userId) return Role.OWNER;
+        if (settings.editorUserIds().contains(userId)) return Role.EDITOR;
+        return Role.GUEST;
     }
 
     /** Whether someone may open staff-only pages: admins and editors, and anyone holding one of the site's staff roles. */

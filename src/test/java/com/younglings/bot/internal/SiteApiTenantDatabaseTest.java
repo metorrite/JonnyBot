@@ -195,6 +195,40 @@ class SiteApiTenantDatabaseTest {
         return answer == null ? "" : answer.toString().toLowerCase(Locale.ROOT);
     }
 
+    /** The same route for a bot-less site: by server id alone, with no Discord guild. */
+    private DataObject callWithoutBot(long guildId, String route) {
+        HttpExchange exchange = mock(HttpExchange.class);
+        String query = QUERIES.get(route);
+        when(exchange.getRequestURI()).thenReturn(URI.create("http://localhost/y" + (query.isEmpty() ? "" : "?" + query)));
+        return api.tenant(guildId, null, route, exchange);
+    }
+
+    /** The answer as text without the period's own from/to (worked out from the clock at each call). */
+    private static String timeless(DataObject answer) {
+        return text(answer).replaceAll("\"(from|to)\":\"[^\"]*\"", "");
+    }
+
+    @Test
+    void aBotlessSiteGetsTheSameClanDataByServerIdAndNeedsBotForDiscordOnlyRoutes() {
+        // a first read seeds the server's rank list on the way (ClanPointsRepository), so warm every route up before comparing
+        for (String route : SiteApi.TENANT_ROUTES) call(guildA, route);
+        for (String route : SiteApi.TENANT_ROUTES) {
+            cache.clear();
+            DataObject withoutBot = callWithoutBot(GUILD_A, route);
+            if (SiteApi.DISCORD_ROUTES.contains(route)) {
+                assertEquals(SiteApi.needsBot().toString(), withoutBot.toString(), route + " needs Discord");
+            } else if (!route.equals("notifications")) {
+                cache.clear();
+                assertEquals(timeless(call(guildA, route)), timeless(withoutBot), route + ": the stats are stored by server id, so the answer is the same");
+            }
+        }
+        DataObject bell = callWithoutBot(GUILD_A, "notifications");
+        assertTrue(bell.getBoolean("needsBot"));
+        assertEquals(0, bell.getArray("events").length());
+        assertEquals(0, bell.getArray("polls").length(), "the bot's polls aren't shown without it");
+        assertTrue(bell.getArray("feed").length() > 0, "the activity lines are");
+    }
+
     @Test
     void everyTenantRouteHasAQueryHere() {
         assertEquals(SiteApi.TENANT_ROUTES, QUERIES.keySet(), "a new tenant route needs its row here, so its privacy is tested");
