@@ -75,11 +75,14 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
     static final String DISCORD_ROLES_UNAVAILABLE = "Discord roles are unavailable without the bot: add RuneClan Bot to the server to pick roles, or name editors by Discord user ID.";
 
     private final SiteAddressRoutes address;
+    private final SiteMemberOptionsAdminApi memberOptions;
     private final SiteMembersAdmin members;
 
     public ClanSiteAdminApi(ClanSiteRepository repository, ClanSiteLayoutRepository layouts, ClanSiteService sites, ClanProfileService profiles, BotOwners owners,
-                            Premium premium, SiteRoleGuard siteRoles, SiteDiscordService discord, SiteAddressRoutes address, SiteMembersAdmin members) {
+                            Premium premium, SiteRoleGuard siteRoles, SiteDiscordService discord, SiteAddressRoutes address,
+                            SiteMemberOptionsAdminApi memberOptions, SiteMembersAdmin members) {
         this.address = address;
+        this.memberOptions = memberOptions;
         this.members = members;
         this.repository = repository;
         this.layouts = layouts;
@@ -147,6 +150,11 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
         if (parts.length == 2 && parts[1].equals("member-privacy")) return members.privacy(c, method, body);
         if (parts.length >= 2 && parts[1].equals("connections")) return connections(c, method, parts, body);
         if (parts.length >= 2 && parts.length <= 3 && parts[1].equals("address")) return address.route(c.guildId(), method, parts.length == 3 ? parts[2] : "", body);
+        // the site admin's own way to the member options (site admins who aren't dashboard admins included): needs the bot in the server
+        if (parts.length == 2 && parts[1].equals("member-options")) {
+            if (c.botless()) throw new ApiError(409, "Members change their nickname and name colour through " + BotBrand.NAME + ", and it isn't in this server.");
+            return memberOptions.route(c.guild(), method, body);
+        }
         if (parts.length == 1) {
             if (method.equals("GET")) return get(c);
             AdminRouteExtension.requireMethod(method, "PUT");

@@ -10,6 +10,8 @@ import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Role;
+import net.dv8tion.jda.api.events.guild.GuildJoinEvent;
+import net.dv8tion.jda.api.events.guild.GuildLeaveEvent;
 import net.dv8tion.jda.api.events.guild.member.GuildMemberRoleAddEvent;
 import net.dv8tion.jda.api.events.guild.member.GuildMemberRoleRemoveEvent;
 import net.dv8tion.jda.api.events.session.ReadyEvent;
@@ -27,8 +29,9 @@ import java.util.concurrent.TimeUnit;
 /**
  * What the bot tells the hub under {@code SITES_BACKEND=hub} (T-505), on its own lane so no hub call holds up JDA's event thread:
  * <ul>
- *   <li>on start, RuneClan Bot's capabilities ({@code PUT /v1/apps/me/capabilities}, PLATFORM-DESIGN 4.2), and in every server the holders
- *   of each role the hub's {@code role-mappings} name</li>
+ *   <li>on start, RuneClan Bot's capabilities for all servers and for each server it is in ({@link CapabilityReports}: the per-server list is
+ *   what makes the hub count the bot as connected there), and in every server the holders of each role the hub's {@code role-mappings} name</li>
+ *   <li>on joining a server, its capabilities there; on leaving one, an empty list</li>
  *   <li>on a member's role change, the holders of the mapped roles that changed ({@link RoleReports}: gathered for a few seconds, one
  *   report per role)</li>
  * </ul>
@@ -37,19 +40,20 @@ import java.util.concurrent.TimeUnit;
 @BService
 public class HubSiteReporter extends ListenerAdapter implements BotListener {
     private static final Logger log = LoggerFactory.getLogger(HubSiteReporter.class);
-    static final String CAPABILITIES_PATH = "/v1/apps/me/capabilities";
 
     private final HubSites sites;
     private final RuneClansHubClient hub;
     private final ScheduledExecutorService lane = BotScheduler.lane("hub-sites");
     private volatile JDA jda;
     private final RoleReports reports;
+    private final CapabilityReports capabilities;
 
     public HubSiteReporter(HubSites sites, RuneClansHubClient hub) {
         this.sites = sites;
         this.hub = hub;
         this.reports = new RoleReports(sites::mappedRoles, this::holders, this::send,
                 (delay, task) -> lane.schedule(task, delay.toMillis(), TimeUnit.MILLISECONDS));
+        this.capabilities = new CapabilityReports((path, body) -> hub.write("PUT", path, body, HubSiteReporter::done));
     }
 
     @Override
@@ -57,7 +61,7 @@ public class HubSiteReporter extends ListenerAdapter implements BotListener {
         jda = event.getJDA();
         if (!sites.readsHub()) return;
         lane.execute(() -> {
-            hub.write("PUT", CAPABILITIES_PATH, capabilities(PrivilegedIntents.presence(), PrivilegedIntents.messageContent()).toString(), HubSiteReporter::done);
+            capabilities.start(event.getJDA().getGuilds().stream().map(Guild::getIdLong).toList(), PrivilegedIntents.presence(), PrivilegedIntents.messageContent());
             int roles = 0;
             for (Guild guild : event.getJDA().getGuilds()) {
                 try {
@@ -68,6 +72,20 @@ public class HubSiteReporter extends ListenerAdapter implements BotListener {
             }
             log.info("RuneClans hub: declared capabilities and reported {} mapped role(s)", roles);
         });
+    }
+
+    @Override
+    public void onGuildJoin(GuildJoinEvent event) {
+        if (!sites.readsHub()) return;
+        long guildId = event.getGuild().getIdLong();
+        lane.execute(() -> capabilities.joined(guildId, PrivilegedIntents.presence(), PrivilegedIntents.messageContent()));
+    }
+
+    @Override
+    public void onGuildLeave(GuildLeaveEvent event) {
+        if (!sites.readsHub()) return;
+        long guildId = event.getGuild().getIdLong();
+        lane.execute(() -> capabilities.left(guildId));
     }
 
     @Override
@@ -85,19 +103,6 @@ public class HubSiteReporter extends ListenerAdapter implements BotListener {
         List<Long> ids = roles.stream().map(Role::getIdLong).toList();
         long guildId = guild.getIdLong();
         lane.execute(() -> reports.changed(guildId, ids));
-    }
-
-    /**
-     * RuneClan Bot's capabilities, by the hub's fixed names (PLATFORM-DESIGN 4.2) plus the three the clan sites' Discord answers need
-     * ({@code SiteDiscordService}); presence and message reports only while their privileged intents are on.
-     */
-    static DataObject capabilities(boolean presence, boolean messageContent) {
-        DataArray names = DataArray.empty().add("discord.post").add("discord.buttons").add("discord.roles.assign").add("discord.roles.report");
-        if (presence) names.add("discord.presence");
-        names.add("discord.channels.report");
-        if (messageContent) names.add("discord.messages.report");
-        names.add("discord.events.report");
-        return DataObject.empty().put("capabilities", names);
     }
 
     /** Every holder of the role, loaded from Discord (the member cache holds only online members); null when Discord couldn't say. */
