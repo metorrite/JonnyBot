@@ -11,6 +11,8 @@ import org.slf4j.LoggerFactory;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -21,8 +23,9 @@ import java.util.function.LongPredicate;
  * in on the website's {@code /linked-roles} page, and the website hands the OAuth tokens here ({@link LinkedRolesApi}). This service:
  * <ul>
  *   <li>keeps the tokens sealed ({@link TokenBox}) and sends the person's metadata to Discord right away;</li>
- *   <li>every hour, works out each connected person's values from what the bot already keeps and sends them again when they changed (a
- *       level-up, a new clan) or when a day has passed since the last send, one person at a time with a pause between calls;</li>
+ *   <li>every hour, asks the RuneClans hub for each connected person's current RS Link name ({@link RsLinkSource}, T-349), works out their
+ *       values from that and what the bot already keeps, and sends them again when they changed (a level-up, a new clan, an RS Link unlink)
+ *       or when a day has passed since the last send, one person at a time with a pause between calls;</li>
  *   <li>forgets the tokens when Discord says the grant is gone, or when the person unlinks (their values are cleared first, so the roles
  *       drop);</li>
  *   <li>registers the metadata schema with Discord when the bot starts (a PUT, so running it twice changes nothing).</li>
@@ -67,28 +70,36 @@ public class LinkedRoles {
     private final DiscordRoleApi discord;
     private final TokenBox box;
     private final LongPredicate listedClan;
+    private final RsLinkSource rsLinks;
     private final Clock clock;
     private final long pauseMs;
     private final String botToken;
     private ScheduledExecutorService executor;
 
     /** The real one: Discord over HTTP, the system clock, a pause between sends. */
-    static LinkedRoles live(LinkedRolesSettings settings, LinkedRolesStore store, LongPredicate listed, String botToken) {
-        return new LinkedRoles(settings, store, null, listed, Clock.systemUTC(), PAUSE_MS, botToken);
+    static LinkedRoles live(LinkedRolesSettings settings, LinkedRolesStore store, LongPredicate listed, RsLinkSource rsLinks, String botToken) {
+        return new LinkedRoles(settings, store, null, listed, rsLinks, Clock.systemUTC(), PAUSE_MS, botToken);
     }
 
     /** The tests' way in: any settings, a fake Discord, a fixed clock, no pause. */
     static LinkedRoles forTest(LinkedRolesSettings settings, LinkedRolesStore store, DiscordRoleApi discord, LongPredicate listed, Clock clock) {
-        return new LinkedRoles(settings, store, discord, listed, clock, 0, "bot-token-for-tests");
+        return forTest(settings, store, discord, listed, RsLinkSource.NONE, clock);
     }
 
-    private LinkedRoles(LinkedRolesSettings settings, LinkedRolesStore store, DiscordRoleApi discord, LongPredicate listed, Clock clock,
-                        long pauseMs, String botToken) {
+    /** The same with a stand-in for the hub's RS Link answers. */
+    static LinkedRoles forTest(LinkedRolesSettings settings, LinkedRolesStore store, DiscordRoleApi discord, LongPredicate listed, RsLinkSource rsLinks,
+                               Clock clock) {
+        return new LinkedRoles(settings, store, discord, listed, rsLinks, clock, 0, "bot-token-for-tests");
+    }
+
+    private LinkedRoles(LinkedRolesSettings settings, LinkedRolesStore store, DiscordRoleApi discord, LongPredicate listed, RsLinkSource rsLinks,
+                        Clock clock, long pauseMs, String botToken) {
         this.settings = settings;
         this.store = store;
         this.discord = discord != null ? discord : settings.enabled() ? DiscordRoleApi.http(settings) : null;
         this.box = settings.enabled() ? new TokenBox(settings.tokenKey()) : null;
         this.listedClan = listed;
+        this.rsLinks = rsLinks == null ? RsLinkSource.NONE : rsLinks;
         this.clock = clock;
         this.pauseMs = pauseMs;
         this.botToken = botToken;
@@ -131,8 +142,7 @@ public class LinkedRoles {
         requireOn();
         if (accessToken == null || accessToken.isBlank() || refreshToken == null || refreshToken.isBlank()) throw new Problem(400, "bad_tokens", "Sign-in didn't finish. Try again.");
         Instant now = clock.instant();
-        String rs = rsLinkRsn == null || rsLinkRsn.isBlank() ? null : rsLinkRsn.strip();
-        if (rs != null && (rs.length() > 12 || !rs.matches("[A-Za-z0-9 _-]{1,12}"))) rs = null;
+        String rs = cleanRsn(rsLinkRsn);
         store.saveTokens(userId, box.seal(accessToken, userId), box.seal(refreshToken, userId), now.plusSeconds(Math.max(60, expiresInSeconds)), rs,
                 rs == null ? null : rsLinkSince == null ? now : rsLinkSince);
         Row row = store.find(userId).orElseThrow(() -> new Problem(500, "not_saved", "Something went wrong. Try again."));
@@ -169,12 +179,32 @@ public class LinkedRoles {
         return true;
     }
 
-    /** One hourly pass: send everyone whose values changed, or who hasn't been sent for a day. */
+    /** A RuneScape name as RS Link shows it (1 to 12 letters, digits, spaces, _ or -), stripped; null when it isn't one. */
+    static String cleanRsn(String raw) {
+        String rs = raw == null || raw.isBlank() ? null : raw.strip();
+        return rs != null && rs.matches("[A-Za-z0-9 _-]{1,12}") ? rs : null;
+    }
+
+    /**
+     * One hourly pass: bring each person's RS Link name up to date from the hub, then send everyone whose values changed, or who hasn't been
+     * sent for a day.
+     */
     int tick() {
         if (!settings.enabled()) return 0;
         Instant now = clock.instant();
         int sent = 0;
-        for (long userId : store.allUserIds(MAX_PER_TICK)) {
+        List<Long> userIds = store.allUserIds(MAX_PER_TICK);
+        int updated = 0;
+        for (int from = 0; from < userIds.size(); from += RsLinkSource.BATCH) {
+            List<Long> batch = userIds.subList(from, Math.min(userIds.size(), from + RsLinkSource.BATCH));
+            Optional<Map<Long, RsLinkSource.Current>> current = askRsLink(batch);
+            if (current.isEmpty()) break;
+            for (long userId : batch) {
+                if (updateRsLink(userId, current.get().get(userId), now)) updated++;
+            }
+        }
+        if (updated > 0) log.info("Linked Roles: {} RS Link name(s) changed since sign-in", updated);
+        for (long userId : userIds) {
             Optional<Row> found = store.find(userId);
             if (found.isEmpty()) continue;
             Row row = found.get();
@@ -186,6 +216,33 @@ public class LinkedRoles {
             pause();
         }
         return sent;
+    }
+
+    private Optional<Map<Long, RsLinkSource.Current>> askRsLink(List<Long> batch) {
+        try {
+            return rsLinks.current(batch);
+        } catch (RuntimeException e) {
+            log.info("Linked Roles: asking the hub for RS Link names failed ({}); keeping the names from sign-in", e.getClass().getSimpleName());
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Stores the person's current RS Link name when it differs from the one kept ({@code current} null: no link any more). A new name with no
+     * link date counts from {@code now}; the same name keeps its date unless the hub gives another. True when something changed.
+     */
+    private boolean updateRsLink(long userId, RsLinkSource.Current current, Instant now) {
+        Optional<Row> found = store.find(userId);
+        if (found.isEmpty()) return false;
+        Row row = found.get();
+        String rsn = current == null ? null : current.rsn();
+        Instant since;
+        if (rsn == null) since = null;
+        else if (current.since() != null) since = current.since();
+        else since = rsn.equals(row.rsLinkRsn()) && row.rsLinkSince() != null ? row.rsLinkSince() : now;
+        if (java.util.Objects.equals(rsn, row.rsLinkRsn()) && java.util.Objects.equals(since, row.rsLinkSince())) return false;
+        store.updateRsLink(userId, rsn, since);
+        return true;
     }
 
     private void tickSafely() {

@@ -103,7 +103,7 @@ public class PollRepository {
             statement.setLong(1, messageId);
             statement.setLong(2, pollId);
             statement.executeUpdate();
-            SiteInvalidator.signal(SiteInvalidator.Area.POLLS); // the poll is posted: the last step of making one
+            SiteInvalidator.signalLater(() -> guildOfPoll(pollId), SiteInvalidator.Area.POLLS); // the poll is posted: the last step of making one
         } catch (SQLException e) {
             log.error("Failed to save message ID for poll {}", pollId, e);
             throw new RuntimeException("Failed to save poll message ID", e);
@@ -127,6 +127,12 @@ public class PollRepository {
             log.error("Failed to load active polls", e);
             throw new RuntimeException("Failed to load active polls", e);
         }
+    }
+
+    /** The server of a poll, for {@code SiteInvalidator} (it runs this on its own thread). */
+    private OptionalLong guildOfPoll(long pollId) {
+        PollSession poll = getPollById(pollId);
+        return poll == null ? OptionalLong.empty() : OptionalLong.of(poll.guildId());
     }
 
     public PollSession getPollById(long pollId) {
@@ -195,7 +201,7 @@ public class PollRepository {
             statement.setLong(2, optionId);
             statement.setLong(3, userId);
             boolean added = statement.executeUpdate() > 0;
-            if (added) SiteInvalidator.signal(SiteInvalidator.Area.POLLS);
+            if (added) SiteInvalidator.signalLater(() -> guildOfPoll(pollId), SiteInvalidator.Area.POLLS);
             return added;
         } catch (SQLException e) {
             log.error("Failed to add vote for poll {}", pollId, e);
@@ -211,7 +217,7 @@ public class PollRepository {
             statement.setLong(2, optionId);
             statement.setLong(3, userId);
             boolean removed = statement.executeUpdate() > 0;
-            if (removed) SiteInvalidator.signal(SiteInvalidator.Area.POLLS);
+            if (removed) SiteInvalidator.signalLater(() -> guildOfPoll(pollId), SiteInvalidator.Area.POLLS);
             return removed;
         } catch (SQLException e) {
             log.error("Failed to remove vote for poll {}", pollId, e);
@@ -226,7 +232,7 @@ public class PollRepository {
             statement.setLong(1, pollId);
             statement.setLong(2, userId);
             statement.executeUpdate();
-            SiteInvalidator.signal(SiteInvalidator.Area.POLLS);
+            SiteInvalidator.signalLater(() -> guildOfPoll(pollId), SiteInvalidator.Area.POLLS);
         } catch (SQLException e) {
             log.error("Failed to clear votes for user {} in poll {}", userId, pollId, e);
             throw new RuntimeException("Failed to clear user votes", e);
@@ -316,7 +322,7 @@ public class PollRepository {
             statement.setLong(1, pollId);
             statement.executeUpdate();
             log.info("Closed poll {}", pollId);
-            SiteInvalidator.signal(SiteInvalidator.Area.POLLS);
+            SiteInvalidator.signalLater(() -> guildOfPoll(pollId), SiteInvalidator.Area.POLLS);
         } catch (SQLException e) {
             log.error("Failed to close poll {}", pollId, e);
             throw new RuntimeException("Failed to close poll", e);

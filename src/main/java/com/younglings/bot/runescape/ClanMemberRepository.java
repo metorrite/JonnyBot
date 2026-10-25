@@ -55,7 +55,7 @@ public class ClanMemberRepository {
             statement.setLong(5, kills);
             statement.executeUpdate();
 
-            SiteInvalidator.signal(SiteInvalidator.Area.ROSTER);
+            SiteInvalidator.signal(guildId, SiteInvalidator.Area.ROSTER);
         } catch (SQLException e) {
             log.error("Failed to upsert clan member '{}'", rsn, e);
             throw new RuntimeException("Failed to upsert clan member", e);
@@ -72,7 +72,7 @@ public class ClanMemberRepository {
             statement.setString(2, rsn);
             statement.executeUpdate();
 
-            SiteInvalidator.signal(SiteInvalidator.Area.ROSTER);
+            SiteInvalidator.signal(guildId, SiteInvalidator.Area.ROSTER);
         } catch (SQLException e) {
             log.error("Failed to mark clan member '{}' inactive", rsn, e);
             throw new RuntimeException("Failed to mark clan member inactive", e);
@@ -191,7 +191,7 @@ public class ClanMemberRepository {
             statement.setLong(2, guildId);
             statement.setString(3, rsn);
             boolean changed = statement.executeUpdate() > 0;
-            if (changed) SiteInvalidator.signal(SiteInvalidator.Area.ROSTER);
+            if (changed) SiteInvalidator.signal(guildId, SiteInvalidator.Area.ROSTER);
             return changed;
 
         } catch (SQLException e) {
