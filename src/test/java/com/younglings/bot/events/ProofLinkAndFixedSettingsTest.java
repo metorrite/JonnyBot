@@ -27,7 +27,7 @@ class ProofLinkAndFixedSettingsTest {
     void eachTemplateFixesTheSettingsItBuildsObjectivesFrom() {
         assertEquals(Set.of(), new CustomTemplate().fixedSettings());
         assertEquals(Set.of("board", "bonuses", "lineBonus", "blackoutBonus"), new BingoTemplate().fixedSettings());
-        assertEquals(Set.of("skillId", "xpPerPoint", "xpSource"), new CompetitionTemplate().fixedSettings());
+        assertEquals(Set.of("skillId", "xpPerPoint", "xpSource", "confirmedLinksOnly"), new CompetitionTemplate().fixedSettings());
         assertEquals(Set.of("boss", "kills", "pointsPerKill"), new BossNightTemplate().fixedSettings());
         assertEquals(true, new ScavengerHuntTemplate().fixedSettings().contains("bonuses"));
     }
