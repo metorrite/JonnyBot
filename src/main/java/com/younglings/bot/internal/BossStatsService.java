@@ -155,19 +155,22 @@ public class BossStatsService {
         return out;
     }
 
-    /** One grid square: the item, how often the clan has received it in the window, and who has. */
+    /** One grid square: the item, how often the clan has received it in the window, who has, and who got it first (the rare drops wall). */
     private DataObject gridCell(String itemKey, String name, String quantity, String rarity, List<DropEvent> events) {
         Map<String, Integer> byPlayer = new HashMap<>();
         OffsetDateTime last = null;
+        DropEvent first = null;
         for (DropEvent e : events) {
             byPlayer.merge(e.rsn(), 1, Integer::sum);
             if (last == null || e.at().isAfter(last)) last = e.at();
+            if (first == null || e.at().isBefore(first.at())) first = e;
         }
         DataArray top = DataArray.empty();
         byPlayer.entrySet().stream().sorted(Map.Entry.<String, Integer>comparingByValue().reversed().thenComparing(Map.Entry.comparingByKey())).limit(5)
                 .forEach(en -> top.add(DataObject.empty().put("rsn", en.getKey()).put("count", en.getValue())));
         return DataObject.empty().put("item", name).put("key", itemKey).put("icon", iconFor(itemKey)).put("quantity", quantity).put("rarity", rarity)
-                .put("tracked", catalog.tracked(itemKey)).put("count", events.size()).put("receivers", byPlayer.size()).put("last", last == null ? null : last.toString()).put("top", top);
+                .put("tracked", catalog.tracked(itemKey)).put("count", events.size()).put("receivers", byPlayer.size()).put("last", last == null ? null : last.toString()).put("top", top)
+                .put("first", first == null ? null : first.at().toString()).put("firstRsn", first == null ? null : first.rsn());
     }
 
     private static Map<String, List<DropEvent>> byItem(List<DropEvent> events) {
