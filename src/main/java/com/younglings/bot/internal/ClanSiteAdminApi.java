@@ -49,7 +49,8 @@ import com.younglings.bot.config.BotBrand;
  *   {@code GET clan-site/layout/versions/{id}} (with its layout) and {@code POST clan-site/layout/versions/{id}/restore} {@code {baseRev?}}
  *   (copies it into the draft; never publishes)</li>
  *   <li>connections (N7): {@code GET|PUT clan-site/connections} and {@code POST clan-site/connections/connect|disconnect}, the site
- *   admin's Discord server, data provider and Discord features ({@link SiteDiscordService})</li>
+ *   admin's Discord server, data provider and Discord features ({@link SiteDiscordService}); {@code GET|PUT clan-site/connections/invite}, the
+ *   server's Discord invite ({@link SiteInviteRoutes})</li>
  *   <li>members ({@link SiteMembersAdmin}): {@code GET|PUT clan-site/member-privacy} (T-395) and {@code GET clan-site/roles/people?q=&role=&page=}
  *   (T-396), admin; for a GET, {@code body} holds the query string's parameters</li>
  * </ul>
@@ -77,10 +78,12 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
     private final SiteAddressRoutes address;
     private final SiteMemberOptionsAdminApi memberOptions;
     private final SiteMembersAdmin members;
+    private final SiteInviteRoutes invite;
 
     public ClanSiteAdminApi(ClanSiteRepository repository, ClanSiteLayoutRepository layouts, ClanSiteService sites, ClanProfileService profiles, BotOwners owners,
                             Premium premium, SiteRoleGuard siteRoles, SiteDiscordService discord, SiteAddressRoutes address,
-                            SiteMemberOptionsAdminApi memberOptions, SiteMembersAdmin members) {
+                            SiteMemberOptionsAdminApi memberOptions, SiteMembersAdmin members, SiteInviteRoutes invite) {
+        this.invite = invite;
         this.address = address;
         this.memberOptions = memberOptions;
         this.members = members;
@@ -496,9 +499,11 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
     /**
      * {@code GET|PUT clan-site/connections}, {@code POST clan-site/connections/connect} {@code {guildId}} and {@code POST
      * clan-site/connections/disconnect}: the site's Discord server, its data provider and its Discord features ({@link SiteDiscordService}).
-     * Admin, like the site's other settings.
+     * {@code GET|PUT clan-site/connections/invite}: the server's Discord invite ({@link SiteInviteRoutes}, T-633). Admin, like the site's other
+     * settings.
      */
     DataObject connections(SiteCaller c, String method, String[] parts, Supplier<DataObject> body) {
+        if (parts.length == 3 && parts[2].equals("invite")) return invite.route(c.guildId(), method, body);
         if (parts.length == 2) {
             if (method.equals("GET")) return botPresence(c, discord.connectionState(c));
             AdminRouteExtension.requireMethod(method, "PUT");
