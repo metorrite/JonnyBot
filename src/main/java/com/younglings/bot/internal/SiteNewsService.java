@@ -233,8 +233,9 @@ public class SiteNewsService {
         DataArray imageArray = DataArray.empty();
         images.forEach(imageArray::add);
 
-        var member = message.getMember();
-        String author = member != null ? member.getEffectiveName() : message.getAuthor().getName();
+        // a message read from history carries no member, so the name the server shows comes from the member cache, else the global name
+        var member = message.getMember() != null ? message.getMember() : guild.getMember(message.getAuthor());
+        String author = member != null ? member.getEffectiveName() : message.getAuthor().getEffectiveName();
         String avatar = member != null ? member.getEffectiveAvatarUrl() : message.getAuthor().getEffectiveAvatarUrl();
 
         return DataObject.empty()
