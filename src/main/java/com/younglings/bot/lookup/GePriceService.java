@@ -72,6 +72,41 @@ public class GePriceService {
         return body.map(GePriceService::parseOpenSearch).orElse(List.of());
     }
 
+    /** A watched item for the clan website's "GE price watch" widget (T-592): the price, the 7-day change and one price a day for the last 7 days. */
+    public record Watched(GePrice price, List<Long> week) {}
+
+    /**
+     * The item with this exact name (any case) for the price watch: its price and 7-day change, and the last 7 days as one price a day (the
+     * newest point of each day, oldest first) for the sparkline. Empty when there's no such item or the source is down; both are cached.
+     */
+    public Optional<Watched> watch(String itemName) {
+        String name = itemName == null ? "" : itemName.strip();
+        if (name.isEmpty() || name.length() > 80) return Optional.empty();
+        String encoded = URLEncoder.encode(name, StandardCharsets.UTF_8);
+        Optional<GePrice> now = http.get(EXCHANGE + "latest?name=" + encoded).flatMap(GePriceService::parseLatest);
+        if (now.isEmpty()) return Optional.empty();
+        List<Point> history = http.get(EXCHANGE + "last90d?name=" + encoded).map(GePriceService::parseHistory).orElse(List.of());
+        GePrice price = history.isEmpty() ? now.get() : withTrends(now.get(), history);
+        Instant reference = price.at() == null ? Instant.now() : price.at();
+        return Optional.of(new Watched(price, daily(history, reference, 7)));
+    }
+
+    /** The newest price of each of the last {@code days} UTC days up to {@code now} (a day with no point repeats the one before), oldest first. */
+    static List<Long> daily(List<Point> history, Instant now, int days) {
+        List<Long> out = new ArrayList<>();
+        long today = Math.floorDiv(now.toEpochMilli(), 86_400_000L);
+        Long carry = null;
+        int i = 0;
+        // the last point before the first day carries in, so a quiet first day still has a price
+        long firstDay = today - days + 1;
+        for (; i < history.size() && Math.floorDiv(history.get(i).millis(), 86_400_000L) < firstDay; i++) carry = history.get(i).price();
+        for (long day = firstDay; day <= today; day++) {
+            for (; i < history.size() && Math.floorDiv(history.get(i).millis(), 86_400_000L) == day; i++) carry = history.get(i).price();
+            if (carry != null) out.add(carry);
+        }
+        return out;
+    }
+
     // ---------- parsing (public-static so tests can feed saved responses) ----------
 
     record Point(long millis, long price) {}
