@@ -367,4 +367,86 @@ class SiteDiscordServiceTest {
         verify(settings).setHidden(GUILD, 11L, true);
         assertFalse(service.online(guild).toString().contains("Ann"), "the next answer is fresh, not the cached one");
     }
+
+    // ---------- saving the feed's channels: bad input is a 4xx and saves nothing ----------
+
+    private static DataObject channels(DataObject... items) {
+        DataArray array = DataArray.empty();
+        for (DataObject item : items) array.add(item);
+        return DataObject.empty().put("feed", DataObject.empty().put("channels", array));
+    }
+
+    private static DataObject pick(String channelId) {
+        return DataObject.empty().put("channelId", channelId);
+    }
+
+    @Test
+    void aChannelIdTooBigForALongIsA400NotA500() {
+        SiteCaller c = admin();
+        site(OnlineMode.OFF);
+        for (String bad : new String[]{"9".repeat(20), "9".repeat(19), "abc", "-1", "", "1".repeat(21)}) {
+            TicketAdminApi.ApiError error = assertThrows(TicketAdminApi.ApiError.class, () -> service.saveConnection(c, channels(pick(bad))), bad);
+            assertEquals(400, error.status, bad);
+        }
+        verify(connections, never()).saveFeatures(any(), anyLong());
+    }
+
+    @Test
+    void atMostSixChannelsLabelsUpTo40AndAChannelPickedTwiceIsKeptOnce() {
+        SiteCaller c = admin();
+        Connection now = site(OnlineMode.OFF);
+        DataObject[] seven = new DataObject[7];
+        for (int i = 0; i < 7; i++) seven[i] = pick(Long.toString(PUBLIC));
+        assertEquals(400, assertThrows(TicketAdminApi.ApiError.class, () -> service.saveConnection(c, channels(seven))).status);
+        assertEquals(400, assertThrows(TicketAdminApi.ApiError.class,
+                () -> service.saveConnection(c, channels(pick(Long.toString(PUBLIC)).put("label", "x".repeat(41))))).status);
+        verify(connections, never()).saveFeatures(any(), anyLong());
+
+        service.saveConnection(c, channels(pick(Long.toString(PUBLIC)).put("label", "  News  "), pick(" " + PUBLIC + " ")));
+        verify(connections).saveFeatures(now.withFeatures(OnlineMode.OFF, 24, true, 5, true, List.of(new Channel(PUBLIC, "News", 0))), 5L);
+    }
+
+    @Test
+    void aChannelTheBotCantReadIsA400AndAMissingOneToo() {
+        SiteCaller c = admin();
+        site(OnlineMode.OFF);
+        when(self.hasPermission(eq(newsChannel), eq(Permission.VIEW_CHANNEL), eq(Permission.MESSAGE_HISTORY))).thenReturn(false);
+        assertEquals(400, assertThrows(TicketAdminApi.ApiError.class, () -> service.saveConnection(c, channels(pick(Long.toString(PUBLIC))))).status);
+        assertEquals(400, assertThrows(TicketAdminApi.ApiError.class, () -> service.saveConnection(c, channels(pick("4".repeat(18))))).status);
+        verify(connections, never()).saveFeatures(any(), anyLong());
+    }
+
+    @Test
+    void aBotlessSiteCantPickChannelsButCanClearThemAndSaveItsOtherSettings() {
+        Connection now = site(OnlineMode.OFF, PUBLIC);
+        SiteCaller botless = new SiteCaller(GUILD, 5L, null, null, null, null);
+        assertEquals(409, assertThrows(TicketAdminApi.ApiError.class, () -> service.saveConnection(botless, channels(pick(Long.toString(PUBLIC))))).status);
+        verify(connections, never()).saveFeatures(any(), anyLong());
+
+        service.saveConnection(botless, channels().put("online", DataObject.empty().put("mode", "count")));
+        verify(connections).saveFeatures(now.withFeatures(OnlineMode.COUNT, 24, true, 5, true, List.of()), 5L);
+    }
+
+    @Test
+    void theConnectionsPageOfABotlessSiteOffersNoChannelsAndNoCapabilities() {
+        site(OnlineMode.NAMES, PUBLIC);
+        DataObject state = service.connectionState(new SiteCaller(GUILD, 5L, null, null, null, null));
+        assertFalse(state.getObject("server").getBoolean("botPresent"));
+        assertFalse(state.getObject("provider").getBoolean("ready"));
+        assertEquals(0, state.getObject("provider").getArray("capabilities").length());
+        assertFalse(state.getBoolean("presenceAvailable"));
+        assertEquals(0, state.getObject("feed").getArray("channels").length());
+        DataObject chosen = state.getObject("feed").getArray("chosen").getObject(0);
+        assertFalse(chosen.getBoolean("eligible"), "a chosen channel can't be read without the bot");
+    }
+
+    @Test
+    void aChannelThatTurnsAgeRestrictedAfterItWasChosenDropsOutOfTheFeed() {
+        site(OnlineMode.OFF, PUBLIC);
+        when(newsChannel.isNSFW()).thenReturn(true);
+        DataObject feed = service.feed(guild, null);
+        assertEquals(0, feed.getArray("channels").length());
+        assertNull(service.feed(guild, Long.toString(PUBLIC)), "nor can it be asked for by id");
+        verify(news, never()).latest(any(), any(), anyInt());
+    }
 }

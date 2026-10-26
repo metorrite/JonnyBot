@@ -318,7 +318,8 @@ public class SiteDiscordService {
         for (int i = 0; i < input.length(); i++) {
             DataObject item = input.getObject(i);
             String raw = item.getString("channelId", "").strip();
-            if (!raw.matches("\\d{1,20}")) throw new ApiError(400, "A chosen channel isn't valid.");
+            // digits that overflow a long are still a 400, never a 500
+            if (!raw.matches("\\d{1,20}") || !CitadelAdminApi.fitsALong(raw)) throw new ApiError(400, "A chosen channel isn't valid.");
             long channelId = Long.parseLong(raw);
             if (!seen.add(channelId)) continue;
             GuildChannel channel = guild.getGuildChannelById(channelId);
