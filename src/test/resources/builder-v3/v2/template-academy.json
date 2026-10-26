@@ -1,0 +1,1292 @@
+{
+  "v": 2,
+  "look": {
+    "theme": "clanhall",
+    "mode": "light",
+    "accent": "#2563eb",
+    "logo": null,
+    "banner": null
+  },
+  "style": {},
+  "header": {
+    "layout": "logo-left",
+    "logo": {
+      "show": true,
+      "text": "name",
+      "height": 40
+    },
+    "slots": {
+      "left": [],
+      "right": [
+        {
+          "kind": "discord",
+          "settings": {
+            "label": "Ask for help"
+          }
+        }
+      ]
+    },
+    "sticky": true,
+    "transparent": "never",
+    "height": "normal",
+    "mobile": "dropdown",
+    "nav": [
+      {
+        "id": "acadn073",
+        "label": "Home",
+        "link": {
+          "kind": "page",
+          "pageId": "acadphome"
+        }
+      },
+      {
+        "id": "acadn074",
+        "label": "Guides",
+        "link": {
+          "kind": "page",
+          "pageId": "acadpguides"
+        }
+      },
+      {
+        "id": "acadn075",
+        "label": "Ranks",
+        "link": {
+          "kind": "page",
+          "pageId": "acadpranks"
+        }
+      },
+      {
+        "id": "acadn076",
+        "label": "Mentors",
+        "link": {
+          "kind": "page",
+          "pageId": "acadpmentors"
+        }
+      },
+      {
+        "id": "acadn077",
+        "label": "Events",
+        "link": {
+          "kind": "page",
+          "pageId": "acadpevents"
+        },
+        "badge": "events"
+      },
+      {
+        "id": "acadn078",
+        "label": "FAQ",
+        "link": {
+          "kind": "page",
+          "pageId": "acadpfaq"
+        }
+      }
+    ]
+  },
+  "footer": {
+    "showSocial": true,
+    "badge": true,
+    "columns": [
+      {
+        "title": "Learn",
+        "links": [
+          {
+            "label": "Guides",
+            "link": {
+              "kind": "page",
+              "pageId": "acadpguides"
+            }
+          },
+          {
+            "label": "Ranks",
+            "link": {
+              "kind": "page",
+              "pageId": "acadpranks"
+            }
+          },
+          {
+            "label": "FAQ",
+            "link": {
+              "kind": "page",
+              "pageId": "acadpfaq"
+            }
+          }
+        ]
+      },
+      {
+        "title": "Get help",
+        "links": [
+          {
+            "label": "Mentors",
+            "link": {
+              "kind": "page",
+              "pageId": "acadpmentors"
+            }
+          },
+          {
+            "label": "Ask on Discord",
+            "link": {
+              "kind": "invite"
+            }
+          }
+        ]
+      }
+    ],
+    "text": "{clan}. Every expert was a beginner once."
+  },
+  "pages": [
+    {
+      "id": "acadphome",
+      "title": "Home",
+      "path": "",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "acads007",
+          "width": "full",
+          "background": {
+            "kind": "surface"
+          },
+          "padding": {
+            "lg": {
+              "y": "xl",
+              "x": "lg"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "label": "Welcome",
+          "rows": [
+            {
+              "id": "acadr006",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "acadc003",
+                  "span": {
+                    "lg": 7,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "acadw001",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "{clan}",
+                        "subtitle": "{tagline}",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "acadw002",
+                      "type": "button-row",
+                      "v": 1,
+                      "settings": {
+                        "buttons": [
+                          {
+                            "label": "Start with the guides",
+                            "link": {
+                              "kind": "page",
+                              "pageId": "acadpguides"
+                            },
+                            "style": "primary"
+                          },
+                          {
+                            "label": "Ask for help",
+                            "link": {
+                              "kind": "invite"
+                            },
+                            "style": "secondary"
+                          }
+                        ],
+                        "align": "left",
+                        "size": "medium",
+                        "look": "buttons",
+                        "fullWidth": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "acadc005",
+                  "span": {
+                    "lg": 5,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "acadw004",
+                      "type": "links",
+                      "v": 2,
+                      "settings": {
+                        "title": "Start here",
+                        "style": "list",
+                        "links": [
+                          {
+                            "label": "Guides, step by step",
+                            "link": {
+                              "kind": "page",
+                              "pageId": "acadpguides"
+                            }
+                          },
+                          {
+                            "label": "What each rank needs",
+                            "link": {
+                              "kind": "page",
+                              "pageId": "acadpranks"
+                            }
+                          },
+                          {
+                            "label": "Mentors to ask",
+                            "link": {
+                              "kind": "page",
+                              "pageId": "acadpmentors"
+                            }
+                          }
+                        ]
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "acads018",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "acadr012",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "acadc009",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "acadw008",
+                      "type": "events",
+                      "v": 1,
+                      "settings": {
+                        "title": "Lessons and trips this week",
+                        "style": "list",
+                        "limit": 4,
+                        "showImages": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "acadc011",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "acadw010",
+                      "type": "milestones",
+                      "v": 1,
+                      "settings": {
+                        "title": "Our members' latest wins",
+                        "limit": 6
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "acadr017",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "acadc014",
+                  "span": {
+                    "lg": 8,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "md"
+                  },
+                  "valign": "start",
+                  "surface": "panel",
+                  "widgets": [
+                    {
+                      "id": "acadw013",
+                      "type": "text",
+                      "v": 1,
+                      "settings": {
+                        "markdown": "## New here?\nWelcome! Read **Your first week** in the guides, pick a mentor to say hello to, and join a lesson. Nobody minds questions, however small.",
+                        "align": "left",
+                        "width": "readable"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "acadc016",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "acadw015",
+                      "type": "discord-join",
+                      "v": 1,
+                      "settings": {
+                        "title": "Ask for help",
+                        "text": "Stuck on a quest or a boss? Ask in our Discord and a mentor will help.",
+                        "buttonLabel": "Open the Discord"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "acadpguides",
+      "title": "Guides",
+      "path": "guides",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "acads022",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "acadr021",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "acadc020",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "acadw019",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Guides",
+                        "subtitle": "Start at the top and work down. Each guide is short.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "acads029",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "acadr028",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "acadc024",
+                  "span": {
+                    "lg": 7,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "md"
+                  },
+                  "valign": "start",
+                  "surface": "panel",
+                  "widgets": [
+                    {
+                      "id": "acadw023",
+                      "type": "text",
+                      "v": 1,
+                      "settings": {
+                        "markdown": "## Your first week\n1. Set up your Discord and say hello.\n2. Visit the clan Citadel and cap once.\n3. Pick one skill and one goal. Write it in the Discord.\n\n## Money making for new players\nStart with skilling: gathering skills sell well and level you up at the same time. Ask a mentor what fits your levels.\n\n## Your first boss\nGiant Mole and the King Black Dragon are good first bosses. Join a teaching trip before you go alone.",
+                        "align": "left",
+                        "width": "readable"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "acadc027",
+                  "span": {
+                    "lg": 5,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "acadw025",
+                      "type": "video",
+                      "v": 1,
+                      "settings": {
+                        "title": "Watch first",
+                        "url": "https://www.youtube.com/watch?v=HpGFbcxzJ-k",
+                        "caption": "A taste of what's ahead"
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "acadw026",
+                      "type": "links",
+                      "v": 2,
+                      "settings": {
+                        "title": "Good places to read",
+                        "style": "list",
+                        "links": [
+                          {
+                            "label": "RuneScape Wiki",
+                            "link": {
+                              "kind": "url",
+                              "href": "https://runescape.wiki/"
+                            }
+                          },
+                          {
+                            "label": "Official news",
+                            "link": {
+                              "kind": "url",
+                              "href": "https://www.runescape.com/"
+                            }
+                          }
+                        ]
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "acadpranks",
+      "title": "Ranks",
+      "path": "ranks",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "acads033",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "acadr032",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "acadc031",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "acadw030",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Ranks",
+                        "subtitle": "How to move up, and what each rank asks of you.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "acads039",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "acadr038",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "acadc035",
+                  "span": {
+                    "lg": 8,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "acadw034",
+                      "type": "rank-ladder",
+                      "v": 1,
+                      "settings": {
+                        "title": "The ladder",
+                        "order": "up",
+                        "showCounts": true,
+                        "progress": true,
+                        "requirements": []
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "acadc037",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "acadw036",
+                      "type": "rank-breakdown",
+                      "v": 1,
+                      "settings": {
+                        "title": "Members by rank",
+                        "limit": 10,
+                        "style": "bars",
+                        "showEmpty": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "acadpmentors",
+      "title": "Mentors",
+      "path": "mentors",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "acads043",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "acadr042",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "acadc041",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "acadw040",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Mentors",
+                        "subtitle": "Members who have offered to help. Message any of them on Discord.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "acads052",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "acadr048",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "acadc045",
+                  "span": {
+                    "lg": 7,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "md"
+                  },
+                  "valign": "start",
+                  "surface": "panel",
+                  "widgets": [
+                    {
+                      "id": "acadw044",
+                      "type": "text",
+                      "v": 1,
+                      "settings": {
+                        "markdown": "## How mentoring works\nPick a mentor whose times fit yours and send them a message. They'll help with a quest, a boss or a plan. Once you're confident, pay it forward.",
+                        "align": "left",
+                        "width": "readable"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "acadc047",
+                  "span": {
+                    "lg": 5,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "acadw046",
+                      "type": "discord-online",
+                      "v": 2,
+                      "settings": {
+                        "title": "On Discord now"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "acadr051",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "acadc050",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "acadw049",
+                      "type": "roster",
+                      "v": 1,
+                      "settings": {
+                        "title": "Everyone in the clan",
+                        "limit": 50,
+                        "showJoined": true,
+                        "showRank": true,
+                        "showLevel": false,
+                        "showXp": false,
+                        "search": true,
+                        "rankFilter": true,
+                        "sort": "rank"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "acadpevents",
+      "title": "Events",
+      "path": "events",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "acads056",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "acadr055",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "acadc054",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "acadw053",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Lessons and trips",
+                        "subtitle": "Teaching trips, quest help nights and skill lessons. Times are in your own timezone.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "acads062",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "acadr061",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "acadc058",
+                  "span": {
+                    "lg": 7,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "acadw057",
+                      "type": "events",
+                      "v": 1,
+                      "settings": {
+                        "title": "Coming up",
+                        "style": "list",
+                        "limit": 8,
+                        "showImages": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "acadc060",
+                  "span": {
+                    "lg": 5,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "acadw059",
+                      "type": "signups",
+                      "v": 1,
+                      "settings": {
+                        "title": "Put your name down",
+                        "limit": 5,
+                        "showNames": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "acadpfaq",
+      "title": "FAQ",
+      "path": "faq",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "acads066",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "acadr065",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "acadc064",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "acadw063",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Questions",
+                        "subtitle": "What new members ask most.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "acads072",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "acadr071",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "acadc068",
+                  "span": {
+                    "lg": 7,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "acadw067",
+                      "type": "faq",
+                      "v": 1,
+                      "settings": {
+                        "title": "",
+                        "items": [
+                          {
+                            "q": "I'm brand new. Is this the right clan?",
+                            "a": "Yes. That's exactly who we're for."
+                          },
+                          {
+                            "q": "I'm coming back after years away. Where do I start?",
+                            "a": "Read Your first week in the guides, then ask a mentor what's changed."
+                          },
+                          {
+                            "q": "Do I have to join lessons?",
+                            "a": "No. They're there when you want them."
+                          },
+                          {
+                            "q": "How do I rank up?",
+                            "a": "The Ranks page lists what each rank needs. A mentor can check you off."
+                          }
+                        ]
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "acadc070",
+                  "span": {
+                    "lg": 5,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "acadw069",
+                      "type": "discord-join",
+                      "v": 1,
+                      "settings": {
+                        "title": "Still wondering?",
+                        "text": "Ask in our Discord. Someone is usually around.",
+                        "buttonLabel": "Ask on Discord"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
