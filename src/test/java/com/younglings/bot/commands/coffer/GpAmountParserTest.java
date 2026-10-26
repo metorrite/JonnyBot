@@ -43,6 +43,23 @@ class GpAmountParserTest {
     void rejectsNonNumericInput() {
         assertThrows(IllegalArgumentException.class, () -> GpAmountParser.parse("abc"));
         assertThrows(IllegalArgumentException.class, () -> GpAmountParser.parse("12X"));
+        // Double.parseDouble takes these, but they aren't amounts ("NaN" used to record 0 gp)
+        for (String odd : new String[] {"NaN", "Infinity", "1e9", "5d", "5f", "0x10", "1.5.5M"}) {
+            assertThrows(IllegalArgumentException.class, () -> GpAmountParser.parse(odd), odd);
+        }
+    }
+
+    @Test
+    void rejectsAmountsTooLargeOrRoundingToNothing() {
+        assertThrows(IllegalArgumentException.class, () -> GpAmountParser.parse("99999999999B"));
+        assertThrows(IllegalArgumentException.class, () -> GpAmountParser.parse("0.0001K"));
+    }
+
+    @Test
+    void roundingUpSaysTheNextUnit() {
+        assertEquals("1M", GpAmountParser.toShorthand(999_999));
+        assertEquals("1B", GpAmountParser.toShorthand(999_999_999));
+        assertEquals("999.99K", GpAmountParser.toShorthand(999_994));
     }
 
     @Test
