@@ -319,6 +319,18 @@ class SiteApiTenantDatabaseTest {
     }
 
     @Test
+    void aMemberPageSaysWhereTheMemberStandsAmongTheLeadersButNeverForAHiddenOne() {
+        DataObject shown = api.member(guildA, SHOWN);
+        DataObject standing = shown.getObject("standing");
+        assertEquals(1, standing.getInt("weekGain"), "the only visible gainer this week is first");
+        assertTrue(standing.isNull("points"), "no clan points, so not on the points list");
+        assertTrue(shown.hasKey("maxRankOrder"));
+
+        DataObject hidden = api.member(guildA, HIDDEN).getObject("standing");
+        assertTrue(hidden.isNull("weekGain") && hidden.isNull("points"), "a member hidden from boards has no place on them");
+    }
+
+    @Test
     void theRosterSaysWhoseMemberPageIsPrivate() {
         java.util.Map<String, Boolean> shown = pagePublic(call(guildA, "members"));
         assertEquals(Boolean.TRUE, shown.get(SHOWN), "T-416: a visible member's page can be opened");
