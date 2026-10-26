@@ -554,6 +554,25 @@ class ClanSiteLayoutRulesV2Test {
     }
 
     @Test
+    void sectionRowSpacing() {
+        // T-518: a section's own space between its rows
+        DataObject look = good();
+        look.getArray("pages").getObject(0).getArray("sections").getObject(0).put("gap", DataObject.empty().put("lg", "ml").put("base", "sm"));
+        assertTrue(problems(look).isEmpty(), problems(look).toString());
+        DataObject clean = DataObject.fromJson(ClanSiteLayoutRulesV2.clean(look, ClanSiteLayoutRulesV2.Limits.PREMIUM, new ArrayList<>()));
+        DataObject section = clean.getArray("pages").getObject(0).getArray("sections").getObject(0);
+        assertEquals("ml", section.getObject("gap").getString("lg"));
+        assertEquals("sm", section.getObject("gap").getString("base"));
+
+        DataObject plain = DataObject.fromJson(ClanSiteLayoutRulesV2.clean(good(), ClanSiteLayoutRulesV2.Limits.PREMIUM, new ArrayList<>()));
+        assertFalse(plain.getArray("pages").getObject(0).getArray("sections").getObject(0).hasKey("gap"), "nothing is added to a layout that doesn't set it");
+
+        DataObject bad = good();
+        bad.getArray("pages").getObject(0).getArray("sections").getObject(0).put("gap", DataObject.empty().put("lg", "huge"));
+        assertTrue(has(problems(bad), "between its rows"));
+    }
+
+    @Test
     void spacingFields() {
         // T-518: a 1.5rem spacing step, a cell's own space between widgets, and narrow side margins
         DataObject look = good();
