@@ -631,7 +631,7 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
         for (int i = 0; i < raw.length(); i++) {
             long roleId = parseId(raw.getString(i, ""));
             if (roleId == 0 || guild.getRoleById(roleId) == null) problems.add("One of the roles doesn't exist any more. Reload the page.");
-            else if (roleId == c.guildId() && !everyoneAllowed) problems.add("@everyone can't be an editor or staff role.");
+            else if (roleId == c.guildId() && !everyoneAllowed) problems.add("@everyone can't be an admin, editor or staff role: that would be everyone in the server.");
             else out.add(roleId);
         }
         return List.copyOf(out);
