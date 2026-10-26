@@ -284,6 +284,8 @@ public class SiteApi {
     }
 
     private static final int NOTIFICATION_ITEMS = 5;
+    /** Activity lines for the bell: more than the other kinds, since the website folds repeats into one line ("4 new drops"). */
+    static final int NOTIFICATION_FEED_ITEMS = 20;
     private static final Duration EVENTS_SOON = Duration.ofDays(7);
 
     /**
@@ -298,7 +300,7 @@ public class SiteApi {
         DataArray signups = DataArray.empty();
         // A bot-less site (guild null) has no Discord events, polls or signup sheets: only the activity lines.
         if (guild == null) return DataObject.empty().put("events", events).put("polls", polls).put("signups", signups)
-                .put("feed", feed(guildId, Integer.toString(NOTIFICATION_ITEMS), null).getArray("items"));
+                .put("feed", feed(guildId, Integer.toString(NOTIFICATION_FEED_ITEMS), null).getArray("items"));
         if (discord.eventsShown(guildId)) guild.getScheduledEvents().stream()
                 .filter(e -> e.getStatus() == ScheduledEvent.Status.ACTIVE
                         || (e.getStatus() == ScheduledEvent.Status.SCHEDULED && e.getStartTime().isBefore(now.plus(EVENTS_SOON))))
@@ -319,7 +321,7 @@ public class SiteApi {
         }
 
         return DataObject.empty().put("events", events).put("polls", polls).put("signups", signups)
-                .put("feed", feed(guildId, Integer.toString(NOTIFICATION_ITEMS), null).getArray("items"));
+                .put("feed", feed(guildId, Integer.toString(NOTIFICATION_FEED_ITEMS), null).getArray("items"));
     }
 
     private static List<DataObject> objects(DataArray array) {
@@ -709,6 +711,9 @@ public class SiteApi {
 
     // ---------- activity feed, records, history, polls, PvM and drops ----------
 
+    /** How many adventure-log entries a feed of one kind looks through (a few months of a big clan's log). */
+    static final int KIND_SCAN = 3000;
+
     /** The clan's newest notable adventure-log entries (level-ups, milestones, quests, boss kills, drops, pets, caps…). */
     DataObject feed(long guildId, String limitRaw, String kindRaw) {
         int limit = 40;
@@ -728,7 +733,8 @@ public class SiteApi {
 
         Set<String> hiddenLogs = profiles.hiddenRsns(guildId, false);
         DataArray items = DataArray.empty();
-        for (var row : stats.recentActivities(guildId, limit * 6)) {
+        // one kind (pets for the rare drops wall) is rarer than the rest, so look further back for it
+        for (var row : stats.recentActivities(guildId, wanted == null ? limit * 6 : Math.max(limit * 6, KIND_SCAN))) {
             if (!shown(hiddenLogs, row.rsn())) continue;
             ActivityKinds.Kind kind = ActivityKinds.kindOf(row.text());
             if (kind == ActivityKinds.Kind.OTHER || kind == ActivityKinds.Kind.CITADEL_VISIT) continue;

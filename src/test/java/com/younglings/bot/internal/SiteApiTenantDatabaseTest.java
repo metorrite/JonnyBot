@@ -259,6 +259,17 @@ class SiteApiTenantDatabaseTest {
     }
 
     @Test
+    void theDropLogGridSaysWhoGotEachItemFirst() {
+        DataObject log = call(guildA, "drop-log");
+        DataObject hilt = null;
+        DataArray grid = log.getArray("grid");
+        for (int i = 0; i < grid.length(); i++) if (grid.getObject(i).getString("key").equals("bandos_hilt")) hilt = grid.getObject(i);
+        assertNotNull(hilt, "the hilt is in the grid");
+        assertEquals(SHOWN, hilt.getString("firstRsn"), "the visible member got it first (the hidden member's drop isn't counted)");
+        assertFalse(hilt.isNull("first"));
+    }
+
+    @Test
     void oneSkillSeriesOnlyForAVisibleMemberOfThatClan() {
         HttpExchange shown = exchange("rsn=" + SHOWN + "&skill=0");
         assertNotNull(api.tenant(guildA, "member/skill", shown));
