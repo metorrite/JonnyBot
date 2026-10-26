@@ -14,7 +14,7 @@ import java.util.function.Function;
  *   <li>{@code LINKED_ROLES_DISCORD_API}: Discord's API base, {@code https://discord.com/api/v10} by default. Only for tests against a local
  *       mock: anything other than https is refused unless it is localhost.</li>
  *   <li>{@code LINKED_ROLES_REGISTER_ON_START}: {@code false} skips registering the metadata schema when the bot starts (on by default).</li>
- *   <li>{@code LINKED_ROLES_REQUIRE_CONFIRMED}: {@code true} counts an RS Link name only once the hub has confirmed the link from public data
+ *   <li>{@code LINKED_ROLES_REQUIRE_CONFIRMED}: {@code true} counts a RuneLink name only once the hub has confirmed the link from public data
  *       ({@code public_data_corroborated} or stronger, T-552); off by default. Names the bot verified itself still count. Metadata is per
  *       person, not per server (Discord's design), so this is one switch for the whole bot.</li>
  * </ul>

@@ -2,7 +2,7 @@
 
 Ticket T-062. Step 7 of the clan-platform plan: features that only the RS3 plugin API makes possible. Status: **design with defaults**. Nothing here is built. Each feature lists what it would take, what Jagex's rules allow, a default, and the questions only Drake can answer.
 
-Read with: `docs/RUNESYNC-DESIGN.md` (RuneSync, T-002), `docs/LINK-SYSTEM.md` (RS Link), and the local API library `CLAUDE_RESOURCES/rs-api-library` (`notes/capability-map.md`, `docs/submission.md`, `docs/game-coords.md`, `docs/game-entities.md`).
+Read with: `docs/RUNESYNC-DESIGN.md` (RuneSync, T-002), `docs/LINK-SYSTEM.md` (RuneLink), and the local API library `CLAUDE_RESOURCES/rs-api-library` (`notes/capability-map.md`, `docs/submission.md`, `docs/game-coords.md`, `docs/game-entities.md`).
 
 ## 0. The rules that decide everything
 
@@ -80,7 +80,7 @@ There's no location, no HP, no gear. It refreshes every 60 s and reuses the T-20
 - It must hide in PvP areas and never show non-clan players' info.
 - Expect extra review rounds. It shouldn't go into RuneSync's first submission.
 
-**Default:** a **separate optional plugin** ("Clan Titles", depending on RS Link), so RuneSync's review stays simple.
+**Default:** a **separate optional plugin** ("Clan Titles", depending on RuneLink), so RuneSync's review stays simple.
 - Off by default, with a clan switch on the dashboard.
 - Only clan members who opted in on their profile ("Show my clan title over my head") get a title.
 - Hidden in PvP and in combat instances; text only, no icons from other players.

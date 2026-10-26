@@ -326,13 +326,38 @@ public class BotConfig {
         return envOrDotenv(name);
     }
 
+    /** The DM-code secret's name (T-659). */
+    public static final String RUNELINK_DM_SECRET_ENV = "RUNELINK_DM_SECRET";
+    /** Its name before RS Link became RuneLink; still read when the new one is unset, with a one-time deprecation warning. */
+    public static final String LEGACY_RUNELINK_DM_SECRET_ENV = "RSNLINK_DM_SECRET";
+
     /**
-     * {@code RUNELINK_DM_SECRET} (old name {@code RSNLINK_DM_SECRET}, still read when the new one is unset): the secret runeclans-hub sends ({@code X-RsLink-Dm-Secret}) to have the bot DM RS Link codes for it (T-166).
+     * {@code RUNELINK_DM_SECRET} (formerly {@code RSNLINK_DM_SECRET}, still read as a fallback): the secret runeclans-hub sends
+     * ({@code X-RuneLink-Dm-Secret}, or the older {@code X-RsLink-Dm-Secret}) to have the bot DM RuneLink codes for it (T-166).
      * It opens only {@code /internal/rsnlink-dm/}. Null when unset (those routes are then closed).
      */
-    public String getRsnLinkDmSecret() {
-        String secret = envOrDotenv("RUNELINK_DM_SECRET", "RSNLINK_DM_SECRET");
+    public String getRuneLinkDmSecret() {
+        String secret = renamedSettingFrom(RUNELINK_DM_SECRET_ENV, LEGACY_RUNELINK_DM_SECRET_ENV, this::envOrDotenv, this::warnLegacy);
         return secret == null || secret.isBlank() ? null : secret.strip();
+    }
+
+    /**
+     * A setting that was renamed: the new name wins; else the old name, reported to {@code usedLegacy}; else null (T-659). Values are
+     * passed through as the lookup gives them.
+     */
+    static String renamedSettingFrom(String name, String legacy, java.util.function.Function<String, String> lookup,
+                                     java.util.function.BiConsumer<String, String> usedLegacy) {
+        String value = lookup.apply(name);
+        if (value != null) return value;
+        value = lookup.apply(legacy);
+        if (value != null) usedLegacy.accept(legacy, name);
+        return value;
+    }
+
+    private void warnLegacy(String legacy, String name) {
+        if (LEGACY_WARNED.add(legacy)) {
+            org.slf4j.LoggerFactory.getLogger(BotConfig.class).warn("{} is deprecated and will be removed in a later release; rename it to {}", legacy, name);
+        }
     }
 
     /** A Discord Linked Roles setting ({@code LINKED_ROLES_*}, see {@code linkedroles.LinkedRolesSettings}); null when unset. */

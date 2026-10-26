@@ -9,9 +9,10 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 /**
- * Settings that were renamed and still answer to their old name (T-662: {@code JONNYBOT_*} became {@code RUNECLAN_BOT_*}, {@code RSNLINK_*}
- * became {@code RUNELINK_*}). The new name wins; when only the old name is set its value is used exactly as before, and a deprecation note
- * naming both variables (never the value) is logged once per process. A blank value counts as unset.
+ * Settings that were renamed and still answer to their old name (T-662: {@code JONNYBOT_*} became {@code RUNECLAN_BOT_*}). The new name
+ * wins; when only the old name is set its value is used exactly as before, and a deprecation note naming both variables (never the value)
+ * is logged once per process. A blank value counts as unset. ({@code RUNELINK_DM_SECRET}, renamed from {@code RSNLINK_DM_SECRET} by T-659,
+ * follows the same rule through {@code BotConfig.renamedSettingFrom}.)
  */
 public final class EnvAliases {
     private static final Logger log = LoggerFactory.getLogger(EnvAliases.class);

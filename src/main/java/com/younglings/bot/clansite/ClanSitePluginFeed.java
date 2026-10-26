@@ -115,7 +115,7 @@ public class ClanSitePluginFeed {
     }
 
     /**
-     * Whether the member's RS Link was confirmed from public data when the hub took the event (T-552: the hub's {@code verification} stamp
+     * Whether the member's RuneLink was confirmed from public data when the hub took the event (T-552: the hub's {@code verification} stamp
      * above {@code implicit}). The website shows "not confirmed" to the site's admins only; an older hub that doesn't say counts as not.
      */
     static boolean confirmed(DataObject event) {
