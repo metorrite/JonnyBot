@@ -114,6 +114,22 @@ class ClanSiteAdminApiRolesTest {
     }
 
     @Test
+    void everyoneCantBeMadeASiteAdminRole() {
+        // @everyone's id is the server's: as a site admin role it would let the whole server into the site admin (T-626)
+        long server = Long.parseLong("7".repeat(18));
+        when(guard.allows(eq(guild), eq(actor), any())).thenReturn(true);
+        when(guild.getIdLong()).thenReturn(server);
+        when(guild.getRoleById(server)).thenReturn(mock(net.dv8tion.jda.api.entities.Role.class));
+        when(guard.settings(server)).thenReturn(com.younglings.bot.clansite.SiteRoles.Settings.DEFAULT);
+
+        ApiError refused = assertThrows(ApiError.class, () -> api.api.route(guild, actor, "PUT", path("clan-site/roles/admin-access"),
+                () -> DataObject.empty().put("roleIds", net.dv8tion.jda.api.utils.data.DataArray.empty().add(Long.toString(server)))));
+        assertEquals(400, refused.status);
+        assertTrue(refused.problems.getFirst().contains("@everyone"), String.valueOf(refused.problems));
+        verify(guard, never()).saveAdminAccess(anyLong(), any(), anyLong());
+    }
+
+    @Test
     void siteAdminsReadAndSaveTheMemberOptions() {
         when(guard.allows(eq(guild), eq(actor), any())).thenReturn(true);
         when(guild.getIdLong()).thenReturn(7L);

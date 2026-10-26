@@ -640,6 +640,7 @@ public class TicketAdminApi {
     // ---------- the server's roles and channels, for the editor's pickers ----------
 
     private DataObject structure(Guild guild) {
+        RoleHolders holders = RoleHolders.of(guild);
         DataArray roles = DataArray.empty();
         for (Role role : guild.getRoles()) {
             if (role.isPublicRole()) continue;
@@ -648,7 +649,8 @@ public class TicketAdminApi {
                     .put("name", role.getName())
                     .put("color", role.getColorRaw() & 0xFFFFFF)
                     .put("managed", role.isManaged())
-                    .put("position", role.getPosition()));
+                    .put("position", role.getPosition())
+                    .put("holders", holders.holders(role.getIdLong())));
         }
 
         DataArray categories = DataArray.empty();
@@ -692,7 +694,7 @@ public class TicketAdminApi {
                     .put("canPost", forumCanPost && !thread.isLocked())));
         }
 
-        return DataObject.empty().put("roles", roles).put("categories", categories).put("channels", channels).put("forums", forums).put("threads", threads);
+        return DataObject.empty().put("roles", roles).put("membersSeen", holders.seen()).put("categories", categories).put("channels", channels).put("forums", forums).put("threads", threads);
     }
 
     private static final int ARCHIVED_THREADS_PER_FORUM = 25;
