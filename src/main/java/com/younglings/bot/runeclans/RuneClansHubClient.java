@@ -226,7 +226,7 @@ public class RuneClansHubClient {
         return URLEncoder.encode(s, StandardCharsets.UTF_8);
     }
 
-    private static Transport http(RuneClansSettings settings) {
+    static Transport http(RuneClansSettings settings) {
         // one client for the bot's life: HTTP/1.1 keeps its connections to the hub open between calls (no connect cost per call)
         HttpClient client = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).connectTimeout(Duration.ofSeconds(3)).build();
         return (method, path, body) -> {
