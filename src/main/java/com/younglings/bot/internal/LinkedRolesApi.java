@@ -23,7 +23,7 @@ import java.util.Optional;
  * <ul>
  *   <li>{@code connect} {@code {userId, accessToken, refreshToken, expiresIn, rsLinkRsn?, rsLinkSince?}}: keeps the tokens (sealed) and sends
  *       the person's metadata to Discord; answers what was shared.</li>
- *   <li>{@code status} {@code {userId}}: whether they are connected and what is shared, worked out fresh, and whether RS Link names must be
+ *   <li>{@code status} {@code {userId}}: whether they are connected and what is shared, worked out fresh, and whether RuneLink names must be
  *       confirmed first ({@code requireConfirmed}; {@code rsLinkUnconfirmed} names one that isn't counted yet, T-552).</li>
  *   <li>{@code unlink} {@code {userId}}: clears what Discord has, revokes and forgets the tokens.</li>
  * </ul>

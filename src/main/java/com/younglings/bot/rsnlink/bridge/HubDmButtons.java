@@ -50,7 +50,7 @@ public class HubDmButtons extends ListenerAdapter implements BotListener {
                 return;
             }
             event.getHook().editOriginalComponents().queue(done -> event.getHook().sendMessage(answer).queue(), err -> event.getHook().sendMessage(answer).queue());
-        }), err -> log.info("RS Link hub DM button couldn't be acknowledged ({})", err.getClass().getSimpleName()));
+        }), err -> log.info("RuneLink hub DM button couldn't be acknowledged ({})", err.getClass().getSimpleName()));
     }
 
     /** Passes one press to the hub; the words to show, or null when the hub didn't take it. */
@@ -58,7 +58,7 @@ public class HubDmButtons extends ListenerAdapter implements BotListener {
         DataObject body = DataObject.empty().put("pairingId", pairingId).put("discordId", clickerId);
         RuneClansHubClient.Answer a = hub.call("POST", notMe ? "/v1/link/dm/not-me" : "/v1/link/dm/stop", body.toString());
         if (a == null || !a.ok() || a.json() == null) {
-            log.info("RS Link hub DM button: the hub didn't take it ({})", a == null ? "unreachable" : a.status());
+            log.info("RuneLink hub DM button: the hub didn't take it ({})", a == null ? "unreachable" : a.status());
             return null;
         }
         if (!notMe) return "Done. You won't get link codes by DM for 90 days.";
