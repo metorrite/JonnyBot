@@ -42,6 +42,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -154,7 +155,8 @@ class SiteApiTenantDatabaseTest {
         links.saveSkillSnapshot(after, List.of(new SkillValue(0, 99, 200_000_000, 4)));
         String date = RUNEMETRICS.format(now.minusHours(2).atZoneSameInstant(ZoneId.of("Europe/London")));
         links.saveActivities(rsn, List.of(new PlayerActivity(date, "Capped at my Clan Citadel.", "x"), new PlayerActivity(date, "I killed 5 General Graardors.", "x"),
-                new PlayerActivity(date, "I found a Bandos hilt.", "x"), new PlayerActivity(date, "Levelled up Attack.", "x")));
+                new PlayerActivity(date, "I found a Bandos hilt.", "x"), new PlayerActivity(date, "Levelled up Attack.", "x"),
+                new PlayerActivity(date, "Quest complete: Desperate Measures", "x"), new PlayerActivity(date, "I found Shrimpy, the Fishing pet.", "x")));
         sql("INSERT INTO younglings.clan_roster_event (guild_id, rsn, event_type, event_at) VALUES (?, ?, 'JOIN', NOW() - INTERVAL '3 days')", guildId, rsn);
         sql("INSERT INTO younglings.coffer_donation (guild_id, donor_name, amount, submitted_by_discord_id) VALUES (?, ?, 1000000, ?)", guildId, rsn, userId);
     }
@@ -276,6 +278,22 @@ class SiteApiTenantDatabaseTest {
         assertNull(api.tenant(guildA, "member/skill", exchange("rsn=" + HIDDEN + "&skill=0")), "hidden from the rankings");
         assertNull(api.tenant(guildA, "member/skill", exchange("rsn=" + OTHER + "&skill=0")), "not in this clan");
         assertNull(api.tenant(guildB, "member/skill", exchange("rsn=" + SHOWN + "&skill=0")), "the same name asked of the other server");
+    }
+
+    @Test
+    void theRecapCarriesTheStoryTreesDataStreamsWithoutHiddenMembers() {
+        DataObject recap = call(guildA, "recap");
+        DataObject activity = recap.getObject("activity");
+        assertEquals("Attack", activity.getArray("levelUpSkills").getObject(0).getString("skill"), "T-653: level-ups by skill");
+        assertTrue(activity.getArray("questNames").toList().contains("Desperate Measures"));
+        assertTrue(activity.getLong("pets") >= 1);
+        assertEquals(1, recap.getObject("xp").getLong("skillsTrained"), "one skill gained XP");
+        assertTrue(recap.hasKey("previous"), "the window before, for growth");
+        DataArray levelers = recap.getArray("topLevelers");
+        for (int i = 0; i < levelers.length(); i++) assertNotEquals(HIDDEN, levelers.getObject(i).getString("rsn"), "a hidden member is never named");
+        DataObject mine = api.tenant(guildA, "member/recap", exchange("rsn=" + SHOWN + "&period=last-30d"));
+        assertEquals("Attack", mine.getObject("activity").getArray("levelUpSkills").getObject(0).getString("skill"));
+        assertTrue(mine.hasKey("previous"));
     }
 
     @Test
