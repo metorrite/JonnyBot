@@ -12,14 +12,23 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 @BService
 public class RolePanelRepository {
     private static final Logger log = LoggerFactory.getLogger(RolePanelRepository.class);
 
     private final ConnectionSupplier connectionSupplier;
+    /**
+     * Per server, the message ids that carry a reactions-style panel, so a reaction on any other message (nearly all of them) needs no query.
+     * Filled through computeIfAbsent and dropped after every write to the server's panels, so a read that races a write can't leave an old set
+     * behind (the drop waits for the read to finish).
+     */
+    private final ConcurrentHashMap<Long, Set<Long>> reactionMessages = new ConcurrentHashMap<>();
 
     public RolePanelRepository(ConnectionSupplier connectionSupplier) {
         this.connectionSupplier = connectionSupplier;
@@ -89,6 +98,14 @@ public class RolePanelRepository {
 
     /** Creates the panel when its id is null, otherwise replaces its text and buttons (leaving where it is posted alone). Returns the saved panel. */
     public RolePanel save(RolePanel panel) {
+        try {
+            return saveRow(panel);
+        } finally {
+            reactionMessages.remove(panel.guildId());
+        }
+    }
+
+    private RolePanel saveRow(RolePanel panel) {
         try (Connection c = connectionSupplier.getConnection()) {
             c.setAutoCommit(false);
             try {
@@ -155,7 +172,36 @@ public class RolePanelRepository {
         }
     }
 
-    /** The panel whose message this is, or empty. Indexed, so cheap enough to ask for every reaction. */
+    /**
+     * False when no reactions-style panel sits on this message, so a reaction there can't be for a panel and {@link #byMessage} need not be asked.
+     * True means one does (ask {@link #byMessage} as before). Read from a per-server set of message ids, loaded once and dropped on every write.
+     */
+    public boolean mayHaveReactionPanel(long guildId, long messageId) {
+        return reactionMessages.computeIfAbsent(guildId, this::loadReactionMessages).contains(messageId);
+    }
+
+    /** Forgets a server's cached panel messages, for when its rows are deleted outside this class (the retention purge). */
+    public void evict(long guildId) {
+        reactionMessages.remove(guildId);
+    }
+
+    private Set<Long> loadReactionMessages(long guildId) {
+        Set<Long> ids = new HashSet<>();
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("SELECT message_id FROM younglings.role_panel WHERE guild_id = ? AND style = ? AND message_id IS NOT NULL")) {
+            s.setLong(1, guildId);
+            s.setString(2, RolePanel.Style.REACTIONS.name());
+            try (ResultSet rs = s.executeQuery()) {
+                while (rs.next()) ids.add(rs.getLong(1));
+            }
+            return Set.copyOf(ids);
+        } catch (SQLException e) {
+            log.error("Failed to list the reaction panel messages of guild {}", guildId, e);
+            throw new RuntimeException("Failed to read the role panels", e);
+        }
+    }
+
+    /** The panel whose message this is, or empty. Indexed; the reaction listener asks {@link #mayHaveReactionPanel} first. */
     public Optional<RolePanel> byMessage(long guildId, long messageId) {
         try (Connection c = connectionSupplier.getConnection();
              PreparedStatement s = c.prepareStatement("SELECT * FROM younglings.role_panel WHERE guild_id = ? AND message_id = ?")) {
@@ -179,6 +225,8 @@ public class RolePanelRepository {
         } catch (SQLException e) {
             log.error("Failed to delete role panel {}", id, e);
             throw new RuntimeException("Failed to delete the role panel", e);
+        } finally {
+            reactionMessages.remove(guildId);
         }
     }
 
@@ -199,6 +247,8 @@ public class RolePanelRepository {
         } catch (SQLException e) {
             log.error("Failed to record where role panel {} is posted", id, e);
             throw new RuntimeException("Failed to record the posted panel", e);
+        } finally {
+            reactionMessages.remove(guildId);
         }
     }
 
