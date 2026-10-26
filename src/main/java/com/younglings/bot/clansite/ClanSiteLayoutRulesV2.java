@@ -306,6 +306,9 @@ public final class ClanSiteLayoutRulesV2 {
         out.put("background", background(section.optObject("background").orElse(null), label, problems));
         out.put("padding", responsive(section, "padding", DataObject.empty().put("y", "md").put("x", "none"), ClanSiteLayoutRulesV2::padding,
                 label + " has a section with unknown spacing.", problems));
+        // T-518: a section's own space between its rows (missing: the renderer's L)
+        if (section.hasKey("gap") && !section.isNull("gap"))
+            out.put("gap", responsive(section, "gap", "lg", ClanSiteLayoutRulesV2::space, label + " has a section with unknown spacing between its rows.", problems));
         out.put("height", responsive(section, "height", auto(), (h, k) -> height(h, k, true), label + " has a section with an impossible height.", problems));
         hide(section, out, label, problems);
         if (section.hasKey("anchor") && !section.isNull("anchor")) {
