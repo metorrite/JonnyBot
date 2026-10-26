@@ -112,6 +112,7 @@ class AutoPostRouterTest {
         assertTrue(notice.getString("body").contains("only written to the log"));
         AutoPostRouter.install(() -> true, DEV);
         assertTrue(com.younglings.bot.internal.OverviewAdminApi.devModeNotice().getString("body").contains("one test channel without pings"));
+        assertTrue(com.younglings.bot.internal.OverviewAdminApi.devModeNotice().getString("body").contains("auto-clean, delayed autoroles")); // T-187
     }
 
     @Test
