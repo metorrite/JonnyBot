@@ -554,6 +554,27 @@ class ClanSiteLayoutRulesV2Test {
     }
 
     @Test
+    void sectionSpaceBelow() {
+        // T-518: a section's own space under its content
+        DataObject look = good();
+        look.getArray("pages").getObject(0).getArray("sections").getObject(0)
+                .put("padding", DataObject.empty().put("lg", DataObject.empty().put("y", "md").put("x", "none").put("bottom", "none")));
+        assertTrue(problems(look).isEmpty(), problems(look).toString());
+        DataObject clean = DataObject.fromJson(ClanSiteLayoutRulesV2.clean(look, ClanSiteLayoutRulesV2.Limits.PREMIUM, new ArrayList<>()));
+        DataObject padding = clean.getArray("pages").getObject(0).getArray("sections").getObject(0).getObject("padding").getObject("lg");
+        assertEquals("none", padding.getString("bottom"));
+        assertEquals("md", padding.getString("y"));
+
+        DataObject plain = DataObject.fromJson(ClanSiteLayoutRulesV2.clean(good(), ClanSiteLayoutRulesV2.Limits.PREMIUM, new ArrayList<>()));
+        assertFalse(plain.getArray("pages").getObject(0).getArray("sections").getObject(0).getObject("padding").getObject("lg").hasKey("bottom"));
+
+        DataObject bad = good();
+        bad.getArray("pages").getObject(0).getArray("sections").getObject(0)
+                .put("padding", DataObject.empty().put("lg", DataObject.empty().put("y", "md").put("x", "none").put("bottom", "huge")));
+        assertTrue(has(problems(bad), "section with unknown spacing"));
+    }
+
+    @Test
     void sectionRowSpacing() {
         // T-518: a section's own space between its rows
         DataObject look = good();

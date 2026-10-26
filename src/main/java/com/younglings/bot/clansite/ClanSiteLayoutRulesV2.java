@@ -777,7 +777,15 @@ public final class ClanSiteLayoutRulesV2 {
         DataObject p = holder.getObject(key);
         Object y = space(p, "y");
         Object x = space(p, "x");
-        return y == null || x == null ? null : DataObject.empty().put("y", y).put("x", x);
+        if (y == null || x == null) return null;
+        DataObject out = DataObject.empty().put("y", y).put("x", x);
+        // T-518: an optional space below the content when it differs from the space above
+        if (p.hasKey("bottom") && !p.isNull("bottom")) {
+            Object bottom = space(p, "bottom");
+            if (bottom == null) return null;
+            out.put("bottom", bottom);
+        }
+        return out;
     }
 
     private static Object span(DataObject holder, String key) {
