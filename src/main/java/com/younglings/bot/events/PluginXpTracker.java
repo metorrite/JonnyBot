@@ -38,6 +38,11 @@ import java.util.concurrent.TimeUnit;
  * Players the hub can't count (no RuneSync, no XP shared with this bot, or no identity grant to match them by) score nothing and are listed by
  * {@link #notCounted} for the event page. Runs only while the bot talks to the hub ({@code RUNECLANS_HUB_ENABLED}); otherwise the option is not
  * even offered.
+ * <p>
+ * Auto competitions ({@code xpSource = auto}, T-557) are read here too, but only for the players the hub counts and {@link EventTracker} doesn't
+ * already own; the others are RuneMetrics' ({@link #runeSyncPlayers} tells it which to leave alone). {@link EventTracker} still reads RuneMetrics
+ * for the RuneSync players and reports their gain to {@link #check}: a large disagreement is listed for organisers ({@link #disagreements}),
+ * never corrected on its own.
  */
 @BService
 public class PluginXpTracker {
@@ -51,6 +56,9 @@ public class PluginXpTracker {
     /** Who in one competition scored nothing on the last pass, and when that was. */
     public record NotCounted(Set<Long> userIds, Instant checkedAt) {}
 
+    /** A RuneSync-counted player whose RuneMetrics gain disagrees with RuneSync's ({@link CompetitionTracking#disagrees}). */
+    public record Disagreement(long userId, long runeSyncXp, long runeMetricsXp, Instant checkedAt) {}
+
     private record CachedAlias(Optional<String> alias, Instant until) {}
 
     private final EventRepository repository;
@@ -59,6 +67,10 @@ public class PluginXpTracker {
     private final ScheduledExecutorService executor = BotScheduler.lane("plugin-xp-tracker");
     private final Map<Long, CachedAlias> aliases = new ConcurrentHashMap<>();
     private final Map<Long, NotCounted> notCounted = new ConcurrentHashMap<>();
+    /** Auto competitions: the players this tracker counts (eventId → userIds), so {@link EventTracker} leaves them alone. */
+    private final Map<Long, Set<Long>> runeSyncPlayers = new ConcurrentHashMap<>();
+    /** Auto competitions: eventId → userId → the latest disagreement. */
+    private final Map<Long, Map<Long, Disagreement>> disagreements = new ConcurrentHashMap<>();
     private Clock clock = Clock.systemUTC();
 
     public PluginXpTracker(EventRepository repository, EventService service, RuneClansHubClient hub) {
@@ -85,7 +97,31 @@ public class PluginXpTracker {
         return Optional.ofNullable(notCounted.get(eventId));
     }
 
-    /** Every running competition counted from RuneSync, including clan-vs-clan events whose clans play one. */
+    /** In an auto competition, the players counted from RuneSync on the last pass (and those it already owns); empty for other events. */
+    public Set<Long> runeSyncPlayers(long eventId) {
+        return runeSyncPlayers.getOrDefault(eventId, Set.of());
+    }
+
+    /** In an auto competition, the RuneSync players whose RuneMetrics gain disagrees with RuneSync's, by user id. */
+    public List<Disagreement> disagreements(long eventId) {
+        return List.copyOf(disagreements.getOrDefault(eventId, Map.of()).values());
+    }
+
+    /**
+     * From {@link EventTracker}: a RuneSync player's RuneMetrics gain in an auto competition, compared with what RuneSync counted. A disagreement
+     * is kept (and logged once) until the numbers agree again.
+     */
+    public void check(long eventId, long userId, long runeSyncXp, long runeMetricsXp) {
+        Map<Long, Disagreement> forEvent = disagreements.computeIfAbsent(eventId, k -> new ConcurrentHashMap<>());
+        if (CompetitionTracking.disagrees(runeSyncXp, runeMetricsXp)) {
+            Disagreement before = forEvent.put(userId, new Disagreement(userId, runeSyncXp, runeMetricsXp, clock.instant()));
+            if (before == null) log.info("Competition {}: RuneSync and RuneMetrics disagree for a player ({} vs {} XP)", eventId, runeSyncXp, runeMetricsXp);
+        } else {
+            forEvent.remove(userId);
+        }
+    }
+
+    /** Every running competition counted from RuneSync (or auto), including clan-vs-clan events whose clans play one. */
     private List<Event> competitions() {
         List<Event> all = new ArrayList<>();
         for (Event e : repository.runningEvents(CompetitionTemplate.KEY)) if (fromPlugin(e)) all.add(e);
@@ -95,7 +131,7 @@ public class PluginXpTracker {
 
     private static boolean fromPlugin(Event e) {
         try {
-            return CompetitionTemplate.countsFromPlugin(DataObject.fromJson(e.config()));
+            return CompetitionTemplate.readsPlugin(DataObject.fromJson(e.config()));
         } catch (RuntimeException ex) {
             return false;
         }
@@ -115,6 +151,8 @@ public class PluginXpTracker {
                 }
             }
             notCounted.keySet().retainAll(ids);
+            runeSyncPlayers.keySet().retainAll(ids);
+            disagreements.keySet().retainAll(ids);
         } catch (RuntimeException e) {
             log.warn("The RuneSync competition sweep failed", e);
         }
@@ -123,16 +161,20 @@ public class PluginXpTracker {
     /** Brings one competition up to date from the hub. Returns how many players got new progress. */
     public int feed(Event event) {
         DataObject settings = DataObject.fromJson(event.config());
+        boolean auto = CompetitionTemplate.countsAuto(settings);
         int skill = CompetitionTemplate.skillOf(settings);
         Integer skillId = skill == CompetitionTemplate.OVERALL ? null : skill;
         Instant now = clock.instant();
         Instant started = repository.startedAt(event.id()).orElse(event.startsAt() == null ? now : event.startsAt());
+        List<EventRepository.Progress> progress = repository.progress(event.id());
+        Map<Long, CompetitionTracking.Counter> owners = auto ? CompetitionTracking.owners(progress) : Map.of();
 
         Set<Long> missing = new LinkedHashSet<>();
         // players by alias, grouped by when they started counting: one hub call per group (nearly always one)
         Map<Instant, Map<String, Participant>> groups = new LinkedHashMap<>();
         for (Participant p : repository.participants(event.id())) {
             if (p.waiting()) continue;
+            if (owners.get(p.userId()) == CompetitionTracking.Counter.RUNEMETRICS) continue; // auto: RuneMetrics counted them first
             Optional<String> alias = alias(p.userId(), now);
             if (alias.isEmpty()) {
                 missing.add(p.userId());
@@ -142,7 +184,7 @@ public class PluginXpTracker {
         }
 
         Map<Long, Long> counted = new HashMap<>();
-        for (EventRepository.Progress p : repository.progress(event.id())) {
+        for (EventRepository.Progress p : progress) {
             if (p.source() == Source.IMPORT && p.objectiveKey().equals(CompetitionTemplate.OBJECTIVE_KEY)) counted.merge(p.userId(), p.amount(), Long::sum);
         }
         int updated = 0;
@@ -169,7 +211,17 @@ public class PluginXpTracker {
                 for (String alias : part) if (!seen.contains(alias)) missing.add(group.getValue().get(alias).userId());
             }
         }
-        notCounted.put(event.id(), new NotCounted(Set.copyOf(missing), now));
+        if (auto) {
+            // the hub's players are RuneSync's; whoever it can't count is left to RuneMetrics, so nobody is "not counted"
+            Set<Long> mine = new LinkedHashSet<>();
+            for (Map<String, Participant> group : groups.values()) for (Participant p : group.values()) if (!missing.contains(p.userId())) mine.add(p.userId());
+            owners.forEach((user, counter) -> {
+                if (counter == CompetitionTracking.Counter.RUNESYNC) mine.add(user);
+            });
+            runeSyncPlayers.put(event.id(), Set.copyOf(mine));
+        } else {
+            notCounted.put(event.id(), new NotCounted(Set.copyOf(missing), now));
+        }
         return updated;
     }
 

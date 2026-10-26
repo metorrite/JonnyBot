@@ -711,6 +711,7 @@ public class EventsAdminApi implements AdminRouteExtension {
         DataObject answer = DataObject.empty().put("scoringMode", event.scoringMode().name()).put("standings", array);
         if (ClanVsClan.is(event.template())) answer.put("clanVsClan", clanVsClanJson(guild, event));
         if (pluginXp != null) pluginXp.notCounted(id).ifPresent(n -> answer.put("pluginXp", pluginXpJson(guild, n)));
+        if (pluginXp != null && com.younglings.bot.events.CompetitionTemplate.countsAuto(DataObject.fromJson(event.config()))) answer.put("autoXp", autoXpJson(guild, id));
         return answer;
     }
 
@@ -719,6 +720,20 @@ public class EventsAdminApi implements AdminRouteExtension {
         DataArray list = DataArray.empty();
         n.userIds().stream().sorted().forEach(u -> list.add(DataObject.empty().put("userId", Long.toString(u)).put("name", name(guild, u))));
         return DataObject.empty().put("notCounted", list).put("checkedAt", n.checkedAt().toString());
+    }
+
+    /**
+     * An auto competition (T-557): who is counted from RuneSync (everyone else is from RuneMetrics), and the RuneSync players whose RuneMetrics
+     * gain disagrees, for the organiser to look at. Nothing is corrected on its own.
+     */
+    private DataObject autoXpJson(Guild guild, long id) {
+        DataArray runeSync = DataArray.empty();
+        pluginXp.runeSyncPlayers(id).stream().sorted().forEach(u -> runeSync.add(DataObject.empty().put("userId", Long.toString(u)).put("name", name(guild, u))));
+        DataArray disagree = DataArray.empty();
+        pluginXp.disagreements(id).stream().sorted(java.util.Comparator.comparingLong(com.younglings.bot.events.PluginXpTracker.Disagreement::userId))
+                .forEach(d -> disagree.add(DataObject.empty().put("userId", Long.toString(d.userId())).put("name", name(guild, d.userId()))
+                        .put("runeSyncXp", d.runeSyncXp()).put("runeMetricsXp", d.runeMetricsXp()).put("checkedAt", d.checkedAt().toString())));
+        return DataObject.empty().put("runeSync", runeSync).put("disagreements", disagree);
     }
 
     /** A clan-vs-clan event's scoring, and what each player earned for their clan (T-222), best first within each clan. */

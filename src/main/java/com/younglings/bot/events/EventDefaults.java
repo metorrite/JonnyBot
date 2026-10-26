@@ -17,7 +17,7 @@ import java.util.Map;
  * @param look       a {@link BingoLooks} id, or null
  * @param gate       an {@link EventRoster.Gate} name, or null
  * @param setupMode  {@code STANDARD} or {@code OFF}, or null
- * @param xpSource   where new competitions count XP from ({@link CompetitionTemplate#SOURCE_PLUGIN} or {@code runemetrics}), or null. Kept with the
+ * @param xpSource   where new competitions count XP from ({@link CompetitionTemplate#SOURCE_PLUGIN}, {@link CompetitionTemplate#SOURCE_AUTO} or {@code runemetrics}), or null. Kept with the
  *                   clan's plugin settings (the dashboard's Clan plugin page, T-537), not with the rest of these, and laid over only while the plugin
  *                   source is offered
  */
