@@ -19,6 +19,17 @@ class ActivityKindsTest {
     }
 
     @Test
+    void theRecapsDetailsComeFromTheSameLines() {
+        assertEquals("Cooking", ActivityKinds.levelUpSkill("Levelled up Cooking.").orElseThrow());
+        assertEquals("Heralds of Crimson", ActivityKinds.questName("Quest complete: Heralds of Crimson").orElseThrow());
+        assertEquals("Necromancy", ActivityKinds.milestone("200000000XP in Necromancy").orElseThrow().skill());
+        assertEquals(50_000_000L, ActivityKinds.milestone("50,000,000XP in Fishing").orElseThrow().xp());
+        assertEquals("Shrimpy", ActivityKinds.petName("I found Shrimpy, the Fishing pet.").orElseThrow());
+        assertTrue(ActivityKinds.levelUpSkill("I killed 12 Amascuts.").isEmpty());
+        assertTrue(ActivityKinds.questName("Levelled up Cooking.").isEmpty());
+    }
+
+    @Test
     void killLinesGiveTheBossAndCount() {
         assertEquals("Vorago", ActivityKinds.bossOf("I killed  Vorago.").orElseThrow());
         assertEquals(1, ActivityKinds.killCount("I killed  Vorago."));

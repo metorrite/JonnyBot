@@ -112,18 +112,32 @@ public class RecapService {
 
     /** What the adventure-log lines in the window add up to. */
     private static final class Tally {
-        long bossKills, drops, levelUps, quests, caps, xpMilestones, twoHundredM;
+        long bossKills, drops, levelUps, quests, caps, xpMilestones, twoHundredM, pets, clues, challenges, visits;
         final Map<String, Long> bosses = new HashMap<>();
         final Map<String, Long> killers = new HashMap<>();
         final Map<String, Long> dropItems = new HashMap<>();
         final Set<String> capWeeks = new java.util.HashSet<>();
+        // T-653: what the website's story tree picks its slices from
+        final Map<String, Long> levelUpSkills = new HashMap<>();
+        final Map<String, Long> milestoneSkills = new HashMap<>();
+        final Map<String, Long> levelers = new HashMap<>();
+        final Map<String, Long> questers = new HashMap<>();
+        final Set<String> questNames = new java.util.LinkedHashSet<>();
+        final Set<String> petNames = new java.util.LinkedHashSet<>();
+        final long[] byHour = new long[24];
+        long lines;
     }
 
     private static Tally tally(List<ActivityRow> rows, Set<String> hidden) {
         Tally t = new Tally();
         for (ActivityRow row : rows) {
             if (hidden.contains(row.rsn().toLowerCase())) continue;
-            switch (ActivityKinds.kindOf(row.text())) {
+            Kind kind = ActivityKinds.kindOf(row.text());
+            if (kind != Kind.OTHER && row.recordedAt() != null) {
+                t.byHour[row.recordedAt().withOffsetSameInstant(ZoneOffset.UTC).getHour()]++;
+                t.lines++;
+            }
+            switch (kind) {
                 case BOSS -> {
                     int kills = ActivityKinds.killCount(row.text());
                     t.bossKills += kills;
@@ -134,20 +148,46 @@ public class RecapService {
                     t.drops++;
                     ActivityKinds.dropOf(row.text()).ifPresent(d -> t.dropItems.merge(d, 1L, Long::sum));
                 }
-                case LEVEL_UP -> t.levelUps++;
-                case QUEST -> t.quests++;
+                case LEVEL_UP -> {
+                    t.levelUps++;
+                    t.levelers.merge(row.rsn(), 1L, Long::sum);
+                    ActivityKinds.levelUpSkill(row.text()).ifPresent(s -> t.levelUpSkills.merge(s, 1L, Long::sum));
+                }
+                case QUEST -> {
+                    t.quests++;
+                    t.questers.merge(row.rsn(), 1L, Long::sum);
+                    ActivityKinds.questName(row.text()).ifPresent(t.questNames::add);
+                }
                 case XP_MILESTONE -> {
                     t.xpMilestones++;
                     if (row.text().startsWith("200000000")) t.twoHundredM++;
+                    ActivityKinds.milestone(row.text()).ifPresent(m -> t.milestoneSkills.merge(m.skill(), m.xp(), Math::max));
                 }
+                case PET -> {
+                    t.pets++;
+                    ActivityKinds.petName(row.text()).ifPresent(t.petNames::add);
+                }
+                case CLUE -> t.clues++;
+                case CHALLENGE -> t.challenges++;
+                case CITADEL_VISIT -> t.visits++;
                 case CITADEL_CAP -> {
                     t.caps++;
                     t.capWeeks.add(row.rsn().toLowerCase() + "|" + RecapPeriod.citadelWeekStart(row.recordedAt().withOffsetSameInstant(ZoneOffset.UTC).toLocalDate()));
                 }
-                default -> { /* visits, clues, pets and the rest aren't part of the recap */ }
+                default -> { /* the rest isn't part of the recap */ }
             }
         }
         return t;
+    }
+
+    /** A per-member tally without the members who left the rankings. */
+    private static Map<String, Long> shown(Map<String, Long> perMember, Set<String> hiddenBoards) {
+        return perMember.entrySet().stream().filter(e -> !hiddenBoards.contains(e.getKey().toLowerCase()))
+                .collect(java.util.stream.Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    private static long trained(List<SiteStatsRepository.SkillGain> gains) {
+        return gains.stream().filter(g -> g.xp() > 0).count();
     }
 
     private static DataArray topMap(Map<String, Long> map, String nameKey, String valueKey, int limit) {
@@ -163,7 +203,34 @@ public class RecapService {
                 .put("bossKills", t.bossKills).put("topBosses", topMap(t.bosses, "boss", "kills", 5))
                 .put("drops", t.drops).put("topDrops", topMap(t.dropItems, "item", "count", 5))
                 .put("levelUps", t.levelUps).put("quests", t.quests).put("xpMilestones", t.xpMilestones).put("twoHundredM", t.twoHundredM)
-                .put("caps", t.caps);
+                .put("caps", t.caps)
+                .put("pets", t.pets).put("petNames", firstOf(t.petNames, 5)).put("clues", t.clues).put("challenges", t.challenges)
+                .put("citadelVisits", t.visits)
+                .put("levelUpSkills", topMap(t.levelUpSkills, "skill", "count", 5))
+                .put("questNames", firstOf(t.questNames, 12))
+                .put("milestoneSkills", topMap(t.milestoneSkills, "skill", "xp", 3))
+                // the hours only once there are enough lines to say anything
+                .put("byHour", t.lines < 10 ? null : DataArray.fromCollection(java.util.Arrays.stream(t.byHour).boxed().toList()));
+    }
+
+    private static DataArray firstOf(Set<String> names, int limit) {
+        return DataArray.fromCollection(names.stream().limit(limit).toList());
+    }
+
+    /** The window of the same length just before this one, or null for all time (there is nothing before it). */
+    private static OffsetDateTime[] previousWindow(RecapPeriod period) {
+        if ("all".equals(period.token())) return null;
+        java.time.Duration length = java.time.Duration.between(period.from(), period.to());
+        return new OffsetDateTime[] {period.from().minus(length), period.from()};
+    }
+
+    /** XP gained in the window before (one member's, or the clan's when {@code rsn} is null). */
+    private DataObject previousJson(long guildId, String rsn, RecapPeriod period) {
+        OffsetDateTime[] before = previousWindow(period);
+        if (before == null) return null;
+        long xp = stats.xpGainsBetween(guildId, before[0], before[1]).stream()
+                .filter(g -> rsn == null || g.rsn().equalsIgnoreCase(rsn)).mapToLong(Gain::xp).filter(x -> x > 0).sum();
+        return DataObject.empty().put("xp", xp);
     }
 
     private static DataArray gainersJson(List<Gain> gains, int limit) {
@@ -204,16 +271,19 @@ public class RecapService {
 
         long points = stats.pointsBetween(guildId, null, period.from(), period.to()).stream().mapToLong(SiteStatsRepository.PointsEarned::points).sum();
 
-        DataArray killers = topMap(tally.killers.entrySet().stream().filter(e -> !hiddenBoards.contains(e.getKey().toLowerCase()))
-                .collect(java.util.stream.Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)), "rsn", "kills", 5);
+        DataArray killers = topMap(shown(tally.killers, hiddenBoards), "rsn", "kills", 5);
+        List<SiteStatsRepository.SkillGain> clanSkills = stats.skillGainsBetween(guildId, null, period.from(), period.to());
 
         return DataObject.empty()
                 .put("scope", "clan").put("period", periodJson(period))
                 .put("subject", DataObject.empty().put("name", settings.getEffective(guildId).clanName() == null ? "The clan" : settings.getEffective(guildId).clanName())
                         .put("memberCount", stats.members(guildId).size()))
-                .put("xp", xpJson(totalXp, stats.dailyXpBetween(guildId, null, period.from(), period.to()), period))
-                .put("skills", skillsJson(stats.skillGainsBetween(guildId, null, period.from(), period.to()), 8))
+                .put("xp", xpJson(totalXp, stats.dailyXpBetween(guildId, null, period.from(), period.to()), period).put("skillsTrained", trained(clanSkills)))
+                .put("skills", skillsJson(clanSkills, 8))
+                .put("previous", previousJson(guildId, null, period))
                 .put("topGainers", gainersJson(ranked, 5))
+                .put("topLevelers", topMap(shown(tally.levelers, hiddenBoards), "rsn", "levelUps", 5))
+                .put("topQuesters", topMap(shown(tally.questers, hiddenBoards), "rsn", "quests", 5))
                 .put("activeMembers", allGains.stream().filter(g -> g.xp() > 0).count())
                 .put("activity", activityJson(tally, false))
                 .put("citadel", DataObject.empty().put("capsRecorded", tally.caps).put("capWeeks", capWeeksCount).put("topCappers", cappers))
@@ -241,6 +311,7 @@ public class RecapService {
         Tally tally = logHidden ? new Tally() : tally(stats.activitiesBetween(guildId, member.rsn(), period.from(), period.to()), Set.of());
 
         Integer[] levels = stats.totalLevelsBetween(guildId, member.rsn(), period.from(), period.to());
+        List<SiteStatsRepository.SkillGain> mySkills = stats.skillGainsBetween(guildId, member.rsn(), period.from(), period.to());
         long points = stats.pointsBetween(guildId, member.rsn(), period.from(), period.to()).stream().mapToLong(SiteStatsRepository.PointsEarned::points).sum();
 
         // Longest run of consecutive Citadel weeks capped inside the window.
@@ -259,8 +330,9 @@ public class RecapService {
                 .put("scope", "member").put("period", periodJson(period))
                 .put("subject", DataObject.empty().put("name", member.rsn()).put("rank", member.clanRank()).put("joined", (member.clanJoinedAt() != null ? member.clanJoinedAt() : member.firstSeen().toLocalDate()).toString())
                         .put("totalLevel", member.totalLevel()).put("totalXp", member.totalXp()))
-                .put("xp", xpJson(mine, stats.dailyXpBetween(guildId, member.rsn(), period.from(), period.to()), period))
-                .put("skills", skillsJson(stats.skillGainsBetween(guildId, member.rsn(), period.from(), period.to()), 8))
+                .put("xp", xpJson(mine, stats.dailyXpBetween(guildId, member.rsn(), period.from(), period.to()), period).put("skillsTrained", trained(mySkills)))
+                .put("skills", skillsJson(mySkills, 8))
+                .put("previous", previousJson(guildId, member.rsn(), period))
                 .put("levels", DataObject.empty().put("start", levels[0]).put("end", levels[1]).put("gained", levels[0] == null || levels[1] == null ? null : Math.max(0, levels[1] - levels[0])))
                 .put("ranking", ranking)
                 .put("activity", activityJson(tally, logHidden))
