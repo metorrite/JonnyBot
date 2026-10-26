@@ -1,5 +1,6 @@
 package com.younglings.bot.rsnlink;
 
+import com.younglings.bot.config.EnvAliases;
 import org.junit.jupiter.api.Assumptions;
 
 import java.net.URI;
@@ -17,7 +18,7 @@ import java.util.Map;
 
 /**
  * Test helpers for the link service. Keys are drawn at random for every run, so no key-shaped value is ever written in the repository.
- * The database is a local or CI Postgres only: {@code JONNYBOT_TEST_LINK_DATABASE_URL}, else CI's {@code STARTUP_CHECK_DATABASE_URL};
+ * The database is a local or CI Postgres only: {@code RUNECLAN_BOT_TEST_LINK_DATABASE_URL} (old name {@code JONNYBOT_TEST_LINK_DATABASE_URL}), else CI's {@code STARTUP_CHECK_DATABASE_URL};
  * a test is skipped when neither is set. Tests use the schema {@code rsnlink_test}, dropped and made fresh each time, never {@code rsnlink}.
  */
 final class LinkTestSupport {
@@ -50,9 +51,9 @@ final class LinkTestSupport {
 
     /** The test database address, or the calling test is skipped. */
     static String databaseUrl() {
-        String url = System.getenv("JONNYBOT_TEST_LINK_DATABASE_URL");
+        String url = EnvAliases.get("RUNECLAN_BOT_TEST_LINK_DATABASE_URL", "JONNYBOT_TEST_LINK_DATABASE_URL");
         if (url == null || url.isBlank()) url = System.getenv("STARTUP_CHECK_DATABASE_URL");
-        Assumptions.assumeTrue(url != null && !url.isBlank(), "no link test database (set JONNYBOT_TEST_LINK_DATABASE_URL)");
+        Assumptions.assumeTrue(url != null && !url.isBlank(), "no link test database (set RUNECLAN_BOT_TEST_LINK_DATABASE_URL)");
         String host = URI.create(url.strip()).getHost();
         Assumptions.assumeTrue("127.0.0.1".equals(host) || "localhost".equals(host), "refusing a database that isn't local");
         return url.strip();

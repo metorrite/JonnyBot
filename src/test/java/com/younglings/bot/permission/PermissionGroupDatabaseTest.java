@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Runs the permission group SQL against a real Postgres. Skipped unless {@code JONNYBOT_TEST_DATABASE_URL} (or the older JDBC-form {@code JONNYBOT_TEST_DB_URL}) points at an <em>empty
+ * Runs the permission group SQL against a real Postgres. Skipped unless {@code RUNECLAN_BOT_TEST_DATABASE_URL} (or the older JDBC-form {@code RUNECLAN_BOT_TEST_DB_URL}; old names {@code JONNYBOT_*}) points at an <em>empty
  * scratch</em> database it may fill and wipe: never point it at a database that holds real data.
  */
 @EnabledIf("com.younglings.bot.testsupport.TestDatabaseUrl#configured")
