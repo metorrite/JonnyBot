@@ -509,6 +509,15 @@ public class BotConfig {
         return positiveNumber("PLUGIN_XP_SCALE", 1);
     }
 
+    /**
+     * Whether clans may pay points for the XP members gain each UTC day (T-542, the Clan plugin page's "Points for XP gained"), read from the RuneClans
+     * hub's XP ledger. Off by default; needs the hub client ({@code RUNECLANS_HUB_ENABLED}) too. Off, the rule isn't offered and nothing is paid.
+     */
+    public boolean getPluginXpPointsEnabled() {
+        String raw = envOrDotenv("PLUGIN_XP_POINTS_ENABLED");
+        return raw != null && raw.trim().equalsIgnoreCase("true");
+    }
+
     private long positiveMinutes(String name, long fallback) {
         return positiveNumber(name, fallback);
     }
