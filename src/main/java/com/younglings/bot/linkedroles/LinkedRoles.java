@@ -42,8 +42,12 @@ public class LinkedRoles {
     static final long PAUSE_MS = 1_000;
     static final int MAX_PER_TICK = 3_000;
 
-    /** What was shared with Discord, for the website's result page. {@code values} are the metadata exactly as sent. */
-    public record Shared(Profile profile, java.util.Map<String, String> values, Instant pushedAt) {}
+    /**
+     * What was shared with Discord, for the website's result page. {@code values} are the metadata exactly as sent. {@code unconfirmedRsLink}
+     * is the person's RS Link name when it isn't counted because the bot requires confirmed links and the hub hasn't confirmed it yet
+     * (T-552), else null.
+     */
+    public record Shared(Profile profile, java.util.Map<String, String> values, Instant pushedAt, String unconfirmedRsLink) {}
 
     /** Why a connect or push didn't happen, in words the website can show. */
     public static final class Problem extends Exception {
@@ -146,6 +150,11 @@ public class LinkedRoles {
         store.saveTokens(userId, box.seal(accessToken, userId), box.seal(refreshToken, userId), now.plusSeconds(Math.max(60, expiresInSeconds)), rs,
                 rs == null ? null : rsLinkSince == null ? now : rsLinkSince);
         Row row = store.find(userId).orElseThrow(() -> new Problem(500, "not_saved", "Something went wrong. Try again."));
+        if (settings.requireConfirmed()) {
+            // the website doesn't say whether the link is confirmed: ask the hub now rather than wait for the hourly pass
+            Optional<Map<Long, RsLinkSource.Current>> current = askRsLink(List.of(userId));
+            if (current.isPresent() && updateRsLink(userId, current.get().get(userId), now)) row = store.find(userId).orElse(row);
+        }
         return push(row, true).orElseThrow(() -> new Problem(502, "discord", "Discord didn't take the update. Try again in a minute."));
     }
 
@@ -155,7 +164,7 @@ public class LinkedRoles {
         Optional<Row> row = store.find(userId);
         if (row.isEmpty()) return Optional.empty();
         Profile p = profile(row.get());
-        return Optional.of(new Shared(p, RoleMetadata.values(p), row.get().lastPushedAt()));
+        return Optional.of(new Shared(p, RoleMetadata.values(p), row.get().lastPushedAt(), unconfirmed(row.get())));
     }
 
     /** Unlink: clear the values on Discord (the roles drop), revoke the token and forget it. True when there was something to forget. */
@@ -236,12 +245,13 @@ public class LinkedRoles {
         if (found.isEmpty()) return false;
         Row row = found.get();
         String rsn = current == null ? null : current.rsn();
+        boolean confirmed = current != null && current.confirmed();
         Instant since;
         if (rsn == null) since = null;
         else if (current.since() != null) since = current.since();
         else since = rsn.equals(row.rsLinkRsn()) && row.rsLinkSince() != null ? row.rsLinkSince() : now;
-        if (java.util.Objects.equals(rsn, row.rsLinkRsn()) && java.util.Objects.equals(since, row.rsLinkSince())) return false;
-        store.updateRsLink(userId, rsn, since);
+        if (java.util.Objects.equals(rsn, row.rsLinkRsn()) && java.util.Objects.equals(since, row.rsLinkSince()) && confirmed == row.rsLinkConfirmed()) return false;
+        store.updateRsLink(userId, rsn, since, confirmed);
         return true;
     }
 
@@ -274,7 +284,7 @@ public class LinkedRoles {
             }
             Instant at = clock.instant();
             store.markPushed(userId, RoleMetadata.fingerprint(p), at);
-            return Optional.of(new Shared(p, RoleMetadata.values(p), at));
+            return Optional.of(new Shared(p, RoleMetadata.values(p), at, unconfirmed(row)));
         } catch (Revoked e) {
             forget(userId, "Discord says the authorization is gone");
             return Optional.empty();
@@ -306,8 +316,19 @@ public class LinkedRoles {
         log.info("Linked Roles: forgot a person's tokens: {}", why);
     }
 
+    /** With {@code LINKED_ROLES_REQUIRE_CONFIRMED}, an RS Link name counts only once the hub has confirmed it (T-552). */
     private Profile profile(Row row) {
-        return store.profile(row.discordUserId(), row.rsLinkRsn(), row.rsLinkSince(), listedClan);
+        String rsLink = settings.requireConfirmed() && !row.rsLinkConfirmed() ? null : row.rsLinkRsn();
+        return store.profile(row.discordUserId(), rsLink, rsLink == null ? null : row.rsLinkSince(), listedClan);
+    }
+
+    private String unconfirmed(Row row) {
+        return settings.requireConfirmed() && !row.rsLinkConfirmed() ? row.rsLinkRsn() : null;
+    }
+
+    /** Whether RS Link names count only once confirmed ({@code LINKED_ROLES_REQUIRE_CONFIRMED}). */
+    public boolean requireConfirmed() {
+        return settings.requireConfirmed();
     }
 
     private void requireOn() throws Problem {

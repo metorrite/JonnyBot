@@ -23,8 +23,15 @@ public interface RsLinkSource {
     /** The most people one call asks about (the hub's {@code POST /v1/link/active} limit). */
     int BATCH = 100;
 
-    /** One person's current RS Link name and when that link was made. */
-    record Current(String rsn, Instant since) {}
+    /**
+     * One person's current RS Link name, when that link was made, and whether the hub has confirmed it from public data (T-552: a level
+     * above {@code implicit}; an older hub that doesn't say counts as not confirmed).
+     */
+    record Current(String rsn, Instant since, boolean confirmed) {
+        public Current(String rsn, Instant since) {
+            this(rsn, since, false);
+        }
+    }
 
     /**
      * Each asked person's current link; a person with none is missing from the map. Empty when the answer isn't known (hub off, unreachable,
@@ -70,7 +77,9 @@ public interface RsLinkSource {
             } catch (DateTimeParseException e) {
                 // keep the name; "days linked" then counts from the first time it is seen
             }
-            out.put(id, new Current(rsn, since));
+            String level = l.getString("verification", "implicit");
+            boolean confirmed = level.equals("public_data_corroborated") || level.equals("jagex_signed");
+            out.put(id, new Current(rsn, since, confirmed));
         }
         return Optional.of(out);
     }
