@@ -93,6 +93,6 @@ Small fixes made directly under this ticket (website): the hub beta page no long
 | Ticket | What |
 |---|---|
 | T-229 | Bot: daily clan sync fetches each clan's roster once and polls each player once, shared by every server with that clan |
-| T-230 | Bot + website: RuneMetrics budget view in Super admin (requests per day per server/clan, queue lag) |
+| T-230 | Bot + website: RuneMetrics budget view in RuneClan Admin (requests per day per server/clan, queue lag) |
 | T-231 | Bot: automated second-server smoke test (fake guild join -> defaults -> nothing posted -> dashboard routes answer) |
 | T-232 | Bot + website: Presence intent optional (site hides the online list; health page shows which privileged intents are on) |

@@ -13,7 +13,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -22,7 +24,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * A site's connections over real SQL (N7): the one-time copy of the bot dashboard's Discord website settings, which never overwrites a later
- * edit; saving the Discord features; and connecting or disconnecting the server. Skipped without a local database.
+ * edit; saving the Discord features and the admin's yes for private channels; and connecting or disconnecting the server. Skipped without a
+ * local database.
  */
 class SiteConnectionStoreDatabaseTest {
     private static final long COPIED = Long.parseLong("9".repeat(17)) + 457;
@@ -52,7 +55,7 @@ class SiteConnectionStoreDatabaseTest {
 
     @AfterEach
     void cleanUp() throws Exception {
-        for (String table : new String[]{"site_connection", "site_connection_channel", "site_discord_setting", "site_news_channel"}) {
+        for (String table : new String[]{"site_connection", "site_connection_channel", "site_private_channel_ok", "site_discord_setting", "site_news_channel"}) {
             try (java.sql.Connection c = supplier.getConnection();
                  PreparedStatement s = c.prepareStatement("DELETE FROM younglings." + table + " WHERE guild_id IN (?, ?)")) {
                 s.setLong(1, COPIED);
@@ -104,6 +107,41 @@ class SiteConnectionStoreDatabaseTest {
         assertTrue(fresh.eventsEnabled());
         assertTrue(fresh.channels().isEmpty());
         assertFalse(fresh.copiedFromBot());
+    }
+
+    @Test
+    void theYesForAPrivateChannelLastsWhileItIsChosenAndKeepsWhoGaveIt() throws Exception {
+        SiteConnectionStore store = new SiteConnectionStore(supplier, discordSettings, news, SiteMappings.off(supplier));
+        Connection fresh = store.of(FRESH);
+        List<Channel> both = List.of(new Channel(CHANNEL, null, 0), new Channel(OTHER_CHANNEL, null, 1));
+        assertTrue(store.privateOk(FRESH).isEmpty());
+
+        store.saveFeatures(fresh.withFeatures(OnlineMode.OFF, 24, true, 5, true, both), ADMIN, Set.of(CHANNEL));
+        assertEquals(Set.of(CHANNEL), store.privateOk(FRESH));
+
+        // another admin saves other settings (no channel list): the yes stays, with who gave it
+        long other = ADMIN + 1;
+        store.saveFeatures(store.of(FRESH).withFeatures(OnlineMode.COUNT, 24, true, 5, true, both), other);
+        assertEquals(Set.of(CHANNEL), store.privateOk(FRESH));
+        // and saving the list again with the same yes keeps the first approver
+        store.saveFeatures(store.of(FRESH).withFeatures(OnlineMode.COUNT, 24, true, 5, true, both), other, Set.of(CHANNEL));
+        try (java.sql.Connection c = supplier.getConnection();
+             PreparedStatement s = c.prepareStatement("SELECT approved_by FROM younglings.site_private_channel_ok WHERE guild_id = ? AND channel_id = ?")) {
+            s.setLong(1, FRESH);
+            s.setLong(2, CHANNEL);
+            try (ResultSet rs = s.executeQuery()) {
+                assertTrue(rs.next());
+                assertEquals(ADMIN, rs.getLong(1));
+            }
+        }
+
+        // a yes for a channel that isn't chosen is never stored; dropping the channel drops its yes
+        store.saveFeatures(store.of(FRESH).withFeatures(OnlineMode.COUNT, 24, true, 5, true, List.of(new Channel(OTHER_CHANNEL, null, 0))), ADMIN,
+                Set.of(CHANNEL, OTHER_CHANNEL + 1));
+        assertTrue(store.privateOk(FRESH).isEmpty());
+        store.saveFeatures(store.of(FRESH).withFeatures(OnlineMode.COUNT, 24, true, 5, true, both), ADMIN, Set.of(OTHER_CHANNEL));
+        assertEquals(Set.of(OTHER_CHANNEL), store.privateOk(FRESH), "the yes has to be given again after a channel was dropped");
+        assertTrue(store.privateOk(COPIED).isEmpty(), "yeses are per site");
     }
 
     @Test

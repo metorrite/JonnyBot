@@ -99,7 +99,7 @@ public class OverallAdminApi {
                         .put("builtIn", admins.isBuiltIn(jda, actor)));
                 return;
             }
-            if (!admins.isOverallAdmin(jda, actor)) throw new ApiError(403, "Only RuneClans admins can use this.");
+            if (!admins.isOverallAdmin(jda, actor)) throw new ApiError(403, "Only RuneClan Admins can use this.");
             if (!method.equals("GET") && !writes.tryAcquire(Long.toString(actor))) throw new ApiError(429, "You're doing that too fast. Wait a moment and try again.");
             DataObject result = route(jda, actor, method, parts, body);
             if (result == null) {
@@ -107,7 +107,7 @@ public class OverallAdminApi {
                 return;
             }
             Long home = config.getGuildId();
-            if (!method.equals("GET") && home != null) auditStore.audit(home, Long.toString(actor), "RuneClans admin", method, "overall/" + route, 200);
+            if (!method.equals("GET") && home != null) auditStore.audit(home, Long.toString(actor), "RuneClan Admin", method, "overall/" + route, 200);
             InternalApiServer.sendJson(exchange, 200, result);
         } catch (ApiError e) {
             DataObject out = DataObject.empty().put("error", e.getMessage());
@@ -148,7 +148,7 @@ public class OverallAdminApi {
             return adminsJson(jda, actor);
         }
         if (rest.length != 1) return null;
-        if (!admins.isBuiltIn(jda, actor)) throw new ApiError(403, "Only the built-in RuneClans admin can add or remove admins.");
+        if (!admins.isBuiltIn(jda, actor)) throw new ApiError(403, "Only the built-in RuneClan Admin can add or remove admins.");
         long userId = userId(rest[0]);
         if (admins.isBuiltIn(jda, userId)) throw new ApiError(400, "That person is a built-in admin: they are always an admin and can't be added or removed.");
         if (method.equals("PUT")) {
@@ -158,7 +158,7 @@ public class OverallAdminApi {
             admins.put(userId, note, actor);
         } else {
             AdminRouteExtension.requireMethod(method, "DELETE");
-            if (!admins.remove(userId, actor)) throw new ApiError(404, "That person isn't an overall admin.");
+            if (!admins.remove(userId, actor)) throw new ApiError(404, "That person isn't a RuneClan Admin.");
         }
         // their site roles change with this, everywhere
         siteRoles.forgetAll();

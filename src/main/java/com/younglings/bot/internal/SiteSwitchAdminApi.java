@@ -18,7 +18,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 /**
- * The live site-access switches (JonnyBot website, clans hub, bot dashboard): open or close each gate from the website's Super admin area.
+ * The live site-access switches (JonnyBot website, clans hub, bot dashboard): open or close each gate from the RuneClan Admin console (runeclans.com/admin).
  * Reading and changing them is for the bot's owner only. The website's gates read the same state through {@link #states()} (served by the
  * directory API), and its environment variables stay the hard override. Reached only through {@link TicketAdminApi}, which has already
  * checked the asker and audit-logs every change.
@@ -52,7 +52,7 @@ public class SiteSwitchAdminApi implements AdminRouteExtension {
         return null;
     }
 
-    /** Every switch, for the Super admin page. */
+    /** Every switch, for the RuneClan Admin page. */
     DataObject list() {
         Map<String, Boolean> stored = repository.all();
         DataArray switches = DataArray.empty();
