@@ -1,5 +1,6 @@
 package com.younglings.bot.autorole;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.internal.MemberApi;
 import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -63,7 +64,7 @@ public class AutoroleService {
     void sweep(JDA jda) {
         try {
             for (AutoroleRepository.Pending due : repository.duePending(Instant.now(), 100)) {
-                Guild guild = jda.getGuildById(due.guildId());
+                Guild guild = Shards.guild(jda, due.guildId());
                 if (guild == null) {
                     repository.removePending(due.guildId(), due.userId());
                     continue;

@@ -1,5 +1,6 @@
 package com.younglings.bot.eventannounce;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.discord.Mentions;
 import com.younglings.bot.alerts.AutoPostRouter;
 import com.younglings.bot.eventannounce.EventAnnounceRepository.Tracked;
@@ -168,7 +169,7 @@ public class EventAnnounceService {
 
     /** The event ended or was cancelled (or deleted): show it so, take the button away and delete its role. */
     private void finish(long guildId, Tracked tracked, ScheduledEvent event, State state) {
-        Guild guild = jda == null ? null : jda.getGuildById(guildId);
+        Guild guild = jda == null ? null : Shards.guild(jda, guildId);
         if (guild != null && tracked.channelId() != null && tracked.messageId() != null) {
             GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, tracked.channelId());
             if (channel != null) {
@@ -204,7 +205,7 @@ public class EventAnnounceService {
             JDA jda = this.jda;
             if (jda == null) return;
             for (Tracked tracked : repository.open()) {
-                Guild guild = jda.getGuildById(tracked.guildId());
+                Guild guild = Shards.guild(jda, tracked.guildId());
                 if (guild == null) continue;
                 ScheduledEvent event = guild.getScheduledEventById(tracked.eventId());
                 if (event == null) {

@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.alliance.AllianceRepository;
 import com.younglings.bot.alliance.AllianceRules;
 import com.younglings.bot.events.CohostPanels;
@@ -338,7 +339,7 @@ public class EventCohostApi implements AdminRouteExtension {
     }
 
     private static String nameOf(Guild any, long guildId) {
-        Guild g = any.getJDA().getGuildById(guildId);
+        Guild g = Shards.guild(any.getJDA(), guildId);
         return g == null ? "A server the bot has left" : g.getName();
     }
 

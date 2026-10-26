@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.alliance.AllianceRepository;
 import com.younglings.bot.alliance.AllianceRules;
 import com.younglings.bot.clanprofile.ClanProfile;
@@ -214,7 +215,7 @@ public class HubEventsApi {
 
     /** The viewer's links to the event's channels (only the ones they can use), from the host's own player page. */
     private DataArray channelsOf(JDA jda, Event e, long viewerId) {
-        Guild guild = jda == null ? null : jda.getGuildById(e.guildId());
+        Guild guild = jda == null ? null : Shards.guild(jda, e.guildId());
         if (guild == null) return DataArray.empty();
         try {
             DataObject detail = memberEvents.detail(guild, viewerId, e.id());
@@ -227,7 +228,7 @@ public class HubEventsApi {
     /** Where staff of the host manage the event on the dashboard, only for someone who may use that server's event manager; else null. */
     private DataObject manageOf(JDA jda, Event e, Long viewerId) {
         if (viewerId == null || jda == null) return null;
-        Guild guild = jda.getGuildById(e.guildId());
+        Guild guild = Shards.guild(jda, e.guildId());
         net.dv8tion.jda.api.entities.Member member = guild == null ? null : guild.getMemberById(viewerId);
         if (member == null) return null;
         boolean may = dashboardAccess.tierOf(guild, member) != DashboardAccess.Tier.NONE || dashboardAccess.isEventCoordinator(guild, member);
@@ -275,7 +276,7 @@ public class HubEventsApi {
         Optional<Event> found = events.eventById(Long.parseLong(rawId));
         if (found.isEmpty() || !listedNow(found.get())) return new Answer(404, DataObject.empty().put("error", "No such event"));
         Event e = found.get();
-        Guild host = jda == null ? null : jda.getGuildById(e.guildId());
+        Guild host = jda == null ? null : Shards.guild(jda, e.guildId());
         if (host == null) return new Answer(503, DataObject.empty().put("error", "The host's server can't be reached right now. Try again in a minute."));
         // an alliance event is only for members of allied servers (or of the host): the same rule as seeing it
         if (accessOf(e, guildsOf(jda, userId), new LinkedHashMap<>()) == null && !inServer(host, userId)) return new Answer(404, DataObject.empty().put("error", "No such event"));
@@ -337,7 +338,7 @@ public class HubEventsApi {
         List<EventCohostRepository.Cohost> accepted = acceptedCohosts(e);
         if (n < 1 || n > accepted.size()) return null;
         long guildId = accepted.get(n - 1).guildId();
-        Guild guild = jda == null ? null : jda.getGuildById(guildId);
+        Guild guild = jda == null ? null : Shards.guild(jda, guildId);
         return guild != null && inServer(guild, userId) ? guildId : null;
     }
 
@@ -410,8 +411,8 @@ public class HubEventsApi {
     private static Set<Long> guildsOf(JDA jda, Long viewerId) {
         Set<Long> ids = new HashSet<>();
         if (viewerId == null || jda == null) return ids;
-        User user = jda.getUserById(viewerId);
-        if (user != null) user.getMutualGuilds().forEach(g -> ids.add(g.getIdLong()));
+        User user = Shards.user(jda, viewerId);
+        if (user != null) Shards.mutualGuilds(user).forEach(g -> ids.add(g.getIdLong()));
         return ids;
     }
 
@@ -438,7 +439,7 @@ public class HubEventsApi {
      * Never the server's Discord id: the hub is public, and the directory shares no Discord ids (T-182).
      */
     DataObject host(JDA jda, long guildId) {
-        Guild guild = jda == null ? null : jda.getGuildById(guildId);
+        Guild guild = jda == null ? null : Shards.guild(jda, guildId);
         Optional<ClanProfile> listed = profiles.publicView(guildId, false);
         // the server's one join link (JoinLinks), the same one its recruiting post shows: also the "join the Discord first" message's
         String invite = joinLinks.of(guildId, listed.map(ClanProfile::applyUrl).orElse(null));

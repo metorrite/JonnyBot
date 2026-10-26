@@ -1,5 +1,6 @@
 package com.younglings.bot.events;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.alerts.AutoPostRouter;
 import com.younglings.bot.events.EventRepository.Event;
 import com.younglings.bot.events.EventRepository.Panel;
@@ -94,7 +95,7 @@ public class EventBoardPanels {
     public String refresh(long guildId, long eventId) {
         JDA client = jda;
         if (client == null) return "The bot isn't connected to Discord yet.";
-        Guild guild = client.getGuildById(guildId);
+        Guild guild = Shards.guild(client, guildId);
         Event event = repository.event(guildId, eventId).orElse(null);
         if (guild == null || event == null) return "That event or server wasn't found.";
         if (!ClanVsClan.plays(event, BingoTemplate.KEY)) return "Only bingo events have a board.";
@@ -217,7 +218,7 @@ public class EventBoardPanels {
     private String refreshShared(long guildId, long eventId) {
         JDA client = jda;
         if (client == null) return "The bot isn't connected to Discord yet.";
-        Guild guild = client.getGuildById(guildId);
+        Guild guild = Shards.guild(client, guildId);
         Event event = repository.event(guildId, eventId).orElse(null);
         if (guild == null || event == null) return "That event or server wasn't found.";
         EventSettings settings = settingsOf(event);
@@ -388,7 +389,7 @@ public class EventBoardPanels {
         JDA client = jda;
         if (client == null || panel == null) return;
         try {
-            GuildMessageChannel channel = client.getChannelById(GuildMessageChannel.class, panel.channelId());
+            GuildMessageChannel channel = Shards.channel(client, GuildMessageChannel.class, panel.channelId());
             if (channel != null) channel.deleteMessageById(panel.messageId()).queue(ok -> { }, error -> log.debug("Could not remove an event's board message: {}", error.getMessage()));
         } catch (RuntimeException e) {
             log.debug("Could not remove an event's board message", e);

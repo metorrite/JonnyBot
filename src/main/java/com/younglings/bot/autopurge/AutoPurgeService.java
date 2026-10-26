@@ -1,5 +1,6 @@
 package com.younglings.bot.autopurge;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
@@ -54,7 +55,7 @@ public class AutoPurgeService {
     void sweep(JDA jda) {
         try {
             for (AutoPurgeRule rule : repository.all()) {
-                Guild guild = jda.getGuildById(rule.guildId());
+                Guild guild = Shards.guild(jda, rule.guildId());
                 if (guild == null) continue;
                 GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, rule.channelId());
                 if (channel == null || problemWith(channel) != null) continue;

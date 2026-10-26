@@ -178,9 +178,16 @@ public class Bot extends JDAService {
 
         // T-136: no message pings @everyone, @here or a role unless the feature names exactly what it pings
         Mentions.installDefault();
-        // This uses JDABuilder#createLight, with the intents and the additional cache flags set above
-        // It also sets the EventManager and a special rate limiter
-        createLight(botConfig.getToken())
+        // T-668 (docs SCALING section 9, P1): the bot logs in through a shard manager, SHARD_COUNT shards (default 1). With one shard
+        // this is the same single gateway connection as before: DefaultShardManagerBuilder#createLight applies the same low-memory
+        // profile as JDABuilder#createLight (no member chunking, all cache flags off but the ones set above, large threshold 50), and
+        // BotCommands sets the same intents, cache flags, event manager and rate limiter. The shard total is always set here, never
+        // left to Discord's recommendation, so the count only changes when SHARD_COUNT does. BotCommands still injects one JDA (the
+        // first shard to connect) and the ShardManager; bot-wide lookups go through com.younglings.bot.discord.Shards.
+        int shardCount = botConfig.getShardCount();
+        createLightSharded(botConfig.getToken())
+                .setShardsTotal(shardCount)
+                .setShards(0, shardCount - 1)
                 .setActivity(botConfig.getActivity())
                 // createLight's low-memory profile defaults to a restrictive member cache policy.
                 // The internal API's online-members endpoint (InternalApiServer#buildOnlineMembers)

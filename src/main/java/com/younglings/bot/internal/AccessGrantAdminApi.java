@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.access.AccessArea;
 import com.younglings.bot.access.AccessGrant;
 import com.younglings.bot.access.AccessGrantRepository;
@@ -89,7 +90,7 @@ public class AccessGrantAdminApi implements AdminRouteExtension {
                     json.put("userName", g.userName()).put("avatarUrl", g.avatarUrl());
                 }
             } else {
-                Guild known = guild.getJDA().getGuildById(g.guildId());
+                Guild known = Shards.guild(guild.getJDA(), g.guildId());
                 json.put("subject", "server").put("guildId", Long.toString(g.guildId())).put("level", g.level().key()).put("levelLabel", g.level().label())
                         .put("botPresent", known != null).put("serverName", known == null ? null : known.getName());
             }

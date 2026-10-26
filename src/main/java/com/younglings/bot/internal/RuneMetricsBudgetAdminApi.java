@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.configure.GuildSettingsService;
 import com.younglings.bot.i18n.Text;
@@ -89,7 +90,7 @@ public class RuneMetricsBudgetAdminApi implements AdminRouteExtension {
         }
 
         List<ServerLoad> loads = new ArrayList<>();
-        for (Guild g : guild.getJDA().getGuilds()) {
+        for (Guild g : Shards.guilds(guild.getJDA())) {
             String clan = settings.getEffective(g.getIdLong()).clanName();
             if (clan == null) continue;
             loads.add(new ServerLoad(g.getIdLong(), g.getName(), key(clan), clan, premium.isPremium(g.getIdLong()), clanMembers.getAll(g.getIdLong(), true).size()));

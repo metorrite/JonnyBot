@@ -1,5 +1,6 @@
 package com.younglings.bot.events;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.events.EventRepository.Event;
 import com.younglings.bot.events.EventRules.Status;
 import com.younglings.bot.events.EventSpace.Action;
@@ -606,7 +607,7 @@ public class EventSpaceOps {
     private void sweep() {
         JDA client = jda;
         if (client == null) return;
-        for (Guild guild : client.getGuilds()) {
+        for (Guild guild : Shards.guilds(client)) {
             try {
                 for (long eventId : space.eventsWithSpace(guild.getIdLong())) reconcile(guild.getIdLong(), eventId);
             } catch (RuntimeException e) {
@@ -620,7 +621,7 @@ public class EventSpaceOps {
         JDA client = jda;
         if (client == null) return;
         try {
-            Guild guild = client.getGuildById(guildId);
+            Guild guild = Shards.guild(client, guildId);
             Event event = events.event(guildId, eventId).orElse(null);
             if (guild == null || event == null || event.status() == Status.DONE || event.status() == Status.CANCELLED || !space.hasSpace(eventId)) return;
             ReentrantLock lock = lockOf(eventId);

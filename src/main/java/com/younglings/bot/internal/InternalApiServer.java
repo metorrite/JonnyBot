@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.discord.Shards;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import com.younglings.bot.config.BotConfig;
@@ -170,7 +171,7 @@ public class InternalApiServer {
             return null;
         }
 
-        Guild guild = jda.getGuildById(guildId);
+        Guild guild = Shards.guild(jda, guildId);
         if (guild == null) {
             sendJson(exchange, 503, DataObject.empty().put("error", "Guild not available yet"));
             return null;
@@ -254,8 +255,8 @@ public class InternalApiServer {
             return null;
         }
         // Only once every server has loaded, and never for one Discord says is in an outage: a server the bot IS in must never pass as bot-less.
-        if (jda.getStatus() != JDA.Status.CONNECTED || jda.isUnavailable(id)) return null;
-        return jda.getGuildById(id) == null ? id : null;
+        if (!Shards.allConnected(jda) || Shards.unavailable(jda, id)) return null;
+        return Shards.guild(jda, id) == null ? id : null;
     }
 
     /** The server an admin request is about, or {@code null} after the error has been sent. */
@@ -272,7 +273,7 @@ public class InternalApiServer {
             }
         }
 
-        Guild guild = jda.getGuildById(id);
+        Guild guild = Shards.guild(jda, id);
         if (guild == null) {
             if (requested) sendJson(exchange, 404, DataObject.empty().put("error", "The bot isn't in that server."));
             else sendJson(exchange, 503, DataObject.empty().put("error", "Guild not available yet"));
@@ -289,7 +290,7 @@ public class InternalApiServer {
                 sendJson(exchange, 401, DataObject.empty().put("error", "Unauthorized"));
                 return;
             }
-            Guild guild = jda.getGuildById(guildId);
+            Guild guild = Shards.guild(jda, guildId);
             if (guild == null) {
                 sendJson(exchange, 503, DataObject.empty().put("error", "Guild not available yet"));
                 return;

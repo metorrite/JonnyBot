@@ -1,5 +1,6 @@
 package com.younglings.bot.discord.jobs;
 
+import com.younglings.bot.discord.Shards;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
@@ -58,7 +59,7 @@ public final class DiscordJobs {
 
     /** The job's server; waits while Discord has it unavailable, refuses once the bot has left it. */
     public static Guild guild(JDA jda, DiscordJob job) {
-        Guild guild = jda.getGuildById(job.guildId());
+        Guild guild = Shards.guild(jda, job.guildId());
         if (guild != null) return guild;
         if (jda.isUnavailable(job.guildId())) throw new RetryLater(Duration.ofSeconds(30), "That server is unavailable on Discord right now; trying again soon.");
         throw new Refused("The bot isn't in that server any more.");

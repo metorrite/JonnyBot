@@ -1,5 +1,6 @@
 package com.younglings.bot.rolekeep;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.configure.GuildSettings;
 import com.younglings.bot.configure.GuildSettingsService;
 import com.younglings.bot.internal.MemberApi;
@@ -170,7 +171,7 @@ public class RoleKeepService {
     void expire(JDA jda) {
         try {
             for (Temp temp : repository.expired(EXPIRY_BATCH)) {
-                Guild guild = jda.getGuildById(temp.guildId());
+                Guild guild = Shards.guild(jda, temp.guildId());
                 if (guild == null) continue; // the bot is not there right now: try again next round
                 if (repository.deleteTemp(temp.guildId(), temp.id())) takeOff(guild, temp);
             }
