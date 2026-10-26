@@ -2499,14 +2499,20 @@
       "sections": [
         {
           "id": "ylgs0181",
-          "width": "content",
+          "width": "wide",
           "background": {
-            "kind": "none"
+            "kind": "glow"
           },
           "padding": {
             "lg": {
               "y": "md",
-              "x": "md"
+              "x": "ml",
+              "bottom": "none"
+            },
+            "base": {
+              "y": "md",
+              "x": "md",
+              "bottom": "none"
             }
           },
           "height": {
@@ -2548,38 +2554,11 @@
                         "align": "center",
                         "eyebrow": "",
                         "logoShape": "round",
-                        "look": "standard",
-                        "size": "large"
+                        "look": "spotlight",
+                        "size": "compact"
                       },
                       "unmet": "hide"
-                    }
-                  ]
-                }
-              ]
-            },
-            {
-              "id": "ylgr0180",
-              "gap": {
-                "lg": "md"
-              },
-              "align": "stretch",
-              "height": {
-                "lg": {
-                  "mode": "auto"
-                }
-              },
-              "cells": [
-                {
-                  "id": "ylgc0179",
-                  "span": {
-                    "lg": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
+                    },
                     {
                       "id": "ylgw0178",
                       "type": "button-row",
@@ -2629,7 +2608,7 @@
                         ],
                         "align": "center",
                         "size": "medium",
-                        "look": "buttons",
+                        "look": "tabs",
                         "fullWidth": false
                       },
                       "unmet": "hide"
@@ -3030,7 +3009,7 @@
                       "v": 1,
                       "settings": {
                         "text": "Citadel attendance",
-                        "subtitle": "Every member by every Citadel week (Wednesday to Tuesday). Gold means they capped, blue that they visited.",
+                        "subtitle": "Every member by every Citadel week (Wednesday to Tuesday). A square in the clan colour means they capped, a blue one that they visited.",
                         "size": "page",
                         "align": "left",
                         "colour": "token:accent",
@@ -3806,7 +3785,7 @@
                       "v": 1,
                       "settings": {
                         "text": "Events",
-                        "subtitle": "What's coming up in the Younglings Discord. Times are shown in your own timezone; click an event to open it in Discord.",
+                        "subtitle": "What's coming up in {clan}'s Discord. Times are shown in your own timezone; click an event to open it in Discord.",
                         "size": "page",
                         "align": "left",
                         "colour": "token:accent",
@@ -4101,7 +4080,7 @@
                       "v": 1,
                       "settings": {
                         "text": "Event calendar",
-                        "subtitle": "Upcoming Discord events by day (dates shown in UTC; times are in your own timezone).",
+                        "subtitle": "Upcoming Discord events by day, in your own timezone.",
                         "size": "page",
                         "align": "left",
                         "colour": "token:accent",
