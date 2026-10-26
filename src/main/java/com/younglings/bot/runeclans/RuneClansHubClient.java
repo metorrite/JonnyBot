@@ -233,6 +233,9 @@ public class RuneClansHubClient {
             try {
                 HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(settings.baseUrl() + path)).timeout(Duration.ofSeconds(8))
                         .header("Authorization", "Bearer " + settings.apiKey()).header("Content-Type", "application/json").header("User-Agent", "JonnyBot runeclans-client");
+                // the website's request id, when this call is part of an internal API request (T-674), so the hub's log line carries it too
+                String requestId = com.younglings.bot.ops.OpsTelemetry.currentRequestId();
+                if (requestId != null) request.header(com.younglings.bot.ops.RequestIds.HEADER, requestId);
                 request = body == null ? request.method(method, HttpRequest.BodyPublishers.noBody()) : request.method(method, HttpRequest.BodyPublishers.ofString(body));
                 HttpResponse<String> response = client.send(request.build(), HttpResponse.BodyHandlers.ofString());
                 DataObject json = null;

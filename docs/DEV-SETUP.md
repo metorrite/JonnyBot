@@ -95,6 +95,19 @@ Every environment variable the bot reads. Each one can also go in the git-ignore
 | `BILLING_RECONCILE_URL` | The runeclans website's billing reconcile route, e.g. `https://runeclans.com/api/billing/reconcile` (T-366). Once a day the bot sends it the paid subscriptions of servers it left 14+ days ago (with `INTERNAL_API_SECRET`), and the website sets them to cancel at the period end. | Nothing is sent; those subscriptions keep renewing until cancelled by hand. |
 | `JONNYBOT_SITE_URL` | The address put in the User-Agent of every request the bot makes to a third party. | `https://jonnybot.rsyounglings.com`. |
 
+**Metrics, request log and ops alerts** (T-674; all off by default)
+
+| Setting | What it does | When unset |
+|---|---|---|
+| `METRICS_ENABLED` | `on` serves `GET /metrics` on the internal API port (`INTERNAL_API_PORT`): Prometheus text with internal API requests and latency per route, the Discord job outbox (due jobs, oldest age), the RuneMetrics poll queue and budget (used per minute, tokens, backoff, exhausted), Discord REST 429s, gateway events and ping, the database pool (in use, waiting, wait time) and JVM heap. Needs `METRICS_TOKEN`. A request that came through a public edge (`X-Forwarded-For`, `X-Real-Ip`, `Forwarded` or `CF-Connecting-IP` present) is refused, so it only answers over Railway's private network; every refusal is a plain 404. Never needs the internal secret. Needs the internal API (`INTERNAL_API_SECRET`, `GUILD_ID`). | Off: `/metrics` is a 404 and Discord's HTTP client is JDA's own. |
+| `METRICS_TOKEN` | The bearer token for `/metrics` (`Authorization: Bearer ...`), at least 24 characters. Never logged. | `/metrics` stays off (a warning is logged when `METRICS_ENABLED` is on). |
+| `REQUEST_LOG` | `on` logs one line per internal API request: `request id=<X-Request-Id> <method> <route> <status> <ms>` (the route is the path prefix plus one plain word, never ids). The request id is always taken from the website's `X-Request-Id` (or made), echoed, and sent on to the hub with the bot's hub calls in that request; this switch only adds the log line. | No request lines. |
+| `OPS_ALERTS` | `on` checks the ops alert rules every minute and posts to `OPS_ALERT_CHANNEL_ID`: a health address failing 3 checks in a row, the oldest due Discord job older than 5 minutes, the RuneMetrics budget used up for 15 minutes with work waiting, and a Discord 429 spike. One alert when a rule starts, a reminder each hour while it lasts, one line when it recovers. Posts follow the dev-bot switch (`DEV_ALERT_CHANNEL_ID`, `/dev toggleposting`) and ping nobody. | Off. |
+| `OPS_WEEKLY` | `on` posts the week's numbers (servers, website calls and errors, RuneMetrics use against the budget, the job queue, 429s, the database pool, memory, alerts firing) to `OPS_ALERT_CHANNEL_ID` on Mondays at 09:00 UTC. | Off. |
+| `OPS_ALERT_CHANNEL_ID` | The ops channel (a private channel in the owner's server) for `OPS_ALERTS` and `OPS_WEEKLY`. | Neither posts (a warning is logged if one is on). |
+| `OPS_HEALTH_URLS` | Comma-separated health addresses for the health rule, e.g. the website's `/api/health` and the hub's `/health/ready` (Railway private addresses work). A 2xx within 5 seconds is healthy. | No health rule. |
+| `OPS_429_THRESHOLD` | Discord 429 answers within 5 minutes that count as a spike. | `20`. |
+
 **Dev bot safety**
 
 | Setting | What it does | When unset |
