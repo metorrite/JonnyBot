@@ -98,10 +98,15 @@ public class CitadelPrizes {
 
     /** Marks a prize as handed over without touching the coffer (it was paid some other way). {@code amount} may be null. */
     public Winner markGiven(long guildId, LocalDate weekEnd, int place, Long amount, String note, long actorId) {
+        return markGiven(guildId, weekEnd, place, amount, null, note, actorId);
+    }
+
+    /** As {@link #markGiven(long, LocalDate, int, Long, String, long)}, also keeping who paid it ({@code paidBy}, may be null). */
+    public Winner markGiven(long guildId, LocalDate weekEnd, int place, Long amount, Long paidBy, String note, long actorId) {
         Winner row = require(guildId, weekEnd, place);
         if (row.prize().status() == PrizeStatus.GIVEN) throw new CannotLock(409, "This prize is already marked as given.");
         if (amount != null && amount <= 0) throw new CannotLock(400, "The amount has to be more than zero.");
-        Prize prize = new Prize(PrizeStatus.GIVEN, amount, null, null, actorId, Instant.now(), clean(note), false);
+        Prize prize = new Prize(PrizeStatus.GIVEN, amount, paidBy, null, actorId, Instant.now(), clean(note), false);
         if (!repository.setPrize(guildId, weekEnd, place, prize, true)) throw new CannotLock(409, "This prize was just marked as given by someone else.");
         log.info("Prize for place {} of the week ending {} in guild {} marked as given by {}", place, weekEnd, guildId, actorId);
         return require(guildId, weekEnd, place);

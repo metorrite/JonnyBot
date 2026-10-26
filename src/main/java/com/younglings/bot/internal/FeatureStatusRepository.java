@@ -103,6 +103,8 @@ public class FeatureStatusRepository {
         enabled("/event-tools/event-announcer", "eventannounce_config");
         exists("/event-tools/citadel-wheel", "citadel_wheel_settings", "t.auto_post AND t.channel_id IS NOT NULL");
         exists("/event-tools/bingo-pool", "bingo_tile", "");
+        // the coffer is in use once someone holds gp in it
+        exists("/event-tools/coffer", "coffer_holder", "t.amount > 0");
         // no profile row reads as UNLISTED (ClanProfile.empty), so the tab is on until someone makes it private
         FLAGS.put("/clan/clan-profile", "COALESCE((SELECT t.visibility FROM younglings.clan_profile t WHERE t.guild_id = g.id), 'UNLISTED') <> 'PRIVATE'");
         exists("/clan/clan-points", "clan_points_settings", "(t.daily_membership_points > 0 OR t.citadel_visit_points > 0 OR t.citadel_cap_points > 0)");

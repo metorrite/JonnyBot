@@ -345,4 +345,32 @@ class CitadelAdminApiTest {
         org.mockito.Mockito.doThrow(new CitadelWinners.CannotLock(409, "That person only holds 1M.")).when(prizes).recordInCoffer(any(), any(), org.mockito.ArgumentMatchers.anyInt(), any(), anyLong(), any(), any(), anyLong());
         assertEquals(409, assertThrows(ApiError.class, () -> api.route(guild, actor(), "POST", new String[]{"citadel", "prize", "coffer"}, () -> body)).status);
     }
+
+    @Test
+    void aPrizeMarkedGivenCanSayWhoPaidIt() {
+        when(winners.forWeek(7L, WEEK_END)).thenReturn(List.of(locked(1, "Giff", true)));
+        api.route(guild, actor(), "POST", new String[]{"citadel", "prize"}, () -> DataObject.empty().put("end", "2026-10-14").put("place", 1).put("action", "given").put("amount", "100,000K").put("paidBy", "55"));
+        verify(prizes).markGiven(7L, WEEK_END, 1, 100_000_000L, 55L, "", 1L);
+    }
+
+    @Test
+    void thePrizeDefaultsAreOffAndEmptyUntilSet() {
+        when(settings.getPrizeDefaults(7L)).thenReturn(WheelSettingsRepository.PrizeDefaults.none());
+        DataObject answer = api.route(guild, actor(), "GET", new String[]{"citadel", "prize", "defaults"}, DataObject::empty);
+        assertEquals(false, answer.getBoolean("autoRecord"));
+        assertTrue(answer.isNull("amount"));
+        assertEquals("", answer.getString("note"));
+    }
+
+    @Test
+    void savingThePrizeDefaultsParsesTheAmountAndKeepsWhatWasNotSent() {
+        when(settings.getPrizeDefaults(7L)).thenReturn(new WheelSettingsRepository.PrizeDefaults(false, 5_000_000L, "Weekly cap prize"));
+        api.route(guild, actor(), "PUT", new String[]{"citadel", "prize", "defaults"}, () -> DataObject.empty().put("autoRecord", true).put("amount", "100_000_000"));
+        verify(settings).savePrizeDefaults(7L, new WheelSettingsRepository.PrizeDefaults(true, 100_000_000L, "Weekly cap prize"));
+        api.route(guild, actor(), "PUT", new String[]{"citadel", "prize", "defaults"}, () -> DataObject.empty().put("amount", "").put("note", "  "));
+        verify(settings).savePrizeDefaults(7L, new WheelSettingsRepository.PrizeDefaults(false, null, null));
+        assertEquals(400, assertThrows(ApiError.class, () -> api.route(guild, actor(), "PUT", new String[]{"citadel", "prize", "defaults"}, () -> DataObject.empty().put("amount", "lots"))).status);
+        assertEquals(400, assertThrows(ApiError.class, () -> api.route(guild, actor(), "PUT", new String[]{"citadel", "prize", "defaults"}, () -> DataObject.empty().put("note", "x".repeat(201)))).status);
+        assertEquals(405, assertThrows(ApiError.class, () -> api.route(guild, actor(), "POST", new String[]{"citadel", "prize", "defaults"}, DataObject::empty)).status);
+    }
 }

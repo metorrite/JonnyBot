@@ -49,6 +49,8 @@ import java.util.function.Supplier;
  *   back at any time with the announcement text ready to copy, and posting it.</li>
  *   <li>{@code GET citadel/prize/holders}, {@code POST citadel/prize} and {@code POST citadel/prize/coffer}: whether each winner has been given their prize,
  *   and recording it in the clan coffer.</li>
+ *   <li>{@code GET|PUT citadel/prize/defaults}: the prize a winner usually gets (amount and note) and "auto record to coffer", which locks the
+ *   "Mark prize as given" form to them.</li>
  * </ul>
  * Reached only through {@link TicketAdminApi}, which has already checked the asker may use the dashboard in this server.
  */
@@ -120,6 +122,11 @@ public class CitadelAdminApi implements AdminRouteExtension {
                 if (parts.length == 3 && parts[2].equals("coffer")) {
                     AdminRouteExtension.requireMethod(method, "POST");
                     return prizeInCoffer(guild, actor, body.get());
+                }
+                if (parts.length == 3 && parts[2].equals("defaults")) {
+                    if (method.equals("PUT")) return savePrizeDefaults(guild, actor, body.get());
+                    AdminRouteExtension.requireMethod(method, "GET");
+                    return prizeDefaults(guild);
                 }
                 return null;
             }
@@ -397,12 +404,66 @@ public class CitadelAdminApi implements AdminRouteExtension {
 
     // ---------- prizes ----------
 
-    /** Who holds gp in the clan coffer (and how much), for choosing who paid a prize. */
+    /** Who holds gp in the clan coffer (and how much), for choosing who paid a prize. Names of people not in the cache are looked up. */
     private DataObject holders(Guild guild) {
+        var holders = prizes.holders(guild.getIdLong());
+        Map<Long, String> names = memberNames(guild, holders.stream().map(com.younglings.bot.commands.coffer.CofferHolder::discordUserId).toList());
         DataArray array = DataArray.empty();
-        prizes.holders(guild.getIdLong()).forEach(h -> array.add(DataObject.empty().put("userId", Long.toString(h.discordUserId()))
-                .put("name", nameOf(guild, h.discordUserId())).put("balance", h.amount())));
+        holders.forEach(h -> array.add(DataObject.empty().put("userId", Long.toString(h.discordUserId()))
+                .put("name", names.get(h.discordUserId())).put("balance", h.amount())));
         return DataObject.empty().put("holders", array);
+    }
+
+    /** Display names for these members: the cache first (the bot only caches who is online), then one lookup for the rest. Missing ones are left out. */
+    static Map<Long, String> memberNames(Guild guild, java.util.Collection<Long> ids) {
+        Map<Long, String> names = new HashMap<>();
+        List<Long> missing = new ArrayList<>();
+        for (long id : ids) {
+            String name = nameOf(guild, id);
+            if (name != null) names.put(id, name);
+            else if (!missing.contains(id)) missing.add(id);
+        }
+        if (!missing.isEmpty()) {
+            try {
+                guild.retrieveMembersByIds(missing).get().forEach(m -> names.put(m.getIdLong(), m.getEffectiveName()));
+            } catch (Exception e) {
+                log.debug("Couldn't look up coffer holder names: {}", e.getMessage());
+            }
+        }
+        return names;
+    }
+
+    private DataObject prizeDefaults(Guild guild) {
+        WheelSettingsRepository.PrizeDefaults d = settings.getPrizeDefaults(guild.getIdLong());
+        return DataObject.empty().put("autoRecord", d.autoRecord()).put("amount", d.amount()).put("note", d.note() == null ? "" : d.note());
+    }
+
+    /** {@code {autoRecord?, amount?, note?}}: changes only what was sent. An empty amount clears it; the amount takes the same shorthand as /coffer. */
+    private DataObject savePrizeDefaults(Guild guild, Member actor, DataObject body) {
+        WheelSettingsRepository.PrizeDefaults current = settings.getPrizeDefaults(guild.getIdLong());
+        boolean autoRecord = body.hasKey("autoRecord") ? body.getBoolean("autoRecord", false) : current.autoRecord();
+        Long amount = current.amount();
+        if (body.hasKey("amount")) {
+            String raw = body.isNull("amount") ? "" : body.getString("amount", "").strip();
+            if (raw.isEmpty()) {
+                amount = null;
+            } else {
+                try {
+                    amount = com.younglings.bot.commands.coffer.GpAmountParser.parse(raw);
+                } catch (IllegalArgumentException e) {
+                    throw new ApiError(400, e.getMessage());
+                }
+            }
+        }
+        String note = current.note();
+        if (body.hasKey("note")) {
+            String raw = body.isNull("note") ? "" : body.getString("note", "").strip();
+            if (raw.length() > CitadelPrizes.MAX_NOTE) throw new ApiError(400, "Keep the note to " + CitadelPrizes.MAX_NOTE + " characters or fewer.");
+            note = raw.isEmpty() ? null : raw;
+        }
+        settings.savePrizeDefaults(guild.getIdLong(), new WheelSettingsRepository.PrizeDefaults(autoRecord, amount, note));
+        log.info("Dashboard: {} saved the Citadel wheel prize defaults (auto record {}, amount {})", actor.getId(), autoRecord ? "on" : "off", amount);
+        return prizeDefaults(guild);
     }
 
     private static int placeOf(DataObject body) {
@@ -419,7 +480,7 @@ public class CitadelAdminApi implements AdminRouteExtension {
         return Long.parseLong(raw);
     }
 
-    /** {@code {end, place, action: "given" | "pending", amount?, note?}}: marks a prize handed over (without the coffer) or puts it back to not given. */
+    /** {@code {end, place, action: "given" | "pending", amount?, paidBy?, note?}}: marks a prize handed over (without the coffer) or puts it back to not given. */
     private DataObject prize(Guild guild, Member actor, DataObject body) {
         LocalDate end = weekEndOf(body.getString("end", ""));
         int place = placeOf(body);
@@ -433,7 +494,9 @@ public class CitadelAdminApi implements AdminRouteExtension {
                     throw new ApiError(400, e.getMessage());
                 }
             }
-            prizes.markGiven(guild.getIdLong(), end, place, amount, body.getString("note", ""), actor.getIdLong());
+            Long paidBy = optionalId(body, "paidBy");
+            if (paidBy == null) prizes.markGiven(guild.getIdLong(), end, place, amount, body.getString("note", ""), actor.getIdLong());
+            else prizes.markGiven(guild.getIdLong(), end, place, amount, paidBy, body.getString("note", ""), actor.getIdLong());
         } else if (action.equals("pending")) {
             prizes.markPending(guild.getIdLong(), end, place);
         } else {
