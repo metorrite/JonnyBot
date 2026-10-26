@@ -554,6 +554,20 @@ class ClanSiteLayoutRulesV2Test {
     }
 
     @Test
+    void phoneMenuRow() {
+        // runeclans T-518: the header's links in a scrolling row on phones
+        DataObject look = good();
+        look.getObject("header").put("mobile", "row");
+        assertTrue(problems(look).isEmpty(), problems(look).toString());
+        DataObject clean = DataObject.fromJson(ClanSiteLayoutRulesV2.clean(look, ClanSiteLayoutRulesV2.Limits.PREMIUM, new ArrayList<>()));
+        assertEquals("row", clean.getObject("header").getString("mobile"));
+
+        DataObject bad = good();
+        bad.getObject("header").put("mobile", "carousel");
+        assertTrue(has(problems(bad), "phone menu"));
+    }
+
+    @Test
     void sectionSpaceBelow() {
         // T-518: a section's own space under its content
         DataObject look = good();
