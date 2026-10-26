@@ -4,7 +4,7 @@ Ticket T-112. Status: **draft; Drake's decisions of 2026-10-19 applied (section 
 
 ## 0. In one paragraph
 
-A standalone RS3 plugin named **RS Link** (Drake's pick, section 15) lets a player link the character they are logged into to their Discord account. The plugin shows a short code and a short web address; the player opens the address on any device, signs in with Discord, types the code and confirms "Link RuneScape name X to this Discord". The plugin then holds a private random token and never shows it to anyone. Other plugins depend on it and can ask only two things: "is this player linked?" and "what is this player's alias for my plugin?" (a stable random-looking id that is different for every plugin). For players who prefer it, a fallback has JonnyBot DM them a code instead, which only works when JonnyBot can reach them on Discord. Trust is implicit for now, with a `verification` field and a hook so a real check can be added later. The service has its own database, its own keys and a neutral, unbranded web face whose address is configuration, so the final domain can be chosen before the Jagex submission.
+A standalone RS3 plugin named **RuneLink** (Drake's pick, section 15) lets a player link the character they are logged into to their Discord account. The plugin shows a short code and a short web address; the player opens the address on any device, signs in with Discord, types the code and confirms "Link RuneScape name X to this Discord". The plugin then holds a private random token and never shows it to anyone. Other plugins depend on it and can ask only two things: "is this player linked?" and "what is this player's alias for my plugin?" (a stable random-looking id that is different for every plugin). For players who prefer it, a fallback has JonnyBot DM them a code instead, which only works when JonnyBot can reach them on Discord. Trust is implicit for now, with a `verification` field and a hook so a real check can be added later. The service has its own database, its own keys and a neutral, unbranded web face whose address is configuration, so the final domain can be chosen before the Jagex submission.
 
 ## 1. Fixed decisions (from Drake's Q&A, 2026-10-19; not re-opened here)
 
@@ -22,7 +22,7 @@ A standalone RS3 plugin named **RS Link** (Drake's pick, section 15) lets a play
 ```
   RS3 client (player's PC)                     Neutral link host (website app, own host face)          JonnyBot process
  +---------------------------+   HTTPS         +--------------------------------------+   internal   +------------------------------+
- | RS Link plugin (Lua)      | --------------> | /v1/*   plugin API (proxy + limits)  | -----------> | rsnlink service (Java)       |
+ | RuneLink plugin (Lua)      | --------------> | /v1/*   plugin API (proxy + limits)  | -----------> | rsnlink service (Java)       |
  |  - pairing panel          |                 | /       code entry + Discord sign-in |  X-Internal- |  - own DataSource            |
  |  - token in PersistentDB  |                 | /links  my links, unlink, delete     |   Secret     |  - own schema `rsnlink`      |
  |  - library for dependents |                 +--------------------------------------+              |  - DM fallback via JDA       |
@@ -33,7 +33,7 @@ A standalone RS3 plugin named **RS Link** (Drake's pick, section 15) lets a play
  +---------------------------+
 ```
 
-- **RS Link plugin** (new repo, T-116): Lua 5.4. Shows the pairing panel, talks to the link host, stores the token, exports a small library.
+- **RuneLink plugin** (new repo, T-116): Lua 5.4. Shows the pairing panel, talks to the link host, stores the token, exports a small library.
 - **Link host face** (website, T-114): a separate host face of the existing Next.js app, chosen by hostname like the `api.`/`clans.`/`jonnybot.` faces in `src/proxy.ts`. It serves the plugin API (thin proxy with its own per-IP limits, the same pattern as `src/lib/pluginProxy.ts`) and the sign-in pages. It shares no cookies, sessions or nav with the clan site or the dashboard.
 - **rsnlink service** (bot, T-113): a new package `com.younglings.bot.rsnlink` inside the JonnyBot process for now (Drake, 2026-10-19), exposed only on the internal port behind `X-Internal-Secret`. It becomes its own service when Drake is ready to transition, so the module boundary is kept clean enough that the split is a move, not a rewrite:
   - **its own DataSource** (`LINK_DATABASE_URL`), schema, keys and config; it never touches the clan schema `younglings`;
@@ -53,9 +53,9 @@ Paraphrased from the guide pages named in brackets; no Jagex text is copied.
 
 | Question | Answer | Design consequence |
 |---|---|---|
-| How does a dependency expose functions? [Plugin Structure] | `plugin.json` lists it in `requiredDependencies` / `optionalDependencies` (array = imported under its plugin name; object = `"VarName": "PluginName"` to rename). The dependency loads first; whatever its `main.lua` returns (a table of functions in the examples) is cloned and handed to the dependent as a variable named after it. Dependents call `RSLink:IsLinked()`. Optional dependencies can be nil, so dependents check first. A global `PluginDependencyUpdate(pluginIdentifier, enabled)` is called when an optional dependency is turned on or off. Cycles are an error. Names that are not valid Lua identifiers get `_` substitutions. | The name "RS Link" has a space, so the array form would import it as `RS_Link`. Dependents should use the object form `{ "RSLink": "RS Link" }` and call `RSLink:...`; the README says so. T-116 checks in the beta client which string the import actually uses (the manifest `name` or the plugin folder id). Export **functions only**: data fields in a cloned table would be snapshots, while functions keep reading the plugin's live internal state. The guide also says exported tables may be shared across imports, so the library must not hold per-dependent state in the exported table. |
-| Does a dependency's HTTP use its own manifest URLs? [Plugin Structure, Plugin, HTTP] | **Not documented.** `HTTPRequest.new(base, path)` takes a base from `Plugin.urls`, and only manifest base URLs are allowed, but nothing says whose manifest and permissions apply when a dependent calls a dependency function that makes a request. | Exported functions **never make HTTP calls themselves**. They read cached state or put a request on a queue; RS Link's own event subscription (registered by RS Link, so running as RS Link) sends the queue and calls the dependent's callback afterwards. Dependents need no `httpAccess` and no URL for linking. Question goes to Jagex via T-119. |
-| Can dependents read the dependency's PersistentDB? [Persistent DB] | Records are isolated per plugin; one plugin cannot read or change another's. Not said directly for dependents, but isolation implies no. Scope per character or per account is not documented, and so is when data is written to disk (examples set values on shutdown). | The token lives in RS Link's PersistentDB, keyed per character inside (section 9.3) so it works whether storage is per account or per PC. Save straight after pairing, not only in `PluginShutdown` (shutdown does not run on a crash). |
+| How does a dependency expose functions? [Plugin Structure] | `plugin.json` lists it in `requiredDependencies` / `optionalDependencies` (array = imported under its plugin name; object = `"VarName": "PluginName"` to rename). The dependency loads first; whatever its `main.lua` returns (a table of functions in the examples) is cloned and handed to the dependent as a variable named after it. Dependents call `RuneLink:IsLinked()`. Optional dependencies can be nil, so dependents check first. A global `PluginDependencyUpdate(pluginIdentifier, enabled)` is called when an optional dependency is turned on or off. Cycles are an error. Names that are not valid Lua identifiers get `_` substitutions. | The name "RuneLink" is a valid Lua identifier, so either form imports it as `RuneLink`; dependents call `RuneLink:...` and the README says so. (The earlier name "RS Link" had a space and needed the object form `{ "RSLink": "RS Link" }`.) T-116 checks in the beta client which string the import actually uses (the manifest `name` or the plugin folder id). Export **functions only**: data fields in a cloned table would be snapshots, while functions keep reading the plugin's live internal state. The guide also says exported tables may be shared across imports, so the library must not hold per-dependent state in the exported table. |
+| Does a dependency's HTTP use its own manifest URLs? [Plugin Structure, Plugin, HTTP] | **Not documented.** `HTTPRequest.new(base, path)` takes a base from `Plugin.urls`, and only manifest base URLs are allowed, but nothing says whose manifest and permissions apply when a dependent calls a dependency function that makes a request. | Exported functions **never make HTTP calls themselves**. They read cached state or put a request on a queue; RuneLink's own event subscription (registered by RuneLink, so running as RuneLink) sends the queue and calls the dependent's callback afterwards. Dependents need no `httpAccess` and no URL for linking. Question goes to Jagex via T-119. |
+| Can dependents read the dependency's PersistentDB? [Persistent DB] | Records are isolated per plugin; one plugin cannot read or change another's. Not said directly for dependents, but isolation implies no. Scope per character or per account is not documented, and so is when data is written to disk (examples set values on shutdown). | The token lives in RuneLink's PersistentDB, keyed per character inside (section 9.3) so it works whether storage is per account or per PC. Save straight after pairing, not only in `PluginShutdown` (shutdown does not run on a crash). |
 | How to show a code and a text box? [Simple UI tutorial, Input Field, Text, Button] | Attach a GroupBox to `TOPLEVEL_V2__PLUGIN_BUILD_LAYER_TOP` with a stylesheet (invisible without one); `ui.Text` needs a font; `ui.Button` fires `ONBUTTONPRESSED`. `ui.InputField` fires `ONCONTENTCHANGED` with a cause (`SUBMIT` on Enter, Escape, focus loss), `Setup(visibility, filter, maxLength)` sets a filter (`ALPHANUMERIC`, `NUMERIC`, ...) and length. Masked fields (`HIDDEN`) cannot be read back. | Code box: `ALPHANUMERIC`, max 9, visible. Discord username-or-id box: filter `NONE` (usernames contain `.` and `_`), max 32, checked by the rules in 4.2. No documented clipboard or "open URL" function, so the player **types** the address and code: both must be short and unambiguous. |
 | Character identity [Player] | `Player.GetTrackingID()` returns a 64-bit per-character value or nil (needs `trackingAccess`; arrives a few seconds after login). Stability across name changes is not documented. Display name comes from the player entity (`Player.GetEntity()`). | Tracking id is optional but strongly recommended; the service keys characters on it when present (RSN recycling, section 11). Plugin waits up to 10 s for it before pairing. Ask Jagex whether it survives name changes (T-119). |
 
@@ -67,8 +67,8 @@ The whole guide is now in the local API library `CLAUDE_RESOURCES/rs-api-library
 
 | Finding | Library page | What the plugins do |
 |---|---|---|
-| PersistentDB is shared by **every character played on the PC** (per plugin, and beta vs live), not per account | `docs/core-persistentdb.md` | RS Link keeps one token per character with prefixed keys and moves older keys (9.3). RuneSync tags every queued event with its character and saves one queue per character. |
-| Any plugin that depends on RS Link can call **everything it exports**; exports are cloned per importer | `docs/guides.md` ("Depending on other plugins") | Exports are read-only and only touch a status copy and a request inbox (10). |
+| PersistentDB is shared by **every character played on the PC** (per plugin, and beta vs live), not per account | `docs/core-persistentdb.md` | RuneLink keeps one token per character with prefixed keys and moves older keys (9.3). RuneSync tags every queued event with its character and saves one queue per character. |
+| Any plugin that depends on RuneLink can call **everything it exports**; exports are cloned per importer | `docs/guides.md` ("Depending on other plugins") | Exports are read-only and only touch a status copy and a request inbox (10). |
 | Any plugin can read text off components on screen, except **restricted** ones | `docs/ui-core.md` ("Reading game interfaces", "Restricted components") | The pairing code label is restricted, so another plugin can't read the code and confirm it with its own Discord (4.1). |
 | mod.io needs **Windows, Linux, Android and iOS**; phones have no keyboard, mouse or console | `docs/submission.md` ("Step 4"), `docs/core-input.md` | Linking by sign-in needs no typing in the game; the DM fallback (typing) sits behind a button on devices without a keyboard; RuneSync uses no keyboard, mouse or console (4.2, section 10). |
 
@@ -77,7 +77,7 @@ The whole guide is now in the local API library `CLAUDE_RESOURCES/rs-api-library
 - **No device grant.** Discord OAuth2 supports the authorization code grant (with refresh), implicit and client credentials; there is no RFC 8628 device grant. So "device-style" is built on top: our own short user code typed on our page, plus a normal authorization code sign-in in the browser.
 - **`identify` scope** returns the user's id, username, global name and avatar, without email. That is all we ask for. We use the access token once to read `/users/@me`, then **throw it away** (no refresh token stored).
 - **State and PKCE:** Discord returns `state` and an `iss` value (`https://discord.com`) on the redirect; we require both to match. PKCE is only mentioned in passing in Discord's docs, so the server also uses the client secret (confidential client) and sends PKCE S256 as an extra.
-- **Consent screen shows the OAuth application's name.** Decision (Q2): a **separate, neutral Discord application** eventually, **JonnyBot's application for now**. Client id, secret and redirect URL are configuration (`LINK_DISCORD_CLIENT_ID` / `LINK_DISCORD_CLIENT_SECRET` / `LINK_PUBLIC_BASE_URL`), so the switch is a config change plus registering the redirect URL on the new app; no code change. Discord does not allow "discord" inside usernames, so the separate app is simply named "RS Link" (section 15).
+- **Consent screen shows the OAuth application's name.** Decision (Q2): a **separate, neutral Discord application** eventually, **JonnyBot's application for now**. Client id, secret and redirect URL are configuration (`LINK_DISCORD_CLIENT_ID` / `LINK_DISCORD_CLIENT_SECRET` / `LINK_PUBLIC_BASE_URL`), so the switch is a config change plus registering the redirect URL on the new app; no code change. Discord does not allow "discord" inside usernames, so the separate app is simply named "RuneLink" (section 15).
 - **DMs.** Discord's Create DM docs say DMs should generally follow a user action, must not be used to message a whole server, and that opening many DMs quickly gets a bot rate limited or blocked from opening new ones. The pages read do **not** state the mutual-server rule or what a user-installed app may do.
 - **Usernames are unique.** Since Discord's username change, a username is unique and lowercase: letters, digits, `.` and `_` (Discord blog post on usernames); old `name#1234` tags keep working as aliases. The developer docs' user page still calls usernames "not unique" (wording from the discriminator days) and gives 2 to 32 characters, so the id stays the stored key and a username is only an input to resolve.
 - **Resolving a username as a bot:** there is no bot API to look a user up by username across Discord. A bot can only find members of servers it is in (its member cache, or each server's member search). That loses nothing here, because the DM can only reach someone who shares a server with JonnyBot anyway (next bullet).
@@ -87,7 +87,7 @@ The whole guide is now in the local API library `CLAUDE_RESOURCES/rs-api-library
 
 ### 4.1 Primary: sign in with Discord (device-style)
 
-1. Player opens the RS Link panel and presses **Link Discord**. Plugin reads the display name and (if granted) tracking id, then `POST /v1/pair/start`.
+1. Player opens the RuneLink panel and presses **Link Discord**. Plugin reads the display name and (if granted) tracking id, then `POST /v1/pair/start`.
 2. Service creates a pairing and returns `userCode` (shown) and `deviceSecret` (never shown). Panel shows:
    *"On your phone or PC go to **link.example.org** and enter **BHKD-7Q2M**. Expires in 10 minutes."* (host from config).
 3. Plugin polls `POST /v1/pair/poll` every `interval` seconds with the device secret.
@@ -120,7 +120,7 @@ All JSON, UTF-8, `Cache-Control: no-store`. Public paths are on the link host (`
 
 | Route | Auth | Body | Success |
 |---|---|---|---|
-| `POST /v1/pair/start` | none | `{ "rsn": "Zezima", "trackingId": "123..." or null, "client": { "name": "RS Link", "version": "1.0.0" } }` | `201 { "pairingId", "deviceSecret", "userCode": "BHKD-7Q2M", "verifyUrl": "https://link.example.org", "expiresIn": 600, "interval": 5 }` |
+| `POST /v1/pair/start` | none | `{ "rsn": "Zezima", "trackingId": "123..." or null, "client": { "name": "RuneLink", "version": "1.0.0" } }` | `201 { "pairingId", "deviceSecret", "userCode": "BHKD-7Q2M", "verifyUrl": "https://link.example.org", "expiresIn": 600, "interval": 5 }` |
 | `POST /v1/pair/poll` | device secret in body | `{ "pairingId", "deviceSecret" }` | `200 { "status": "pending" }`, `{ "status": "slow_down", "interval": 10 }`, `{ "status": "denied" }`, `{ "status": "refused", "message" }` (the name is held by a tracked or verified link, section 11), `{ "status": "expired_or_unknown" }`, or `{ "status": "linked", "token": "lnk_example-token-not-real", "verification": "implicit", "disputed": false }` (token only on this one response; `disputed: true` means the link is held for review, section 11) |
 | `POST /v1/pair/dm` | none | `{ "rsn", "trackingId", "discord": "someone" or "1234...", "client" }` | always `202 { "pairingId", "deviceSecret", "expiresIn": 600 }` |
 | `POST /v1/pair/dm/confirm` | device secret | `{ "pairingId", "deviceSecret", "code" }` | `200 { "status": "linked", "token", "verification" }`; wrong code `400 { "error": "wrong_code", "attemptsLeft": 3 }`; `423 locked` |
@@ -131,7 +131,7 @@ All JSON, UTF-8, `Cache-Control: no-store`. Public paths are on the link host (`
 | `POST /v1/forget-me` | Bearer | `{ "confirm": "DELETE" }` | `200`: deletes this character, its links and tokens (the plugin's "delete my data") |
 | `GET /v1/keys` | none | | public key set for checking assertions (section 8.3) |
 
-`discordName` goes only to the RS Link panel so the player sees "Linked to @someone"; the library never passes it on.
+`discordName` goes only to the RuneLink panel so the player sees "Linked to @someone"; the library never passes it on.
 
 Formats: user codes are 8 characters from the 27-symbol alphabet `BCDFGHJKMNPQRSTVWXZ23456789` (no vowels, so no accidental words; no 0/O, 1/I/L look-alikes), shown as `XXXX-XXXX`, drawn with `SecureRandom`. Device secrets are 32 random bytes, base64url. Tokens are `lnk_` + 43 base64url characters (32 random bytes), the same shape as `PluginTokens` but a different prefix so scanners and code can tell them apart. Pairing ids are random UUIDs.
 
@@ -242,7 +242,7 @@ One character (tracking id if known, else the RSN) linked to one Discord account
 
 ### 9.3 Plugin side storage
 
-PersistentDB is shared by every character played on the PC (3.1a), so RS Link keeps **one token per character** (`lib/store.lua`, RS Link 0.2.0):
+PersistentDB is shared by every character played on the PC (3.1a), so RuneLink keeps **one token per character** (`lib/store.lua`, RuneLink 0.2.0):
 
 | Key | Holds |
 |---|---|
@@ -250,9 +250,9 @@ PersistentDB is shared by every character played on the PC (3.1a), so RS Link ke
 | `token.n:<rsn lookup form>` | the token otherwise |
 | `trackingFor.<rsn lookup form>` | the tracking id that name last had, so the token is still found if trackingAccess is later turned off |
 
-The `t:`/`n:` prefixes stop a name made only of digits from colliding with a tracking id. Older keys are moved on first use: RS Link 0.1.0's `token.<tracking id>` and `token.<rsn lookup form>` (only to the character they name), and an early build's single `token` key (to the first character that logs in). When trackingAccess is granted later, a `token.n:` token moves to `token.t:`. Saved right after pairing; deleted from every place on unlink, 401 or forget-me. Never exported. RuneSync applies the same rule to its saved event queue (`queue.v2.<character>`).
+The `t:`/`n:` prefixes stop a name made only of digits from colliding with a tracking id. Older keys are moved on first use: RuneLink 0.1.0's `token.<tracking id>` and `token.<rsn lookup form>` (only to the character they name), and an early build's single `token` key (to the first character that logs in). When trackingAccess is granted later, a `token.n:` token moves to `token.t:`. Saved right after pairing; deleted from every place on unlink, 401 or forget-me. Never exported. RuneSync applies the same rule to its saved event queue (`queue.v2.<character>`).
 
-On logout or a character switch RS Link forgets the character, drops any answer still in flight for it, and tells dependents `false` before the next character's value (10).
+On logout or a character switch RuneLink forgets the character, drops any answer still in flight for it, and tells dependents `false` before the next character's value (10).
 
 ### 9.4 Unlink
 
@@ -267,27 +267,27 @@ On logout or a character switch RS Link forgets the character, drops any answer 
 
 ## 10. Plugin library for dependents
 
-Exported from RS Link's `main.lua`. **Read-only** functions only (T-129): none returns the token, the Discord id or the Discord name, and none can pair, unlink or change anything. Any plugin that depends on RS Link can call all of them (3.1a), so:
+Exported from RuneLink's `main.lua`. **Read-only** functions only (T-129): none returns the token, the Discord id or the Discord name, and none can pair, unlink or change anything. Any plugin that depends on RuneLink can call all of them (3.1a), so:
 
-- They only read a status copy and post requests to an inbox (`lib/bridge.lua`); RS Link's own tick validates and answers each request. They never call into RS Link's core.
-- They use **no globals**, so even a plugin using Lua's `debug` library to inspect their hidden variables (if the client exposes it) reaches only the bridge, not RS Link's environment, storage or token.
+- They only read a status copy and post requests to an inbox (`lib/bridge.lua`); RuneLink's own tick validates and answers each request. They never call into RuneLink's core.
+- They use **no globals**, so even a plugin using Lua's `debug` library to inspect their hidden variables (if the client exposes it) reaches only the bridge, not RuneLink's environment, storage or token.
 - `main.lua` refuses to start if anything other than these functions is exported. `tools/check_exports.py` and `tests/run.lua` (run with `tools/run_tests.py`) check all of this.
 
 ```lua
--- In the dependent's plugin.json: "requiredDependencies": { "RSLink": "RS Link" }  (object form, see 3.1; or optionalDependencies)
+-- In the dependent's plugin.json: "requiredDependencies": { "RuneLink": "RuneLink" }  (see 3.1; or optionalDependencies)
 
-RSLink:ApiVersion()                 -- 2 (RS Link 0.2.0; 1 = 0.1.0)
-RSLink:IsLinked()                   -- true / false / nil; always the character logged in NOW (nil = nobody in game or not known yet)
-RSLink:GetVerification()            -- "implicit" today; later values in section 12
-RSLink:GetAlias("MyPlugin", function(alias, err) end)
-RSLink:GetAssertion("MyPlugin", function(assertion, err) end)   -- signed, for the dependent's own server
-RSLink:OnLinkChanged("MyPlugin", function(linked) end)          -- one callback per name, replaced on re-subscribe;
+RuneLink:ApiVersion()                 -- 2 (RuneLink 0.2.0; 1 = 0.1.0)
+RuneLink:IsLinked()                   -- true / false / nil; always the character logged in NOW (nil = nobody in game or not known yet)
+RuneLink:GetVerification()            -- "implicit" today; later values in section 12
+RuneLink:GetAlias("MyPlugin", function(alias, err) end)
+RuneLink:GetAssertion("MyPlugin", function(assertion, err) end)   -- signed, for the dependent's own server
+RuneLink:OnLinkChanged("MyPlugin", function(linked) end)          -- one callback per name, replaced on re-subscribe;
                                                                 -- also false at logout / character switch
-RSLink:OpenLinkPanel()              -- shows the panel (no pairing starts by itself); at most once per 5 s
+RuneLink:OpenLinkPanel()              -- shows the panel (no pairing starts by itself); at most once per 5 s
 ```
 
 Rules for the implementation (T-116):
-- No HTTP inside these functions (section 3.1): calls go on a queue that RS Link's own `ServerLogic` subscription sends. Callbacks run later from RS Link's loop, wrapped in `pcall` so a dependent's error cannot break RS Link.
+- No HTTP inside these functions (section 3.1): calls go on a queue that RuneLink's own `ServerLogic` subscription sends. Callbacks run later from RuneLink's loop, wrapped in `pcall` so a dependent's error cannot break RuneLink.
 - Aliases are cached per plugin name for the session.
 - `err` values: `"not_linked"`, `"offline"`, `"rate_limited"`, `"bad_name"`.
 - Plugin names for aliases: trimmed, 1 to 64 of letters, digits, `.`, `_`, `-`; compared lowercase.
@@ -342,7 +342,7 @@ A dependent's own server cannot tell a real alias from a made-up one, so `/v1/al
 
 ### 13.3 DM text (T-115)
 
-> Someone playing RuneScape as **Zezima** asked to link this Discord account using the RS Link plugin.
+> Someone playing RuneScape as **Zezima** asked to link this Discord account using the RuneLink plugin.
 > If that was you, type this code into the plugin: **BHKD-7Q2M** (expires in 10 minutes).
 > If it wasn't you, ignore this message. Nothing is linked without the code.
 > [Not me] [Stop these messages]
@@ -367,14 +367,14 @@ No clan name, no invite, no links other than the configured base URL.
 - Plugin `plugin.json`: `"urls": { "link": "<base URL>" }`. Dev builds point at `http://localhost:3000` (the beta client allows plain http to localhost). The release value is set in T-120 once Drake picks the domain; changing it after release means a plugin update and a new Jagex review, so pick before submitting.
 - The address should be short enough to type from the panel (e.g. a 2-word host, no path).
 
-## 15. Plugin name: RS Link (decided)
+## 15. Plugin name: RuneLink (decided)
 
-Drake picked **RS Link** (2026-10-19), replacing the earlier "Discord Link". The name does not contain "Discord", which keeps clear of Discord's brand guidelines (discord.com/branding): third parties may not put the Discord marks into a product, bot, brand or domain name, but may use the word to describe what a product works with, as long as it does not suggest Discord made or endorses it.
+Drake picked **RS Link** (2026-10-19), replacing the earlier "Discord Link", and renamed it **RuneLink** (2026-10-26). The name does not contain "Discord", which keeps clear of Discord's brand guidelines (discord.com/branding): third parties may not put the Discord marks into a product, bot, brand or domain name, but may use the word to describe what a product works with, as long as it does not suggest Discord made or endorses it.
 
 - Discord appears only in descriptions, e.g. "Link your RuneScape name to your Discord account", plus "not affiliated with Jagex or Discord" on the page and in the README.
-- Lua import: the name has a space, so dependents use the object form `{ "RSLink": "RS Link" }` and call `RSLink:...` (section 3.1).
+- Lua import: dependents list `{ "RuneLink": "RuneLink" }` and call `RuneLink:...` (section 3.1). The old name "RS Link" had a space and needed the object form `{ "RSLink": "RS Link" }`.
 - The web host, OAuth app and repo names avoid "discord" too.
-- **Before release (T-120):** check against Jagex's plugin guidelines that the name does not suggest the plugin is official or made by Jagex, and that using "RS" (short for RuneScape, a Jagex trademark) in a plugin name is allowed; if not, rename before any other plugin depends on it.
+- **Before release (T-120):** check against Jagex's plugin guidelines that the name does not suggest the plugin is official or made by Jagex, and that using "Rune" (as in RuneScape, a Jagex trademark) in a plugin name is allowed; if not, rename before any other plugin depends on it.
 
 ## 16. Abuse list and mitigations
 
@@ -388,8 +388,8 @@ Drake picked **RS Link** (2026-10-19), replacing the earlier "Discord Link". The
 | **Consent phishing** (attacker gets a victim to approve the attacker's code, linking the attacker's character to the victim's Discord) | Confirm screen always names the RSN and warns to continue only if you are logged in as it now; "This isn't me" denies and records it; the result is only an `implicit` link the victim can see and remove on `/links`. |
 | **RSN recycling** | Keyed on tracking id when granted; 30-day rule before a recycled name's old link is released; renames tracked in history (section 11). |
 | **Forged claims / impersonation** | Cannot take over a tracked link without the tracking id; `implicit` level visible to every consumer; strong-proof uses keep their own checks; verification hook for later. |
-| **Token theft** (from the player's PC) | Token only in RS Link's own PersistentDB, never exported; revocable from `/links`; max 5 per link; prefix `lnk_` so secret scanners recognise it; stored server-side only as SHA-256. |
-| **Malicious dependent** | Gets functions only; no token, Discord id or name; cannot make RS Link call arbitrary URLs; plugin name only changes the alias. |
+| **Token theft** (from the player's PC) | Token only in RuneLink's own PersistentDB, never exported; revocable from `/links`; max 5 per link; prefix `lnk_` so secret scanners recognise it; stored server-side only as SHA-256. |
+| **Malicious dependent** | Gets functions only; no token, Discord id or name; cannot make RuneLink call arbitrary URLs; plugin name only changes the alias. |
 | **Database leak** | Discord ids encrypted, lookups are keyed HMACs, tokens hashed, codes hashed; keys only in env; separate database from clan data. |
 | **Log leak** | Never log codes, tokens, device secrets, Discord ids, tracking ids or IPs in plain text; log the pairing id and lookup prefix only. A unit test runs the flows with a capturing logger and fails if any of those values appear. |
 | **OAuth CSRF / session mix-up** | `state`, `iss` and PKCE checked; pairing bound to the browser session that entered the code; `__Host-` cookie, CSRF token on POSTs. |
@@ -403,8 +403,8 @@ Drake picked **RS Link** (2026-10-19), replacing the earlier "Discord Link". The
 | **T-113** link service + database | `rsnlink` package with the clean boundary of section 2 (import test, `LinkDmSender`), own DataSource and schema, every table, keys, codes, tokens, pairing state machine, section 9 link rules, section 11 recycling, rate limits and blocks, aliases and assertions, verification field + `LinkVerifier` hook (no verifiers), internal routes 5.3, delete paths, retention jobs. Tests: expiry, lockout, limits, token hashing, alias stability, recycling rules, "no secrets in logs". | 2, 5, 6, 7, 8, 9, 11, 12, 13.1, 13.2, 16 |
 | **T-114** neutral sign-in page | Link host face (`LINK_HOST`), plugin API proxy with per-IP limits, code entry, OAuth (JonnyBot's app for now, client from config), confirm screen, `/links` with unlink and delete-my-data, privacy text, preview-harness views of each screen with made-up data. | 3.2, 4.1, 5.1 (proxy), 5.2, 14 |
 | **T-115** DM fallback | `pair/dm` + confirm, id or username input with resolution among shared servers, uniform 202, DM sending with JDA, DM buttons (Not me, Stop), opt-out, DM caps and circuit breaker, panel copy; Drake tests user-install DMs with the dev bot. | 3.2, 4.2, 8, 13.3 |
-| **T-116** RS Link plugin | New private repo (MIT), `plugin.json` (`httpAccess` required, `trackingAccess` optional, one `link` URL), pairing panel (code + address, Discord username-or-id box, code box, status, unlink, delete), token in PersistentDB, `/v1/session` on login, library section 10 with queue + `pcall`, README for dependents. | 3.1, 4, 9.3, 10, 14 |
-| **T-117** RuneSync uses it | Adds RS Link to RuneSync's dependencies, uses `IsLinked` / `GetAlias` / `GetAssertion`, drops the dev-echo pairing assumptions. | 10, 13.2 |
+| **T-116** RuneLink plugin | New private repo (MIT), `plugin.json` (`httpAccess` required, `trackingAccess` optional, one `link` URL), pairing panel (code + address, Discord username-or-id box, code box, status, unlink, delete), token in PersistentDB, `/v1/session` on login, library section 10 with queue + `pcall`, README for dependents. | 3.1, 4, 9.3, 10, 14 |
+| **T-117** RuneSync uses it | Adds RuneLink to RuneSync's dependencies, uses `IsLinked` / `GetAlias` / `GetAssertion`, drops the dev-echo pairing assumptions. | 10, 13.2 |
 | **T-118** abuse view | Super admin page: counts and recent `abuse_event`s, lockouts, DM breaker state, block/unblock (IP, tracking, Discord), remove a link; owner-only, audit-logged; Discord ids shown only to the owner (decrypted on demand); never codes or tokens. | 5.3, 6, 8, 16 |
 | T-119 (Drake asks Jagex) | Unknowns in 3.1. | 3.1 |
 | T-120 (release) | Domain, region, privacy page, backup wording, contact email, repo public, submission. | 9.5, 14 |
@@ -415,7 +415,7 @@ Website-first rule: the player's controls (link, unlink, delete, see links) are 
 
 ## 18. Decisions (Drake, 2026-10-19)
 
-1. **Name:** "RS Link" (replaces "Discord Link"); Discord only in descriptions; Jagex-guideline check on "RS" before release (section 15).
+1. **Name:** "RuneLink" (2026-10-26; was "RS Link", which replaced "Discord Link"); Discord only in descriptions; Jagex-guideline check on the name before release (section 15).
 2. **Sign-in app:** a separate neutral Discord app eventually, JonnyBot's app for now. Client id, secret and redirect come from config, so switching is config only (sections 3.2, 6.1, 14).
 3. **DM fallback answer:** always the same, whether or not a DM can be sent (section 4.2).
 4. **DM fallback input:** a Discord id or a username. Usernames are unique since Discord's username change; they are resolved only among servers JonnyBot shares, exact match only, and the same-answer rule still applies (sections 3.2, 4.2).

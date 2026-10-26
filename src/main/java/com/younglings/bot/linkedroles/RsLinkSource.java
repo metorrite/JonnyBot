@@ -13,8 +13,8 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Where Linked Roles learns a person's current RS Link name after they verified (T-349). The website passes the name it found at sign-in;
- * the hourly pass asks again, so an unlink, a new link or a rename on RS Link reaches Discord within the hour without the person verifying
+ * Where Linked Roles learns a person's current RuneLink name after they verified (T-349). The website passes the name it found at sign-in;
+ * the hourly pass asks again, so an unlink, a new link or a rename on RuneLink reaches Discord within the hour without the person verifying
  * again. The bot pulls rather than the hub pushing: only the few people who verified are asked about, and the hub tells no app about links it
  * wasn't granted.
  */
@@ -24,7 +24,7 @@ public interface RsLinkSource {
     int BATCH = 100;
 
     /**
-     * One person's current RS Link name, when that link was made, and whether the hub has confirmed it from public data (T-552: a level
+     * One person's current RuneLink name, when that link was made, and whether the hub has confirmed it from public data (T-552: a level
      * above {@code implicit}; an older hub that doesn't say counts as not confirmed).
      */
     record Current(String rsn, Instant since, boolean confirmed) {
