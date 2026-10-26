@@ -207,6 +207,8 @@ public class EventRepository {
                 "CREATE INDEX IF NOT EXISTS event_claim_event ON younglings.event_claim (event_id, status, id);",
                 // /submit: what the claim is for, and the receipt message in the player's own (or team's) channel that is edited when staff decide
                 "ALTER TABLE younglings.event_claim ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'OBJECTIVE';",
+                // when the event first started running (T-537): where competitions counted from RuneSync start counting
+                "ALTER TABLE younglings.event ADD COLUMN IF NOT EXISTS started_at TIMESTAMPTZ NULL;",
                 "ALTER TABLE younglings.event_claim ADD COLUMN IF NOT EXISTS receipt_channel_id BIGINT NULL;",
                 "ALTER TABLE younglings.event_claim ADD COLUMN IF NOT EXISTS receipt_message_id BIGINT NULL;",
                 // the dedicated signup attached to the event (a signup panel in Discord), until it is closed
@@ -549,11 +551,13 @@ public class EventRepository {
     /** Moves an event from one stage to another. False when it wasn't in {@code from} any more, so two clicks can't both move it. */
     public boolean moveStage(long guildId, long id, Status from, Status to) {
         try (Connection c = connectionSupplier.getConnection();
-             PreparedStatement s = c.prepareStatement("UPDATE younglings.event SET status = ?, updated_at = NOW() WHERE guild_id = ? AND id = ? AND status = ?")) {
+             PreparedStatement s = c.prepareStatement("UPDATE younglings.event SET status = ?, updated_at = NOW(), started_at = CASE WHEN ? THEN COALESCE(started_at, NOW()) ELSE started_at END "
+                     + "WHERE guild_id = ? AND id = ? AND status = ?")) {
             s.setString(1, to.name());
-            s.setLong(2, guildId);
-            s.setLong(3, id);
-            s.setString(4, from.name());
+            s.setBoolean(2, to == Status.RUNNING);
+            s.setLong(3, guildId);
+            s.setLong(4, id);
+            s.setString(5, from.name());
             boolean moved = s.executeUpdate() == 1;
             if (moved) SiteInvalidator.signal(guildId, SiteInvalidator.Area.EVENTS);
             return moved;
@@ -996,6 +1000,18 @@ public class EventRepository {
             return list;
         } catch (SQLException e) {
             throw new RuntimeException("Failed to read the player's running events", e);
+        }
+    }
+
+    /** When the event first started running; empty for one that never has, or started before this was kept. */
+    public java.util.Optional<Instant> startedAt(long eventId) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("SELECT started_at FROM younglings.event WHERE id = ?")) {
+            s.setLong(1, eventId);
+            try (ResultSet rs = s.executeQuery()) {
+                return rs.next() && rs.getTimestamp(1) != null ? java.util.Optional.of(rs.getTimestamp(1).toInstant()) : java.util.Optional.empty();
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read when the event started", e);
         }
     }
 

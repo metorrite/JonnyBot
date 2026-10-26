@@ -34,13 +34,29 @@ public class EventDefaultsRepository {
     }
 
     public EventDefaults get(long guildId) {
+        EventDefaults stored;
         try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("SELECT settings FROM younglings.event_defaults WHERE guild_id = ?")) {
             s.setLong(1, guildId);
             try (ResultSet rs = s.executeQuery()) {
-                return rs.next() ? EventDefaults.fromStored(rs.getString(1)) : EventDefaults.NONE;
+                stored = rs.next() ? EventDefaults.fromStored(rs.getString(1)) : EventDefaults.NONE;
             }
         } catch (SQLException e) {
             throw new RuntimeException("Failed to read the event defaults", e);
+        }
+        return stored.withXpSource(xpSource(guildId));
+    }
+
+    /** The Clan plugin page's competition XP source (T-537), or null; a database without the plugin's table yet has none. */
+    private String xpSource(long guildId) {
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("SELECT competition_xp_source FROM younglings.plugin_guild_settings WHERE guild_id = ?")) {
+            s.setLong(1, guildId);
+            try (ResultSet rs = s.executeQuery()) {
+                return rs.next() ? rs.getString(1) : null;
+            }
+        } catch (SQLException e) {
+            log.debug("No competition XP source for guild {}: {}", guildId, e.getMessage());
+            return null;
         }
     }
 

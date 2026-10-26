@@ -33,7 +33,8 @@ import java.util.concurrent.TimeUnit;
  * polling runs ({@code RUNESCAPE_AUTO_POLL_ENABLED}), so a development copy of the database stays quiet.
  * <p>
  * Limits worth knowing: gains show up a few minutes late, the starting point is the first reading after the event is seen running (or after
- * a player joins), and a player with no linked account is skipped until they link one.
+ * a player joins), and a player with no linked account is skipped until they link one. Competitions that count from RuneSync
+ * ({@code xpSource = plugin}) are left to {@link PluginXpTracker}.
  */
 @BService
 public class EventTracker {
@@ -93,6 +94,7 @@ public class EventTracker {
     /** Brings one competition up to date: polls its players, then adds each player's new gain. Returns how many players got new progress. */
     public int feed(Event event) {
         DataObject settings = DataObject.fromJson(event.config());
+        if (CompetitionTemplate.countsFromPlugin(settings)) return 0; // counted from RuneSync by PluginXpTracker instead
         int skill = CompetitionTemplate.skillOf(settings);
         Map<Participant, String> players = new LinkedHashMap<>();
         for (Participant p : repository.participants(event.id())) {

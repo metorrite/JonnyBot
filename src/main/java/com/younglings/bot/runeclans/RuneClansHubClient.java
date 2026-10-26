@@ -165,6 +165,28 @@ public class RuneClansHubClient {
     }
 
     /**
+     * JonnyBot's alias for the player behind a Discord account ({@code GET /v1/links/discord/{id}}): only when they granted JonnyBot identity.
+     * Empty when they didn't, have no link, or the hub can't be reached.
+     */
+    public Optional<String> aliasOf(long discordId) {
+        Answer a = call("GET", "/v1/links/discord/" + discordId, null);
+        if (a == null || !a.ok() || a.json() == null) return Optional.empty();
+        return Optional.ofNullable(a.json().getString("alias", null));
+    }
+
+    /**
+     * {@code POST /v1/guilds/{id}/xp/gains} (T-536): the XP each player gained from {@code from} to {@code to} in the hub's ledger, RuneSync's
+     * timed XP only (catch-up and suspect XP left out). {@code skillId} null is every skill. Null when the hub can't be reached; the hub's own
+     * answer otherwise ({@code 404} while its XP ledger is off or the guild isn't registered).
+     */
+    public Answer xpGains(long guildId, java.util.Collection<String> aliases, Integer skillId, java.time.Instant from, java.time.Instant to) {
+        DataObject body = DataObject.empty().put("players", net.dv8tion.jda.api.utils.data.DataArray.fromCollection(aliases)).put("from", from.toString()).put("to", to.toString())
+                .put("catchup", "exclude").put("suspect", "exclude");
+        if (skillId != null) body.put("skills", String.valueOf(skillId));
+        return call("POST", "/v1/guilds/" + guildId + "/xp/gains", body.toString());
+    }
+
+    /**
      * {@code GET /v1/guilds/{id}/events}: the newest plugin events of a server's members, as the hub filters them (only members whose grant
      * to JonnyBot covers that server, only categories both the grant and the player's current consent allow). For clan websites (T-303).
      */
