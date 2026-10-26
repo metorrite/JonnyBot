@@ -34,12 +34,13 @@ import static org.mockito.Mockito.when;
 
 /**
  * XP tiles (T-543) over a real {@link EventService} and {@link EventRepository} on the developer's local Postgres (skipped without one): a tile
- * fills and completes from rising gains, a re-read adds nothing, and two passes that read the same counted total (two bot instances at once)
- * write only once. The hub is mocked; everything is made in a made-up server and removed afterwards.
+ * fills and completes from rising gains, a re-read adds nothing, two passes that read the same counted total (two bot instances at once)
+ * write only once, and a team's members' gains add up. The hub is mocked; everything is made in a made-up server and removed afterwards.
  */
 class XpTilesDatabaseTest {
     private static final long G = Long.parseLong("9".repeat(15) + "543");
     private static final long ALICE = 501;
+    private static final long BOB = 502;
     private static final int FLETCHING = 9;
     private static final int MINING = 14;
     private static final ObjectiveSpec MINING_TILE = new ObjectiveSpec("item-1", "500k XP in Mining", "", 10, Evidence.EITHER, 500_000, 1, List.of());
@@ -67,6 +68,7 @@ class XpTilesDatabaseTest {
         service = new EventService(repository, new EventTemplates(List.of(new ScavengerHuntTemplate())), kinds,
                 new PointsService(new PointsRepository(supplier), new RewardsRepository(supplier)), new EventChanges());
         when(hub.aliasOf(ALICE)).thenReturn(Optional.of("a1_alice"));
+        when(hub.aliasOf(BOB)).thenReturn(Optional.of("a1_bob"));
     }
 
     @AfterEach
@@ -142,5 +144,29 @@ class XpTilesDatabaseTest {
         hubSays(410_000, 0);
         assertEquals(0, tracker(stale).feedTiles(e), "built on the same 300,000: refused");
         assertEquals(400_000, total(e, MINING_TILE));
+    }
+
+    @Test
+    void aTeamCompletesATileFromItsMembersGainsAddedUp() {
+        long id = service.createEvent(G, 9L, new EventService.EventInput("Team hunt", "", ScavengerHuntTemplate.KEY, Scope.PRIVATE, ScoringMode.TEAM, null, null, 0,
+                DataObject.fromJson("{\"steps\":3}")));
+        service.setObjectives(G, id, List.of(MINING_TILE, FLETCHING_TILE, OTHER));
+        long red = service.addTeam(G, id, "Red", null);
+        service.moveStage(G, id, Status.SIGNUPS);
+        service.join(G, id, G, ALICE, red, true, null);
+        service.join(G, id, G, BOB, red, true, null);
+        service.moveStage(G, id, Status.RUNNING);
+        EventRepository.Event e = repository.eventById(id).orElseThrow();
+        DataArray players = DataArray.empty();
+        for (String alias : List.of("a1_alice", "a1_bob")) {
+            players.add(DataObject.empty().put("alias", alias).put("xp", 600_000L).put("bySkill", DataArray.empty().add(DataObject.empty().put("skillId", FLETCHING).put("xp", 600_000L))));
+        }
+        when(hub.xpGains(eq(G), any(), isNull(), any(), any())).thenReturn(new RuneClansHubClient.Answer(200, DataObject.empty().put("players", players)));
+
+        assertEquals(1, tracker(repository).feedTiles(e), "600k each: neither alone reaches 1M, the team does");
+        assertEquals(1, repository.total(id, FLETCHING_TILE.key(), red, true));
+        EventScoring.Standing team = service.standings(G, id).stream().filter(s -> s.subject().equals("t:" + red)).findFirst().orElseThrow();
+        assertEquals(1, team.completions().get(FLETCHING_TILE.key()));
+        assertEquals(0, tracker(repository).feedTiles(e), "complete: not asked again");
     }
 }

@@ -51,6 +51,10 @@ class XpTilesTest {
     private final RuneClansHubClient hub = Mockito.mock(RuneClansHubClient.class);
     private final PluginXpTracker tracker = new PluginXpTracker(repository, service, hub).withClock(Clock.fixed(NOW, ZoneOffset.UTC)).withTiles(true);
 
+    XpTilesTest() {
+        when(service.mayPlay(any(), any())).thenReturn(true);
+    }
+
     @AfterEach
     void offAgain() {
         PluginObjectiveMatcher.offerXpTiles(false);
@@ -70,7 +74,23 @@ class XpTilesTest {
     }
 
     private static Participant player(long userId) {
-        return new Participant(1, userId, GUILD, null, null, false, null, STARTED.minusSeconds(60), null, null, null, null, null, null);
+        return member(userId, GUILD, null);
+    }
+
+    private static Participant member(long userId, long guildId, Long teamId) {
+        return new Participant(1, userId, guildId, teamId, null, false, null, STARTED.minusSeconds(60), null, null, null, null, null, null);
+    }
+
+    private static Event teamEvent(long id, String template, String config) {
+        return new Event(id, GUILD, template, "Bingo", "", Status.RUNNING, null, ScoringMode.TEAM, STARTED, NOW.plusSeconds(86_400), 0, config, 1, STARTED.minusSeconds(7200),
+                null, false);
+    }
+
+    /** The hub's gains answer for several players: alias, then skill id and XP pairs, one array per player. */
+    private static RuneClansHubClient.Answer gainsOf(Object[]... rows) {
+        DataArray players = DataArray.empty();
+        for (Object[] row : rows) players.add(gains((String) row[0], (long) row[1], (long) row[2]).json().getArray("players").getObject(0));
+        return new RuneClansHubClient.Answer(200, DataObject.empty().put("players", players).put("notCounted", DataArray.empty()));
     }
 
     /** The hub's gains answer for one player (all skills): {@code skillAndXp} as skill id, XP pairs; the total is their sum. */
@@ -113,6 +133,26 @@ class XpTilesTest {
         assertEquals(new PluginObjectiveMatcher.XpGoal(FLETCHING, 1_000_000), PluginObjectiveMatcher.xpGoal("Gain 1M Fletching XP!"));
         assertEquals(new PluginObjectiveMatcher.XpGoal(FLETCHING, 1_000_000), PluginObjectiveMatcher.xpGoal("Gain 1M Fletching XP (any method)"));
         assertEquals(new PluginObjectiveMatcher.XpGoal(MINING, 500_000), PluginObjectiveMatcher.xpGoal("500k XP in Mining."));
+        assertEquals(new PluginObjectiveMatcher.XpGoal(20, 1_000_000), PluginObjectiveMatcher.xpGoal("Gain 1M Runecraft XP"), "the hub's name for it");
+        assertEquals(new PluginObjectiveMatcher.XpGoal(20, 1_000_000), PluginObjectiveMatcher.xpGoal("Gain 1M Runecrafting XP"));
+        assertEquals(new PluginObjectiveMatcher.XpGoal(20, 500_000), PluginObjectiveMatcher.xpGoal("500k RCing XP"));
+        assertEquals(new PluginObjectiveMatcher.XpGoal(24, 1_000_000), PluginObjectiveMatcher.xpGoal("Gain 1M Dungeoneer XP"));
+    }
+
+    @Test
+    void aRemarkOnALabelWithNoSkillMakesItNoXpTile() {
+        // the ledger can't tell skilling from combat XP: read as total XP these would complete against the label's intent
+        assertNull(PluginObjectiveMatcher.xpGoal("Gain 1M XP (any one skill)"));
+        assertNull(PluginObjectiveMatcher.xpGoal("Gain 1M XP (skilling only)"));
+        assertNull(PluginObjectiveMatcher.xpGoal("Gain 500k XP (non-combat)"));
+        assertNull(PluginObjectiveMatcher.xpGoal("Gain 5M total XP (no combat)"));
+        assertEquals(new PluginObjectiveMatcher.XpGoal(CompetitionTemplate.OVERALL, 1_000_000), PluginObjectiveMatcher.xpGoal("Gain 1M XP"));
+        assertEquals(new PluginObjectiveMatcher.XpGoal(MINING, 500_000), PluginObjectiveMatcher.xpGoal("500k XP in Mining (any method)"));
+
+        PluginObjectiveMatcher.offerXpTiles(true);
+        var hint = PluginObjectiveMatcher.explain(BingoTemplate.KEY, "Gain 1M XP (skilling only)", l -> new BingoTiles.Ref(null, l, null), i -> false);
+        assertFalse(hint.auto());
+        assertTrue(hint.text().contains("can't tell which XP"), hint.text());
     }
 
     @Test
@@ -159,7 +199,7 @@ class XpTilesTest {
         when(hub.xpGains(eq(GUILD), any(), isNull(), eq(STARTED), eq(NOW))).thenReturn(gains("a1_alice", FLETCHING, 1_200_000));
 
         assertEquals(1, tracker.feedTiles(e));
-        verify(service).recordProgress(eq(GUILD), eq(1L), eq("t1"), eq(ALICE), eq(1L), eq(Source.AUTO), eq(PluginXpTracker.tileSourceKey(ALICE, "t1", 0)), isNull(), anyString());
+        verify(service).recordProgress(eq(GUILD), eq(1L), eq("t1"), eq(ALICE), eq(1L), eq(Source.AUTO), eq(PluginXpTracker.tileSourceKey(Long.toString(ALICE), "t1", 0)), isNull(), anyString());
         verify(service, never()).recordProgress(anyLong(), anyLong(), anyString(), eq(BOB), anyLong(), any(), anyString(), any(), anyString());
         assertEquals(Set.of(BOB), tracker.notCounted(1).orElseThrow().userIds());
     }
@@ -262,5 +302,81 @@ class XpTilesTest {
         assertEquals(0, tracker.feedTiles(e));
         verify(hub, never()).xpGains(anyLong(), any(), any(), any(), any());
         assertTrue(tracker.notCounted(3).isEmpty());
+    }
+
+    @Test
+    void aTeamsGainsAddUpAndTheTeamRecordsOnce() {
+        long red = 41;
+        Event e = teamEvent(7, BingoTemplate.KEY, "{}");
+        when(repository.objectives(7)).thenReturn(List.of(tile("t1", "Gain 1M Fletching XP", 1, 1)));
+        when(repository.startedAt(7)).thenReturn(Optional.of(STARTED));
+        when(repository.participants(7)).thenReturn(List.of(member(ALICE, GUILD, red), member(BOB, GUILD, red)));
+        when(repository.progress(7)).thenReturn(List.of());
+        when(hub.aliasOf(ALICE)).thenReturn(Optional.of("a1_alice"));
+        when(hub.aliasOf(BOB)).thenReturn(Optional.of("a1_bob"));
+        when(hub.xpGains(eq(GUILD), any(), isNull(), eq(STARTED), eq(NOW))).thenReturn(gainsOf(new Object[] {"a1_alice", (long) FLETCHING, 600_000L},
+                new Object[] {"a1_bob", (long) FLETCHING, 650_000L}));
+
+        assertEquals(1, tracker.feedTiles(e), "neither reaches 1M alone; together they do");
+        verify(service).recordProgress(eq(GUILD), eq(7L), eq("t1"), eq(BOB), eq(1L), eq(Source.AUTO), eq("xpt:t" + red + ":t1:0"), isNull(), anyString());
+        verify(hub, times(1)).xpGains(anyLong(), any(), any(), any(), any());
+    }
+
+    @Test
+    void aClanVsClanGuestIsReadUnderTheirOwnServer() {
+        long guest = Long.parseLong("8".repeat(18));
+        long home = 51, away = 52;
+        Event e = teamEvent(8, ClanVsClan.KEY, "{\"cvcGame\":\"bingo\"}");
+        when(repository.objectives(8)).thenReturn(List.of(tile("t1", "500k XP in Mining", 1, 1)));
+        when(repository.startedAt(8)).thenReturn(Optional.of(STARTED));
+        when(repository.participants(8)).thenReturn(List.of(member(ALICE, GUILD, home), member(BOB, guest, away)));
+        when(repository.progress(8)).thenReturn(List.of());
+        when(hub.aliasOf(ALICE)).thenReturn(Optional.of("a1_alice"));
+        when(hub.aliasOf(BOB)).thenReturn(Optional.of("a1_bob"));
+        when(hub.xpGains(eq(GUILD), eq(List.of("a1_alice")), isNull(), eq(STARTED), eq(NOW))).thenReturn(gains("a1_alice", MINING, 100_000));
+        // bob's grant covers only his own clan's server: asked under the host's, the hub wouldn't count him
+        when(hub.xpGains(eq(guest), eq(List.of("a1_bob")), isNull(), eq(STARTED), eq(NOW))).thenReturn(gains("a1_bob", MINING, 700_000));
+
+        assertEquals(1, tracker.feedTiles(e));
+        verify(service).recordProgress(eq(GUILD), eq(8L), eq("t1"), eq(BOB), eq(1L), eq(Source.AUTO), eq("xpt:t" + away + ":t1:0"), isNull(), anyString());
+        verify(service, never()).recordProgress(anyLong(), anyLong(), anyString(), eq(ALICE), anyLong(), any(), anyString(), any(), anyString());
+        assertEquals(Set.of(), tracker.notCounted(8).orElseThrow().userIds());
+    }
+
+    @Test
+    void aCompleteTileIsNotAskedAgain() {
+        Event e = event(9, BingoTemplate.KEY);
+        when(repository.objectives(9)).thenReturn(List.of(tile("t1", "Gain 1M Fletching XP", 1, 1)));
+        when(repository.startedAt(9)).thenReturn(Optional.of(STARTED));
+        when(repository.participants(9)).thenReturn(List.of(player(ALICE)));
+        // an organiser ticked it already: the tracker's own entries add up to nothing, but the tile is full
+        when(repository.progress(9)).thenReturn(List.of(new Progress(1, 9, "t1", ALICE, null, 1, Source.MANUAL, null, 9L, null, STARTED)));
+        when(hub.aliasOf(ALICE)).thenReturn(Optional.of("a1_alice"));
+
+        assertEquals(0, tracker.feedTiles(e));
+        verify(hub, never()).xpGains(anyLong(), any(), any(), any(), any());
+        verify(service, never()).recordProgress(anyLong(), anyLong(), anyString(), anyLong(), anyLong(), any(), anyString(), any(), anyString());
+    }
+
+    @Test
+    void anOrderedHuntsStepCountsXpFromWhenItUnlocked() {
+        Instant unlocked = STARTED.plusSeconds(1800);
+        Event e = event(10, ScavengerHuntTemplate.KEY);
+        ObjectiveSpec first = new ObjectiveSpec("item-1", "Nex: Torva boots", "", 1, Evidence.EITHER, 1, 1, List.of());
+        ObjectiveSpec second = new ObjectiveSpec("item-2", "Gain 1M Fletching XP", "", 1, Evidence.EITHER, 1, 1, List.of("item-1"));
+        ObjectiveSpec third = new ObjectiveSpec("item-3", "500k XP in Mining", "", 1, Evidence.EITHER, 1, 1, List.of("item-2"));
+        when(repository.objectives(10)).thenReturn(List.of(first, second, third));
+        when(repository.startedAt(10)).thenReturn(Optional.of(STARTED));
+        when(repository.participants(10)).thenReturn(List.of(player(ALICE)));
+        when(repository.progress(10)).thenReturn(List.of(new Progress(1, 10, "item-1", ALICE, null, 1, Source.AUTO, "drop:1", null, null, unlocked)));
+        when(hub.aliasOf(ALICE)).thenReturn(Optional.of("a1_alice"));
+        when(hub.xpGains(anyLong(), any(), any(), any(), any())).thenReturn(gains("a1_alice", FLETCHING, 1_000_000, MINING, 900_000));
+
+        assertEquals(1, tracker.feedTiles(e));
+        // fletched before step 1 was done doesn't count: the step is read from its unlock, and step 3 (still locked) isn't read at all
+        verify(hub).xpGains(eq(GUILD), eq(List.of("a1_alice")), isNull(), eq(unlocked), eq(NOW));
+        verify(hub, times(1)).xpGains(anyLong(), any(), any(), any(), any());
+        verify(service).recordProgress(eq(GUILD), eq(10L), eq("item-2"), eq(ALICE), eq(1L), eq(Source.AUTO), anyString(), isNull(), anyString());
+        assertNull(PluginXpTracker.unlockedAt(third, repository.progress(10), java.util.Map.of("item-1", first, "item-2", second, "item-3", third)));
     }
 }

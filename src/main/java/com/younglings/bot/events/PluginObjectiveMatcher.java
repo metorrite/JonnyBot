@@ -71,11 +71,15 @@ public final class PluginObjectiveMatcher {
             java.util.Map.entry("fm", "firemaking"), java.util.Map.entry("craft", "crafting"), java.util.Map.entry("smith", "smithing"), java.util.Map.entry("mine", "mining"),
             java.util.Map.entry("herb", "herblore"), java.util.Map.entry("agi", "agility"), java.util.Map.entry("agil", "agility"), java.util.Map.entry("thiev", "thieving"),
             java.util.Map.entry("thieve", "thieving"), java.util.Map.entry("slay", "slayer"), java.util.Map.entry("farm", "farming"), java.util.Map.entry("rc", "runecrafting"),
+            java.util.Map.entry("runecraft", "runecrafting"), java.util.Map.entry("rcing", "runecrafting"),
             java.util.Map.entry("hunt", "hunter"), java.util.Map.entry("con", "construction"), java.util.Map.entry("cons", "construction"), java.util.Map.entry("summ", "summoning"),
-            java.util.Map.entry("summon", "summoning"), java.util.Map.entry("dung", "dungeoneering"), java.util.Map.entry("dg", "dungeoneering"),
+            java.util.Map.entry("summon", "summoning"), java.util.Map.entry("dung", "dungeoneering"), java.util.Map.entry("dg", "dungeoneering"), java.util.Map.entry("dungeoneer", "dungeoneering"),
             java.util.Map.entry("div", "divination"), java.util.Map.entry("inv", "invention"), java.util.Map.entry("invent", "invention"), java.util.Map.entry("arch", "archaeology"),
             java.util.Map.entry("arc", "archaeology"), java.util.Map.entry("necro", "necromancy"));
-    /** A remark in brackets ("(any method)"); it and trailing punctuation ("!") are dropped before an XP tile's label is read. */
+    /**
+     * A remark in brackets ("(any method)"); it and trailing punctuation ("!") are dropped before an XP tile's label is read. A remark on a label
+     * that names no skill ("Gain 1M XP (skilling only)") limits the XP in a way the ledger can't tell, so that label isn't an XP tile.
+     */
     private static final Pattern REMARK = Pattern.compile("\\([^)]*\\)");
     private static final Pattern TRAILING_PUNCTUATION = Pattern.compile("[\\p{Punct}\\s]+$");
 
@@ -84,7 +88,7 @@ public final class PluginObjectiveMatcher {
 
     private PluginObjectiveMatcher() {}
 
-    static void offerXpTiles(boolean offered) {
+    public static void offerXpTiles(boolean offered) {
         xpTilesOffered = offered;
     }
 
@@ -100,16 +104,21 @@ public final class PluginObjectiveMatcher {
         }
     }
 
-    /** The XP goal a tile label asks for, or null when it isn't an XP tile. A label with no skill (or "total", "overall") is total XP. */
+    /**
+     * The XP goal a tile label asks for, or null when it isn't an XP tile. A label with no skill (or "total", "overall") is total XP, unless it
+     * carries a remark ({@link #REMARK}).
+     */
     public static XpGoal xpGoal(String rawLabel) {
         String label = rawLabel == null ? "" : rawLabel.toLowerCase(Locale.ROOT);
-        label = TRAILING_PUNCTUATION.matcher(REMARK.matcher(label).replaceAll(" ")).replaceAll("").strip().replaceAll("\\s+", " ");
+        String bare = REMARK.matcher(label).replaceAll(" ");
+        boolean remark = !bare.equals(label);
+        label = TRAILING_PUNCTUATION.matcher(bare).replaceAll("").strip().replaceAll("\\s+", " ");
         Matcher m = XP_SKILL_FIRST.matcher(label);
         if (!m.matches()) m = XP_IN_SKILL.matcher(label);
         if (!m.matches()) return null;
         String skill = m.group(3) == null ? "total" : m.group(3);
         int skillId = skillId(skill);
-        if (skillId == Integer.MIN_VALUE) return null;
+        if (skillId == Integer.MIN_VALUE || remark && skillId == CompetitionTemplate.OVERALL) return null;
         BigDecimal amount = new BigDecimal(m.group(1).replace(",", ""));
         if (m.group(2) != null) amount = amount.movePointRight(switch (m.group(2)) {
             case "k" -> 3;
@@ -231,11 +240,16 @@ public final class PluginObjectiveMatcher {
         String label = rawLabel == null ? "" : rawLabel.strip().toLowerCase(Locale.ROOT);
         if (label.isEmpty()) return null;
         XpGoal goal = xpGoal(label);
-        if (goal != null) {
+        boolean remarked = goal == null && xpGoal(REMARK.matcher(label).replaceAll(" ")) != null; // "Gain 1M XP (skilling only)"
+        if (goal != null || remarked) {
             if (!xpTilesOffered) return new Hint(false, "XP tiles need proof or an organiser.");
             if (!countsXpTiles(template)) return new Hint(false, "XP tiles count by themselves only in bingo and scavenger hunts, so this one needs proof or an organiser.");
+            if (remarked) return new Hint(false, "RuneSync can't tell which XP the remark allows, so this tile needs proof or an organiser. An XP tile that names its skill "
+                    + "(\"Gain 1M Fletching XP (any method)\") counts by itself.");
+            String step = ScavengerHuntTemplate.KEY.equals(template) ? " A step that unlocks after another counts XP from when it unlocks." : "";
             return new Hint(true, "Auto with RuneSync: " + String.format(Locale.ROOT, "%,d", goal.xp()) + " " + goal.what() + " gained while the event runs, read from the "
-                    + "RuneClans hub. XP gained while RuneSync wasn't watching doesn't count, and players without RuneSync (RuneMetrics only) make no progress on this tile.");
+                    + "RuneClans hub. In a team event the team's XP adds up." + step + " XP gained while RuneSync wasn't watching doesn't count, and players without RuneSync "
+                    + "(RuneMetrics only) make no progress on this tile.");
         }
         if (label.contains("clue") || label.contains("treasure trail")) {
             String rest = CLUE_FILLER.matcher(label.replaceAll("[^a-z ]", " ")).replaceAll(" ").strip().replaceAll("\\s+", " ");
