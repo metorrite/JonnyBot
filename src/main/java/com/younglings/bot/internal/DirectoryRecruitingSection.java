@@ -24,6 +24,8 @@ public class DirectoryRecruitingSection implements DirectoryRouteModule {
     @Override
     public void addToClan(ClanProfile profile, DataObject json) {
         json.put("recruitingPost", recruitingJson(profile));
+        // the clan's own website shows its join link whether or not it is recruiting (T-633); the Clans Hub page keeps the post's rule
+        json.put("joinLink", joinLinks.of(profile.guildId(), profile.applyUrl()));
     }
 
     /**

@@ -60,5 +60,24 @@ class OneJoinLinkTest {
 
         assertEquals("https://discord.gg/server", onClanPage, "Server setup's invite is the server's join link");
         assertEquals(onClanPage, onEvents, "the clan page and the events hub must show the same join link");
+        assertEquals(onClanPage, page.getString("joinLink"), "the clan's own site gets the same join link");
+    }
+
+    /** T-633: a clan that isn't recruiting keeps its invite off the Clans Hub page, but its own site still shows its join link. */
+    @Test
+    void aClanThatIsNotRecruitingStillGivesItsSiteTheJoinLink() {
+        GuildSettingsService settings = mock(GuildSettingsService.class);
+        GuildSettings stored = mock(GuildSettings.class);
+        when(stored.inviteUrl()).thenReturn("https://discord.gg/server");
+        when(settings.getEffective(GUILD)).thenReturn(stored);
+        ClanRecruitingRepository recruiting = mock(ClanRecruitingRepository.class);
+        when(recruiting.of(GUILD)).thenReturn(ClanRecruiting.empty(GUILD));
+        ClanProfile clan = new ClanProfile(GUILD, ClanProfile.Visibility.PUBLIC, "younglings", "Younglings", null, null, null, null, null, Set.of(),
+                ClanProfile.Recruiting.CLOSED, null, null, false, null, null, null, null, null, null);
+
+        DataObject page = DataObject.empty();
+        new DirectoryRecruitingSection(recruiting, mock(WebFormRepository.class), new JoinLinks(settings, recruiting)).addToClan(clan, page);
+        assertEquals(true, page.getObject("recruitingPost").isNull("inviteUrl"), "the Clans Hub page shows no invite while closed");
+        assertEquals("https://discord.gg/server", page.getString("joinLink"));
     }
 }

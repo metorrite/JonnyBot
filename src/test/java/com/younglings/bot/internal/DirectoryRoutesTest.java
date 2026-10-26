@@ -263,6 +263,6 @@ class DirectoryRoutesTest {
         new DirectoryRecruitingSection(recruiting, mock(WebFormRepository.class), new JoinLinks(mock(com.younglings.bot.configure.GuildSettingsService.class, org.mockito.Answers.RETURNS_DEEP_STUBS), recruiting)).addToClan(clan, json);
         assertEquals("We raid on Fridays", json.getObject("recruitingPost").getString("post"));
         assertTrue(json.getObject("recruitingPost").isNull("applyFormPath"), "a clan that is not recruiting shows no form");
-        verify(recruiting).of(GUILD);
+        verify(recruiting, org.mockito.Mockito.atLeastOnce()).of(GUILD);
     }
 }
