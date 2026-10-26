@@ -15,8 +15,10 @@ import java.util.List;
  * Settings: {@code skillId} (a skill from {@link RuneScapeSkillCatalog}, or {@code -1} for total XP, the default) and {@code xpPerPoint}
  * (how much XP earns one point, 10,000 by default). Points are the XP gained divided by that, so a larger number keeps points small.
  * <p>
- * {@code xpSource} says where the gains come from: {@value #SOURCE_RUNEMETRICS} (the default, the polling above) or {@value #SOURCE_PLUGIN}, the
- * RuneClans hub's XP ledger fed by RuneSync ({@link PluginXpTracker}, T-537). The plugin choice is offered only while the bot is connected to the hub.
+ * {@code xpSource} says where the gains come from: {@value #SOURCE_RUNEMETRICS} (the default, the polling above), {@value #SOURCE_PLUGIN}, the
+ * RuneClans hub's XP ledger fed by RuneSync ({@link PluginXpTracker}, T-537), or {@value #SOURCE_AUTO} (T-557): RuneSync for each player the hub
+ * can count, RuneMetrics for the rest, and RuneMetrics checks the RuneSync players' numbers. A player stays with whichever counted them first
+ * ({@link CompetitionTracking#owners}). The plugin and auto choices are offered only while the bot is connected to the hub.
  */
 @BService
 public class CompetitionTemplate implements EventTemplate {
@@ -26,6 +28,7 @@ public class CompetitionTemplate implements EventTemplate {
     public static final long DEFAULT_XP_PER_POINT = 10_000;
     public static final String SOURCE_RUNEMETRICS = "runemetrics";
     public static final String SOURCE_PLUGIN = "plugin";
+    public static final String SOURCE_AUTO = "auto";
 
     /** Whether the plugin source can be offered: set once at startup by {@link PluginXpTracker} when the bot talks to the hub. */
     private static volatile boolean pluginSourceOffered;
@@ -70,8 +73,10 @@ public class CompetitionTemplate implements EventTemplate {
                         DEFAULT_XP_PER_POINT, 1, EventRules.MAX_TARGET)));
         if (pluginSourceOffered) {
             list.add(EventOptions.Option.choice("config.xpSource", "Where XP comes from", "RuneMetrics reads public profiles every few minutes. RuneSync counts within a minute or two, private profiles too, but only "
-                            + "players who run the RuneSync plugin and share XP with this bot; the others score nothing. It can't be changed once the event exists.", EventOptions.Step.RULES, SOURCE_RUNEMETRICS,
-                    List.of(new EventOptions.Choice(SOURCE_RUNEMETRICS, "RuneMetrics (public profiles)"), new EventOptions.Choice(SOURCE_PLUGIN, "RuneSync plugin"))));
+                            + "players who run the RuneSync plugin and share XP with this bot; with RuneSync only, the others score nothing. Auto counts RuneSync players from RuneSync and everyone "
+                            + "else from RuneMetrics. It can't be changed once the event exists.", EventOptions.Step.RULES, SOURCE_RUNEMETRICS,
+                    List.of(new EventOptions.Choice(SOURCE_RUNEMETRICS, "RuneMetrics (public profiles)"), new EventOptions.Choice(SOURCE_PLUGIN, "RuneSync plugin"),
+                            new EventOptions.Choice(SOURCE_AUTO, "Auto (RuneSync where players run it, else RuneMetrics)"))));
             list.add(EventOptions.Option.of("config.confirmedLinksOnly", "Count confirmed links only", "Only players whose RS Link the RuneClans hub has confirmed from "
                             + "public data score. The others are listed as not confirmed yet. It can't be changed once the event exists.", EventOptions.Step.RULES,
                     EventOptions.Type.BOOL, false).showWhen(EventOptions.When.is("config.xpSource", SOURCE_PLUGIN)));
@@ -98,11 +103,13 @@ public class CompetitionTemplate implements EventTemplate {
         return id >= Integer.MIN_VALUE && id <= Integer.MAX_VALUE ? (int) id : Integer.MIN_VALUE;
     }
 
-    /** Where a competition's gains come from: {@link #SOURCE_PLUGIN} only when it says so, else {@link #SOURCE_RUNEMETRICS} (every event made before T-537). */
+    /** Where a competition's gains come from: {@link #SOURCE_PLUGIN} or {@link #SOURCE_AUTO} when it says so, else {@link #SOURCE_RUNEMETRICS} (every event made before T-537). */
     public static String xpSourceOf(DataObject config) {
-        return config.hasKey("xpSource") && !config.isNull("xpSource") && SOURCE_PLUGIN.equals(String.valueOf(config.get("xpSource"))) ? SOURCE_PLUGIN : SOURCE_RUNEMETRICS;
+        String s = config.hasKey("xpSource") && !config.isNull("xpSource") ? String.valueOf(config.get("xpSource")) : null;
+        return SOURCE_PLUGIN.equals(s) || SOURCE_AUTO.equals(s) ? s : SOURCE_RUNEMETRICS;
     }
 
+    /** Counted from RuneSync only: every player, and nobody from RuneMetrics. */
     public static boolean countsFromPlugin(DataObject config) {
         return SOURCE_PLUGIN.equals(xpSourceOf(config));
     }
@@ -113,8 +120,23 @@ public class CompetitionTemplate implements EventTemplate {
                 && "true".equalsIgnoreCase(String.valueOf(config.get("confirmedLinksOnly")));
     }
 
+    /** Auto (T-557): RuneSync for the players the hub counts, RuneMetrics for the others. */
+    public static boolean countsAuto(DataObject config) {
+        return SOURCE_AUTO.equals(xpSourceOf(config));
+    }
+
+    /** Whether {@link PluginXpTracker} reads this competition from the hub (RuneSync only, or auto). */
+    public static boolean readsPlugin(DataObject config) {
+        return !SOURCE_RUNEMETRICS.equals(xpSourceOf(config));
+    }
+
     public static boolean validSource(String source) {
-        return SOURCE_RUNEMETRICS.equals(source) || SOURCE_PLUGIN.equals(source);
+        return SOURCE_RUNEMETRICS.equals(source) || SOURCE_PLUGIN.equals(source) || SOURCE_AUTO.equals(source);
+    }
+
+    /** The sources that need the bot connected to the hub. */
+    public static boolean needsHub(String source) {
+        return SOURCE_PLUGIN.equals(source) || SOURCE_AUTO.equals(source);
     }
 
     public static long xpPerPoint(DataObject config) {
@@ -133,7 +155,7 @@ public class CompetitionTemplate implements EventTemplate {
         long per = xpPerPoint(config);
         if (per < 1 || per > EventRules.MAX_TARGET) problems.add("XP per point has to be between 1 and " + EventRules.MAX_TARGET + ".");
         if (config.hasKey("xpSource") && !config.isNull("xpSource") && !validSource(String.valueOf(config.get("xpSource")))) {
-            problems.add("XP comes from RuneMetrics or the RuneSync plugin.");
+            problems.add("XP comes from RuneMetrics, the RuneSync plugin, or auto.");
         }
         return problems;
     }
@@ -143,7 +165,7 @@ public class CompetitionTemplate implements EventTemplate {
         int skill = skillOf(config);
         long per = xpPerPoint(config);
         String name = skillName(skill);
-        String from = countsFromPlugin(config) ? " Counted from RuneSync." : "";
+        String from = countsFromPlugin(config) ? " Counted from RuneSync." : countsAuto(config) ? " Counted from RuneSync where players run it, RuneMetrics for the rest." : "";
         return List.of(new ObjectiveSpec(OBJECTIVE_KEY, name + " XP gained", "One point for every " + String.format("%,d", per) + " XP gained while the event runs." + from,
                 1, Evidence.AUTO, per, EventRules.MAX_REPEAT, List.of()));
     }
