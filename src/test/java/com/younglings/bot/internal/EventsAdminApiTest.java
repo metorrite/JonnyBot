@@ -102,7 +102,7 @@ class EventsAdminApiTest {
                 new com.younglings.bot.events.EventDefaultsRepository(supplier), new com.younglings.bot.events.BingoPools(Mockito.mock(com.younglings.bot.events.BingoTileRepository.class)));
         api = new EventsAdminApi(service, repository, templates, signups, new BingoTemplate(), panels, links, new com.younglings.bot.events.BingoTiles(new com.younglings.bot.internal.WikiCatalog()),
                 new EventSetupApi(eventSetup), new com.younglings.bot.events.EventTeams(service, repository, links),
-                new com.younglings.bot.events.BingoPools(Mockito.mock(com.younglings.bot.events.BingoTileRepository.class)));
+                new com.younglings.bot.events.BingoPools(Mockito.mock(com.younglings.bot.events.BingoTileRepository.class)), null);
 
         guild = Mockito.mock(Guild.class);
         Mockito.when(guild.getIdLong()).thenReturn(G);

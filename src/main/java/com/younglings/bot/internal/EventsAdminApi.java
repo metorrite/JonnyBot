@@ -83,11 +83,13 @@ public class EventsAdminApi implements AdminRouteExtension {
     private final EventSetupApi setupApi;
     private final EventTeams eventTeams;
     private final com.younglings.bot.events.BingoPools pools;
+    private final com.younglings.bot.events.PluginXpTracker pluginXp;
 
     public EventsAdminApi(EventService service, EventRepository repository, EventTemplates templates, EventSignups signups, BingoTemplate bingo, EventBoardPanels panels,
                           com.younglings.bot.runescape.PlayerLinkRepository links, BingoTiles tiles, EventSetupApi setupApi, EventTeams eventTeams,
-                          com.younglings.bot.events.BingoPools pools) {
+                          com.younglings.bot.events.BingoPools pools, com.younglings.bot.events.PluginXpTracker pluginXp) {
         this.pools = pools;
+        this.pluginXp = pluginXp;
         this.eventTeams = eventTeams;
         this.setupApi = setupApi;
         this.links = links;
@@ -708,7 +710,15 @@ public class EventsAdminApi implements AdminRouteExtension {
         }
         DataObject answer = DataObject.empty().put("scoringMode", event.scoringMode().name()).put("standings", array);
         if (ClanVsClan.is(event.template())) answer.put("clanVsClan", clanVsClanJson(guild, event));
+        if (pluginXp != null) pluginXp.notCounted(id).ifPresent(n -> answer.put("pluginXp", pluginXpJson(guild, n)));
         return answer;
+    }
+
+    /** A competition counted from RuneSync (T-537): who scored nothing on the last pass because the hub can't count them, for "not counted (no RuneSync)". */
+    private DataObject pluginXpJson(Guild guild, com.younglings.bot.events.PluginXpTracker.NotCounted n) {
+        DataArray list = DataArray.empty();
+        n.userIds().stream().sorted().forEach(u -> list.add(DataObject.empty().put("userId", Long.toString(u)).put("name", name(guild, u))));
+        return DataObject.empty().put("notCounted", list).put("checkedAt", n.checkedAt().toString());
     }
 
     /** A clan-vs-clan event's scoring, and what each player earned for their clan (T-222), best first within each clan. */
