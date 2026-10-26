@@ -32,7 +32,7 @@ public final class ClanSiteLayoutRules {
     public static final int MAX_TITLE = 40;
     public static final int GRID = 12;
 
-    public static final Set<String> THEMES = Set.of("modern", "parchment", "minimal");
+    public static final Set<String> THEMES = Set.of("modern", "parchment", "minimal", "clanhall");
     public static final Set<String> MODES = Set.of("light", "dark");
     public static final Set<String> TONES = Set.of("plain", "panel", "accent");
     public static final Set<String> UNMET = Set.of("hide", "placeholder");
@@ -117,7 +117,7 @@ public final class ClanSiteLayoutRules {
         DataObject t = look == null ? DataObject.empty() : look;
         String theme = t.getString("theme", "modern");
         String mode = t.getString("mode", "dark");
-        if (!THEMES.contains(theme)) problems.add("Pick one of the three templates.");
+        if (!THEMES.contains(theme)) problems.add("Pick one of the site themes.");
         if (!MODES.contains(mode)) problems.add("Pick light or dark.");
         DataObject out = DataObject.empty().put("theme", theme).put("mode", mode);
         if (t.isNull("accent") || !t.hasKey("accent")) out.putNull("accent");
