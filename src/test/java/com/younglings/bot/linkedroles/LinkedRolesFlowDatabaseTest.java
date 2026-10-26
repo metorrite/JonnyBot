@@ -268,6 +268,32 @@ class LinkedRolesFlowDatabaseTest {
     }
 
     @Test
+    void withRequireConfirmedAnRsLinkNameCountsOnceTheHubConfirmsIt() throws Exception {
+        Map<String, String> env = new HashMap<>(LinkedRolesUnitTest.fullEnv());
+        env.put("LINKED_ROLES_DISCORD_API", "http://127.0.0.1:" + server.getAddress().getPort() + "/api/v10");
+        env.put("LINKED_ROLES_REQUIRE_CONFIRMED", "true");
+        LinkedRolesSettings strict = LinkedRolesSettings.from(env::get);
+        AtomicReference<Optional<Map<Long, RsLinkSource.Current>>> hub = new AtomicReference<>(
+                Optional.of(Map.of(USER, new RsLinkSource.Current(RSN, Instant.parse("2026-05-01T00:00:00Z"), false))));
+        roles = LinkedRoles.forTest(strict, store, DiscordRoleApi.http(strict), guild -> guild == GUILD, ids -> hub.get(), clock);
+
+        LinkedRoles.Shared shared = roles.connect(USER, "access-0", "refresh-0", 604800, RSN, Instant.parse("2026-05-01T00:00:00Z"));
+        assertEquals("0", connections.get(0).getObject("metadata").getString("rsn_linked"), "not confirmed yet: the name doesn't count");
+        assertEquals(RSN, shared.unconfirmedRsLink());
+        assertEquals(null, shared.profile().rsn());
+
+        hub.set(Optional.of(Map.of(USER, new RsLinkSource.Current(RSN, Instant.parse("2026-05-01T00:00:00Z"), true))));
+        clock.advance(Duration.ofHours(1));
+        assertEquals(1, roles.tick(), "the hub confirmed the link: it is sent");
+        assertEquals("1", connections.get(1).getObject("metadata").getString("rsn_linked"));
+        assertEquals(null, roles.status(USER).orElseThrow().unconfirmedRsLink());
+
+        // the same person with the switch off: the name counted all along
+        roles = LinkedRoles.forTest(settings, store, DiscordRoleApi.http(settings), guild -> guild == GUILD, ids -> hub.get(), clock);
+        assertEquals(RSN, roles.status(USER).orElseThrow().profile().rsn());
+    }
+
+    @Test
     void aNameTheBotKeepsItselfWinsOverRsLink() throws Exception {
         linkAndStats(2000, 120, false);
         roles = LinkedRoles.forTest(settings, store, DiscordRoleApi.http(settings), guild -> guild == GUILD, ids -> Optional.of(Map.of()), clock);
