@@ -77,7 +77,7 @@ public class CompetitionTemplate implements EventTemplate {
                             + "else from RuneMetrics. It can't be changed once the event exists.", EventOptions.Step.RULES, SOURCE_RUNEMETRICS,
                     List.of(new EventOptions.Choice(SOURCE_RUNEMETRICS, "RuneMetrics (public profiles)"), new EventOptions.Choice(SOURCE_PLUGIN, "RuneSync plugin"),
                             new EventOptions.Choice(SOURCE_AUTO, "Auto (RuneSync where players run it, else RuneMetrics)"))));
-            list.add(EventOptions.Option.of("config.confirmedLinksOnly", "Count confirmed links only", "Only players whose RS Link the RuneClans hub has confirmed from "
+            list.add(EventOptions.Option.of("config.confirmedLinksOnly", "Count confirmed links only", "Only players whose RuneLink the RuneClans hub has confirmed from "
                             + "public data score. The others are listed as not confirmed yet. It can't be changed once the event exists.", EventOptions.Step.RULES,
                     EventOptions.Type.BOOL, false).showWhen(EventOptions.When.is("config.xpSource", SOURCE_PLUGIN)));
         }
@@ -114,7 +114,7 @@ public class CompetitionTemplate implements EventTemplate {
         return SOURCE_PLUGIN.equals(xpSourceOf(config));
     }
 
-    /** A RuneSync competition that counts only players whose RS Link the hub confirmed (T-552). Off unless it says so. */
+    /** A RuneSync competition that counts only players whose RuneLink the hub confirmed (T-552). Off unless it says so. */
     public static boolean confirmedLinksOnly(DataObject config) {
         return countsFromPlugin(config) && config.hasKey("confirmedLinksOnly") && !config.isNull("confirmedLinksOnly")
                 && "true".equalsIgnoreCase(String.valueOf(config.get("confirmedLinksOnly")));

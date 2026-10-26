@@ -67,7 +67,7 @@ The JonnyBot privacy page already covers: what is stored per server and per play
 
 - The contact for requests must be a JonnyBot contact, not the Younglings Discord (G5/G6; the page now reads it from config).
 - Add a line that server admins can see what their own server's features store (logs, tickets, cases), and that JonnyBot staff (Drake) can access data only to run and fix the service.
-- If the RS Link and RuneSync plugins go live, link their own notices (RUNESYNC-DESIGN section 12).
+- If the RuneLink and RuneSync plugins go live, link their own notices (RUNESYNC-DESIGN section 12).
 
 ## 6. Drake's actions
 

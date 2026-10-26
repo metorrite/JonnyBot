@@ -20,14 +20,14 @@ import java.util.function.LongPredicate;
 
 /**
  * Linked Roles' table, {@code younglings.linked_role_connection}: one row per person who verified, with their OAuth tokens sealed by
- * {@link TokenBox} (never stored or logged in clear), the RS Link name the website found for them, and what was last sent to Discord. Plus
+ * {@link TokenBox} (never stored or logged in clear), the RuneLink name the website found for them, and what was last sent to Discord. Plus
  * the read-only lookup of what the bot knows about a person (linked name, levels, clan) from the RuneScape tables it already keeps.
  */
 @BService
 public class LinkedRolesStore {
     private static final Logger log = LoggerFactory.getLogger(LinkedRolesStore.class);
 
-    /** {@code rsLinkConfirmed}: the hub had confirmed that RS Link name from public data when it was last asked (T-552). */
+    /** {@code rsLinkConfirmed}: the hub had confirmed that RuneLink name from public data when it was last asked (T-552). */
     public record Row(long discordUserId, byte[] accessEnc, byte[] refreshEnc, Instant accessExpiresAt, String rsLinkRsn, Instant rsLinkSince,
                       String lastFingerprint, Instant lastPushedAt, Instant createdAt, boolean rsLinkConfirmed) {}
 
@@ -84,7 +84,7 @@ public class LinkedRolesStore {
         });
     }
 
-    /** The person's RS Link name changed on the hub since they verified (T-349), or whether it is confirmed did (T-552); null clears it. */
+    /** The person's RuneLink name changed on the hub since they verified (T-349), or whether it is confirmed did (T-552); null clears it. */
     public void updateRsLink(long userId, String rsLinkRsn, Instant rsLinkSince, boolean confirmed) {
         exec("UPDATE younglings.linked_role_connection SET rslink_rsn = ?, rslink_since = ?, rslink_confirmed = ?, updated_at = NOW() WHERE discord_user_id = ?", s -> {
             s.setString(1, rsLinkRsn);
@@ -141,7 +141,7 @@ public class LinkedRolesStore {
 
     /**
      * What the bot knows about a person: their verified RuneScape account (the bot's own {@code player_account}, else their primary per-server
-     * link, else the RS Link name the website passed), the latest level snapshot of that name, and whether it is an active member of a clan
+     * link, else the RuneLink name the website passed), the latest level snapshot of that name, and whether it is an active member of a clan
      * that {@code listed} says is publicly listed.
      */
     public Profile profile(long userId, String rsLinkRsn, Instant rsLinkSince, LongPredicate listed) {
