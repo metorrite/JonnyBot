@@ -24,158 +24,6 @@
       "text": "name",
       "height": 48
     },
-    "nav": [
-      {
-        "id": "ghln0091",
-        "label": "Home",
-        "link": {
-          "kind": "page",
-          "pageId": "ptplhome"
-        }
-      },
-      {
-        "id": "ghln0092",
-        "label": "Members",
-        "link": {
-          "kind": "page",
-          "pageId": "ptplmembers"
-        }
-      },
-      {
-        "id": "ghln0093",
-        "label": "Events",
-        "link": {
-          "kind": "page",
-          "pageId": "ptplevents"
-        }
-      },
-      {
-        "id": "ghln0094",
-        "label": "Stats",
-        "link": {
-          "kind": "page",
-          "pageId": "ptplstats"
-        }
-      },
-      {
-        "id": "ghln0095",
-        "label": "More",
-        "children": [
-          {
-            "id": "ghln0096",
-            "label": "About us",
-            "link": {
-              "kind": "page",
-              "pageId": "ghlabout"
-            }
-          },
-          {
-            "id": "ghln0097",
-            "label": "Calendar",
-            "link": {
-              "kind": "page",
-              "pageId": "ptplcalendar"
-            }
-          },
-          {
-            "id": "ghln0098",
-            "label": "Signups",
-            "link": {
-              "kind": "page",
-              "pageId": "ptplsignups"
-            }
-          },
-          {
-            "id": "ghln0099",
-            "label": "Polls",
-            "link": {
-              "kind": "page",
-              "pageId": "ptplpolls"
-            }
-          },
-          {
-            "id": "ghln0100",
-            "label": "Leaderboards",
-            "link": {
-              "kind": "page",
-              "pageId": "ptplleaderboards"
-            }
-          },
-          {
-            "id": "ghln0101",
-            "label": "Recaps",
-            "link": {
-              "kind": "page",
-              "pageId": "ptplrecaps"
-            }
-          },
-          {
-            "id": "ghln0102",
-            "label": "Citadel",
-            "link": {
-              "kind": "page",
-              "pageId": "ptplcitadel"
-            }
-          },
-          {
-            "id": "ghln0103",
-            "label": "Hall of fame",
-            "link": {
-              "kind": "page",
-              "pageId": "ptplhalloffame"
-            }
-          },
-          {
-            "id": "ghln0104",
-            "label": "History",
-            "link": {
-              "kind": "page",
-              "pageId": "ptplhistory"
-            }
-          },
-          {
-            "id": "ghln0105",
-            "label": "Compare",
-            "link": {
-              "kind": "page",
-              "pageId": "ptplcompare"
-            }
-          },
-          {
-            "id": "ghln0106",
-            "label": "Coffer",
-            "link": {
-              "kind": "page",
-              "pageId": "ptplcoffer"
-            }
-          },
-          {
-            "id": "ghln0107",
-            "label": "PvM",
-            "link": {
-              "kind": "page",
-              "pageId": "ptplpvm"
-            }
-          },
-          {
-            "id": "ghln0108",
-            "label": "Drop log",
-            "link": {
-              "kind": "page",
-              "pageId": "ptpldrops"
-            }
-          }
-        ]
-      },
-      {
-        "id": "ghln0109",
-        "label": "Join us",
-        "link": {
-          "kind": "page",
-          "pageId": "ghljoin"
-        }
-      }
-    ],
     "slots": {
       "left": [
         {
@@ -197,9 +45,163 @@
     "sticky": true,
     "transparent": "never",
     "height": "normal",
-    "mobile": "dropdown"
+    "mobile": "dropdown",
+    "nav": [
+      {
+        "id": "ghalln329",
+        "label": "Home",
+        "link": {
+          "kind": "page",
+          "pageId": "ghallphome"
+        }
+      },
+      {
+        "id": "ghalln330",
+        "label": "Members",
+        "link": {
+          "kind": "page",
+          "pageId": "ghallpmembers"
+        }
+      },
+      {
+        "id": "ghalln331",
+        "label": "Events",
+        "link": {
+          "kind": "page",
+          "pageId": "ghallpevents"
+        }
+      },
+      {
+        "id": "ghalln332",
+        "label": "Stats",
+        "link": {
+          "kind": "page",
+          "pageId": "ghallpstats"
+        }
+      },
+      {
+        "id": "ghalln333",
+        "label": "More",
+        "children": [
+          {
+            "id": "ghalln334",
+            "label": "About us",
+            "link": {
+              "kind": "page",
+              "pageId": "ghallpabout"
+            }
+          },
+          {
+            "id": "ghalln335",
+            "label": "Calendar",
+            "link": {
+              "kind": "page",
+              "pageId": "ghallpcalendar"
+            }
+          },
+          {
+            "id": "ghalln336",
+            "label": "Signups",
+            "link": {
+              "kind": "page",
+              "pageId": "ghallpsignups"
+            }
+          },
+          {
+            "id": "ghalln337",
+            "label": "Polls",
+            "link": {
+              "kind": "page",
+              "pageId": "ghallppolls"
+            }
+          },
+          {
+            "id": "ghalln338",
+            "label": "Leaderboards",
+            "link": {
+              "kind": "page",
+              "pageId": "ghallpleaderboar"
+            }
+          },
+          {
+            "id": "ghalln339",
+            "label": "Recaps",
+            "link": {
+              "kind": "page",
+              "pageId": "ghallprecaps"
+            }
+          },
+          {
+            "id": "ghalln340",
+            "label": "Citadel",
+            "link": {
+              "kind": "page",
+              "pageId": "ghallpcitadel"
+            }
+          },
+          {
+            "id": "ghalln341",
+            "label": "Hall of fame",
+            "link": {
+              "kind": "page",
+              "pageId": "ghallphalloffame"
+            }
+          },
+          {
+            "id": "ghalln342",
+            "label": "History",
+            "link": {
+              "kind": "page",
+              "pageId": "ghallphistory"
+            }
+          },
+          {
+            "id": "ghalln343",
+            "label": "Compare",
+            "link": {
+              "kind": "page",
+              "pageId": "ghallpcompare"
+            }
+          },
+          {
+            "id": "ghalln344",
+            "label": "Coffer",
+            "link": {
+              "kind": "page",
+              "pageId": "ghallpcoffer"
+            }
+          },
+          {
+            "id": "ghalln345",
+            "label": "PvM",
+            "link": {
+              "kind": "page",
+              "pageId": "ghallppvm"
+            }
+          },
+          {
+            "id": "ghalln346",
+            "label": "Drop log",
+            "link": {
+              "kind": "page",
+              "pageId": "ghallpdrops"
+            }
+          }
+        ]
+      },
+      {
+        "id": "ghalln347",
+        "label": "Join us",
+        "link": {
+          "kind": "page",
+          "pageId": "ghallpjoin"
+        }
+      }
+    ]
   },
   "footer": {
+    "showSocial": true,
+    "badge": true,
     "columns": [
       {
         "title": "Visit",
@@ -208,21 +210,21 @@
             "label": "Home",
             "link": {
               "kind": "page",
-              "pageId": "ptplhome"
+              "pageId": "ghallphome"
             }
           },
           {
             "label": "About us",
             "link": {
               "kind": "page",
-              "pageId": "ghlabout"
+              "pageId": "ghallpabout"
             }
           },
           {
             "label": "Join us",
             "link": {
               "kind": "page",
-              "pageId": "ghljoin"
+              "pageId": "ghallpjoin"
             }
           }
         ]
@@ -234,21 +236,21 @@
             "label": "Events",
             "link": {
               "kind": "page",
-              "pageId": "ptplevents"
+              "pageId": "ghallpevents"
             }
           },
           {
             "label": "Signups",
             "link": {
               "kind": "page",
-              "pageId": "ptplsignups"
+              "pageId": "ghallpsignups"
             }
           },
           {
             "label": "Polls",
             "link": {
               "kind": "page",
-              "pageId": "ptplpolls"
+              "pageId": "ghallppolls"
             }
           }
         ]
@@ -265,20 +267,25 @@
         ]
       }
     ],
-    "text": "{clan} · a guild hall for every kind of player.",
-    "showSocial": true,
-    "badge": true
+    "text": "{clan} · a guild hall for every kind of player."
   },
   "pages": [
     {
-      "id": "ptplhome",
+      "id": "ghallphome",
       "title": "Home",
       "path": "",
       "hidden": false,
       "access": "public",
+      "origin": {
+        "template": "home",
+        "v": 1
+      },
+      "seo": {
+        "description": "Welcome to {clan}'s guild hall: members, events, stats and more."
+      },
       "sections": [
         {
-          "id": "hms004",
+          "id": "ghalls004",
           "width": "full",
           "background": {
             "kind": "accent"
@@ -296,7 +303,7 @@
           },
           "rows": [
             {
-              "id": "hmr003",
+              "id": "ghallr003",
               "gap": {
                 "lg": "md"
               },
@@ -308,7 +315,7 @@
               },
               "cells": [
                 {
-                  "id": "hmc002",
+                  "id": "ghallc002",
                   "span": {
                     "lg": 12
                   },
@@ -319,13 +326,15 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "hmw001",
+                      "id": "ghallw001",
                       "type": "clan-header",
                       "v": 1,
                       "settings": {
                         "showBanner": true,
                         "showTagline": true,
-                        "align": "left"
+                        "align": "center",
+                        "eyebrow": "Welcome to",
+                        "logoShape": "rounded"
                       },
                       "unmet": "hide"
                     }
@@ -336,7 +345,7 @@
           ]
         },
         {
-          "id": "hms016",
+          "id": "ghalls015",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -354,7 +363,7 @@
           },
           "rows": [
             {
-              "id": "hmr015",
+              "id": "ghallr014",
               "gap": {
                 "lg": "md"
               },
@@ -366,7 +375,7 @@
               },
               "cells": [
                 {
-                  "id": "ghlc0089",
+                  "id": "ghallc010",
                   "span": {
                     "lg": 8,
                     "md": 12
@@ -378,7 +387,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "hmw010",
+                      "id": "ghallw005",
                       "type": "stat-tiles",
                       "v": 2,
                       "settings": {
@@ -409,20 +418,19 @@
                       "unmet": "hide"
                     },
                     {
-                      "id": "hmw011",
+                      "id": "ghallw006",
                       "type": "channel-feed",
-                      "v": 1,
+                      "v": 2,
                       "settings": {
                         "title": "News",
                         "channel": "",
-                        "limit": 5,
                         "showAuthors": true,
                         "showImages": true
                       },
                       "unmet": "hide"
                     },
                     {
-                      "id": "hmw005",
+                      "id": "ghallw007",
                       "type": "top-xp",
                       "v": 1,
                       "settings": {
@@ -436,7 +444,7 @@
                       "unmet": "hide"
                     },
                     {
-                      "id": "hmw006",
+                      "id": "ghallw008",
                       "type": "activity-feed",
                       "v": 1,
                       "settings": {
@@ -446,7 +454,7 @@
                       "unmet": "hide"
                     },
                     {
-                      "id": "hmw007",
+                      "id": "ghallw009",
                       "type": "milestones",
                       "v": 1,
                       "settings": {
@@ -458,7 +466,7 @@
                   ]
                 },
                 {
-                  "id": "ghlc0090",
+                  "id": "ghallc013",
                   "span": {
                     "lg": 4,
                     "md": 12
@@ -470,19 +478,16 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "hmw013",
+                      "id": "ghallw011",
                       "type": "discord-online",
-                      "v": 1,
+                      "v": 2,
                       "settings": {
-                        "title": "Online on Discord",
-                        "show": "names",
-                        "groups": true,
-                        "limit": 24
+                        "title": "Online on Discord"
                       },
                       "unmet": "hide"
                     },
                     {
-                      "id": "hmw008",
+                      "id": "ghallw012",
                       "type": "citadel-chart",
                       "v": 1,
                       "settings": {
@@ -498,24 +503,21 @@
             }
           ]
         }
-      ],
-      "origin": {
-        "template": "home",
-        "v": 1
-      },
-      "seo": {
-        "description": "Welcome to {clan}'s guild hall: members, events, stats and more."
-      }
+      ]
     },
     {
-      "id": "ptplmembers",
+      "id": "ghallpmembers",
       "title": "Members",
       "path": "members",
       "hidden": false,
       "access": "public",
+      "origin": {
+        "template": "members",
+        "v": 1
+      },
       "sections": [
         {
-          "id": "mbs004",
+          "id": "ghalls019",
           "width": "full",
           "background": {
             "kind": "surface"
@@ -533,7 +535,7 @@
           },
           "rows": [
             {
-              "id": "mbr003",
+              "id": "ghallr018",
               "gap": {
                 "lg": "md"
               },
@@ -545,7 +547,7 @@
               },
               "cells": [
                 {
-                  "id": "mbc002",
+                  "id": "ghallc017",
                   "span": {
                     "lg": 12
                   },
@@ -556,7 +558,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "mbw001",
+                      "id": "ghallw016",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -576,7 +578,7 @@
           ]
         },
         {
-          "id": "mbs010",
+          "id": "ghalls025",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -594,7 +596,7 @@
           },
           "rows": [
             {
-              "id": "mbr009",
+              "id": "ghallr024",
               "gap": {
                 "lg": "md"
               },
@@ -606,7 +608,7 @@
               },
               "cells": [
                 {
-                  "id": "mbc006",
+                  "id": "ghallc021",
                   "span": {
                     "lg": 9,
                     "md": 12
@@ -618,7 +620,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "mbw005",
+                      "id": "ghallw020",
                       "type": "member-directory",
                       "v": 1,
                       "settings": {
@@ -630,8 +632,10 @@
                         "showLevel": true,
                         "showXp": false,
                         "showJoined": false,
+                        "showPoints": true,
                         "search": true,
                         "rankFilter": true,
+                        "sortControls": true,
                         "linkPages": true
                       },
                       "unmet": "hide"
@@ -639,7 +643,7 @@
                   ]
                 },
                 {
-                  "id": "mbc008",
+                  "id": "ghallc023",
                   "span": {
                     "lg": 3,
                     "md": 12
@@ -651,7 +655,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "mbw007",
+                      "id": "ghallw022",
                       "type": "rank-breakdown",
                       "v": 1,
                       "settings": {
@@ -668,21 +672,21 @@
             }
           ]
         }
-      ],
-      "origin": {
-        "template": "members",
-        "v": 1
-      }
+      ]
     },
     {
-      "id": "ptplevents",
+      "id": "ghallpevents",
       "title": "Events",
       "path": "events",
       "hidden": false,
       "access": "public",
+      "origin": {
+        "template": "events",
+        "v": 1
+      },
       "sections": [
         {
-          "id": "evs004",
+          "id": "ghalls029",
           "width": "full",
           "background": {
             "kind": "surface"
@@ -700,7 +704,7 @@
           },
           "rows": [
             {
-              "id": "evr003",
+              "id": "ghallr028",
               "gap": {
                 "lg": "md"
               },
@@ -712,7 +716,7 @@
               },
               "cells": [
                 {
-                  "id": "evc002",
+                  "id": "ghallc027",
                   "span": {
                     "lg": 12
                   },
@@ -723,7 +727,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "evw001",
+                      "id": "ghallw026",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -743,7 +747,7 @@
           ]
         },
         {
-          "id": "evs014",
+          "id": "ghalls039",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -761,7 +765,7 @@
           },
           "rows": [
             {
-              "id": "evr007",
+              "id": "ghallr032",
               "gap": {
                 "lg": "md"
               },
@@ -773,7 +777,7 @@
               },
               "cells": [
                 {
-                  "id": "evc006",
+                  "id": "ghallc031",
                   "span": {
                     "lg": 12
                   },
@@ -784,7 +788,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "evw005",
+                      "id": "ghallw030",
                       "type": "button-row",
                       "v": 1,
                       "settings": {
@@ -793,7 +797,7 @@
                             "label": "Open the calendar",
                             "link": {
                               "kind": "page",
-                              "pageId": "ptplcalendar"
+                              "pageId": "ghallpcalendar"
                             },
                             "style": "primary"
                           }
@@ -809,7 +813,7 @@
               ]
             },
             {
-              "id": "evr010",
+              "id": "ghallr035",
               "gap": {
                 "lg": "md"
               },
@@ -821,7 +825,7 @@
               },
               "cells": [
                 {
-                  "id": "evc009",
+                  "id": "ghallc034",
                   "span": {
                     "lg": 12
                   },
@@ -832,7 +836,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "evw008",
+                      "id": "ghallw033",
                       "type": "hub-events",
                       "v": 1,
                       "settings": {
@@ -847,7 +851,7 @@
               ]
             },
             {
-              "id": "evr013",
+              "id": "ghallr038",
               "gap": {
                 "lg": "md"
               },
@@ -859,7 +863,7 @@
               },
               "cells": [
                 {
-                  "id": "evc012",
+                  "id": "ghallc037",
                   "span": {
                     "lg": 12
                   },
@@ -870,11 +874,12 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "evw011",
+                      "id": "ghallw036",
                       "type": "events",
                       "v": 1,
                       "settings": {
                         "title": "Coming up",
+                        "style": "list",
                         "limit": 8,
                         "showImages": true
                       },
@@ -886,21 +891,21 @@
             }
           ]
         }
-      ],
-      "origin": {
-        "template": "events",
-        "v": 1
-      }
+      ]
     },
     {
-      "id": "ptplstats",
+      "id": "ghallpstats",
       "title": "Clan stats",
       "path": "stats",
       "hidden": false,
       "access": "public",
+      "origin": {
+        "template": "stats",
+        "v": 1
+      },
       "sections": [
         {
-          "id": "sts004",
+          "id": "ghalls043",
           "width": "full",
           "background": {
             "kind": "surface"
@@ -918,7 +923,7 @@
           },
           "rows": [
             {
-              "id": "str003",
+              "id": "ghallr042",
               "gap": {
                 "lg": "md"
               },
@@ -930,7 +935,7 @@
               },
               "cells": [
                 {
-                  "id": "stc002",
+                  "id": "ghallc041",
                   "span": {
                     "lg": 12
                   },
@@ -941,7 +946,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "stw001",
+                      "id": "ghallw040",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -961,7 +966,7 @@
           ]
         },
         {
-          "id": "sts025",
+          "id": "ghalls072",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -979,7 +984,7 @@
           },
           "rows": [
             {
-              "id": "str007",
+              "id": "ghallr046",
               "gap": {
                 "lg": "md"
               },
@@ -991,7 +996,7 @@
               },
               "cells": [
                 {
-                  "id": "stc006",
+                  "id": "ghallc045",
                   "span": {
                     "lg": 12
                   },
@@ -1002,7 +1007,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "stw005",
+                      "id": "ghallw044",
                       "type": "stat-tiles",
                       "v": 2,
                       "settings": {
@@ -1037,7 +1042,7 @@
               ]
             },
             {
-              "id": "str012",
+              "id": "ghallr051",
               "gap": {
                 "lg": "md"
               },
@@ -1049,7 +1054,7 @@
               },
               "cells": [
                 {
-                  "id": "stc009",
+                  "id": "ghallc048",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -1061,7 +1066,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "stw008",
+                      "id": "ghallw047",
                       "type": "xp-chart",
                       "v": 1,
                       "settings": {
@@ -1073,7 +1078,7 @@
                   ]
                 },
                 {
-                  "id": "stc011",
+                  "id": "ghallc050",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -1085,7 +1090,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "stw010",
+                      "id": "ghallw049",
                       "type": "citadel-chart",
                       "v": 1,
                       "settings": {
@@ -1100,7 +1105,7 @@
               ]
             },
             {
-              "id": "str017",
+              "id": "ghallr056",
               "gap": {
                 "lg": "md"
               },
@@ -1112,7 +1117,7 @@
               },
               "cells": [
                 {
-                  "id": "stc014",
+                  "id": "ghallc053",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -1124,7 +1129,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "stw013",
+                      "id": "ghallw052",
                       "type": "joins-chart",
                       "v": 1,
                       "settings": {
@@ -1136,7 +1141,7 @@
                   ]
                 },
                 {
-                  "id": "stc016",
+                  "id": "ghallc055",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -1148,7 +1153,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "stw015",
+                      "id": "ghallw054",
                       "type": "rank-breakdown",
                       "v": 1,
                       "settings": {
@@ -1164,7 +1169,7 @@
               ]
             },
             {
-              "id": "str024",
+              "id": "ghallr063",
               "gap": {
                 "lg": "md"
               },
@@ -1176,7 +1181,7 @@
               },
               "cells": [
                 {
-                  "id": "stc019",
+                  "id": "ghallc058",
                   "span": {
                     "lg": 4,
                     "md": 6
@@ -1188,7 +1193,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "stw018",
+                      "id": "ghallw057",
                       "type": "top-list",
                       "v": 1,
                       "settings": {
@@ -1201,7 +1206,7 @@
                   ]
                 },
                 {
-                  "id": "stc021",
+                  "id": "ghallc060",
                   "span": {
                     "lg": 4,
                     "md": 6
@@ -1213,7 +1218,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "stw020",
+                      "id": "ghallw059",
                       "type": "leaderboard",
                       "v": 1,
                       "settings": {
@@ -1228,7 +1233,7 @@
                   ]
                 },
                 {
-                  "id": "stc023",
+                  "id": "ghallc062",
                   "span": {
                     "lg": 4,
                     "md": 12
@@ -1240,7 +1245,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "stw022",
+                      "id": "ghallw061",
                       "type": "kill-tracker",
                       "v": 1,
                       "settings": {
@@ -1253,24 +1258,122 @@
                   ]
                 }
               ]
+            },
+            {
+              "id": "ghallr068",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ghallc065",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ghallw064",
+                      "type": "clan-top",
+                      "v": 1,
+                      "settings": {
+                        "title": "Most clan points",
+                        "metric": "points",
+                        "limit": 10
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "ghallc067",
+                  "span": {
+                    "lg": 8,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ghallw066",
+                      "type": "skill-leaders",
+                      "v": 1,
+                      "settings": {
+                        "title": "Skill leaders",
+                        "perSkill": 3,
+                        "showXp": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "ghallr071",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ghallc070",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ghallw069",
+                      "type": "joins-weekly",
+                      "v": 1,
+                      "settings": {
+                        "title": "Joins and leaves per week",
+                        "weeks": 12
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
             }
           ]
         }
-      ],
-      "origin": {
-        "template": "stats",
-        "v": 1
-      }
+      ]
     },
     {
-      "id": "ghljoin",
+      "id": "ghallpjoin",
       "title": "Join us",
       "path": "join",
       "hidden": false,
       "access": "public",
       "sections": [
         {
-          "id": "ghls0047",
+          "id": "ghalls076",
           "width": "full",
           "background": {
             "kind": "surface"
@@ -1288,7 +1391,7 @@
           },
           "rows": [
             {
-              "id": "ghlr0046",
+              "id": "ghallr075",
               "gap": {
                 "lg": "md"
               },
@@ -1300,7 +1403,7 @@
               },
               "cells": [
                 {
-                  "id": "ghlc0045",
+                  "id": "ghallc074",
                   "span": {
                     "lg": 12
                   },
@@ -1311,7 +1414,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "ghlw0044",
+                      "id": "ghallw073",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -1331,7 +1434,7 @@
           ]
         },
         {
-          "id": "ghls0061",
+          "id": "ghalls090",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1349,7 +1452,7 @@
           },
           "rows": [
             {
-              "id": "ghlr0052",
+              "id": "ghallr081",
               "gap": {
                 "lg": "md"
               },
@@ -1361,7 +1464,7 @@
               },
               "cells": [
                 {
-                  "id": "ghlc0049",
+                  "id": "ghallc078",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -1373,7 +1476,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "ghlw0048",
+                      "id": "ghallw077",
                       "type": "recruiting",
                       "v": 1,
                       "settings": {
@@ -1386,7 +1489,7 @@
                   ]
                 },
                 {
-                  "id": "ghlc0051",
+                  "id": "ghallc080",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -1398,7 +1501,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "ghlw0050",
+                      "id": "ghallw079",
                       "type": "discord-join",
                       "v": 1,
                       "settings": {
@@ -1413,7 +1516,7 @@
               ]
             },
             {
-              "id": "ghlr0057",
+              "id": "ghallr086",
               "gap": {
                 "lg": "md"
               },
@@ -1425,7 +1528,7 @@
               },
               "cells": [
                 {
-                  "id": "ghlc0054",
+                  "id": "ghallc083",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -1437,7 +1540,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "ghlw0053",
+                      "id": "ghallw082",
                       "type": "countdown",
                       "v": 1,
                       "settings": {
@@ -1450,7 +1553,7 @@
                   ]
                 },
                 {
-                  "id": "ghlc0056",
+                  "id": "ghallc085",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -1462,7 +1565,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "ghlw0055",
+                      "id": "ghallw084",
                       "type": "faq",
                       "v": 1,
                       "settings": {
@@ -1489,7 +1592,7 @@
               ]
             },
             {
-              "id": "ghlr0060",
+              "id": "ghallr089",
               "gap": {
                 "lg": "md"
               },
@@ -1501,7 +1604,7 @@
               },
               "cells": [
                 {
-                  "id": "ghlc0059",
+                  "id": "ghallc088",
                   "span": {
                     "lg": 12
                   },
@@ -1512,7 +1615,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "ghlw0058",
+                      "id": "ghallw087",
                       "type": "roster",
                       "v": 1,
                       "settings": {
@@ -1537,14 +1640,14 @@
       ]
     },
     {
-      "id": "ghlabout",
+      "id": "ghallpabout",
       "title": "About us",
       "path": "about",
       "hidden": false,
       "access": "public",
       "sections": [
         {
-          "id": "ghls0004",
+          "id": "ghalls094",
           "width": "full",
           "background": {
             "kind": "surface"
@@ -1562,7 +1665,7 @@
           },
           "rows": [
             {
-              "id": "ghlr0003",
+              "id": "ghallr093",
               "gap": {
                 "lg": "md"
               },
@@ -1574,7 +1677,7 @@
               },
               "cells": [
                 {
-                  "id": "ghlc0002",
+                  "id": "ghallc092",
                   "span": {
                     "lg": 12
                   },
@@ -1585,7 +1688,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "ghlw0001",
+                      "id": "ghallw091",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -1605,7 +1708,7 @@
           ]
         },
         {
-          "id": "ghls0018",
+          "id": "ghalls108",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1623,7 +1726,7 @@
           },
           "rows": [
             {
-              "id": "ghlr0009",
+              "id": "ghallr099",
               "gap": {
                 "lg": "md"
               },
@@ -1635,7 +1738,7 @@
               },
               "cells": [
                 {
-                  "id": "ghlc0006",
+                  "id": "ghallc096",
                   "span": {
                     "lg": 7,
                     "md": 12
@@ -1647,7 +1750,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "ghlw0005",
+                      "id": "ghallw095",
                       "type": "text",
                       "v": 1,
                       "settings": {
@@ -1660,7 +1763,7 @@
                   ]
                 },
                 {
-                  "id": "ghlc0008",
+                  "id": "ghallc098",
                   "span": {
                     "lg": 5,
                     "md": 12
@@ -1672,7 +1775,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "ghlw0007",
+                      "id": "ghallw097",
                       "type": "image",
                       "v": 2,
                       "settings": {
@@ -1692,7 +1795,7 @@
               ]
             },
             {
-              "id": "ghlr0012",
+              "id": "ghallr102",
               "gap": {
                 "lg": "md"
               },
@@ -1704,7 +1807,7 @@
               },
               "cells": [
                 {
-                  "id": "ghlc0011",
+                  "id": "ghallc101",
                   "span": {
                     "lg": 12
                   },
@@ -1715,7 +1818,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "ghlw0010",
+                      "id": "ghallw100",
                       "type": "gallery",
                       "v": 1,
                       "settings": {
@@ -1776,7 +1879,7 @@
               ]
             },
             {
-              "id": "ghlr0017",
+              "id": "ghallr107",
               "gap": {
                 "lg": "md"
               },
@@ -1788,7 +1891,7 @@
               },
               "cells": [
                 {
-                  "id": "ghlc0014",
+                  "id": "ghallc104",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -1800,7 +1903,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "ghlw0013",
+                      "id": "ghallw103",
                       "type": "video",
                       "v": 1,
                       "settings": {
@@ -1813,7 +1916,7 @@
                   ]
                 },
                 {
-                  "id": "ghlc0016",
+                  "id": "ghallc106",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -1825,7 +1928,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "ghlw0015",
+                      "id": "ghallw105",
                       "type": "clan-stats",
                       "v": 1,
                       "settings": {
@@ -1840,7 +1943,7 @@
           ]
         },
         {
-          "id": "ghls0043",
+          "id": "ghalls132",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1858,7 +1961,7 @@
           },
           "rows": [
             {
-              "id": "ghlr0021",
+              "id": "ghallr111",
               "gap": {
                 "lg": "md"
               },
@@ -1870,7 +1973,7 @@
               },
               "cells": [
                 {
-                  "id": "ghlc0020",
+                  "id": "ghallc110",
                   "span": {
                     "lg": 12
                   },
@@ -1881,7 +1984,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "ghlw0019",
+                      "id": "ghallw109",
                       "type": "divider",
                       "v": 1,
                       "settings": {
@@ -1897,7 +2000,7 @@
               ]
             },
             {
-              "id": "ghlr0028",
+              "id": "ghallr116",
               "gap": {
                 "lg": "md"
               },
@@ -1909,9 +2012,9 @@
               },
               "cells": [
                 {
-                  "id": "ghlc0023",
+                  "id": "ghallc113",
                   "span": {
-                    "lg": 4,
+                    "lg": 6,
                     "md": 12
                   },
                   "padding": {
@@ -1921,7 +2024,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "ghlw0022",
+                      "id": "ghallw112",
                       "type": "clan-goals",
                       "v": 1,
                       "settings": {
@@ -1944,9 +2047,9 @@
                   ]
                 },
                 {
-                  "id": "ghlc0025",
+                  "id": "ghallc115",
                   "span": {
-                    "lg": 4,
+                    "lg": 6,
                     "md": 12
                   },
                   "padding": {
@@ -1956,31 +2059,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "ghlw0024",
-                      "type": "alliances",
-                      "v": 1,
-                      "settings": {
-                        "title": "Our allies",
-                        "limit": 40
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                },
-                {
-                  "id": "ghlc0027",
-                  "span": {
-                    "lg": 4,
-                    "md": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "ghlw0026",
+                      "id": "ghallw114",
                       "type": "event-standings",
                       "v": 1,
                       "settings": {
@@ -1994,7 +2073,7 @@
               ]
             },
             {
-              "id": "ghlr0033",
+              "id": "ghallr119",
               "gap": {
                 "lg": "md"
               },
@@ -2006,7 +2085,44 @@
               },
               "cells": [
                 {
-                  "id": "ghlc0030",
+                  "id": "ghallc118",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ghallw117",
+                      "type": "alliances",
+                      "v": 1,
+                      "settings": {
+                        "title": "Our allies",
+                        "limit": 40
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "ghallr124",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ghallc121",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -2018,20 +2134,21 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "ghlw0029",
+                      "id": "ghallw120",
                       "type": "adventure-log",
                       "v": 1,
                       "settings": {
                         "title": "Adventure log",
                         "limit": 8,
-                        "tabs": true
+                        "tabs": true,
+                        "filter": "all"
                       },
                       "unmet": "hide"
                     }
                   ]
                 },
                 {
-                  "id": "ghlc0032",
+                  "id": "ghallc123",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -2043,7 +2160,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "ghlw0031",
+                      "id": "ghallw122",
                       "type": "runesync-activity",
                       "v": 1,
                       "settings": {
@@ -2057,7 +2174,7 @@
               ]
             },
             {
-              "id": "ghlr0036",
+              "id": "ghallr127",
               "gap": {
                 "lg": "md"
               },
@@ -2069,7 +2186,7 @@
               },
               "cells": [
                 {
-                  "id": "ghlc0035",
+                  "id": "ghallc126",
                   "span": {
                     "lg": 12
                   },
@@ -2080,7 +2197,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "ghlw0034",
+                      "id": "ghallw125",
                       "type": "quick-links",
                       "v": 1,
                       "settings": {
@@ -2092,7 +2209,7 @@
                             "description": "Everyone in the clan",
                             "link": {
                               "kind": "page",
-                              "pageId": "ptplmembers"
+                              "pageId": "ghallpmembers"
                             }
                           },
                           {
@@ -2101,7 +2218,7 @@
                             "description": "What's on this week",
                             "link": {
                               "kind": "page",
-                              "pageId": "ptplevents"
+                              "pageId": "ghallpevents"
                             }
                           },
                           {
@@ -2110,7 +2227,7 @@
                             "description": "Our records",
                             "link": {
                               "kind": "page",
-                              "pageId": "ptplhalloffame"
+                              "pageId": "ghallphalloffame"
                             }
                           }
                         ],
@@ -2124,7 +2241,7 @@
               ]
             },
             {
-              "id": "ghlr0039",
+              "id": "ghallr131",
               "gap": {
                 "lg": "md"
               },
@@ -2136,7 +2253,7 @@
               },
               "cells": [
                 {
-                  "id": "ghlc0038",
+                  "id": "ghallc130",
                   "span": {
                     "lg": 12
                   },
@@ -2147,7 +2264,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "ghlw0037",
+                      "id": "ghallw128",
                       "type": "spacer",
                       "v": 1,
                       "settings": {
@@ -2155,36 +2272,9 @@
                         "phoneHalf": true
                       },
                       "unmet": "hide"
-                    }
-                  ]
-                }
-              ]
-            },
-            {
-              "id": "ghlr0042",
-              "gap": {
-                "lg": "md"
-              },
-              "align": "stretch",
-              "height": {
-                "lg": {
-                  "mode": "auto"
-                }
-              },
-              "cells": [
-                {
-                  "id": "ghlc0041",
-                  "span": {
-                    "lg": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
+                    },
                     {
-                      "id": "ghlw0040",
+                      "id": "ghallw129",
                       "type": "links",
                       "v": 2,
                       "settings": {
@@ -2217,14 +2307,19 @@
       ]
     },
     {
-      "id": "ptplmember",
+      "id": "ghallpmemberpage",
       "title": "Member page",
       "path": "member",
       "hidden": false,
       "access": "public",
+      "template": "member",
+      "origin": {
+        "template": "member",
+        "v": 1
+      },
       "sections": [
         {
-          "id": "mps004",
+          "id": "ghalls141",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -2242,7 +2337,7 @@
           },
           "rows": [
             {
-              "id": "mpr003",
+              "id": "ghallr135",
               "gap": {
                 "lg": "md"
               },
@@ -2254,7 +2349,7 @@
               },
               "cells": [
                 {
-                  "id": "mpc002",
+                  "id": "ghallc134",
                   "span": {
                     "lg": 12
                   },
@@ -2265,7 +2360,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "mpw001",
+                      "id": "ghallw133",
                       "type": "member-card",
                       "v": 1,
                       "settings": {
@@ -2275,8 +2370,74 @@
                         "showCompare": true,
                         "comparePage": {
                           "kind": "page",
-                          "pageId": "ptplcompare"
+                          "pageId": "ghallpcompare"
+                        },
+                        "showRecap": true,
+                        "recapPage": {
+                          "kind": "page",
+                          "pageId": "ghallprecaps"
                         }
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "ghallr140",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ghallc137",
+                  "span": {
+                    "lg": 6
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ghallw136",
+                      "type": "member-gains",
+                      "v": 1,
+                      "settings": {
+                        "title": ""
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "ghallc139",
+                  "span": {
+                    "lg": 6
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ghallw138",
+                      "type": "member-xp-split",
+                      "v": 1,
+                      "settings": {
+                        "title": "Where the XP went",
+                        "period": "week",
+                        "tabs": true,
+                        "slices": 7
                       },
                       "unmet": "hide"
                     }
@@ -2287,7 +2448,7 @@
           ]
         },
         {
-          "id": "mps023",
+          "id": "ghalls160",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -2305,7 +2466,7 @@
           },
           "rows": [
             {
-              "id": "mpr009",
+              "id": "ghallr146",
               "gap": {
                 "lg": "md"
               },
@@ -2317,7 +2478,7 @@
               },
               "cells": [
                 {
-                  "id": "mpc006",
+                  "id": "ghallc143",
                   "span": {
                     "lg": 8,
                     "md": 12
@@ -2329,7 +2490,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "mpw005",
+                      "id": "ghallw142",
                       "type": "member-xp-chart",
                       "v": 1,
                       "settings": {
@@ -2342,7 +2503,7 @@
                   ]
                 },
                 {
-                  "id": "mpc008",
+                  "id": "ghallc145",
                   "span": {
                     "lg": 4,
                     "md": 12
@@ -2354,7 +2515,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "mpw007",
+                      "id": "ghallw144",
                       "type": "member-badges",
                       "v": 1,
                       "settings": {
@@ -2369,7 +2530,7 @@
               ]
             },
             {
-              "id": "mpr012",
+              "id": "ghallr149",
               "gap": {
                 "lg": "md"
               },
@@ -2381,7 +2542,7 @@
               },
               "cells": [
                 {
-                  "id": "mpc011",
+                  "id": "ghallc148",
                   "span": {
                     "lg": 12
                   },
@@ -2392,7 +2553,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "mpw010",
+                      "id": "ghallw147",
                       "type": "member-skills",
                       "v": 1,
                       "settings": {
@@ -2410,7 +2571,7 @@
               ]
             },
             {
-              "id": "mpr017",
+              "id": "ghallr154",
               "gap": {
                 "lg": "md"
               },
@@ -2422,7 +2583,7 @@
               },
               "cells": [
                 {
-                  "id": "mpc014",
+                  "id": "ghallc151",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -2434,7 +2595,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "mpw013",
+                      "id": "ghallw150",
                       "type": "member-citadel",
                       "v": 1,
                       "settings": {
@@ -2447,7 +2608,7 @@
                   ]
                 },
                 {
-                  "id": "mpc016",
+                  "id": "ghallc153",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -2459,12 +2620,13 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "mpw015",
+                      "id": "ghallw152",
                       "type": "member-points",
                       "v": 1,
                       "settings": {
                         "title": "Clan points",
-                        "limit": 8
+                        "limit": 8,
+                        "showChart": true
                       },
                       "unmet": "hide"
                     }
@@ -2473,7 +2635,7 @@
               ]
             },
             {
-              "id": "mpr022",
+              "id": "ghallr159",
               "gap": {
                 "lg": "md"
               },
@@ -2485,7 +2647,7 @@
               },
               "cells": [
                 {
-                  "id": "mpc019",
+                  "id": "ghallc156",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -2497,7 +2659,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "mpw018",
+                      "id": "ghallw155",
                       "type": "member-adventure-log",
                       "v": 1,
                       "settings": {
@@ -2510,7 +2672,7 @@
                   ]
                 },
                 {
-                  "id": "mpc021",
+                  "id": "ghallc158",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -2522,7 +2684,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "mpw020",
+                      "id": "ghallw157",
                       "type": "member-recap",
                       "v": 1,
                       "settings": {
@@ -2538,22 +2700,21 @@
             }
           ]
         }
-      ],
-      "template": "member",
-      "origin": {
-        "template": "member",
-        "v": 1
-      }
+      ]
     },
     {
-      "id": "ptplcompare",
+      "id": "ghallpcompare",
       "title": "Compare",
       "path": "compare",
       "hidden": false,
       "access": "public",
+      "origin": {
+        "template": "compare",
+        "v": 1
+      },
       "sections": [
         {
-          "id": "cms004",
+          "id": "ghalls164",
           "width": "full",
           "background": {
             "kind": "surface"
@@ -2571,7 +2732,7 @@
           },
           "rows": [
             {
-              "id": "cmr003",
+              "id": "ghallr163",
               "gap": {
                 "lg": "md"
               },
@@ -2583,7 +2744,7 @@
               },
               "cells": [
                 {
-                  "id": "cmc002",
+                  "id": "ghallc162",
                   "span": {
                     "lg": 12
                   },
@@ -2594,7 +2755,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "cmw001",
+                      "id": "ghallw161",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -2614,7 +2775,7 @@
           ]
         },
         {
-          "id": "cms008",
+          "id": "ghalls168",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -2632,7 +2793,7 @@
           },
           "rows": [
             {
-              "id": "cmr007",
+              "id": "ghallr167",
               "gap": {
                 "lg": "md"
               },
@@ -2644,7 +2805,7 @@
               },
               "cells": [
                 {
-                  "id": "cmc006",
+                  "id": "ghallc166",
                   "span": {
                     "lg": 12
                   },
@@ -2655,7 +2816,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "cmw005",
+                      "id": "ghallw165",
                       "type": "compare",
                       "v": 1,
                       "settings": {
@@ -2672,21 +2833,21 @@
             }
           ]
         }
-      ],
-      "origin": {
-        "template": "compare",
-        "v": 1
-      }
+      ]
     },
     {
-      "id": "ptplcalendar",
+      "id": "ghallpcalendar",
       "title": "Event calendar",
       "path": "calendar",
       "hidden": false,
       "access": "public",
+      "origin": {
+        "template": "calendar",
+        "v": 1
+      },
       "sections": [
         {
-          "id": "cas004",
+          "id": "ghalls172",
           "width": "full",
           "background": {
             "kind": "surface"
@@ -2704,7 +2865,7 @@
           },
           "rows": [
             {
-              "id": "car003",
+              "id": "ghallr171",
               "gap": {
                 "lg": "md"
               },
@@ -2716,7 +2877,7 @@
               },
               "cells": [
                 {
-                  "id": "cac002",
+                  "id": "ghallc170",
                   "span": {
                     "lg": 12
                   },
@@ -2727,7 +2888,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "caw001",
+                      "id": "ghallw169",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -2747,7 +2908,7 @@
           ]
         },
         {
-          "id": "cas008",
+          "id": "ghalls176",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -2765,7 +2926,7 @@
           },
           "rows": [
             {
-              "id": "car007",
+              "id": "ghallr175",
               "gap": {
                 "lg": "md"
               },
@@ -2777,7 +2938,7 @@
               },
               "cells": [
                 {
-                  "id": "cac006",
+                  "id": "ghallc174",
                   "span": {
                     "lg": 12
                   },
@@ -2788,7 +2949,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "caw005",
+                      "id": "ghallw173",
                       "type": "events-calendar",
                       "v": 1,
                       "settings": {
@@ -2805,21 +2966,22 @@
             }
           ]
         }
-      ],
-      "origin": {
-        "template": "calendar",
-        "v": 1
-      }
+      ]
     },
     {
-      "id": "ptplevent",
+      "id": "ghallpeventpage",
       "title": "Event page",
       "path": "event",
       "hidden": false,
       "access": "public",
+      "template": "event",
+      "origin": {
+        "template": "event",
+        "v": 1
+      },
       "sections": [
         {
-          "id": "eds004",
+          "id": "ghalls180",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -2837,7 +2999,7 @@
           },
           "rows": [
             {
-              "id": "edr003",
+              "id": "ghallr179",
               "gap": {
                 "lg": "md"
               },
@@ -2849,7 +3011,7 @@
               },
               "cells": [
                 {
-                  "id": "edc002",
+                  "id": "ghallc178",
                   "span": {
                     "lg": 12
                   },
@@ -2860,7 +3022,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "edw001",
+                      "id": "ghallw177",
                       "type": "event-detail",
                       "v": 1,
                       "settings": {
@@ -2876,22 +3038,21 @@
             }
           ]
         }
-      ],
-      "template": "event",
-      "origin": {
-        "template": "event",
-        "v": 1
-      }
+      ]
     },
     {
-      "id": "ptplsignups",
+      "id": "ghallpsignups",
       "title": "Signups",
       "path": "signups",
       "hidden": false,
       "access": "public",
+      "origin": {
+        "template": "signups",
+        "v": 1
+      },
       "sections": [
         {
-          "id": "sus004",
+          "id": "ghalls184",
           "width": "full",
           "background": {
             "kind": "surface"
@@ -2909,7 +3070,7 @@
           },
           "rows": [
             {
-              "id": "sur003",
+              "id": "ghallr183",
               "gap": {
                 "lg": "md"
               },
@@ -2921,7 +3082,7 @@
               },
               "cells": [
                 {
-                  "id": "suc002",
+                  "id": "ghallc182",
                   "span": {
                     "lg": 12
                   },
@@ -2932,7 +3093,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "suw001",
+                      "id": "ghallw181",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -2952,7 +3113,7 @@
           ]
         },
         {
-          "id": "sus008",
+          "id": "ghalls188",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -2970,7 +3131,7 @@
           },
           "rows": [
             {
-              "id": "sur007",
+              "id": "ghallr187",
               "gap": {
                 "lg": "md"
               },
@@ -2982,7 +3143,7 @@
               },
               "cells": [
                 {
-                  "id": "suc006",
+                  "id": "ghallc186",
                   "span": {
                     "lg": 12
                   },
@@ -2993,7 +3154,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "suw005",
+                      "id": "ghallw185",
                       "type": "signups",
                       "v": 1,
                       "settings": {
@@ -3009,21 +3170,21 @@
             }
           ]
         }
-      ],
-      "origin": {
-        "template": "signups",
-        "v": 1
-      }
+      ]
     },
     {
-      "id": "ptplpolls",
+      "id": "ghallppolls",
       "title": "Polls",
       "path": "polls",
       "hidden": false,
       "access": "public",
+      "origin": {
+        "template": "polls",
+        "v": 1
+      },
       "sections": [
         {
-          "id": "pls004",
+          "id": "ghalls192",
           "width": "full",
           "background": {
             "kind": "surface"
@@ -3041,7 +3202,7 @@
           },
           "rows": [
             {
-              "id": "plr003",
+              "id": "ghallr191",
               "gap": {
                 "lg": "md"
               },
@@ -3053,7 +3214,7 @@
               },
               "cells": [
                 {
-                  "id": "plc002",
+                  "id": "ghallc190",
                   "span": {
                     "lg": 12
                   },
@@ -3064,7 +3225,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "plw001",
+                      "id": "ghallw189",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -3084,7 +3245,7 @@
           ]
         },
         {
-          "id": "pls008",
+          "id": "ghalls196",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3102,7 +3263,7 @@
           },
           "rows": [
             {
-              "id": "plr007",
+              "id": "ghallr195",
               "gap": {
                 "lg": "md"
               },
@@ -3114,7 +3275,7 @@
               },
               "cells": [
                 {
-                  "id": "plc006",
+                  "id": "ghallc194",
                   "span": {
                     "lg": 12
                   },
@@ -3125,7 +3286,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "plw005",
+                      "id": "ghallw193",
                       "type": "polls",
                       "v": 1,
                       "settings": {
@@ -3141,21 +3302,21 @@
             }
           ]
         }
-      ],
-      "origin": {
-        "template": "polls",
-        "v": 1
-      }
+      ]
     },
     {
-      "id": "ptplleaderboards",
+      "id": "ghallpleaderboar",
       "title": "Leaderboards",
       "path": "leaderboards",
       "hidden": false,
       "access": "public",
+      "origin": {
+        "template": "leaderboards",
+        "v": 1
+      },
       "sections": [
         {
-          "id": "lbs004",
+          "id": "ghalls200",
           "width": "full",
           "background": {
             "kind": "surface"
@@ -3173,7 +3334,7 @@
           },
           "rows": [
             {
-              "id": "lbr003",
+              "id": "ghallr199",
               "gap": {
                 "lg": "md"
               },
@@ -3185,7 +3346,7 @@
               },
               "cells": [
                 {
-                  "id": "lbc002",
+                  "id": "ghallc198",
                   "span": {
                     "lg": 12
                   },
@@ -3196,7 +3357,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "lbw001",
+                      "id": "ghallw197",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -3216,7 +3377,7 @@
           ]
         },
         {
-          "id": "lbs015",
+          "id": "ghalls211",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3234,7 +3395,7 @@
           },
           "rows": [
             {
-              "id": "lbr009",
+              "id": "ghallr205",
               "gap": {
                 "lg": "md"
               },
@@ -3246,7 +3407,7 @@
               },
               "cells": [
                 {
-                  "id": "lbc006",
+                  "id": "ghallc202",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -3258,7 +3419,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "lbw005",
+                      "id": "ghallw201",
                       "type": "leaderboard",
                       "v": 1,
                       "settings": {
@@ -3273,7 +3434,7 @@
                   ]
                 },
                 {
-                  "id": "lbc008",
+                  "id": "ghallc204",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -3285,7 +3446,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "lbw007",
+                      "id": "ghallw203",
                       "type": "leaderboard",
                       "v": 1,
                       "settings": {
@@ -3302,7 +3463,7 @@
               ]
             },
             {
-              "id": "lbr014",
+              "id": "ghallr210",
               "gap": {
                 "lg": "md"
               },
@@ -3314,7 +3475,7 @@
               },
               "cells": [
                 {
-                  "id": "lbc011",
+                  "id": "ghallc207",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -3326,7 +3487,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "lbw010",
+                      "id": "ghallw206",
                       "type": "leaderboard",
                       "v": 1,
                       "settings": {
@@ -3341,7 +3502,7 @@
                   ]
                 },
                 {
-                  "id": "lbc013",
+                  "id": "ghallc209",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -3353,7 +3514,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "lbw012",
+                      "id": "ghallw208",
                       "type": "top-xp",
                       "v": 1,
                       "settings": {
@@ -3372,21 +3533,21 @@
             }
           ]
         }
-      ],
-      "origin": {
-        "template": "leaderboards",
-        "v": 1
-      }
+      ]
     },
     {
-      "id": "ptplrecaps",
+      "id": "ghallprecaps",
       "title": "Recaps",
       "path": "recaps",
       "hidden": false,
       "access": "public",
+      "origin": {
+        "template": "recaps",
+        "v": 1
+      },
       "sections": [
         {
-          "id": "rcs004",
+          "id": "ghalls215",
           "width": "full",
           "background": {
             "kind": "surface"
@@ -3404,7 +3565,7 @@
           },
           "rows": [
             {
-              "id": "rcr003",
+              "id": "ghallr214",
               "gap": {
                 "lg": "md"
               },
@@ -3416,7 +3577,7 @@
               },
               "cells": [
                 {
-                  "id": "rcc002",
+                  "id": "ghallc213",
                   "span": {
                     "lg": 12
                   },
@@ -3427,7 +3588,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "rcw001",
+                      "id": "ghallw212",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -3447,7 +3608,7 @@
           ]
         },
         {
-          "id": "rcs010",
+          "id": "ghalls224",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3465,7 +3626,7 @@
           },
           "rows": [
             {
-              "id": "rcr009",
+              "id": "ghallr220",
               "gap": {
                 "lg": "md"
               },
@@ -3477,7 +3638,7 @@
               },
               "cells": [
                 {
-                  "id": "rcc006",
+                  "id": "ghallc217",
                   "span": {
                     "lg": 7,
                     "md": 12
@@ -3489,7 +3650,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "rcw005",
+                      "id": "ghallw216",
                       "type": "recap",
                       "v": 1,
                       "settings": {
@@ -3503,7 +3664,7 @@
                   ]
                 },
                 {
-                  "id": "rcc008",
+                  "id": "ghallc219",
                   "span": {
                     "lg": 5,
                     "md": 12
@@ -3515,7 +3676,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "rcw007",
+                      "id": "ghallw218",
                       "type": "weekly-recap",
                       "v": 1,
                       "settings": {
@@ -3527,24 +3688,62 @@
                   ]
                 }
               ]
+            },
+            {
+              "id": "ghallr223",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ghallc222",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ghallw221",
+                      "type": "recap-picker",
+                      "v": 1,
+                      "settings": {
+                        "title": "A member's recap",
+                        "period": "month",
+                        "skills": 3
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
             }
           ]
         }
-      ],
-      "origin": {
-        "template": "recaps",
-        "v": 1
-      }
+      ]
     },
     {
-      "id": "ptplcitadel",
+      "id": "ghallpcitadel",
       "title": "Citadel",
       "path": "citadel",
       "hidden": false,
       "access": "public",
+      "origin": {
+        "template": "citadel",
+        "v": 1
+      },
       "sections": [
         {
-          "id": "cts004",
+          "id": "ghalls228",
           "width": "full",
           "background": {
             "kind": "surface"
@@ -3562,7 +3761,7 @@
           },
           "rows": [
             {
-              "id": "ctr003",
+              "id": "ghallr227",
               "gap": {
                 "lg": "md"
               },
@@ -3574,7 +3773,7 @@
               },
               "cells": [
                 {
-                  "id": "ctc002",
+                  "id": "ghallc226",
                   "span": {
                     "lg": 12
                   },
@@ -3585,7 +3784,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "ctw001",
+                      "id": "ghallw225",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -3605,7 +3804,7 @@
           ]
         },
         {
-          "id": "cts013",
+          "id": "ghalls237",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3623,7 +3822,7 @@
           },
           "rows": [
             {
-              "id": "ctr009",
+              "id": "ghallr233",
               "gap": {
                 "lg": "md"
               },
@@ -3635,7 +3834,7 @@
               },
               "cells": [
                 {
-                  "id": "ctc006",
+                  "id": "ghallc230",
                   "span": {
                     "lg": 4,
                     "md": 12
@@ -3647,7 +3846,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "ctw005",
+                      "id": "ghallw229",
                       "type": "citadel-timer",
                       "v": 1,
                       "settings": {
@@ -3661,7 +3860,7 @@
                   ]
                 },
                 {
-                  "id": "ctc008",
+                  "id": "ghallc232",
                   "span": {
                     "lg": 8,
                     "md": 12
@@ -3673,7 +3872,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "ctw007",
+                      "id": "ghallw231",
                       "type": "citadel-chart",
                       "v": 1,
                       "settings": {
@@ -3688,7 +3887,7 @@
               ]
             },
             {
-              "id": "ctr012",
+              "id": "ghallr236",
               "gap": {
                 "lg": "md"
               },
@@ -3700,7 +3899,7 @@
               },
               "cells": [
                 {
-                  "id": "ctc011",
+                  "id": "ghallc235",
                   "span": {
                     "lg": 12
                   },
@@ -3711,7 +3910,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "ctw010",
+                      "id": "ghallw234",
                       "type": "citadel-grid",
                       "v": 1,
                       "settings": {
@@ -3727,21 +3926,21 @@
             }
           ]
         }
-      ],
-      "origin": {
-        "template": "citadel",
-        "v": 1
-      }
+      ]
     },
     {
-      "id": "ptplhalloffame",
+      "id": "ghallphalloffame",
       "title": "Hall of fame",
       "path": "hall-of-fame",
       "hidden": false,
       "access": "public",
+      "origin": {
+        "template": "hall-of-fame",
+        "v": 1
+      },
       "sections": [
         {
-          "id": "hfs004",
+          "id": "ghalls241",
           "width": "full",
           "background": {
             "kind": "surface"
@@ -3759,7 +3958,7 @@
           },
           "rows": [
             {
-              "id": "hfr003",
+              "id": "ghallr240",
               "gap": {
                 "lg": "md"
               },
@@ -3771,7 +3970,7 @@
               },
               "cells": [
                 {
-                  "id": "hfc002",
+                  "id": "ghallc239",
                   "span": {
                     "lg": 12
                   },
@@ -3782,7 +3981,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "hfw001",
+                      "id": "ghallw238",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -3802,7 +4001,7 @@
           ]
         },
         {
-          "id": "hfs010",
+          "id": "ghalls250",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3820,7 +4019,7 @@
           },
           "rows": [
             {
-              "id": "hfr009",
+              "id": "ghallr246",
               "gap": {
                 "lg": "md"
               },
@@ -3832,7 +4031,7 @@
               },
               "cells": [
                 {
-                  "id": "hfc006",
+                  "id": "ghallc243",
                   "span": {
                     "lg": 8,
                     "md": 12
@@ -3844,7 +4043,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "hfw005",
+                      "id": "ghallw242",
                       "type": "hall-of-fame",
                       "v": 1,
                       "settings": {
@@ -3860,7 +4059,7 @@
                   ]
                 },
                 {
-                  "id": "hfc008",
+                  "id": "ghallc245",
                   "span": {
                     "lg": 4,
                     "md": 12
@@ -3872,7 +4071,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "hfw007",
+                      "id": "ghallw244",
                       "type": "milestones",
                       "v": 1,
                       "settings": {
@@ -3884,24 +4083,62 @@
                   ]
                 }
               ]
+            },
+            {
+              "id": "ghallr249",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ghallc248",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ghallw247",
+                      "type": "badge-catalogue",
+                      "v": 1,
+                      "settings": {
+                        "title": "Badges you can earn",
+                        "note": "Shown on member pages",
+                        "columns": "2"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
             }
           ]
         }
-      ],
-      "origin": {
-        "template": "hall-of-fame",
-        "v": 1
-      }
+      ]
     },
     {
-      "id": "ptplhistory",
+      "id": "ghallphistory",
       "title": "Clan history",
       "path": "history",
       "hidden": false,
       "access": "public",
+      "origin": {
+        "template": "history",
+        "v": 1
+      },
       "sections": [
         {
-          "id": "hss004",
+          "id": "ghalls254",
           "width": "full",
           "background": {
             "kind": "surface"
@@ -3919,7 +4156,7 @@
           },
           "rows": [
             {
-              "id": "hsr003",
+              "id": "ghallr253",
               "gap": {
                 "lg": "md"
               },
@@ -3931,7 +4168,7 @@
               },
               "cells": [
                 {
-                  "id": "hsc002",
+                  "id": "ghallc252",
                   "span": {
                     "lg": 12
                   },
@@ -3942,7 +4179,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "hsw001",
+                      "id": "ghallw251",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -3962,7 +4199,7 @@
           ]
         },
         {
-          "id": "hss010",
+          "id": "ghalls260",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3980,7 +4217,7 @@
           },
           "rows": [
             {
-              "id": "hsr009",
+              "id": "ghallr259",
               "gap": {
                 "lg": "md"
               },
@@ -3992,7 +4229,7 @@
               },
               "cells": [
                 {
-                  "id": "hsc006",
+                  "id": "ghallc256",
                   "span": {
                     "lg": 5,
                     "md": 12
@@ -4004,7 +4241,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "hsw005",
+                      "id": "ghallw255",
                       "type": "joins-chart",
                       "v": 1,
                       "settings": {
@@ -4016,7 +4253,7 @@
                   ]
                 },
                 {
-                  "id": "hsc008",
+                  "id": "ghallc258",
                   "span": {
                     "lg": 7,
                     "md": 12
@@ -4028,14 +4265,16 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "hsw007",
+                      "id": "ghallw257",
                       "type": "clan-history",
                       "v": 1,
                       "settings": {
                         "title": "Recent joins, leaves and promotions",
                         "showTimeline": true,
                         "showPromotions": true,
-                        "limit": 25
+                        "limit": 25,
+                        "showLadder": true,
+                        "layout": "panels"
                       },
                       "unmet": "hide"
                     }
@@ -4045,21 +4284,21 @@
             }
           ]
         }
-      ],
-      "origin": {
-        "template": "history",
-        "v": 1
-      }
+      ]
     },
     {
-      "id": "ptplcoffer",
+      "id": "ghallpcoffer",
       "title": "Clan coffer",
       "path": "coffer",
       "hidden": false,
       "access": "public",
+      "origin": {
+        "template": "coffer",
+        "v": 1
+      },
       "sections": [
         {
-          "id": "cfs004",
+          "id": "ghalls264",
           "width": "full",
           "background": {
             "kind": "surface"
@@ -4077,7 +4316,7 @@
           },
           "rows": [
             {
-              "id": "cfr003",
+              "id": "ghallr263",
               "gap": {
                 "lg": "md"
               },
@@ -4089,7 +4328,7 @@
               },
               "cells": [
                 {
-                  "id": "cfc002",
+                  "id": "ghallc262",
                   "span": {
                     "lg": 12
                   },
@@ -4100,7 +4339,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "cfw001",
+                      "id": "ghallw261",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -4120,7 +4359,7 @@
           ]
         },
         {
-          "id": "cfs008",
+          "id": "ghalls268",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4138,7 +4377,7 @@
           },
           "rows": [
             {
-              "id": "cfr007",
+              "id": "ghallr267",
               "gap": {
                 "lg": "md"
               },
@@ -4150,7 +4389,7 @@
               },
               "cells": [
                 {
-                  "id": "cfc006",
+                  "id": "ghallc266",
                   "span": {
                     "lg": 12
                   },
@@ -4161,7 +4400,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "cfw005",
+                      "id": "ghallw265",
                       "type": "coffer",
                       "v": 1,
                       "settings": {
@@ -4178,21 +4417,21 @@
             }
           ]
         }
-      ],
-      "origin": {
-        "template": "coffer",
-        "v": 1
-      }
+      ]
     },
     {
-      "id": "ptplpvm",
+      "id": "ghallppvm",
       "title": "PvM",
       "path": "pvm",
       "hidden": false,
       "access": "public",
+      "origin": {
+        "template": "pvm",
+        "v": 1
+      },
       "sections": [
         {
-          "id": "pvs004",
+          "id": "ghalls272",
           "width": "full",
           "background": {
             "kind": "surface"
@@ -4210,7 +4449,7 @@
           },
           "rows": [
             {
-              "id": "pvr003",
+              "id": "ghallr271",
               "gap": {
                 "lg": "md"
               },
@@ -4222,7 +4461,7 @@
               },
               "cells": [
                 {
-                  "id": "pvc002",
+                  "id": "ghallc270",
                   "span": {
                     "lg": 12
                   },
@@ -4233,7 +4472,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "pvw001",
+                      "id": "ghallw269",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -4253,7 +4492,7 @@
           ]
         },
         {
-          "id": "pvs013",
+          "id": "ghalls284",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4271,7 +4510,7 @@
           },
           "rows": [
             {
-              "id": "pvr007",
+              "id": "ghallr275",
               "gap": {
                 "lg": "md"
               },
@@ -4283,7 +4522,7 @@
               },
               "cells": [
                 {
-                  "id": "pvc006",
+                  "id": "ghallc274",
                   "span": {
                     "lg": 12
                   },
@@ -4294,7 +4533,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "pvw005",
+                      "id": "ghallw273",
                       "type": "button-row",
                       "v": 1,
                       "settings": {
@@ -4303,7 +4542,7 @@
                             "label": "Open the drop log",
                             "link": {
                               "kind": "page",
-                              "pageId": "ptpldrops"
+                              "pageId": "ghallpdrops"
                             },
                             "style": "primary"
                           }
@@ -4319,7 +4558,7 @@
               ]
             },
             {
-              "id": "pvr012",
+              "id": "ghallr278",
               "gap": {
                 "lg": "md"
               },
@@ -4331,7 +4570,46 @@
               },
               "cells": [
                 {
-                  "id": "pvc009",
+                  "id": "ghallc277",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ghallw276",
+                      "type": "boss-grid",
+                      "v": 1,
+                      "settings": {
+                        "title": "Bosses",
+                        "period": "all",
+                        "showQuiet": true,
+                        "limit": 60
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "ghallr283",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ghallc280",
                   "span": {
                     "lg": 7,
                     "md": 12
@@ -4343,7 +4621,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "pvw008",
+                      "id": "ghallw279",
                       "type": "kill-tracker",
                       "v": 1,
                       "settings": {
@@ -4356,7 +4634,7 @@
                   ]
                 },
                 {
-                  "id": "pvc011",
+                  "id": "ghallc282",
                   "span": {
                     "lg": 5,
                     "md": 12
@@ -4368,7 +4646,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "pvw010",
+                      "id": "ghallw281",
                       "type": "drops",
                       "v": 1,
                       "settings": {
@@ -4383,21 +4661,22 @@
             }
           ]
         }
-      ],
-      "origin": {
-        "template": "pvm",
-        "v": 1
-      }
+      ]
     },
     {
-      "id": "ptplboss",
+      "id": "ghallpbosspage",
       "title": "Boss page",
       "path": "boss",
       "hidden": false,
       "access": "public",
+      "template": "boss",
+      "origin": {
+        "template": "boss",
+        "v": 1
+      },
       "sections": [
         {
-          "id": "bss004",
+          "id": "ghalls288",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4415,7 +4694,7 @@
           },
           "rows": [
             {
-              "id": "bsr003",
+              "id": "ghallr287",
               "gap": {
                 "lg": "md"
               },
@@ -4427,7 +4706,7 @@
               },
               "cells": [
                 {
-                  "id": "bsc002",
+                  "id": "ghallc286",
                   "span": {
                     "lg": 12
                   },
@@ -4438,12 +4717,16 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "bsw001",
+                      "id": "ghallw285",
                       "type": "boss-detail",
                       "v": 1,
                       "settings": {
                         "period": "all",
-                        "limit": 25
+                        "limit": 25,
+                        "header": true,
+                        "players": "table",
+                        "days": "45",
+                        "collection": true
                       },
                       "unmet": "hide"
                     }
@@ -4453,22 +4736,21 @@
             }
           ]
         }
-      ],
-      "template": "boss",
-      "origin": {
-        "template": "boss",
-        "v": 1
-      }
+      ]
     },
     {
-      "id": "ptpldrops",
+      "id": "ghallpdrops",
       "title": "Drop log",
       "path": "drops",
       "hidden": false,
       "access": "public",
+      "origin": {
+        "template": "drops",
+        "v": 1
+      },
       "sections": [
         {
-          "id": "drs004",
+          "id": "ghalls292",
           "width": "full",
           "background": {
             "kind": "surface"
@@ -4486,7 +4768,7 @@
           },
           "rows": [
             {
-              "id": "drr003",
+              "id": "ghallr291",
               "gap": {
                 "lg": "md"
               },
@@ -4498,7 +4780,7 @@
               },
               "cells": [
                 {
-                  "id": "drc002",
+                  "id": "ghallc290",
                   "span": {
                     "lg": 12
                   },
@@ -4509,7 +4791,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "drw001",
+                      "id": "ghallw289",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -4529,7 +4811,7 @@
           ]
         },
         {
-          "id": "drs008",
+          "id": "ghalls296",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4547,7 +4829,7 @@
           },
           "rows": [
             {
-              "id": "drr007",
+              "id": "ghallr295",
               "gap": {
                 "lg": "md"
               },
@@ -4559,7 +4841,7 @@
               },
               "cells": [
                 {
-                  "id": "drc006",
+                  "id": "ghallc294",
                   "span": {
                     "lg": 12
                   },
@@ -4570,14 +4852,15 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "drw005",
+                      "id": "ghallw293",
                       "type": "drop-log",
                       "v": 1,
                       "settings": {
                         "title": "",
                         "period": "all",
                         "showGrid": true,
-                        "limit": 25
+                        "limit": 25,
+                        "bossFilter": true
                       },
                       "unmet": "hide"
                     }
@@ -4587,21 +4870,22 @@
             }
           ]
         }
-      ],
-      "origin": {
-        "template": "drops",
-        "v": 1
-      }
+      ]
     },
     {
-      "id": "ptplitem",
+      "id": "ghallpitempage",
       "title": "Item page",
       "path": "item",
       "hidden": false,
       "access": "public",
+      "template": "item",
+      "origin": {
+        "template": "item",
+        "v": 1
+      },
       "sections": [
         {
-          "id": "its004",
+          "id": "ghalls300",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4619,7 +4903,7 @@
           },
           "rows": [
             {
-              "id": "itr003",
+              "id": "ghallr299",
               "gap": {
                 "lg": "md"
               },
@@ -4631,7 +4915,7 @@
               },
               "cells": [
                 {
-                  "id": "itc002",
+                  "id": "ghallc298",
                   "span": {
                     "lg": 12
                   },
@@ -4642,7 +4926,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "itw001",
+                      "id": "ghallw297",
                       "type": "item-detail",
                       "v": 1,
                       "settings": {
@@ -4657,22 +4941,18 @@
             }
           ]
         }
-      ],
-      "template": "item",
-      "origin": {
-        "template": "item",
-        "v": 1
-      }
+      ]
     },
     {
-      "id": "ghlaccount",
+      "id": "ghallpaccountpag",
       "title": "My account",
       "path": "account",
       "hidden": true,
       "access": "public",
+      "template": "account",
       "sections": [
         {
-          "id": "ghls0065",
+          "id": "ghalls304",
           "width": "full",
           "background": {
             "kind": "surface"
@@ -4690,7 +4970,7 @@
           },
           "rows": [
             {
-              "id": "ghlr0064",
+              "id": "ghallr303",
               "gap": {
                 "lg": "md"
               },
@@ -4702,7 +4982,7 @@
               },
               "cells": [
                 {
-                  "id": "ghlc0063",
+                  "id": "ghallc302",
                   "span": {
                     "lg": 12
                   },
@@ -4713,7 +4993,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "ghlw0062",
+                      "id": "ghallw301",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -4733,7 +5013,7 @@
           ]
         },
         {
-          "id": "ghls0088",
+          "id": "ghalls328",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4751,7 +5031,7 @@
           },
           "rows": [
             {
-              "id": "ghlr0070",
+              "id": "ghallr309",
               "gap": {
                 "lg": "md"
               },
@@ -4763,7 +5043,7 @@
               },
               "cells": [
                 {
-                  "id": "ghlc0067",
+                  "id": "ghallc306",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -4775,7 +5055,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "ghlw0066",
+                      "id": "ghallw305",
                       "type": "account-link",
                       "v": 1,
                       "settings": {
@@ -4786,7 +5066,7 @@
                   ]
                 },
                 {
-                  "id": "ghlc0069",
+                  "id": "ghallc308",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -4798,7 +5078,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "ghlw0068",
+                      "id": "ghallw307",
                       "type": "server-profile",
                       "v": 1,
                       "settings": {
@@ -4813,7 +5093,7 @@
               ]
             },
             {
-              "id": "ghlr0075",
+              "id": "ghallr314",
               "gap": {
                 "lg": "md"
               },
@@ -4825,7 +5105,7 @@
               },
               "cells": [
                 {
-                  "id": "ghlc0072",
+                  "id": "ghallc311",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -4837,7 +5117,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "ghlw0071",
+                      "id": "ghallw310",
                       "type": "my-goals",
                       "v": 1,
                       "settings": {
@@ -4849,7 +5129,7 @@
                   ]
                 },
                 {
-                  "id": "ghlc0074",
+                  "id": "ghallc313",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -4861,7 +5141,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "ghlw0073",
+                      "id": "ghallw312",
                       "type": "my-notices",
                       "v": 1,
                       "settings": {
@@ -4875,7 +5155,7 @@
               ]
             },
             {
-              "id": "ghlr0082",
+              "id": "ghallr319",
               "gap": {
                 "lg": "md"
               },
@@ -4887,9 +5167,9 @@
               },
               "cells": [
                 {
-                  "id": "ghlc0077",
+                  "id": "ghallc316",
                   "span": {
-                    "lg": 4,
+                    "lg": 6,
                     "md": 12
                   },
                   "padding": {
@@ -4899,7 +5179,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "ghlw0076",
+                      "id": "ghallw315",
                       "type": "my-events",
                       "v": 1,
                       "settings": {
@@ -4911,9 +5191,9 @@
                   ]
                 },
                 {
-                  "id": "ghlc0079",
+                  "id": "ghallc318",
                   "span": {
-                    "lg": 4,
+                    "lg": 6,
                     "md": 12
                   },
                   "padding": {
@@ -4923,7 +5203,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "ghlw0078",
+                      "id": "ghallw317",
                       "type": "my-signups",
                       "v": 1,
                       "settings": {
@@ -4933,12 +5213,25 @@
                       "unmet": "hide"
                     }
                   ]
-                },
+                }
+              ]
+            },
+            {
+              "id": "ghallr322",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
                 {
-                  "id": "ghlc0081",
+                  "id": "ghallc321",
                   "span": {
-                    "lg": 4,
-                    "md": 12
+                    "lg": 12
                   },
                   "padding": {
                     "lg": "none"
@@ -4947,7 +5240,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "ghlw0080",
+                      "id": "ghallw320",
                       "type": "my-polls",
                       "v": 1,
                       "settings": {
@@ -4962,7 +5255,7 @@
               ]
             },
             {
-              "id": "ghlr0087",
+              "id": "ghallr327",
               "gap": {
                 "lg": "md"
               },
@@ -4974,7 +5267,7 @@
               },
               "cells": [
                 {
-                  "id": "ghlc0084",
+                  "id": "ghallc324",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -4986,7 +5279,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "ghlw0083",
+                      "id": "ghallw323",
                       "type": "my-coffer",
                       "v": 1,
                       "settings": {
@@ -4998,7 +5291,7 @@
                   ]
                 },
                 {
-                  "id": "ghlc0086",
+                  "id": "ghallc326",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5010,7 +5303,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "ghlw0085",
+                      "id": "ghallw325",
                       "type": "member-privacy",
                       "v": 1,
                       "settings": {
@@ -5025,8 +5318,7 @@
             }
           ]
         }
-      ],
-      "template": "account"
+      ]
     }
   ]
 }
