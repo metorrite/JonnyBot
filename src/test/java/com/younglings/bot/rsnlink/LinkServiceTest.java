@@ -425,6 +425,71 @@ class LinkServiceTest {
         assertTrue(service.session(owner, "Zezima", "111").getBoolean("linked"), "the refusal left nothing half-done");
     }
 
+    /** A verifier that raises any link on {@code rsnLookup} when the plugin reports in, tracked or not. */
+    private void raiseOn(String rsnLookup) {
+        verifiers.add(new LinkVerifier() {
+            @Override
+            public String method() {
+                return "test_only";
+            }
+
+            @Override
+            public Optional<VerificationResult> check(LinkContext context) {
+                return context.rsnLookup().equals(rsnLookup) && context.report() != null
+                        ? Optional.of(new VerificationResult(Verification.PUBLIC_DATA_CORROBORATED, "test_only", "{}")) : Optional.empty();
+            }
+        });
+        service = new LinkService(settings, database, LinkDmSender.NONE, verifiers, clock, new SecureRandom());
+    }
+
+    @Test
+    void aTrackedClaimCantTakeOverAVerifiedTrackingLessLink() throws Exception {
+        raiseOn("zezima");
+        String owner = link("Zezima", null, BOB);
+        assertEquals("public_data_corroborated", service.session(owner, "Zezima", null).getString("verification"));
+        service = new LinkService(settings, database, LinkDmSender.NONE, List.of(), clock, new SecureRandom());
+        Paired p = start("Zezima", "222", "198.51.100.5");
+        service.webCode(p.userCode(), p.session(), null, "198.51.100.5");
+        assertEquals("name_unavailable", assertThrows(LinkException.class, () -> service.webConfirm(p.session(), ALICE, null, "link")).code());
+        assertTrue(service.session(owner, "Zezima", null).getBoolean("linked"), "the verified link stays");
+        assertEquals(0, count("SELECT count(*) FROM {s}.link WHERE status = 'superseded'"));
+    }
+
+    @Test
+    void aRenameCantMoveOntoANameAnotherCharacterHolds() throws Exception {
+        String owner = link("Zezima", "111", BOB);
+        String loose = link("Other", null, BOB);
+        String mine = link("MyAlt", "222", ALICE);
+        assertEquals("name_unavailable", assertThrows(LinkException.class, () -> service.session(mine, "Zezima", "222")).code());
+        assertEquals("name_unavailable", assertThrows(LinkException.class, () -> service.session(mine, "Other", "222")).code());
+        assertEquals("MyAlt", service.webLinks(ALICE).getArray("links").getObject(0).getString("rsn"), "the refused rename left the name as it was");
+        assertTrue(service.session(owner, "Zezima", "111").getBoolean("linked"));
+        assertTrue(service.session(loose, "Other", null).getBoolean("linked"));
+        assertEquals(1, count("SELECT count(*) FROM {s}.game_character WHERE rsn_lookup = 'zezima'"));
+        assertTrue(service.session(mine, "mYaLT", "222").getBoolean("linked"), "a change of case is still a plain rename");
+    }
+
+    @Test
+    void relinkingAsAHeldNameGoesThroughTheClaimRules() throws Exception {
+        String owner = link("Zezima", "111", BOB);
+        String mine = link("MyAlt", "222", ALICE);
+        assertEquals("disputed", approve(start("Zezima", "222", "198.51.100.5"), ALICE), "held for review, not renamed onto the name");
+        assertEquals("token_revoked", assertThrows(LinkException.class, () -> service.session(mine, "MyAlt", "222")).code());
+        assertTrue(service.session(owner, "Zezima", "111").getBoolean("linked"));
+        assertEquals(1, count("SELECT count(*) FROM {s}.dispute WHERE status = 'open'"));
+    }
+
+    @Test
+    void aRenameOntoAFreeNameStartsAgainAtImplicit() {
+        raiseOn("oldname");
+        String token = link("OldName", "55", ALICE);
+        assertEquals("public_data_corroborated", service.session(token, "OldName", "55").getString("verification"));
+        DataObject renamed = service.session(token, "NewName", "55");
+        assertTrue(renamed.getBoolean("linked"));
+        assertEquals("implicit", renamed.getString("verification"), "the proof was for the old name");
+        assertEquals("implicit", service.webLinks(ALICE).getArray("links").getObject(0).getString("verification"));
+    }
+
     // ---------- first-party resolve (T-200) ----------
 
     @Test

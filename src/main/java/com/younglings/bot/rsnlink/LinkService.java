@@ -176,6 +176,7 @@ public final class LinkService {
         return tx(c -> {
             TokenAuth auth = authenticate(c, token, tokenRoutes, now);
             Character ch = auth.character();
+            Link current = auth.link();
             byte[] trackingLookup = tracking == null ? null : crypto.lookup(SUBJECT_TRACKING, tracking);
             String rsnKey = LinkCodes.rsnLookup(rsn);
             if (ch.tracked()) {
@@ -186,8 +187,10 @@ public final class LinkService {
                 if (trackingLookup == null && !ch.rsnLookup().equals(rsnKey)) {
                     throw new LinkException(409, "character_mismatch", "This link belongs to another character. Link this character on its own.");
                 }
-                // Same tracking id: a new name is a rename, which the link and its aliases survive.
-                if (!ch.rsnDisplay().equals(rsn)) store.renameCharacter(c, ch, rsn, rsnKey, now);
+                // Same tracking id: a new name is a rename, which the link and its aliases survive. The tracking id is the plugin's word, so
+                // moving onto a different name takes that name like a new claim does.
+                if (!ch.rsnLookup().equals(rsnKey)) current = renameOntoNewName(c, current, ch, rsn, rsnKey, now);
+                else if (!ch.rsnDisplay().equals(rsn)) store.renameCharacter(c, ch, rsn, rsnKey, now);
                 else store.touchCharacter(c, ch.id(), now);
             } else {
                 if (!ch.rsnLookup().equals(rsnKey)) {
@@ -199,7 +202,9 @@ public final class LinkService {
                 else store.touchCharacter(c, ch.id(), now);
             }
             store.touchToken(c, auth.tokenId(), now);
-            Link link = runVerifiers(c, auth.link(), ch, rsn, Map.of("kind", "session", "rsn", rsnKey), now);
+            // The verifiers check the name as it now stands, not the one the token was issued for.
+            Character named = new Character(ch.id(), ch.trackingLookup(), rsn, rsnKey, now, ch.createdAt());
+            Link link = runVerifiers(c, current, named, rsn, Map.of("kind", "session", "rsn", rsnKey), now);
             boolean disputed = !store.openDisputesFor(c, link.id()).isEmpty() || link.status().equals("disputed");
             return DataObject.empty().put("linked", link.status().equals("active")).put("disputed", disputed).put("verification", link.verification())
                     .put("discordName", discordName(c, link.discordUserId())).put("xpReports", wantsXpReports(link));
@@ -503,13 +508,27 @@ public final class LinkService {
 
         // Same character, same Discord: reuse the link (same id, so the same aliases); the poll hands out a new token.
         Link mine = ch == null ? null : store.currentLink(c, ch.id(), discordUserId).orElse(null);
+        // A different name held by another character's link is not a plain rename: the claim rules below decide it, and the character's
+        // old link makes way for the new one.
+        Link replaced = null;
+        if (mine != null && !ch.rsnLookup().equals(p.rsnLookup())
+                && store.activeHoldersOfName(c, p.rsnLookup()).stream().anyMatch(h -> !h.character().id().equals(ch.id()))) {
+            replaced = mine;
+            mine = null;
+        }
         if (mine != null) {
+            if (!ch.rsnLookup().equals(p.rsnLookup()) && Verification.of(mine.verification()).strongerThan(Verification.IMPLICIT)) {
+                // Its proof was for the old name.
+                store.setVerification(c, mine.id(), Verification.IMPLICIT.key(), null, now);
+                mine = new Link(mine.id(), mine.characterId(), mine.discordUserId(), mine.status(), mine.method(), Verification.IMPLICIT.key(),
+                        mine.createdAt(), mine.endedAt());
+            }
             store.renameCharacter(c, ch, p.rsnDisplay(), p.rsnLookup(), now);
             store.approvePairing(c, p.id(), discordUserId, mine.id(), "reused");
             log.info("Link pairing {} approved: reusing link {}", p.id(), mine.id());
             return new Outcome(mine.status().equals("disputed") ? "disputed" : "linked", mine);
         }
-        if (store.countCurrentLinks(c, discordUserId) >= LinkLimits.MAX_ACTIVE_LINKS_PER_DISCORD) {
+        if (store.countCurrentLinks(c, discordUserId) - (replaced == null ? 0 : 1) >= LinkLimits.MAX_ACTIVE_LINKS_PER_DISCORD) {
             throw new LinkException(409, "too_many_links", "This Discord account already has " + LinkLimits.MAX_ACTIVE_LINKS_PER_DISCORD
                     + " linked characters. Unlink one first.");
         }
@@ -523,6 +542,10 @@ public final class LinkService {
             // A claim without a tracking id can never take a name that is linked with one; nor can an implicit claim displace a verified link.
             if (h.character().tracked() && (!tracked || (!h.character().lastSeenAt().isBefore(recycledBefore)
                     && Verification.of(h.link().verification()).strongerThan(Verification.IMPLICIT)))) {
+                return refuse(c, p, now);
+            }
+            // A tracking id is the plugin's word, not proof: a tracked claim only takes over a tracking-less link that is still implicit.
+            if (!h.character().tracked() && Verification.of(h.link().verification()).strongerThan(Verification.IMPLICIT)) {
                 return refuse(c, p, now);
             }
         }
@@ -542,6 +565,8 @@ public final class LinkService {
                 incumbentToDispute = h.link();
             }
         }
+
+        if (replaced != null) endLink(c, replaced, "superseded", "renamed", now);
 
         Character character = ch;
         if (character == null) {
@@ -577,6 +602,25 @@ public final class LinkService {
         store.approvePairing(c, p.id(), discordUserId, link.id(), status.equals("active") ? "linked" : "disputed");
         link = runVerifiers(c, link, character, character.rsnDisplay(), null, now);
         return new Outcome(status.equals("active") ? "linked" : "disputed", link);
+    }
+
+    /**
+     * A character reporting a different name. Under the new name's lock, any other character's active link on that name refuses the
+     * rename: taking a held name needs the pairing and confirm step, whose rules ({@link #applyLink}) settle who keeps it. A rename that
+     * goes ahead drops the link back to implicit, since its proof was for the old name; the verifiers can raise it again for the new one.
+     */
+    private Link renameOntoNewName(Connection c, Link link, Character ch, String rsn, String rsnKey, Instant now) throws SQLException {
+        lockName(c, rsnKey);
+        boolean held = store.activeHoldersOfName(c, rsnKey).stream().anyMatch(h -> !h.character().id().equals(ch.id()));
+        if (held) {
+            store.abuseEvent(c, "rename_refused", SUBJECT_RSN, crypto.lookup(SUBJECT_RSN, rsnKey), null, now);
+            log.info("Link {}: rename refused, the new name is held by another character's link", link.id());
+            throw new LinkException(409, "name_unavailable", "This name is linked to another character. If it is yours, link it again from the plugin.");
+        }
+        store.renameCharacter(c, ch, rsn, rsnKey, now);
+        if (!Verification.of(link.verification()).strongerThan(Verification.IMPLICIT)) return link;
+        store.setVerification(c, link.id(), Verification.IMPLICIT.key(), null, now);
+        return new Link(link.id(), link.characterId(), link.discordUserId(), link.status(), link.method(), Verification.IMPLICIT.key(), link.createdAt(), link.endedAt());
     }
 
     private Outcome refuse(Connection c, Pairing p, Instant now) throws SQLException {
