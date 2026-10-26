@@ -46,9 +46,10 @@ import java.util.concurrent.TimeUnit;
  * never corrected on its own.
  * <p>
  * Bingo and scavenger XP tiles (T-543, {@code EVENT_XP_TILES_ENABLED}, off by default) are fed by the same pass ({@link #feedTiles}): a tile labelled
- * "Gain 1M Fletching XP" gets the player's timed gain in that skill since they started counting, as {@link Source#AUTO} progress, completing when the
- * gain reaches the goal ({@link PluginObjectiveMatcher#xpProgress}). Each entry is keyed by the player, the tile, the UTC day and the progress it
- * brings the tile to, so a re-read (or two passes at once) never counts twice. Players without RuneSync (RuneMetrics only) make no progress and are
+ * "Gain 1M Fletching XP" gets the player's timed gain in that skill while the event runs (from the later of its start and when they joined, until
+ * now or its planned end), as {@link Source#AUTO} progress, completing when the gain reaches the goal ({@link PluginObjectiveMatcher#xpProgress}).
+ * Each entry is keyed by the player, the tile and the progress it builds on, so a re-read (or two passes at once, even from two bot instances)
+ * never counts twice: whichever writes first wins and the other is refused. Players without RuneSync (RuneMetrics only) make no progress and are
  * listed by {@link #notCounted} like a competition's.
  */
 @BService
@@ -265,14 +266,20 @@ public class PluginXpTracker {
     }
 
     /**
-     * Brings the XP tiles of one bingo or scavenger hunt up to date from the hub: one gains call per skill the tiles ask for (per group of players
-     * who started counting at the same time). Returns how many progress entries were added. An event with no XP tiles costs nothing.
+     * Brings the XP tiles of one bingo or scavenger hunt up to date from the hub: one gains call (all skills) per group of players who started
+     * counting at the same time, for the span the event runs. Returns how many progress entries were added. An event with no XP tiles costs nothing.
      */
     public int feedTiles(Event event) {
         Map<EventRules.ObjectiveSpec, PluginObjectiveMatcher.XpGoal> xpTiles = PluginObjectiveMatcher.xpTiles(ClanVsClan.game(event), repository.objectives(event.id()));
-        if (xpTiles.isEmpty()) return 0;
+        if (xpTiles.isEmpty()) {
+            notCounted.remove(event.id()); // the last XP tile was taken off: nothing to list any more
+            return 0;
+        }
         Instant now = clock.instant();
         Instant started = repository.startedAt(event.id()).orElse(event.startsAt() == null ? now : event.startsAt());
+        // only XP gained during the event counts: not before its advertised start (started early), not after its planned end (finished late)
+        if (event.startsAt() != null && event.startsAt().isAfter(started)) started = event.startsAt();
+        Instant to = event.endsAt() != null && event.endsAt().isBefore(now) ? event.endsAt() : now;
         Set<Long> missing = new LinkedHashSet<>();
         Map<Instant, Map<String, Participant>> groups = new LinkedHashMap<>();
         for (Participant p : repository.participants(event.id())) {
@@ -289,59 +296,66 @@ public class PluginXpTracker {
         for (EventRepository.Progress p : repository.progress(event.id())) {
             if (p.sourceKey() != null && p.sourceKey().startsWith(TILE_KEY_PREFIX)) counted.computeIfAbsent(p.objectiveKey(), k -> new HashMap<>()).merge(p.userId(), p.amount(), Long::sum);
         }
-        Set<Integer> skills = new LinkedHashSet<>();
-        xpTiles.values().forEach(g -> skills.add(g.skillId()));
         int updated = 0;
         for (Map.Entry<Instant, Map<String, Participant>> group : groups.entrySet()) {
-            if (!group.getKey().isBefore(now)) continue;
+            if (!group.getKey().isBefore(to)) continue; // hasn't started counting yet, or joined after the event ended
             List<String> all = new ArrayList<>(group.getValue().keySet());
-            for (int skill : skills) {
-                Integer skillId = skill == CompetitionTemplate.OVERALL ? null : skill;
-                for (int i = 0; i < all.size(); i += MAX_PLAYERS_PER_CALL) {
-                    List<String> part = all.subList(i, Math.min(all.size(), i + MAX_PLAYERS_PER_CALL));
-                    RuneClansHubClient.Answer answer = hub.xpGains(event.guildId(), part, skillId, group.getKey(), now);
-                    if (answer == null || !answer.ok() || answer.json() == null) {
-                        if (answer != null && answer.status() != 404) log.warn("Event {}: the hub answered {} for XP gains", event.id(), answer.status());
-                        return updated;
-                    }
-                    Set<String> seen = new LinkedHashSet<>();
-                    DataArray players = answer.json().optArray("players").orElse(DataArray.empty());
-                    for (int j = 0; j < players.length(); j++) {
-                        DataObject row = players.getObject(j);
-                        Participant p = group.getValue().get(row.getString("alias", ""));
-                        if (p == null) continue;
-                        seen.add(row.getString("alias"));
-                        long gained = row.getLong("xp", 0);
-                        for (var tile : xpTiles.entrySet()) {
-                            if (tile.getValue().skillId() != skill) continue;
-                            long already = counted.getOrDefault(tile.getKey().key(), Map.of()).getOrDefault(p.userId(), 0L);
-                            if (recordTile(event, p, tile.getKey(), tile.getValue(), gained, already, now)) updated++;
-                        }
-                    }
-                    for (String alias : part) if (!seen.contains(alias)) missing.add(group.getValue().get(alias).userId());
+            for (int i = 0; i < all.size(); i += MAX_PLAYERS_PER_CALL) {
+                List<String> part = all.subList(i, Math.min(all.size(), i + MAX_PLAYERS_PER_CALL));
+                RuneClansHubClient.Answer answer = hub.xpGains(event.guildId(), part, null, group.getKey(), to);
+                if (answer == null || !answer.ok() || answer.json() == null) {
+                    if (answer != null && answer.status() != 404) log.warn("Event {}: the hub answered {} for XP gains", event.id(), answer.status());
+                    return updated;
                 }
+                Set<String> seen = new LinkedHashSet<>();
+                DataArray players = answer.json().optArray("players").orElse(DataArray.empty());
+                for (int j = 0; j < players.length(); j++) {
+                    DataObject row = players.getObject(j);
+                    Participant p = group.getValue().get(row.getString("alias", ""));
+                    if (p == null) continue;
+                    seen.add(row.getString("alias"));
+                    for (var tile : xpTiles.entrySet()) {
+                        long already = counted.getOrDefault(tile.getKey().key(), Map.of()).getOrDefault(p.userId(), 0L);
+                        if (recordTile(event, p, tile.getKey(), tile.getValue(), gainedIn(row, tile.getValue().skillId()), already)) updated++;
+                    }
+                }
+                for (String alias : part) if (!seen.contains(alias)) missing.add(group.getValue().get(alias).userId());
             }
         }
         notCounted.put(event.id(), new NotCounted(Set.copyOf(missing), Set.of(), now));
         return updated;
     }
 
+    /** A gains row's XP in one skill ({@code bySkill}), or its total for {@link CompetitionTemplate#OVERALL}; 0 when the skill isn't listed. */
+    static long gainedIn(DataObject row, int skillId) {
+        if (skillId == CompetitionTemplate.OVERALL) return row.getLong("xp", 0);
+        DataArray bySkill = row.optArray("bySkill").orElse(DataArray.empty());
+        for (int i = 0; i < bySkill.length(); i++) {
+            DataObject s = bySkill.getObject(i);
+            if (s.getInt("skillId", -1) == skillId) return s.getLong("xp", 0);
+        }
+        return 0;
+    }
+
     /** The start of an XP tile's progress keys. */
     static final String TILE_KEY_PREFIX = "xpt:";
 
-    /** An XP tile's progress key: the player, the tile, the UTC day and the progress it brings the tile to, so a re-read can't count twice. */
-    static String tileSourceKey(long userId, String objectiveKey, Instant at, long reaches) {
-        return TILE_KEY_PREFIX + userId + ":" + objectiveKey + ":" + java.time.LocalDate.ofInstant(at, java.time.ZoneOffset.UTC) + ":" + reaches;
+    /**
+     * An XP tile's progress key: the player, the tile and the progress already counted that this entry builds on. Two passes that start from the
+     * same counted total (a re-read, or two bot instances at once) get the same key, so only the first is written, whatever each read.
+     */
+    static String tileSourceKey(long userId, String objectiveKey, long builtOn) {
+        return TILE_KEY_PREFIX + userId + ":" + objectiveKey + ":" + builtOn;
     }
 
-    private boolean recordTile(Event event, Participant player, EventRules.ObjectiveSpec tile, PluginObjectiveMatcher.XpGoal goal, long gained, long already, Instant now) {
+    private boolean recordTile(Event event, Participant player, EventRules.ObjectiveSpec tile, PluginObjectiveMatcher.XpGoal goal, long gained, long already) {
         long reaches = PluginObjectiveMatcher.xpProgress(goal, tile, gained);
         if (reaches <= already) return false;
         try {
-            service.recordProgress(event.guildId(), event.id(), tile.key(), player.userId(), reaches - already, Source.AUTO, tileSourceKey(player.userId(), tile.key(), now, reaches), null,
+            service.recordProgress(event.guildId(), event.id(), tile.key(), player.userId(), reaches - already, Source.AUTO, tileSourceKey(player.userId(), tile.key(), already), null,
                     String.format(java.util.Locale.ROOT, "RuneSync: %,d %s gained", gained, goal.what()));
         } catch (EventProblem e) {
-            // already complete, locked behind another tile, not in a team yet, or this exact reading was counted: nothing to add right now
+            // already complete, locked behind another tile, not in a team yet, or another pass built on this total first: nothing to add right now
             log.debug("Event {}: XP tile {} not counted for {}: {}", event.id(), tile.key(), player.userId(), e.getMessage());
             return false;
         }

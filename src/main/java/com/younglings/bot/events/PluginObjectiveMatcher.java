@@ -62,6 +62,22 @@ public final class PluginObjectiveMatcher {
     private static final Pattern XP_IN_SKILL = Pattern.compile("^(?:gain\\s+)?" + AMOUNT + "\\s+" + XP_WORD + "\\s+in\\s+([a-z]+)$");
     /** No tile asks for more than every skill's 200M. */
     private static final long MAX_XP_GOAL = 10_000_000_000L;
+    /** Short names players write on XP tiles ("Gain 1M WC XP", "500k Necro XP"), as the skill's full name. */
+    private static final java.util.Map<String, String> SKILL_ALIASES = java.util.Map.ofEntries(
+            java.util.Map.entry("att", "attack"), java.util.Map.entry("atk", "attack"), java.util.Map.entry("def", "defence"), java.util.Map.entry("defense", "defence"),
+            java.util.Map.entry("str", "strength"), java.util.Map.entry("hp", "constitution"), java.util.Map.entry("hitpoints", "constitution"),
+            java.util.Map.entry("range", "ranged"), java.util.Map.entry("ranging", "ranged"), java.util.Map.entry("pray", "prayer"), java.util.Map.entry("mage", "magic"),
+            java.util.Map.entry("cook", "cooking"), java.util.Map.entry("wc", "woodcutting"), java.util.Map.entry("fletch", "fletching"), java.util.Map.entry("fish", "fishing"),
+            java.util.Map.entry("fm", "firemaking"), java.util.Map.entry("craft", "crafting"), java.util.Map.entry("smith", "smithing"), java.util.Map.entry("mine", "mining"),
+            java.util.Map.entry("herb", "herblore"), java.util.Map.entry("agi", "agility"), java.util.Map.entry("agil", "agility"), java.util.Map.entry("thiev", "thieving"),
+            java.util.Map.entry("thieve", "thieving"), java.util.Map.entry("slay", "slayer"), java.util.Map.entry("farm", "farming"), java.util.Map.entry("rc", "runecrafting"),
+            java.util.Map.entry("hunt", "hunter"), java.util.Map.entry("con", "construction"), java.util.Map.entry("cons", "construction"), java.util.Map.entry("summ", "summoning"),
+            java.util.Map.entry("summon", "summoning"), java.util.Map.entry("dung", "dungeoneering"), java.util.Map.entry("dg", "dungeoneering"),
+            java.util.Map.entry("div", "divination"), java.util.Map.entry("inv", "invention"), java.util.Map.entry("invent", "invention"), java.util.Map.entry("arch", "archaeology"),
+            java.util.Map.entry("arc", "archaeology"), java.util.Map.entry("necro", "necromancy"));
+    /** A remark in brackets ("(any method)"); it and trailing punctuation ("!") are dropped before an XP tile's label is read. */
+    private static final Pattern REMARK = Pattern.compile("\\([^)]*\\)");
+    private static final Pattern TRAILING_PUNCTUATION = Pattern.compile("[\\p{Punct}\\s]+$");
 
     /** Whether XP tiles are counted: set once at startup by {@link PluginXpTracker} ({@code EVENT_XP_TILES_ENABLED} and the hub client on). */
     private static volatile boolean xpTilesOffered;
@@ -86,7 +102,8 @@ public final class PluginObjectiveMatcher {
 
     /** The XP goal a tile label asks for, or null when it isn't an XP tile. A label with no skill (or "total", "overall") is total XP. */
     public static XpGoal xpGoal(String rawLabel) {
-        String label = rawLabel == null ? "" : rawLabel.strip().toLowerCase(Locale.ROOT).replaceAll("\\s+", " ");
+        String label = rawLabel == null ? "" : rawLabel.toLowerCase(Locale.ROOT);
+        label = TRAILING_PUNCTUATION.matcher(REMARK.matcher(label).replaceAll(" ")).replaceAll("").strip().replaceAll("\\s+", " ");
         Matcher m = XP_SKILL_FIRST.matcher(label);
         if (!m.matches()) m = XP_IN_SKILL.matcher(label);
         if (!m.matches()) return null;
@@ -114,10 +131,15 @@ public final class PluginObjectiveMatcher {
         return earned.min(BigInteger.valueOf(capacity)).longValue();
     }
 
-    /** The objectives of an event that are XP tiles taking automatic progress, with their goals; empty for competitions and boss nights. */
+    /** Whether an event of this template (a clan-vs-clan event's game) counts XP tiles: only bingo and scavenger hunts do. */
+    public static boolean countsXpTiles(String template) {
+        return BingoTemplate.KEY.equals(template) || ScavengerHuntTemplate.KEY.equals(template);
+    }
+
+    /** The objectives of an event that are XP tiles taking automatic progress, with their goals; empty for anything but bingo and scavenger hunts. */
     public static java.util.Map<ObjectiveSpec, XpGoal> xpTiles(String template, List<ObjectiveSpec> objectives) {
         java.util.Map<ObjectiveSpec, XpGoal> out = new java.util.LinkedHashMap<>();
-        if (!BingoTemplate.KEY.equals(template) && !ScavengerHuntTemplate.KEY.equals(template)) return out;
+        if (!countsXpTiles(template)) return out;
         for (ObjectiveSpec o : objectives) {
             XpGoal goal = takesAutomatic(o) ? xpGoal(o.label()) : null;
             if (goal != null) out.put(o, goal);
@@ -125,11 +147,24 @@ public final class PluginObjectiveMatcher {
         return out;
     }
 
+    /**
+     * The XP tile labels a public event page may list (each once): a bingo's always (its board is public anyway); a scavenger hunt's only once it
+     * runs, and a step that unlocks after another only once the hunt is over, so the page never gives a step away early.
+     */
+    public static List<String> shownXpTiles(String template, EventRules.Status status, List<ObjectiveSpec> objectives) {
+        boolean hunt = ScavengerHuntTemplate.KEY.equals(template);
+        boolean over = status == EventRules.Status.DONE;
+        if (hunt && status != EventRules.Status.RUNNING && status != EventRules.Status.SCORING && !over) return List.of();
+        java.util.Set<String> labels = new java.util.LinkedHashSet<>();
+        for (ObjectiveSpec o : xpTiles(template, objectives).keySet()) if (!hunt || over || o.prerequisites().isEmpty()) labels.add(o.label());
+        return List.copyOf(labels);
+    }
+
     private static int skillId(String word) {
         if (word.equals("total") || word.equals("overall")) return CompetitionTemplate.OVERALL;
+        String wanted = SKILL_ALIASES.getOrDefault(word, word);
         for (int id = 0; id < RuneScapeSkillCatalog.skillCount(); id++) {
-            String name = RuneScapeSkillCatalog.nameFor(id).toLowerCase(Locale.ROOT);
-            if (name.equals(word) || (word.equals("hp") && id == 3) || (word.equals("rc") && name.equals("runecrafting")) || (word.equals("defense") && name.equals("defence"))) return id;
+            if (RuneScapeSkillCatalog.nameFor(id).toLowerCase(Locale.ROOT).equals(wanted)) return id;
         }
         return Integer.MIN_VALUE;
     }
@@ -197,11 +232,10 @@ public final class PluginObjectiveMatcher {
         if (label.isEmpty()) return null;
         XpGoal goal = xpGoal(label);
         if (goal != null) {
-            String amount = String.format(Locale.ROOT, "%,d", goal.xp());
-            return xpTilesOffered
-                    ? new Hint(true, "Auto with RuneSync: " + amount + " " + goal.what() + " gained while the event runs, read from the RuneClans hub. XP gained while RuneSync "
-                    + "wasn't watching doesn't count, and players without RuneSync (RuneMetrics only) make no progress on this tile.")
-                    : new Hint(false, "An XP tile (" + amount + " " + goal.what() + "). Counting XP for tiles isn't switched on for this bot, so this tile needs proof or an organiser for now.");
+            if (!xpTilesOffered) return new Hint(false, "XP tiles need proof or an organiser.");
+            if (!countsXpTiles(template)) return new Hint(false, "XP tiles count by themselves only in bingo and scavenger hunts, so this one needs proof or an organiser.");
+            return new Hint(true, "Auto with RuneSync: " + String.format(Locale.ROOT, "%,d", goal.xp()) + " " + goal.what() + " gained while the event runs, read from the "
+                    + "RuneClans hub. XP gained while RuneSync wasn't watching doesn't count, and players without RuneSync (RuneMetrics only) make no progress on this tile.");
         }
         if (label.contains("clue") || label.contains("treasure trail")) {
             String rest = CLUE_FILLER.matcher(label.replaceAll("[^a-z ]", " ")).replaceAll(" ").strip().replaceAll("\\s+", " ");

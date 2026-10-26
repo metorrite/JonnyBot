@@ -215,15 +215,12 @@ public class HubEventsApi {
 
     /**
      * The XP tiles of a bingo or scavenger hunt counted from RuneSync (T-543), as their labels, so the page can say that only RuneSync XP counts
-     * there; null when XP tiles aren't counted or the event has none.
+     * there; null when XP tiles aren't counted or none can be shown ({@link com.younglings.bot.events.PluginObjectiveMatcher#shownXpTiles}).
      */
     private DataArray xpTilesOf(Event e) {
         if (!com.younglings.bot.events.PluginObjectiveMatcher.xpTilesOffered()) return null;
-        var tiles = com.younglings.bot.events.PluginObjectiveMatcher.xpTiles(com.younglings.bot.events.ClanVsClan.game(e), service.objectives(e.id()));
-        if (tiles.isEmpty()) return null;
-        DataArray out = DataArray.empty();
-        tiles.keySet().forEach(o -> out.add(o.label()));
-        return out;
+        List<String> labels = com.younglings.bot.events.PluginObjectiveMatcher.shownXpTiles(com.younglings.bot.events.ClanVsClan.game(e), e.status(), service.objectives(e.id()));
+        return labels.isEmpty() ? null : DataArray.fromCollection(labels);
     }
 
     /** The viewer's links to the event's channels (only the ones they can use), from the host's own player page. */
