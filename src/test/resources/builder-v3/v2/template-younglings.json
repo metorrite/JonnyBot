@@ -2954,6 +2954,66 @@
           ]
         },
         {
+          "id": "ylg572s",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "ylg572r",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ylg572c",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ylg572w",
+                      "type": "wrapped-recap",
+                      "v": 1,
+                      "settings": {
+                        "title": "",
+                        "period": "month",
+                        "visitorPeriods": true,
+                        "members": true,
+                        "autoplay": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
           "id": "ylgs0062",
           "width": "content",
           "background": {
@@ -3053,7 +3113,7 @@
       ],
       "origin": {
         "template": "recaps",
-        "v": 1
+        "v": 2
       }
     },
     {

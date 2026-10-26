@@ -50,7 +50,7 @@
     "mobile": "drawer",
     "nav": [
       {
-        "id": "raidn125",
+        "id": "raidn124",
         "label": "Home",
         "link": {
           "kind": "page",
@@ -58,7 +58,7 @@
         }
       },
       {
-        "id": "raidn126",
+        "id": "raidn125",
         "label": "Bosses",
         "link": {
           "kind": "page",
@@ -66,7 +66,7 @@
         },
         "children": [
           {
-            "id": "raidn127",
+            "id": "raidn126",
             "label": "Boss kills",
             "link": {
               "kind": "page",
@@ -75,7 +75,7 @@
             "description": "Kills per boss, and a page for each one"
           },
           {
-            "id": "raidn128",
+            "id": "raidn127",
             "label": "Collection log",
             "link": {
               "kind": "page",
@@ -84,7 +84,7 @@
             "description": "Every rare drop and pet, and who got it first"
           },
           {
-            "id": "raidn129",
+            "id": "raidn128",
             "label": "Drop log",
             "link": {
               "kind": "page",
@@ -95,7 +95,7 @@
         ]
       },
       {
-        "id": "raidn130",
+        "id": "raidn129",
         "label": "Raids",
         "link": {
           "kind": "page",
@@ -104,7 +104,7 @@
         "badge": "events"
       },
       {
-        "id": "raidn131",
+        "id": "raidn130",
         "label": "Hall of fame",
         "link": {
           "kind": "page",
@@ -112,7 +112,7 @@
         }
       },
       {
-        "id": "raidn132",
+        "id": "raidn131",
         "label": "Members",
         "link": {
           "kind": "page",
@@ -120,7 +120,7 @@
         }
       },
       {
-        "id": "raidn133",
+        "id": "raidn132",
         "label": "Join",
         "link": {
           "kind": "page",
@@ -278,7 +278,7 @@
           ]
         },
         {
-          "id": "raids020",
+          "id": "raids019",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -402,7 +402,7 @@
               ]
             },
             {
-              "id": "raidr016",
+              "id": "raidr015",
               "gap": {
                 "lg": "md"
               },
@@ -433,14 +433,14 @@
                         "title": "This week's kills",
                         "period": "week",
                         "showQuiet": false,
-                        "limit": 12
+                        "limit": 6
                       },
                       "unmet": "hide"
                     }
                   ]
                 },
                 {
-                  "id": "raidc015",
+                  "id": "raidc014",
                   "span": {
                     "lg": 4,
                     "md": 12
@@ -461,22 +461,13 @@
                         "limit": 8
                       },
                       "unmet": "hide"
-                    },
-                    {
-                      "id": "raidw014",
-                      "type": "discord-online",
-                      "v": 2,
-                      "settings": {
-                        "title": "Who's online"
-                      },
-                      "unmet": "hide"
                     }
                   ]
                 }
               ]
             },
             {
-              "id": "raidr019",
+              "id": "raidr018",
               "gap": {
                 "lg": "md"
               },
@@ -488,7 +479,7 @@
               },
               "cells": [
                 {
-                  "id": "raidc018",
+                  "id": "raidc017",
                   "span": {
                     "lg": 12
                   },
@@ -499,7 +490,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "raidw017",
+                      "id": "raidw016",
                       "type": "rare-drops",
                       "v": 1,
                       "settings": {
@@ -531,7 +522,7 @@
       },
       "sections": [
         {
-          "id": "raids021",
+          "id": "raids020",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -549,7 +540,7 @@
           },
           "rows": [
             {
-              "id": "raidr022",
+              "id": "raidr021",
               "gap": {
                 "lg": "md"
               },
@@ -561,7 +552,7 @@
               },
               "cells": [
                 {
-                  "id": "raidc023",
+                  "id": "raidc022",
                   "span": {
                     "lg": 12
                   },
@@ -572,7 +563,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "raidw024",
+                      "id": "raidw023",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -592,7 +583,7 @@
           ]
         },
         {
-          "id": "raids025",
+          "id": "raids024",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -610,7 +601,7 @@
           },
           "rows": [
             {
-              "id": "raidr026",
+              "id": "raidr025",
               "gap": {
                 "lg": "md"
               },
@@ -622,7 +613,7 @@
               },
               "cells": [
                 {
-                  "id": "raidc027",
+                  "id": "raidc026",
                   "span": {
                     "lg": 12
                   },
@@ -633,7 +624,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "raidw028",
+                      "id": "raidw027",
                       "type": "button-row",
                       "v": 1,
                       "settings": {
@@ -659,7 +650,7 @@
               ]
             },
             {
-              "id": "raidr029",
+              "id": "raidr028",
               "gap": {
                 "lg": "md"
               },
@@ -671,7 +662,7 @@
               },
               "cells": [
                 {
-                  "id": "raidc030",
+                  "id": "raidc029",
                   "span": {
                     "lg": 7,
                     "md": 12
@@ -683,7 +674,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "raidw031",
+                      "id": "raidw030",
                       "type": "kill-tracker",
                       "v": 1,
                       "settings": {
@@ -696,7 +687,7 @@
                   ]
                 },
                 {
-                  "id": "raidc032",
+                  "id": "raidc031",
                   "span": {
                     "lg": 5,
                     "md": 12
@@ -708,7 +699,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "raidw033",
+                      "id": "raidw032",
                       "type": "drops",
                       "v": 1,
                       "settings": {
@@ -738,7 +729,7 @@
       },
       "sections": [
         {
-          "id": "raids034",
+          "id": "raids033",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -756,7 +747,7 @@
           },
           "rows": [
             {
-              "id": "raidr035",
+              "id": "raidr034",
               "gap": {
                 "lg": "md"
               },
@@ -768,7 +759,7 @@
               },
               "cells": [
                 {
-                  "id": "raidc036",
+                  "id": "raidc035",
                   "span": {
                     "lg": 12
                   },
@@ -779,7 +770,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "raidw037",
+                      "id": "raidw036",
                       "type": "boss-detail",
                       "v": 1,
                       "settings": {
@@ -808,7 +799,7 @@
       "access": "public",
       "sections": [
         {
-          "id": "raids041",
+          "id": "raids040",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -826,7 +817,7 @@
           },
           "rows": [
             {
-              "id": "raidr040",
+              "id": "raidr039",
               "gap": {
                 "lg": "md"
               },
@@ -838,7 +829,7 @@
               },
               "cells": [
                 {
-                  "id": "raidc039",
+                  "id": "raidc038",
                   "span": {
                     "lg": 12
                   },
@@ -849,7 +840,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "raidw038",
+                      "id": "raidw037",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -869,7 +860,7 @@
           ]
         },
         {
-          "id": "raids048",
+          "id": "raids047",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -887,7 +878,7 @@
           },
           "rows": [
             {
-              "id": "raidr044",
+              "id": "raidr043",
               "gap": {
                 "lg": "md"
               },
@@ -899,7 +890,7 @@
               },
               "cells": [
                 {
-                  "id": "raidc043",
+                  "id": "raidc042",
                   "span": {
                     "lg": 12
                   },
@@ -910,7 +901,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "raidw042",
+                      "id": "raidw041",
                       "type": "rare-drops",
                       "v": 1,
                       "settings": {
@@ -927,7 +918,7 @@
               ]
             },
             {
-              "id": "raidr047",
+              "id": "raidr046",
               "gap": {
                 "lg": "md"
               },
@@ -939,7 +930,7 @@
               },
               "cells": [
                 {
-                  "id": "raidc046",
+                  "id": "raidc045",
                   "span": {
                     "lg": 12
                   },
@@ -950,7 +941,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "raidw045",
+                      "id": "raidw044",
                       "type": "drop-log",
                       "v": 1,
                       "settings": {
@@ -982,7 +973,7 @@
       },
       "sections": [
         {
-          "id": "raids049",
+          "id": "raids048",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1000,7 +991,7 @@
           },
           "rows": [
             {
-              "id": "raidr050",
+              "id": "raidr049",
               "gap": {
                 "lg": "md"
               },
@@ -1012,7 +1003,7 @@
               },
               "cells": [
                 {
-                  "id": "raidc051",
+                  "id": "raidc050",
                   "span": {
                     "lg": 12
                   },
@@ -1023,7 +1014,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "raidw052",
+                      "id": "raidw051",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -1043,7 +1034,7 @@
           ]
         },
         {
-          "id": "raids053",
+          "id": "raids052",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1061,7 +1052,7 @@
           },
           "rows": [
             {
-              "id": "raidr054",
+              "id": "raidr053",
               "gap": {
                 "lg": "md"
               },
@@ -1073,7 +1064,7 @@
               },
               "cells": [
                 {
-                  "id": "raidc055",
+                  "id": "raidc054",
                   "span": {
                     "lg": 12
                   },
@@ -1084,7 +1075,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "raidw056",
+                      "id": "raidw055",
                       "type": "drop-log",
                       "v": 1,
                       "settings": {
@@ -1117,7 +1108,7 @@
       },
       "sections": [
         {
-          "id": "raids057",
+          "id": "raids056",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1135,7 +1126,7 @@
           },
           "rows": [
             {
-              "id": "raidr058",
+              "id": "raidr057",
               "gap": {
                 "lg": "md"
               },
@@ -1147,7 +1138,7 @@
               },
               "cells": [
                 {
-                  "id": "raidc059",
+                  "id": "raidc058",
                   "span": {
                     "lg": 12
                   },
@@ -1158,7 +1149,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "raidw060",
+                      "id": "raidw059",
                       "type": "item-detail",
                       "v": 1,
                       "settings": {
@@ -1183,7 +1174,7 @@
       "access": "public",
       "sections": [
         {
-          "id": "raids064",
+          "id": "raids063",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1201,7 +1192,7 @@
           },
           "rows": [
             {
-              "id": "raidr063",
+              "id": "raidr062",
               "gap": {
                 "lg": "md"
               },
@@ -1213,7 +1204,7 @@
               },
               "cells": [
                 {
-                  "id": "raidc062",
+                  "id": "raidc061",
                   "span": {
                     "lg": 12
                   },
@@ -1224,7 +1215,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "raidw061",
+                      "id": "raidw060",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -1244,7 +1235,7 @@
           ]
         },
         {
-          "id": "raids076",
+          "id": "raids075",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1262,7 +1253,7 @@
           },
           "rows": [
             {
-              "id": "raidr069",
+              "id": "raidr068",
               "gap": {
                 "lg": "md"
               },
@@ -1274,7 +1265,7 @@
               },
               "cells": [
                 {
-                  "id": "raidc066",
+                  "id": "raidc065",
                   "span": {
                     "lg": 7,
                     "md": 12
@@ -1286,7 +1277,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "raidw065",
+                      "id": "raidw064",
                       "type": "events",
                       "v": 1,
                       "settings": {
@@ -1300,7 +1291,7 @@
                   ]
                 },
                 {
-                  "id": "raidc068",
+                  "id": "raidc067",
                   "span": {
                     "lg": 5,
                     "md": 12
@@ -1312,7 +1303,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "raidw067",
+                      "id": "raidw066",
                       "type": "signups",
                       "v": 1,
                       "settings": {
@@ -1327,7 +1318,7 @@
               ]
             },
             {
-              "id": "raidr072",
+              "id": "raidr071",
               "gap": {
                 "lg": "md"
               },
@@ -1339,7 +1330,7 @@
               },
               "cells": [
                 {
-                  "id": "raidc071",
+                  "id": "raidc070",
                   "span": {
                     "lg": 12
                   },
@@ -1350,7 +1341,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "raidw070",
+                      "id": "raidw069",
                       "type": "events-calendar",
                       "v": 1,
                       "settings": {
@@ -1366,7 +1357,7 @@
               ]
             },
             {
-              "id": "raidr075",
+              "id": "raidr074",
               "gap": {
                 "lg": "md"
               },
@@ -1378,7 +1369,7 @@
               },
               "cells": [
                 {
-                  "id": "raidc074",
+                  "id": "raidc073",
                   "span": {
                     "lg": 12
                   },
@@ -1389,7 +1380,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "raidw073",
+                      "id": "raidw072",
                       "type": "ge-watch",
                       "v": 1,
                       "settings": {
@@ -1437,7 +1428,7 @@
       },
       "sections": [
         {
-          "id": "raids077",
+          "id": "raids076",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1455,7 +1446,7 @@
           },
           "rows": [
             {
-              "id": "raidr078",
+              "id": "raidr077",
               "gap": {
                 "lg": "md"
               },
@@ -1467,7 +1458,7 @@
               },
               "cells": [
                 {
-                  "id": "raidc079",
+                  "id": "raidc078",
                   "span": {
                     "lg": 12
                   },
@@ -1478,7 +1469,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "raidw080",
+                      "id": "raidw079",
                       "type": "event-detail",
                       "v": 1,
                       "settings": {
@@ -1504,7 +1495,7 @@
       "access": "public",
       "sections": [
         {
-          "id": "raids084",
+          "id": "raids083",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1522,7 +1513,7 @@
           },
           "rows": [
             {
-              "id": "raidr083",
+              "id": "raidr082",
               "gap": {
                 "lg": "md"
               },
@@ -1534,7 +1525,7 @@
               },
               "cells": [
                 {
-                  "id": "raidc082",
+                  "id": "raidc081",
                   "span": {
                     "lg": 12
                   },
@@ -1545,7 +1536,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "raidw081",
+                      "id": "raidw080",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -1565,7 +1556,7 @@
           ]
         },
         {
-          "id": "raids093",
+          "id": "raids092",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1583,7 +1574,7 @@
           },
           "rows": [
             {
-              "id": "raidr089",
+              "id": "raidr088",
               "gap": {
                 "lg": "md"
               },
@@ -1595,7 +1586,7 @@
               },
               "cells": [
                 {
-                  "id": "raidc086",
+                  "id": "raidc085",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -1607,7 +1598,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "raidw085",
+                      "id": "raidw084",
                       "type": "rare-drops",
                       "v": 1,
                       "settings": {
@@ -1622,7 +1613,7 @@
                   ]
                 },
                 {
-                  "id": "raidc088",
+                  "id": "raidc087",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -1634,7 +1625,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "raidw087",
+                      "id": "raidw086",
                       "type": "kill-tracker",
                       "v": 1,
                       "settings": {
@@ -1649,7 +1640,7 @@
               ]
             },
             {
-              "id": "raidr092",
+              "id": "raidr091",
               "gap": {
                 "lg": "md"
               },
@@ -1661,7 +1652,7 @@
               },
               "cells": [
                 {
-                  "id": "raidc091",
+                  "id": "raidc090",
                   "span": {
                     "lg": 12
                   },
@@ -1672,7 +1663,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "raidw090",
+                      "id": "raidw089",
                       "type": "hall-of-fame",
                       "v": 1,
                       "settings": {
@@ -1705,7 +1696,7 @@
       },
       "sections": [
         {
-          "id": "raids094",
+          "id": "raids093",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1723,7 +1714,7 @@
           },
           "rows": [
             {
-              "id": "raidr095",
+              "id": "raidr094",
               "gap": {
                 "lg": "md"
               },
@@ -1735,7 +1726,7 @@
               },
               "cells": [
                 {
-                  "id": "raidc096",
+                  "id": "raidc095",
                   "span": {
                     "lg": 12
                   },
@@ -1746,7 +1737,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "raidw097",
+                      "id": "raidw096",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -1766,7 +1757,7 @@
           ]
         },
         {
-          "id": "raids098",
+          "id": "raids097",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1784,7 +1775,7 @@
           },
           "rows": [
             {
-              "id": "raidr099",
+              "id": "raidr098",
               "gap": {
                 "lg": "md"
               },
@@ -1796,7 +1787,7 @@
               },
               "cells": [
                 {
-                  "id": "raidc100",
+                  "id": "raidc099",
                   "span": {
                     "lg": 9,
                     "md": 12
@@ -1808,7 +1799,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "raidw101",
+                      "id": "raidw100",
                       "type": "member-directory",
                       "v": 1,
                       "settings": {
@@ -1831,7 +1822,7 @@
                   ]
                 },
                 {
-                  "id": "raidc102",
+                  "id": "raidc101",
                   "span": {
                     "lg": 3,
                     "md": 12
@@ -1843,7 +1834,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "raidw103",
+                      "id": "raidw102",
                       "type": "rank-breakdown",
                       "v": 1,
                       "settings": {
@@ -1871,7 +1862,7 @@
       "template": "member",
       "sections": [
         {
-          "id": "raids107",
+          "id": "raids106",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1889,7 +1880,7 @@
           },
           "rows": [
             {
-              "id": "raidr106",
+              "id": "raidr105",
               "gap": {
                 "lg": "md"
               },
@@ -1901,7 +1892,7 @@
               },
               "cells": [
                 {
-                  "id": "raidc105",
+                  "id": "raidc104",
                   "span": {
                     "lg": 12
                   },
@@ -1912,7 +1903,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "raidw104",
+                      "id": "raidw103",
                       "type": "member-card",
                       "v": 1,
                       "settings": {
@@ -1934,7 +1925,7 @@
           ]
         },
         {
-          "id": "raids113",
+          "id": "raids112",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1952,7 +1943,7 @@
           },
           "rows": [
             {
-              "id": "raidr112",
+              "id": "raidr111",
               "gap": {
                 "lg": "md"
               },
@@ -1964,7 +1955,7 @@
               },
               "cells": [
                 {
-                  "id": "raidc109",
+                  "id": "raidc108",
                   "span": {
                     "lg": 7,
                     "md": 12
@@ -1976,7 +1967,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "raidw108",
+                      "id": "raidw107",
                       "type": "member-adventure-log",
                       "v": 1,
                       "settings": {
@@ -1989,7 +1980,7 @@
                   ]
                 },
                 {
-                  "id": "raidc111",
+                  "id": "raidc110",
                   "span": {
                     "lg": 5,
                     "md": 12
@@ -2001,7 +1992,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "raidw110",
+                      "id": "raidw109",
                       "type": "member-badges",
                       "v": 1,
                       "settings": {
@@ -2027,7 +2018,7 @@
       "access": "public",
       "sections": [
         {
-          "id": "raids117",
+          "id": "raids116",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -2045,7 +2036,7 @@
           },
           "rows": [
             {
-              "id": "raidr116",
+              "id": "raidr115",
               "gap": {
                 "lg": "md"
               },
@@ -2057,7 +2048,7 @@
               },
               "cells": [
                 {
-                  "id": "raidc115",
+                  "id": "raidc114",
                   "span": {
                     "lg": 12
                   },
@@ -2068,7 +2059,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "raidw114",
+                      "id": "raidw113",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -2088,7 +2079,7 @@
           ]
         },
         {
-          "id": "raids124",
+          "id": "raids123",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -2106,7 +2097,7 @@
           },
           "rows": [
             {
-              "id": "raidr123",
+              "id": "raidr122",
               "gap": {
                 "lg": "md"
               },
@@ -2118,7 +2109,7 @@
               },
               "cells": [
                 {
-                  "id": "raidc119",
+                  "id": "raidc118",
                   "span": {
                     "lg": 7,
                     "md": 12
@@ -2130,7 +2121,7 @@
                   "surface": "panel",
                   "widgets": [
                     {
-                      "id": "raidw118",
+                      "id": "raidw117",
                       "type": "text",
                       "v": 1,
                       "settings": {
@@ -2143,7 +2134,7 @@
                   ]
                 },
                 {
-                  "id": "raidc122",
+                  "id": "raidc121",
                   "span": {
                     "lg": 5,
                     "md": 12
@@ -2155,7 +2146,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "raidw120",
+                      "id": "raidw119",
                       "type": "recruiting",
                       "v": 1,
                       "settings": {
@@ -2166,7 +2157,7 @@
                       "unmet": "hide"
                     },
                     {
-                      "id": "raidw121",
+                      "id": "raidw120",
                       "type": "faq",
                       "v": 1,
                       "settings": {

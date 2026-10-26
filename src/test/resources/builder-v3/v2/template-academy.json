@@ -32,7 +32,7 @@
     "mobile": "dropdown",
     "nav": [
       {
-        "id": "acadn073",
+        "id": "acadn072",
         "label": "Home",
         "link": {
           "kind": "page",
@@ -40,7 +40,7 @@
         }
       },
       {
-        "id": "acadn074",
+        "id": "acadn073",
         "label": "Guides",
         "link": {
           "kind": "page",
@@ -48,7 +48,7 @@
         }
       },
       {
-        "id": "acadn075",
+        "id": "acadn074",
         "label": "Ranks",
         "link": {
           "kind": "page",
@@ -56,7 +56,7 @@
         }
       },
       {
-        "id": "acadn076",
+        "id": "acadn075",
         "label": "Mentors",
         "link": {
           "kind": "page",
@@ -64,7 +64,7 @@
         }
       },
       {
-        "id": "acadn077",
+        "id": "acadn076",
         "label": "Events",
         "link": {
           "kind": "page",
@@ -73,7 +73,7 @@
         "badge": "events"
       },
       {
-        "id": "acadn078",
+        "id": "acadn077",
         "label": "FAQ",
         "link": {
           "kind": "page",
@@ -281,7 +281,7 @@
           ]
         },
         {
-          "id": "acads018",
+          "id": "acads017",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -299,7 +299,7 @@
           },
           "rows": [
             {
-              "id": "acadr012",
+              "id": "acadr013",
               "gap": {
                 "lg": "md"
               },
@@ -313,7 +313,7 @@
                 {
                   "id": "acadc009",
                   "span": {
-                    "lg": 6,
+                    "lg": 7,
                     "md": 12
                   },
                   "padding": {
@@ -337,9 +337,9 @@
                   ]
                 },
                 {
-                  "id": "acadc011",
+                  "id": "acadc012",
                   "span": {
-                    "lg": 6,
+                    "lg": 5,
                     "md": 12
                   },
                   "padding": {
@@ -354,7 +354,18 @@
                       "v": 1,
                       "settings": {
                         "title": "Our members' latest wins",
-                        "limit": 6
+                        "limit": 4
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "acadw011",
+                      "type": "discord-join",
+                      "v": 1,
+                      "settings": {
+                        "title": "Ask for help",
+                        "text": "Stuck on a quest or a boss? Ask in our Discord and a mentor will help.",
+                        "buttonLabel": "Open the Discord"
                       },
                       "unmet": "hide"
                     }
@@ -363,7 +374,7 @@
               ]
             },
             {
-              "id": "acadr017",
+              "id": "acadr016",
               "gap": {
                 "lg": "md"
               },
@@ -375,10 +386,9 @@
               },
               "cells": [
                 {
-                  "id": "acadc014",
+                  "id": "acadc015",
                   "span": {
-                    "lg": 8,
-                    "md": 12
+                    "lg": 12
                   },
                   "padding": {
                     "lg": "md"
@@ -387,38 +397,13 @@
                   "surface": "panel",
                   "widgets": [
                     {
-                      "id": "acadw013",
+                      "id": "acadw014",
                       "type": "text",
                       "v": 1,
                       "settings": {
                         "markdown": "## New here?\nWelcome! Read **Your first week** in the guides, pick a mentor to say hello to, and join a lesson. Nobody minds questions, however small.",
                         "align": "left",
                         "width": "readable"
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                },
-                {
-                  "id": "acadc016",
-                  "span": {
-                    "lg": 4,
-                    "md": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "acadw015",
-                      "type": "discord-join",
-                      "v": 1,
-                      "settings": {
-                        "title": "Ask for help",
-                        "text": "Stuck on a quest or a boss? Ask in our Discord and a mentor will help.",
-                        "buttonLabel": "Open the Discord"
                       },
                       "unmet": "hide"
                     }
@@ -438,7 +423,7 @@
       "access": "public",
       "sections": [
         {
-          "id": "acads022",
+          "id": "acads021",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -456,7 +441,7 @@
           },
           "rows": [
             {
-              "id": "acadr021",
+              "id": "acadr020",
               "gap": {
                 "lg": "md"
               },
@@ -468,7 +453,7 @@
               },
               "cells": [
                 {
-                  "id": "acadc020",
+                  "id": "acadc019",
                   "span": {
                     "lg": 12
                   },
@@ -479,7 +464,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "acadw019",
+                      "id": "acadw018",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -499,7 +484,7 @@
           ]
         },
         {
-          "id": "acads029",
+          "id": "acads028",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -517,7 +502,7 @@
           },
           "rows": [
             {
-              "id": "acadr028",
+              "id": "acadr027",
               "gap": {
                 "lg": "md"
               },
@@ -529,7 +514,7 @@
               },
               "cells": [
                 {
-                  "id": "acadc024",
+                  "id": "acadc023",
                   "span": {
                     "lg": 7,
                     "md": 12
@@ -541,7 +526,7 @@
                   "surface": "panel",
                   "widgets": [
                     {
-                      "id": "acadw023",
+                      "id": "acadw022",
                       "type": "text",
                       "v": 1,
                       "settings": {
@@ -554,7 +539,7 @@
                   ]
                 },
                 {
-                  "id": "acadc027",
+                  "id": "acadc026",
                   "span": {
                     "lg": 5,
                     "md": 12
@@ -566,7 +551,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "acadw025",
+                      "id": "acadw024",
                       "type": "video",
                       "v": 1,
                       "settings": {
@@ -577,7 +562,7 @@
                       "unmet": "hide"
                     },
                     {
-                      "id": "acadw026",
+                      "id": "acadw025",
                       "type": "links",
                       "v": 2,
                       "settings": {
@@ -618,7 +603,7 @@
       "access": "public",
       "sections": [
         {
-          "id": "acads033",
+          "id": "acads032",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -636,7 +621,7 @@
           },
           "rows": [
             {
-              "id": "acadr032",
+              "id": "acadr031",
               "gap": {
                 "lg": "md"
               },
@@ -648,7 +633,7 @@
               },
               "cells": [
                 {
-                  "id": "acadc031",
+                  "id": "acadc030",
                   "span": {
                     "lg": 12
                   },
@@ -659,7 +644,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "acadw030",
+                      "id": "acadw029",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -679,7 +664,7 @@
           ]
         },
         {
-          "id": "acads039",
+          "id": "acads038",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -697,7 +682,7 @@
           },
           "rows": [
             {
-              "id": "acadr038",
+              "id": "acadr037",
               "gap": {
                 "lg": "md"
               },
@@ -709,7 +694,7 @@
               },
               "cells": [
                 {
-                  "id": "acadc035",
+                  "id": "acadc034",
                   "span": {
                     "lg": 8,
                     "md": 12
@@ -721,7 +706,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "acadw034",
+                      "id": "acadw033",
                       "type": "rank-ladder",
                       "v": 1,
                       "settings": {
@@ -736,7 +721,7 @@
                   ]
                 },
                 {
-                  "id": "acadc037",
+                  "id": "acadc036",
                   "span": {
                     "lg": 4,
                     "md": 12
@@ -748,7 +733,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "acadw036",
+                      "id": "acadw035",
                       "type": "rank-breakdown",
                       "v": 1,
                       "settings": {
@@ -775,7 +760,7 @@
       "access": "public",
       "sections": [
         {
-          "id": "acads043",
+          "id": "acads042",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -793,7 +778,7 @@
           },
           "rows": [
             {
-              "id": "acadr042",
+              "id": "acadr041",
               "gap": {
                 "lg": "md"
               },
@@ -805,7 +790,7 @@
               },
               "cells": [
                 {
-                  "id": "acadc041",
+                  "id": "acadc040",
                   "span": {
                     "lg": 12
                   },
@@ -816,7 +801,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "acadw040",
+                      "id": "acadw039",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -836,7 +821,7 @@
           ]
         },
         {
-          "id": "acads052",
+          "id": "acads051",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -854,7 +839,7 @@
           },
           "rows": [
             {
-              "id": "acadr048",
+              "id": "acadr047",
               "gap": {
                 "lg": "md"
               },
@@ -866,7 +851,7 @@
               },
               "cells": [
                 {
-                  "id": "acadc045",
+                  "id": "acadc044",
                   "span": {
                     "lg": 7,
                     "md": 12
@@ -878,7 +863,7 @@
                   "surface": "panel",
                   "widgets": [
                     {
-                      "id": "acadw044",
+                      "id": "acadw043",
                       "type": "text",
                       "v": 1,
                       "settings": {
@@ -891,7 +876,7 @@
                   ]
                 },
                 {
-                  "id": "acadc047",
+                  "id": "acadc046",
                   "span": {
                     "lg": 5,
                     "md": 12
@@ -903,7 +888,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "acadw046",
+                      "id": "acadw045",
                       "type": "discord-online",
                       "v": 2,
                       "settings": {
@@ -916,7 +901,7 @@
               ]
             },
             {
-              "id": "acadr051",
+              "id": "acadr050",
               "gap": {
                 "lg": "md"
               },
@@ -928,7 +913,7 @@
               },
               "cells": [
                 {
-                  "id": "acadc050",
+                  "id": "acadc049",
                   "span": {
                     "lg": 12
                   },
@@ -939,7 +924,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "acadw049",
+                      "id": "acadw048",
                       "type": "roster",
                       "v": 1,
                       "settings": {
@@ -971,7 +956,7 @@
       "access": "public",
       "sections": [
         {
-          "id": "acads056",
+          "id": "acads055",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -989,7 +974,7 @@
           },
           "rows": [
             {
-              "id": "acadr055",
+              "id": "acadr054",
               "gap": {
                 "lg": "md"
               },
@@ -1001,7 +986,7 @@
               },
               "cells": [
                 {
-                  "id": "acadc054",
+                  "id": "acadc053",
                   "span": {
                     "lg": 12
                   },
@@ -1012,7 +997,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "acadw053",
+                      "id": "acadw052",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -1032,7 +1017,7 @@
           ]
         },
         {
-          "id": "acads062",
+          "id": "acads061",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1050,7 +1035,7 @@
           },
           "rows": [
             {
-              "id": "acadr061",
+              "id": "acadr060",
               "gap": {
                 "lg": "md"
               },
@@ -1062,7 +1047,7 @@
               },
               "cells": [
                 {
-                  "id": "acadc058",
+                  "id": "acadc057",
                   "span": {
                     "lg": 7,
                     "md": 12
@@ -1074,7 +1059,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "acadw057",
+                      "id": "acadw056",
                       "type": "events",
                       "v": 1,
                       "settings": {
@@ -1088,7 +1073,7 @@
                   ]
                 },
                 {
-                  "id": "acadc060",
+                  "id": "acadc059",
                   "span": {
                     "lg": 5,
                     "md": 12
@@ -1100,7 +1085,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "acadw059",
+                      "id": "acadw058",
                       "type": "signups",
                       "v": 1,
                       "settings": {
@@ -1126,7 +1111,7 @@
       "access": "public",
       "sections": [
         {
-          "id": "acads066",
+          "id": "acads065",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1144,7 +1129,7 @@
           },
           "rows": [
             {
-              "id": "acadr065",
+              "id": "acadr064",
               "gap": {
                 "lg": "md"
               },
@@ -1156,7 +1141,7 @@
               },
               "cells": [
                 {
-                  "id": "acadc064",
+                  "id": "acadc063",
                   "span": {
                     "lg": 12
                   },
@@ -1167,7 +1152,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "acadw063",
+                      "id": "acadw062",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -1187,7 +1172,7 @@
           ]
         },
         {
-          "id": "acads072",
+          "id": "acads071",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1205,7 +1190,7 @@
           },
           "rows": [
             {
-              "id": "acadr071",
+              "id": "acadr070",
               "gap": {
                 "lg": "md"
               },
@@ -1217,7 +1202,7 @@
               },
               "cells": [
                 {
-                  "id": "acadc068",
+                  "id": "acadc067",
                   "span": {
                     "lg": 7,
                     "md": 12
@@ -1229,7 +1214,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "acadw067",
+                      "id": "acadw066",
                       "type": "faq",
                       "v": 1,
                       "settings": {
@@ -1258,7 +1243,7 @@
                   ]
                 },
                 {
-                  "id": "acadc070",
+                  "id": "acadc069",
                   "span": {
                     "lg": 5,
                     "md": 12
@@ -1270,7 +1255,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "acadw069",
+                      "id": "acadw068",
                       "type": "discord-join",
                       "v": 1,
                       "settings": {
