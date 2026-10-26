@@ -194,4 +194,18 @@ class SiteDiscordRulesTest {
         assertFalse(refusal.forbidden());
         assertFalse(SiteDiscordRules.channelRefusal(guild, null).forbidden());
     }
+
+    @Test
+    void feedPostsCarryAvatarsOnlyWhereTheOnlineListShowsThem() {
+        DataObject post = DataObject.empty().put("id", "1").put("author", "Alice").put("avatarUrl", "https://cdn.example/avatars/a.png").put("text", "hi");
+        DataObject shown = SiteDiscordRules.feedPost(post, OnlineMode.NAMES_AVATARS);
+        assertEquals("https://cdn.example/avatars/a.png?size=64", shown.getString("avatarUrl"));
+        assertEquals("Alice", shown.getString("author"));
+        for (OnlineMode mode : OnlineMode.values()) {
+            if (mode == OnlineMode.NAMES_AVATARS) continue;
+            assertFalse(SiteDiscordRules.feedPost(post, mode).hasKey("avatarUrl"), mode.key());
+        }
+        assertTrue(post.hasKey("avatarUrl"), "the shared post is left as it was");
+        assertFalse(SiteDiscordRules.feedPost(DataObject.empty().put("id", "2").putNull("avatarUrl"), OnlineMode.NAMES_AVATARS).hasKey("avatarUrl"));
+    }
 }
