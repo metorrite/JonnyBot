@@ -135,6 +135,35 @@ class PluginXpTrackerTest {
     }
 
     @Test
+    void withConfirmedLinksOnlyAnUnconfirmedPlayerScoresNothingAndIsListedApart() {
+        Event e = event(6, "{\"xpSource\":\"plugin\",\"confirmedLinksOnly\":true}");
+        when(repository.startedAt(6)).thenReturn(Optional.of(STARTED));
+        when(repository.participants(6)).thenReturn(List.of(player(ALICE, STARTED.minusSeconds(60)), player(BOB, STARTED.minusSeconds(60))));
+        when(repository.progress(6)).thenReturn(List.of());
+        when(hub.aliasOf(ALICE)).thenReturn(Optional.of("a1_alice"));
+        when(hub.aliasOf(BOB)).thenReturn(Optional.of("a1_bob"));
+        DataArray players = DataArray.empty();
+        players.add(DataObject.empty().put("alias", "a1_alice").put("xp", 500L).put("verification", "public_data_corroborated"));
+        players.add(DataObject.empty().put("alias", "a1_bob").put("xp", 900L).put("verification", "implicit"));
+        when(hub.xpGains(eq(GUILD), any(), isNull(), eq(STARTED), eq(NOW))).thenReturn(new RuneClansHubClient.Answer(200, DataObject.empty().put("players", players)));
+
+        assertEquals(1, tracker.feed(e));
+        verify(service).recordProgress(eq(GUILD), eq(6L), anyString(), eq(ALICE), eq(500L), eq(Source.IMPORT), anyString(), isNull(), anyString());
+        verify(service, never()).recordProgress(anyLong(), anyLong(), anyString(), eq(BOB), anyLong(), any(), anyString(), any(), anyString());
+        assertEquals(Set.of(BOB), tracker.notCounted(6).orElseThrow().unconfirmed());
+        assertEquals(Set.of(), tracker.notCounted(6).orElseThrow().userIds());
+
+        // off (the default) and on a RuneMetrics competition it changes nothing
+        assertFalse(CompetitionTemplate.confirmedLinksOnly(DataObject.fromJson("{\"xpSource\":\"plugin\"}")));
+        assertFalse(CompetitionTemplate.confirmedLinksOnly(DataObject.fromJson("{\"confirmedLinksOnly\":true}")));
+        CompetitionTemplate.offerPluginSource(true);
+        CompetitionTemplate template = new CompetitionTemplate();
+        var option = template.options().stream().filter(o -> o.path().equals("config.confirmedLinksOnly")).findFirst().orElseThrow();
+        assertEquals(false, option.standard());
+        assertTrue(template.fixedSettings().contains("confirmedLinksOnly"));
+    }
+
+    @Test
     void theOptionIsOfferedOnlyWithTheHubAndTheSourceIsFixed() {
         CompetitionTemplate template = new CompetitionTemplate();
         assertFalse(template.options().stream().anyMatch(o -> o.path().equals("config.xpSource")), "hidden with the hub off");

@@ -45,7 +45,7 @@ public class CompetitionTemplate implements EventTemplate {
 
     @Override
     public java.util.Set<String> fixedSettings() {
-        return java.util.Set.of("skillId", "xpPerPoint", "xpSource");
+        return java.util.Set.of("skillId", "xpPerPoint", "xpSource", "confirmedLinksOnly");
     }
 
     @Override
@@ -72,6 +72,9 @@ public class CompetitionTemplate implements EventTemplate {
             list.add(EventOptions.Option.choice("config.xpSource", "Where XP comes from", "RuneMetrics reads public profiles every few minutes. RuneSync counts within a minute or two, private profiles too, but only "
                             + "players who run the RuneSync plugin and share XP with this bot; the others score nothing. It can't be changed once the event exists.", EventOptions.Step.RULES, SOURCE_RUNEMETRICS,
                     List.of(new EventOptions.Choice(SOURCE_RUNEMETRICS, "RuneMetrics (public profiles)"), new EventOptions.Choice(SOURCE_PLUGIN, "RuneSync plugin"))));
+            list.add(EventOptions.Option.of("config.confirmedLinksOnly", "Count confirmed links only", "Only players whose RS Link the RuneClans hub has confirmed from "
+                            + "public data score. The others are listed as not confirmed yet. It can't be changed once the event exists.", EventOptions.Step.RULES,
+                    EventOptions.Type.BOOL, false).showWhen(EventOptions.When.is("config.xpSource", SOURCE_PLUGIN)));
         }
         return list;
     }
@@ -102,6 +105,12 @@ public class CompetitionTemplate implements EventTemplate {
 
     public static boolean countsFromPlugin(DataObject config) {
         return SOURCE_PLUGIN.equals(xpSourceOf(config));
+    }
+
+    /** A RuneSync competition that counts only players whose RS Link the hub confirmed (T-552). Off unless it says so. */
+    public static boolean confirmedLinksOnly(DataObject config) {
+        return countsFromPlugin(config) && config.hasKey("confirmedLinksOnly") && !config.isNull("confirmedLinksOnly")
+                && "true".equalsIgnoreCase(String.valueOf(config.get("confirmedLinksOnly")));
     }
 
     public static boolean validSource(String source) {

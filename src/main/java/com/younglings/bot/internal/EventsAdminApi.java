@@ -718,7 +718,10 @@ public class EventsAdminApi implements AdminRouteExtension {
     private DataObject pluginXpJson(Guild guild, com.younglings.bot.events.PluginXpTracker.NotCounted n) {
         DataArray list = DataArray.empty();
         n.userIds().stream().sorted().forEach(u -> list.add(DataObject.empty().put("userId", Long.toString(u)).put("name", name(guild, u))));
-        return DataObject.empty().put("notCounted", list).put("checkedAt", n.checkedAt().toString());
+        // "count confirmed links only" (T-552): counted by the hub, but their RS Link isn't confirmed yet
+        DataArray unconfirmed = DataArray.empty();
+        n.unconfirmed().stream().sorted().forEach(u -> unconfirmed.add(DataObject.empty().put("userId", Long.toString(u)).put("name", name(guild, u))));
+        return DataObject.empty().put("notCounted", list).put("unconfirmed", unconfirmed).put("checkedAt", n.checkedAt().toString());
     }
 
     /** A clan-vs-clan event's scoring, and what each player earned for their clan (T-222), best first within each clan. */
