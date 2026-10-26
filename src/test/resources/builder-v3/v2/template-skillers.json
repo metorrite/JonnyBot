@@ -362,7 +362,11 @@
                       "v": 1,
                       "settings": {
                         "title": "Latest milestones",
-                        "limit": 8
+                        "limit": 8,
+                        "bigOnly": false,
+                        "look": "lines",
+                        "more": null,
+                        "moreText": "Hall of fame"
                       },
                       "unmet": "hide"
                     }
@@ -898,7 +902,10 @@
                         "title": "Adventure log",
                         "limit": 15,
                         "tabs": true,
-                        "filter": "all"
+                        "filter": "all",
+                        "look": "lines",
+                        "more": null,
+                        "moreText": "See all"
                       },
                       "unmet": "hide"
                     }

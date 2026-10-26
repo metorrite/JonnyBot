@@ -455,7 +455,11 @@
                       "v": 1,
                       "settings": {
                         "title": "Milestones",
-                        "limit": 6
+                        "limit": 6,
+                        "bigOnly": false,
+                        "look": "lines",
+                        "more": null,
+                        "moreText": "Hall of fame"
                       },
                       "unmet": "hide"
                     },
@@ -466,7 +470,9 @@
                       "settings": {
                         "title": "Citadel",
                         "weeks": 6,
-                        "series": "both"
+                        "series": "both",
+                        "more": null,
+                        "moreText": "Attendance"
                       },
                       "unmet": "hide"
                     }
@@ -529,7 +535,10 @@
                         "title": "News",
                         "channel": "",
                         "showAuthors": true,
-                        "showImages": true
+                        "showImages": true,
+                        "look": "list",
+                        "showEvents": false,
+                        "eventsLink": null
                       },
                       "unmet": "hide"
                     }
@@ -557,7 +566,8 @@
                       "type": "discord-online",
                       "v": 2,
                       "settings": {
-                        "title": "Online on Discord"
+                        "title": "Online on Discord",
+                        "look": "list"
                       },
                       "unmet": "hide"
                     },
@@ -1508,7 +1518,11 @@
                       "v": 1,
                       "settings": {
                         "title": "Milestones",
-                        "limit": 10
+                        "limit": 10,
+                        "bigOnly": false,
+                        "look": "lines",
+                        "more": null,
+                        "moreText": "Hall of fame"
                       },
                       "unmet": "hide"
                     }
@@ -2220,7 +2234,10 @@
                         "title": "Adventure log",
                         "limit": 8,
                         "tabs": true,
-                        "filter": "all"
+                        "filter": "all",
+                        "look": "lines",
+                        "more": null,
+                        "moreText": "See all"
                       },
                       "unmet": "hide"
                     }
@@ -2589,7 +2606,9 @@
                       "settings": {
                         "title": "Citadel caps and visits per week",
                         "weeks": 12,
-                        "series": "both"
+                        "series": "both",
+                        "more": null,
+                        "moreText": "Attendance"
                       },
                       "unmet": "hide"
                     }
@@ -3566,7 +3585,9 @@
                       "settings": {
                         "title": "Caps and visits per week",
                         "weeks": 12,
-                        "series": "both"
+                        "series": "both",
+                        "more": null,
+                        "moreText": "Attendance"
                       },
                       "unmet": "hide"
                     }

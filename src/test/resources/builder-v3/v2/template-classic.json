@@ -299,7 +299,11 @@
                       "v": 1,
                       "settings": {
                         "title": "Latest milestones",
-                        "limit": 6
+                        "limit": 6,
+                        "bigOnly": false,
+                        "look": "lines",
+                        "more": null,
+                        "moreText": "Hall of fame"
                       },
                       "unmet": "hide"
                     },
@@ -386,7 +390,10 @@
                         "title": "Clan news",
                         "channel": "",
                         "showAuthors": true,
-                        "showImages": true
+                        "showImages": true,
+                        "look": "list",
+                        "showEvents": false,
+                        "eventsLink": null
                       },
                       "unmet": "hide"
                     }
@@ -414,7 +421,8 @@
                       "type": "discord-online",
                       "v": 2,
                       "settings": {
-                        "title": "On Discord now"
+                        "title": "On Discord now",
+                        "look": "list"
                       },
                       "unmet": "hide"
                     }
@@ -1371,7 +1379,9 @@
                       "settings": {
                         "title": "Citadel caps and visits per week",
                         "weeks": 12,
-                        "series": "both"
+                        "series": "both",
+                        "more": null,
+                        "moreText": "Attendance"
                       },
                       "unmet": "hide"
                     }
@@ -1689,7 +1699,9 @@
                       "settings": {
                         "title": "Caps and visits per week",
                         "weeks": 12,
-                        "series": "both"
+                        "series": "both",
+                        "more": null,
+                        "moreText": "Attendance"
                       },
                       "unmet": "hide"
                     }

@@ -410,7 +410,11 @@
                       "v": 1,
                       "settings": {
                         "title": "Milestones",
-                        "limit": 4
+                        "limit": 4,
+                        "bigOnly": false,
+                        "look": "lines",
+                        "more": null,
+                        "moreText": "Hall of fame"
                       },
                       "unmet": "hide"
                     }

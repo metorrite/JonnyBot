@@ -318,7 +318,11 @@
                       "v": 1,
                       "settings": {
                         "title": "Latest achievements",
-                        "limit": 10
+                        "limit": 10,
+                        "bigOnly": false,
+                        "look": "lines",
+                        "more": null,
+                        "moreText": "Hall of fame"
                       },
                       "unmet": "hide"
                     }

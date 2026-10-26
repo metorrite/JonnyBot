@@ -354,7 +354,11 @@
                       "v": 1,
                       "settings": {
                         "title": "Our members' latest wins",
-                        "limit": 4
+                        "limit": 4,
+                        "bigOnly": false,
+                        "look": "lines",
+                        "more": null,
+                        "moreText": "Hall of fame"
                       },
                       "unmet": "hide"
                     },
@@ -892,7 +896,8 @@
                       "type": "discord-online",
                       "v": 2,
                       "settings": {
-                        "title": "On Discord now"
+                        "title": "On Discord now",
+                        "look": "list"
                       },
                       "unmet": "hide"
                     }
