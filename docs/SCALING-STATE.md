@@ -28,7 +28,7 @@ Under B1 nothing in this list breaks: a `ShardManager` in one JVM still sees eve
 
 ## 3. Must fix before B2/B3 (the short list)
 
-These are the items that break or misbehave with a second process. Each has a follow-up.
+These are the items that break or misbehave with a second process. Each maps to one follow-up in section 3.1.
 
 | # | Item | Where | What goes wrong with two processes | Decision |
 |---|---|---|---|---|
@@ -43,6 +43,21 @@ These are the items that break or misbehave with a second process. Each has a fo
 | M9 | "Server not visible" treated as "server gone" | `PollCloser` (clears the poll's schedule), `TwitchService.announce` (claims, then finds no channel, alert lost), `GuildRetentionService.sweep` (uses `getGuildById` as proof of absence), other lanes that skip a `null` guild | Under B3 a process sees only its own shards' servers, and under B2 the `api` role may have no gateway at all. A `null` from `getGuildById` then means "not mine", not "the bot left". | **One owner** per lane plus a shard check: add one helper (`ShardRouting.owns(guildId)`) and only treat `null` as "gone" for servers this process owns. Retention decides "gone" from the stored departure row alone. |
 | M10 | Settings caches with no TTL | see section 4.3 | The website saves a setting on the `api` process; the gateway process keeps the old value until it restarts (for example an automod rule removed on the dashboard keeps deleting messages). | **Invalidate across processes**: one `LISTEN/NOTIFY` channel (`bot_cache`, payload `area:guildId`) that every cache subscribes to, or a short TTL as a stop-gap. |
 | M11 | Scheduler lanes that read rows, not servers | most lanes in section 5 | A lane that loops over database rows (reminders, giveaways, scheduled posts, ticket closes, premium expiry) runs in every process that starts it, so the same reminder fires twice. | **One owner**: each lane declares its role (section 5). Lanes whose work needs Discord run in the gateway and filter rows to their own shards (`guild_id` → shard). |
+
+### 3.1 Follow-up work
+
+Each must-fix item maps to one follow-up. A follow-up is not done until its row here says so (replace "open" with the PR that closes it).
+
+| Follow-up | Covers | Work | Status |
+|---|---|---|---|
+| F1 | M1, M2, M8 | Pin RuneMetrics polling and the Hiscores verify lane to one role (`api`); other roles forward `submit`. Later moves to the hub `poll_queue`. | open |
+| F2 | M3, M4 | Outbox `claimed_by` / `claimed_at`; `recover()` touches only expired or own claims; claims filtered to this process's shards. | open |
+| F3 | M5 | Load-through lookups for polls and signups; the boot maps become caches. | open |
+| F4 | M6 | Job table and per-event `pg_advisory_xact_lock` for event space, wrap-up export and role backfill jobs. | open |
+| F5 | M7 | RuneLink code, start and DM limits in a Postgres sliding-window table (or the hub). | open |
+| F6 | M9 | `ShardRouting.owns(guildId)` helper; fix the "null guild = gone" branches; retention uses the departure row only. | open |
+| F7 | M10 | One `LISTEN/NOTIFY` channel (`bot_cache`) that the settings caches in section 4.3 subscribe to. | open |
+| F8 | M11 | Each scheduler lane declares its `BOT_ROLE` (section 5); gateway lanes filter rows to their own shards. | open |
 
 ## 4. Full inventory
 
