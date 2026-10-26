@@ -150,24 +150,24 @@ public class SiteStatsRepository {
 
     /** XP gained inside {@code [from, to]}: the newest snapshot at or before {@code to}, minus the one at (or, failing that, just after) {@code from}. */
     public List<Gain> xpGainsBetween(long guildId, OffsetDateTime from, OffsetDateTime to) {
+        // One index probe per member (player_stats_snapshot_global_rsn_idx) instead of DISTINCT ON over every member's whole history.
+        // ORDER BY m.k keeps the row order the DISTINCT ON form produced, so callers that sort by XP break ties the same way.
         return query("xp gains", """
                 WITH members AS (
-                    SELECT LOWER(rsn) AS k, rsn FROM younglings.clan_member WHERE guild_id = ? AND active),
-                latest AS (
-                    SELECT DISTINCT ON (LOWER(s.rsn)) LOWER(s.rsn) AS k, s.total_xp FROM younglings.player_stats_snapshot s
-                    JOIN members m ON m.k = LOWER(s.rsn) WHERE s.snapshot_at <= ? ORDER BY LOWER(s.rsn), s.snapshot_at DESC),
-                before AS (
-                    SELECT DISTINCT ON (LOWER(s.rsn)) LOWER(s.rsn) AS k, s.total_xp FROM younglings.player_stats_snapshot s
-                    JOIN members m ON m.k = LOWER(s.rsn) WHERE s.snapshot_at <= ? ORDER BY LOWER(s.rsn), s.snapshot_at DESC),
-                after AS (
-                    SELECT DISTINCT ON (LOWER(s.rsn)) LOWER(s.rsn) AS k, s.total_xp FROM younglings.player_stats_snapshot s
-                    JOIN members m ON m.k = LOWER(s.rsn) WHERE s.snapshot_at > ? ORDER BY LOWER(s.rsn), s.snapshot_at ASC)
+                    SELECT LOWER(rsn) AS k, rsn FROM younglings.clan_member WHERE guild_id = ? AND active)
                 SELECT m.rsn, l.total_xp - COALESCE(b.total_xp, a.total_xp) AS gain
                 FROM members m
-                JOIN latest l ON l.k = m.k
-                LEFT JOIN before b ON b.k = m.k
-                LEFT JOIN after a ON a.k = m.k
+                JOIN LATERAL (
+                    SELECT s.total_xp FROM younglings.player_stats_snapshot s
+                    WHERE LOWER(s.rsn) = m.k AND s.snapshot_at <= ? ORDER BY s.snapshot_at DESC LIMIT 1) l ON TRUE
+                LEFT JOIN LATERAL (
+                    SELECT s.total_xp FROM younglings.player_stats_snapshot s
+                    WHERE LOWER(s.rsn) = m.k AND s.snapshot_at <= ? ORDER BY s.snapshot_at DESC LIMIT 1) b ON TRUE
+                LEFT JOIN LATERAL (
+                    SELECT s.total_xp FROM younglings.player_stats_snapshot s
+                    WHERE LOWER(s.rsn) = m.k AND s.snapshot_at > ? ORDER BY s.snapshot_at ASC LIMIT 1) a ON TRUE
                 WHERE COALESCE(b.total_xp, a.total_xp) IS NOT NULL
+                ORDER BY m.k
                 """, rs -> new Gain(rs.getString("rsn"), rs.getLong("gain")), guildId, to, from, from);
     }
 
@@ -223,24 +223,27 @@ public class SiteStatsRepository {
 
     /** Skill XP gained inside {@code [from, to]} by one member ({@code rsn}) or, with {@code rsn == null}, by every active member together. */
     public List<SkillGain> skillGainsBetween(long guildId, String rsn, OffsetDateTime from, OffsetDateTime to) {
+        // Per-member index probes, as in xpGainsBetween. The inner LATERAL for latest keeps only members who have a snapshot.
         return query("skill gains", """
                 WITH members AS (
                     SELECT LOWER(rsn) AS k FROM younglings.clan_member WHERE guild_id = ? AND active AND (?::text IS NULL OR LOWER(rsn) = LOWER(?))),
-                latest AS (
-                    SELECT DISTINCT ON (LOWER(s.rsn)) s.snapshot_id, LOWER(s.rsn) AS k FROM younglings.player_stats_snapshot s
-                    JOIN members m ON m.k = LOWER(s.rsn) WHERE s.snapshot_at <= ? ORDER BY LOWER(s.rsn), s.snapshot_at DESC),
-                before AS (
-                    SELECT DISTINCT ON (LOWER(s.rsn)) s.snapshot_id, LOWER(s.rsn) AS k FROM younglings.player_stats_snapshot s
-                    JOIN members m ON m.k = LOWER(s.rsn) WHERE s.snapshot_at <= ? ORDER BY LOWER(s.rsn), s.snapshot_at DESC),
-                after AS (
-                    SELECT DISTINCT ON (LOWER(s.rsn)) s.snapshot_id, LOWER(s.rsn) AS k FROM younglings.player_stats_snapshot s
-                    JOIN members m ON m.k = LOWER(s.rsn) WHERE s.snapshot_at > ? ORDER BY LOWER(s.rsn), s.snapshot_at ASC),
-                base AS (SELECT l.k, COALESCE(b.snapshot_id, a.snapshot_id) AS snapshot_id FROM latest l LEFT JOIN before b ON b.k = l.k LEFT JOIN after a ON a.k = l.k)
+                base AS (
+                    SELECT m.k, l.snapshot_id AS latest_id, COALESCE(b.snapshot_id, a.snapshot_id) AS snapshot_id
+                    FROM members m
+                    JOIN LATERAL (
+                        SELECT s.snapshot_id FROM younglings.player_stats_snapshot s
+                        WHERE LOWER(s.rsn) = m.k AND s.snapshot_at <= ? ORDER BY s.snapshot_at DESC LIMIT 1) l ON TRUE
+                    LEFT JOIN LATERAL (
+                        SELECT s.snapshot_id FROM younglings.player_stats_snapshot s
+                        WHERE LOWER(s.rsn) = m.k AND s.snapshot_at <= ? ORDER BY s.snapshot_at DESC LIMIT 1) b ON TRUE
+                    LEFT JOIN LATERAL (
+                        SELECT s.snapshot_id FROM younglings.player_stats_snapshot s
+                        WHERE LOWER(s.rsn) = m.k AND s.snapshot_at > ? ORDER BY s.snapshot_at ASC LIMIT 1) a ON TRUE)
                 SELECT ls.skill_id, SUM(ls.xp - bs.xp) AS gain
-                FROM latest l
-                JOIN base ba ON ba.k = l.k AND ba.snapshot_id IS NOT NULL
-                JOIN younglings.player_skill_snapshot ls ON ls.snapshot_id = l.snapshot_id
+                FROM base ba
+                JOIN younglings.player_skill_snapshot ls ON ls.snapshot_id = ba.latest_id
                 JOIN younglings.player_skill_snapshot bs ON bs.snapshot_id = ba.snapshot_id AND bs.skill_id = ls.skill_id
+                WHERE ba.snapshot_id IS NOT NULL
                 GROUP BY ls.skill_id HAVING SUM(ls.xp - bs.xp) > 0 ORDER BY gain DESC
                 """, rs -> new SkillGain(rs.getInt("skill_id"), rs.getLong("gain")), guildId, rsn, rsn, to, from, from);
     }
