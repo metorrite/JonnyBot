@@ -23,8 +23,13 @@ import org.slf4j.LoggerFactory;
 
 import java.awt.Color;
 import java.io.IOException;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -43,6 +48,11 @@ public class TwitchService {
     private final TwitchRepository repository;
     private final TwitchClient client;
     private final ScheduledExecutorService executor = BotScheduler.lane("twitch");
+    /** Who Twitch said was live at the last poll, by login, and when (T-587: the clan website's "Live now" widget reads it, never Twitch itself). */
+    private volatile Map<String, Stream> lastLive = Map.of();
+    private volatile Instant lastPoll = Instant.EPOCH;
+    /** Older than this, the last poll's answer is not shown as "live now" (Twitch has been unreachable for a while). */
+    static final Duration STALE = Duration.ofMinutes(10);
 
     public TwitchService(TwitchRepository repository, TwitchClient client) {
         this.repository = repository;
@@ -71,7 +81,10 @@ public class TwitchService {
         if (AutoPostRouter.diverting()) return; // go-live posts are tracked in the database and edited later: a bot that is not live makes none
         try {
             List<Streamer> streamers = repository.active();
-            if (streamers.isEmpty()) return;
+            if (streamers.isEmpty()) {
+                remember(Map.of(), Instant.now());
+                return;
+            }
             List<String> logins = streamers.stream().map(Streamer::login).distinct().toList();
             Map<String, Stream> live;
             try {
@@ -80,6 +93,7 @@ public class TwitchService {
                 log.warn("Twitch could not be asked this round: {}", e.getMessage());
                 return;
             }
+            remember(live, Instant.now());
             for (Streamer streamer : streamers) {
                 try {
                     handle(jda, streamer, live.get(streamer.login()));
@@ -92,6 +106,32 @@ public class TwitchService {
         } catch (Exception e) {
             log.error("Twitch poll failed", e);
         }
+    }
+
+    /** Keeps a poll's answer for {@link #liveFor}. */
+    void remember(Map<String, Stream> live, Instant at) {
+        Map<String, Stream> copy = new HashMap<>();
+        live.forEach((login, stream) -> {
+            if (login != null && stream != null) copy.put(login, stream);
+        });
+        lastLive = Map.copyOf(copy);
+        lastPoll = at;
+    }
+
+    /** Whether the server follows streamers with the bot (the Twitch app is set up and the server's Twitch alerts are on). */
+    public boolean followsStreamers(long guildId) {
+        return client.configured() && repository.settings(guildId).enabled();
+    }
+
+    /**
+     * The server's followed streamers who were live at the last poll (at most two minutes old), most viewers first: what the clan website's
+     * "Live now" widget shows (T-587). Empty while the server's Twitch alerts are off, or when the last answer is over {@link #STALE} old.
+     */
+    public List<Stream> liveFor(long guildId, Instant now) {
+        if (!followsStreamers(guildId) || lastPoll.plus(STALE).isBefore(now)) return List.of();
+        Map<String, Stream> live = lastLive;
+        return repository.streamers(guildId).stream().filter(Streamer::enabled).map(s -> live.get(s.login())).filter(Objects::nonNull).distinct()
+                .sorted(Comparator.comparingInt(Stream::viewers).reversed().thenComparing(Stream::login)).toList();
     }
 
     void handle(JDA jda, Streamer streamer, Stream stream) {

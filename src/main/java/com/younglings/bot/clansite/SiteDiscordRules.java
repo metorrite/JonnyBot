@@ -116,4 +116,17 @@ public final class SiteDiscordRules {
     public static DataObject onlineUnavailable(OnlineMode mode, boolean groupByRole) {
         return DataObject.empty().put("mode", mode.key()).put("unavailable", true).put("total", 0).put("groupByRole", groupByRole);
     }
+
+    /**
+     * One post of the site's channel feed as the website gets it: a copy (the home site's news shares these objects). The author's avatar
+     * (its address holds their Discord id) only when the site already shows avatars in its online list ({@code names+avatars}), the same
+     * choice the admin made there; otherwise none.
+     */
+    public static DataObject feedPost(DataObject post, OnlineMode mode) {
+        DataObject out = DataObject.fromJson(post.toJson());
+        String avatar = out.isNull("avatarUrl") ? null : out.getString("avatarUrl", null);
+        out.remove("avatarUrl");
+        if (mode == OnlineMode.NAMES_AVATARS && avatar != null && !avatar.isBlank()) out.put("avatarUrl", avatar + "?size=64");
+        return out;
+    }
 }

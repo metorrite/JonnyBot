@@ -56,7 +56,7 @@ public final class ClanSiteLayoutRulesV2 {
         base, md, lg
     }
 
-    public static final Set<String> SPACE = Set.of("none", "xs", "sm", "md", "lg", "xl");
+    public static final Set<String> SPACE = Set.of("none", "xs", "sm", "md", "ml", "lg", "xl");
     public static final Set<String> WIDTHS = Set.of("full", "wide", "content", "medium", "narrow", "slim");
     public static final Set<String> BACKGROUNDS = Set.of("none", "surface", "accent", "image", "glow");
     public static final Set<String> ALIGN = Set.of("start", "center", "end", "stretch");
@@ -78,6 +78,10 @@ public final class ClanSiteLayoutRulesV2 {
     public static final Set<String> GLOW = Set.of("off", "soft");
     public static final Set<String> BUTTONS = Set.of("solid", "outline", "soft");
     public static final Set<String> TITLES = Set.of("theme", "caps");
+    public static final Set<String> GUTTERS = Set.of("normal", "narrow");
+    public static final Set<String> TABS = Set.of("filled", "soft");
+    /** The site's motion style (runeclans docs/MOTION.md): missing follows the theme. */
+    public static final Set<String> MOTION = Set.of("forge", "quill", "crisp");
     public static final Set<String> LOGO_TEXT_COLOURS = Set.of("text", "accent");
     public static final Set<String> LOGO_TEXT_CASES = Set.of("normal", "upper");
     public static final Set<String> LOGO_SHAPES = Set.of("rounded", "round");
@@ -381,6 +385,9 @@ public final class ClanSiteLayoutRulesV2 {
             if (!cleanOrder.keys().isEmpty()) out.put("order", cleanOrder);
         }
         out.put("padding", responsive(cell, "padding", "none", ClanSiteLayoutRulesV2::space, label + " has a cell with unknown spacing.", problems));
+        // the space between the cell's widgets (runeclans T-518): optional, kept only when the website sets it
+        if (cell.hasKey("gap") && !cell.isNull("gap"))
+            out.put("gap", responsive(cell, "gap", "md", ClanSiteLayoutRulesV2::space, label + " has a cell with unknown spacing between its widgets.", problems));
         out.put("valign", choice(cell, "valign", ALIGN, "start", label + " has a cell with an unknown alignment.", problems));
         // left to right (builder v3 F20, T-421): optional, and full width ("stretch") is stored as no field, the same as the website does
         String halign = choice(cell, "halign", ALIGN, "stretch", label + " has a cell with an unknown left-to-right alignment.", problems);
@@ -632,6 +639,9 @@ public final class ClanSiteLayoutRulesV2 {
         optionalChoice(style, out, "glow", GLOW, "The site has an unknown glow setting.", problems);
         optionalChoice(style, out, "buttons", BUTTONS, "The site has an unknown button look.", problems);
         optionalChoice(style, out, "titles", TITLES, "The site has an unknown panel title look.", problems);
+        optionalChoice(style, out, "gutter", GUTTERS, "The site has unknown side margins.", problems);
+        optionalChoice(style, out, "tabs", TABS, "The site has an unknown look for its time-frame switches.", problems);
+        optionalChoice(style, out, "motion", MOTION, "The site has an unknown animation style.", problems);
         return out;
     }
 
