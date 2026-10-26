@@ -4,8 +4,12 @@ import com.younglings.bot.events.EventRules.Evidence;
 import com.younglings.bot.events.EventRules.ObjectiveSpec;
 import com.younglings.bot.events.EventRules.Source;
 import com.younglings.bot.plugin.PluginEventType;
+import com.younglings.bot.runescape.RuneScapeSkillCatalog;
 import net.dv8tion.jda.api.utils.data.DataObject;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -30,6 +34,8 @@ import java.util.regex.Pattern;
  *       <li>{@code ACHIEVEMENT}: "Achievement: name".</li>
  *     </ul>
  *   Each counts 1.</li>
+ *   <li>XP tiles ("Gain 1M Fletching XP", "500k XP in Mining", T-543) don't take plugin reports: {@link PluginXpTracker} reads them from the
+ *       RuneClans hub's XP ledger ({@link #xpGoal}, {@link #xpProgress}), and only while {@code EVENT_XP_TILES_ENABLED} is on.</li>
  *   <li>{@code XP} and {@code PRESENCE} are not matched. Objectives that don't take automatic progress ({@code PROOF} or {@code ORGANISER}
  *       evidence) never match.</li>
  * </ul>
@@ -47,7 +53,86 @@ public final class PluginObjectiveMatcher {
     private static final Pattern LEVEL_FIRST = Pattern.compile("^(?:level\\s+)?(\\d{1,3})\\s+([a-z][a-z ]*)$");
     private static final Pattern SKILL_FIRST = Pattern.compile("^([a-z][a-z ]*?)\\s+(?:level\\s+)?(\\d{1,3})$");
 
+    /** "1M", "500k", "2.5m", "1,000,000": the number and its suffix. */
+    private static final String AMOUNT = "(\\d{1,3}(?:,\\d{3})+|\\d+(?:\\.\\d+)?)\\s*([kmb])?";
+    private static final String XP_WORD = "(?:xp|exp|experience)";
+    /** "Gain 1M Fletching XP", "1m xp", "Gain 2M total XP". */
+    private static final Pattern XP_SKILL_FIRST = Pattern.compile("^(?:gain\\s+)?" + AMOUNT + "\\s+(?:([a-z]+)\\s+)?" + XP_WORD + "$");
+    /** "500k XP in Mining", "Gain 1M XP in Fletching". */
+    private static final Pattern XP_IN_SKILL = Pattern.compile("^(?:gain\\s+)?" + AMOUNT + "\\s+" + XP_WORD + "\\s+in\\s+([a-z]+)$");
+    /** No tile asks for more than every skill's 200M. */
+    private static final long MAX_XP_GOAL = 10_000_000_000L;
+
+    /** Whether XP tiles are counted: set once at startup by {@link PluginXpTracker} ({@code EVENT_XP_TILES_ENABLED} and the hub client on). */
+    private static volatile boolean xpTilesOffered;
+
     private PluginObjectiveMatcher() {}
+
+    static void offerXpTiles(boolean offered) {
+        xpTilesOffered = offered;
+    }
+
+    public static boolean xpTilesOffered() {
+        return xpTilesOffered;
+    }
+
+    /** An XP tile's goal (T-543): {@code xp} gained in {@code skillId}, or in total XP for {@link CompetitionTemplate#OVERALL}. */
+    public record XpGoal(int skillId, long xp) {
+        /** "Fletching XP", "total XP". */
+        public String what() {
+            return (skillId == CompetitionTemplate.OVERALL ? "total" : RuneScapeSkillCatalog.nameFor(skillId)) + " XP";
+        }
+    }
+
+    /** The XP goal a tile label asks for, or null when it isn't an XP tile. A label with no skill (or "total", "overall") is total XP. */
+    public static XpGoal xpGoal(String rawLabel) {
+        String label = rawLabel == null ? "" : rawLabel.strip().toLowerCase(Locale.ROOT).replaceAll("\\s+", " ");
+        Matcher m = XP_SKILL_FIRST.matcher(label);
+        if (!m.matches()) m = XP_IN_SKILL.matcher(label);
+        if (!m.matches()) return null;
+        String skill = m.group(3) == null ? "total" : m.group(3);
+        int skillId = skillId(skill);
+        if (skillId == Integer.MIN_VALUE) return null;
+        BigDecimal amount = new BigDecimal(m.group(1).replace(",", ""));
+        if (m.group(2) != null) amount = amount.movePointRight(switch (m.group(2)) {
+            case "k" -> 3;
+            case "m" -> 6;
+            default -> 9;
+        });
+        long xp = amount.setScale(0, RoundingMode.DOWN).min(BigDecimal.valueOf(MAX_XP_GOAL + 1)).longValue();
+        return xp <= 0 || xp > MAX_XP_GOAL ? null : new XpGoal(skillId, xp);
+    }
+
+    /**
+     * Progress an XP tile has earned for {@code gained} XP: the objective's target is reached when the gain reaches the goal, so a tile with target 1
+     * takes 1 at the goal, and a tile whose target is the XP itself fills as the XP comes in. Never more than the tile can hold (target × repeats).
+     */
+    public static long xpProgress(XpGoal goal, ObjectiveSpec objective, long gained) {
+        if (gained <= 0 || objective.target() <= 0) return 0;
+        BigInteger earned = BigInteger.valueOf(gained).multiply(BigInteger.valueOf(objective.target())).divide(BigInteger.valueOf(goal.xp()));
+        long capacity = objective.target() * Math.max(1, objective.repeatLimit());
+        return earned.min(BigInteger.valueOf(capacity)).longValue();
+    }
+
+    /** The objectives of an event that are XP tiles taking automatic progress, with their goals; empty for competitions and boss nights. */
+    public static java.util.Map<ObjectiveSpec, XpGoal> xpTiles(String template, List<ObjectiveSpec> objectives) {
+        java.util.Map<ObjectiveSpec, XpGoal> out = new java.util.LinkedHashMap<>();
+        if (!BingoTemplate.KEY.equals(template) && !ScavengerHuntTemplate.KEY.equals(template)) return out;
+        for (ObjectiveSpec o : objectives) {
+            XpGoal goal = takesAutomatic(o) ? xpGoal(o.label()) : null;
+            if (goal != null) out.put(o, goal);
+        }
+        return out;
+    }
+
+    private static int skillId(String word) {
+        if (word.equals("total") || word.equals("overall")) return CompetitionTemplate.OVERALL;
+        for (int id = 0; id < RuneScapeSkillCatalog.skillCount(); id++) {
+            String name = RuneScapeSkillCatalog.nameFor(id).toLowerCase(Locale.ROOT);
+            if (name.equals(word) || (word.equals("hp") && id == 3) || (word.equals("rc") && name.equals("runecrafting")) || (word.equals("defense") && name.equals("defence"))) return id;
+        }
+        return Integer.MIN_VALUE;
+    }
 
     public static List<Hit> match(String template, String config, List<ObjectiveSpec> objectives, PluginEventType type, String sourceName, DataObject data, Labels labels) {
         List<Hit> hits = new ArrayList<>();
@@ -110,6 +195,14 @@ public final class PluginObjectiveMatcher {
         if (CompetitionTemplate.KEY.equals(template) || BossNightTemplate.KEY.equals(template)) return null;
         String label = rawLabel == null ? "" : rawLabel.strip().toLowerCase(Locale.ROOT);
         if (label.isEmpty()) return null;
+        XpGoal goal = xpGoal(label);
+        if (goal != null) {
+            String amount = String.format(Locale.ROOT, "%,d", goal.xp());
+            return xpTilesOffered
+                    ? new Hint(true, "Auto with RuneSync: " + amount + " " + goal.what() + " gained while the event runs, read from the RuneClans hub. XP gained while RuneSync "
+                    + "wasn't watching doesn't count, and players without RuneSync (RuneMetrics only) make no progress on this tile.")
+                    : new Hint(false, "An XP tile (" + amount + " " + goal.what() + "). Counting XP for tiles isn't switched on for this bot, so this tile needs proof or an organiser for now.");
+        }
         if (label.contains("clue") || label.contains("treasure trail")) {
             String rest = CLUE_FILLER.matcher(label.replaceAll("[^a-z ]", " ")).replaceAll(" ").strip().replaceAll("\\s+", " ");
             if (rest.isEmpty()) return new Hint(true, "Auto with RuneSync: any clue scroll the member completes (read from their game messages).");

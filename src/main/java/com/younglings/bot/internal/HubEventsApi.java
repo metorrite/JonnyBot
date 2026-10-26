@@ -207,9 +207,23 @@ public class HubEventsApi {
         if (com.younglings.bot.events.ClanVsClan.plays(e, com.younglings.bot.events.BingoTemplate.KEY)) {
             card.put("board", HubBoard.of(DataObject.fromJson(e.config()), service.objectives(e.id()), rows, mine, scored ? events.progress(e.id()) : List.of(), teamEvent));
         }
+        card.put("xpTiles", xpTilesOf(e));
         if (me != null) card.put("me", myPlace(e, me).put("channels", channelsOf(jda, e, viewerId)));
         card.put("manage", manageOf(jda, e, viewerId));
         return card;
+    }
+
+    /**
+     * The XP tiles of a bingo or scavenger hunt counted from RuneSync (T-543), as their labels, so the page can say that only RuneSync XP counts
+     * there; null when XP tiles aren't counted or the event has none.
+     */
+    private DataArray xpTilesOf(Event e) {
+        if (!com.younglings.bot.events.PluginObjectiveMatcher.xpTilesOffered()) return null;
+        var tiles = com.younglings.bot.events.PluginObjectiveMatcher.xpTiles(com.younglings.bot.events.ClanVsClan.game(e), service.objectives(e.id()));
+        if (tiles.isEmpty()) return null;
+        DataArray out = DataArray.empty();
+        tiles.keySet().forEach(o -> out.add(o.label()));
+        return out;
     }
 
     /** The viewer's links to the event's channels (only the ones they can use), from the host's own player page. */

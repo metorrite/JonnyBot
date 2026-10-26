@@ -710,7 +710,8 @@ public class EventsAdminApi implements AdminRouteExtension {
         }
         DataObject answer = DataObject.empty().put("scoringMode", event.scoringMode().name()).put("standings", array);
         if (ClanVsClan.is(event.template())) answer.put("clanVsClan", clanVsClanJson(guild, event));
-        if (pluginXp != null) pluginXp.notCounted(id).ifPresent(n -> answer.put("pluginXp", pluginXpJson(guild, n)));
+        // bingo and scavenger XP tiles (T-543) list the same "not counted (no RuneSync)" players, marked so the page words it for tiles
+        if (pluginXp != null) pluginXp.notCounted(id).ifPresent(n -> answer.put("pluginXp", pluginXpJson(guild, n).put("xpTiles", !com.younglings.bot.events.ClanVsClan.plays(event, com.younglings.bot.events.CompetitionTemplate.KEY))));
         if (pluginXp != null && com.younglings.bot.events.CompetitionTemplate.countsAuto(DataObject.fromJson(event.config()))) answer.put("autoXp", autoXpJson(guild, id));
         return answer;
     }
