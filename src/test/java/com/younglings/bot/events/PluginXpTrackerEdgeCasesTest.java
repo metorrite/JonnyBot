@@ -161,6 +161,8 @@ class PluginXpTrackerEdgeCasesTest {
         assertTrue(PluginXpTracker.confirmed(DataObject.empty().put("verification", "jagex_signed")));
         assertFalse(PluginXpTracker.confirmed(DataObject.empty().put("verification", "implicit")));
         assertFalse(PluginXpTracker.confirmed(DataObject.empty().put("verification", "PUBLIC_DATA_CORROBORATED")), "an exact match, nothing looser");
+        assertFalse(PluginXpTracker.confirmed(DataObject.empty().put("verification", "public_data_pending")), "a level that only starts like a confirmed one");
+        assertFalse(PluginXpTracker.confirmed(DataObject.empty().put("verification", "not_jagex_signed")), "a level that only ends like a confirmed one");
         assertFalse(PluginXpTracker.confirmed(DataObject.empty()), "an older hub that doesn't say: not confirmed");
     }
 
