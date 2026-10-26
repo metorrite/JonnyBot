@@ -14,7 +14,7 @@ import net.dv8tion.jda.api.utils.data.DataObject;
 import java.util.function.Supplier;
 
 /**
- * The owner's RS Link abuse view (T-118) under {@code /internal/admin/rsnlink/...}, for the website's Super admin area. {@link
+ * The owner's RS Link abuse view (T-118) under {@code /internal/admin/rsnlink/...}, for the RuneClan Admin console (runeclans.com/admin). {@link
  * com.younglings.bot.internal.TicketAdminApi} has already checked the secret, the asker's dashboard access and the write rate limit, and
  * audit-logs writes; this adds the owner check (the Discord application's owner or {@code OWNER_IDS}), so nobody else can read it, however
  * high their role in a server. The link service also writes its own audit row for every action.

@@ -2,8 +2,6 @@
 
 The one document every thread reads first. The master thread keeps it true; a worker that changes how things connect updates the relevant section in its PR.
 
-Ticket board (the work queue): https://claude.ai/artifact/W1MkBY5EH8beWVZGfnQUER
-
 ## 1. The pieces
 
 | Piece | Repository / path | Stack | What it is |
@@ -13,9 +11,9 @@ Ticket board (the work queue): https://claude.ai/artifact/W1MkBY5EH8beWVZGfnQUER
 | ... clan site | `/` and `src/app/(hub)` | | The Younglings clan's public site: home, members, stats, recaps. |
 | ... JonnyBot site + dashboard | `/jonnybot`, `/dashboard` | | Marketing/docs/install pages, and the per-server **bot dashboard** (every setting of the bot). |
 | ... clans hub | `/hub` (or `clans.<domain>`) | | Public directory of clans, events, leaderboards (redesigned 2026-10-19). |
-| ... admin console | `/admin` | | Website behaviour only (what the Younglings site shows, its news-feed channels, site options) plus the owner-only super-admin area. Bot behaviour is never here (see section 3, Surface). |
+| ... admin console | `/admin` | | Website behaviour only (what the Younglings site shows, its news-feed channels, site options). The owner-only controls are in the RuneClan Admin console (runeclans.com/admin). Bot behaviour is never here (see section 3, Surface). |
 | **Public / plugin API** | `/api/v1`, `/api/ingest/v1` (host `api.<domain>`) | | Public read API (OpenAPI in `public/openapi`) and the plugin ingest routes. |
-| **RS3 plugin** (planned, very soon) | not started | Jagex's coming plugin API | A clan plugin reporting player data into the ingest API. Groundwork exists: ingest API, points ledger, approvals, cross-guild events. See memory note `project_rs3_plugin_api_prep`. |
+| **RS3 plugin** (planned, very soon) | not started | Jagex's coming plugin API | A clan plugin reporting player data into the ingest API. Groundwork exists: ingest API, points ledger, approvals, cross-guild events. |
 | Local + hosting | Railway (bot + site), Cloudflare (DNS) | | `clans.`, `api.`, `jonnybot.` subdomains all point at the one site app. |
 
 ## 2. How the pieces talk
@@ -39,7 +37,7 @@ Ticket board (the work queue): https://claude.ai/artifact/W1MkBY5EH8beWVZGfnQUER
 
 **Surface (where a control goes), Drake 2026-10-19**
 - **JonnyBot dashboard (`/dashboard`)** holds everything that changes how the bot behaves: roles, command on/off, channels the bot posts to, tracking, tickets, welcome, events (including the ones the site displays), member and points data.
-- **`/admin`** holds only website behaviour: what the Younglings site shows, its news-feed channels, site options. It also holds the owner-only super-admin area (premium servers, beta servers, JonnyBot/hub/dashboard access switches, users allowed into restricted content). It may read bot data, but it never changes bot behaviour.
+- **`/admin`** holds only website behaviour: what the Younglings site shows, its news-feed channels, site options. It may read bot data, but it never changes bot behaviour. The owner-only controls (premium servers, beta servers, JonnyBot/hub/dashboard access switches, users allowed into restricted content) are in the RuneClan Admin console (runeclans.com/admin).
 - Never put role or command toggles on `/admin`, and never put site-feed settings on the dashboard.
 - Skipping a surface is allowed only when it has no meaning there (a purely website option needs no Discord control; a member's personal command like `/afk` needs no admin page unless it has server settings). Say why in the PR.
 - Bot work still needs its dashboard side in the same ticket (see Bot below and the website-first rule).
