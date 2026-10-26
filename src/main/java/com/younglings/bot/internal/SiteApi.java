@@ -711,6 +711,9 @@ public class SiteApi {
 
     // ---------- activity feed, records, history, polls, PvM and drops ----------
 
+    /** How many adventure-log entries a feed of one kind looks through (a few months of a big clan's log). */
+    static final int KIND_SCAN = 3000;
+
     /** The clan's newest notable adventure-log entries (level-ups, milestones, quests, boss kills, drops, pets, caps…). */
     DataObject feed(long guildId, String limitRaw, String kindRaw) {
         int limit = 40;
@@ -730,7 +733,8 @@ public class SiteApi {
 
         Set<String> hiddenLogs = profiles.hiddenRsns(guildId, false);
         DataArray items = DataArray.empty();
-        for (var row : stats.recentActivities(guildId, limit * 6)) {
+        // one kind (pets for the rare drops wall) is rarer than the rest, so look further back for it
+        for (var row : stats.recentActivities(guildId, wanted == null ? limit * 6 : Math.max(limit * 6, KIND_SCAN))) {
             if (!shown(hiddenLogs, row.rsn())) continue;
             ActivityKinds.Kind kind = ActivityKinds.kindOf(row.text());
             if (kind == ActivityKinds.Kind.OTHER || kind == ActivityKinds.Kind.CITADEL_VISIT) continue;
