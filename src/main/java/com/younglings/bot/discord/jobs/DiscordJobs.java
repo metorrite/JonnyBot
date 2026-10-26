@@ -61,7 +61,7 @@ public final class DiscordJobs {
     public static Guild guild(JDA jda, DiscordJob job) {
         Guild guild = Shards.guild(jda, job.guildId());
         if (guild != null) return guild;
-        if (jda.isUnavailable(job.guildId())) throw new RetryLater(Duration.ofSeconds(30), "That server is unavailable on Discord right now; trying again soon.");
+        if (Shards.unavailable(jda, job.guildId())) throw new RetryLater(Duration.ofSeconds(30), "That server is unavailable on Discord right now; trying again soon.");
         throw new Refused("The bot isn't in that server any more.");
     }
 

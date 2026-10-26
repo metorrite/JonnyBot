@@ -92,7 +92,7 @@ class ShardsTest {
     /** "Every JDA holder goes through the shard manager": one shard's JDA only knows that shard's servers. */
     @Test
     void mainCodeNeverAsksOneShardForBotWideLookups() throws IOException {
-        Pattern botWide = Pattern.compile("\\.(getGuildById|getUserById|getMutualGuilds)\\(|\\.(getGuilds|getUserCache|getGuildCache)\\(\\)");
+        Pattern botWide = Pattern.compile("\\.(getGuildById|getUserById|getMutualGuilds|isUnavailable)\\(|\\.(getGuilds|getUserCache|getGuildCache)\\(\\)");
         List<String> offenders = new ArrayList<>();
         try (Stream<Path> files = Files.walk(Path.of("src/main/java"))) {
             for (Path file : files.filter(p -> p.toString().endsWith(".java") && !p.endsWith("Shards.java")).toList()) {
