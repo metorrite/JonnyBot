@@ -105,4 +105,24 @@ class GePriceServiceTest {
         svc.lookup("Dragon bones");
         assertEquals(first, calls.get());
     }
+
+    @Test
+    void theWatchHasThePriceAndOnePriceADayForAWeek() {
+        var watched = service(new AtomicInteger(), false).watch("Dragon bones").orElseThrow();
+        assertEquals("Dragon bones", watched.price().name());
+        assertTrue(watched.week().size() <= 7 && !watched.week().isEmpty(), watched.week().toString());
+        assertTrue(watched.week().stream().allMatch(p -> p > 0));
+        assertTrue(service(new AtomicInteger(), false).watch("Nonexistent thing zz").isEmpty());
+        assertTrue(service(new AtomicInteger(), true).watch("Dragon bones").isEmpty(), "the source down: nothing, not a guess");
+    }
+
+    @Test
+    void dailyTakesEachDaysNewestPriceAndCarriesQuietDays() {
+        long day = 86_400_000L;
+        Instant now = Instant.ofEpochMilli(100 * day + 3_600_000);
+        var history = java.util.List.of(new GePriceService.Point(90 * day, 5), new GePriceService.Point(95 * day, 10), new GePriceService.Point(95 * day + 60_000, 11),
+                new GePriceService.Point(97 * day, 12), new GePriceService.Point(100 * day, 15));
+        assertEquals(java.util.List.of(5L, 11L, 11L, 12L, 12L, 12L, 15L), GePriceService.daily(history, now, 7), "days 94 to 100");
+        assertEquals(java.util.List.of(), GePriceService.daily(java.util.List.of(), now, 7));
+    }
 }
