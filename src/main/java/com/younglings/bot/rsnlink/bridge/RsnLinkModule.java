@@ -12,6 +12,7 @@ import com.younglings.bot.rsnlink.verify.HttpPublicData;
 import com.younglings.bot.rsnlink.verify.PgVerifyStore;
 import com.younglings.bot.rsnlink.verify.VerifySettings;
 import com.younglings.bot.rsnlink.verify.XpLinkVerifier;
+import com.younglings.bot.runescape.RuneMetricsSwitch;
 import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
@@ -61,7 +62,7 @@ public class RsnLinkModule implements InternalRouteModule {
                 VerifySettings verify = VerifySettings.fromEnv(config::getLinkSetting, "RS Link verification (" + config.getJonnybotUrl() + ")");
                 PgVerifyStore verifyStore = new PgVerifyStore(database::connection, settings.schema());
                 List<LinkVerifier> verifiers = verify.enabled()
-                        ? List.of(XpLinkVerifier.start(verify, verifyStore, new HttpPublicData(verify.userAgent()), Clock.systemUTC(), BotScheduler.lane("rsnlink-verify")))
+                        ? List.of(XpLinkVerifier.start(verify, verifyStore, new HttpPublicData(verify.userAgent(), RuneMetricsSwitch.fromEnv()), Clock.systemUTC(), BotScheduler.lane("rsnlink-verify")))
                         : List.of();
                 made = new LinkService(settings, database, dmSender, verifiers, Clock.systemUTC(), new SecureRandom());
                 made.start();
