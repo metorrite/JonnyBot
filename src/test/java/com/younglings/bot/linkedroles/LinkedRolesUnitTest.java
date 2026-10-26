@@ -160,6 +160,23 @@ class LinkedRolesUnitTest {
         assertTrue(RsLinkSource.parse(DataObject.fromJson("{}"), java.util.List.of(a)).isEmpty(), "an unexpected answer is not 'no links'");
         assertEquals(Map.of(), RsLinkSource.parse(DataObject.fromJson("{\"links\":[]}"), java.util.List.of(a)).orElseThrow());
         assertTrue(RsLinkSource.NONE.current(java.util.List.of(a)).isEmpty());
+
+        // T-552: the hub names each link's level; only a level above implicit is confirmed
+        DataObject levels = DataObject.fromJson("{\"links\":["
+                + "{\"discordId\":\"" + a + "\",\"rsn\":\"Zezima\",\"verification\":\"public_data_corroborated\"},"
+                + "{\"discordId\":\"" + b + "\",\"rsn\":\"Woox\",\"verification\":\"implicit\"}]}");
+        Map<Long, RsLinkSource.Current> leveled = RsLinkSource.parse(levels, java.util.List.of(a, b)).orElseThrow();
+        assertTrue(leveled.get(a).confirmed());
+        assertFalse(leveled.get(b).confirmed());
+        assertFalse(got.get(a).confirmed(), "an older hub that doesn't say is not confirmed");
+    }
+
+    @Test
+    void requireConfirmedIsOffByDefault() {
+        assertFalse(LinkedRolesSettings.from(fullEnv()::get).requireConfirmed());
+        Map<String, String> env = fullEnv();
+        env.put("LINKED_ROLES_REQUIRE_CONFIRMED", "true");
+        assertTrue(LinkedRolesSettings.from(env::get).requireConfirmed());
     }
 
     @Test
