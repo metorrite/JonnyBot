@@ -53,5 +53,8 @@ public interface PublicData {
 
         /** Couldn't tell. Never treated as "not public". */
         record Failed(String why) implements RuneMetrics {}
+
+        /** Not asked: RuneMetrics is retired or switched off ({@code RUNEMETRICS}). The Hiscores alone decide. */
+        record Off() implements RuneMetrics {}
     }
 }

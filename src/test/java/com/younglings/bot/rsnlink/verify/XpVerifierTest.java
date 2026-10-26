@@ -363,6 +363,15 @@ class XpVerifierTest {
     }
 
     @Test
+    void retiredRuneMetricsLeavesTheHiscoresToDecide() {
+        before();
+        data.runeMetrics = new PublicData.RuneMetrics.Off();
+        report("game", Map.of(FISHING, 10_012_345L));
+        tick(Duration.ofSeconds(1));
+        assertEquals(1, count(ClaimStatus.PENDING), "after the sunset, a value the Hiscores don't show yet is a prediction");
+    }
+
+    @Test
     void aReportNeverCheckedWithinTheHourIsRefused() {
         before();
         data.boards.put(Board.MAIN, new PublicData.Hiscores.Failed("down"));
