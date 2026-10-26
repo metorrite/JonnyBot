@@ -182,4 +182,19 @@ class StaleCacheTest {
         }));
     }
 
+    @Test
+    void aKeyStillAskedForKeepsItsFallbackThroughALongOutage() {
+        StaleCache direct = new StaleCache(now::get, Runnable::run);
+        direct.get("k", FRESH, STALE, 500, () -> "last good");
+        long outage = 3 * (STALE + StaleCache.GRACE_MS);
+        long step = Math.max(1, Math.min(STALE, StaleCache.GRACE_MS) / 4);
+        for (long t = 0; t < outage; t += step) {
+            now.addAndGet(step);
+            direct.get("other" + t, FRESH, STALE, 500, () -> "fine"); // other keys load, so sweeps keep running
+            assertEquals("last good", direct.get("k", FRESH, STALE, 500, () -> {
+                throw new IllegalStateException("down");
+            }), "a requested key is never swept away while its loads fail");
+        }
+    }
+
 }

@@ -12,9 +12,10 @@ import java.util.function.Supplier;
  * exists, the old value is served rather than an error.
  *
  * <p>Keys often carry a query string (a player name, a user id), so the set of keys keeps growing. To keep memory
- * in step with live traffic, an entry nobody has asked for in {@link #GRACE_MS} past its time-to-live is dropped by
- * a sweep that runs at most once every {@link #SWEEP_EVERY_MS}, on a load (no extra thread). Inside that window an
- * expired entry is still kept as the fallback for a failed load. Lock objects only live while someone holds or waits
+ * in step with live traffic, an entry nobody has asked for in its time-to-live plus {@link #GRACE_MS} is dropped by
+ * a sweep that runs at most once every {@link #SWEEP_EVERY_MS}, on a load (no extra thread). Every request for a key
+ * counts as asking for it, so a key that is still requested keeps its old value as the fallback for failed loads for
+ * as long as they keep failing. Lock objects only live while someone holds or waits
  * for them.
  */
 final class TtlCache {
@@ -23,10 +24,39 @@ final class TtlCache {
     /** The sweep runs at most this often. */
     static final long SWEEP_EVERY_MS = 60_000L;
 
-    private record Entry(Object value, long loadedAt, long ttlMillis) {
+    /** {@code lastUsed} is written at most this often per entry, so a hot key's hits don't all write to one shared field. */
+    static final long TOUCH_EVERY_MS = 1_000L;
+
+    private static final class Entry {
+        private final Object value;
+        private final long loadedAt;
+        private final long ttlMillis;
+        /** When someone last asked for this key (a hit, or a miss that may fall back to this value). */
+        private volatile long lastUsed;
+
+        Entry(Object value, long loadedAt, long ttlMillis) {
+            this.value = value;
+            this.loadedAt = loadedAt;
+            this.ttlMillis = ttlMillis;
+            this.lastUsed = loadedAt;
+        }
+
+        Object value() {
+            return value;
+        }
+
+        long loadedAt() {
+            return loadedAt;
+        }
+
+        void touch(long now) {
+            if (now - lastUsed >= TOUCH_EVERY_MS) lastUsed = now;
+        }
+
+        /** Unasked-for for {@link #GRACE_MS} past its TTL. A key still being asked for is kept, even while its reloads fail. */
         boolean droppable(long now) {
             if (ttlMillis > Long.MAX_VALUE - GRACE_MS) return false; // "practically forever"
-            return now - loadedAt > ttlMillis + GRACE_MS;
+            return now - lastUsed > ttlMillis + GRACE_MS;
         }
     }
 
@@ -54,7 +84,10 @@ final class TtlCache {
     <T> T get(String key, long ttlMillis, Supplier<T> loader) {
         Entry entry = entries.get(key);
         long now = clock.getAsLong();
-        if (entry != null && now - entry.loadedAt() < ttlMillis) return (T) entry.value();
+        if (entry != null) {
+            entry.touch(now);
+            if (now - entry.loadedAt() < ttlMillis) return (T) entry.value();
+        }
 
         Lock lock = locks.compute(key, (k, held) -> {
             Lock l = held == null ? new Lock() : held;

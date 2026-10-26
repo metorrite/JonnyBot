@@ -23,8 +23,9 @@ import java.util.function.Supplier;
  * </ul>
  * {@link #invalidate} drops matching answers and also marks any refresh already under way as out of date, so a write is never followed by an
  * old answer being stored. A loader that fails is never cached; the old answer, if there is one, keeps being served.
- * <p>An answer older than its {@code maxStaleMs} plus {@link #GRACE_MS} is no longer kept: a sweep, run at most once every
+ * <p>An answer nobody has asked for in its {@code maxStaleMs} plus {@link #GRACE_MS} is no longer kept: a sweep, run at most once every
  * {@link #SWEEP_EVERY_MS} when a load finishes (no extra thread), drops it, so keys that carry a query string don't pile up forever.
+ * Every request for a key counts as asking for it, so a key still requested keeps its old answer as the fallback while its loads fail.
  */
 final class StaleCache {
     /** How long past {@code maxStaleMs} an answer is kept as the fallback for a failed load before a sweep may drop it. */
@@ -32,10 +33,39 @@ final class StaleCache {
     /** The sweep runs at most this often. */
     static final long SWEEP_EVERY_MS = 60_000L;
 
-    private record Entry(Object value, long loadedAt, long maxStaleMs) {
+    /** {@code lastUsed} is written at most this often per entry, so a hot key's hits don't all write to one shared field. */
+    static final long TOUCH_EVERY_MS = 1_000L;
+
+    private static final class Entry {
+        private final Object value;
+        private final long loadedAt;
+        private final long maxStaleMs;
+        /** When someone last asked for this key (a hit, or a miss that may fall back to this value). */
+        private volatile long lastUsed;
+
+        Entry(Object value, long loadedAt, long maxStaleMs) {
+            this.value = value;
+            this.loadedAt = loadedAt;
+            this.maxStaleMs = maxStaleMs;
+            this.lastUsed = loadedAt;
+        }
+
+        Object value() {
+            return value;
+        }
+
+        long loadedAt() {
+            return loadedAt;
+        }
+
+        void touch(long now) {
+            if (now - lastUsed >= TOUCH_EVERY_MS) lastUsed = now;
+        }
+
+        /** Unasked-for for {@link #GRACE_MS} past its {@code maxStaleMs}. A key still being asked for is kept, even while its reloads fail. */
         boolean droppable(long now) {
             if (maxStaleMs > Long.MAX_VALUE - GRACE_MS) return false; // "practically forever"
-            return now - loadedAt > maxStaleMs + GRACE_MS;
+            return now - lastUsed > maxStaleMs + GRACE_MS;
         }
     }
 
@@ -55,7 +85,9 @@ final class StaleCache {
     @SuppressWarnings("unchecked")
     <T> T get(String key, long freshMs, long maxStaleMs, long budgetMs, Supplier<T> loader) {
         Entry entry = entries.get(key);
-        long age = entry == null ? Long.MAX_VALUE : clock.getAsLong() - entry.loadedAt();
+        long now = clock.getAsLong();
+        if (entry != null) entry.touch(now);
+        long age = entry == null ? Long.MAX_VALUE : now - entry.loadedAt();
         if (entry != null && age < freshMs) return (T) entry.value();
         if (entry != null && age < maxStaleMs) {
             try {

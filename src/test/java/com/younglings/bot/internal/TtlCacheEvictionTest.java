@@ -109,4 +109,34 @@ class TtlCacheEvictionTest {
         cache.get("other", TTL, () -> "x");
         assertEquals(2, cache.size());
     }
+
+    @Test
+    void aKeyStillAskedForKeepsItsFallbackThroughALongOutage() {
+        cache.get("site?clan=x", TTL, () -> "last good");
+        long outage = 3 * (TTL + TtlCache.GRACE_MS);
+        for (long t = 0; t < outage; t += 5_000) {
+            now.addAndGet(5_000);
+            cache.get("other" + t, TTL, () -> "fine"); // other keys load, so sweeps keep running
+            assertEquals("last good", cache.get("site?clan=x", TTL, () -> {
+                throw new IllegalStateException("upstream down");
+            }), "a requested key is never swept away while its loads fail");
+        }
+    }
+
+    @Test
+    void theGraceWindowCountsFromTheLastRequestNotTheLastLoad() {
+        cache.get("a", TTL, () -> "old");
+        now.addAndGet(TTL + TtlCache.GRACE_MS - 1);
+        assertEquals("old", cache.get("a", TTL, () -> {
+            throw new IllegalStateException("down");
+        }));
+        now.addAndGet(TTL + TtlCache.GRACE_MS); // just inside the window measured from that request
+        cache.get("t1", TTL, () -> "x");
+        assertEquals("old", cache.get("a", TTL, () -> {
+            throw new IllegalStateException("down");
+        }));
+        now.addAndGet(TTL + TtlCache.GRACE_MS + 1); // nobody asked for it since: dropped
+        cache.get("t2", TTL, () -> "x");
+        assertEquals("new", cache.get("a", TTL, () -> "new"));
+    }
 }
