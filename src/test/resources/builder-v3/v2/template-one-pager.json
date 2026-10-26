@@ -38,7 +38,7 @@
     "mobile": "dropdown",
     "nav": [
       {
-        "id": "onepn035",
+        "id": "onepn036",
         "label": "About",
         "link": {
           "kind": "page",
@@ -47,7 +47,7 @@
         }
       },
       {
-        "id": "onepn036",
+        "id": "onepn037",
         "label": "Numbers",
         "link": {
           "kind": "page",
@@ -56,7 +56,7 @@
         }
       },
       {
-        "id": "onepn037",
+        "id": "onepn038",
         "label": "Events",
         "link": {
           "kind": "page",
@@ -65,7 +65,7 @@
         }
       },
       {
-        "id": "onepn038",
+        "id": "onepn039",
         "label": "Join",
         "link": {
           "kind": "page",
@@ -197,6 +197,7 @@
                         ],
                         "align": "center",
                         "size": "medium",
+                        "look": "buttons",
                         "fullWidth": false
                       },
                       "unmet": "hide"
@@ -246,10 +247,10 @@
                     "md": 12
                   },
                   "padding": {
-                    "lg": "none"
+                    "lg": "md"
                   },
                   "valign": "start",
-                  "surface": "none",
+                  "surface": "panel",
                   "widgets": [
                     {
                       "id": "onepw008",
@@ -364,7 +365,8 @@
                             "link": null
                           }
                         ],
-                        "columns": "4"
+                        "columns": "4",
+                        "numbers": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -406,7 +408,9 @@
                         "showDay": true,
                         "showWeek": true,
                         "showMonth": true,
-                        "defaultTab": "week"
+                        "defaultTab": "week",
+                        "bars": "under",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -441,7 +445,7 @@
           ]
         },
         {
-          "id": "oneps028",
+          "id": "oneps029",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -461,7 +465,7 @@
           "label": "Events",
           "rows": [
             {
-              "id": "onepr027",
+              "id": "onepr028",
               "gap": {
                 "lg": "md"
               },
@@ -490,6 +494,7 @@
                       "v": 1,
                       "settings": {
                         "title": "Coming up",
+                        "style": "list",
                         "limit": 4,
                         "showImages": true
                       },
@@ -498,7 +503,7 @@
                   ]
                 },
                 {
-                  "id": "onepc026",
+                  "id": "onepc027",
                   "span": {
                     "lg": 5,
                     "md": 12
@@ -520,6 +525,17 @@
                         "daily": true
                       },
                       "unmet": "hide"
+                    },
+                    {
+                      "id": "onepw026",
+                      "type": "polls",
+                      "v": 1,
+                      "settings": {
+                        "title": "Have your say",
+                        "limit": 1,
+                        "showClosed": false
+                      },
+                      "unmet": "hide"
                     }
                   ]
                 }
@@ -528,7 +544,7 @@
           ]
         },
         {
-          "id": "oneps034",
+          "id": "oneps035",
           "width": "wide",
           "background": {
             "kind": "accent"
@@ -548,7 +564,7 @@
           "label": "Join",
           "rows": [
             {
-              "id": "onepr033",
+              "id": "onepr034",
               "gap": {
                 "lg": "md"
               },
@@ -560,7 +576,7 @@
               },
               "cells": [
                 {
-                  "id": "onepc030",
+                  "id": "onepc031",
                   "span": {
                     "lg": 7,
                     "md": 12
@@ -572,7 +588,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "onepw029",
+                      "id": "onepw030",
                       "type": "faq",
                       "v": 1,
                       "settings": {
@@ -597,7 +613,7 @@
                   ]
                 },
                 {
-                  "id": "onepc032",
+                  "id": "onepc033",
                   "span": {
                     "lg": 5,
                     "md": 12
@@ -609,7 +625,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "onepw031",
+                      "id": "onepw032",
                       "type": "discord-join",
                       "v": 1,
                       "settings": {

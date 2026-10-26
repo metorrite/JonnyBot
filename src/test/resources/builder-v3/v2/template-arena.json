@@ -15,7 +15,7 @@
       "border": "#1f2a37"
     },
     "fonts": {
-      "heading": "bebas-neue",
+      "heading": "inter",
       "body": "lato"
     },
     "radius": "none",
@@ -303,6 +303,7 @@
                         ],
                         "align": "left",
                         "size": "medium",
+                        "look": "buttons",
                         "fullWidth": false
                       },
                       "unmet": "hide"
@@ -453,7 +454,9 @@
                         "metric": "xp",
                         "period": "week",
                         "visitorPeriods": true,
-                        "limit": 10
+                        "limit": 10,
+                        "bars": "under",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -503,7 +506,7 @@
                       "settings": {
                         "title": "Last week's podium",
                         "period": "last-week",
-                        "visitorPeriods": true,
+                        "visitorPeriods": false,
                         "showTop": true
                       },
                       "unmet": "hide"
@@ -598,7 +601,8 @@
                             "link": null
                           }
                         ],
-                        "columns": "2"
+                        "columns": "2",
+                        "numbers": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -1008,7 +1012,9 @@
                         "metric": "xp",
                         "period": "month",
                         "visitorPeriods": true,
-                        "limit": 15
+                        "limit": 15,
+                        "bars": "under",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -1035,7 +1041,9 @@
                         "metric": "citadel",
                         "period": "month",
                         "visitorPeriods": true,
-                        "limit": 15
+                        "limit": 15,
+                        "bars": "under",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -1076,7 +1084,9 @@
                         "metric": "joins",
                         "period": "month",
                         "visitorPeriods": true,
-                        "limit": 15
+                        "limit": 15,
+                        "bars": "under",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -1104,7 +1114,9 @@
                         "showDay": true,
                         "showWeek": true,
                         "showMonth": true,
-                        "defaultTab": "week"
+                        "defaultTab": "week",
+                        "bars": "under",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -1401,8 +1413,10 @@
                         "showLevel": true,
                         "showXp": false,
                         "showJoined": false,
+                        "showPoints": false,
                         "search": true,
                         "rankFilter": true,
+                        "sortControls": false,
                         "linkPages": true
                       },
                       "unmet": "hide"
@@ -1499,6 +1513,7 @@
                       "type": "member-card",
                       "v": 1,
                       "settings": {
+                        "showStrip": false,
                         "showBio": true,
                         "showTotals": true,
                         "showNextRank": true,
@@ -1506,7 +1521,9 @@
                         "comparePage": {
                           "kind": "page",
                           "pageId": "arenapcompare"
-                        }
+                        },
+                        "showRecap": false,
+                        "recapPage": null
                       },
                       "unmet": "hide"
                     }
@@ -1694,7 +1711,8 @@
                       "v": 1,
                       "settings": {
                         "title": "Clan points",
-                        "limit": 8
+                        "limit": 8,
+                        "showChart": false
                       },
                       "unmet": "hide"
                     }
@@ -2203,7 +2221,8 @@
                             "link": null
                           }
                         ],
-                        "columns": "4"
+                        "columns": "4",
+                        "numbers": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -2369,7 +2388,9 @@
                       "settings": {
                         "title": "Highest total XP",
                         "metric": "xp",
-                        "limit": 10
+                        "limit": 10,
+                        "bars": "under",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -2396,7 +2417,9 @@
                         "metric": "citadel",
                         "period": "all",
                         "visitorPeriods": false,
-                        "limit": 10
+                        "limit": 10,
+                        "bars": "under",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }

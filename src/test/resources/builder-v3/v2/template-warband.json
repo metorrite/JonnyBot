@@ -15,7 +15,7 @@
       "border": "#3a2424"
     },
     "fonts": {
-      "heading": "bebas-neue",
+      "heading": "cinzel",
       "body": "inter"
     },
     "radius": "sm",
@@ -50,7 +50,7 @@
     "mobile": "drawer",
     "nav": [
       {
-        "id": "warbn136",
+        "id": "warbn135",
         "label": "Home",
         "link": {
           "kind": "page",
@@ -58,7 +58,7 @@
         }
       },
       {
-        "id": "warbn137",
+        "id": "warbn136",
         "label": "PvM",
         "link": {
           "kind": "page",
@@ -66,7 +66,7 @@
         },
         "children": [
           {
-            "id": "warbn138",
+            "id": "warbn137",
             "label": "Boss kills",
             "link": {
               "kind": "page",
@@ -75,7 +75,7 @@
             "description": "Kills per boss, and a page for each one"
           },
           {
-            "id": "warbn139",
+            "id": "warbn138",
             "label": "Drop log",
             "link": {
               "kind": "page",
@@ -84,7 +84,7 @@
             "description": "Every drop the warband has had"
           },
           {
-            "id": "warbn140",
+            "id": "warbn139",
             "label": "Hall of fame",
             "link": {
               "kind": "page",
@@ -95,7 +95,7 @@
         ]
       },
       {
-        "id": "warbn141",
+        "id": "warbn140",
         "label": "Leaderboards",
         "link": {
           "kind": "page",
@@ -103,7 +103,7 @@
         }
       },
       {
-        "id": "warbn142",
+        "id": "warbn141",
         "label": "Events",
         "link": {
           "kind": "page",
@@ -112,7 +112,7 @@
         "badge": "events"
       },
       {
-        "id": "warbn143",
+        "id": "warbn142",
         "label": "Members",
         "link": {
           "kind": "page",
@@ -120,7 +120,7 @@
         }
       },
       {
-        "id": "warbn144",
+        "id": "warbn143",
         "label": "Join",
         "link": {
           "kind": "page",
@@ -222,10 +222,10 @@
       "access": "public",
       "sections": [
         {
-          "id": "warbs008",
+          "id": "warbs007",
           "width": "full",
           "background": {
-            "kind": "accent"
+            "kind": "surface"
           },
           "padding": {
             "lg": {
@@ -241,7 +241,7 @@
           "label": "Banner",
           "rows": [
             {
-              "id": "warbr007",
+              "id": "warbr006",
               "gap": {
                 "lg": "md"
               },
@@ -253,7 +253,7 @@
               },
               "cells": [
                 {
-                  "id": "warbc004",
+                  "id": "warbc003",
                   "span": {
                     "lg": 7,
                     "md": 12
@@ -280,17 +280,6 @@
                     },
                     {
                       "id": "warbw002",
-                      "type": "text",
-                      "v": 1,
-                      "settings": {
-                        "markdown": "Raids, reapers and rare drops, several nights a week. Bring your best gear and your sense of humour: we teach new raiders and we celebrate every purple.",
-                        "align": "left",
-                        "width": "readable"
-                      },
-                      "unmet": "hide"
-                    },
-                    {
-                      "id": "warbw003",
                       "type": "button-row",
                       "v": 1,
                       "settings": {
@@ -314,6 +303,7 @@
                         ],
                         "align": "left",
                         "size": "large",
+                        "look": "buttons",
                         "fullWidth": false
                       },
                       "unmet": "hide"
@@ -321,7 +311,7 @@
                   ]
                 },
                 {
-                  "id": "warbc006",
+                  "id": "warbc005",
                   "span": {
                     "lg": 5,
                     "md": 12
@@ -333,7 +323,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "warbw005",
+                      "id": "warbw004",
                       "type": "stat-tiles",
                       "v": 2,
                       "settings": {
@@ -359,7 +349,8 @@
                             "link": null
                           }
                         ],
-                        "columns": "2"
+                        "columns": "2",
+                        "numbers": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -370,7 +361,7 @@
           ]
         },
         {
-          "id": "warbs021",
+          "id": "warbs020",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -388,7 +379,7 @@
           },
           "rows": [
             {
-              "id": "warbr015",
+              "id": "warbr014",
               "gap": {
                 "lg": "md"
               },
@@ -400,7 +391,7 @@
               },
               "cells": [
                 {
-                  "id": "warbc010",
+                  "id": "warbc009",
                   "span": {
                     "lg": 4,
                     "md": 6,
@@ -413,7 +404,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "warbw009",
+                      "id": "warbw008",
                       "type": "kill-tracker",
                       "v": 1,
                       "settings": {
@@ -426,7 +417,7 @@
                   ]
                 },
                 {
-                  "id": "warbc012",
+                  "id": "warbc011",
                   "span": {
                     "lg": 4,
                     "md": 6,
@@ -439,21 +430,22 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "warbw011",
+                      "id": "warbw010",
                       "type": "drop-log",
                       "v": 1,
                       "settings": {
                         "title": "Latest drops",
                         "period": "month",
                         "showGrid": false,
-                        "limit": 8
+                        "limit": 8,
+                        "bossFilter": false
                       },
                       "unmet": "hide"
                     }
                   ]
                 },
                 {
-                  "id": "warbc014",
+                  "id": "warbc013",
                   "span": {
                     "lg": 4,
                     "md": 12,
@@ -466,11 +458,12 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "warbw013",
+                      "id": "warbw012",
                       "type": "events",
                       "v": 1,
                       "settings": {
                         "title": "Next raids",
+                        "style": "list",
                         "limit": 4,
                         "showImages": false
                       },
@@ -481,7 +474,7 @@
               ]
             },
             {
-              "id": "warbr020",
+              "id": "warbr019",
               "gap": {
                 "lg": "md"
               },
@@ -493,7 +486,7 @@
               },
               "cells": [
                 {
-                  "id": "warbc017",
+                  "id": "warbc016",
                   "span": {
                     "lg": 8,
                     "md": 12
@@ -505,7 +498,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "warbw016",
+                      "id": "warbw015",
                       "type": "hub-events",
                       "v": 1,
                       "settings": {
@@ -518,7 +511,7 @@
                   ]
                 },
                 {
-                  "id": "warbc019",
+                  "id": "warbc018",
                   "span": {
                     "lg": 4,
                     "md": 12
@@ -530,14 +523,11 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "warbw018",
+                      "id": "warbw017",
                       "type": "discord-online",
-                      "v": 1,
+                      "v": 2,
                       "settings": {
-                        "title": "Who's online",
-                        "show": "names",
-                        "groups": true,
-                        "limit": 16
+                        "title": "Who's online"
                       },
                       "unmet": "hide"
                     }
@@ -548,7 +538,7 @@
           ]
         },
         {
-          "id": "warbs027",
+          "id": "warbs026",
           "width": "wide",
           "background": {
             "kind": "surface"
@@ -567,7 +557,7 @@
           "label": "Join",
           "rows": [
             {
-              "id": "warbr026",
+              "id": "warbr025",
               "gap": {
                 "lg": "md"
               },
@@ -579,7 +569,7 @@
               },
               "cells": [
                 {
-                  "id": "warbc023",
+                  "id": "warbc022",
                   "span": {
                     "lg": 8,
                     "md": 12
@@ -591,7 +581,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "warbw022",
+                      "id": "warbw021",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -607,7 +597,7 @@
                   ]
                 },
                 {
-                  "id": "warbc025",
+                  "id": "warbc024",
                   "span": {
                     "lg": 4,
                     "md": 12
@@ -619,7 +609,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "warbw024",
+                      "id": "warbw023",
                       "type": "discord-join",
                       "v": 1,
                       "settings": {
@@ -649,7 +639,7 @@
       },
       "sections": [
         {
-          "id": "warbs028",
+          "id": "warbs027",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -667,7 +657,7 @@
           },
           "rows": [
             {
-              "id": "warbr029",
+              "id": "warbr028",
               "gap": {
                 "lg": "md"
               },
@@ -679,7 +669,7 @@
               },
               "cells": [
                 {
-                  "id": "warbc030",
+                  "id": "warbc029",
                   "span": {
                     "lg": 12
                   },
@@ -690,7 +680,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "warbw031",
+                      "id": "warbw030",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -710,7 +700,7 @@
           ]
         },
         {
-          "id": "warbs032",
+          "id": "warbs031",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -728,7 +718,7 @@
           },
           "rows": [
             {
-              "id": "warbr033",
+              "id": "warbr032",
               "gap": {
                 "lg": "md"
               },
@@ -740,7 +730,7 @@
               },
               "cells": [
                 {
-                  "id": "warbc034",
+                  "id": "warbc033",
                   "span": {
                     "lg": 12
                   },
@@ -751,7 +741,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "warbw035",
+                      "id": "warbw034",
                       "type": "button-row",
                       "v": 1,
                       "settings": {
@@ -767,6 +757,7 @@
                         ],
                         "align": "left",
                         "size": "medium",
+                        "look": "buttons",
                         "fullWidth": true
                       },
                       "unmet": "hide"
@@ -776,7 +767,7 @@
               ]
             },
             {
-              "id": "warbr036",
+              "id": "warbr035",
               "gap": {
                 "lg": "md"
               },
@@ -788,7 +779,7 @@
               },
               "cells": [
                 {
-                  "id": "warbc037",
+                  "id": "warbc036",
                   "span": {
                     "lg": 7,
                     "md": 12
@@ -800,7 +791,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "warbw038",
+                      "id": "warbw037",
                       "type": "kill-tracker",
                       "v": 1,
                       "settings": {
@@ -813,7 +804,7 @@
                   ]
                 },
                 {
-                  "id": "warbc039",
+                  "id": "warbc038",
                   "span": {
                     "lg": 5,
                     "md": 12
@@ -825,7 +816,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "warbw040",
+                      "id": "warbw039",
                       "type": "drops",
                       "v": 1,
                       "settings": {
@@ -855,7 +846,7 @@
       },
       "sections": [
         {
-          "id": "warbs041",
+          "id": "warbs040",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -873,7 +864,7 @@
           },
           "rows": [
             {
-              "id": "warbr042",
+              "id": "warbr041",
               "gap": {
                 "lg": "md"
               },
@@ -885,7 +876,7 @@
               },
               "cells": [
                 {
-                  "id": "warbc043",
+                  "id": "warbc042",
                   "span": {
                     "lg": 12
                   },
@@ -896,12 +887,16 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "warbw044",
+                      "id": "warbw043",
                       "type": "boss-detail",
                       "v": 1,
                       "settings": {
                         "period": "all",
-                        "limit": 25
+                        "limit": 25,
+                        "header": false,
+                        "players": "bars",
+                        "days": "all",
+                        "collection": false
                       },
                       "unmet": "hide"
                     }
@@ -925,7 +920,7 @@
       },
       "sections": [
         {
-          "id": "warbs045",
+          "id": "warbs044",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -943,7 +938,7 @@
           },
           "rows": [
             {
-              "id": "warbr046",
+              "id": "warbr045",
               "gap": {
                 "lg": "md"
               },
@@ -955,7 +950,7 @@
               },
               "cells": [
                 {
-                  "id": "warbc047",
+                  "id": "warbc046",
                   "span": {
                     "lg": 12
                   },
@@ -966,7 +961,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "warbw048",
+                      "id": "warbw047",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -986,7 +981,7 @@
           ]
         },
         {
-          "id": "warbs049",
+          "id": "warbs048",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1004,7 +999,7 @@
           },
           "rows": [
             {
-              "id": "warbr050",
+              "id": "warbr049",
               "gap": {
                 "lg": "md"
               },
@@ -1016,7 +1011,7 @@
               },
               "cells": [
                 {
-                  "id": "warbc051",
+                  "id": "warbc050",
                   "span": {
                     "lg": 12
                   },
@@ -1027,14 +1022,15 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "warbw052",
+                      "id": "warbw051",
                       "type": "drop-log",
                       "v": 1,
                       "settings": {
                         "title": "",
                         "period": "all",
                         "showGrid": true,
-                        "limit": 25
+                        "limit": 25,
+                        "bossFilter": false
                       },
                       "unmet": "hide"
                     }
@@ -1059,7 +1055,7 @@
       },
       "sections": [
         {
-          "id": "warbs053",
+          "id": "warbs052",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1077,7 +1073,7 @@
           },
           "rows": [
             {
-              "id": "warbr054",
+              "id": "warbr053",
               "gap": {
                 "lg": "md"
               },
@@ -1089,7 +1085,7 @@
               },
               "cells": [
                 {
-                  "id": "warbc055",
+                  "id": "warbc054",
                   "span": {
                     "lg": 12
                   },
@@ -1100,7 +1096,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "warbw056",
+                      "id": "warbw055",
                       "type": "item-detail",
                       "v": 1,
                       "settings": {
@@ -1125,7 +1121,7 @@
       "access": "public",
       "sections": [
         {
-          "id": "warbs060",
+          "id": "warbs059",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1143,7 +1139,7 @@
           },
           "rows": [
             {
-              "id": "warbr059",
+              "id": "warbr058",
               "gap": {
                 "lg": "md"
               },
@@ -1155,7 +1151,7 @@
               },
               "cells": [
                 {
-                  "id": "warbc058",
+                  "id": "warbc057",
                   "span": {
                     "lg": 12
                   },
@@ -1166,7 +1162,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "warbw057",
+                      "id": "warbw056",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -1186,7 +1182,7 @@
           ]
         },
         {
-          "id": "warbs071",
+          "id": "warbs070",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1204,7 +1200,7 @@
           },
           "rows": [
             {
-              "id": "warbr067",
+              "id": "warbr066",
               "gap": {
                 "lg": "md"
               },
@@ -1216,7 +1212,7 @@
               },
               "cells": [
                 {
-                  "id": "warbc062",
+                  "id": "warbc061",
                   "span": {
                     "lg": 4,
                     "md": 12
@@ -1228,7 +1224,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "warbw061",
+                      "id": "warbw060",
                       "type": "kill-tracker",
                       "v": 1,
                       "settings": {
@@ -1241,7 +1237,7 @@
                   ]
                 },
                 {
-                  "id": "warbc064",
+                  "id": "warbc063",
                   "span": {
                     "lg": 4,
                     "md": 12
@@ -1253,7 +1249,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "warbw063",
+                      "id": "warbw062",
                       "type": "leaderboard",
                       "v": 1,
                       "settings": {
@@ -1261,14 +1257,16 @@
                         "metric": "xp",
                         "period": "month",
                         "visitorPeriods": true,
-                        "limit": 15
+                        "limit": 15,
+                        "bars": "under",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
                   ]
                 },
                 {
-                  "id": "warbc066",
+                  "id": "warbc065",
                   "span": {
                     "lg": 4,
                     "md": 12
@@ -1280,13 +1278,15 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "warbw065",
+                      "id": "warbw064",
                       "type": "top-list",
                       "v": 1,
                       "settings": {
                         "title": "Highest total level",
                         "metric": "level",
-                        "limit": 15
+                        "limit": 15,
+                        "bars": "under",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -1295,7 +1295,7 @@
               ]
             },
             {
-              "id": "warbr070",
+              "id": "warbr069",
               "gap": {
                 "lg": "md"
               },
@@ -1307,7 +1307,7 @@
               },
               "cells": [
                 {
-                  "id": "warbc069",
+                  "id": "warbc068",
                   "span": {
                     "lg": 12
                   },
@@ -1318,7 +1318,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "warbw068",
+                      "id": "warbw067",
                       "type": "event-standings",
                       "v": 1,
                       "settings": {
@@ -1343,7 +1343,7 @@
       "access": "public",
       "sections": [
         {
-          "id": "warbs075",
+          "id": "warbs074",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1361,7 +1361,7 @@
           },
           "rows": [
             {
-              "id": "warbr074",
+              "id": "warbr073",
               "gap": {
                 "lg": "md"
               },
@@ -1373,7 +1373,7 @@
               },
               "cells": [
                 {
-                  "id": "warbc073",
+                  "id": "warbc072",
                   "span": {
                     "lg": 12
                   },
@@ -1384,7 +1384,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "warbw072",
+                      "id": "warbw071",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -1404,7 +1404,7 @@
           ]
         },
         {
-          "id": "warbs084",
+          "id": "warbs083",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1422,7 +1422,7 @@
           },
           "rows": [
             {
-              "id": "warbr080",
+              "id": "warbr079",
               "gap": {
                 "lg": "md"
               },
@@ -1434,7 +1434,7 @@
               },
               "cells": [
                 {
-                  "id": "warbc077",
+                  "id": "warbc076",
                   "span": {
                     "lg": 7,
                     "md": 12
@@ -1446,11 +1446,12 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "warbw076",
+                      "id": "warbw075",
                       "type": "events",
                       "v": 1,
                       "settings": {
                         "title": "Coming up",
+                        "style": "list",
                         "limit": 8,
                         "showImages": true
                       },
@@ -1459,7 +1460,7 @@
                   ]
                 },
                 {
-                  "id": "warbc079",
+                  "id": "warbc078",
                   "span": {
                     "lg": 5,
                     "md": 12
@@ -1471,7 +1472,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "warbw078",
+                      "id": "warbw077",
                       "type": "signups",
                       "v": 1,
                       "settings": {
@@ -1486,7 +1487,7 @@
               ]
             },
             {
-              "id": "warbr083",
+              "id": "warbr082",
               "gap": {
                 "lg": "md"
               },
@@ -1498,7 +1499,7 @@
               },
               "cells": [
                 {
-                  "id": "warbc082",
+                  "id": "warbc081",
                   "span": {
                     "lg": 12
                   },
@@ -1509,7 +1510,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "warbw081",
+                      "id": "warbw080",
                       "type": "hub-events",
                       "v": 1,
                       "settings": {
@@ -1540,7 +1541,7 @@
       },
       "sections": [
         {
-          "id": "warbs085",
+          "id": "warbs084",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1558,7 +1559,7 @@
           },
           "rows": [
             {
-              "id": "warbr086",
+              "id": "warbr085",
               "gap": {
                 "lg": "md"
               },
@@ -1570,7 +1571,7 @@
               },
               "cells": [
                 {
-                  "id": "warbc087",
+                  "id": "warbc086",
                   "span": {
                     "lg": 12
                   },
@@ -1581,7 +1582,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "warbw088",
+                      "id": "warbw087",
                       "type": "event-detail",
                       "v": 1,
                       "settings": {
@@ -1611,7 +1612,7 @@
       },
       "sections": [
         {
-          "id": "warbs089",
+          "id": "warbs088",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1629,7 +1630,7 @@
           },
           "rows": [
             {
-              "id": "warbr090",
+              "id": "warbr089",
               "gap": {
                 "lg": "md"
               },
@@ -1641,7 +1642,7 @@
               },
               "cells": [
                 {
-                  "id": "warbc091",
+                  "id": "warbc090",
                   "span": {
                     "lg": 12
                   },
@@ -1652,7 +1653,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "warbw092",
+                      "id": "warbw091",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -1672,7 +1673,7 @@
           ]
         },
         {
-          "id": "warbs093",
+          "id": "warbs092",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1690,7 +1691,7 @@
           },
           "rows": [
             {
-              "id": "warbr094",
+              "id": "warbr093",
               "gap": {
                 "lg": "md"
               },
@@ -1702,7 +1703,7 @@
               },
               "cells": [
                 {
-                  "id": "warbc095",
+                  "id": "warbc094",
                   "span": {
                     "lg": 8,
                     "md": 12
@@ -1714,7 +1715,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "warbw096",
+                      "id": "warbw095",
                       "type": "hall-of-fame",
                       "v": 1,
                       "settings": {
@@ -1730,7 +1731,7 @@
                   ]
                 },
                 {
-                  "id": "warbc097",
+                  "id": "warbc096",
                   "span": {
                     "lg": 4,
                     "md": 12
@@ -1742,7 +1743,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "warbw098",
+                      "id": "warbw097",
                       "type": "milestones",
                       "v": 1,
                       "settings": {
@@ -1771,7 +1772,7 @@
       },
       "sections": [
         {
-          "id": "warbs099",
+          "id": "warbs098",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1789,7 +1790,7 @@
           },
           "rows": [
             {
-              "id": "warbr100",
+              "id": "warbr099",
               "gap": {
                 "lg": "md"
               },
@@ -1801,7 +1802,7 @@
               },
               "cells": [
                 {
-                  "id": "warbc101",
+                  "id": "warbc100",
                   "span": {
                     "lg": 12
                   },
@@ -1812,7 +1813,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "warbw102",
+                      "id": "warbw101",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -1832,7 +1833,7 @@
           ]
         },
         {
-          "id": "warbs103",
+          "id": "warbs102",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1850,7 +1851,7 @@
           },
           "rows": [
             {
-              "id": "warbr104",
+              "id": "warbr103",
               "gap": {
                 "lg": "md"
               },
@@ -1862,7 +1863,7 @@
               },
               "cells": [
                 {
-                  "id": "warbc105",
+                  "id": "warbc104",
                   "span": {
                     "lg": 9,
                     "md": 12
@@ -1874,7 +1875,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "warbw106",
+                      "id": "warbw105",
                       "type": "member-directory",
                       "v": 1,
                       "settings": {
@@ -1886,8 +1887,10 @@
                         "showLevel": true,
                         "showXp": false,
                         "showJoined": false,
+                        "showPoints": false,
                         "search": true,
                         "rankFilter": true,
+                        "sortControls": false,
                         "linkPages": true
                       },
                       "unmet": "hide"
@@ -1895,7 +1898,7 @@
                   ]
                 },
                 {
-                  "id": "warbc107",
+                  "id": "warbc106",
                   "span": {
                     "lg": 3,
                     "md": 12
@@ -1907,7 +1910,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "warbw108",
+                      "id": "warbw107",
                       "type": "rank-breakdown",
                       "v": 1,
                       "settings": {
@@ -1935,7 +1938,7 @@
       "template": "member",
       "sections": [
         {
-          "id": "warbs112",
+          "id": "warbs111",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1953,7 +1956,7 @@
           },
           "rows": [
             {
-              "id": "warbr111",
+              "id": "warbr110",
               "gap": {
                 "lg": "md"
               },
@@ -1965,7 +1968,7 @@
               },
               "cells": [
                 {
-                  "id": "warbc110",
+                  "id": "warbc109",
                   "span": {
                     "lg": 12
                   },
@@ -1976,15 +1979,18 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "warbw109",
+                      "id": "warbw108",
                       "type": "member-card",
                       "v": 1,
                       "settings": {
+                        "showStrip": false,
                         "showBio": true,
                         "showTotals": true,
                         "showNextRank": true,
                         "showCompare": false,
-                        "comparePage": null
+                        "comparePage": null,
+                        "showRecap": false,
+                        "recapPage": null
                       },
                       "unmet": "hide"
                     }
@@ -1995,7 +2001,7 @@
           ]
         },
         {
-          "id": "warbs123",
+          "id": "warbs122",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -2013,7 +2019,7 @@
           },
           "rows": [
             {
-              "id": "warbr117",
+              "id": "warbr116",
               "gap": {
                 "lg": "md"
               },
@@ -2025,7 +2031,7 @@
               },
               "cells": [
                 {
-                  "id": "warbc114",
+                  "id": "warbc113",
                   "span": {
                     "lg": 8,
                     "md": 12
@@ -2037,7 +2043,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "warbw113",
+                      "id": "warbw112",
                       "type": "member-xp-chart",
                       "v": 1,
                       "settings": {
@@ -2050,7 +2056,7 @@
                   ]
                 },
                 {
-                  "id": "warbc116",
+                  "id": "warbc115",
                   "span": {
                     "lg": 4,
                     "md": 12
@@ -2062,7 +2068,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "warbw115",
+                      "id": "warbw114",
                       "type": "member-badges",
                       "v": 1,
                       "settings": {
@@ -2077,7 +2083,7 @@
               ]
             },
             {
-              "id": "warbr122",
+              "id": "warbr121",
               "gap": {
                 "lg": "md"
               },
@@ -2089,7 +2095,7 @@
               },
               "cells": [
                 {
-                  "id": "warbc119",
+                  "id": "warbc118",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -2101,7 +2107,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "warbw118",
+                      "id": "warbw117",
                       "type": "member-adventure-log",
                       "v": 1,
                       "settings": {
@@ -2114,7 +2120,7 @@
                   ]
                 },
                 {
-                  "id": "warbc121",
+                  "id": "warbc120",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -2126,7 +2132,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "warbw120",
+                      "id": "warbw119",
                       "type": "member-skills",
                       "v": 1,
                       "settings": {
@@ -2155,7 +2161,7 @@
       "access": "public",
       "sections": [
         {
-          "id": "warbs127",
+          "id": "warbs126",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -2173,7 +2179,7 @@
           },
           "rows": [
             {
-              "id": "warbr126",
+              "id": "warbr125",
               "gap": {
                 "lg": "md"
               },
@@ -2185,7 +2191,7 @@
               },
               "cells": [
                 {
-                  "id": "warbc125",
+                  "id": "warbc124",
                   "span": {
                     "lg": 12
                   },
@@ -2196,7 +2202,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "warbw124",
+                      "id": "warbw123",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -2216,7 +2222,7 @@
           ]
         },
         {
-          "id": "warbs135",
+          "id": "warbs134",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -2234,7 +2240,7 @@
           },
           "rows": [
             {
-              "id": "warbr134",
+              "id": "warbr133",
               "gap": {
                 "lg": "md"
               },
@@ -2246,7 +2252,7 @@
               },
               "cells": [
                 {
-                  "id": "warbc130",
+                  "id": "warbc129",
                   "span": {
                     "lg": 7,
                     "md": 12
@@ -2258,7 +2264,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "warbw128",
+                      "id": "warbw127",
                       "type": "text",
                       "v": 1,
                       "settings": {
@@ -2269,7 +2275,7 @@
                       "unmet": "hide"
                     },
                     {
-                      "id": "warbw129",
+                      "id": "warbw128",
                       "type": "faq",
                       "v": 1,
                       "settings": {
@@ -2294,7 +2300,7 @@
                   ]
                 },
                 {
-                  "id": "warbc133",
+                  "id": "warbc132",
                   "span": {
                     "lg": 5,
                     "md": 12
@@ -2306,7 +2312,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "warbw131",
+                      "id": "warbw130",
                       "type": "recruiting",
                       "v": 1,
                       "settings": {
@@ -2317,7 +2323,7 @@
                       "unmet": "hide"
                     },
                     {
-                      "id": "warbw132",
+                      "id": "warbw131",
                       "type": "discord-join",
                       "v": 1,
                       "settings": {

@@ -85,6 +85,16 @@ class ClanSiteLayoutRulesTest {
     }
 
     @Test
+    void theClanHallThemeIsAcceptedAndAnUnknownOneIsNot() {
+        DataObject hall = good();
+        hall.getObject("look").put("theme", "clanhall");
+        assertTrue(problems(hall).isEmpty(), "Clan Hall (T-574)");
+        DataObject odd = good();
+        odd.getObject("look").put("theme", "gold");
+        assertTrue(problems(odd).contains("Pick one of the site themes."));
+    }
+
+    @Test
     void theVersionMustMatch() {
         assertFalse(problems(good().put("v", 2)).isEmpty());
     }

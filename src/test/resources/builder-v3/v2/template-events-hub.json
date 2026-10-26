@@ -31,7 +31,14 @@
       "height": 40
     },
     "slots": {
-      "left": [],
+      "left": [
+        {
+          "kind": "online-count",
+          "settings": {
+            "label": "online"
+          }
+        }
+      ],
       "right": [
         {
           "kind": "discord",
@@ -55,7 +62,7 @@
     },
     "nav": [
       {
-        "id": "evhubn067",
+        "id": "evhubn066",
         "label": "Home",
         "link": {
           "kind": "page",
@@ -63,7 +70,7 @@
         }
       },
       {
-        "id": "evhubn068",
+        "id": "evhubn067",
         "label": "Calendar",
         "link": {
           "kind": "page",
@@ -72,7 +79,7 @@
         "badge": "events"
       },
       {
-        "id": "evhubn069",
+        "id": "evhubn068",
         "label": "Competitions",
         "link": {
           "kind": "page",
@@ -80,7 +87,7 @@
         }
       },
       {
-        "id": "evhubn070",
+        "id": "evhubn069",
         "label": "Signups",
         "link": {
           "kind": "page",
@@ -88,7 +95,7 @@
         }
       },
       {
-        "id": "evhubn071",
+        "id": "evhubn070",
         "label": "Polls",
         "link": {
           "kind": "page",
@@ -160,7 +167,7 @@
           "id": "evhubs007",
           "width": "full",
           "background": {
-            "kind": "accent"
+            "kind": "surface"
           },
           "padding": {
             "lg": {
@@ -238,6 +245,7 @@
                         ],
                         "align": "left",
                         "size": "medium",
+                        "look": "buttons",
                         "fullWidth": false
                       },
                       "unmet": "hide"
@@ -262,6 +270,7 @@
                       "v": 1,
                       "settings": {
                         "title": "Next up",
+                        "style": "list",
                         "limit": 3,
                         "showImages": false
                       },
@@ -274,7 +283,7 @@
           ]
         },
         {
-          "id": "evhubs021",
+          "id": "evhubs018",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -355,7 +364,7 @@
               ]
             },
             {
-              "id": "evhubr020",
+              "id": "evhubr017",
               "gap": {
                 "lg": "md"
               },
@@ -369,7 +378,7 @@
                 {
                   "id": "evhubc014",
                   "span": {
-                    "lg": 4,
+                    "lg": 6,
                     "md": 12
                   },
                   "padding": {
@@ -394,7 +403,7 @@
                 {
                   "id": "evhubc016",
                   "span": {
-                    "lg": 4,
+                    "lg": 6,
                     "md": 12
                   },
                   "padding": {
@@ -415,44 +424,6 @@
                       "unmet": "hide"
                     }
                   ]
-                },
-                {
-                  "id": "evhubc019",
-                  "span": {
-                    "lg": 4,
-                    "md": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "evhubw017",
-                      "type": "discord-online",
-                      "v": 1,
-                      "settings": {
-                        "title": "Online now",
-                        "show": "count",
-                        "groups": true,
-                        "limit": 24
-                      },
-                      "unmet": "hide"
-                    },
-                    {
-                      "id": "evhubw018",
-                      "type": "citadel-timer",
-                      "v": 1,
-                      "settings": {
-                        "title": "Weekly reset",
-                        "day": "3",
-                        "hour": 0,
-                        "daily": true
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
                 }
               ]
             }
@@ -468,7 +439,7 @@
       "access": "public",
       "sections": [
         {
-          "id": "evhubs025",
+          "id": "evhubs022",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -486,7 +457,7 @@
           },
           "rows": [
             {
-              "id": "evhubr024",
+              "id": "evhubr021",
               "gap": {
                 "lg": "md"
               },
@@ -498,7 +469,7 @@
               },
               "cells": [
                 {
-                  "id": "evhubc023",
+                  "id": "evhubc020",
                   "span": {
                     "lg": 12
                   },
@@ -509,7 +480,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "evhubw022",
+                      "id": "evhubw019",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -529,7 +500,7 @@
           ]
         },
         {
-          "id": "evhubs031",
+          "id": "evhubs028",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -547,7 +518,7 @@
           },
           "rows": [
             {
-              "id": "evhubr030",
+              "id": "evhubr027",
               "gap": {
                 "lg": "md"
               },
@@ -559,7 +530,7 @@
               },
               "cells": [
                 {
-                  "id": "evhubc027",
+                  "id": "evhubc024",
                   "span": {
                     "lg": 9,
                     "md": 12
@@ -571,7 +542,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "evhubw026",
+                      "id": "evhubw023",
                       "type": "events-calendar",
                       "v": 1,
                       "settings": {
@@ -585,7 +556,7 @@
                   ]
                 },
                 {
-                  "id": "evhubc029",
+                  "id": "evhubc026",
                   "span": {
                     "lg": 3,
                     "md": 12
@@ -597,11 +568,12 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "evhubw028",
+                      "id": "evhubw025",
                       "type": "events",
                       "v": 1,
                       "settings": {
                         "title": "Coming up",
+                        "style": "list",
                         "limit": 6,
                         "showImages": false
                       },
@@ -623,7 +595,7 @@
       "access": "public",
       "sections": [
         {
-          "id": "evhubs035",
+          "id": "evhubs032",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -641,7 +613,7 @@
           },
           "rows": [
             {
-              "id": "evhubr034",
+              "id": "evhubr031",
               "gap": {
                 "lg": "md"
               },
@@ -653,7 +625,7 @@
               },
               "cells": [
                 {
-                  "id": "evhubc033",
+                  "id": "evhubc030",
                   "span": {
                     "lg": 12
                   },
@@ -664,7 +636,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "evhubw032",
+                      "id": "evhubw029",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -684,7 +656,7 @@
           ]
         },
         {
-          "id": "evhubs044",
+          "id": "evhubs041",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -702,7 +674,7 @@
           },
           "rows": [
             {
-              "id": "evhubr038",
+              "id": "evhubr035",
               "gap": {
                 "lg": "md"
               },
@@ -714,7 +686,7 @@
               },
               "cells": [
                 {
-                  "id": "evhubc037",
+                  "id": "evhubc034",
                   "span": {
                     "lg": 12
                   },
@@ -725,7 +697,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "evhubw036",
+                      "id": "evhubw033",
                       "type": "hub-events",
                       "v": 1,
                       "settings": {
@@ -740,7 +712,7 @@
               ]
             },
             {
-              "id": "evhubr043",
+              "id": "evhubr040",
               "gap": {
                 "lg": "md"
               },
@@ -752,7 +724,7 @@
               },
               "cells": [
                 {
-                  "id": "evhubc040",
+                  "id": "evhubc037",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -764,7 +736,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "evhubw039",
+                      "id": "evhubw036",
                       "type": "event-standings",
                       "v": 1,
                       "settings": {
@@ -776,7 +748,7 @@
                   ]
                 },
                 {
-                  "id": "evhubc042",
+                  "id": "evhubc039",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -788,7 +760,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "evhubw041",
+                      "id": "evhubw038",
                       "type": "recap",
                       "v": 1,
                       "settings": {
@@ -820,7 +792,7 @@
       },
       "sections": [
         {
-          "id": "evhubs045",
+          "id": "evhubs042",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -838,7 +810,7 @@
           },
           "rows": [
             {
-              "id": "evhubr046",
+              "id": "evhubr043",
               "gap": {
                 "lg": "md"
               },
@@ -850,7 +822,7 @@
               },
               "cells": [
                 {
-                  "id": "evhubc047",
+                  "id": "evhubc044",
                   "span": {
                     "lg": 12
                   },
@@ -861,7 +833,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "evhubw048",
+                      "id": "evhubw045",
                       "type": "event-detail",
                       "v": 1,
                       "settings": {
@@ -887,7 +859,7 @@
       "access": "public",
       "sections": [
         {
-          "id": "evhubs052",
+          "id": "evhubs049",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -905,7 +877,7 @@
           },
           "rows": [
             {
-              "id": "evhubr051",
+              "id": "evhubr048",
               "gap": {
                 "lg": "md"
               },
@@ -917,7 +889,7 @@
               },
               "cells": [
                 {
-                  "id": "evhubc050",
+                  "id": "evhubc047",
                   "span": {
                     "lg": 12
                   },
@@ -928,7 +900,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "evhubw049",
+                      "id": "evhubw046",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -948,7 +920,7 @@
           ]
         },
         {
-          "id": "evhubs058",
+          "id": "evhubs057",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -966,7 +938,7 @@
           },
           "rows": [
             {
-              "id": "evhubr057",
+              "id": "evhubr056",
               "gap": {
                 "lg": "md"
               },
@@ -978,7 +950,7 @@
               },
               "cells": [
                 {
-                  "id": "evhubc054",
+                  "id": "evhubc051",
                   "span": {
                     "lg": 8,
                     "md": 12
@@ -990,7 +962,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "evhubw053",
+                      "id": "evhubw050",
                       "type": "signups",
                       "v": 1,
                       "settings": {
@@ -1003,7 +975,7 @@
                   ]
                 },
                 {
-                  "id": "evhubc056",
+                  "id": "evhubc055",
                   "span": {
                     "lg": 4,
                     "md": 12
@@ -1015,13 +987,36 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "evhubw055",
+                      "id": "evhubw052",
                       "type": "discord-join",
                       "v": 1,
                       "settings": {
                         "title": "Sign up on Discord",
                         "text": "Prefer Discord? Every signup sheet is posted there too.",
                         "buttonLabel": "Join the Discord"
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "evhubw053",
+                      "type": "events",
+                      "v": 1,
+                      "settings": {
+                        "title": "Coming up",
+                        "style": "list",
+                        "limit": 4,
+                        "showImages": false
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "evhubw054",
+                      "type": "polls",
+                      "v": 1,
+                      "settings": {
+                        "title": "Vote now",
+                        "limit": 2,
+                        "showClosed": false
                       },
                       "unmet": "hide"
                     }
@@ -1041,7 +1036,7 @@
       "access": "public",
       "sections": [
         {
-          "id": "evhubs062",
+          "id": "evhubs061",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1059,7 +1054,7 @@
           },
           "rows": [
             {
-              "id": "evhubr061",
+              "id": "evhubr060",
               "gap": {
                 "lg": "md"
               },
@@ -1071,7 +1066,7 @@
               },
               "cells": [
                 {
-                  "id": "evhubc060",
+                  "id": "evhubc059",
                   "span": {
                     "lg": 12
                   },
@@ -1082,7 +1077,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "evhubw059",
+                      "id": "evhubw058",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -1102,7 +1097,7 @@
           ]
         },
         {
-          "id": "evhubs066",
+          "id": "evhubs065",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1120,7 +1115,7 @@
           },
           "rows": [
             {
-              "id": "evhubr065",
+              "id": "evhubr064",
               "gap": {
                 "lg": "md"
               },
@@ -1132,7 +1127,7 @@
               },
               "cells": [
                 {
-                  "id": "evhubc064",
+                  "id": "evhubc063",
                   "span": {
                     "lg": 12
                   },
@@ -1143,7 +1138,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "evhubw063",
+                      "id": "evhubw062",
                       "type": "polls",
                       "v": 1,
                       "settings": {
