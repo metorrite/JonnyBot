@@ -521,6 +521,70 @@ class ClanSiteLayoutRulesV2Test {
     }
 
     @Test
+    void younglingsRebuildFields() {
+        // runeclans T-518 (1:1 Younglings rebuild): narrower widths, a glowing background, a hidden footer, a centred menu, a plain current item
+        DataObject look = good();
+        DataObject section = look.getArray("pages").getObject(0).getArray("sections").getObject(0);
+        section.put("width", "slim").put("background", DataObject.empty().put("kind", "glow"));
+        look.getObject("header").put("navAlign", "center").put("navActive", "text");
+        look.getObject("footer").put("hidden", true);
+        assertTrue(problems(look).isEmpty(), problems(look).toString());
+        DataObject clean = DataObject.fromJson(ClanSiteLayoutRulesV2.clean(look, ClanSiteLayoutRulesV2.Limits.PREMIUM, new ArrayList<>()));
+        DataObject cleanSection = clean.getArray("pages").getObject(0).getArray("sections").getObject(0);
+        assertEquals("slim", cleanSection.getString("width"));
+        assertEquals("glow", cleanSection.getObject("background").getString("kind"));
+        assertEquals("center", clean.getObject("header").getString("navAlign"));
+        assertEquals("text", clean.getObject("header").getString("navActive"));
+        assertTrue(clean.getObject("footer").getBoolean("hidden"));
+
+        DataObject plain = DataObject.fromJson(ClanSiteLayoutRulesV2.clean(good(), ClanSiteLayoutRulesV2.Limits.PREMIUM, new ArrayList<>()));
+        assertFalse(plain.getObject("header").hasKey("navAlign"), "nothing is added to a layout that doesn't set it");
+        assertFalse(plain.getObject("header").hasKey("navActive"));
+        assertFalse(plain.getObject("footer").hasKey("hidden"));
+
+        DataObject bad = good();
+        bad.getArray("pages").getObject(0).getArray("sections").getObject(0).put("width", "tiny");
+        bad.getObject("header").put("navAlign", "left").put("navActive", "blink");
+        bad.getObject("footer").put("hidden", "yes");
+        List<String> found = problems(bad);
+        assertTrue(has(found, "unknown width"));
+        assertTrue(has(found, "unknown position"));
+        assertTrue(has(found, "current page"));
+        assertTrue(has(found, "hide setting"));
+    }
+
+    @Test
+    void spacingFields() {
+        // T-518: a 1.5rem spacing step, a cell's own space between widgets, and narrow side margins
+        DataObject look = good();
+        DataObject cell = look.getArray("pages").getObject(0).getArray("sections").getObject(0).getArray("rows").getObject(0).getArray("cells").getObject(0);
+        cell.put("gap", DataObject.empty().put("lg", "ml").put("base", "sm"));
+        cell.put("padding", DataObject.empty().put("lg", "ml"));
+        look.put("style", DataObject.empty().put("gutter", "narrow").put("tabs", "soft"));
+        assertTrue(problems(look).isEmpty(), problems(look).toString());
+        DataObject clean = DataObject.fromJson(ClanSiteLayoutRulesV2.clean(look, ClanSiteLayoutRulesV2.Limits.PREMIUM, new ArrayList<>()));
+        DataObject cleanCell = clean.getArray("pages").getObject(0).getArray("sections").getObject(0).getArray("rows").getObject(0).getArray("cells").getObject(0);
+        assertEquals("ml", cleanCell.getObject("gap").getString("lg"));
+        assertEquals("sm", cleanCell.getObject("gap").getString("base"));
+        assertEquals("ml", cleanCell.getObject("padding").getString("lg"));
+        assertEquals("narrow", clean.getObject("style").getString("gutter"));
+        assertEquals("soft", clean.getObject("style").getString("tabs"));
+
+        DataObject plain = DataObject.fromJson(ClanSiteLayoutRulesV2.clean(good(), ClanSiteLayoutRulesV2.Limits.PREMIUM, new ArrayList<>()));
+        DataObject plainCell = plain.getArray("pages").getObject(0).getArray("sections").getObject(0).getArray("rows").getObject(0).getArray("cells").getObject(0);
+        assertFalse(plainCell.hasKey("gap"), "nothing is added to a layout that doesn't set it");
+
+        DataObject bad = good();
+        bad.getArray("pages").getObject(0).getArray("sections").getObject(0).getArray("rows").getObject(0).getArray("cells").getObject(0)
+                .put("gap", DataObject.empty().put("lg", "huge"));
+        bad.put("style", DataObject.empty().put("gutter", "wide").put("tabs", "round"));
+        List<String> found = problems(bad);
+        assertTrue(has(found, "between its widgets"));
+        assertTrue(has(found, "side margins"));
+        assertTrue(has(found, "time-frame switches"));
+    }
+
+    @Test
     void sizes() {
         DataObject bigWidget = good();
         bigWidget.getArray("pages").getObject(0).getArray("sections").getObject(0).getArray("rows").getObject(0).getArray("cells").getObject(0)

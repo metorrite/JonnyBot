@@ -120,4 +120,27 @@ class ClanSitePluginFeedTest {
         assertNull(ClanSitePluginFeed.text("PRESENCE", DataObject.empty().put("state", "ONLINE")));
         assertEquals("got a drop: 1,000 x Coins", ClanSitePluginFeed.text("DROP", DataObject.empty().put("itemName", "Coins").put("quantity", 1000)));
     }
+
+    @Test
+    void theHeatmapPassesTheHubsClanTotalsThrough() {
+        RuneClansHubClient hub = mock(RuneClansHubClient.class);
+        when(hub.enabled()).thenReturn(true);
+        DataObject answer = DataObject.empty().put("enough", true).put("players", 4).put("byDay", DataArray.empty().add(DataObject.empty().put("date", "2026-10-25").put("xp", 1200)));
+        when(hub.guildXpActivity(GUILD)).thenReturn(new RuneClansHubClient.Read(new RuneClansHubClient.Answer(200, answer), false, false));
+        ClanSitePluginFeed feed = new ClanSitePluginFeed(hub, profiles(null));
+        DataObject out = feed.xpActivity(GUILD);
+        assertTrue(out.getBoolean("available"));
+        assertTrue(out.getBoolean("enough"));
+        assertEquals(1200, out.getArray("byDay").getObject(0).getInt("xp"));
+
+        when(hub.guildXpActivity(GUILD)).thenReturn(new RuneClansHubClient.Read(new RuneClansHubClient.Answer(404, DataObject.empty()), false, false));
+        DataObject unknown = feed.xpActivity(GUILD);
+        assertTrue(unknown.getBoolean("available"), "a server the hub doesn't know has nothing to show");
+        assertFalse(unknown.getBoolean("enough"));
+
+        when(hub.guildXpActivity(GUILD)).thenReturn(null);
+        assertFalse(feed.xpActivity(GUILD).getBoolean("available"), "hub down");
+        when(hub.enabled()).thenReturn(false);
+        assertFalse(new ClanSitePluginFeed(hub, profiles(null)).xpActivity(GUILD).getBoolean("available"), "not connected to the hub");
+    }
 }

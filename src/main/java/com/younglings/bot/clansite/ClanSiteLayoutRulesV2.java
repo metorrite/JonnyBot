@@ -56,9 +56,9 @@ public final class ClanSiteLayoutRulesV2 {
         base, md, lg
     }
 
-    public static final Set<String> SPACE = Set.of("none", "xs", "sm", "md", "lg", "xl");
-    public static final Set<String> WIDTHS = Set.of("full", "wide", "content");
-    public static final Set<String> BACKGROUNDS = Set.of("none", "surface", "accent", "image");
+    public static final Set<String> SPACE = Set.of("none", "xs", "sm", "md", "ml", "lg", "xl");
+    public static final Set<String> WIDTHS = Set.of("full", "wide", "content", "medium", "narrow", "slim");
+    public static final Set<String> BACKGROUNDS = Set.of("none", "surface", "accent", "image", "glow");
     public static final Set<String> ALIGN = Set.of("start", "center", "end", "stretch");
     public static final Set<String> SURFACES = Set.of("none", "panel");
     public static final Set<String> ACCESS = Set.of("public", "members", "staff");
@@ -69,6 +69,8 @@ public final class ClanSiteLayoutRulesV2 {
     public static final Set<String> TRANSPARENT = Set.of("never", "home", "always");
     public static final Set<String> HEADER_HEIGHTS = Set.of("compact", "normal", "tall");
     public static final Set<String> MOBILE_NAV = Set.of("drawer", "dropdown");
+    public static final Set<String> NAV_ALIGN = Set.of("end", "center");
+    public static final Set<String> NAV_ACTIVE = Set.of("pill", "text");
     public static final Set<String> TONES = Set.of("info", "accent");
     public static final Set<String> COLOURS = Set.of("accent", "accent2", "bg", "surface", "text", "muted", "border");
     public static final Set<String> RADIUS = Set.of("none", "sm", "md", "lg", "xl");
@@ -76,6 +78,8 @@ public final class ClanSiteLayoutRulesV2 {
     public static final Set<String> GLOW = Set.of("off", "soft");
     public static final Set<String> BUTTONS = Set.of("solid", "outline", "soft");
     public static final Set<String> TITLES = Set.of("theme", "caps");
+    public static final Set<String> GUTTERS = Set.of("normal", "narrow");
+    public static final Set<String> TABS = Set.of("filled", "soft");
     /** The site's motion style (runeclans docs/MOTION.md): missing follows the theme. */
     public static final Set<String> MOTION = Set.of("forge", "quill", "crisp");
     public static final Set<String> LOGO_TEXT_COLOURS = Set.of("text", "accent");
@@ -381,6 +385,9 @@ public final class ClanSiteLayoutRulesV2 {
             if (!cleanOrder.keys().isEmpty()) out.put("order", cleanOrder);
         }
         out.put("padding", responsive(cell, "padding", "none", ClanSiteLayoutRulesV2::space, label + " has a cell with unknown spacing.", problems));
+        // the space between the cell's widgets (runeclans T-518): optional, kept only when the website sets it
+        if (cell.hasKey("gap") && !cell.isNull("gap"))
+            out.put("gap", responsive(cell, "gap", "md", ClanSiteLayoutRulesV2::space, label + " has a cell with unknown spacing between its widgets.", problems));
         out.put("valign", choice(cell, "valign", ALIGN, "start", label + " has a cell with an unknown alignment.", problems));
         // left to right (builder v3 F20, T-421): optional, and full width ("stretch") is stored as no field, the same as the website does
         String halign = choice(cell, "halign", ALIGN, "stretch", label + " has a cell with an unknown left-to-right alignment.", problems);
@@ -512,6 +519,8 @@ public final class ClanSiteLayoutRulesV2 {
             if (!h.isType("accentLine", DataType.BOOLEAN)) problems.add("The header's coloured line must be on or off.");
             else out.put("accentLine", h.getBoolean("accentLine"));
         }
+        optionalChoice(h, out, "navAlign", NAV_ALIGN, "The header's menu has an unknown position.", problems);
+        optionalChoice(h, out, "navActive", NAV_ACTIVE, "The header's menu has an unknown look for the current page.", problems);
         return out;
     }
 
@@ -592,6 +601,10 @@ public final class ClanSiteLayoutRulesV2 {
         DataObject out = DataObject.empty().put("columns", cleanColumns);
         String text = text(f, "text", MAX_FOOTER_TEXT, "The footer text is longer than " + MAX_FOOTER_TEXT + " characters.", problems);
         if (text != null) out.put("text", text);
+        if (f.hasKey("hidden") && !f.isNull("hidden")) {
+            if (!f.isType("hidden", DataType.BOOLEAN)) problems.add("The footer's hide setting must be on or off.");
+            else if (f.getBoolean("hidden")) out.put("hidden", true);
+        }
         return out.put("showSocial", f.getBoolean("showSocial", false)).put("badge", f.getBoolean("badge", true));
     }
 
@@ -626,6 +639,8 @@ public final class ClanSiteLayoutRulesV2 {
         optionalChoice(style, out, "glow", GLOW, "The site has an unknown glow setting.", problems);
         optionalChoice(style, out, "buttons", BUTTONS, "The site has an unknown button look.", problems);
         optionalChoice(style, out, "titles", TITLES, "The site has an unknown panel title look.", problems);
+        optionalChoice(style, out, "gutter", GUTTERS, "The site has unknown side margins.", problems);
+        optionalChoice(style, out, "tabs", TABS, "The site has an unknown look for its time-frame switches.", problems);
         optionalChoice(style, out, "motion", MOTION, "The site has an unknown animation style.", problems);
         return out;
     }
