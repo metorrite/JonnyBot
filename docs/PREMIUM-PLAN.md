@@ -46,7 +46,7 @@ Limits a plan could raise later; each is one row in the feature registry (sectio
 - **History:** `premium_grant_log (guild_id, action GRANT|CHANGE|REVOKE|EXPIRE, tier, expires_at, by_user, note, at)`.
 - **Feature registry:** a pure `PremiumFeatures` (feature key -> which tiers unlock it, free value, premium value). One check `Premium.allows(guildId, feature)` and `Premium.limit(guildId, feature)`. Today's two callers (polling priority, branding profile) move onto it; behaviour unchanged.
 - **Expiry:** a daily sweep removes expired grants (logs EXPIRE) and, 7 days before, posts nothing to Discord; the owner console lists "ending soon". No automatic messages to servers (that is a Drake decision, section 6).
-- **Owner console (website first):** the Super admin area (T-089, owner only) gets a "Premium" page replacing `/admin/(console)/polling-plan`: list with tier, expiry, note, source; grant (pick server the bot is in, tier, optional end date, note), change, revoke; history per server. The old path redirects.
+- **Owner console (website first):** the RuneClan Admin console (T-089, runeclans.com/admin, owner only) gets a "Premium" page replacing `/admin/(console)/polling-plan`: list with tier, expiry, note, source; grant (pick server the bot is in, tier, optional end date, note), change, revoke; history per server. The old path redirects.
 - **Server's own view:** every server's dashboard shows a read-only **Plan** card (Server setup page): current plan, end date if any, what it includes (from the registry), and "Ask JonnyBot's owner" text where a contact or link would go (Drake decides, section 6). Premium-only controls show a small "Premium" badge and stay visible but disabled for standard servers (they already are on the branding page).
 - **No Discord command** for granting (owner work belongs on the website); `/jonnybot plan` showing the server's plan is not needed in v1.
 
@@ -56,7 +56,7 @@ Limits a plan could raise later; each is one row in the feature registry (sectio
 |---|---|---|
 | P1 | Shape of the plan | Build plumbing for any; behave as Option A (one Premium tier) because that is today |
 | P2 | Single source of truth | `premium_guild`, extended with tier/expiry/note/source |
-| P3 | Who can grant | The bot owner only, in Super admin |
+| P3 | Who can grant | The bot owner only, in RuneClan Admin |
 | P4 | New gates | None switched on; the registry lists candidates with free values equal to today |
 | P5 | Branding images premium? | Stay premium (today) |
 | P6 | Polling windows | Unchanged: 60 / 180 / 480 minutes |
@@ -81,4 +81,4 @@ Until Drake decides these, granting stays manual and free.
 | Ticket | What | Depends on |
 |---|---|---|
 | T-224 | Bot: tier/expiry/note/source columns, grant log, `PremiumFeatures` registry + one check, expiry sweep; move polling and branding onto it | none |
-| T-225 | Website + bot routes: Super admin Premium page (grant/change/revoke/history, replaces polling-plan with redirect) and the read-only Plan card + Premium badges | T-224, T-089 |
+| T-225 | Website + bot routes: RuneClan Admin Premium page (grant/change/revoke/history, replaces polling-plan with redirect) and the read-only Plan card + Premium badges | T-224, T-089 |

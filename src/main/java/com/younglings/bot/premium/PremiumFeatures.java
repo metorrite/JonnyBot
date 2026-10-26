@@ -59,7 +59,7 @@ public final class PremiumFeatures {
             new Feature(SITE_EDITOR, "Full site editor", "Every widget, custom column widths, resizing and separate layouts for phones and tablets.", Set.of(TIER_PREMIUM), null, null),
             new Feature(SITE_STYLE, "Site style", "Your own colours, fonts, corners and spacing on your clan website.", Set.of(TIER_PREMIUM), null, null),
             new Feature(SITE_USER_THEMES, "Visitor themes", "Let visitors pick the theme they read your website in.", Set.of(TIER_PREMIUM), null, null),
-            new Feature(SITE_ADMIN_FULL, "Full site admin", "Every page of your website's admin dashboard.", Set.of(TIER_PREMIUM), null, null),
+            new Feature(SITE_ADMIN_FULL, "Full Site Admin", "Every page of your website's Site Admin.", Set.of(TIER_PREMIUM), null, null),
             new Feature(SITE_LIMITS, "Bigger website", "More pages, and more widgets on each page.", Set.of(TIER_PREMIUM), null, null),
             new Feature(SITE_NO_BADGE, "No footer badge", "Turn off the \"Made with RuneClans\" badge at the bottom of your website.", Set.of(TIER_PREMIUM), null, null));
 

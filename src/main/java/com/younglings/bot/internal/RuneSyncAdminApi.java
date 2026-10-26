@@ -11,7 +11,7 @@ import java.time.Instant;
 import java.util.function.Supplier;
 
 /**
- * The owner's RuneSync diagnostics viewer (T-202) under {@code /internal/admin/runesync/...}, for the website's Super admin area:
+ * The owner's RuneSync diagnostics viewer (T-202) under {@code /internal/admin/runesync/...}, for the RuneClan Admin console (runeclans.com/admin):
  * {@code GET runesync/diagnostics/{id}} opens one snapshot a member sent from RuneSync's panel for a bug report. Snapshots were redacted
  * when stored (no tokens, assertions, tracking ids or chat text). Owner only; anyone else gets 403 whether or not the id exists.
  */
