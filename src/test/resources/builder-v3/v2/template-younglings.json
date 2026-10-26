@@ -462,7 +462,11 @@
                       "v": 1,
                       "settings": {
                         "title": "Milestones",
-                        "limit": 6
+                        "limit": 6,
+                        "bigOnly": false,
+                        "look": "lines",
+                        "more": null,
+                        "moreText": "Hall of fame"
                       },
                       "unmet": "hide"
                     },
@@ -473,7 +477,9 @@
                       "settings": {
                         "title": "Citadel",
                         "weeks": 6,
-                        "series": "both"
+                        "series": "both",
+                        "more": null,
+                        "moreText": "Attendance"
                       },
                       "unmet": "hide"
                     }
@@ -548,7 +554,10 @@
                         "title": "News",
                         "channel": "",
                         "showAuthors": true,
-                        "showImages": true
+                        "showImages": true,
+                        "look": "list",
+                        "showEvents": false,
+                        "eventsLink": null
                       },
                       "unmet": "hide"
                     }
@@ -576,7 +585,8 @@
                       "type": "discord-online",
                       "v": 2,
                       "settings": {
-                        "title": "Online on Discord"
+                        "title": "Online on Discord",
+                        "look": "list"
                       },
                       "unmet": "hide"
                     }
@@ -1524,7 +1534,10 @@
                         "title": "",
                         "limit": 80,
                         "tabs": true,
-                        "filter": "all"
+                        "filter": "all",
+                        "look": "lines",
+                        "more": null,
+                        "moreText": "See all"
                       },
                       "unmet": "hide"
                     }
@@ -1819,7 +1832,11 @@
                       "v": 1,
                       "settings": {
                         "title": "Latest milestones",
-                        "limit": 5
+                        "limit": 5,
+                        "bigOnly": false,
+                        "look": "lines",
+                        "more": null,
+                        "moreText": "Hall of fame"
                       },
                       "unmet": "hide"
                     }
@@ -2567,7 +2584,9 @@
                       "settings": {
                         "title": "Citadel: caps and visits per week",
                         "weeks": 12,
-                        "series": "both"
+                        "series": "both",
+                        "more": null,
+                        "moreText": "Attendance"
                       },
                       "unmet": "hide"
                     }
@@ -2954,6 +2973,66 @@
           ]
         },
         {
+          "id": "ylg572s",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "ylg572r",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ylg572c",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ylg572w",
+                      "type": "wrapped-recap",
+                      "v": 1,
+                      "settings": {
+                        "title": "",
+                        "period": "month",
+                        "visitorPeriods": true,
+                        "members": true,
+                        "autoplay": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
           "id": "ylgs0062",
           "width": "content",
           "background": {
@@ -3053,7 +3132,7 @@
       ],
       "origin": {
         "template": "recaps",
-        "v": 1
+        "v": 2
       }
     },
     {

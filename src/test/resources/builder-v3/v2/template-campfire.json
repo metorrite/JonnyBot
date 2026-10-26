@@ -313,7 +313,10 @@
                         "title": "Latest from Discord",
                         "channel": "",
                         "showAuthors": true,
-                        "showImages": true
+                        "showImages": true,
+                        "look": "list",
+                        "showEvents": false,
+                        "eventsLink": null
                       },
                       "unmet": "hide"
                     }
@@ -348,7 +351,8 @@
                       "type": "discord-online",
                       "v": 2,
                       "settings": {
-                        "title": "Around the fire"
+                        "title": "Around the fire",
+                        "look": "list"
                       },
                       "unmet": "hide"
                     },
@@ -498,7 +502,11 @@
                       "v": 1,
                       "settings": {
                         "title": "Recent achievements",
-                        "limit": 5
+                        "limit": 5,
+                        "bigOnly": false,
+                        "look": "lines",
+                        "more": null,
+                        "moreText": "Hall of fame"
                       },
                       "unmet": "hide"
                     }

@@ -1,0 +1,2127 @@
+{
+  "v": 2,
+  "look": {
+    "theme": "clanhall",
+    "mode": "dark",
+    "accent": "#94a3b8",
+    "logo": null,
+    "banner": null
+  },
+  "style": {},
+  "header": {
+    "layout": "logo-left",
+    "logo": {
+      "show": true,
+      "text": "name",
+      "height": 40
+    },
+    "slots": {
+      "left": [],
+      "right": [
+        {
+          "kind": "discord"
+        }
+      ]
+    },
+    "sticky": true,
+    "transparent": "never",
+    "height": "normal",
+    "mobile": "drawer",
+    "nav": [
+      {
+        "id": "ironn125",
+        "label": "Home",
+        "link": {
+          "kind": "page",
+          "pageId": "ironphome"
+        }
+      },
+      {
+        "id": "ironn126",
+        "label": "Collection log",
+        "link": {
+          "kind": "page",
+          "pageId": "ironpcollection"
+        }
+      },
+      {
+        "id": "ironn127",
+        "label": "Bosses",
+        "link": {
+          "kind": "page",
+          "pageId": "ironppvm"
+        }
+      },
+      {
+        "id": "ironn128",
+        "label": "Skills",
+        "link": {
+          "kind": "page",
+          "pageId": "ironpskills"
+        }
+      },
+      {
+        "id": "ironn129",
+        "label": "Members",
+        "link": {
+          "kind": "page",
+          "pageId": "ironpmembers"
+        }
+      },
+      {
+        "id": "ironn130",
+        "label": "House rules",
+        "link": {
+          "kind": "page",
+          "pageId": "ironprules"
+        }
+      }
+    ]
+  },
+  "footer": {
+    "showSocial": true,
+    "badge": true,
+    "columns": [
+      {
+        "title": "{clan}",
+        "links": [
+          {
+            "label": "Home",
+            "link": {
+              "kind": "page",
+              "pageId": "ironphome"
+            }
+          },
+          {
+            "label": "Members",
+            "link": {
+              "kind": "page",
+              "pageId": "ironpmembers"
+            }
+          },
+          {
+            "label": "House rules",
+            "link": {
+              "kind": "page",
+              "pageId": "ironprules"
+            }
+          }
+        ]
+      },
+      {
+        "title": "Our progress",
+        "links": [
+          {
+            "label": "Collection log",
+            "link": {
+              "kind": "page",
+              "pageId": "ironpcollection"
+            }
+          },
+          {
+            "label": "Bosses",
+            "link": {
+              "kind": "page",
+              "pageId": "ironppvm"
+            }
+          },
+          {
+            "label": "Skills",
+            "link": {
+              "kind": "page",
+              "pageId": "ironpskills"
+            }
+          }
+        ]
+      }
+    ],
+    "text": "{clan}. Everything we have, we got ourselves."
+  },
+  "pages": [
+    {
+      "id": "ironphome",
+      "title": "Home",
+      "path": "",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "irons007",
+          "width": "full",
+          "background": {
+            "kind": "surface"
+          },
+          "padding": {
+            "lg": {
+              "y": "xl",
+              "x": "lg"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "label": "Welcome",
+          "rows": [
+            {
+              "id": "ironr003",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ironc002",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ironw001",
+                      "type": "clan-header",
+                      "v": 1,
+                      "settings": {
+                        "showBanner": true,
+                        "showTagline": true,
+                        "align": "center",
+                        "eyebrow": "Ironmen of",
+                        "logoShape": "rounded",
+                        "look": "standard",
+                        "size": "large"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "ironr006",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ironc005",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ironw004",
+                      "type": "button-row",
+                      "v": 1,
+                      "settings": {
+                        "buttons": [
+                          {
+                            "label": "Our collection log",
+                            "link": {
+                              "kind": "page",
+                              "pageId": "ironpcollection"
+                            },
+                            "style": "primary"
+                          },
+                          {
+                            "label": "House rules",
+                            "link": {
+                              "kind": "page",
+                              "pageId": "ironprules"
+                            },
+                            "style": "secondary"
+                          }
+                        ],
+                        "align": "center",
+                        "size": "medium",
+                        "look": "buttons",
+                        "fullWidth": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "irons017",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "ironr010",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ironc009",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ironw008",
+                      "type": "stat-tiles",
+                      "v": 2,
+                      "settings": {
+                        "cards": [
+                          {
+                            "metric": "members",
+                            "label": "Ironmen",
+                            "link": null
+                          },
+                          {
+                            "metric": "kills",
+                            "label": "Boss kills",
+                            "link": null
+                          },
+                          {
+                            "metric": "xpWeek",
+                            "label": "XP this week",
+                            "link": null
+                          },
+                          {
+                            "metric": "avgLevel",
+                            "label": "Average total level",
+                            "link": null
+                          }
+                        ],
+                        "columns": "4",
+                        "numbers": "accent"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "ironr016",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ironc012",
+                  "span": {
+                    "lg": 8,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ironw011",
+                      "type": "rare-drops",
+                      "v": 1,
+                      "settings": {
+                        "title": "Latest log slots",
+                        "sort": "newest",
+                        "limit": 10,
+                        "firsts": true,
+                        "showPets": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "ironc015",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ironw013",
+                      "type": "kill-tracker",
+                      "v": 1,
+                      "settings": {
+                        "title": "Most kills this month",
+                        "period": "month",
+                        "limit": 6
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "ironw014",
+                      "type": "milestones",
+                      "v": 1,
+                      "settings": {
+                        "title": "Milestones",
+                        "limit": 4,
+                        "bigOnly": false,
+                        "look": "lines",
+                        "more": null,
+                        "moreText": "Hall of fame"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ironpcollection",
+      "title": "Collection log",
+      "path": "collection",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "irons021",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "ironr020",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ironc019",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ironw018",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Collection log",
+                        "subtitle": "Every rare drop and pet, and who got it first. All self-found.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "irons028",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "ironr024",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ironc023",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ironw022",
+                      "type": "rare-drops",
+                      "v": 1,
+                      "settings": {
+                        "title": "",
+                        "sort": "rarest",
+                        "limit": 40,
+                        "firsts": true,
+                        "showPets": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "ironr027",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ironc026",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ironw025",
+                      "type": "drop-log",
+                      "v": 1,
+                      "settings": {
+                        "title": "Every drop",
+                        "period": "all",
+                        "showGrid": true,
+                        "limit": 24,
+                        "bossFilter": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ironppvm",
+      "title": "Bosses",
+      "path": "bosses",
+      "hidden": false,
+      "access": "public",
+      "origin": {
+        "template": "pvm",
+        "v": 1
+      },
+      "sections": [
+        {
+          "id": "irons029",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "ironr030",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ironc031",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ironw032",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "PvM and bosses",
+                        "subtitle": "Boss kills and notable drops from members' adventure logs. Pick a boss for its full breakdown.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "irons033",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "ironr034",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ironc035",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ironw036",
+                      "type": "button-row",
+                      "v": 1,
+                      "settings": {
+                        "buttons": [
+                          {
+                            "label": "Open the drop log",
+                            "link": {
+                              "kind": "page",
+                              "pageId": "ironpdrops"
+                            },
+                            "style": "primary"
+                          }
+                        ],
+                        "align": "left",
+                        "size": "medium",
+                        "look": "buttons",
+                        "fullWidth": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "ironr037",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ironc038",
+                  "span": {
+                    "lg": 7,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ironw039",
+                      "type": "kill-tracker",
+                      "v": 1,
+                      "settings": {
+                        "title": "Boss kills",
+                        "period": "all",
+                        "limit": 25
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "ironc040",
+                  "span": {
+                    "lg": 5,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ironw041",
+                      "type": "drops",
+                      "v": 1,
+                      "settings": {
+                        "title": "Recent drops",
+                        "limit": 10
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ironpboss",
+      "title": "Boss page",
+      "path": "boss",
+      "hidden": false,
+      "access": "public",
+      "template": "boss",
+      "origin": {
+        "template": "boss",
+        "v": 1
+      },
+      "sections": [
+        {
+          "id": "irons042",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "ironr043",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ironc044",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ironw045",
+                      "type": "boss-detail",
+                      "v": 1,
+                      "settings": {
+                        "period": "all",
+                        "limit": 25,
+                        "header": false,
+                        "players": "bars",
+                        "days": "all",
+                        "collection": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ironpdrops",
+      "title": "Drop log",
+      "path": "drops",
+      "hidden": false,
+      "access": "public",
+      "origin": {
+        "template": "drops",
+        "v": 1
+      },
+      "sections": [
+        {
+          "id": "irons046",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "ironr047",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ironc048",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ironw049",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Drop log",
+                        "subtitle": "The clan's drops as a collection log. Items turn up in colour as they're received.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "irons050",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "ironr051",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ironc052",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ironw053",
+                      "type": "drop-log",
+                      "v": 1,
+                      "settings": {
+                        "title": "",
+                        "period": "all",
+                        "showGrid": true,
+                        "limit": 25,
+                        "bossFilter": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ironpitem",
+      "title": "Item page",
+      "path": "item",
+      "hidden": false,
+      "access": "public",
+      "template": "item",
+      "origin": {
+        "template": "item",
+        "v": 1
+      },
+      "sections": [
+        {
+          "id": "irons054",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "ironr055",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ironc056",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ironw057",
+                      "type": "item-detail",
+                      "v": 1,
+                      "settings": {
+                        "period": "all",
+                        "limit": 25
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ironpskills",
+      "title": "Skills",
+      "path": "skills",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "irons061",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "ironr060",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ironc059",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ironw058",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Skills",
+                        "subtitle": "Who leads each skill, and who gained the most lately.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "irons070",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "ironr066",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ironc063",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ironw062",
+                      "type": "leaderboard",
+                      "v": 1,
+                      "settings": {
+                        "title": "Top XP gainers",
+                        "metric": "xp",
+                        "period": "month",
+                        "visitorPeriods": true,
+                        "limit": 10,
+                        "bars": "under",
+                        "barColour": "accent"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "ironc065",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ironw064",
+                      "type": "top-list",
+                      "v": 1,
+                      "settings": {
+                        "title": "Highest total level",
+                        "metric": "level",
+                        "limit": 10,
+                        "bars": "under",
+                        "barColour": "accent"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "ironr069",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ironc068",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ironw067",
+                      "type": "skill-leaders",
+                      "v": 1,
+                      "settings": {
+                        "title": "Skill leaders",
+                        "perSkill": 3,
+                        "showXp": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ironpmembers",
+      "title": "Members",
+      "path": "members",
+      "hidden": false,
+      "access": "public",
+      "origin": {
+        "template": "members",
+        "v": 1
+      },
+      "sections": [
+        {
+          "id": "irons071",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "ironr072",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ironc073",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ironw074",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Members",
+                        "subtitle": "Everyone currently in the clan. Open a member to see their stats, gains, Citadel record and adventure log.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "irons075",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "ironr076",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ironc077",
+                  "span": {
+                    "lg": 9,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ironw078",
+                      "type": "member-directory",
+                      "v": 1,
+                      "settings": {
+                        "title": "",
+                        "style": "list",
+                        "limit": 100,
+                        "sort": "rank",
+                        "showRank": true,
+                        "showLevel": true,
+                        "showXp": false,
+                        "showJoined": false,
+                        "showPoints": false,
+                        "search": true,
+                        "rankFilter": true,
+                        "sortControls": false,
+                        "linkPages": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "ironc079",
+                  "span": {
+                    "lg": 3,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ironw080",
+                      "type": "rank-breakdown",
+                      "v": 1,
+                      "settings": {
+                        "title": "Ranks",
+                        "limit": 20,
+                        "style": "ring",
+                        "showEmpty": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ironpmember",
+      "title": "Member page",
+      "path": "member",
+      "hidden": false,
+      "access": "public",
+      "template": "member",
+      "origin": {
+        "template": "member",
+        "v": 1
+      },
+      "sections": [
+        {
+          "id": "irons081",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "ironr082",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ironc083",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ironw084",
+                      "type": "member-card",
+                      "v": 1,
+                      "settings": {
+                        "showStrip": false,
+                        "showBio": true,
+                        "showTotals": true,
+                        "showNextRank": true,
+                        "showCompare": true,
+                        "comparePage": {
+                          "kind": "page",
+                          "pageId": "ironpcompare"
+                        },
+                        "showRecap": false,
+                        "recapPage": null
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "irons085",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "ironr086",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ironc087",
+                  "span": {
+                    "lg": 8,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ironw088",
+                      "type": "member-xp-chart",
+                      "v": 1,
+                      "settings": {
+                        "title": "XP over time",
+                        "days": "90",
+                        "gains": "week"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "ironc089",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ironw090",
+                      "type": "member-badges",
+                      "v": 1,
+                      "settings": {
+                        "title": "Badges",
+                        "limit": 10,
+                        "style": "chips"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "ironr091",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ironc092",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ironw093",
+                      "type": "member-skills",
+                      "v": 1,
+                      "settings": {
+                        "title": "Skills",
+                        "limit": 30,
+                        "style": "grid",
+                        "sort": "game",
+                        "showProgress": true,
+                        "showRank": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "ironr094",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ironc095",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ironw096",
+                      "type": "member-citadel",
+                      "v": 1,
+                      "settings": {
+                        "title": "Citadel",
+                        "weeks": 12,
+                        "showGrid": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "ironc097",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ironw098",
+                      "type": "member-points",
+                      "v": 1,
+                      "settings": {
+                        "title": "Clan points",
+                        "limit": 8,
+                        "showChart": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "ironr099",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ironc100",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ironw101",
+                      "type": "member-adventure-log",
+                      "v": 1,
+                      "settings": {
+                        "title": "Adventure log",
+                        "limit": 10,
+                        "showDetails": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "ironc102",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ironw103",
+                      "type": "member-recap",
+                      "v": 1,
+                      "settings": {
+                        "title": "Recap",
+                        "period": "week",
+                        "limit": 3
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ironpcompare",
+      "title": "Compare",
+      "path": "compare",
+      "hidden": true,
+      "access": "public",
+      "origin": {
+        "template": "compare",
+        "v": 1
+      },
+      "sections": [
+        {
+          "id": "irons104",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "ironr105",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ironc106",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ironw107",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Compare members",
+                        "subtitle": "Pick two members to see them side by side, skill by skill.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "irons108",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "ironr109",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ironc110",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ironw111",
+                      "type": "compare",
+                      "v": 1,
+                      "settings": {
+                        "title": "",
+                        "left": "",
+                        "right": "",
+                        "showSkills": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ironprules",
+      "title": "House rules",
+      "path": "rules",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "irons115",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "ironr114",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ironc113",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ironw112",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "House rules",
+                        "subtitle": "How an ironman clan works, and what we ask of everyone.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "irons124",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "ironr120",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ironc117",
+                  "span": {
+                    "lg": 7,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "md"
+                  },
+                  "valign": "start",
+                  "surface": "panel",
+                  "widgets": [
+                    {
+                      "id": "ironw116",
+                      "type": "text",
+                      "v": 1,
+                      "settings": {
+                        "markdown": "## Our rules\n- **No Grand Exchange, no trading.** Everything you own, you got yourself.\n- **Group content is fine.** Boss together, skill together; drops go to whoever the game gives them to.\n- **Ask before you help.** Some members play group ironman or hardcore: check what they're happy with first.\n- **Be kind.** Everyone is grinding something.",
+                        "align": "left",
+                        "width": "readable"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "ironc119",
+                  "span": {
+                    "lg": 5,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ironw118",
+                      "type": "discord-join",
+                      "v": 1,
+                      "settings": {
+                        "title": "Join the collective",
+                        "text": "Say hello in our Discord and a recruiter will invite you in game.",
+                        "buttonLabel": "Join the Discord"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "ironr123",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ironc122",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ironw121",
+                      "type": "faq",
+                      "v": 1,
+                      "settings": {
+                        "title": "Ironman questions",
+                        "items": [
+                          {
+                            "q": "Do I have to be an ironman to join?",
+                            "a": "Yes: regular, hardcore, group or ultimate are all welcome."
+                          },
+                          {
+                            "q": "Can I lose my ironman status in the clan?",
+                            "a": "No. Clan chat, Citadel and group bosses never break ironman rules."
+                          },
+                          {
+                            "q": "Does the clan Citadel count?",
+                            "a": "Yes. Capping is allowed and helps everyone."
+                          },
+                          {
+                            "q": "How is the collection log made?",
+                            "a": "From the drops members log in game. Turn on drop sharing to fill it."
+                          }
+                        ]
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

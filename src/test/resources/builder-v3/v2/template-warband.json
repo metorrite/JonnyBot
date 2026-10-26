@@ -527,7 +527,8 @@
                       "type": "discord-online",
                       "v": 2,
                       "settings": {
-                        "title": "Who's online"
+                        "title": "Who's online",
+                        "look": "list"
                       },
                       "unmet": "hide"
                     }
@@ -1748,7 +1749,11 @@
                       "v": 1,
                       "settings": {
                         "title": "Milestones",
-                        "limit": 10
+                        "limit": 10,
+                        "bigOnly": false,
+                        "look": "lines",
+                        "more": null,
+                        "moreText": "Hall of fame"
                       },
                       "unmet": "hide"
                     }

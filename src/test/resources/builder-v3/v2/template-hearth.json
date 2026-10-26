@@ -361,7 +361,10 @@
                         "title": "Latest news",
                         "channel": "",
                         "showAuthors": true,
-                        "showImages": true
+                        "showImages": true,
+                        "look": "list",
+                        "showEvents": false,
+                        "eventsLink": null
                       },
                       "unmet": "hide"
                     }
@@ -430,7 +433,8 @@
                       "type": "discord-online",
                       "v": 2,
                       "settings": {
-                        "title": "Around right now"
+                        "title": "Around right now",
+                        "look": "list"
                       },
                       "unmet": "hide"
                     }
@@ -910,7 +914,11 @@
                       "v": 1,
                       "settings": {
                         "title": "Well done!",
-                        "limit": 8
+                        "limit": 8,
+                        "bigOnly": false,
+                        "look": "lines",
+                        "more": null,
+                        "moreText": "Hall of fame"
                       },
                       "unmet": "hide"
                     }

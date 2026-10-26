@@ -398,7 +398,10 @@
                         "title": "Announcements",
                         "channel": "",
                         "showAuthors": true,
-                        "showImages": true
+                        "showImages": true,
+                        "look": "list",
+                        "showEvents": false,
+                        "eventsLink": null
                       },
                       "unmet": "hide"
                     }
@@ -496,7 +499,8 @@
                       "type": "discord-online",
                       "v": 2,
                       "settings": {
-                        "title": "Online now"
+                        "title": "Online now",
+                        "look": "list"
                       },
                       "unmet": "hide"
                     }
@@ -1366,7 +1370,10 @@
                         "title": "Announcements",
                         "channel": "",
                         "showAuthors": true,
-                        "showImages": true
+                        "showImages": true,
+                        "look": "list",
+                        "showEvents": false,
+                        "eventsLink": null
                       },
                       "unmet": "hide"
                     }
@@ -1389,7 +1396,8 @@
                       "type": "discord-online",
                       "v": 2,
                       "settings": {
-                        "title": "Online now"
+                        "title": "Online now",
+                        "look": "list"
                       },
                       "unmet": "hide"
                     },

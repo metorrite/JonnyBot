@@ -1,0 +1,2187 @@
+{
+  "v": 2,
+  "look": {
+    "theme": "clanhall",
+    "mode": "dark",
+    "accent": "#dc2626",
+    "logo": null,
+    "banner": null
+  },
+  "style": {
+    "colours": {
+      "accent2": "#f59e0b",
+      "bg": "#0c0909",
+      "surface": "#161011",
+      "border": "#33201f"
+    },
+    "fonts": {
+      "heading": "cinzel",
+      "body": "inter"
+    },
+    "radius": "lg",
+    "density": "normal",
+    "glow": "soft",
+    "buttons": "solid"
+  },
+  "header": {
+    "layout": "logo-left",
+    "logo": {
+      "show": true,
+      "text": "name",
+      "height": 44
+    },
+    "slots": {
+      "left": [],
+      "right": [
+        {
+          "kind": "discord",
+          "settings": {
+            "label": "Find a team"
+          }
+        },
+        {
+          "kind": "profile"
+        }
+      ]
+    },
+    "sticky": true,
+    "transparent": "never",
+    "height": "normal",
+    "mobile": "drawer",
+    "nav": [
+      {
+        "id": "raidn124",
+        "label": "Home",
+        "link": {
+          "kind": "page",
+          "pageId": "raidphome"
+        }
+      },
+      {
+        "id": "raidn125",
+        "label": "Bosses",
+        "link": {
+          "kind": "page",
+          "pageId": "raidppvm"
+        },
+        "children": [
+          {
+            "id": "raidn126",
+            "label": "Boss kills",
+            "link": {
+              "kind": "page",
+              "pageId": "raidppvm"
+            },
+            "description": "Kills per boss, and a page for each one"
+          },
+          {
+            "id": "raidn127",
+            "label": "Collection log",
+            "link": {
+              "kind": "page",
+              "pageId": "raidpcollection"
+            },
+            "description": "Every rare drop and pet, and who got it first"
+          },
+          {
+            "id": "raidn128",
+            "label": "Drop log",
+            "link": {
+              "kind": "page",
+              "pageId": "raidpdrops"
+            },
+            "description": "Every drop, newest first"
+          }
+        ]
+      },
+      {
+        "id": "raidn129",
+        "label": "Raids",
+        "link": {
+          "kind": "page",
+          "pageId": "raidpraids"
+        },
+        "badge": "events"
+      },
+      {
+        "id": "raidn130",
+        "label": "Hall of fame",
+        "link": {
+          "kind": "page",
+          "pageId": "raidpfame"
+        }
+      },
+      {
+        "id": "raidn131",
+        "label": "Members",
+        "link": {
+          "kind": "page",
+          "pageId": "raidpmembers"
+        }
+      },
+      {
+        "id": "raidn132",
+        "label": "Join",
+        "link": {
+          "kind": "page",
+          "pageId": "raidpjoin"
+        }
+      }
+    ]
+  },
+  "footer": {
+    "showSocial": true,
+    "badge": true,
+    "columns": [
+      {
+        "title": "{clan}",
+        "links": [
+          {
+            "label": "Home",
+            "link": {
+              "kind": "page",
+              "pageId": "raidphome"
+            }
+          },
+          {
+            "label": "Members",
+            "link": {
+              "kind": "page",
+              "pageId": "raidpmembers"
+            }
+          },
+          {
+            "label": "Join the raid team",
+            "link": {
+              "kind": "page",
+              "pageId": "raidpjoin"
+            }
+          }
+        ]
+      },
+      {
+        "title": "Bossing",
+        "links": [
+          {
+            "label": "Boss kills",
+            "link": {
+              "kind": "page",
+              "pageId": "raidppvm"
+            }
+          },
+          {
+            "label": "Collection log",
+            "link": {
+              "kind": "page",
+              "pageId": "raidpcollection"
+            }
+          },
+          {
+            "label": "Hall of fame",
+            "link": {
+              "kind": "page",
+              "pageId": "raidpfame"
+            }
+          }
+        ]
+      },
+      {
+        "title": "Raid with us",
+        "links": [
+          {
+            "label": "Raids",
+            "link": {
+              "kind": "page",
+              "pageId": "raidpraids"
+            }
+          },
+          {
+            "label": "Discord",
+            "link": {
+              "kind": "invite"
+            }
+          }
+        ]
+      }
+    ],
+    "text": "{clan}. Learn it, kill it, log it."
+  },
+  "pages": [
+    {
+      "id": "raidphome",
+      "title": "Home",
+      "path": "",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "raids004",
+          "width": "full",
+          "background": {
+            "kind": "accent"
+          },
+          "padding": {
+            "lg": {
+              "y": "xl",
+              "x": "lg"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "label": "Welcome",
+          "rows": [
+            {
+              "id": "raidr003",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "raidc002",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "raidw001",
+                      "type": "clan-header",
+                      "v": 1,
+                      "settings": {
+                        "showBanner": true,
+                        "showTagline": true,
+                        "align": "center",
+                        "eyebrow": "Raid with",
+                        "logoShape": "rounded",
+                        "look": "standard",
+                        "size": "large"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "raids019",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "raidr010",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "raidc007",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "raidw005",
+                      "type": "events",
+                      "v": 1,
+                      "settings": {
+                        "title": "Next raid",
+                        "style": "list",
+                        "limit": 2,
+                        "showImages": false
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "raidw006",
+                      "type": "button-row",
+                      "v": 1,
+                      "settings": {
+                        "buttons": [
+                          {
+                            "label": "Sign up",
+                            "link": {
+                              "kind": "page",
+                              "pageId": "raidpraids"
+                            },
+                            "style": "primary"
+                          },
+                          {
+                            "label": "All bosses",
+                            "link": {
+                              "kind": "page",
+                              "pageId": "raidppvm"
+                            },
+                            "style": "secondary"
+                          }
+                        ],
+                        "align": "left",
+                        "size": "medium",
+                        "look": "buttons",
+                        "fullWidth": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "raidc009",
+                  "span": {
+                    "lg": 8,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "raidw008",
+                      "type": "rs-today",
+                      "v": 1,
+                      "settings": {
+                        "title": "Today's bosses and resets",
+                        "look": "tiles",
+                        "resets": true,
+                        "wildy": false,
+                        "cache": false,
+                        "vos": false,
+                        "merchant": false,
+                        "vorago": true,
+                        "rots": true,
+                        "araxxor": true,
+                        "spotlight": true,
+                        "circus": false,
+                        "sinkholes": false,
+                        "chinchompa": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "raidr015",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "raidc012",
+                  "span": {
+                    "lg": 8,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "raidw011",
+                      "type": "boss-grid",
+                      "v": 1,
+                      "settings": {
+                        "title": "This week's kills",
+                        "period": "week",
+                        "showQuiet": false,
+                        "limit": 6
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "raidc014",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "raidw013",
+                      "type": "kill-tracker",
+                      "v": 1,
+                      "settings": {
+                        "title": "Top killers this week",
+                        "period": "week",
+                        "limit": 8
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "raidr018",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "raidc017",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "raidw016",
+                      "type": "rare-drops",
+                      "v": 1,
+                      "settings": {
+                        "title": "Latest rare drops",
+                        "sort": "newest",
+                        "limit": 8,
+                        "firsts": true,
+                        "showPets": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "raidppvm",
+      "title": "Boss kills",
+      "path": "pvm",
+      "hidden": false,
+      "access": "public",
+      "origin": {
+        "template": "pvm",
+        "v": 1
+      },
+      "sections": [
+        {
+          "id": "raids020",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "raidr021",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "raidc022",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "raidw023",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "PvM and bosses",
+                        "subtitle": "Boss kills and notable drops from members' adventure logs. Pick a boss for its full breakdown.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "raids024",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "raidr025",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "raidc026",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "raidw027",
+                      "type": "button-row",
+                      "v": 1,
+                      "settings": {
+                        "buttons": [
+                          {
+                            "label": "Open the drop log",
+                            "link": {
+                              "kind": "page",
+                              "pageId": "raidpdrops"
+                            },
+                            "style": "primary"
+                          }
+                        ],
+                        "align": "left",
+                        "size": "medium",
+                        "look": "buttons",
+                        "fullWidth": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "raidr028",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "raidc029",
+                  "span": {
+                    "lg": 7,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "raidw030",
+                      "type": "kill-tracker",
+                      "v": 1,
+                      "settings": {
+                        "title": "Boss kills",
+                        "period": "all",
+                        "limit": 25
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "raidc031",
+                  "span": {
+                    "lg": 5,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "raidw032",
+                      "type": "drops",
+                      "v": 1,
+                      "settings": {
+                        "title": "Recent drops",
+                        "limit": 10
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "raidpboss",
+      "title": "Boss page",
+      "path": "boss",
+      "hidden": false,
+      "access": "public",
+      "template": "boss",
+      "origin": {
+        "template": "boss",
+        "v": 1
+      },
+      "sections": [
+        {
+          "id": "raids033",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "raidr034",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "raidc035",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "raidw036",
+                      "type": "boss-detail",
+                      "v": 1,
+                      "settings": {
+                        "period": "all",
+                        "limit": 25,
+                        "header": false,
+                        "players": "bars",
+                        "days": "all",
+                        "collection": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "raidpcollection",
+      "title": "Collection log",
+      "path": "collection",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "raids040",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "raidr039",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "raidc038",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "raidw037",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Collection log",
+                        "subtitle": "Every rare drop and pet the clan has had, with who got each one first.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "raids047",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "raidr043",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "raidc042",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "raidw041",
+                      "type": "rare-drops",
+                      "v": 1,
+                      "settings": {
+                        "title": "",
+                        "sort": "rarest",
+                        "limit": 40,
+                        "firsts": true,
+                        "showPets": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "raidr046",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "raidc045",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "raidw044",
+                      "type": "drop-log",
+                      "v": 1,
+                      "settings": {
+                        "title": "Every drop",
+                        "period": "all",
+                        "showGrid": true,
+                        "limit": 24,
+                        "bossFilter": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "raidpdrops",
+      "title": "Drop log",
+      "path": "drops",
+      "hidden": false,
+      "access": "public",
+      "origin": {
+        "template": "drops",
+        "v": 1
+      },
+      "sections": [
+        {
+          "id": "raids048",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "raidr049",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "raidc050",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "raidw051",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Drop log",
+                        "subtitle": "The clan's drops as a collection log. Items turn up in colour as they're received.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "raids052",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "raidr053",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "raidc054",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "raidw055",
+                      "type": "drop-log",
+                      "v": 1,
+                      "settings": {
+                        "title": "",
+                        "period": "all",
+                        "showGrid": true,
+                        "limit": 25,
+                        "bossFilter": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "raidpitem",
+      "title": "Item page",
+      "path": "item",
+      "hidden": false,
+      "access": "public",
+      "template": "item",
+      "origin": {
+        "template": "item",
+        "v": 1
+      },
+      "sections": [
+        {
+          "id": "raids056",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "raidr057",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "raidc058",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "raidw059",
+                      "type": "item-detail",
+                      "v": 1,
+                      "settings": {
+                        "period": "all",
+                        "limit": 25
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "raidpraids",
+      "title": "Raids",
+      "path": "raids",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "raids063",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "raidr062",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "raidc061",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "raidw060",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Raids",
+                        "subtitle": "Teaching trips, mass kills and competitions. Times are in your own timezone.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "raids075",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "raidr068",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "raidc065",
+                  "span": {
+                    "lg": 7,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "raidw064",
+                      "type": "events",
+                      "v": 1,
+                      "settings": {
+                        "title": "Coming up",
+                        "style": "list",
+                        "limit": 8,
+                        "showImages": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "raidc067",
+                  "span": {
+                    "lg": 5,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "raidw066",
+                      "type": "signups",
+                      "v": 1,
+                      "settings": {
+                        "title": "Open signups",
+                        "limit": 5,
+                        "showNames": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "raidr071",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "raidc070",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "raidw069",
+                      "type": "events-calendar",
+                      "v": 1,
+                      "settings": {
+                        "title": "Calendar",
+                        "showDiscord": true,
+                        "showHub": true,
+                        "weekStart": "mon"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "raidr074",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "raidc073",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "raidw072",
+                      "type": "ge-watch",
+                      "v": 1,
+                      "settings": {
+                        "title": "Raid supply prices",
+                        "items": [
+                          {
+                            "name": "Super restore (4)"
+                          },
+                          {
+                            "name": "Saradomin brew (4)"
+                          },
+                          {
+                            "name": "Overload (4)"
+                          },
+                          {
+                            "name": "Blue charm"
+                          },
+                          {
+                            "name": "Rocktail"
+                          }
+                        ],
+                        "showChange": true,
+                        "showChart": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "raidpevent",
+      "title": "Event page",
+      "path": "event",
+      "hidden": false,
+      "access": "public",
+      "template": "event",
+      "origin": {
+        "template": "event",
+        "v": 1
+      },
+      "sections": [
+        {
+          "id": "raids076",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "raidr077",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "raidc078",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "raidw079",
+                      "type": "event-detail",
+                      "v": 1,
+                      "settings": {
+                        "showPrizes": true,
+                        "showStandings": true,
+                        "limit": 10
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "raidpfame",
+      "title": "Hall of fame",
+      "path": "hall-of-fame",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "raids083",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "raidr082",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "raidc081",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "raidw080",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Hall of fame",
+                        "subtitle": "First kills, pets and the people who never stop.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "raids092",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "raidr088",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "raidc085",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "raidw084",
+                      "type": "rare-drops",
+                      "v": 1,
+                      "settings": {
+                        "title": "Pets and firsts",
+                        "sort": "rarest",
+                        "limit": 12,
+                        "firsts": true,
+                        "showPets": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "raidc087",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "raidw086",
+                      "type": "kill-tracker",
+                      "v": 1,
+                      "settings": {
+                        "title": "Most kills ever",
+                        "period": "all",
+                        "limit": 12
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "raidr091",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "raidc090",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "raidw089",
+                      "type": "hall-of-fame",
+                      "v": 1,
+                      "settings": {
+                        "title": "Clan records",
+                        "showDays": true,
+                        "showClub": true,
+                        "showStreaks": true,
+                        "showVeterans": true,
+                        "limit": 8
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "raidpmembers",
+      "title": "Members",
+      "path": "members",
+      "hidden": false,
+      "access": "public",
+      "origin": {
+        "template": "members",
+        "v": 1
+      },
+      "sections": [
+        {
+          "id": "raids093",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "raidr094",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "raidc095",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "raidw096",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Members",
+                        "subtitle": "Everyone currently in the clan. Open a member to see their stats, gains, Citadel record and adventure log.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "raids097",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "raidr098",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "raidc099",
+                  "span": {
+                    "lg": 9,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "raidw100",
+                      "type": "member-directory",
+                      "v": 1,
+                      "settings": {
+                        "title": "",
+                        "style": "list",
+                        "limit": 100,
+                        "sort": "rank",
+                        "showRank": true,
+                        "showLevel": true,
+                        "showXp": false,
+                        "showJoined": false,
+                        "showPoints": false,
+                        "search": true,
+                        "rankFilter": true,
+                        "sortControls": false,
+                        "linkPages": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "raidc101",
+                  "span": {
+                    "lg": 3,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "raidw102",
+                      "type": "rank-breakdown",
+                      "v": 1,
+                      "settings": {
+                        "title": "Ranks",
+                        "limit": 20,
+                        "style": "ring",
+                        "showEmpty": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "raidpmember",
+      "title": "Member page",
+      "path": "member",
+      "hidden": false,
+      "access": "public",
+      "template": "member",
+      "sections": [
+        {
+          "id": "raids106",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "raidr105",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "raidc104",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "raidw103",
+                      "type": "member-card",
+                      "v": 1,
+                      "settings": {
+                        "showStrip": false,
+                        "showBio": true,
+                        "showTotals": true,
+                        "showNextRank": true,
+                        "showCompare": false,
+                        "comparePage": null,
+                        "showRecap": false,
+                        "recapPage": null
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "raids112",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "raidr111",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "raidc108",
+                  "span": {
+                    "lg": 7,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "raidw107",
+                      "type": "member-adventure-log",
+                      "v": 1,
+                      "settings": {
+                        "title": "Kills and drops",
+                        "limit": 12,
+                        "showDetails": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "raidc110",
+                  "span": {
+                    "lg": 5,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "raidw109",
+                      "type": "member-badges",
+                      "v": 1,
+                      "settings": {
+                        "title": "Badges",
+                        "limit": 10,
+                        "style": "chips"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "raidpjoin",
+      "title": "Join",
+      "path": "join",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "raids116",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "raidr115",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "raidc114",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "raidw113",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Join the raid team",
+                        "subtitle": "What we ask, what you get, and how to get in.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "raids123",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "raidr122",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "raidc118",
+                  "span": {
+                    "lg": 7,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "md"
+                  },
+                  "valign": "start",
+                  "surface": "panel",
+                  "widgets": [
+                    {
+                      "id": "raidw117",
+                      "type": "text",
+                      "v": 1,
+                      "settings": {
+                        "markdown": "## What we ask\n- A gear setup you're happy to bring, and the will to learn\n- Discord with a working microphone for raids\n- Show up when you sign up, and tell us when you can't\n\n## What you get\n- Teaching trips for every raid and most group bosses\n- Split loot, and a collection log that remembers your best day\n- People to kill things with at any hour",
+                        "align": "left",
+                        "width": "readable"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "raidc121",
+                  "span": {
+                    "lg": 5,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "raidw119",
+                      "type": "recruiting",
+                      "v": 1,
+                      "settings": {
+                        "title": "Apply",
+                        "buttonLabel": "Apply now",
+                        "showRequirements": true
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "raidw120",
+                      "type": "faq",
+                      "v": 1,
+                      "settings": {
+                        "title": "Questions",
+                        "items": [
+                          {
+                            "q": "I've never raided. Can I still join?",
+                            "a": "Yes. Say so in the Discord and you'll be on the next teaching trip."
+                          },
+                          {
+                            "q": "Do you split drops?",
+                            "a": "Always, unless the team agrees otherwise before the kill."
+                          }
+                        ]
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
