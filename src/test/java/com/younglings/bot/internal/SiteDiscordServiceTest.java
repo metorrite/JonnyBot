@@ -39,13 +39,12 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
  * Discord on a clan website over a mock server (T-365, N7): off by default, never more than the site's connection settings allow, only public
- * channels, nothing at all while the server is disconnected, and the Connections page's saves.
+ * channels or private ones with the admin's stored yes, nothing at all while the server is disconnected, and the Connections page's saves.
  */
 class SiteDiscordServiceTest {
     private static final long GUILD = Long.parseLong("7".repeat(18));
@@ -165,6 +164,7 @@ class SiteDiscordServiceTest {
     @Test
     void theFeedReadsTheChosenChannelsSkipsAgeRestrictedOnesAndSendsAvatars() {
         chosen(PUBLIC, PRIVATE, ADULT); // the private one the admin chose on purpose; the age-restricted one was made so later
+        when(connections.privateOk(GUILD)).thenReturn(Set.of(PRIVATE));
         DataObject post = DataObject.empty().put("id", "1").put("author", "Ann").put("avatarUrl", "https://cdn.example/a.png").put("text", "hi");
         when(news.latest(eq(guild), eq(List.of(new SiteNewsService.NewsChannel(PUBLIC, null, 0), new SiteNewsService.NewsChannel(PRIVATE, null, 1))),
                 anyInt())).thenReturn(DataArray.empty().add(post));
@@ -181,8 +181,32 @@ class SiteDiscordServiceTest {
     }
 
     @Test
+    void aChannelThatTurnedPrivateLaterDropsOffUntilTheAdminSaysYes() {
+        chosen(PUBLIC, PRIVATE); // chosen while public; @everyone lost access later, so no yes is stored
+        when(news.latest(eq(guild), any(), anyInt())).thenReturn(DataArray.empty());
+
+        DataObject feed = service.feed(guild, null);
+
+        assertEquals(1, feed.getArray("channels").length());
+        assertEquals("news", feed.getArray("channels").getObject(0).getString("name"));
+        verify(news).latest(eq(guild), eq(List.of(new SiteNewsService.NewsChannel(PUBLIC, null, 0))), anyInt());
+        assertNull(service.feed(guild, Long.toString(PRIVATE)), "nor can it be asked for by itself");
+    }
+
+    @Test
+    void theYesIsReadOnlyWhenAChosenChannelIsPrivate() {
+        chosen(PUBLIC);
+        when(news.latest(eq(guild), any(), anyInt())).thenReturn(DataArray.empty());
+
+        service.feed(guild, null);
+
+        verify(connections, never()).privateOk(anyLong());
+    }
+
+    @Test
     void oneChannelMustBeAnOptedInOne() {
         chosen(PUBLIC, PRIVATE);
+        when(connections.privateOk(GUILD)).thenReturn(Set.of(PRIVATE));
         when(news.latest(eq(guild), any(), anyInt())).thenReturn(DataArray.empty());
 
         assertNotNull(service.feed(guild, Long.toString(PRIVATE)));
@@ -283,18 +307,62 @@ class SiteDiscordServiceTest {
             TicketAdminApi.ApiError error = assertThrows(TicketAdminApi.ApiError.class, () -> service.saveConnection(c, body));
             assertEquals(403, error.status);
         }
-        verify(connections, never()).saveFeatures(any(), anyLong());
+        verify(connections, never()).saveFeatures(any(), anyLong(), any());
 
         DataObject anyway = DataObject.empty().put("feed", DataObject.empty()
                 .put("channels", DataArray.empty().add(DataObject.empty().put("channelId", Long.toString(PRIVATE)).put("allowPrivate", true))));
         service.saveConnection(c, anyway);
-        verify(connections).saveFeatures(now.withFeatures(OnlineMode.OFF, 24, true, 5, true, List.of(new Channel(PRIVATE, null, 0))), 5L);
+        verify(connections).saveFeatures(now.withFeatures(OnlineMode.OFF, 24, true, 5, true, List.of(new Channel(PRIVATE, null, 0))), 5L, Set.of(PRIVATE));
 
-        // once shown, saving it again (a new label, the order) doesn't ask again
+        // once the yes is stored, saving it again (a new label, the order) keeps it without asking
         site(OnlineMode.OFF, PRIVATE);
+        when(connections.privateOk(GUILD)).thenReturn(Set.of(PRIVATE));
         service.saveConnection(c, DataObject.empty().put("feed", DataObject.empty()
                 .put("channels", DataArray.empty().add(DataObject.empty().put("channelId", Long.toString(PRIVATE)).put("label", "Staff news")))));
-        verify(connections, times(2)).saveFeatures(any(), eq(5L));
+        verify(connections).saveFeatures(now.withFeatures(OnlineMode.OFF, 24, true, 5, true, List.of(new Channel(PRIVATE, "Staff news", 0))), 5L,
+                Set.of(PRIVATE));
+    }
+
+    @Test
+    void aChosenChannelThatTurnedPrivateIsKeptWithoutAYesSoOtherSavesStillWork() {
+        SiteCaller c = admin();
+        Connection now = site(OnlineMode.OFF, PUBLIC, PRIVATE); // PRIVATE was public when chosen; no yes stored
+        DataObject body = DataObject.empty().put("feed", DataObject.empty().put("limit", 8).put("channels", DataArray.empty()
+                .add(DataObject.empty().put("channelId", Long.toString(PUBLIC)))
+                .add(DataObject.empty().put("channelId", Long.toString(PRIVATE)))));
+
+        service.saveConnection(c, body);
+
+        verify(connections).saveFeatures(now.withFeatures(OnlineMode.OFF, 24, true, 8, true,
+                List.of(new Channel(PUBLIC, null, 0), new Channel(PRIVATE, null, 1))), 5L, Set.of());
+
+        // the admin then says "Show it anyway"
+        service.saveConnection(c, DataObject.empty().put("feed", DataObject.empty().put("limit", 8).put("channels", DataArray.empty()
+                .add(DataObject.empty().put("channelId", Long.toString(PUBLIC)))
+                .add(DataObject.empty().put("channelId", Long.toString(PRIVATE)).put("allowPrivate", true)))));
+        verify(connections).saveFeatures(any(), eq(5L), eq(Set.of(PRIVATE)));
+    }
+
+    @Test
+    void aLeftoverYesNeverLetsANewPrivatePickThrough() {
+        SiteCaller c = admin();
+        site(OnlineMode.OFF); // PRIVATE isn't chosen, but a yes row for it was left behind
+        when(connections.privateOk(GUILD)).thenReturn(Set.of(PRIVATE));
+        DataObject body = DataObject.empty().put("feed", DataObject.empty()
+                .put("channels", DataArray.empty().add(DataObject.empty().put("channelId", Long.toString(PRIVATE)))));
+
+        assertEquals(403, assertThrows(TicketAdminApi.ApiError.class, () -> service.saveConnection(c, body)).status);
+        verify(connections, never()).saveFeatures(any(), anyLong(), any());
+    }
+
+    @Test
+    void aSaveWithoutChannelsKeepsTheStoredYeses() {
+        SiteCaller c = admin();
+        Connection now = site(OnlineMode.OFF, PRIVATE);
+
+        service.saveConnection(c, DataObject.empty().put("online", DataObject.empty().put("mode", "count")));
+
+        verify(connections).saveFeatures(now.withFeatures(OnlineMode.COUNT, 24, true, 5, true, now.channels()), 5L, null);
     }
 
     @Test
@@ -303,11 +371,11 @@ class SiteDiscordServiceTest {
         Connection now = site(OnlineMode.NAMES, PUBLIC);
 
         service.saveConnection(c, DataObject.empty().put("online", DataObject.empty().put("mode", "names+avatars").put("limit", 40)));
-        verify(connections).saveFeatures(now.withFeatures(OnlineMode.NAMES_AVATARS, 40, true, 5, true, now.channels()), 5L);
+        verify(connections).saveFeatures(now.withFeatures(OnlineMode.NAMES_AVATARS, 40, true, 5, true, now.channels()), 5L, null);
 
         service.saveConnection(c, DataObject.empty().put("feed", DataObject.empty().put("limit", 10)
                 .put("channels", DataArray.empty().add(DataObject.empty().put("channelId", Long.toString(PUBLIC)).put("label", "News")))).put("events", DataObject.empty().put("enabled", false)));
-        verify(connections).saveFeatures(now.withFeatures(OnlineMode.NAMES, 24, true, 10, false, List.of(new Channel(PUBLIC, "News", 0))), 5L);
+        verify(connections).saveFeatures(now.withFeatures(OnlineMode.NAMES, 24, true, 10, false, List.of(new Channel(PUBLIC, "News", 0))), 5L, Set.of());
 
         assertEquals(400, assertThrows(TicketAdminApi.ApiError.class, () -> service.saveConnection(c, DataObject.empty().put("online", DataObject.empty().put("mode", "everyone")))).status);
         assertEquals(400, assertThrows(TicketAdminApi.ApiError.class, () -> service.saveConnection(c, DataObject.empty().put("online", DataObject.empty().put("limit", 0)))).status);
@@ -317,6 +385,7 @@ class SiteDiscordServiceTest {
     @Test
     void theConnectionsPageShowsTheServerTheProviderAndEachChannelsVerdict() {
         site(OnlineMode.NAMES_AVATARS, PRIVATE);
+        when(connections.privateOk(GUILD)).thenReturn(Set.of(PRIVATE));
         when(guild.getTextChannels()).thenReturn(List.of(newsChannel, staffChannel));
         when(guild.getName()).thenReturn("Younglings");
 
@@ -331,7 +400,14 @@ class SiteDiscordServiceTest {
         DataObject staff = state.getObject("feed").getArray("chosen").getObject(0);
         assertTrue(staff.getBoolean("eligible"));
         assertTrue(staff.getBoolean("private"), "the page marks a private channel");
+        assertTrue(staff.getBoolean("privateOk"), "and that the admin said to show it");
         assertFalse(state.getObject("feed").getArray("channels").getObject(0).getBoolean("private"));
+        assertFalse(state.getObject("feed").getArray("channels").getObject(0).getBoolean("privateOk"));
+
+        when(connections.privateOk(GUILD)).thenReturn(Set.of());
+        DataObject turned = service.connectionState(admin()).getObject("feed").getArray("chosen").getObject(0);
+        assertTrue(turned.getBoolean("private"));
+        assertFalse(turned.getBoolean("privateOk"), "a channel that turned private later shows it has no yes");
         assertEquals(1, state.getObject("feed").getArray("channels").length(), "a chosen channel isn't offered twice");
     }
 
@@ -388,7 +464,7 @@ class SiteDiscordServiceTest {
             TicketAdminApi.ApiError error = assertThrows(TicketAdminApi.ApiError.class, () -> service.saveConnection(c, channels(pick(bad))), bad);
             assertEquals(400, error.status, bad);
         }
-        verify(connections, never()).saveFeatures(any(), anyLong());
+        verify(connections, never()).saveFeatures(any(), anyLong(), any());
     }
 
     @Test
@@ -400,10 +476,10 @@ class SiteDiscordServiceTest {
         assertEquals(400, assertThrows(TicketAdminApi.ApiError.class, () -> service.saveConnection(c, channels(seven))).status);
         assertEquals(400, assertThrows(TicketAdminApi.ApiError.class,
                 () -> service.saveConnection(c, channels(pick(Long.toString(PUBLIC)).put("label", "x".repeat(41))))).status);
-        verify(connections, never()).saveFeatures(any(), anyLong());
+        verify(connections, never()).saveFeatures(any(), anyLong(), any());
 
         service.saveConnection(c, channels(pick(Long.toString(PUBLIC)).put("label", "  News  "), pick(" " + PUBLIC + " ")));
-        verify(connections).saveFeatures(now.withFeatures(OnlineMode.OFF, 24, true, 5, true, List.of(new Channel(PUBLIC, "News", 0))), 5L);
+        verify(connections).saveFeatures(now.withFeatures(OnlineMode.OFF, 24, true, 5, true, List.of(new Channel(PUBLIC, "News", 0))), 5L, Set.of());
     }
 
     @Test
@@ -413,7 +489,7 @@ class SiteDiscordServiceTest {
         when(self.hasPermission(eq(newsChannel), eq(Permission.VIEW_CHANNEL), eq(Permission.MESSAGE_HISTORY))).thenReturn(false);
         assertEquals(400, assertThrows(TicketAdminApi.ApiError.class, () -> service.saveConnection(c, channels(pick(Long.toString(PUBLIC))))).status);
         assertEquals(400, assertThrows(TicketAdminApi.ApiError.class, () -> service.saveConnection(c, channels(pick("4".repeat(18))))).status);
-        verify(connections, never()).saveFeatures(any(), anyLong());
+        verify(connections, never()).saveFeatures(any(), anyLong(), any());
     }
 
     @Test
@@ -421,10 +497,10 @@ class SiteDiscordServiceTest {
         Connection now = site(OnlineMode.OFF, PUBLIC);
         SiteCaller botless = new SiteCaller(GUILD, 5L, null, null, null, null);
         assertEquals(409, assertThrows(TicketAdminApi.ApiError.class, () -> service.saveConnection(botless, channels(pick(Long.toString(PUBLIC))))).status);
-        verify(connections, never()).saveFeatures(any(), anyLong());
+        verify(connections, never()).saveFeatures(any(), anyLong(), any());
 
         service.saveConnection(botless, channels().put("online", DataObject.empty().put("mode", "count")));
-        verify(connections).saveFeatures(now.withFeatures(OnlineMode.COUNT, 24, true, 5, true, List.of()), 5L);
+        verify(connections).saveFeatures(now.withFeatures(OnlineMode.COUNT, 24, true, 5, true, List.of()), 5L, null);
     }
 
     @Test

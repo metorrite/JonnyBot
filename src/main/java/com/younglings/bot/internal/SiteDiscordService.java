@@ -33,8 +33,9 @@ import java.util.Set;
  * connections ({@link SiteConnectionStore}, N7), and the site admin's Connections page that edits them. RuneClan Bot is the provider here:
  * the website asks, the bot answers with what the site's settings allow. Both are off until an admin opts in: the online list by picking a
  * mode, the feed channel by channel; a disconnected server shows nothing at all. An age-restricted channel and a thread are refused
- * when chosen and skipped again on every read. A channel {@code @everyone} can't read is shown only when the admin chose it saying so
- * ({@code allowPrivate}); the Connections page marks it private. Answers are cached per server in {@link SiteCache} (online 10 s, feed 15 s; the
+ * when chosen and skipped again on every read. A channel {@code @everyone} can't read is shown only while the admin's yes for it is stored
+ * ({@code allowPrivate} on save, kept by {@link SiteConnectionStore#privateOk}); one that turns private after it was chosen drops off the site
+ * until the admin says yes. The Connections page marks both. Answers are cached per server in {@link SiteCache} (online 10 s, feed 15 s; the
  * messages themselves 60 s in {@link SiteNewsService}), so a deleted message is gone within a minute.
  */
 @BService
@@ -132,12 +133,23 @@ public class SiteDiscordService {
         return DataObject.empty().put("unavailable", false).put("limit", capped).put("channels", channels).put("posts", posts);
     }
 
-    /** The opted-in channels that still pass the rules right now, in the admin's order (as the news reader takes them). */
+    /**
+     * The opted-in channels that still pass the rules right now, in the admin's order (as the news reader takes them): a private one only with
+     * the admin's stored yes (read only when a chosen channel is private).
+     */
     List<SiteNewsService.NewsChannel> publicChannels(Guild guild, Connection connection) {
-        return connection.channels().stream()
-                .filter(c -> SiteDiscordRules.channelRefusal(guild, guild.getGuildChannelById(c.channelId())) == null)
-                .map(c -> new SiteNewsService.NewsChannel(c.channelId(), c.label(), c.position()))
-                .toList();
+        Set<Long> privateOk = null;
+        List<SiteNewsService.NewsChannel> out = new ArrayList<>();
+        for (Channel c : connection.channels()) {
+            GuildChannel channel = guild.getGuildChannelById(c.channelId());
+            if (SiteDiscordRules.channelRefusal(guild, channel) != null) continue;
+            if (SiteDiscordRules.isPrivate(guild, channel)) {
+                if (privateOk == null) privateOk = connections.privateOk(guild.getIdLong());
+                if (!privateOk.contains(c.channelId())) continue;
+            }
+            out.add(new SiteNewsService.NewsChannel(c.channelId(), c.label(), c.position()));
+        }
+        return List.copyOf(out);
     }
 
     /** Whether the site shows the server's Discord events (the events widgets and the bell): connected and switched on. */
@@ -183,12 +195,13 @@ public class SiteDiscordService {
         }
 
         Set<Long> chosenIds = new HashSet<>();
+        Set<Long> privateOk = guild == null || connection.channels().isEmpty() ? Set.of() : connections.privateOk(c.guildId());
         DataArray chosen = DataArray.empty();
         for (Channel ch : connection.channels()) {
             chosenIds.add(ch.channelId());
             chosen.add(guild == null ? DataObject.empty().put("channelId", Long.toString(ch.channelId())).put("name", null).put("label", ch.label())
                     .put("eligible", false).put("reason", "RuneClan Bot isn't in the server, so this channel can't be read.")
-                    : channelJson(guild, guild.getGuildChannelById(ch.channelId()), ch.channelId(), ch.label()));
+                    : channelJson(guild, guild.getGuildChannelById(ch.channelId()), ch.channelId(), ch.label(), privateOk.contains(ch.channelId())));
         }
         DataArray available = DataArray.empty();
         if (guild != null) {
@@ -197,7 +210,7 @@ public class SiteDiscordService {
             all.addAll(guild.getNewsChannels());
             all.sort(Comparator.comparingInt(StandardGuildMessageChannel::getPositionRaw));
             for (var channel : all) {
-                if (!chosenIds.contains(channel.getIdLong())) available.add(channelJson(guild, channel, channel.getIdLong(), null));
+                if (!chosenIds.contains(channel.getIdLong())) available.add(channelJson(guild, channel, channel.getIdLong(), null, false));
             }
         }
 
@@ -224,18 +237,22 @@ public class SiteDiscordService {
                 .put("copiedFromBot", connection.copiedFromBot());
     }
 
-    private static DataObject channelJson(Guild guild, GuildChannel channel, long id, String label) {
+    /** One channel's verdict; {@code privateOk} says whether the admin's yes to show it although it's private is stored. */
+    private static DataObject channelJson(Guild guild, GuildChannel channel, long id, String label, boolean privateOk) {
         Refusal refusal = SiteDiscordRules.channelRefusal(guild, channel);
+        boolean isPrivate = SiteDiscordRules.isPrivate(guild, channel);
         return DataObject.empty().put("channelId", Long.toString(id)).put("name", channel == null ? null : channel.getName()).put("label", label)
                 .put("eligible", refusal == null).put("reason", refusal == null ? null : refusal.reason())
-                .put("private", SiteDiscordRules.isPrivate(guild, channel));
+                .put("private", isPrivate).put("privateOk", isPrivate && privateOk);
     }
 
     /**
      * {@code PUT clan-site/connections}: saves what the body names ({@code online: {mode, limit, groupByRole}}, {@code feed: {limit,
      * channels: [{channelId, label, allowPrivate}]}}, {@code events: {enabled}}); a part left out is kept. A channel the rules forbid
-     * (age-restricted, a thread) is a 403 with the reason; one the bot can't read yet is a 400. A private channel ({@code @everyone} can't
-     * read it) is a 403 unless it was already shown or the admin sends {@code allowPrivate: true}. Channels need the bot in the server.
+     * (age-restricted, a thread) is a 403 with the reason; one the bot can't read yet is a 400. A newly chosen private channel ({@code @everyone}
+     * can't read it) is a 403 unless the admin sends {@code allowPrivate: true}, which stores their yes. One already chosen is kept either way,
+     * but stays off the site while it has no yes (it turned private later), so saving other settings never fails on it. Channels need the bot
+     * in the server.
      */
     DataObject saveConnection(SiteCaller c, DataObject body) {
         Connection now = connections.of(c.guildId());
@@ -252,19 +269,26 @@ public class SiteDiscordService {
         }
         int feedLimit = now.feedLimit();
         List<Channel> channels = now.channels();
+        Set<Long> privateOk = null; // null keeps the stored yeses of the channels still chosen
         if (body.hasKey("feed") && !body.isNull("feed")) {
             DataObject feed = body.getObject("feed");
             feedLimit = number(feed, "limit", feedLimit, SiteConnectionStore.MAX_FEED_LIMIT, "A feed shows 1 to " + SiteConnectionStore.MAX_FEED_LIMIT + " posts.");
             if (feed.hasKey("channels") && !feed.isNull("channels")) {
                 DataArray input = feed.getArray("channels");
                 if (c.botless() && input.length() > 0) throw new ApiError(409, BotlessAdminApi.NEEDS_BOT);
-                channels = c.botless() ? List.of() : parseChannels(c.guild(), input, now.channels());
+                if (c.botless()) {
+                    channels = List.of();
+                } else {
+                    Picked picked = parseChannels(c.guild(), input, now.channels(), connections.privateOk(c.guildId()));
+                    channels = picked.channels();
+                    privateOk = picked.privateOk();
+                }
             }
         }
         boolean events = now.eventsEnabled();
         if (body.hasKey("events") && !body.isNull("events")) events = body.getObject("events").getBoolean("enabled", events);
 
-        connections.saveFeatures(now.withFeatures(mode, onlineLimit, groupByRole, feedLimit, events, channels), c.userId());
+        connections.saveFeatures(now.withFeatures(mode, onlineLimit, groupByRole, feedLimit, events, channels), c.userId(), privateOk);
         invalidate();
         log.info("Site admin: {} saved the Discord features of site {} (online={}, channels={}, events={})", c.userId(), c.guildId(), mode.key(),
                 channels.size(), events);
@@ -309,9 +333,13 @@ public class SiteDiscordService {
         return n;
     }
 
-    private static List<Channel> parseChannels(Guild guild, DataArray input, List<Channel> before) {
+    /** The channels an admin's save picks, and the private ones among them that have the admin's yes. */
+    record Picked(List<Channel> channels, Set<Long> privateOk) {}
+
+    private static Picked parseChannels(Guild guild, DataArray input, List<Channel> before, Set<Long> storedOk) {
         Set<Long> shown = new HashSet<>();
         before.forEach(ch -> shown.add(ch.channelId()));
+        Set<Long> privateOk = new HashSet<>();
         if (input.length() > MAX_CHANNELS) throw new ApiError(400, "Pick at most " + MAX_CHANNELS + " channels.");
         List<Channel> chosen = new ArrayList<>();
         Set<Long> seen = new HashSet<>();
@@ -325,13 +353,18 @@ public class SiteDiscordService {
             GuildChannel channel = guild.getGuildChannelById(channelId);
             Refusal refusal = SiteDiscordRules.channelRefusal(guild, channel);
             if (refusal != null) throw new ApiError(refusal.forbidden() ? 403 : 400, refusal.reason());
-            if (SiteDiscordRules.isPrivate(guild, channel) && !shown.contains(channelId) && !item.getBoolean("allowPrivate", false)) {
-                throw new ApiError(403, "#" + channel.getName() + " is private (@everyone can't read it). Choose \"Show it anyway\" to put its posts on the website.");
+            if (SiteDiscordRules.isPrivate(guild, channel)) {
+                // a stored yes counts only for a channel still chosen; a new pick always needs the admin's allowPrivate
+                boolean yes = item.getBoolean("allowPrivate", false) || (shown.contains(channelId) && storedOk.contains(channelId));
+                if (!yes && !shown.contains(channelId)) {
+                    throw new ApiError(403, "#" + channel.getName() + " is private (@everyone can't read it). Choose \"Show it anyway\" to put its posts on the website.");
+                }
+                if (yes) privateOk.add(channelId);
             }
             String label = item.getString("label", "").strip();
             if (label.length() > 40) throw new ApiError(400, "Labels are up to 40 characters.");
             chosen.add(new Channel(channelId, label.isEmpty() ? null : label, chosen.size()));
         }
-        return chosen;
+        return new Picked(List.copyOf(chosen), Set.copyOf(privateOk));
     }
 }

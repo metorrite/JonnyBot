@@ -17,7 +17,9 @@ import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * A clan site's connections (N7, the site admin's Connections page): which Discord server feeds the site, who supplies its Discord data (the
@@ -34,6 +36,9 @@ import java.util.List;
  * <p>
  * With {@code SITES_BACKEND=hub} the feed channels are kept as mappings of the server's hub site ({@link SiteChannelMappings}); the rest
  * stays here.
+ * <p>
+ * The admin's yes to show a private feed channel (one {@code @everyone} can't read) is kept here too, per channel, whichever side keeps the
+ * channels: a channel that turns private after it was chosen has no yes, so it drops off the site until the admin says so.
  */
 @BService
 public class SiteConnectionStore {
@@ -102,6 +107,15 @@ public class SiteConnectionStore {
                     channel_id BIGINT NOT NULL,
                     label TEXT NULL,
                     position INTEGER NOT NULL DEFAULT 0,
+                    PRIMARY KEY (guild_id, channel_id)
+                );
+                """,
+                """
+                CREATE TABLE IF NOT EXISTS younglings.site_private_channel_ok (
+                    guild_id BIGINT NOT NULL,
+                    channel_id BIGINT NOT NULL,
+                    approved_by BIGINT NOT NULL,
+                    approved_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     PRIMARY KEY (guild_id, channel_id)
                 );
                 """));
@@ -192,8 +206,32 @@ public class SiteConnectionStore {
         }
     }
 
-    /** Saves the Discord features (the online list, the feeds' channels and post count, Discord events), keeping the server and provider. */
+    /** The feed channels whose admin said to show them although they're private (see the class comment). */
+    public Set<Long> privateOk(long siteId) {
+        try (java.sql.Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("SELECT channel_id FROM younglings.site_private_channel_ok WHERE guild_id = ?")) {
+            s.setLong(1, siteId);
+            Set<Long> out = new HashSet<>();
+            try (ResultSet rs = s.executeQuery()) {
+                while (rs.next()) out.add(rs.getLong(1));
+            }
+            return Set.copyOf(out);
+        } catch (SQLException e) {
+            throw fail("read a site's private channel choices", e);
+        }
+    }
+
+    /** Saves the Discord features, keeping the admin's yes for each private channel that is still chosen. */
     public void saveFeatures(Connection next, long actorId) {
+        saveFeatures(next, actorId, null);
+    }
+
+    /**
+     * Saves the Discord features (the online list, the feeds' channels and post count, Discord events), keeping the server and provider.
+     * {@code privateOk} is every chosen private channel the admin said to show (a yes already given keeps who gave it and when); null
+     * keeps the yeses of the channels still chosen. A channel no longer chosen loses its yes either way.
+     */
+    public void saveFeatures(Connection next, long actorId, Set<Long> privateOk) {
         boolean mapped = mappings.replace(next.siteId(), SiteChannelMappings.Kind.FEED,
                 next.channels().stream().map(ch -> new SiteChannelMappings.Mapped(ch.channelId(), ch.label(), ch.position())).toList());
         try (java.sql.Connection c = connectionSupplier.getConnection()) {
@@ -201,6 +239,7 @@ public class SiteConnectionStore {
             try {
                 upsert(c, next, actorId);
                 if (!mapped) saveChannels(c, next);
+                savePrivateOk(c, next, privateOk, actorId);
                 c.commit();
             } catch (SQLException e) {
                 c.rollback();
@@ -224,6 +263,29 @@ public class SiteConnectionStore {
                 insert.setLong(2, channel.channelId());
                 insert.setString(3, channel.label());
                 insert.setInt(4, position++);
+                insert.addBatch();
+            }
+            insert.executeBatch();
+        }
+    }
+
+    private static void savePrivateOk(java.sql.Connection c, Connection next, Set<Long> privateOk, long actorId) throws SQLException {
+        List<Long> keep = next.channels().stream().map(Channel::channelId).filter(id -> privateOk == null || privateOk.contains(id)).toList();
+        try (PreparedStatement delete = c.prepareStatement(
+                "DELETE FROM younglings.site_private_channel_ok WHERE guild_id = ? AND NOT (channel_id = ANY (?))")) {
+            delete.setLong(1, next.siteId());
+            delete.setArray(2, c.createArrayOf("BIGINT", keep.toArray()));
+            delete.executeUpdate();
+        }
+        if (privateOk == null || keep.isEmpty()) return;
+        try (PreparedStatement insert = c.prepareStatement("""
+                INSERT INTO younglings.site_private_channel_ok (guild_id, channel_id, approved_by) VALUES (?, ?, ?)
+                ON CONFLICT (guild_id, channel_id) DO NOTHING
+                """)) {
+            for (long channelId : keep) {
+                insert.setLong(1, next.siteId());
+                insert.setLong(2, channelId);
+                insert.setLong(3, actorId);
                 insert.addBatch();
             }
             insert.executeBatch();
