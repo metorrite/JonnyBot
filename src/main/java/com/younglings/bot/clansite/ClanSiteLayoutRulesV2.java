@@ -80,6 +80,8 @@ public final class ClanSiteLayoutRulesV2 {
     public static final Set<String> TITLES = Set.of("theme", "caps");
     public static final Set<String> GUTTERS = Set.of("normal", "narrow");
     public static final Set<String> TABS = Set.of("filled", "soft");
+    /** The site's motion style (runeclans docs/MOTION.md): missing follows the theme. */
+    public static final Set<String> MOTION = Set.of("forge", "quill", "crisp");
     public static final Set<String> LOGO_TEXT_COLOURS = Set.of("text", "accent");
     public static final Set<String> LOGO_TEXT_CASES = Set.of("normal", "upper");
     public static final Set<String> LOGO_SHAPES = Set.of("rounded", "round");
@@ -639,6 +641,7 @@ public final class ClanSiteLayoutRulesV2 {
         optionalChoice(style, out, "titles", TITLES, "The site has an unknown panel title look.", problems);
         optionalChoice(style, out, "gutter", GUTTERS, "The site has unknown side margins.", problems);
         optionalChoice(style, out, "tabs", TABS, "The site has an unknown look for its time-frame switches.", problems);
+        optionalChoice(style, out, "motion", MOTION, "The site has an unknown animation style.", problems);
         return out;
     }
 

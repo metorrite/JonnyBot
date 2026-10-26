@@ -449,6 +449,23 @@ class ClanSiteLayoutRulesV2Test {
     }
 
     @Test
+    void motionStyleIsKeptAndChecked() {
+        // the site admin's animation style (runeclans docs/MOTION.md): stored only when set, one of the three styles
+        DataObject look = good();
+        look.put("style", DataObject.empty().put("motion", "quill"));
+        assertTrue(problems(look).isEmpty(), problems(look).toString());
+        DataObject clean = DataObject.fromJson(ClanSiteLayoutRulesV2.clean(look, ClanSiteLayoutRulesV2.Limits.PREMIUM, new ArrayList<>()));
+        assertEquals("quill", clean.getObject("style").getString("motion"));
+
+        DataObject plain = DataObject.fromJson(ClanSiteLayoutRulesV2.clean(good(), ClanSiteLayoutRulesV2.Limits.PREMIUM, new ArrayList<>()));
+        assertFalse(plain.hasKey("style") && plain.getObject("style").hasKey("motion"), "nothing is added to a layout that doesn't set it");
+
+        DataObject bad = good();
+        bad.put("style", DataObject.empty().put("motion", "explode"));
+        assertTrue(has(problems(bad), "animation style"));
+    }
+
+    @Test
     void styleAndFooter() {
         DataObject colours = good();
         colours.put("style", DataObject.empty().put("colours", DataObject.empty().put("accent", "red").put("unknown", "#ffffff")));
