@@ -194,6 +194,14 @@ public class RuneClansHubClient {
         return call("GET", "/v1/guilds/" + guildId + "/events?limit=" + Math.max(1, Math.min(limit, 100)), null);
     }
 
+    /**
+     * {@code GET /v1/guilds/{id}/xp/activity}: a server's XP per day and its busy hours of the week, as clan totals only, for the clan website's
+     * activity heatmap (T-583). Through the cache, kept fresh 15 minutes: it changes by the hour.
+     */
+    public Read guildXpActivity(long guildId) {
+        return read("/v1/guilds/" + guildId + "/xp/activity", java.time.Duration.ofMinutes(15));
+    }
+
     // ---------- writes ----------
 
     /** {@code PUT /v1/guilds/{id}}: tells the hub a server JonnyBot is in, by name. */
