@@ -41,7 +41,7 @@ A standalone RS3 plugin named **RuneLink** (Drake's pick, section 15) lets a pla
   - what it needs from JonnyBot sits behind two interfaces: `LinkDmSender` (send a DM, resolve a username; JDA today, a small bot-side endpoint after the split) and `LinkHttpRoutes` (mounting its routes); the `/internal/rsnlink/*` contract, tables and keys move unchanged;
   - consumers inside JonnyBot (T-121) use only the same internal routes a separate service would expose, never its classes.
 - **DM fallback** (bot, T-115): uses JonnyBot's gateway connection to send the code. This is the one place the JonnyBot name appears, because it is the bot that sends the DM.
-- **Abuse view** (website `/admin` Super admin + bot `/internal/admin/rsnlink/*`, T-118).
+- **Abuse view** (the website's RuneClan Admin console at runeclans.com/admin, plus bot `/internal/admin/rsnlink/*`, T-118).
 
 Why the website proxies instead of the plugin calling the bot: the bot's port is not public, the website already owns TLS, hosts and per-IP limits, and one manifest base URL then covers both the API and the page the player is told to open.
 
@@ -155,7 +155,7 @@ All POSTs need the session cookie (`HttpOnly`, `Secure`, `SameSite=Lax`, host-on
 
 ### 5.3 Bot internal routes
 
-`/internal/rsnlink/...` mirrors 5.1 and 5.2 (the website passes the client IP and, for web routes, the signed-in Discord id it got from the callback). As built (T-113): every route is a POST with a JSON body except `GET v1/keys`, so nothing secret sits in a URL. The client IP comes in `X-Link-Client-Ip`, the plugin token in `Authorization: Bearer`, and web routes carry `browserSession` (the opaque id in the link page's own cookie; the bot stores only its hash and binds the pairing to it) plus `discordId` and `discordName` once signed in. The web routes are `web/code`, `web/pairing`, `web/confirm` (answers `{ "result": "linked" | "disputed" | "denied" }`), `web/links`, `web/unlink`, `web/delete-my-data`. First-party resolve (T-200, RUNESYNC-DESIGN.md section 3): `POST /internal/rsnlink/resolve` {assertion} answers `{ discordId, rsn, verification, disputed }` for a valid, unexpired assertion made for a first-party plugin (today only `runesync`) whose alias still matches an active link; anything else is 401 `invalid_assertion`. It is not under `v1/`, so the website never forwards it; other plugins only ever see an alias. Super admin routes for T-118 live under `/internal/admin/rsnlink/...` and are owner-only (`BotOwners`), audit-logged.
+`/internal/rsnlink/...` mirrors 5.1 and 5.2 (the website passes the client IP and, for web routes, the signed-in Discord id it got from the callback). As built (T-113): every route is a POST with a JSON body except `GET v1/keys`, so nothing secret sits in a URL. The client IP comes in `X-Link-Client-Ip`, the plugin token in `Authorization: Bearer`, and web routes carry `browserSession` (the opaque id in the link page's own cookie; the bot stores only its hash and binds the pairing to it) plus `discordId` and `discordName` once signed in. The web routes are `web/code`, `web/pairing`, `web/confirm` (answers `{ "result": "linked" | "disputed" | "denied" }`), `web/links`, `web/unlink`, `web/delete-my-data`. First-party resolve (T-200, RUNESYNC-DESIGN.md section 3): `POST /internal/rsnlink/resolve` {assertion} answers `{ discordId, rsn, verification, disputed }` for a valid, unexpired assertion made for a first-party plugin (today only `runesync`) whose alias still matches an active link; anything else is 401 `invalid_assertion`. It is not under `v1/`, so the website never forwards it; other plugins only ever see an alias. The RuneClan Admin routes for T-118 live under `/internal/admin/rsnlink/...` and are owner-only (`BotOwners`), audit-logged.
 
 ## 6. Data model (dedicated database)
 
@@ -405,13 +405,13 @@ Drake picked **RS Link** (2026-10-19), replacing the earlier "Discord Link", and
 | **T-115** DM fallback | `pair/dm` + confirm, id or username input with resolution among shared servers, uniform 202, DM sending with JDA, DM buttons (Not me, Stop), opt-out, DM caps and circuit breaker, panel copy; Drake tests user-install DMs with the dev bot. | 3.2, 4.2, 8, 13.3 |
 | **T-116** RuneLink plugin | New private repo (MIT), `plugin.json` (`httpAccess` required, `trackingAccess` optional, one `link` URL), pairing panel (code + address, Discord username-or-id box, code box, status, unlink, delete), token in PersistentDB, `/v1/session` on login, library section 10 with queue + `pcall`, README for dependents. | 3.1, 4, 9.3, 10, 14 |
 | **T-117** RuneSync uses it | Adds RuneLink to RuneSync's dependencies, uses `IsLinked` / `GetAlias` / `GetAssertion`, drops the dev-echo pairing assumptions. | 10, 13.2 |
-| **T-118** abuse view | Super admin page: counts and recent `abuse_event`s, lockouts, DM breaker state, block/unblock (IP, tracking, Discord), remove a link; owner-only, audit-logged; Discord ids shown only to the owner (decrypted on demand); never codes or tokens. | 5.3, 6, 8, 16 |
+| **T-118** abuse view | RuneClan Admin page: counts and recent `abuse_event`s, lockouts, DM breaker state, block/unblock (IP, tracking, Discord), remove a link; owner-only, audit-logged; Discord ids shown only to the owner (decrypted on demand); never codes or tokens. | 5.3, 6, 8, 16 |
 | T-119 (Drake asks Jagex) | Unknowns in 3.1. | 3.1 |
 | T-120 (release) | Domain, region, privacy page, backup wording, contact email, repo public, submission. | 9.5, 14 |
 | T-121 (clan server) | Needs Discord ids, which dependents never get: the opt-in for JonnyBot servers is decided there (Q5). | 1, 13 |
 | T-122 (parked) | Verifiers against the hook. | 12 |
 
-Website-first rule: the player's controls (link, unlink, delete, see links) are on the link host, not in Discord. Discord-only use is the DM fallback, which still works. Owner controls are in Super admin (T-118); there are no per-server settings in v1, so no dashboard page is needed until T-121.
+Website-first rule: the player's controls (link, unlink, delete, see links) are on the link host, not in Discord. Discord-only use is the DM fallback, which still works. Owner controls are in RuneClan Admin (T-118, runeclans.com/admin); there are no per-server settings in v1, so no dashboard page is needed until T-121.
 
 ## 18. Decisions (Drake, 2026-10-19)
 
