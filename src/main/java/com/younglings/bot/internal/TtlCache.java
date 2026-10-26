@@ -42,6 +42,11 @@ final class TtlCache {
         entries.clear();
     }
 
+    /** How many answers are held, fresh or stale (a cache keyed by what callers type can bound itself with this). */
+    int size() {
+        return entries.size();
+    }
+
     /** Forgets entries whose key starts with {@code prefix}. */
     void invalidate(String prefix) {
         entries.keySet().removeIf(k -> k.startsWith(prefix));
