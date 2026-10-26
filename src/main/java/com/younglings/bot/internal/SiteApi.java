@@ -119,34 +119,7 @@ public class SiteApi {
             // already caches too, but this protects the bot's database from several instances or a cold start.
             String cacheKey = route + "?" + exchange.getRequestURI().getRawQuery();
             final String finalRoute = route;
-            long id = guild.getIdLong();
-            DataObject result = cache.get(cacheKey, ttlMillis(route), () -> switch (finalRoute) {
-                case "online" -> online(guild);
-                case "events" -> events(guild);
-                case "members" -> members(id);
-                case "overview" -> overview(id);
-                case "member" -> member(id, query(exchange, "rsn"));
-                case "member/skill" -> memberSkill(id, query(exchange, "rsn"), query(exchange, "skill"));
-                case "leaderboard" -> leaderboard(id, query(exchange, "month"), query(exchange, "period"));
-                case "coffer" -> coffer(id);
-                case "feed" -> feed(id, query(exchange, "limit"), query(exchange, "kind"));
-                case "records" -> records(id);
-                case "citadel-grid" -> citadelGrid(id, query(exchange, "weeks"));
-                case "history" -> history(id);
-                case "polls" -> polls(id);
-                case "signups" -> signups(id);
-                case "news" -> DataObject.empty().put("posts", news.latest(guild, 14));
-                case "recap" -> recap.build(id, query(exchange, "scope"), query(exchange, "rsn"), query(exchange, "period"));
-                case "pvm" -> pvm(id);
-                case "drops" -> drops(id);
-                case "options" -> DataObject.empty().put("navEventBubble", community.navEventBubble(id));
-                case "bosses" -> bossStats.bosses(id, query(exchange, "period"));
-                case "boss" -> bossStats.boss(id, query(exchange, "boss"), query(exchange, "period"));
-                case "item" -> bossStats.item(id, query(exchange, "item"), query(exchange, "period"), query(exchange, "boss"));
-                case "drop-log" -> bossStats.drops(id, query(exchange, "period"), query(exchange, "bosses"));
-                case "me" -> me(guild, query(exchange, "userId"));
-                default -> null;
-            });
+            DataObject result = cache.get(cacheKey, ttlMillis(route), () -> answer(guild, finalRoute, exchange));
 
             if (result == null) {
                 InternalApiServer.sendJson(exchange, 404, DataObject.empty().put("error", "Not found"));
@@ -157,6 +130,55 @@ public class SiteApi {
             log.error("Site API request {} failed", exchange.getRequestURI().getPath(), e);
             InternalApiServer.sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));
         }
+    }
+
+    /** The home server's answer for one {@code /internal/site/} route, uncached; null for a route that doesn't exist. */
+    DataObject answer(Guild guild, String route, HttpExchange exchange) {
+        long id = guild.getIdLong();
+        return switch (route) {
+            case "online" -> online(guild);
+            case "events" -> events(guild);
+            case "members" -> members(id);
+            case "overview" -> overview(id);
+            case "member" -> member(id, query(exchange, "rsn"));
+            case "member/skill" -> memberSkill(id, query(exchange, "rsn"), query(exchange, "skill"));
+            case "leaderboard" -> leaderboard(id, query(exchange, "month"), query(exchange, "period"));
+            case "coffer" -> coffer(id);
+            case "feed" -> feed(id, query(exchange, "limit"), query(exchange, "kind"));
+            case "records" -> records(id);
+            case "citadel-grid" -> citadelGrid(id, query(exchange, "weeks"));
+            case "history" -> history(id);
+            case "polls" -> polls(id);
+            case "signups" -> signups(id);
+            case "news" -> DataObject.empty().put("posts", news.latest(guild, 14));
+            case "recap" -> recap.build(id, query(exchange, "scope"), query(exchange, "rsn"), query(exchange, "period"));
+            case "pvm" -> pvm(id);
+            case "drops" -> drops(id);
+            case "options" -> DataObject.empty().put("navEventBubble", community.navEventBubble(id));
+            case "bosses" -> bossStats.bosses(id, query(exchange, "period"));
+            case "boss" -> bossStats.boss(id, query(exchange, "boss"), query(exchange, "period"));
+            case "item" -> bossStats.item(id, query(exchange, "item"), query(exchange, "period"), query(exchange, "boss"));
+            case "drop-log" -> bossStats.drops(id, query(exchange, "period"), query(exchange, "bosses"));
+            case "me" -> me(guild, query(exchange, "userId"));
+            default -> null;
+        };
+    }
+
+    /**
+     * The answers only the home server's own site has, which {@link #TENANT_ROUTES} lack (T-519): the news channel, the site options, the
+     * signed-in member's link state ("me", by the {@code userId} the website takes from its session), the live Discord list and Discord's
+     * events (the home site always shows them; a clan site only when its settings say so).
+     */
+    public static final java.util.Set<String> HOME_ROUTES = java.util.Set.of("news", "options", "me", "online", "events");
+
+    /**
+     * The home server's site read by server id (T-519, {@link GuildSiteRoutes}): {@link #HOME_ROUTES} answer exactly as {@code /internal/site/}
+     * does, every other route is the clan-site answer ({@link #tenant}), with its privacy rules. Null for any other route.
+     */
+    public DataObject home(Guild guild, String route, HttpExchange exchange) {
+        if (!HOME_ROUTES.contains(route)) return tenant(guild, route, exchange);
+        String cacheKey = route + "?" + exchange.getRequestURI().getRawQuery() + "#g" + guild.getIdLong();
+        return cache.get(cacheKey, ttlMillis(route), () -> answer(guild, route, exchange));
     }
 
     /**
@@ -262,6 +284,8 @@ public class SiteApi {
     }
 
     private static final int NOTIFICATION_ITEMS = 5;
+    /** Activity lines for the bell: more than the other kinds, since the website folds repeats into one line ("4 new drops"). */
+    static final int NOTIFICATION_FEED_ITEMS = 20;
     private static final Duration EVENTS_SOON = Duration.ofDays(7);
 
     /**
@@ -276,7 +300,7 @@ public class SiteApi {
         DataArray signups = DataArray.empty();
         // A bot-less site (guild null) has no Discord events, polls or signup sheets: only the activity lines.
         if (guild == null) return DataObject.empty().put("events", events).put("polls", polls).put("signups", signups)
-                .put("feed", feed(guildId, Integer.toString(NOTIFICATION_ITEMS), null).getArray("items"));
+                .put("feed", feed(guildId, Integer.toString(NOTIFICATION_FEED_ITEMS), null).getArray("items"));
         if (discord.eventsShown(guildId)) guild.getScheduledEvents().stream()
                 .filter(e -> e.getStatus() == ScheduledEvent.Status.ACTIVE
                         || (e.getStatus() == ScheduledEvent.Status.SCHEDULED && e.getStartTime().isBefore(now.plus(EVENTS_SOON))))
@@ -297,7 +321,7 @@ public class SiteApi {
         }
 
         return DataObject.empty().put("events", events).put("polls", polls).put("signups", signups)
-                .put("feed", feed(guildId, Integer.toString(NOTIFICATION_ITEMS), null).getArray("items"));
+                .put("feed", feed(guildId, Integer.toString(NOTIFICATION_FEED_ITEMS), null).getArray("items"));
     }
 
     private static List<DataObject> objects(DataArray array) {
@@ -467,12 +491,17 @@ public class SiteApi {
         return ranks;
     }
 
+    /**
+     * The whole in-game clan list. {@code pagePublic} (T-416): whether the member's own page can be opened ({@link #visibleMember}); false for a
+     * member hidden from the rankings, by their choice or the server's member privacy defaults, so the directory shows their name unlinked.
+     */
     DataObject members(long guildId) {
         List<MemberRow> members = stats.members(guildId);
+        Set<String> hiddenBoards = profiles.hiddenRsns(guildId, true);
         DataArray array = DataArray.empty();
         members.stream()
                 .sorted(Comparator.comparingInt(MemberRow::rankOrder).reversed().thenComparing(m -> m.rsn().toLowerCase()))
-                .forEach(m -> array.add(memberJson(m)));
+                .forEach(m -> array.add(memberJson(m).put("pagePublic", shown(hiddenBoards, m.rsn()))));
         return DataObject.empty().put("members", array).put("ranks", ranksJson(guildId, members));
     }
 
@@ -617,6 +646,9 @@ public class SiteApi {
                 .put("name", next.rankName())
                 .put("threshold", next.pointThreshold())
                 .put("pointsNeeded", Math.max(0, next.pointThreshold() - row.points())));
+        // The highest rank order, so the website can colour the member's rank by how high it is (rsyounglings' rank badge).
+        json.put("maxRankOrder", ranks.stream().mapToInt(RankConfigRow::rankOrder).max().orElse(0));
+        json.put("standing", standing(guildId, row, now));
 
         // Skills now.
         DataArray skills = DataArray.empty();
@@ -667,7 +699,7 @@ public class SiteApi {
         Profile chosen = profiles.getProfileForRsn(guildId, row.rsn());
         json.put("bio", chosen == null ? "" : chosen.bio()).put("accentColor", chosen == null ? null : chosen.accentColor())
                 .put("pinnedSkill", chosen == null ? null : chosen.pinnedSkill());
-        boolean hideLog = chosen != null && chosen.hideAdventureLog();
+        boolean hideLog = profiles.adventureLogHidden(guildId, row.rsn());
         json.put("adventureLogHidden", hideLog);
 
         // Adventure log.
@@ -680,7 +712,32 @@ public class SiteApi {
         return json;
     }
 
+    /**
+     * Where the member stands among the clan's leaders (rsyounglings' Rising star and Points leader badges): their place for XP gained in the
+     * last 7 days and for clan points, 1 being first, as the overview's top-10 lists count it (members hidden from boards left out); null
+     * outside the top 10 or when they are hidden themselves.
+     */
+    private DataObject standing(long guildId, MemberRow row, OffsetDateTime now) {
+        Set<String> hiddenBoards = profiles.hiddenRsns(guildId, true);
+        if (!shown(hiddenBoards, row.rsn())) return DataObject.empty().put("weekGain", null).put("points", null);
+        List<String> gainers = visible(stats.xpGains(guildId, now.minusDays(7)), hiddenBoards).stream().filter(g -> g.xp() > 0)
+                .sorted(Comparator.comparingLong(Gain::xp).reversed()).limit(10).map(Gain::rsn).toList();
+        List<String> pointsLeaders = stats.members(guildId).stream().filter(m -> shown(hiddenBoards, m.rsn()) && m.points() > 0)
+                .sorted(Comparator.comparingLong(MemberRow::points).reversed()).limit(10).map(MemberRow::rsn).toList();
+        return DataObject.empty().put("weekGain", place(gainers, row.rsn())).put("points", place(pointsLeaders, row.rsn()));
+    }
+
+    private static Integer place(List<String> rsns, String rsn) {
+        for (int i = 0; i < rsns.size(); i++) {
+            if (rsns.get(i).equalsIgnoreCase(rsn)) return i + 1;
+        }
+        return null;
+    }
+
     // ---------- activity feed, records, history, polls, PvM and drops ----------
+
+    /** How many adventure-log entries a feed of one kind looks through (a few months of a big clan's log). */
+    static final int KIND_SCAN = 3000;
 
     /** The clan's newest notable adventure-log entries (level-ups, milestones, quests, boss kills, drops, pets, caps…). */
     DataObject feed(long guildId, String limitRaw, String kindRaw) {
@@ -701,7 +758,8 @@ public class SiteApi {
 
         Set<String> hiddenLogs = profiles.hiddenRsns(guildId, false);
         DataArray items = DataArray.empty();
-        for (var row : stats.recentActivities(guildId, limit * 6)) {
+        // one kind (pets for the rare drops wall) is rarer than the rest, so look further back for it
+        for (var row : stats.recentActivities(guildId, wanted == null ? limit * 6 : Math.max(limit * 6, KIND_SCAN))) {
             if (!shown(hiddenLogs, row.rsn())) continue;
             ActivityKinds.Kind kind = ActivityKinds.kindOf(row.text());
             if (kind == ActivityKinds.Kind.OTHER || kind == ActivityKinds.Kind.CITADEL_VISIT) continue;

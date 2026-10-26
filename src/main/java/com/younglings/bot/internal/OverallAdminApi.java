@@ -42,6 +42,7 @@ import java.util.function.Supplier;
  *   {@code DELETE overall/premium/{id}}: answer the list. Structure only: nothing reads these grants ({@link PremiumAccessRepository})</li>
  *   <li>{@code overall/owner-sites...}: every clan site ({@link SiteOwnerAdminApi}'s routes) and {@code overall/beta-testers...}: the beta
  *   testers ({@link SiteBuilderBetaAdminApi}'s), for every overall admin</li>
+ *   <li>{@code GET overall/health} and {@code GET overall/runemetrics-budget}: the bot's health and RuneMetrics budget, and {@code GET overall/runesync/diagnostics/{id}} (the bot's owner only) ({@link OverallOpsRoutes})</li>
  * </ul>
  */
 @BService
@@ -58,18 +59,20 @@ public class OverallAdminApi {
     private final PremiumAccessRepository premium;
     private final SiteOwnerAdminApi sites;
     private final SiteBuilderBetaAdminApi beta;
+    private final OverallOpsRoutes ops;
     private final SiteRoleGuard siteRoles;
     private final AdminToolsStore auditStore;
     private final BotConfig config;
     private final RateLimiter writes = new RateLimiter(20, 1_000);
 
     public OverallAdminApi(OverallAdmins admins, BotOwners owners, PremiumAccessRepository premium, SiteOwnerAdminApi sites, SiteBuilderBetaAdminApi beta,
-                           SiteRoleGuard siteRoles, AdminToolsStore auditStore, BotConfig config) {
+                           OverallOpsRoutes ops, SiteRoleGuard siteRoles, AdminToolsStore auditStore, BotConfig config) {
         this.admins = admins;
         this.owners = owners;
         this.premium = premium;
         this.sites = sites;
         this.beta = beta;
+        this.ops = ops;
         this.siteRoles = siteRoles;
         this.auditStore = auditStore;
         this.config = config;
@@ -132,6 +135,7 @@ public class OverallAdminApi {
                 yield sites.routes(home, actor, method, parts, body);
             }
             case SiteBuilderBetaAdminApi.TESTERS -> beta.testersRoute(actor, method, parts, body);
+            case OverallOpsRoutes.HEALTH, OverallOpsRoutes.BUDGET, OverallOpsRoutes.RUNESYNC, OverallOpsRoutes.PREMIUM_GUILDS, OverallOpsRoutes.RSNLINK -> ops.route(jda, actor, home(jda), method, parts, body);
             default -> null;
         };
     }

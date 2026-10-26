@@ -15,7 +15,7 @@
       "border": "#1f2a37"
     },
     "fonts": {
-      "heading": "bebas-neue",
+      "heading": "inter",
       "body": "lato"
     },
     "radius": "none",
@@ -51,7 +51,7 @@
     "mobile": "dropdown",
     "nav": [
       {
-        "id": "arenan157",
+        "id": "arenan164",
         "label": "Home",
         "link": {
           "kind": "page",
@@ -59,7 +59,7 @@
         }
       },
       {
-        "id": "arenan158",
+        "id": "arenan165",
         "label": "Competitions",
         "link": {
           "kind": "page",
@@ -68,7 +68,7 @@
         "badge": "events"
       },
       {
-        "id": "arenan159",
+        "id": "arenan166",
         "label": "Leaderboards",
         "link": {
           "kind": "page",
@@ -76,7 +76,7 @@
         }
       },
       {
-        "id": "arenan160",
+        "id": "arenan167",
         "label": "Recaps",
         "link": {
           "kind": "page",
@@ -84,7 +84,7 @@
         }
       },
       {
-        "id": "arenan161",
+        "id": "arenan168",
         "label": "Members",
         "link": {
           "kind": "page",
@@ -92,7 +92,7 @@
         },
         "children": [
           {
-            "id": "arenan162",
+            "id": "arenan169",
             "label": "All members",
             "link": {
               "kind": "page",
@@ -101,7 +101,7 @@
             "description": "Everyone in the clan"
           },
           {
-            "id": "arenan163",
+            "id": "arenan170",
             "label": "Head to head",
             "link": {
               "kind": "page",
@@ -112,7 +112,7 @@
         ]
       },
       {
-        "id": "arenan164",
+        "id": "arenan171",
         "label": "Records",
         "link": {
           "kind": "page",
@@ -120,7 +120,7 @@
         }
       },
       {
-        "id": "arenan165",
+        "id": "arenan172",
         "label": "Join",
         "link": {
           "kind": "page",
@@ -303,6 +303,7 @@
                         ],
                         "align": "left",
                         "size": "medium",
+                        "look": "buttons",
                         "fullWidth": false
                       },
                       "unmet": "hide"
@@ -453,7 +454,9 @@
                         "metric": "xp",
                         "period": "week",
                         "visitorPeriods": true,
-                        "limit": 10
+                        "limit": 10,
+                        "bars": "under",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -503,7 +506,7 @@
                       "settings": {
                         "title": "Last week's podium",
                         "period": "last-week",
-                        "visitorPeriods": true,
+                        "visitorPeriods": false,
                         "showTop": true
                       },
                       "unmet": "hide"
@@ -598,7 +601,8 @@
                             "link": null
                           }
                         ],
-                        "columns": "2"
+                        "columns": "2",
+                        "numbers": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -1008,7 +1012,9 @@
                         "metric": "xp",
                         "period": "month",
                         "visitorPeriods": true,
-                        "limit": 15
+                        "limit": 15,
+                        "bars": "under",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -1035,7 +1041,9 @@
                         "metric": "citadel",
                         "period": "month",
                         "visitorPeriods": true,
-                        "limit": 15
+                        "limit": 15,
+                        "bars": "under",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -1076,7 +1084,9 @@
                         "metric": "joins",
                         "period": "month",
                         "visitorPeriods": true,
-                        "limit": 15
+                        "limit": 15,
+                        "bars": "under",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -1104,7 +1114,9 @@
                         "showDay": true,
                         "showWeek": true,
                         "showMonth": true,
-                        "defaultTab": "week"
+                        "defaultTab": "week",
+                        "bars": "under",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -1124,7 +1136,7 @@
       "access": "public",
       "origin": {
         "template": "recaps",
-        "v": 1
+        "v": 2
       },
       "sections": [
         {
@@ -1174,7 +1186,7 @@
                       "v": 1,
                       "settings": {
                         "text": "Recaps",
-                        "subtitle": "Your clan's week, month or year in review. Each member's own recap is on their member page.",
+                        "subtitle": "Your clan's week, month or year in review, as a story for the whole clan or any member.",
                         "size": "large",
                         "align": "left",
                         "colour": "",
@@ -1196,7 +1208,7 @@
           },
           "padding": {
             "lg": {
-              "y": "lg",
+              "y": "md",
               "x": "md"
             }
           },
@@ -1221,6 +1233,66 @@
                 {
                   "id": "arenac065",
                   "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw066",
+                      "type": "wrapped-recap",
+                      "v": 1,
+                      "settings": {
+                        "title": "",
+                        "period": "month",
+                        "visitorPeriods": true,
+                        "members": true,
+                        "autoplay": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "arenas067",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "arenar068",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "arenac069",
+                  "span": {
                     "lg": 7,
                     "md": 12
                   },
@@ -1231,7 +1303,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "arenaw066",
+                      "id": "arenaw070",
                       "type": "recap",
                       "v": 1,
                       "settings": {
@@ -1245,7 +1317,7 @@
                   ]
                 },
                 {
-                  "id": "arenac067",
+                  "id": "arenac071",
                   "span": {
                     "lg": 5,
                     "md": 12
@@ -1257,12 +1329,50 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "arenaw068",
+                      "id": "arenaw072",
                       "type": "weekly-recap",
                       "v": 1,
                       "settings": {
                         "title": "Last week",
                         "showTop": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "arenar073",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "arenac074",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw075",
+                      "type": "recap-picker",
+                      "v": 1,
+                      "settings": {
+                        "title": "A member's recap",
+                        "period": "month",
+                        "skills": 3
                       },
                       "unmet": "hide"
                     }
@@ -1286,7 +1396,7 @@
       },
       "sections": [
         {
-          "id": "arenas069",
+          "id": "arenas076",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1304,7 +1414,7 @@
           },
           "rows": [
             {
-              "id": "arenar070",
+              "id": "arenar077",
               "gap": {
                 "lg": "md"
               },
@@ -1316,7 +1426,7 @@
               },
               "cells": [
                 {
-                  "id": "arenac071",
+                  "id": "arenac078",
                   "span": {
                     "lg": 12
                   },
@@ -1327,7 +1437,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "arenaw072",
+                      "id": "arenaw079",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -1347,7 +1457,7 @@
           ]
         },
         {
-          "id": "arenas073",
+          "id": "arenas080",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1365,7 +1475,7 @@
           },
           "rows": [
             {
-              "id": "arenar074",
+              "id": "arenar081",
               "gap": {
                 "lg": "md"
               },
@@ -1377,7 +1487,7 @@
               },
               "cells": [
                 {
-                  "id": "arenac075",
+                  "id": "arenac082",
                   "span": {
                     "lg": 9,
                     "md": 12
@@ -1389,7 +1499,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "arenaw076",
+                      "id": "arenaw083",
                       "type": "member-directory",
                       "v": 1,
                       "settings": {
@@ -1401,8 +1511,10 @@
                         "showLevel": true,
                         "showXp": false,
                         "showJoined": false,
+                        "showPoints": false,
                         "search": true,
                         "rankFilter": true,
+                        "sortControls": false,
                         "linkPages": true
                       },
                       "unmet": "hide"
@@ -1410,7 +1522,7 @@
                   ]
                 },
                 {
-                  "id": "arenac077",
+                  "id": "arenac084",
                   "span": {
                     "lg": 3,
                     "md": 12
@@ -1422,7 +1534,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "arenaw078",
+                      "id": "arenaw085",
                       "type": "rank-breakdown",
                       "v": 1,
                       "settings": {
@@ -1454,7 +1566,7 @@
       },
       "sections": [
         {
-          "id": "arenas079",
+          "id": "arenas086",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1472,7 +1584,7 @@
           },
           "rows": [
             {
-              "id": "arenar080",
+              "id": "arenar087",
               "gap": {
                 "lg": "md"
               },
@@ -1484,7 +1596,7 @@
               },
               "cells": [
                 {
-                  "id": "arenac081",
+                  "id": "arenac088",
                   "span": {
                     "lg": 12
                   },
@@ -1495,10 +1607,11 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "arenaw082",
+                      "id": "arenaw089",
                       "type": "member-card",
                       "v": 1,
                       "settings": {
+                        "showStrip": false,
                         "showBio": true,
                         "showTotals": true,
                         "showNextRank": true,
@@ -1506,7 +1619,9 @@
                         "comparePage": {
                           "kind": "page",
                           "pageId": "arenapcompare"
-                        }
+                        },
+                        "showRecap": false,
+                        "recapPage": null
                       },
                       "unmet": "hide"
                     }
@@ -1517,7 +1632,7 @@
           ]
         },
         {
-          "id": "arenas083",
+          "id": "arenas090",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1535,7 +1650,7 @@
           },
           "rows": [
             {
-              "id": "arenar084",
+              "id": "arenar091",
               "gap": {
                 "lg": "md"
               },
@@ -1547,7 +1662,7 @@
               },
               "cells": [
                 {
-                  "id": "arenac085",
+                  "id": "arenac092",
                   "span": {
                     "lg": 8,
                     "md": 12
@@ -1559,7 +1674,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "arenaw086",
+                      "id": "arenaw093",
                       "type": "member-xp-chart",
                       "v": 1,
                       "settings": {
@@ -1572,7 +1687,7 @@
                   ]
                 },
                 {
-                  "id": "arenac087",
+                  "id": "arenac094",
                   "span": {
                     "lg": 4,
                     "md": 12
@@ -1584,7 +1699,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "arenaw088",
+                      "id": "arenaw095",
                       "type": "member-badges",
                       "v": 1,
                       "settings": {
@@ -1599,7 +1714,7 @@
               ]
             },
             {
-              "id": "arenar089",
+              "id": "arenar096",
               "gap": {
                 "lg": "md"
               },
@@ -1611,7 +1726,7 @@
               },
               "cells": [
                 {
-                  "id": "arenac090",
+                  "id": "arenac097",
                   "span": {
                     "lg": 12
                   },
@@ -1622,7 +1737,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "arenaw091",
+                      "id": "arenaw098",
                       "type": "member-skills",
                       "v": 1,
                       "settings": {
@@ -1640,7 +1755,7 @@
               ]
             },
             {
-              "id": "arenar092",
+              "id": "arenar099",
               "gap": {
                 "lg": "md"
               },
@@ -1651,94 +1766,6 @@
                 }
               },
               "cells": [
-                {
-                  "id": "arenac093",
-                  "span": {
-                    "lg": 6,
-                    "md": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "arenaw094",
-                      "type": "member-citadel",
-                      "v": 1,
-                      "settings": {
-                        "title": "Citadel",
-                        "weeks": 12,
-                        "showGrid": true
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                },
-                {
-                  "id": "arenac095",
-                  "span": {
-                    "lg": 6,
-                    "md": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "arenaw096",
-                      "type": "member-points",
-                      "v": 1,
-                      "settings": {
-                        "title": "Clan points",
-                        "limit": 8
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                }
-              ]
-            },
-            {
-              "id": "arenar097",
-              "gap": {
-                "lg": "md"
-              },
-              "align": "stretch",
-              "height": {
-                "lg": {
-                  "mode": "auto"
-                }
-              },
-              "cells": [
-                {
-                  "id": "arenac098",
-                  "span": {
-                    "lg": 6,
-                    "md": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "arenaw099",
-                      "type": "member-adventure-log",
-                      "v": 1,
-                      "settings": {
-                        "title": "Adventure log",
-                        "limit": 10,
-                        "showDetails": false
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                },
                 {
                   "id": "arenac100",
                   "span": {
@@ -1753,6 +1780,95 @@
                   "widgets": [
                     {
                       "id": "arenaw101",
+                      "type": "member-citadel",
+                      "v": 1,
+                      "settings": {
+                        "title": "Citadel",
+                        "weeks": 12,
+                        "showGrid": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "arenac102",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw103",
+                      "type": "member-points",
+                      "v": 1,
+                      "settings": {
+                        "title": "Clan points",
+                        "limit": 8,
+                        "showChart": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "arenar104",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "arenac105",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw106",
+                      "type": "member-adventure-log",
+                      "v": 1,
+                      "settings": {
+                        "title": "Adventure log",
+                        "limit": 10,
+                        "showDetails": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "arenac107",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw108",
                       "type": "member-recap",
                       "v": 1,
                       "settings": {
@@ -1782,7 +1898,7 @@
       },
       "sections": [
         {
-          "id": "arenas102",
+          "id": "arenas109",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1800,7 +1916,7 @@
           },
           "rows": [
             {
-              "id": "arenar103",
+              "id": "arenar110",
               "gap": {
                 "lg": "md"
               },
@@ -1812,7 +1928,7 @@
               },
               "cells": [
                 {
-                  "id": "arenac104",
+                  "id": "arenac111",
                   "span": {
                     "lg": 12
                   },
@@ -1823,7 +1939,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "arenaw105",
+                      "id": "arenaw112",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -1843,7 +1959,7 @@
           ]
         },
         {
-          "id": "arenas106",
+          "id": "arenas113",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1861,7 +1977,7 @@
           },
           "rows": [
             {
-              "id": "arenar107",
+              "id": "arenar114",
               "gap": {
                 "lg": "md"
               },
@@ -1873,7 +1989,7 @@
               },
               "cells": [
                 {
-                  "id": "arenac108",
+                  "id": "arenac115",
                   "span": {
                     "lg": 12
                   },
@@ -1884,7 +2000,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "arenaw109",
+                      "id": "arenaw116",
                       "type": "compare",
                       "v": 1,
                       "settings": {
@@ -1915,7 +2031,7 @@
       },
       "sections": [
         {
-          "id": "arenas110",
+          "id": "arenas117",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1933,7 +2049,7 @@
           },
           "rows": [
             {
-              "id": "arenar111",
+              "id": "arenar118",
               "gap": {
                 "lg": "md"
               },
@@ -1945,7 +2061,7 @@
               },
               "cells": [
                 {
-                  "id": "arenac112",
+                  "id": "arenac119",
                   "span": {
                     "lg": 12
                   },
@@ -1956,7 +2072,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "arenaw113",
+                      "id": "arenaw120",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -1976,7 +2092,7 @@
           ]
         },
         {
-          "id": "arenas114",
+          "id": "arenas121",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1994,7 +2110,7 @@
           },
           "rows": [
             {
-              "id": "arenar115",
+              "id": "arenar122",
               "gap": {
                 "lg": "md"
               },
@@ -2006,7 +2122,7 @@
               },
               "cells": [
                 {
-                  "id": "arenac116",
+                  "id": "arenac123",
                   "span": {
                     "lg": 8,
                     "md": 12
@@ -2018,7 +2134,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "arenaw117",
+                      "id": "arenaw124",
                       "type": "hall-of-fame",
                       "v": 1,
                       "settings": {
@@ -2034,7 +2150,7 @@
                   ]
                 },
                 {
-                  "id": "arenac118",
+                  "id": "arenac125",
                   "span": {
                     "lg": 4,
                     "md": 12
@@ -2046,12 +2162,16 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "arenaw119",
+                      "id": "arenaw126",
                       "type": "milestones",
                       "v": 1,
                       "settings": {
                         "title": "Milestones",
-                        "limit": 10
+                        "limit": 10,
+                        "bigOnly": false,
+                        "look": "lines",
+                        "more": null,
+                        "moreText": "Hall of fame"
                       },
                       "unmet": "hide"
                     }
@@ -2075,7 +2195,7 @@
       },
       "sections": [
         {
-          "id": "arenas120",
+          "id": "arenas127",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -2093,7 +2213,7 @@
           },
           "rows": [
             {
-              "id": "arenar121",
+              "id": "arenar128",
               "gap": {
                 "lg": "md"
               },
@@ -2105,7 +2225,7 @@
               },
               "cells": [
                 {
-                  "id": "arenac122",
+                  "id": "arenac129",
                   "span": {
                     "lg": 12
                   },
@@ -2116,7 +2236,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "arenaw123",
+                      "id": "arenaw130",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -2136,7 +2256,7 @@
           ]
         },
         {
-          "id": "arenas124",
+          "id": "arenas131",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -2154,7 +2274,7 @@
           },
           "rows": [
             {
-              "id": "arenar125",
+              "id": "arenar132",
               "gap": {
                 "lg": "md"
               },
@@ -2166,7 +2286,7 @@
               },
               "cells": [
                 {
-                  "id": "arenac126",
+                  "id": "arenac133",
                   "span": {
                     "lg": 12
                   },
@@ -2177,7 +2297,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "arenaw127",
+                      "id": "arenaw134",
                       "type": "stat-tiles",
                       "v": 2,
                       "settings": {
@@ -2203,7 +2323,8 @@
                             "link": null
                           }
                         ],
-                        "columns": "4"
+                        "columns": "4",
+                        "numbers": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -2212,7 +2333,7 @@
               ]
             },
             {
-              "id": "arenar128",
+              "id": "arenar135",
               "gap": {
                 "lg": "md"
               },
@@ -2223,93 +2344,6 @@
                 }
               },
               "cells": [
-                {
-                  "id": "arenac129",
-                  "span": {
-                    "lg": 6,
-                    "md": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "arenaw130",
-                      "type": "xp-chart",
-                      "v": 1,
-                      "settings": {
-                        "title": "XP gained by the clan",
-                        "months": 6
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                },
-                {
-                  "id": "arenac131",
-                  "span": {
-                    "lg": 6,
-                    "md": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "arenaw132",
-                      "type": "citadel-chart",
-                      "v": 1,
-                      "settings": {
-                        "title": "Citadel caps and visits per week",
-                        "weeks": 12,
-                        "series": "both"
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                }
-              ]
-            },
-            {
-              "id": "arenar133",
-              "gap": {
-                "lg": "md"
-              },
-              "align": "stretch",
-              "height": {
-                "lg": {
-                  "mode": "auto"
-                }
-              },
-              "cells": [
-                {
-                  "id": "arenac134",
-                  "span": {
-                    "lg": 6,
-                    "md": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "arenaw135",
-                      "type": "joins-chart",
-                      "v": 1,
-                      "settings": {
-                        "title": "Members over time",
-                        "points": 30
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                },
                 {
                   "id": "arenac136",
                   "span": {
@@ -2324,6 +2358,95 @@
                   "widgets": [
                     {
                       "id": "arenaw137",
+                      "type": "xp-chart",
+                      "v": 1,
+                      "settings": {
+                        "title": "XP gained by the clan",
+                        "months": 6
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "arenac138",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw139",
+                      "type": "citadel-chart",
+                      "v": 1,
+                      "settings": {
+                        "title": "Citadel caps and visits per week",
+                        "weeks": 12,
+                        "series": "both",
+                        "more": null,
+                        "moreText": "Attendance"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "arenar140",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "arenac141",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw142",
+                      "type": "joins-chart",
+                      "v": 1,
+                      "settings": {
+                        "title": "Members over time",
+                        "points": 30
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "arenac143",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "arenaw144",
                       "type": "rank-breakdown",
                       "v": 1,
                       "settings": {
@@ -2339,7 +2462,7 @@
               ]
             },
             {
-              "id": "arenar138",
+              "id": "arenar145",
               "gap": {
                 "lg": "md"
               },
@@ -2351,7 +2474,7 @@
               },
               "cells": [
                 {
-                  "id": "arenac139",
+                  "id": "arenac146",
                   "span": {
                     "lg": 4,
                     "md": 6
@@ -2363,20 +2486,22 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "arenaw140",
+                      "id": "arenaw147",
                       "type": "top-list",
                       "v": 1,
                       "settings": {
                         "title": "Highest total XP",
                         "metric": "xp",
-                        "limit": 10
+                        "limit": 10,
+                        "bars": "under",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
                   ]
                 },
                 {
-                  "id": "arenac141",
+                  "id": "arenac148",
                   "span": {
                     "lg": 4,
                     "md": 6
@@ -2388,7 +2513,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "arenaw142",
+                      "id": "arenaw149",
                       "type": "leaderboard",
                       "v": 1,
                       "settings": {
@@ -2396,14 +2521,16 @@
                         "metric": "citadel",
                         "period": "all",
                         "visitorPeriods": false,
-                        "limit": 10
+                        "limit": 10,
+                        "bars": "under",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
                   ]
                 },
                 {
-                  "id": "arenac143",
+                  "id": "arenac150",
                   "span": {
                     "lg": 4,
                     "md": 12
@@ -2415,7 +2542,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "arenaw144",
+                      "id": "arenaw151",
                       "type": "kill-tracker",
                       "v": 1,
                       "settings": {
@@ -2441,7 +2568,7 @@
       "access": "public",
       "sections": [
         {
-          "id": "arenas148",
+          "id": "arenas155",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -2459,7 +2586,7 @@
           },
           "rows": [
             {
-              "id": "arenar147",
+              "id": "arenar154",
               "gap": {
                 "lg": "md"
               },
@@ -2471,7 +2598,7 @@
               },
               "cells": [
                 {
-                  "id": "arenac146",
+                  "id": "arenac153",
                   "span": {
                     "lg": 12
                   },
@@ -2482,7 +2609,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "arenaw145",
+                      "id": "arenaw152",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -2502,7 +2629,7 @@
           ]
         },
         {
-          "id": "arenas156",
+          "id": "arenas163",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -2520,7 +2647,7 @@
           },
           "rows": [
             {
-              "id": "arenar155",
+              "id": "arenar162",
               "gap": {
                 "lg": "md"
               },
@@ -2532,7 +2659,7 @@
               },
               "cells": [
                 {
-                  "id": "arenac151",
+                  "id": "arenac158",
                   "span": {
                     "lg": 7,
                     "md": 12
@@ -2544,7 +2671,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "arenaw149",
+                      "id": "arenaw156",
                       "type": "text",
                       "v": 1,
                       "settings": {
@@ -2555,7 +2682,7 @@
                       "unmet": "hide"
                     },
                     {
-                      "id": "arenaw150",
+                      "id": "arenaw157",
                       "type": "faq",
                       "v": 1,
                       "settings": {
@@ -2580,7 +2707,7 @@
                   ]
                 },
                 {
-                  "id": "arenac154",
+                  "id": "arenac161",
                   "span": {
                     "lg": 5,
                     "md": 12
@@ -2592,7 +2719,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "arenaw152",
+                      "id": "arenaw159",
                       "type": "recruiting",
                       "v": 1,
                       "settings": {
@@ -2603,7 +2730,7 @@
                       "unmet": "hide"
                     },
                     {
-                      "id": "arenaw153",
+                      "id": "arenaw160",
                       "type": "discord-join",
                       "v": 1,
                       "settings": {

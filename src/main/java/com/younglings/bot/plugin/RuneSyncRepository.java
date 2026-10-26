@@ -77,7 +77,9 @@ public class RuneSyncRepository {
                     updated_at TIMESTAMPTZ NOT NULL,
                     updated_by BIGINT NULL
                 );
-                """));
+                """,
+                // where new competitions count XP from (T-537); null is the built-in RuneMetrics
+                "ALTER TABLE younglings.plugin_guild_settings ADD COLUMN IF NOT EXISTS competition_xp_source TEXT NULL;"));
     }
 
     // ---------- the member's client ----------
@@ -189,6 +191,33 @@ public class RuneSyncRepository {
                 ON CONFLICT (guild_id) DO UPDATE SET clan_panel = EXCLUDED.clan_panel, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by""")) {
             s.setLong(1, guildId);
             s.setBoolean(2, on);
+            s.setTimestamp(3, Timestamp.from(at));
+            s.setLong(4, actorId);
+            s.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to save the clan's plugin settings", e);
+        }
+    }
+
+    /** Where the clan's new competitions count XP from ({@code runemetrics} or {@code plugin}); null when it never chose. */
+    public String competitionXpSource(long guildId) {
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("SELECT competition_xp_source FROM younglings.plugin_guild_settings WHERE guild_id = ?")) {
+            s.setLong(1, guildId);
+            try (ResultSet rs = s.executeQuery()) {
+                return rs.next() ? rs.getString(1) : null;
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read the clan's plugin settings", e);
+        }
+    }
+
+    public void setCompetitionXpSource(long guildId, String source, long actorId, Instant at) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("""
+                INSERT INTO younglings.plugin_guild_settings (guild_id, competition_xp_source, updated_at, updated_by) VALUES (?, ?, ?, ?)
+                ON CONFLICT (guild_id) DO UPDATE SET competition_xp_source = EXCLUDED.competition_xp_source, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by""")) {
+            s.setLong(1, guildId);
+            s.setString(2, source);
             s.setTimestamp(3, Timestamp.from(at));
             s.setLong(4, actorId);
             s.executeUpdate();

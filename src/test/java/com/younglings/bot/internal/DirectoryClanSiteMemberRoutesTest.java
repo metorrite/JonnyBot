@@ -97,6 +97,18 @@ class DirectoryClanSiteMemberRoutesTest {
     }
 
     @Test
+    void aBotlessSiteSaysTheBotIsNeededInsteadOfNotFound() throws Exception {
+        published();
+        when(jda.getGuildById(CLAN_GUILD)).thenReturn(null);
+        assertEquals(404, call("GET", "sites/clan/me/settings?userId=" + USER).status(), "a site that is not bot-less stays not found");
+        when(sites.botless(CLAN_GUILD)).thenReturn(true);
+        assertEquals(409, call("GET", "sites/clan/me/settings?userId=" + USER).status());
+        assertEquals(409, call("POST", "sites/clan/me/polls/vote").status());
+        assertEquals(404, call("GET", "sites/nobody/me/settings?userId=" + USER).status());
+        verify(memberApi, never()).handle(any(), any(), anyString(), anyBoolean());
+    }
+
+    @Test
     void otherShapesAreLeftToTheOtherModules() throws Exception {
         assertFalse(call("GET", "sites/clan/data/members").handled());
         assertFalse(call("GET", "sites/clan/viewer?userId=" + USER).handled());

@@ -207,6 +207,8 @@ public class EventRepository {
                 "CREATE INDEX IF NOT EXISTS event_claim_event ON younglings.event_claim (event_id, status, id);",
                 // /submit: what the claim is for, and the receipt message in the player's own (or team's) channel that is edited when staff decide
                 "ALTER TABLE younglings.event_claim ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'OBJECTIVE';",
+                // when the event first started running (T-537): where competitions counted from RuneSync start counting
+                "ALTER TABLE younglings.event ADD COLUMN IF NOT EXISTS started_at TIMESTAMPTZ NULL;",
                 "ALTER TABLE younglings.event_claim ADD COLUMN IF NOT EXISTS receipt_channel_id BIGINT NULL;",
                 "ALTER TABLE younglings.event_claim ADD COLUMN IF NOT EXISTS receipt_message_id BIGINT NULL;",
                 // the dedicated signup attached to the event (a signup panel in Discord), until it is closed
@@ -361,7 +363,7 @@ public class EventRepository {
             try (ResultSet rs = s.executeQuery()) {
                 rs.next();
                 long created = rs.getLong(1);
-                SiteInvalidator.signal(SiteInvalidator.Area.EVENTS);
+                SiteInvalidator.signal(guildId, SiteInvalidator.Area.EVENTS);
                 return created;
             }
         } catch (SQLException e) {
@@ -374,6 +376,11 @@ public class EventRepository {
     }
 
     /** An event by id whatever server it belongs to: only for pages that aren't about one server (the events hub), which check the event is listed. */
+    /** The server that runs an event, for {@code SiteInvalidator} (it runs this on its own thread). */
+    private OptionalLong guildOfEvent(long eventId) {
+        return eventById(eventId).map(e -> OptionalLong.of(e.guildId())).orElse(OptionalLong.empty());
+    }
+
     public Optional<Event> eventById(long id) {
         return events("SELECT * FROM younglings.event WHERE id = ? AND id = ?", id, id).stream().findFirst();
     }
@@ -493,7 +500,7 @@ public class EventRepository {
             s.setLong(9, guildId);
             s.setLong(10, id);
             boolean updated = s.executeUpdate() == 1;
-            if (updated) SiteInvalidator.signal(SiteInvalidator.Area.EVENTS);
+            if (updated) SiteInvalidator.signal(guildId, SiteInvalidator.Area.EVENTS);
             return updated;
         } catch (SQLException e) {
             throw new RuntimeException("Failed to update the event", e);
@@ -508,7 +515,7 @@ public class EventRepository {
             s.setLong(2, guildId);
             s.setLong(3, id);
             boolean changed = s.executeUpdate() == 1;
-            if (changed) SiteInvalidator.signal(SiteInvalidator.Area.EVENTS);
+            if (changed) SiteInvalidator.signal(guildId, SiteInvalidator.Area.EVENTS);
             return changed;
         } catch (SQLException e) {
             throw new RuntimeException("Failed to archive the event", e);
@@ -534,7 +541,7 @@ public class EventRepository {
             s.setLong(2, guildId);
             s.setLong(3, id);
             boolean saved = s.executeUpdate() == 1;
-            if (saved) SiteInvalidator.signal(SiteInvalidator.Area.EVENTS);
+            if (saved) SiteInvalidator.signal(guildId, SiteInvalidator.Area.EVENTS);
             return saved;
         } catch (SQLException e) {
             throw new RuntimeException("Failed to save the event's settings", e);
@@ -544,13 +551,15 @@ public class EventRepository {
     /** Moves an event from one stage to another. False when it wasn't in {@code from} any more, so two clicks can't both move it. */
     public boolean moveStage(long guildId, long id, Status from, Status to) {
         try (Connection c = connectionSupplier.getConnection();
-             PreparedStatement s = c.prepareStatement("UPDATE younglings.event SET status = ?, updated_at = NOW() WHERE guild_id = ? AND id = ? AND status = ?")) {
+             PreparedStatement s = c.prepareStatement("UPDATE younglings.event SET status = ?, updated_at = NOW(), started_at = CASE WHEN ? THEN COALESCE(started_at, NOW()) ELSE started_at END "
+                     + "WHERE guild_id = ? AND id = ? AND status = ?")) {
             s.setString(1, to.name());
-            s.setLong(2, guildId);
-            s.setLong(3, id);
-            s.setString(4, from.name());
+            s.setBoolean(2, to == Status.RUNNING);
+            s.setLong(3, guildId);
+            s.setLong(4, id);
+            s.setString(5, from.name());
             boolean moved = s.executeUpdate() == 1;
-            if (moved) SiteInvalidator.signal(SiteInvalidator.Area.EVENTS);
+            if (moved) SiteInvalidator.signal(guildId, SiteInvalidator.Area.EVENTS);
             return moved;
         } catch (SQLException e) {
             throw new RuntimeException("Failed to move the event", e);
@@ -994,6 +1003,18 @@ public class EventRepository {
         }
     }
 
+    /** When the event first started running; empty for one that never has, or started before this was kept. */
+    public java.util.Optional<Instant> startedAt(long eventId) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("SELECT started_at FROM younglings.event WHERE id = ?")) {
+            s.setLong(1, eventId);
+            try (ResultSet rs = s.executeQuery()) {
+                return rs.next() && rs.getTimestamp(1) != null ? java.util.Optional.of(rs.getTimestamp(1).toInstant()) : java.util.Optional.empty();
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read when the event started", e);
+        }
+    }
+
     /** Where a player's tracked stat stood when the competition began for them. */
     public OptionalLong baseline(long eventId, long userId) {
         try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("SELECT baseline_xp FROM younglings.event_tracking_baseline WHERE event_id = ? AND user_id = ?")) {
@@ -1192,7 +1213,7 @@ public class EventRepository {
                         result = rs.next() ? Optional.of(rs.getString(1).equals("WAITING")) : Optional.empty();
                     }
                     c.commit();
-                    if (result.isPresent()) SiteInvalidator.signal(SiteInvalidator.Area.EVENTS);
+                    if (result.isPresent()) SiteInvalidator.signalLater(() -> guildOfEvent(eventId), SiteInvalidator.Area.EVENTS);
                     return result;
                 }
             } catch (SQLException | RuntimeException e) {
@@ -1432,7 +1453,7 @@ public class EventRepository {
                 boolean removed = s.executeUpdate() == 1;
                 clearStrayCaptains(c, eventId);
                 c.commit();
-                if (removed) SiteInvalidator.signal(SiteInvalidator.Area.EVENTS);
+                if (removed) SiteInvalidator.signalLater(() -> guildOfEvent(eventId), SiteInvalidator.Area.EVENTS);
                 return removed;
             } catch (SQLException | RuntimeException e) {
                 c.rollback();

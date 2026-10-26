@@ -15,7 +15,7 @@
       "border": "#4a3a1e"
     },
     "fonts": {
-      "heading": "uncial-antiqua",
+      "heading": "cormorant-garamond",
       "body": "merriweather"
     },
     "radius": "sm",
@@ -62,7 +62,7 @@
     },
     "nav": [
       {
-        "id": "cithn167",
+        "id": "cithn171",
         "label": "Hall",
         "link": {
           "kind": "page",
@@ -70,7 +70,7 @@
         }
       },
       {
-        "id": "cithn168",
+        "id": "cithn172",
         "label": "Citadel",
         "link": {
           "kind": "page",
@@ -78,7 +78,7 @@
         }
       },
       {
-        "id": "cithn169",
+        "id": "cithn173",
         "label": "Members",
         "link": {
           "kind": "page",
@@ -86,7 +86,7 @@
         },
         "children": [
           {
-            "id": "cithn170",
+            "id": "cithn174",
             "label": "All members",
             "link": {
               "kind": "page",
@@ -95,7 +95,7 @@
             "description": "Everyone in the clan"
           },
           {
-            "id": "cithn171",
+            "id": "cithn175",
             "label": "Compare",
             "link": {
               "kind": "page",
@@ -106,7 +106,7 @@
         ]
       },
       {
-        "id": "cithn172",
+        "id": "cithn176",
         "label": "Records",
         "link": {
           "kind": "page",
@@ -114,7 +114,7 @@
         },
         "children": [
           {
-            "id": "cithn173",
+            "id": "cithn177",
             "label": "Clan stats",
             "link": {
               "kind": "page",
@@ -123,7 +123,7 @@
             "description": "XP, Citadel and the top members"
           },
           {
-            "id": "cithn174",
+            "id": "cithn178",
             "label": "Hall of fame",
             "link": {
               "kind": "page",
@@ -132,7 +132,7 @@
             "description": "Records and who holds them"
           },
           {
-            "id": "cithn175",
+            "id": "cithn179",
             "label": "History",
             "link": {
               "kind": "page",
@@ -143,7 +143,7 @@
         ]
       },
       {
-        "id": "cithn176",
+        "id": "cithn180",
         "label": "Coffer",
         "link": {
           "kind": "page",
@@ -151,7 +151,7 @@
         }
       },
       {
-        "id": "cithn177",
+        "id": "cithn181",
         "label": "Events",
         "link": {
           "kind": "page",
@@ -160,7 +160,7 @@
         "badge": "events"
       },
       {
-        "id": "cithn178",
+        "id": "cithn182",
         "label": "Join",
         "link": {
           "kind": "page",
@@ -284,7 +284,7 @@
           "id": "ciths010",
           "width": "full",
           "background": {
-            "kind": "accent"
+            "kind": "surface"
           },
           "padding": {
             "lg": {
@@ -426,6 +426,7 @@
                         ],
                         "align": "center",
                         "size": "medium",
+                        "look": "buttons",
                         "fullWidth": false
                       },
                       "unmet": "hide"
@@ -497,7 +498,9 @@
                       "settings": {
                         "title": "Caps and visits",
                         "weeks": 8,
-                        "series": "both"
+                        "series": "both",
+                        "more": null,
+                        "moreText": "Attendance"
                       },
                       "unmet": "hide"
                     }
@@ -563,7 +566,9 @@
                         "metric": "citadel",
                         "period": "month",
                         "visitorPeriods": true,
-                        "limit": 8
+                        "limit": 8,
+                        "bars": "under",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -591,7 +596,9 @@
                         "showDay": true,
                         "showWeek": true,
                         "showMonth": true,
-                        "defaultTab": "week"
+                        "defaultTab": "week",
+                        "bars": "under",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -730,7 +737,9 @@
                         "title": "The coffer",
                         "showDonors": false,
                         "showGiveaways": true,
-                        "limit": 3
+                        "limit": 3,
+                        "bars": "under",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -889,7 +898,9 @@
                       "settings": {
                         "title": "Caps and visits per week",
                         "weeks": 12,
-                        "series": "both"
+                        "series": "both",
+                        "more": null,
+                        "moreText": "Attendance"
                       },
                       "unmet": "hide"
                     }
@@ -1066,8 +1077,10 @@
                         "showLevel": true,
                         "showXp": false,
                         "showJoined": false,
+                        "showPoints": false,
                         "search": true,
                         "rankFilter": true,
+                        "sortControls": false,
                         "linkPages": true
                       },
                       "unmet": "hide"
@@ -1164,6 +1177,7 @@
                       "type": "member-card",
                       "v": 1,
                       "settings": {
+                        "showStrip": false,
                         "showBio": true,
                         "showTotals": true,
                         "showNextRank": true,
@@ -1171,7 +1185,9 @@
                         "comparePage": {
                           "kind": "page",
                           "pageId": "cithpcompare"
-                        }
+                        },
+                        "showRecap": false,
+                        "recapPage": null
                       },
                       "unmet": "hide"
                     }
@@ -1359,7 +1375,8 @@
                       "v": 1,
                       "settings": {
                         "title": "Clan points",
-                        "limit": 8
+                        "limit": 8,
+                        "showChart": false
                       },
                       "unmet": "hide"
                     }
@@ -1708,7 +1725,8 @@
                             "link": null
                           }
                         ],
-                        "columns": "4"
+                        "columns": "4",
+                        "numbers": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -1771,7 +1789,9 @@
                       "settings": {
                         "title": "Citadel caps and visits per week",
                         "weeks": 12,
-                        "series": "both"
+                        "series": "both",
+                        "more": null,
+                        "moreText": "Attendance"
                       },
                       "unmet": "hide"
                     }
@@ -1874,7 +1894,9 @@
                       "settings": {
                         "title": "Highest total XP",
                         "metric": "xp",
-                        "limit": 10
+                        "limit": 10,
+                        "bars": "under",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -1901,7 +1923,9 @@
                         "metric": "citadel",
                         "period": "all",
                         "visitorPeriods": false,
-                        "limit": 10
+                        "limit": 10,
+                        "bars": "under",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -2086,7 +2110,11 @@
                       "v": 1,
                       "settings": {
                         "title": "Milestones",
-                        "limit": 10
+                        "limit": 10,
+                        "bigOnly": false,
+                        "look": "lines",
+                        "more": null,
+                        "moreText": "Hall of fame"
                       },
                       "unmet": "hide"
                     }
@@ -2244,7 +2272,9 @@
                         "title": "Recent joins, leaves and promotions",
                         "showTimeline": true,
                         "showPromotions": true,
-                        "limit": 25
+                        "limit": 25,
+                        "showLadder": false,
+                        "layout": "tabs"
                       },
                       "unmet": "hide"
                     }
@@ -2377,7 +2407,9 @@
                         "title": "",
                         "showDonors": true,
                         "showGiveaways": true,
-                        "limit": 10
+                        "limit": 10,
+                        "bars": "under",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -2458,7 +2490,7 @@
           ]
         },
         {
-          "id": "ciths149",
+          "id": "ciths151",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -2476,7 +2508,7 @@
           },
           "rows": [
             {
-              "id": "cithr148",
+              "id": "cithr145",
               "gap": {
                 "lg": "md"
               },
@@ -2490,8 +2522,7 @@
                 {
                   "id": "cithc144",
                   "span": {
-                    "lg": 8,
-                    "md": 12
+                    "lg": 12
                   },
                   "padding": {
                     "lg": "none"
@@ -2512,11 +2543,25 @@
                       "unmet": "hide"
                     }
                   ]
-                },
+                }
+              ]
+            },
+            {
+              "id": "cithr150",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
                 {
                   "id": "cithc147",
                   "span": {
-                    "lg": 4,
+                    "lg": 6,
                     "md": 12
                   },
                   "padding": {
@@ -2526,18 +2571,33 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "cithw145",
+                      "id": "cithw146",
                       "type": "events",
                       "v": 1,
                       "settings": {
                         "title": "Next up",
+                        "style": "list",
                         "limit": 4,
                         "showImages": false
                       },
                       "unmet": "hide"
-                    },
+                    }
+                  ]
+                },
+                {
+                  "id": "cithc149",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
                     {
-                      "id": "cithw146",
+                      "id": "cithw148",
                       "type": "signups",
                       "v": 1,
                       "settings": {
@@ -2568,7 +2628,7 @@
       },
       "sections": [
         {
-          "id": "ciths150",
+          "id": "ciths152",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -2586,7 +2646,7 @@
           },
           "rows": [
             {
-              "id": "cithr151",
+              "id": "cithr153",
               "gap": {
                 "lg": "md"
               },
@@ -2598,7 +2658,7 @@
               },
               "cells": [
                 {
-                  "id": "cithc152",
+                  "id": "cithc154",
                   "span": {
                     "lg": 12
                   },
@@ -2609,7 +2669,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "cithw153",
+                      "id": "cithw155",
                       "type": "event-detail",
                       "v": 1,
                       "settings": {
@@ -2635,7 +2695,7 @@
       "access": "public",
       "sections": [
         {
-          "id": "ciths157",
+          "id": "ciths159",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -2653,7 +2713,7 @@
           },
           "rows": [
             {
-              "id": "cithr156",
+              "id": "cithr158",
               "gap": {
                 "lg": "md"
               },
@@ -2665,7 +2725,7 @@
               },
               "cells": [
                 {
-                  "id": "cithc155",
+                  "id": "cithc157",
                   "span": {
                     "lg": 12
                   },
@@ -2676,7 +2736,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "cithw154",
+                      "id": "cithw156",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -2696,7 +2756,7 @@
           ]
         },
         {
-          "id": "ciths166",
+          "id": "ciths170",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -2714,7 +2774,7 @@
           },
           "rows": [
             {
-              "id": "cithr165",
+              "id": "cithr166",
               "gap": {
                 "lg": "md"
               },
@@ -2726,7 +2786,7 @@
               },
               "cells": [
                 {
-                  "id": "cithc160",
+                  "id": "cithc162",
                   "span": {
                     "lg": 7,
                     "md": 12
@@ -2738,7 +2798,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "cithw158",
+                      "id": "cithw160",
                       "type": "text",
                       "v": 1,
                       "settings": {
@@ -2749,7 +2809,7 @@
                       "unmet": "hide"
                     },
                     {
-                      "id": "cithw159",
+                      "id": "cithw161",
                       "type": "faq",
                       "v": 1,
                       "settings": {
@@ -2774,7 +2834,7 @@
                   ]
                 },
                 {
-                  "id": "cithc164",
+                  "id": "cithc165",
                   "span": {
                     "lg": 5,
                     "md": 12
@@ -2786,7 +2846,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "cithw161",
+                      "id": "cithw163",
                       "type": "recruiting",
                       "v": 1,
                       "settings": {
@@ -2797,7 +2857,7 @@
                       "unmet": "hide"
                     },
                     {
-                      "id": "cithw162",
+                      "id": "cithw164",
                       "type": "discord-join",
                       "v": 1,
                       "settings": {
@@ -2806,9 +2866,36 @@
                         "buttonLabel": "Join the Discord"
                       },
                       "unmet": "hide"
-                    },
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "cithr169",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "cithc168",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
                     {
-                      "id": "cithw163",
+                      "id": "cithw167",
                       "type": "alliances",
                       "v": 1,
                       "settings": {

@@ -3,6 +3,7 @@ package com.younglings.bot.internal;
 import com.younglings.bot.access.AccessArea;
 import com.younglings.bot.access.AccessGrantRepository;
 import com.younglings.bot.access.AccessGrantService;
+import com.younglings.bot.access.GateSource;
 import com.younglings.bot.access.OverallAdminRepository;
 import com.younglings.bot.access.OverallAdmins;
 import com.younglings.bot.beta.BetaDatabaseInitializer;
@@ -102,9 +103,9 @@ class OverallAdminDatabaseTest {
         }
         when(config.getInternalApiPort()).thenReturn(port);
         GuildSettingsService settings = new GuildSettingsService(new GuildSettingsRepository(db, new GuildSettingsDatabaseInitializer(db)), config);
-        ClanSiteService siteService = new ClanSiteService(sites, beta, config, botless);
+        ClanSiteService siteService = new ClanSiteService(sites, GateSource.ownTables(beta::all, null, null), config, botless);
         ClanSyncService clanSync = mock(ClanSyncService.class);
-        ClanProfileService profiles = new ClanProfileService(new ClanProfileRepository(db), clanSync, mock(PlayerLinkService.class));
+        ClanProfileService profiles = new ClanProfileService(new ClanProfileRepository(db), clanSync, mock(PlayerLinkService.class), GateSource.ownTables(null, null, null));
         // the built-in admin is the bot's owner as BotOwners decides
         BotOwners owners = mock(BotOwners.class);
         when(owners.isOwner(any(), anyLong())).thenReturn(false);
@@ -113,19 +114,19 @@ class OverallAdminDatabaseTest {
         OverallAdmins overall = new OverallAdmins(new OverallAdminRepository(db), owners);
         SiteRoleGuard roles = new SiteRoleGuard(new SiteRoleRepository(db), mock(DashboardAccess.class), settings, mock(PlayerLinkService.class), overall);
         ClanSiteAdminApi clanSite = new ClanSiteAdminApi(sites, layouts, siteService, profiles, owners, mock(Premium.class), roles,
-                mock(SiteDiscordService.class));
+                mock(SiteDiscordService.class), mock(SiteAddressRoutes.class), mock(SiteMemberOptionsAdminApi.class), mock(SiteMembersAdmin.class));
         ImageUploadService images = new ImageUploadService(new UploadedImageRepository(db, new UploadedImageDatabaseInitializer(db)));
         grants = new AccessGrantRepository(db);
-        grantService = new AccessGrantService(grants);
+        grantService = new AccessGrantService(GateSource.ownTables(null, grants::all, null));
         AdminToolsStore audit = new AdminToolsStore(db);
         BotlessAdminApi botlessAdmin = new BotlessAdminApi(clanSite, new ClanProfileAdminApi(new ClanProfileRepository(db), profiles),
                 new SitePictureAdminApi(images, mock(Premium.class), roles), new ImageAdminApi(images), mock(AdminOpsApi.class), audit, roles, botless, settings,
                 grantService, owners, mock(ClanSyncScheduler.class));
         OverallAdminApi overallApi = new OverallAdminApi(overall, owners, new PremiumAccessRepository(db), mock(SiteOwnerAdminApi.class),
-                new SiteBuilderBetaAdminApi(grants, grantService, owners), roles, audit, config);
+                new SiteBuilderBetaAdminApi(grants, grantService, owners), mock(OverallOpsRoutes.class), roles, audit, config);
         InternalApiServer server = new InternalApiServer(config, mock(TicketAdminApi.class), mock(SiteApi.class), mock(DirectoryApi.class), mock(PluginApi.class),
                 mock(MemberApi.class), images, mock(com.younglings.bot.tracking.CitadelWinners.class), mock(FormsPublicApi.class), List.of(), botlessAdmin,
-                mock(com.younglings.bot.discord.jobs.DiscordOutbox.class), overallApi);
+                mock(com.younglings.bot.discord.jobs.DiscordOutbox.class), overallApi, com.younglings.bot.hubsites.HubSites.off());
         JDA jda = mock(JDA.class);
         when(jda.getStatus()).thenReturn(JDA.Status.CONNECTED);
         Guild home = mock(Guild.class);

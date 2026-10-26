@@ -86,6 +86,38 @@ final class ActivityKinds {
         return 1;
     }
 
+    /** The skill a "Levelled up Attack." line names. */
+    static Optional<String> levelUpSkill(String text) {
+        Matcher m = LEVEL_UP.matcher(text);
+        return m.matches() ? Optional.of(m.group(1).trim()).filter(s -> !s.isBlank()) : Optional.empty();
+    }
+
+    /** The quest a "Quest complete: …" line names. */
+    static Optional<String> questName(String text) {
+        Matcher m = QUEST.matcher(text);
+        return m.matches() ? Optional.of(m.group(1).trim().replaceFirst("\\.$", "")).filter(s -> !s.isBlank()) : Optional.empty();
+    }
+
+    /** An XP milestone line ("50000000XP in Fishing"): the skill and the XP. */
+    record Milestone(String skill, long xp) {}
+
+    static Optional<Milestone> milestone(String text) {
+        Matcher m = XP_MILESTONE.matcher(text);
+        if (!m.matches()) return Optional.empty();
+        try {
+            return Optional.of(new Milestone(m.group(2).trim().replaceFirst("\\.$", ""), Long.parseLong(m.group(1).replace(",", ""))));
+        } catch (NumberFormatException e) {
+            return Optional.empty();
+        }
+    }
+
+    /** The pet a pet line names ("I found Shrimpy, the Fishing pet." → "Shrimpy"). */
+    static Optional<String> petName(String text) {
+        Matcher m = PET.matcher(text);
+        if (m.matches()) return Optional.of(m.group(1).trim());
+        return text.contains("I adopted TzRek-Jad") ? Optional.of("TzRek-Jad") : Optional.empty();
+    }
+
     /** The catalogued drop a "I found …" line names, if it is one. */
     static Optional<String> dropOf(String text) {
         if (!text.startsWith("I found")) return Optional.empty();

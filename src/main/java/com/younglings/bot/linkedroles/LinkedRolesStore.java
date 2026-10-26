@@ -27,8 +27,9 @@ import java.util.function.LongPredicate;
 public class LinkedRolesStore {
     private static final Logger log = LoggerFactory.getLogger(LinkedRolesStore.class);
 
+    /** {@code rsLinkConfirmed}: the hub had confirmed that RS Link name from public data when it was last asked (T-552). */
     public record Row(long discordUserId, byte[] accessEnc, byte[] refreshEnc, Instant accessExpiresAt, String rsLinkRsn, Instant rsLinkSince,
-                      String lastFingerprint, Instant lastPushedAt, Instant createdAt) {}
+                      String lastFingerprint, Instant lastPushedAt, Instant createdAt, boolean rsLinkConfirmed) {}
 
     private final ConnectionSupplier db;
 
@@ -50,7 +51,8 @@ public class LinkedRolesStore {
                     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 );
-                """));
+                """,
+                "ALTER TABLE younglings.linked_role_connection ADD COLUMN IF NOT EXISTS rslink_confirmed BOOLEAN NOT NULL DEFAULT FALSE;"));
     }
 
     /** Saves a person's tokens after they verified (a second verification replaces the first). */
@@ -60,6 +62,7 @@ public class LinkedRolesStore {
                 VALUES (?, ?, ?, ?, ?, ?)
                 ON CONFLICT (discord_user_id) DO UPDATE SET access_enc = EXCLUDED.access_enc, refresh_enc = EXCLUDED.refresh_enc,
                     access_expires_at = EXCLUDED.access_expires_at, rslink_rsn = EXCLUDED.rslink_rsn, rslink_since = EXCLUDED.rslink_since,
+                    rslink_confirmed = linked_role_connection.rslink_confirmed AND linked_role_connection.rslink_rsn IS NOT DISTINCT FROM EXCLUDED.rslink_rsn,
                     failures = 0, updated_at = NOW()
                 """, s -> {
             s.setLong(1, userId);
@@ -77,6 +80,16 @@ public class LinkedRolesStore {
             s.setBytes(1, accessEnc);
             s.setBytes(2, refreshEnc);
             s.setTimestamp(3, Timestamp.from(accessExpiresAt));
+            s.setLong(4, userId);
+        });
+    }
+
+    /** The person's RS Link name changed on the hub since they verified (T-349), or whether it is confirmed did (T-552); null clears it. */
+    public void updateRsLink(long userId, String rsLinkRsn, Instant rsLinkSince, boolean confirmed) {
+        exec("UPDATE younglings.linked_role_connection SET rslink_rsn = ?, rslink_since = ?, rslink_confirmed = ?, updated_at = NOW() WHERE discord_user_id = ?", s -> {
+            s.setString(1, rsLinkRsn);
+            s.setTimestamp(2, rsLinkSince == null ? null : Timestamp.from(rsLinkSince));
+            s.setBoolean(3, rsLinkRsn != null && confirmed);
             s.setLong(4, userId);
         });
     }
@@ -197,13 +210,14 @@ public class LinkedRolesStore {
         List<Row> out = new ArrayList<>();
         try (Connection c = db.getConnection();
              PreparedStatement s = c.prepareStatement("""
-                     SELECT discord_user_id, access_enc, refresh_enc, access_expires_at, rslink_rsn, rslink_since, last_fingerprint, last_pushed_at, created_at
+                     SELECT discord_user_id, access_enc, refresh_enc, access_expires_at, rslink_rsn, rslink_since, last_fingerprint, last_pushed_at, created_at,
+                         rslink_confirmed
                      FROM younglings.linked_role_connection\s""" + where)) {
             binder.bind(s);
             try (ResultSet rs = s.executeQuery()) {
                 while (rs.next()) {
                     out.add(new Row(rs.getLong(1), rs.getBytes(2), rs.getBytes(3), rs.getTimestamp(4).toInstant(), rs.getString(5), instant(rs, 6),
-                            rs.getString(7), instant(rs, 8), rs.getTimestamp(9).toInstant()));
+                            rs.getString(7), instant(rs, 8), rs.getTimestamp(9).toInstant(), rs.getBoolean(10)));
                 }
             }
         } catch (SQLException e) {

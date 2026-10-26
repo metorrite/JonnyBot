@@ -100,6 +100,46 @@ class PermissionGroupServiceTest {
         assertFalse(service.matches(guild, member, null));
     }
 
+    @Test
+    void everyoneInAnAdminGroupNeverLetsTheWholeServerIn() {
+        // @everyone's id is the server's; saved before it was refused, it must not rank every member above it (T-626)
+        existing(builtin(PermissionGroup.ADMIN, true, GUILD), BUILTINS.get(1), BUILTINS.get(2), BUILTINS.get(3));
+        Guild guild = mock(Guild.class);
+        when(guild.getIdLong()).thenReturn(GUILD);
+        Role everyone = mock(Role.class);
+        when(everyone.getPosition()).thenReturn(0);
+        when(guild.getRoleById(GUILD)).thenReturn(everyone);
+        Role anyRole = mock(Role.class);
+        when(anyRole.getIdLong()).thenReturn(400L);
+        when(anyRole.getPosition()).thenReturn(1);
+        Member member = mock(Member.class);
+        when(member.getRoles()).thenReturn(List.of(anyRole));
+
+        assertFalse(service.isMember(guild, member, PermissionGroup.ADMIN));
+    }
+
+    @Test
+    void configuresRoleMenuDropsEveryone() {
+        existing(BUILTINS.toArray(PermissionGroup[]::new));
+
+        service.setRoles(GUILD, PermissionGroup.ADMIN, List.of(GUILD, 100L));
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<PermissionGroup>> saved = ArgumentCaptor.forClass(List.class);
+        verify(repository).replaceAll(eq(GUILD), saved.capture());
+        assertEquals(List.of(100L), saved.getValue().get(0).roleIds());
+    }
+
+    @Test
+    void aSaveNamingEveryoneIsRefused() {
+        existing(BUILTINS.toArray(PermissionGroup[]::new));
+
+        PermissionGroupService.InvalidGroupsException refused = assertThrows(PermissionGroupService.InvalidGroupsException.class,
+                () -> service.save(GUILD, List.of(new PermissionGroupService.Draft(PermissionGroup.ADMIN, "Admin", true, List.of(GUILD)))));
+        assertTrue(refused.problems().getFirst().contains("@everyone"));
+        verify(repository, never()).replaceAll(anyLong(), anyList());
+    }
+
     // ---------- first look at a server ----------
 
     @Test
@@ -223,7 +263,7 @@ class PermissionGroupServiceTest {
     @Test
     void blankAndOverlongNamesAndTooManyRolesAreRefused() {
         withBuiltins();
-        List<Long> tooMany = java.util.stream.LongStream.rangeClosed(1, 26).boxed().toList();
+        List<Long> tooMany = java.util.stream.LongStream.rangeClosed(2, 27).boxed().toList();
 
         var thrown = assertThrows(PermissionGroupService.InvalidGroupsException.class, () -> service.save(GUILD, List.of(
                 new PermissionGroupService.Draft(null, "   ", false, List.of()),

@@ -89,6 +89,16 @@ class PremiumAdminApiTest {
     }
 
     @Test
+    void theOverallPanelReachesTheSameRoutesWithoutAMemberAndTheOwnerRuleHolds() {
+        DataObject list = api.routeFor(guild, 7L, "GET", new String[]{"premium-guilds"}, DataObject::empty);
+        assertEquals(1, list.getArray("guilds").length());
+        assertNull(api.routeFor(guild, 7L, "GET", new String[]{"other"}, DataObject::empty));
+        when(owners.isOwner(any(), anyLong())).thenReturn(false);
+        assertEquals(403, assertThrows(TicketAdminApi.ApiError.class, () -> api.routeFor(guild, 7L, "DELETE", new String[]{"premium-guilds", "577853260153618443"}, DataObject::empty)).status);
+        verify(premium, never()).revoke(anyLong(), anyLong());
+    }
+
+    @Test
     void onlyTheOwnerCanChangeIt() {
         when(owners.isOwner(any(), anyLong())).thenReturn(false);
 

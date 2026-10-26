@@ -5,7 +5,8 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import org.junit.jupiter.api.condition.EnabledIf;
+import com.younglings.bot.testsupport.TestDatabaseUrl;
 import org.mockito.Mockito;
 
 import java.sql.Connection;
@@ -18,10 +19,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Runs the permission group SQL against a real Postgres. Skipped unless {@code JONNYBOT_TEST_DB_URL} points at an <em>empty
+ * Runs the permission group SQL against a real Postgres. Skipped unless {@code JONNYBOT_TEST_DATABASE_URL} (or the older JDBC-form {@code JONNYBOT_TEST_DB_URL}) points at an <em>empty
  * scratch</em> database it may fill and wipe: never point it at a database that holds real data.
  */
-@EnabledIfEnvironmentVariable(named = "JONNYBOT_TEST_DB_URL", matches = ".+")
+@EnabledIf("com.younglings.bot.testsupport.TestDatabaseUrl#configured")
 class PermissionGroupDatabaseTest {
     private static final long GUILD = 1L;
     private static final long OTHER_GUILD = 2L;
@@ -30,7 +31,7 @@ class PermissionGroupDatabaseTest {
 
     @BeforeAll
     static void connect() throws SQLException {
-        String url = System.getenv("JONNYBOT_TEST_DB_URL");
+        String url = TestDatabaseUrl.jdbc();
         ConnectionSupplier connections = Mockito.mock(ConnectionSupplier.class);
         Mockito.when(connections.getConnection()).thenAnswer(call -> DriverManager.getConnection(url));
         repository = new PermissionGroupRepository(connections, new PermissionDatabaseInitializer(connections));
@@ -47,7 +48,7 @@ class PermissionGroupDatabaseTest {
     }
 
     private static void clean() throws SQLException {
-        try (Connection c = DriverManager.getConnection(System.getenv("JONNYBOT_TEST_DB_URL")); Statement s = c.createStatement()) {
+        try (Connection c = DriverManager.getConnection(TestDatabaseUrl.jdbc()); Statement s = c.createStatement()) {
             s.execute("TRUNCATE younglings.permission_group RESTART IDENTITY CASCADE");
         }
     }

@@ -15,6 +15,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.function.BooleanSupplier;
 
 /**
  * {@link PublicData} over HTTP: the two public Jagex endpoints the research tested (2026-10-20), politely. An identifying User-Agent, short
@@ -28,9 +29,16 @@ public final class HttpPublicData implements PublicData {
 
     private final HttpClient http;
     private final String userAgent;
+    private final BooleanSupplier runeMetricsOn;
 
     public HttpPublicData(String userAgent) {
+        this(userAgent, () -> true);
+    }
+
+    /** @param runeMetricsOn whether RuneMetrics is still asked ({@code RUNEMETRICS}) */
+    public HttpPublicData(String userAgent, BooleanSupplier runeMetricsOn) {
         this.userAgent = userAgent;
+        this.runeMetricsOn = runeMetricsOn;
         this.http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(8)).followRedirects(HttpClient.Redirect.NORMAL).build();
     }
 
@@ -51,6 +59,7 @@ public final class HttpPublicData implements PublicData {
 
     @Override
     public RuneMetrics runeMetrics(String rsn) {
+        if (!runeMetricsOn.getAsBoolean()) return new RuneMetrics.Off();
         try {
             Answer a = get(RUNEMETRICS.formatted(encode(rsn)));
             if (a.status != 200) return new RuneMetrics.Failed("http " + a.status);

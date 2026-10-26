@@ -216,7 +216,11 @@
                       "settings": {
                         "showBanner": true,
                         "showTagline": true,
-                        "align": "center"
+                        "align": "center",
+                        "eyebrow": "",
+                        "logoShape": "rounded",
+                        "look": "standard",
+                        "size": "large"
                       },
                       "unmet": "hide"
                     }
@@ -257,7 +261,7 @@
               },
               "cells": [
                 {
-                  "id": "clasc007",
+                  "id": "clasc008",
                   "span": {
                     "lg": 3,
                     "md": 6,
@@ -283,12 +287,28 @@
                         "showDay": true,
                         "showWeek": true,
                         "showMonth": true,
-                        "defaultTab": "week"
+                        "defaultTab": "week",
+                        "bars": "under",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     },
                     {
                       "id": "clasw006",
+                      "type": "milestones",
+                      "v": 1,
+                      "settings": {
+                        "title": "Latest milestones",
+                        "limit": 6,
+                        "bigOnly": false,
+                        "look": "lines",
+                        "more": null,
+                        "moreText": "Hall of fame"
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "clasw007",
                       "type": "citadel-timer",
                       "v": 1,
                       "settings": {
@@ -302,7 +322,7 @@
                   ]
                 },
                 {
-                  "id": "clasc011",
+                  "id": "clasc012",
                   "span": {
                     "lg": 6,
                     "md": 12,
@@ -318,17 +338,6 @@
                     "base": 1
                   },
                   "widgets": [
-                    {
-                      "id": "clasw008",
-                      "type": "text",
-                      "v": 1,
-                      "settings": {
-                        "markdown": "## Welcome to {clan}\nWe're a friendly skilling clan: we cap the Citadel every week, cheer each other's 99s and run a skill competition most weekends. Everyone is welcome, from first login to max cape.",
-                        "align": "left",
-                        "width": "readable"
-                      },
-                      "unmet": "hide"
-                    },
                     {
                       "id": "clasw009",
                       "type": "stat-tiles",
@@ -356,17 +365,35 @@
                             "link": null
                           }
                         ],
-                        "columns": "2"
+                        "columns": "4",
+                        "numbers": "accent"
                       },
                       "unmet": "hide"
                     },
                     {
                       "id": "clasw010",
-                      "type": "milestones",
+                      "type": "events",
                       "v": 1,
                       "settings": {
-                        "title": "Latest milestones",
-                        "limit": 6
+                        "title": "Coming up",
+                        "style": "list",
+                        "limit": 3,
+                        "showImages": false
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "clasw011",
+                      "type": "channel-feed",
+                      "v": 2,
+                      "settings": {
+                        "title": "Clan news",
+                        "channel": "",
+                        "showAuthors": true,
+                        "showImages": true,
+                        "look": "list",
+                        "showEvents": false,
+                        "eventsLink": null
                       },
                       "unmet": "hide"
                     }
@@ -390,25 +417,12 @@
                   },
                   "widgets": [
                     {
-                      "id": "clasw012",
-                      "type": "events",
-                      "v": 1,
-                      "settings": {
-                        "title": "Coming up",
-                        "limit": 3,
-                        "showImages": false
-                      },
-                      "unmet": "hide"
-                    },
-                    {
                       "id": "clasw013",
                       "type": "discord-online",
-                      "v": 1,
+                      "v": 2,
                       "settings": {
                         "title": "On Discord now",
-                        "show": "count",
-                        "groups": true,
-                        "limit": 24
+                        "look": "list"
                       },
                       "unmet": "hide"
                     }
@@ -513,6 +527,7 @@
                         ],
                         "align": "left",
                         "size": "medium",
+                        "look": "buttons",
                         "fullWidth": true
                       },
                       "unmet": "hide"
@@ -652,8 +667,10 @@
                         "showLevel": true,
                         "showXp": false,
                         "showJoined": false,
+                        "showPoints": false,
                         "search": true,
                         "rankFilter": true,
+                        "sortControls": false,
                         "linkPages": true
                       },
                       "unmet": "hide"
@@ -750,6 +767,7 @@
                       "type": "member-card",
                       "v": 1,
                       "settings": {
+                        "showStrip": false,
                         "showBio": true,
                         "showTotals": true,
                         "showNextRank": true,
@@ -757,7 +775,9 @@
                         "comparePage": {
                           "kind": "page",
                           "pageId": "claspcompare"
-                        }
+                        },
+                        "showRecap": false,
+                        "recapPage": null
                       },
                       "unmet": "hide"
                     }
@@ -945,7 +965,8 @@
                       "v": 1,
                       "settings": {
                         "title": "Clan points",
-                        "limit": 8
+                        "limit": 8,
+                        "showChart": false
                       },
                       "unmet": "hide"
                     }
@@ -1294,7 +1315,8 @@
                             "link": null
                           }
                         ],
-                        "columns": "4"
+                        "columns": "4",
+                        "numbers": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -1357,7 +1379,9 @@
                       "settings": {
                         "title": "Citadel caps and visits per week",
                         "weeks": 12,
-                        "series": "both"
+                        "series": "both",
+                        "more": null,
+                        "moreText": "Attendance"
                       },
                       "unmet": "hide"
                     }
@@ -1460,7 +1484,9 @@
                       "settings": {
                         "title": "Highest total XP",
                         "metric": "xp",
-                        "limit": 10
+                        "limit": 10,
+                        "bars": "under",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -1487,7 +1513,9 @@
                         "metric": "citadel",
                         "period": "all",
                         "visitorPeriods": false,
-                        "limit": 10
+                        "limit": 10,
+                        "bars": "under",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -1671,7 +1699,9 @@
                       "settings": {
                         "title": "Caps and visits per week",
                         "weeks": 12,
-                        "series": "both"
+                        "series": "both",
+                        "more": null,
+                        "moreText": "Attendance"
                       },
                       "unmet": "hide"
                     }
@@ -1900,6 +1930,7 @@
                       "v": 1,
                       "settings": {
                         "title": "On our Discord",
+                        "style": "list",
                         "limit": 6,
                         "showImages": true
                       },

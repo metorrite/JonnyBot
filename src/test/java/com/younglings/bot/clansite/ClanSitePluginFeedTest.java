@@ -1,7 +1,6 @@
 package com.younglings.bot.clansite;
 
 import com.younglings.bot.member.MemberProfileRepository;
-import com.younglings.bot.member.MemberProfileRepository.Profile;
 import com.younglings.bot.runeclans.RuneClansHubClient;
 import net.dv8tion.jda.api.utils.data.DataArray;
 import net.dv8tion.jda.api.utils.data.DataObject;
@@ -39,11 +38,7 @@ class ClanSitePluginFeedTest {
 
     private static MemberProfileRepository profiles(String hiddenRsn) {
         MemberProfileRepository profiles = mock(MemberProfileRepository.class);
-        if (hiddenRsn != null) {
-            Profile hidden = mock(Profile.class);
-            when(hidden.hideAdventureLog()).thenReturn(true);
-            when(profiles.getProfileForRsn(eq(GUILD), eq(hiddenRsn))).thenReturn(hidden);
-        }
+        if (hiddenRsn != null) when(profiles.adventureLogHidden(eq(GUILD), eq(hiddenRsn))).thenReturn(true);
         return profiles;
     }
 
@@ -73,6 +68,18 @@ class ClanSitePluginFeedTest {
 
         verify(hub, times(1)).guildEvents(anyLong(), anyInt());
         assertNull(feed.feed(GUILD, "presence", 10), "an unknown view");
+    }
+
+    @Test
+    void eachItemSaysWhetherTheMembersLinkWasConfirmed() {
+        RuneClansHubClient hub = hubWith(
+                event("2", "LEVEL_UP", "Skill Queen", DataObject.empty().put("skill", "Magic").put("level", 90)).put("verification", "public_data_corroborated"),
+                event("1", "QUEST_COMPLETE", "Raid Caller", DataObject.empty().put("quest", "While Guthix Sleeps")).put("verification", "implicit"),
+                event("0", "QUEST_COMPLETE", "Old Hub", DataObject.empty().put("quest", "Plague City")));
+        DataArray items = new ClanSitePluginFeed(hub, profiles(null)).feed(GUILD, "activity", 10).getArray("items");
+        assertTrue(items.getObject(0).getBoolean("confirmed"));
+        assertFalse(items.getObject(1).getBoolean("confirmed"));
+        assertFalse(items.getObject(2).getBoolean("confirmed"), "an event without the stamp counts as not confirmed");
     }
 
     @Test
@@ -112,5 +119,28 @@ class ClanSitePluginFeedTest {
         assertNull(ClanSitePluginFeed.text("LEVEL_UP", DataObject.empty()));
         assertNull(ClanSitePluginFeed.text("PRESENCE", DataObject.empty().put("state", "ONLINE")));
         assertEquals("got a drop: 1,000 x Coins", ClanSitePluginFeed.text("DROP", DataObject.empty().put("itemName", "Coins").put("quantity", 1000)));
+    }
+
+    @Test
+    void theHeatmapPassesTheHubsClanTotalsThrough() {
+        RuneClansHubClient hub = mock(RuneClansHubClient.class);
+        when(hub.enabled()).thenReturn(true);
+        DataObject answer = DataObject.empty().put("enough", true).put("players", 4).put("byDay", DataArray.empty().add(DataObject.empty().put("date", "2026-10-25").put("xp", 1200)));
+        when(hub.guildXpActivity(GUILD)).thenReturn(new RuneClansHubClient.Read(new RuneClansHubClient.Answer(200, answer), false, false));
+        ClanSitePluginFeed feed = new ClanSitePluginFeed(hub, profiles(null));
+        DataObject out = feed.xpActivity(GUILD);
+        assertTrue(out.getBoolean("available"));
+        assertTrue(out.getBoolean("enough"));
+        assertEquals(1200, out.getArray("byDay").getObject(0).getInt("xp"));
+
+        when(hub.guildXpActivity(GUILD)).thenReturn(new RuneClansHubClient.Read(new RuneClansHubClient.Answer(404, DataObject.empty()), false, false));
+        DataObject unknown = feed.xpActivity(GUILD);
+        assertTrue(unknown.getBoolean("available"), "a server the hub doesn't know has nothing to show");
+        assertFalse(unknown.getBoolean("enough"));
+
+        when(hub.guildXpActivity(GUILD)).thenReturn(null);
+        assertFalse(feed.xpActivity(GUILD).getBoolean("available"), "hub down");
+        when(hub.enabled()).thenReturn(false);
+        assertFalse(new ClanSitePluginFeed(hub, profiles(null)).xpActivity(GUILD).getBoolean("available"), "not connected to the hub");
     }
 }

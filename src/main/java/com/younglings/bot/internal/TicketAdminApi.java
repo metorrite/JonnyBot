@@ -40,6 +40,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -178,13 +180,14 @@ public class TicketAdminApi {
                 SiteCaller site = siteAccess.caller(exchange, guild, actorIdOf(exchange), actor, method, parts);
                 if (site != null) {
                     if (!method.equals("GET") && !adminWrites.tryAcquire(Long.toString(site.userId()))) throw new ApiError(429, Text.of(guild, "dashboard.you_re_doing_that_too_fast"));
-                    DataObject answer = SiteAccessRoutes.route(site, method, parts, () -> body(exchange), clanSiteAdmin, sitePictures, () -> structure(guild),
+                    DataObject answer = SiteAccessRoutes.route(site, method, parts, () -> method.equals("GET") ? AdminRouteExtension.queryOf(exchange.getRequestURI()) : body(exchange), clanSiteAdmin, sitePictures, imageAdmin, () -> AdminReads.cached(guild, "structure", () -> structure(guild)),
                             () -> ops.audit(guild, queryParam(exchange, "limit"), null, "clan-site"));
                     if (answer == null) {
                         InternalApiServer.sendJson(exchange, 404, DataObject.empty().put("error", "Not found"));
                         return;
                     }
                     if (!method.equals("GET")) {
+                        AdminReads.forget(guild);
                         String name = actor != null ? actor.getEffectiveName() : site.facts().overallAdmin() ? "RuneClans admin" : "Site admin";
                         auditStore.audit(guild.getIdLong(), Long.toString(site.userId()), name, method, route, 200);
                     }
@@ -294,8 +297,39 @@ public class TicketAdminApi {
 
     // ---------- routing ----------
 
-    /** {@code null} for a path that doesn't exist. */
+    /**
+     * {@code null} for a path that doesn't exist. Pages that ask Discord a lot are served from {@link AdminReads}' cache and writes that talk to
+     * Discord get a time limit ({@link AdminRoutePolicy}); every change drops the server's cached pages.
+     */
     private DataObject route(HttpExchange exchange, Guild guild, Member actor, String method, String[] parts) throws IOException {
+        try {
+            switch (AdminRoutePolicy.modeOf(method, parts)) {
+                case CACHED -> {
+                    URI uri = exchange.getRequestURI();
+                    return AdminReads.cached(guild, uri.getRawPath() + "?" + uri.getRawQuery(), () -> routeNow(exchange, guild, actor, method, parts));
+                }
+                case BOUNDED -> {
+                    return AdminReads.bounded(guild, () -> routeNow(exchange, guild, actor, method, parts),
+                            () -> auditStore.audit(guild.getIdLong(), actor.getId(), actor.getEffectiveName(), method, String.join("/", parts), 202));
+                }
+                default -> {
+                    return routeNow(exchange, guild, actor, method, parts);
+                }
+            }
+        } finally {
+            if (!method.equals("GET")) AdminReads.forget(guild);
+        }
+    }
+
+    private DataObject routeNow(HttpExchange exchange, Guild guild, Member actor, String method, String[] parts) {
+        try {
+            return routeUncached(exchange, guild, actor, method, parts);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private DataObject routeUncached(HttpExchange exchange, Guild guild, Member actor, String method, String[] parts) throws IOException {
         if (parts.length == 1 && parts[0].equals("structure")) {
             requireMethod(method, "GET");
             return structure(guild);
@@ -307,7 +341,8 @@ public class TicketAdminApi {
 
         // features that bring their own routes (see AdminRouteExtension), so adding one never means editing this class
         for (AdminRouteExtension extension : extensions) {
-            DataObject answer = extension.route(guild, actor, method, parts, () -> body(exchange));
+            DataObject answer = extension.route(guild, actor, method, parts,
+                    () -> method.equals("GET") ? AdminRouteExtension.queryOf(exchange.getRequestURI()) : body(exchange));
             if (answer != null) return answer;
         }
 
@@ -605,6 +640,7 @@ public class TicketAdminApi {
     // ---------- the server's roles and channels, for the editor's pickers ----------
 
     private DataObject structure(Guild guild) {
+        RoleHolders holders = RoleHolders.of(guild);
         DataArray roles = DataArray.empty();
         for (Role role : guild.getRoles()) {
             if (role.isPublicRole()) continue;
@@ -613,7 +649,8 @@ public class TicketAdminApi {
                     .put("name", role.getName())
                     .put("color", role.getColorRaw() & 0xFFFFFF)
                     .put("managed", role.isManaged())
-                    .put("position", role.getPosition()));
+                    .put("position", role.getPosition())
+                    .put("holders", holders.holders(role.getIdLong())));
         }
 
         DataArray categories = DataArray.empty();
@@ -657,7 +694,7 @@ public class TicketAdminApi {
                     .put("canPost", forumCanPost && !thread.isLocked())));
         }
 
-        return DataObject.empty().put("roles", roles).put("categories", categories).put("channels", channels).put("forums", forums).put("threads", threads);
+        return DataObject.empty().put("roles", roles).put("membersSeen", holders.seen()).put("categories", categories).put("channels", channels).put("forums", forums).put("threads", threads);
     }
 
     private static final int ARCHIVED_THREADS_PER_FORUM = 25;

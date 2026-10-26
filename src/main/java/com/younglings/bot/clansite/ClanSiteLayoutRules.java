@@ -32,7 +32,7 @@ public final class ClanSiteLayoutRules {
     public static final int MAX_TITLE = 40;
     public static final int GRID = 12;
 
-    public static final Set<String> THEMES = Set.of("modern", "parchment", "minimal");
+    public static final Set<String> THEMES = Set.of("modern", "parchment", "minimal", "clanhall");
     public static final Set<String> MODES = Set.of("light", "dark");
     public static final Set<String> TONES = Set.of("plain", "panel", "accent");
     public static final Set<String> UNMET = Set.of("hide", "placeholder");
@@ -43,6 +43,8 @@ public final class ClanSiteLayoutRules {
     static final Pattern HEX = Pattern.compile("#[0-9a-fA-F]{6}");
     private static final Pattern STEP = Pattern.compile("[a-z-]{1,20}");
     private static final Pattern SLUG = Pattern.compile("[a-z0-9]+(-[a-z0-9]+)*");
+    /** The site template the setup started from: a built-in template's id, or {@code hub:<uuid>} for a community one. */
+    private static final Pattern WIZARD_TEMPLATE = Pattern.compile("[a-z0-9]+(-[a-z0-9]+)*|hub:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
     private static final Pattern UPLOAD = Pattern.compile("/api/uploads/[0-9a-f]{32}(\\?v=\\d{1,10})?");
     public static final int MAX_URL = 500;
     /** Paths a page can't have: the site's own files and the routes that are never a clan's. */
@@ -105,6 +107,8 @@ public final class ClanSiteLayoutRules {
         if (!name.isBlank()) progress.put("name", name.length() > 60 ? name.substring(0, 60) : name);
         String tagline = wizard.getString("tagline", "");
         if (!tagline.isBlank()) progress.put("tagline", tagline.length() > 120 ? tagline.substring(0, 120) : tagline);
+        String template = wizard.getString("template", "");
+        if (template.length() <= 40 && WIZARD_TEMPLATE.matcher(template).matches()) progress.put("template", template);
         return progress;
     }
 
@@ -113,7 +117,7 @@ public final class ClanSiteLayoutRules {
         DataObject t = look == null ? DataObject.empty() : look;
         String theme = t.getString("theme", "modern");
         String mode = t.getString("mode", "dark");
-        if (!THEMES.contains(theme)) problems.add("Pick one of the three templates.");
+        if (!THEMES.contains(theme)) problems.add("Pick one of the site themes.");
         if (!MODES.contains(mode)) problems.add("Pick light or dark.");
         DataObject out = DataObject.empty().put("theme", theme).put("mode", mode);
         if (t.isNull("accent") || !t.hasKey("accent")) out.putNull("accent");

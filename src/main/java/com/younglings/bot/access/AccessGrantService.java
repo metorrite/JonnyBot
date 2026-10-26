@@ -15,7 +15,7 @@ import java.util.function.LongSupplier;
 /**
  * The one check behind every restricted area of the website: may this Discord user enter this area because of a grant on the owner's list?
  * A user grant matches that user. A server grant matches someone who is in that server (JonnyBot has to be in it to look) with at least the
- * grant's level there. Expired grants never match. Anything that cannot be looked up counts as no. A grant only lifts the gate on its area; it
+ * grant's level there. Expired grants never match. The list comes from {@link GateSource} (the hub with RUNECLANS_HUB_ACCESS, else the bot). Anything that cannot be looked up counts as no. A grant only lifts the gate on its area; it
  * grants nothing in any server. Answers are remembered for a minute, because the website asks on every page.
  */
 @BService
@@ -25,13 +25,13 @@ public class AccessGrantService {
     private record Key(AccessArea area, long userId) {}
     private record Answer(boolean allowed, long expiresAt) {}
 
-    private final AccessGrantRepository repository;
+    private final GateSource gates;
     private final Map<Key, Answer> remembered = new ConcurrentHashMap<>();
     /** Replaceable so tests can move time without waiting. */
     LongSupplier clock = System::currentTimeMillis;
 
-    public AccessGrantService(AccessGrantRepository repository) {
-        this.repository = repository;
+    public AccessGrantService(GateSource gates) {
+        this.gates = gates;
     }
 
     public boolean allows(JDA jda, AccessArea area, long userId) {
@@ -42,7 +42,7 @@ public class AccessGrantService {
 
         boolean allowed;
         try {
-            allowed = matches(repository.all(), jda, area, userId, Instant.ofEpochMilli(now));
+            allowed = matches(gates.grantsFor(userId), jda, area, userId, Instant.ofEpochMilli(now));
         } catch (DiscordLookups.Slow e) {
             throw e; // Discord didn't say whether they're in a granted server: the asker gets "try again", not a wrong no
         } catch (RuntimeException e) {
@@ -65,6 +65,11 @@ public class AccessGrantService {
             if (grant.level().satisfiedBy(memberIn(guild, userId))) return true;
         }
         return false;
+    }
+
+    /** Whether the gates are read from (and so edited in) the RuneClans hub; the bot's own editors then refuse changes. */
+    public boolean editedInHub() {
+        return gates.fromHub();
     }
 
     /** Forget what was remembered: the list just changed. */

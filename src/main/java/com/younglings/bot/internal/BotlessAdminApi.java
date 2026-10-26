@@ -177,6 +177,40 @@ public class BotlessAdminApi {
         InternalApiServer.sendJson(exchange, 200, DataObject.empty().put("betaTester", userId != 0 && onBeta(jda, userId)));
     }
 
+    /**
+     * {@code GET /internal/admin/editable-sites}: {@code {guilds: [{id, name, iconUrl}]}}, the servers the asker ({@code X-Actor-Id}) may edit the clan
+     * website of through the site's own roles (an editor role, a named editor, the owner), which the dashboard's {@code guilds} list leaves out for
+     * someone with no dashboard access. It lists servers, not sites: the website asks each one for its site and shows the ones that have one. The
+     * rule is the same {@link SiteRoleGuard} every site write goes through. The internal secret was already checked.
+     */
+    public void handleEditableSites(HttpExchange exchange, JDA jda) throws IOException {
+        if (!exchange.getRequestMethod().equalsIgnoreCase("GET")) {
+            InternalApiServer.sendJson(exchange, 405, DataObject.empty().put("error", "Method not allowed"));
+            return;
+        }
+        String raw = exchange.getRequestHeaders().getFirst(ACTOR_HEADER);
+        long userId = raw != null && raw.strip().matches("[0-9]{15,20}") ? Long.parseLong(raw.strip()) : 0;
+        DataArray guilds = DataArray.empty();
+        if (userId != 0) {
+            for (net.dv8tion.jda.api.entities.Guild guild : editableGuilds(jda.getGuilds(), userId)) {
+                guilds.add(DataObject.empty().put("id", guild.getId()).put("name", guild.getName()).put("iconUrl", guild.getIconUrl()));
+            }
+        }
+        InternalApiServer.sendJson(exchange, 200, DataObject.empty().put("guilds", guilds));
+    }
+
+    /** The servers of {@code all} whose clan website {@code userId} may edit; a server Discord is slow to answer about is left out this time. */
+    List<net.dv8tion.jda.api.entities.Guild> editableGuilds(List<net.dv8tion.jda.api.entities.Guild> all, long userId) {
+        List<com.younglings.bot.discord.DiscordLookups.MemberLookup> found =
+                com.younglings.bot.discord.DiscordLookups.memberInEach(all, userId, java.time.Duration.ofMillis(2500));
+        List<net.dv8tion.jda.api.entities.Guild> out = new java.util.ArrayList<>();
+        for (int i = 0; i < all.size(); i++) {
+            net.dv8tion.jda.api.entities.Member member = found.get(i).member();
+            if (member != null && siteRoles.allows(all.get(i), member, SiteRoles.Action.EDIT)) out.add(all.get(i));
+        }
+        return out;
+    }
+
     private boolean onBeta(JDA jda, long userId) {
         return owners.isOwner(jda, userId) || accessGrants.allows(jda, AccessArea.SITE_BUILDER_BETA, userId);
     }
@@ -184,7 +218,7 @@ public class BotlessAdminApi {
     /** {@code null} for a path that doesn't exist; a {@link #needsBot} refusal for one that exists only with the bot. */
     private DataObject route(HttpExchange exchange, SiteCaller c, String method, String[] parts) {
         if (parts.length == 0) return null;
-        Supplier<DataObject> body = () -> body(exchange);
+        Supplier<DataObject> body = () -> method.equals("GET") ? AdminRouteExtension.queryOf(exchange.getRequestURI()) : body(exchange);
         switch (parts[0]) {
             case "clan-site" -> {
                 if (parts.length == 2 && parts[1].equals("clan-name")) return clanName(c, method, body);

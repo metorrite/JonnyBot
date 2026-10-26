@@ -40,6 +40,8 @@ import java.util.Optional;
  *   <li>{@code POST clans/{slug}/report} {@code {reason, reporter?}}: report a listing for the bot's owner to review</li>
  *   <li>{@code GET events}: shared upcoming events of every listed clan, soonest first</li>
  *   <li>{@code GET leaderboards?period=week|month}: clans that opted in, ranked by XP their members gained</li>
+ *   <li>{@code guilds/{guildId}/...}: whatever {@code sites/{slug}/...} answers for that server's own clan, any method (T-505): the website
+ *   asks by the guild id on the hub's site record once sites live on the hub (D-14)</li>
  * </ul>
  * Everything else is a {@link DirectoryRouteModule}: alliances ({@link DirectoryAllianceRoutes}), site switches
  * ({@link DirectorySiteSwitchRoutes}), the events hub ({@link DirectoryHubEventRoutes}), clan websites ({@link DirectoryClanSiteRoutes})
@@ -88,6 +90,15 @@ public class DirectoryApi {
             return;
         }
         String[] parts = path.substring(PREFIX.length()).split("/");
+        if (parts[0].equals("guilds")) {
+            // guilds/{guildId}/...: the same answer as sites/{slug}/... for that server's site, so the website can ask by the guild id on the
+            // hub's site record once sites live there (SITES_BACKEND=hub, D-14). The site record itself (nothing after the id) comes from the hub.
+            parts = byGuild(parts);
+            if (parts == null) {
+                send(exchange, 404, DataObject.empty().put("error", "Not found"));
+                return;
+            }
+        }
         String head = parts[0];
 
         if (head.equals("clans") && parts.length == 1) {
@@ -159,6 +170,23 @@ public class DirectoryApi {
     }
 
     /** A profile anyone may open by its address: listed, or unlisted. */
+    /** {@code guilds/{guildId}/rest...} as {@code sites/{slug}/rest...} for that server's viewable profile; null when there is none. */
+    String[] byGuild(String[] parts) {
+        if (parts.length < 3 || !parts[1].matches("\\d{1,20}")) return null;
+        long guildId;
+        try {
+            guildId = Long.parseLong(parts[1]);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+        String slug = repository.get(guildId).map(ClanProfile::slug).filter(s -> s != null && !s.isBlank()).filter(s -> viewable(s).isPresent()).orElse(null);
+        if (slug == null) return null;
+        String[] aliased = parts.clone();
+        aliased[0] = "sites";
+        aliased[1] = slug;
+        return aliased;
+    }
+
     private Optional<ClanProfile> viewable(String slug) {
         return repository.bySlug(slug).filter(p -> listed(p, true));
     }

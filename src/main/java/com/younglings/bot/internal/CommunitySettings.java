@@ -1,6 +1,7 @@
 package com.younglings.bot.internal;
 
 import com.younglings.bot.database.SchemaBootstrapper;
+import com.younglings.bot.hubsites.SiteChannelMappings;
 import io.github.freya022.botcommands.api.core.db.ConnectionSupplier;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import org.slf4j.Logger;
@@ -28,9 +29,11 @@ public class CommunitySettings {
     private static final Logger log = LoggerFactory.getLogger(CommunitySettings.class);
 
     private final ConnectionSupplier connectionSupplier;
+    private final SiteChannelMappings mappings;
 
-    public CommunitySettings(ConnectionSupplier connectionSupplier) {
+    public CommunitySettings(ConnectionSupplier connectionSupplier, SiteChannelMappings mappings) {
         this.connectionSupplier = connectionSupplier;
+        this.mappings = mappings;
         SchemaBootstrapper.run(connectionSupplier, log, "community settings", List.of(
                 "CREATE SCHEMA IF NOT EXISTS younglings;",
                 """
@@ -91,7 +94,10 @@ public class CommunitySettings {
 
     // ---------- the member-poll channel ----------
 
+    /** The member-poll channel; with {@code SITES_BACKEND=hub} a mapping of the server's hub site ({@link SiteChannelMappings}). */
     public Long pollChannel(long guildId) {
+        var mapped = mappings.single(guildId, SiteChannelMappings.Kind.POLL);
+        if (mapped.isPresent()) return mapped.get().orElse(null);
         try (Connection c = connectionSupplier.getConnection();
              PreparedStatement s = c.prepareStatement("SELECT poll_channel_id FROM younglings.site_setting WHERE guild_id = ?")) {
             s.setLong(1, guildId);
@@ -104,6 +110,7 @@ public class CommunitySettings {
     }
 
     public void setPollChannel(long guildId, Long channelId) {
+        if (mappings.setSingle(guildId, SiteChannelMappings.Kind.POLL, channelId)) return;
         try (Connection c = connectionSupplier.getConnection();
              PreparedStatement s = c.prepareStatement("""
                      INSERT INTO younglings.site_setting (guild_id, poll_channel_id) VALUES (?, ?)
@@ -138,7 +145,7 @@ public class CommunitySettings {
             s.setLong(1, guildId);
             s.setBoolean(2, on);
             s.executeUpdate();
-            SiteInvalidator.signal(SiteInvalidator.Area.OPTIONS);
+            SiteInvalidator.signal(guildId, SiteInvalidator.Area.OPTIONS);
         } catch (SQLException e) {
             throw fail("save the Events bubble setting", e);
         }

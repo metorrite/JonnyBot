@@ -3,6 +3,7 @@ package com.younglings.bot.internal;
 import com.younglings.bot.access.AccessArea;
 import com.younglings.bot.access.AccessGrantRepository;
 import com.younglings.bot.access.AccessGrantService;
+import com.younglings.bot.access.GateSource;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.notice.BotOwners;
 import com.younglings.bot.testsupport.LocalDatabase;
@@ -50,7 +51,7 @@ class SiteBuilderBetaAdminApiDatabaseTest {
     @BeforeEach
     void setUp() throws Exception {
         repository = new AccessGrantRepository(db);
-        service = new AccessGrantService(repository);
+        service = new AccessGrantService(GateSource.ownTables(null, repository::all, null));
         BotOwners owners = mock(BotOwners.class);
         when(owners.isOwner(any(), eq(OWNER))).thenReturn(true);
         api = new SiteBuilderBetaAdminApi(repository, service, owners);

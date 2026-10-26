@@ -1,11 +1,12 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.discord.jobs.DiscordJob;
+import com.younglings.bot.discord.jobs.DiscordOutbox;
 import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.lockdown.LockdownRepository.Config;
 import com.younglings.bot.lockdown.LockdownRepository.Lock;
 import com.younglings.bot.lockdown.LockdownService;
-import com.younglings.bot.lockdown.LockdownService.Outcome;
 import com.younglings.bot.permission.DashboardAccess;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
@@ -27,7 +28,8 @@ import java.util.function.Supplier;
  * The dashboard's Lockdown page: the saved lockdown set (channels, and the roles that can still talk in them), what is locked right now, and lock / unlock /
  * start / end. Changing who can talk in channels is an Admin-tier action, like the Hub's "who may use a command"; the page can be viewed by anyone who can
  * use the dashboard. Reached only through {@link TicketAdminApi}, which has already checked the asker may use the dashboard in this server and audit-logs
- * every write.
+ * every write. Lock / unlock / start / end are checked here and run as Discord jobs ({@link LockdownJobs}, T-456): the answer is the page at once
+ * with {@code job} for the page to follow.
  * <ul>
  *   <li>{@code GET lockdown}; {@code PUT lockdown} saves the set ({@code channelIds}, {@code keepTalkingRoleIds})</li>
  *   <li>{@code POST lockdown/lock} ({@code channelId}, {@code reason}), {@code POST lockdown/unlock} ({@code channelId})</li>
@@ -40,10 +42,12 @@ public class LockdownAdminApi implements AdminRouteExtension {
 
     private final LockdownService service;
     private final DashboardAccess access;
+    private final DiscordOutbox outbox;
 
-    public LockdownAdminApi(LockdownService service, DashboardAccess access) {
+    public LockdownAdminApi(LockdownService service, DashboardAccess access, DiscordOutbox outbox) {
         this.service = service;
         this.access = access;
+        this.outbox = outbox;
     }
 
     @Override
@@ -136,9 +140,12 @@ public class LockdownAdminApi implements AdminRouteExtension {
         StandardGuildMessageChannel channel = channel(guild, body);
         String reason = body.isNull("reason") ? "" : body.getString("reason", "").strip();
         if (reason.length() > 200) throw new ApiError(400, Text.of(guild, "dashboard.the_reason_can_be_at_most"));
-        refuseUnless(service.lock(guild, channel, actor.getIdLong(), reason, false), channel, true);
-        log.info("Dashboard: {} locked #{}", actor.getId(), channel.getName());
-        return get(guild);
+        if (lockOf(guild, channel.getIdLong()) != null) refuse(LockdownService.Outcome.ALREADY, channel);
+        if (!LockdownService.canManage(guild, channel)) refuse(LockdownService.Outcome.NO_PERMISSION, channel);
+        DiscordJob job = outbox.enqueue(LockdownJobs.LOCK, guild.getIdLong(), actor.getIdLong(), "lockdown-lock:" + guild.getIdLong() + ":" + channel.getIdLong(),
+                LockdownJobs.lockPayload(channel.getIdLong(), reason));
+        log.info("Dashboard: {} queued locking #{} (job {})", actor.getId(), channel.getName(), job.id());
+        return get(guild).put("job", job.ticket());
     }
 
     private DataObject unlock(Guild guild, Member actor, DataObject body) {
@@ -149,26 +156,31 @@ public class LockdownAdminApi implements AdminRouteExtension {
             service.forget(guild.getIdLong(), id);
             return get(guild);
         }
-        refuseUnless(service.unlock(guild, channel, actor.getIdLong()), channel, false);
-        log.info("Dashboard: {} unlocked #{}", actor.getId(), channel.getName());
-        return get(guild);
+        if (lockOf(guild, id) == null) refuse(LockdownService.Outcome.NOT_LOCKED, channel);
+        if (!LockdownService.canManage(guild, channel)) refuse(LockdownService.Outcome.NO_PERMISSION, channel);
+        DiscordJob job = outbox.enqueue(LockdownJobs.UNLOCK, guild.getIdLong(), actor.getIdLong(), "lockdown-unlock:" + guild.getIdLong() + ":" + id,
+                LockdownJobs.unlockPayload(id));
+        log.info("Dashboard: {} queued unlocking #{} (job {})", actor.getId(), channel.getName(), job.id());
+        return get(guild).put("job", job.ticket());
     }
 
     private DataObject start(Guild guild, Member actor, DataObject body) {
         if (service.config(guild.getIdLong()).channelIds().isEmpty()) throw new ApiError(400, Text.of(guild, "dashboard.choose_the_channels_of_the_lockdown"));
         String reason = body.isNull("reason") ? "" : body.getString("reason", "").strip();
         if (reason.length() > 200) throw new ApiError(400, Text.of(guild, "dashboard.the_reason_can_be_at_most"));
-        int[] result = service.start(guild, actor.getIdLong(), reason);
-        log.info("Dashboard: {} started a lockdown ({} locked, {} already, {} failed)", actor.getId(), result[0], result[1], result[2]);
-        if (result[2] > 0) throw new ApiError(502, Text.of(guild, "dashboard.channels_were_locked_but_couldn_t", result[0], result[2]));
-        return get(guild);
+        DiscordJob job = outbox.enqueue(LockdownJobs.START, guild.getIdLong(), actor.getIdLong(), "lockdown-start:" + guild.getIdLong(), LockdownJobs.startPayload(reason));
+        log.info("Dashboard: {} queued a lockdown (job {})", actor.getId(), job.id());
+        return get(guild).put("job", job.ticket());
     }
 
     private DataObject end(Guild guild, Member actor) {
-        int[] result = service.end(guild, actor.getIdLong());
-        log.info("Dashboard: {} ended the lockdown ({} unlocked, {} failed)", actor.getId(), result[0], result[1]);
-        if (result[1] > 0) throw new ApiError(502, Text.of(guild, "dashboard.channels_were_unlocked_but_couldn_t", result[0], result[1]));
-        return get(guild);
+        DiscordJob job = outbox.enqueue(LockdownJobs.END, guild.getIdLong(), actor.getIdLong(), "lockdown-end:" + guild.getIdLong(), DataObject.empty());
+        log.info("Dashboard: {} queued ending the lockdown (job {})", actor.getId(), job.id());
+        return get(guild).put("job", job.ticket());
+    }
+
+    private Lock lockOf(Guild guild, long channelId) {
+        return service.locks(guild.getIdLong()).stream().filter(l -> l.channelId() == channelId).findFirst().orElse(null);
     }
 
     private static long parse(DataObject body) {
@@ -183,13 +195,13 @@ public class LockdownAdminApi implements AdminRouteExtension {
         return channel;
     }
 
-    private static void refuseUnless(Outcome outcome, StandardGuildMessageChannel channel, boolean locking) {
+    /** Says why a lock or unlock can't be queued, as the page has always said it. */
+    private static void refuse(LockdownService.Outcome outcome, StandardGuildMessageChannel channel) {
         switch (outcome) {
-            case DONE -> { }
             case ALREADY -> throw new ApiError(409, Text.of(channel.getGuild(), "dashboard.is_already_locked", channel.getName()));
             case NOT_LOCKED -> throw new ApiError(409, Text.of(channel.getGuild(), "dashboard.isn_t_locked_by_jonnybot_so", channel.getName()));
             case NO_PERMISSION -> throw new ApiError(400, Text.of(channel.getGuild(), "dashboard.jonnybot_needs_to_see_send_messages", channel.getName()));
-            case FAILED -> throw new ApiError(502, Text.of(channel.getGuild(), locking ? "dashboard.lockdown_refused_put_back" : "dashboard.lockdown_refused_left_locked", channel.getName()));
+            default -> { }
         }
     }
 }

@@ -79,6 +79,14 @@ public class RuneClansFeedPoller {
                 log.warn("RuneClans feed poll failed: {}", e.getClass().getSimpleName());
             }
         }, 20, 30, TimeUnit.SECONDS);
+        // writes the hub couldn't take when they were made (hub down or busy), held in memory for up to 5 minutes
+        executor.scheduleWithFixedDelay(() -> {
+            try {
+                hub.drainWrites();
+            } catch (RuntimeException e) {
+                log.warn("RuneClans hub write retry failed: {}", e.getClass().getSimpleName());
+            }
+        }, 10, 10, TimeUnit.SECONDS);
     }
 
     /** A player granted JonnyBot identity: add them to each of the bot's servers they are a (cached) member of. */
@@ -138,6 +146,7 @@ public class RuneClansFeedPoller {
             for (int i = 0; i < entries.length(); i++) {
                 DataObject e = entries.getObject(i);
                 String kind = e.getString("kind", "");
+                hub.onHubChange(kind, e.optObject("data").orElse(null));
                 String alias = e.getString("alias", null);
                 if (alias == null) continue;
                 if (kind.equals("player.grant_changed") && !e.getObject("data").getBoolean("revoked", false) && e.getObject("data").getBoolean("identity", false)) {

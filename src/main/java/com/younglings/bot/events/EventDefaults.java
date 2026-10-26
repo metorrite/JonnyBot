@@ -17,13 +17,25 @@ import java.util.Map;
  * @param look       a {@link BingoLooks} id, or null
  * @param gate       an {@link EventRoster.Gate} name, or null
  * @param setupMode  {@code STANDARD} or {@code OFF}, or null
+ * @param xpSource   where new competitions count XP from ({@link CompetitionTemplate#SOURCE_PLUGIN}, {@link CompetitionTemplate#SOURCE_AUTO} or {@code runemetrics}), or null. Kept with the
+ *                   clan's plugin settings (the dashboard's Clan plugin page, T-537), not with the rest of these, and laid over only while the plugin
+ *                   source is offered
  */
-public record EventDefaults(Map<String, String> names, String look, String gate, String setupMode) {
+public record EventDefaults(Map<String, String> names, String look, String gate, String setupMode, String xpSource) {
     public static final EventDefaults NONE = new EventDefaults(Map.of(), null, null, null);
     public static final int MAX_PATTERN = 100;
 
     public EventDefaults {
         names = names == null ? Map.of() : java.util.Collections.unmodifiableMap(new LinkedHashMap<>(names));
+        xpSource = CompetitionTemplate.validSource(xpSource) ? xpSource : null;
+    }
+
+    public EventDefaults(Map<String, String> names, String look, String gate, String setupMode) {
+        this(names, look, gate, setupMode, null);
+    }
+
+    public EventDefaults withXpSource(String source) {
+        return new EventDefaults(names, look, gate, setupMode, source);
     }
 
     /** Every name pattern a server can set: the channels, then the roles, each with its label and built-in pattern. */
@@ -115,5 +127,7 @@ public record EventDefaults(Map<String, String> names, String look, String gate,
         if (look != null && BingoTemplate.KEY.equals(template.key())) EventOptions.set(answers, "config.board.look", look);
         if (gate != null) EventOptions.set(answers, "config.verification.gate", gate);
         if (setupMode != null) EventOptions.set(answers, "config.setup.mode", setupMode);
+        boolean competition = CompetitionTemplate.KEY.equals(template.key()) || ClanVsClan.KEY.equals(template.key());
+        if (xpSource != null && competition && CompetitionTemplate.pluginSourceOffered()) EventOptions.set(answers, "config.xpSource", xpSource);
     }
 }

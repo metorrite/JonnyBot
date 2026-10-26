@@ -45,7 +45,7 @@
     "mobile": "drawer",
     "nav": [
       {
-        "id": "heartn077",
+        "id": "heartn078",
         "label": "Home",
         "link": {
           "kind": "page",
@@ -53,7 +53,7 @@
         }
       },
       {
-        "id": "heartn078",
+        "id": "heartn079",
         "label": "Events",
         "link": {
           "kind": "page",
@@ -62,7 +62,7 @@
         "badge": "events"
       },
       {
-        "id": "heartn079",
+        "id": "heartn080",
         "label": "Community",
         "link": {
           "kind": "page",
@@ -70,7 +70,7 @@
         }
       },
       {
-        "id": "heartn080",
+        "id": "heartn081",
         "label": "Have your say",
         "link": {
           "kind": "page",
@@ -78,7 +78,7 @@
         }
       },
       {
-        "id": "heartn081",
+        "id": "heartn082",
         "label": "Join us",
         "link": {
           "kind": "page",
@@ -202,7 +202,11 @@
                       "settings": {
                         "showBanner": true,
                         "showTagline": true,
-                        "align": "center"
+                        "align": "center",
+                        "eyebrow": "",
+                        "logoShape": "rounded",
+                        "look": "standard",
+                        "size": "large"
                       },
                       "unmet": "hide"
                     }
@@ -213,7 +217,7 @@
           ]
         },
         {
-          "id": "hearts016",
+          "id": "hearts017",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -231,7 +235,7 @@
           },
           "rows": [
             {
-              "id": "heartr009",
+              "id": "heartr010",
               "gap": {
                 "lg": "md"
               },
@@ -243,16 +247,16 @@
               },
               "cells": [
                 {
-                  "id": "heartc006",
+                  "id": "heartc007",
                   "span": {
                     "lg": 7,
                     "md": 12
                   },
                   "padding": {
-                    "lg": "none"
+                    "lg": "md"
                   },
                   "valign": "start",
-                  "surface": "none",
+                  "surface": "panel",
                   "widgets": [
                     {
                       "id": "heartw005",
@@ -264,11 +268,41 @@
                         "width": "readable"
                       },
                       "unmet": "hide"
+                    },
+                    {
+                      "id": "heartw006",
+                      "type": "button-row",
+                      "v": 1,
+                      "settings": {
+                        "buttons": [
+                          {
+                            "label": "What's on",
+                            "link": {
+                              "kind": "page",
+                              "pageId": "heartpevents"
+                            },
+                            "style": "primary"
+                          },
+                          {
+                            "label": "Join us",
+                            "link": {
+                              "kind": "page",
+                              "pageId": "heartpjoin"
+                            },
+                            "style": "quiet"
+                          }
+                        ],
+                        "align": "left",
+                        "size": "medium",
+                        "look": "buttons",
+                        "fullWidth": false
+                      },
+                      "unmet": "hide"
                     }
                   ]
                 },
                 {
-                  "id": "heartc008",
+                  "id": "heartc009",
                   "span": {
                     "lg": 5,
                     "md": 12
@@ -280,11 +314,12 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "heartw007",
+                      "id": "heartw008",
                       "type": "events",
                       "v": 1,
                       "settings": {
                         "title": "Coming up",
+                        "style": "list",
                         "limit": 3,
                         "showImages": true
                       },
@@ -295,7 +330,7 @@
               ]
             },
             {
-              "id": "heartr015",
+              "id": "heartr016",
               "gap": {
                 "lg": "md"
               },
@@ -307,7 +342,7 @@
               },
               "cells": [
                 {
-                  "id": "heartc011",
+                  "id": "heartc012",
                   "span": {
                     "lg": 7,
                     "md": 12
@@ -319,22 +354,24 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "heartw010",
+                      "id": "heartw011",
                       "type": "channel-feed",
-                      "v": 1,
+                      "v": 2,
                       "settings": {
                         "title": "Latest news",
                         "channel": "",
-                        "limit": 4,
                         "showAuthors": true,
-                        "showImages": true
+                        "showImages": true,
+                        "look": "list",
+                        "showEvents": false,
+                        "eventsLink": null
                       },
                       "unmet": "hide"
                     }
                   ]
                 },
                 {
-                  "id": "heartc014",
+                  "id": "heartc015",
                   "span": {
                     "lg": 5,
                     "md": 12
@@ -346,7 +383,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "heartw012",
+                      "id": "heartw013",
                       "type": "links",
                       "v": 2,
                       "settings": {
@@ -392,14 +429,12 @@
                       "unmet": "hide"
                     },
                     {
-                      "id": "heartw013",
+                      "id": "heartw014",
                       "type": "discord-online",
-                      "v": 1,
+                      "v": 2,
                       "settings": {
                         "title": "Around right now",
-                        "show": "names+avatars",
-                        "groups": true,
-                        "limit": 12
+                        "look": "list"
                       },
                       "unmet": "hide"
                     }
@@ -410,7 +445,7 @@
           ]
         },
         {
-          "id": "hearts020",
+          "id": "hearts021",
           "width": "wide",
           "background": {
             "kind": "surface"
@@ -429,7 +464,7 @@
           "label": "Recap",
           "rows": [
             {
-              "id": "heartr019",
+              "id": "heartr020",
               "gap": {
                 "lg": "md"
               },
@@ -441,7 +476,7 @@
               },
               "cells": [
                 {
-                  "id": "heartc018",
+                  "id": "heartc019",
                   "span": {
                     "lg": 12
                   },
@@ -452,7 +487,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "heartw017",
+                      "id": "heartw018",
                       "type": "weekly-recap",
                       "v": 1,
                       "settings": {
@@ -477,7 +512,7 @@
       "access": "public",
       "sections": [
         {
-          "id": "hearts024",
+          "id": "hearts025",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -495,7 +530,7 @@
           },
           "rows": [
             {
-              "id": "heartr023",
+              "id": "heartr024",
               "gap": {
                 "lg": "md"
               },
@@ -507,7 +542,7 @@
               },
               "cells": [
                 {
-                  "id": "heartc022",
+                  "id": "heartc023",
                   "span": {
                     "lg": 12
                   },
@@ -518,7 +553,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "heartw021",
+                      "id": "heartw022",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -538,7 +573,7 @@
           ]
         },
         {
-          "id": "hearts035",
+          "id": "hearts036",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -556,7 +591,7 @@
           },
           "rows": [
             {
-              "id": "heartr029",
+              "id": "heartr030",
               "gap": {
                 "lg": "md"
               },
@@ -568,7 +603,7 @@
               },
               "cells": [
                 {
-                  "id": "heartc026",
+                  "id": "heartc027",
                   "span": {
                     "lg": 8,
                     "md": 12
@@ -580,7 +615,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "heartw025",
+                      "id": "heartw026",
                       "type": "hub-events",
                       "v": 1,
                       "settings": {
@@ -593,7 +628,7 @@
                   ]
                 },
                 {
-                  "id": "heartc028",
+                  "id": "heartc029",
                   "span": {
                     "lg": 4,
                     "md": 12
@@ -605,7 +640,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "heartw027",
+                      "id": "heartw028",
                       "type": "event-standings",
                       "v": 1,
                       "settings": {
@@ -619,7 +654,7 @@
               ]
             },
             {
-              "id": "heartr034",
+              "id": "heartr035",
               "gap": {
                 "lg": "md"
               },
@@ -631,9 +666,9 @@
               },
               "cells": [
                 {
-                  "id": "heartc031",
+                  "id": "heartc032",
                   "span": {
-                    "lg": 8,
+                    "lg": 6,
                     "md": 12
                   },
                   "padding": {
@@ -643,12 +678,13 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "heartw030",
+                      "id": "heartw031",
                       "type": "events",
                       "v": 1,
                       "settings": {
                         "title": "On Discord",
-                        "limit": 8,
+                        "style": "list",
+                        "limit": 5,
                         "showImages": true
                       },
                       "unmet": "hide"
@@ -656,9 +692,9 @@
                   ]
                 },
                 {
-                  "id": "heartc033",
+                  "id": "heartc034",
                   "span": {
-                    "lg": 4,
+                    "lg": 6,
                     "md": 12
                   },
                   "padding": {
@@ -668,7 +704,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "heartw032",
+                      "id": "heartw033",
                       "type": "signups",
                       "v": 1,
                       "settings": {
@@ -694,7 +730,7 @@
       "access": "public",
       "sections": [
         {
-          "id": "hearts039",
+          "id": "hearts040",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -712,7 +748,7 @@
           },
           "rows": [
             {
-              "id": "heartr038",
+              "id": "heartr039",
               "gap": {
                 "lg": "md"
               },
@@ -724,7 +760,7 @@
               },
               "cells": [
                 {
-                  "id": "heartc037",
+                  "id": "heartc038",
                   "span": {
                     "lg": 12
                   },
@@ -735,7 +771,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "heartw036",
+                      "id": "heartw037",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -755,7 +791,7 @@
           ]
         },
         {
-          "id": "hearts051",
+          "id": "hearts052",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -773,7 +809,7 @@
           },
           "rows": [
             {
-              "id": "heartr047",
+              "id": "heartr048",
               "gap": {
                 "lg": "md"
               },
@@ -785,7 +821,7 @@
               },
               "cells": [
                 {
-                  "id": "heartc042",
+                  "id": "heartc043",
                   "span": {
                     "lg": 4,
                     "md": 12
@@ -797,7 +833,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "heartw040",
+                      "id": "heartw041",
                       "type": "stat-tiles",
                       "v": 2,
                       "settings": {
@@ -813,12 +849,13 @@
                             "link": null
                           }
                         ],
-                        "columns": "2"
+                        "columns": "2",
+                        "numbers": "accent"
                       },
                       "unmet": "hide"
                     },
                     {
-                      "id": "heartw041",
+                      "id": "heartw042",
                       "type": "top-xp",
                       "v": 1,
                       "settings": {
@@ -827,14 +864,16 @@
                         "showDay": true,
                         "showWeek": true,
                         "showMonth": true,
-                        "defaultTab": "week"
+                        "defaultTab": "week",
+                        "bars": "under",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
                   ]
                 },
                 {
-                  "id": "heartc044",
+                  "id": "heartc045",
                   "span": {
                     "lg": 4,
                     "md": 12
@@ -846,7 +885,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "heartw043",
+                      "id": "heartw044",
                       "type": "activity-feed",
                       "v": 1,
                       "settings": {
@@ -858,7 +897,7 @@
                   ]
                 },
                 {
-                  "id": "heartc046",
+                  "id": "heartc047",
                   "span": {
                     "lg": 4,
                     "md": 12
@@ -870,12 +909,16 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "heartw045",
+                      "id": "heartw046",
                       "type": "milestones",
                       "v": 1,
                       "settings": {
                         "title": "Well done!",
-                        "limit": 8
+                        "limit": 8,
+                        "bigOnly": false,
+                        "look": "lines",
+                        "more": null,
+                        "moreText": "Hall of fame"
                       },
                       "unmet": "hide"
                     }
@@ -884,7 +927,7 @@
               ]
             },
             {
-              "id": "heartr050",
+              "id": "heartr051",
               "gap": {
                 "lg": "md"
               },
@@ -896,7 +939,7 @@
               },
               "cells": [
                 {
-                  "id": "heartc049",
+                  "id": "heartc050",
                   "span": {
                     "lg": 12
                   },
@@ -907,7 +950,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "heartw048",
+                      "id": "heartw049",
                       "type": "roster",
                       "v": 1,
                       "settings": {
@@ -939,7 +982,7 @@
       "access": "public",
       "sections": [
         {
-          "id": "hearts055",
+          "id": "hearts056",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -957,7 +1000,7 @@
           },
           "rows": [
             {
-              "id": "heartr054",
+              "id": "heartr055",
               "gap": {
                 "lg": "md"
               },
@@ -969,7 +1012,7 @@
               },
               "cells": [
                 {
-                  "id": "heartc053",
+                  "id": "heartc054",
                   "span": {
                     "lg": 12
                   },
@@ -980,7 +1023,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "heartw052",
+                      "id": "heartw053",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -1000,7 +1043,7 @@
           ]
         },
         {
-          "id": "hearts061",
+          "id": "hearts062",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1018,7 +1061,7 @@
           },
           "rows": [
             {
-              "id": "heartr060",
+              "id": "heartr061",
               "gap": {
                 "lg": "md"
               },
@@ -1030,7 +1073,7 @@
               },
               "cells": [
                 {
-                  "id": "heartc057",
+                  "id": "heartc058",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -1042,7 +1085,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "heartw056",
+                      "id": "heartw057",
                       "type": "polls",
                       "v": 1,
                       "settings": {
@@ -1055,7 +1098,7 @@
                   ]
                 },
                 {
-                  "id": "heartc059",
+                  "id": "heartc060",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -1067,7 +1110,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "heartw058",
+                      "id": "heartw059",
                       "type": "signups",
                       "v": 1,
                       "settings": {
@@ -1093,7 +1136,7 @@
       "access": "public",
       "sections": [
         {
-          "id": "hearts065",
+          "id": "hearts066",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1111,7 +1154,7 @@
           },
           "rows": [
             {
-              "id": "heartr064",
+              "id": "heartr065",
               "gap": {
                 "lg": "md"
               },
@@ -1123,7 +1166,7 @@
               },
               "cells": [
                 {
-                  "id": "heartc063",
+                  "id": "heartc064",
                   "span": {
                     "lg": 12
                   },
@@ -1134,7 +1177,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "heartw062",
+                      "id": "heartw063",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -1154,7 +1197,7 @@
           ]
         },
         {
-          "id": "hearts076",
+          "id": "hearts077",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1172,7 +1215,7 @@
           },
           "rows": [
             {
-              "id": "heartr072",
+              "id": "heartr073",
               "gap": {
                 "lg": "md"
               },
@@ -1184,7 +1227,7 @@
               },
               "cells": [
                 {
-                  "id": "heartc068",
+                  "id": "heartc069",
                   "span": {
                     "lg": 7,
                     "md": 12
@@ -1196,7 +1239,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "heartw066",
+                      "id": "heartw067",
                       "type": "text",
                       "v": 1,
                       "settings": {
@@ -1207,7 +1250,7 @@
                       "unmet": "hide"
                     },
                     {
-                      "id": "heartw067",
+                      "id": "heartw068",
                       "type": "faq",
                       "v": 1,
                       "settings": {
@@ -1232,7 +1275,7 @@
                   ]
                 },
                 {
-                  "id": "heartc071",
+                  "id": "heartc072",
                   "span": {
                     "lg": 5,
                     "md": 12
@@ -1244,7 +1287,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "heartw069",
+                      "id": "heartw070",
                       "type": "recruiting",
                       "v": 1,
                       "settings": {
@@ -1255,7 +1298,7 @@
                       "unmet": "hide"
                     },
                     {
-                      "id": "heartw070",
+                      "id": "heartw071",
                       "type": "discord-join",
                       "v": 1,
                       "settings": {
@@ -1270,7 +1313,7 @@
               ]
             },
             {
-              "id": "heartr075",
+              "id": "heartr076",
               "gap": {
                 "lg": "md"
               },
@@ -1282,7 +1325,7 @@
               },
               "cells": [
                 {
-                  "id": "heartc074",
+                  "id": "heartc075",
                   "span": {
                     "lg": 12
                   },
@@ -1293,7 +1336,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "heartw073",
+                      "id": "heartw074",
                       "type": "alliances",
                       "v": 1,
                       "settings": {

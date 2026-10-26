@@ -18,6 +18,7 @@ import com.younglings.bot.signup.SignupDatabaseInitializer;
 import com.younglings.bot.testsupport.LocalDatabase;
 import io.github.freya022.botcommands.api.core.db.ConnectionSupplier;
 import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.utils.data.DataArray;
 import net.dv8tion.jda.api.utils.data.DataObject;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -41,6 +42,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -106,7 +108,7 @@ class SiteApiTenantDatabaseTest {
         digest = new WeeklyDigestRepository(db, initializer);
         points = new ClanPointsRepository(db, initializer);
         profiles = new MemberProfileRepository(db);
-        community = new CommunitySettings(db);
+        community = new CommunitySettings(db, com.younglings.bot.testsupport.SiteMappings.off(db));
         catalog = new WikiCatalog();
     }
 
@@ -153,7 +155,8 @@ class SiteApiTenantDatabaseTest {
         links.saveSkillSnapshot(after, List.of(new SkillValue(0, 99, 200_000_000, 4)));
         String date = RUNEMETRICS.format(now.minusHours(2).atZoneSameInstant(ZoneId.of("Europe/London")));
         links.saveActivities(rsn, List.of(new PlayerActivity(date, "Capped at my Clan Citadel.", "x"), new PlayerActivity(date, "I killed 5 General Graardors.", "x"),
-                new PlayerActivity(date, "I found a Bandos hilt.", "x"), new PlayerActivity(date, "Levelled up Attack.", "x")));
+                new PlayerActivity(date, "I found a Bandos hilt.", "x"), new PlayerActivity(date, "Levelled up Attack.", "x"),
+                new PlayerActivity(date, "Quest complete: Desperate Measures", "x"), new PlayerActivity(date, "I found Shrimpy, the Fishing pet.", "x")));
         sql("INSERT INTO younglings.clan_roster_event (guild_id, rsn, event_type, event_at) VALUES (?, ?, 'JOIN', NOW() - INTERVAL '3 days')", guildId, rsn);
         sql("INSERT INTO younglings.coffer_donation (guild_id, donor_name, amount, submitted_by_discord_id) VALUES (?, ?, 1000000, ?)", guildId, rsn, userId);
     }
@@ -175,7 +178,7 @@ class SiteApiTenantDatabaseTest {
     @AfterEach
     void cleanUp() throws Exception {
         if (db == null) return;
-        for (String table : List.of("clan_member", "player_link", "member_profile", "coffer_donation", "clan_roster_event", "signup", "poll")) {
+        for (String table : List.of("clan_member", "player_link", "member_profile", "coffer_donation", "clan_roster_event", "signup", "poll", "member_privacy_default")) {
             sql("DELETE FROM younglings." + table + " WHERE guild_id IN (?, ?)", GUILD_A, GUILD_B);
         }
         for (String rsn : NAMES) {
@@ -258,12 +261,39 @@ class SiteApiTenantDatabaseTest {
     }
 
     @Test
+    void theDropLogGridSaysWhoGotEachItemFirst() {
+        DataObject log = call(guildA, "drop-log");
+        DataObject hilt = null;
+        DataArray grid = log.getArray("grid");
+        for (int i = 0; i < grid.length(); i++) if (grid.getObject(i).getString("key").equals("bandos_hilt")) hilt = grid.getObject(i);
+        assertNotNull(hilt, "the hilt is in the grid");
+        assertEquals(SHOWN, hilt.getString("firstRsn"), "the visible member got it first (the hidden member's drop isn't counted)");
+        assertFalse(hilt.isNull("first"));
+    }
+
+    @Test
     void oneSkillSeriesOnlyForAVisibleMemberOfThatClan() {
         HttpExchange shown = exchange("rsn=" + SHOWN + "&skill=0");
         assertNotNull(api.tenant(guildA, "member/skill", shown));
         assertNull(api.tenant(guildA, "member/skill", exchange("rsn=" + HIDDEN + "&skill=0")), "hidden from the rankings");
         assertNull(api.tenant(guildA, "member/skill", exchange("rsn=" + OTHER + "&skill=0")), "not in this clan");
         assertNull(api.tenant(guildB, "member/skill", exchange("rsn=" + SHOWN + "&skill=0")), "the same name asked of the other server");
+    }
+
+    @Test
+    void theRecapCarriesTheStoryTreesDataStreamsWithoutHiddenMembers() {
+        DataObject recap = call(guildA, "recap");
+        DataObject activity = recap.getObject("activity");
+        assertEquals("Attack", activity.getArray("levelUpSkills").getObject(0).getString("skill"), "T-653: level-ups by skill");
+        assertTrue(activity.getArray("questNames").toList().contains("Desperate Measures"));
+        assertTrue(activity.getLong("pets") >= 1);
+        assertEquals(1, recap.getObject("xp").getLong("skillsTrained"), "one skill gained XP");
+        assertTrue(recap.hasKey("previous"), "the window before, for growth");
+        DataArray levelers = recap.getArray("topLevelers");
+        for (int i = 0; i < levelers.length(); i++) assertNotEquals(HIDDEN, levelers.getObject(i).getString("rsn"), "a hidden member is never named");
+        DataObject mine = api.tenant(guildA, "member/recap", exchange("rsn=" + SHOWN + "&period=last-30d"));
+        assertEquals("Attack", mine.getObject("activity").getArray("levelUpSkills").getObject(0).getString("skill"));
+        assertTrue(mine.hasKey("previous"));
     }
 
     @Test
@@ -279,6 +309,67 @@ class SiteApiTenantDatabaseTest {
             assertNotNull(api.tenant(guildB, route, exchange("rsn=" + OTHER + period)), route + ": the other server's own member");
         }
         assertNotNull(api.member(guildA, HIDDEN), "the home site's member page is unchanged");
+    }
+
+    private static java.util.Map<String, Boolean> pagePublic(DataObject members) {
+        java.util.Map<String, Boolean> out = new java.util.HashMap<>();
+        DataArray rows = members.getArray("members");
+        for (int i = 0; i < rows.length(); i++) out.put(rows.getObject(i).getString("rsn"), rows.getObject(i).getBoolean("pagePublic"));
+        return out;
+    }
+
+    @Test
+    void aMemberPageSaysWhereTheMemberStandsAmongTheLeadersButNeverForAHiddenOne() {
+        DataObject shown = api.member(guildA, SHOWN);
+        DataObject standing = shown.getObject("standing");
+        assertEquals(1, standing.getInt("weekGain"), "the only visible gainer this week is first");
+        assertTrue(standing.isNull("points"), "no clan points, so not on the points list");
+        assertTrue(shown.hasKey("maxRankOrder"));
+
+        DataObject hidden = api.member(guildA, HIDDEN).getObject("standing");
+        assertTrue(hidden.isNull("weekGain") && hidden.isNull("points"), "a member hidden from boards has no place on them");
+    }
+
+    @Test
+    void theRosterSaysWhoseMemberPageIsPrivate() {
+        java.util.Map<String, Boolean> shown = pagePublic(call(guildA, "members"));
+        assertEquals(Boolean.TRUE, shown.get(SHOWN), "T-416: a visible member's page can be opened");
+        assertEquals(Boolean.FALSE, shown.get(HIDDEN), "T-416: a member hidden from the rankings keeps their page private");
+    }
+
+    @Test
+    void privacyDefaultsHideMembersWhoHaveNotChosenAndNeverShowAHiddenOne() throws Exception {
+        String unlinked = "T395Unlinked";
+        sql("INSERT INTO younglings.clan_member (guild_id, rsn, clan_rank) VALUES (?, ?, 'Recruit')", GUILD_A, unlinked);
+        assertTrue(pagePublic(api.members(GUILD_A)).get(unlinked), "all defaults off: nothing changes");
+
+        profiles.savePrivacyDefaults(GUILD_A, new MemberProfileRepository.PrivacyDefaults(true, true, false), USER_SHOWN);
+        java.util.Map<String, Boolean> withDefaults = pagePublic(api.members(GUILD_A));
+        assertFalse(withDefaults.get(unlinked), "a member nobody linked follows the default");
+        assertFalse(withDefaults.get(SHOWN), "a member who never chose follows the default");
+        assertFalse(withDefaults.get(HIDDEN), "a member who hid themselves stays hidden");
+        assertNull(api.tenant(guildA, "member", exchange("rsn=" + SHOWN)), "and their page answers 404");
+        assertTrue(profiles.adventureLogHidden(GUILD_A, SHOWN), "the log default applies too");
+        assertTrue(profiles.adventureLogHidden(GUILD_A, unlinked));
+        assertFalse(profiles.hiddenDiscordUsers(GUILD_A).contains(USER_SHOWN), "the Discord link default is still off");
+
+        // the member chooses: their own toggles win over the defaults
+        profiles.saveProfile(new MemberProfileRepository.Profile(GUILD_A, USER_SHOWN, "", null, null, false, false, true, false, false, true));
+        java.util.Map<String, Boolean> chosen = pagePublic(api.members(GUILD_A));
+        assertTrue(chosen.get(SHOWN), "a member who chose to show stays shown");
+        assertFalse(chosen.get(unlinked));
+        assertFalse(profiles.adventureLogHidden(GUILD_A, SHOWN));
+
+        // a later save can't un-choose
+        profiles.saveProfile(new MemberProfileRepository.Profile(GUILD_A, USER_SHOWN, "bio", null, null, false, false, true, false, false));
+        assertTrue(profiles.getProfile(GUILD_A, USER_SHOWN).privacyChosen());
+
+        // the Discord link default hides everyone with a link who hasn't chosen
+        profiles.savePrivacyDefaults(GUILD_A, new MemberProfileRepository.PrivacyDefaults(false, false, true), USER_SHOWN);
+        assertEquals(java.util.Set.of(USER_HIDDEN), profiles.hiddenDiscordUsers(GUILD_A));
+        assertEquals(new MemberProfileRepository.PrivacyDefaults(false, false, true), profiles.privacyDefaults(GUILD_A));
+        profiles.deletePrivacyDefaults(GUILD_A);
+        assertEquals(MemberProfileRepository.PrivacyDefaults.NONE, profiles.privacyDefaults(GUILD_A));
     }
 
     @Test

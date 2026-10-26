@@ -181,7 +181,8 @@ public class SiteOwnerAdminApi implements AdminRouteExtension {
         if (body.hasKey("slug") && !body.isNull("slug") && !body.getString("slug", "").isBlank()) {
             slug = body.getString("slug").strip().toLowerCase(Locale.ROOT);
             if (!slug.equals(current.slug())) {
-                String problem = ProfileRules.slugProblem(slug);
+                // the owner may set any address the word filter refuses, and any time (no cooldown applies here)
+                String problem = ProfileRules.slugProblem(slug, false);
                 if (problem != null) problems.add(problem);
                 else if (profiles.slugTaken(slug, id))
                     problems.add("Another clan uses the address \"" + slug + "\", or gave it up less than " + ProfileRules.SLUG_GRACE.toDays() + " days ago. Choose another.");

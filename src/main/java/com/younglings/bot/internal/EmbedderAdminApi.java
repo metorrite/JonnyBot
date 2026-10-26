@@ -1,8 +1,11 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.discord.jobs.DiscordJob;
+import com.younglings.bot.discord.jobs.DiscordOutbox;
 import com.younglings.bot.embedder.EmbedderRepository;
 import com.younglings.bot.embedder.EmbedderRepository.Stored;
 import com.younglings.bot.embedder.EmbedderService;
+import com.younglings.bot.embedder.EmbedderService.Author;
 import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.welcome.WelcomeConfig;
@@ -23,7 +26,9 @@ import java.util.function.Supplier;
  * The website's Message embedder: messages composed with the shared message editor that can be kept as drafts, posted, edited in place
  * after posting, deleted and cloned into other channels. Nothing here runs by itself: every post, edit, delete and clone is one admin
  * action, judged against that admin's own permissions in the channel. Reached through {@link TicketAdminApi}, which has already checked
- * the asker may use the dashboard here and audit-logs every write.
+ * the asker may use the dashboard here and audit-logs every write. Everything that reaches Discord is checked here and then queued as a
+ * Discord job ({@link EmbedderJobs}, T-456): the answer comes at once with {@code job} ({@code {id, state}}) for the page to follow, and the
+ * entry shows as posted once the job has posted it.
  * <ul>
  *     <li>{@code GET embedder/messages}: every stored message, newest first</li>
  *     <li>{@code POST embedder/messages}: save a new draft ({@code name}, {@code message})</li>
@@ -41,10 +46,12 @@ public class EmbedderAdminApi implements AdminRouteExtension {
 
     private final EmbedderRepository repository;
     private final EmbedderService service;
+    private final DiscordOutbox outbox;
 
-    public EmbedderAdminApi(EmbedderRepository repository, EmbedderService service) {
+    public EmbedderAdminApi(EmbedderRepository repository, EmbedderService service, DiscordOutbox outbox) {
         this.repository = repository;
         this.service = service;
+        this.outbox = outbox;
     }
 
     @Override
@@ -104,68 +111,88 @@ public class EmbedderAdminApi implements AdminRouteExtension {
         String name = name(body);
         boolean apply = body.getBoolean("apply", false) && stored.posted();
         String json = bodyJson(guild, body, apply);
+        DiscordJob job = null;
         if (apply) {
             WelcomeConfig before = config(guild, stored.bodyJson());
             WelcomeConfig after = config(guild, json);
-            try {
-                service.edit(guild, actor, before, after, stored.channelId(), stored.messageId());
-            } catch (IllegalStateException e) {
-                throw new ApiError(400, e.getMessage());
+            if (EmbedderService.changesKind(before.messageType(), after.messageType())) {
+                throw new ApiError(400, "A posted message can't change between a Container and the other kinds. Clone it into a new message instead.");
             }
-            log.info("Dashboard: {} edited embedder message {} in place (message {})", actor.getId(), id, stored.messageId());
+            checkedChannel(guild, actor, stored.channelId());
         }
         repository.saveBody(guild.getIdLong(), id, name, json);
-        return one(guild, id);
+        if (apply) {
+            // the job reads the entry when it runs, so a later save that replaces this waiting one still puts the newest text on Discord
+            job = outbox.enqueue(EmbedderJobs.EDIT, guild.getIdLong(), actor.getIdLong(), "embedder-edit:" + guild.getIdLong() + ":" + id,
+                    EmbedderJobs.editPayload(id, Author.of(actor)));
+            log.info("Dashboard: {} queued an edit of embedder message {} in place (message {}, job {})", actor.getId(), id, stored.messageId(), job.id());
+        }
+        return withJob(one(guild, id), job);
     }
 
     DataObject post(Guild guild, Member actor, long id, DataObject body) {
         Stored stored = require(guild, id);
         if (stored.posted()) throw new ApiError(400, Text.of(guild, "dashboard.that_message_is_already_posted_save"));
         long channelId = channelId(body);
-        WelcomeConfig config = checked(guild, stored.bodyJson(), true);
-        long messageId;
-        try {
-            messageId = service.post(guild, actor, config, channelId);
-        } catch (IllegalStateException e) {
-            throw new ApiError(400, e.getMessage());
-        }
-        repository.markPosted(guild.getIdLong(), id, channelId, messageId);
-        log.info("Dashboard: {} posted embedder message {} in channel {}", actor.getId(), id, channelId);
-        return one(guild, id);
+        checked(guild, stored.bodyJson(), true);
+        checkedChannel(guild, actor, channelId);
+        // pressing Post twice before the first is done replaces the waiting job instead of posting two messages
+        DiscordJob job = outbox.enqueue(EmbedderJobs.POST, guild.getIdLong(), actor.getIdLong(), "embedder-post:" + guild.getIdLong() + ":" + id,
+                EmbedderJobs.postPayload(id, channelId, Author.of(actor)));
+        log.info("Dashboard: {} queued embedder message {} for channel {} (job {})", actor.getId(), id, channelId, job.id());
+        return withJob(one(guild, id), job);
     }
 
-    /** Posts a copy in one channel and keeps it as its own entry. One channel per call, so a clone can never flood a server. */
+    /**
+     * Keeps a copy as its own entry and queues posting it in one channel. One channel per call, so a clone can never flood a server. If Discord
+     * refuses the post, the copy stays as a draft that can be posted again.
+     */
     DataObject clone(Guild guild, Member actor, long id, DataObject body) {
         Stored stored = require(guild, id);
         if (repository.count(guild.getIdLong()) >= EmbedderService.MAX_MESSAGES_PER_GUILD) {
             throw new ApiError(400, Text.of(guild, "dashboard.this_server_already_has_saved_messages", EmbedderService.MAX_MESSAGES_PER_GUILD));
         }
         long channelId = channelId(body);
-        WelcomeConfig config = checked(guild, stored.bodyJson(), true);
-        long messageId;
-        try {
-            messageId = service.post(guild, actor, config, channelId);
-        } catch (IllegalStateException e) {
-            throw new ApiError(400, e.getMessage());
-        }
+        checked(guild, stored.bodyJson(), true);
+        checkedChannel(guild, actor, channelId);
         String copyName = stored.name().length() > MAX_NAME - 7 ? stored.name().substring(0, MAX_NAME - 7) : stored.name();
-        long copy = repository.create(guild.getIdLong(), copyName + " (copy)", stored.bodyJson(), channelId, messageId, actor.getUser().getIdLong());
-        log.info("Dashboard: {} cloned embedder message {} into channel {} as {}", actor.getId(), id, channelId, copy);
-        return one(guild, copy);
+        long copy = repository.create(guild.getIdLong(), copyName + " (copy)", stored.bodyJson(), null, null, actor.getUser().getIdLong());
+        DiscordJob job = outbox.enqueue(EmbedderJobs.POST, guild.getIdLong(), actor.getIdLong(), "embedder-post:" + guild.getIdLong() + ":" + copy,
+                EmbedderJobs.postPayload(copy, channelId, Author.of(actor)));
+        log.info("Dashboard: {} cloned embedder message {} as {} and queued it for channel {} (job {})", actor.getId(), id, copy, channelId, job.id());
+        return withJob(one(guild, copy), job);
     }
 
     DataObject delete(Guild guild, Member actor, long id) {
         Stored stored = require(guild, id);
+        DiscordJob job = null;
         if (stored.posted()) {
+            boolean channelThere;
             try {
-                service.delete(guild, actor, stored.channelId(), stored.messageId());
+                channelThere = service.mayDeleteIn(guild, actor, stored.channelId());
             } catch (IllegalStateException e) {
                 throw new ApiError(400, e.getMessage());
             }
+            if (channelThere) {
+                job = outbox.enqueue(EmbedderJobs.DELETE, guild.getIdLong(), actor.getIdLong(), null, EmbedderJobs.deletePayload(stored.channelId(), stored.messageId()));
+            }
         }
         repository.delete(guild.getIdLong(), id);
-        log.info("Dashboard: {} deleted embedder message {} (was posted: {})", actor.getId(), id, stored.posted());
-        return DataObject.empty().put("deleted", true);
+        log.info("Dashboard: {} deleted embedder message {} (was posted: {}{})", actor.getId(), id, stored.posted(), job == null ? "" : ", job " + job.id());
+        return withJob(DataObject.empty().put("deleted", true), job);
+    }
+
+    private void checkedChannel(Guild guild, Member actor, long channelId) {
+        try {
+            service.checkedChannel(guild, actor, channelId);
+        } catch (IllegalStateException e) {
+            throw new ApiError(400, e.getMessage());
+        }
+    }
+
+    /** The answer, with the queued Discord job (T-456) for the page to follow when there is one. */
+    private static DataObject withJob(DataObject answer, DiscordJob job) {
+        return job == null ? answer : answer.put("job", job.ticket());
     }
 
     // ---------- reading the request ----------

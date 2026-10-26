@@ -1,6 +1,7 @@
 package com.younglings.bot.internal;
 
 import com.younglings.bot.database.SchemaBootstrapper;
+import com.younglings.bot.hubsites.SiteChannelMappings;
 import io.github.freya022.botcommands.api.core.db.ConnectionSupplier;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
@@ -23,8 +24,6 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -36,11 +35,15 @@ import java.util.regex.Pattern;
  * <p>
  * Everything in a chosen channel becomes publicly visible on the website, which is why only an admin can pick
  * channels (and the dashboard says so plainly).
+ * <p>
+ * With {@code SITES_BACKEND=hub} the chosen channels are kept as mappings of the server's hub site ({@link SiteChannelMappings}).
  */
 @BService
 public class SiteNewsService {
     private static final Logger log = LoggerFactory.getLogger(SiteNewsService.class);
     private static final long CACHE_MILLIS = 60_000;
+    private static final long MAX_STALE_MILLIS = 60 * 60_000;
+    private static final String CACHE_KEY = "news|";
     private static final int PER_CHANNEL = 25; // a clan site's channel feed shows up to 25 posts from one channel (T-365)
     private static final Pattern USER = Pattern.compile("<@!?(\\d+)>");
     private static final Pattern ROLE = Pattern.compile("<@&(\\d+)>");
@@ -48,10 +51,11 @@ public class SiteNewsService {
     private static final Pattern EMOJI = Pattern.compile("<a?:(\\w+):\\d+>");
 
     private final ConnectionSupplier connectionSupplier;
-    private final Map<Long, Cached> cache = new ConcurrentHashMap<>();
+    private final SiteChannelMappings mappings;
 
-    public SiteNewsService(ConnectionSupplier connectionSupplier) {
+    public SiteNewsService(ConnectionSupplier connectionSupplier, SiteChannelMappings mappings) {
         this.connectionSupplier = connectionSupplier;
+        this.mappings = mappings;
         SchemaBootstrapper.run(connectionSupplier, log, "site news", List.of(
                 "CREATE SCHEMA IF NOT EXISTS younglings;",
                 """
@@ -65,13 +69,13 @@ public class SiteNewsService {
                 """));
     }
 
-    private record Cached(long fetchedAt, List<DataObject> posts) {}
-
     public record NewsChannel(long channelId, String label, int position) {}
 
     // ---------- which channels ----------
 
     public List<NewsChannel> channels(long guildId) {
+        var mapped = mappings.channels(guildId, SiteChannelMappings.Kind.NEWS);
+        if (mapped.isPresent()) return mapped.get().stream().map(m -> new NewsChannel(m.channelId(), m.label(), m.position())).toList();
         try (Connection c = connectionSupplier.getConnection();
              PreparedStatement s = c.prepareStatement("SELECT channel_id, label, position FROM younglings.site_news_channel WHERE guild_id = ? ORDER BY position, channel_id")) {
             s.setLong(1, guildId);
@@ -86,6 +90,14 @@ public class SiteNewsService {
     }
 
     public void replaceChannels(long guildId, List<NewsChannel> channels) {
+        if (!mappings.replace(guildId, SiteChannelMappings.Kind.NEWS, channels.stream().map(n -> new SiteChannelMappings.Mapped(n.channelId(), n.label(), n.position())).toList())) {
+            replaceOwn(guildId, channels);
+        }
+        AdminReads.forgetPrefix(CACHE_KEY);
+        SiteInvalidator.signal(guildId, SiteInvalidator.Area.NEWS);
+    }
+
+    private void replaceOwn(long guildId, List<NewsChannel> channels) {
         try (Connection c = connectionSupplier.getConnection()) {
             c.setAutoCommit(false);
             try {
@@ -112,8 +124,6 @@ public class SiteNewsService {
         } catch (SQLException e) {
             throw fail("save news channels", e);
         }
-        cache.clear();
-        SiteInvalidator.signal(SiteInvalidator.Area.NEWS);
     }
 
     // ---------- the posts ----------
@@ -136,10 +146,19 @@ public class SiteNewsService {
         return array;
     }
 
+    /**
+     * One channel's posts, from the cache when it can be: a copy up to an hour old is shown at once while a new one is fetched, and a channel
+     * with nothing cached waits for Discord at most two seconds (then shows no posts this time, and the next visit finds them ready).
+     */
     private List<DataObject> postsFor(Guild guild, NewsChannel configured) {
-        Cached cached = cache.get(configured.channelId());
-        if (cached != null && System.currentTimeMillis() - cached.fetchedAt() < CACHE_MILLIS) return cached.posts();
+        try {
+            return AdminReads.cachedFor(CACHE_KEY + configured.channelId(), CACHE_MILLIS, MAX_STALE_MILLIS, () -> fetchPosts(guild, configured));
+        } catch (RuntimeException e) {
+            return List.of(); // Discord is slow or the channel couldn't be read; the next visit tries again
+        }
+    }
 
+    private List<DataObject> fetchPosts(Guild guild, NewsChannel configured) {
         List<DataObject> posts = new ArrayList<>();
         GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, configured.channelId());
         if (channel != null) {
@@ -150,10 +169,9 @@ public class SiteNewsService {
                 }
             } catch (Exception e) {
                 log.warn("Couldn't read news channel {}: {}", configured.channelId(), e.getMessage());
-                if (cached != null) return cached.posts(); // keep showing the last good copy
+                throw new IllegalStateException("news channel unreadable", e); // keeps showing the last good copy
             }
         }
-        cache.put(configured.channelId(), new Cached(System.currentTimeMillis(), posts));
         return posts;
     }
 

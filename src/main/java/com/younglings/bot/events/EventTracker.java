@@ -33,7 +33,9 @@ import java.util.concurrent.TimeUnit;
  * polling runs ({@code RUNESCAPE_AUTO_POLL_ENABLED}), so a development copy of the database stays quiet.
  * <p>
  * Limits worth knowing: gains show up a few minutes late, the starting point is the first reading after the event is seen running (or after
- * a player joins), and a player with no linked account is skipped until they link one.
+ * a player joins), and a player with no linked account is skipped until they link one. Competitions that count from RuneSync
+ * ({@code xpSource = plugin}) are left to {@link PluginXpTracker}. In auto competitions ({@code xpSource = auto}, T-557) the players RuneSync
+ * counts are left to it too, but their RuneMetrics gain is still read and handed to {@link PluginXpTracker#check} to compare.
  */
 @BService
 public class EventTracker {
@@ -48,15 +50,18 @@ public class EventTracker {
     private final RuneScapeStatsService stats;
     private final PollCoordinator polls;
     private final BotConfig config;
+    private final PluginXpTracker pluginXp;
     private final ScheduledExecutorService executor = BotScheduler.lane("event-tracker");
 
-    public EventTracker(EventRepository repository, EventService service, PlayerLinkRepository links, RuneScapeStatsService stats, PollCoordinator polls, BotConfig config) {
+    public EventTracker(EventRepository repository, EventService service, PlayerLinkRepository links, RuneScapeStatsService stats, PollCoordinator polls, BotConfig config,
+                        PluginXpTracker pluginXp) {
         this.repository = repository;
         this.service = service;
         this.links = links;
         this.stats = stats;
         this.polls = polls;
         this.config = config;
+        this.pluginXp = pluginXp;
     }
 
     @BEventListener
@@ -93,6 +98,7 @@ public class EventTracker {
     /** Brings one competition up to date: polls its players, then adds each player's new gain. Returns how many players got new progress. */
     public int feed(Event event) {
         DataObject settings = DataObject.fromJson(event.config());
+        if (CompetitionTemplate.countsFromPlugin(settings)) return 0; // counted from RuneSync by PluginXpTracker instead
         int skill = CompetitionTemplate.skillOf(settings);
         Map<Participant, String> players = new LinkedHashMap<>();
         for (Participant p : repository.participants(event.id())) {
@@ -106,18 +112,26 @@ public class EventTracker {
         polls.awaitAll(futures, POLL_WAIT);
 
         // what has already been added from tracking, per player, read from the progress log so there is nothing separate to fall out of step
+        List<EventRepository.Progress> progress = repository.progress(event.id());
         Map<Long, Long> counted = new java.util.HashMap<>();
-        for (EventRepository.Progress p : repository.progress(event.id())) {
+        for (EventRepository.Progress p : progress) {
             if (p.source() == Source.IMPORT && p.objectiveKey().equals(CompetitionTemplate.OBJECTIVE_KEY)) counted.merge(p.userId(), p.amount(), Long::sum);
         }
+        boolean auto = CompetitionTemplate.countsAuto(settings);
+        Map<Long, CompetitionTracking.Counter> owners = auto ? CompetitionTracking.owners(progress) : Map.of();
+        java.util.Set<Long> runeSync = auto ? pluginXp.runeSyncPlayers(event.id()) : java.util.Set.of();
         int updated = 0;
         for (Map.Entry<Participant, String> entry : players.entrySet()) {
-            if (feedPlayer(event, skill, entry.getKey(), entry.getValue(), counted.getOrDefault(entry.getKey().userId(), 0L))) updated++;
+            long userId = entry.getKey().userId();
+            CompetitionTracking.Counter owner = owners.get(userId);
+            boolean theirs = owner == CompetitionTracking.Counter.RUNESYNC || owner == null && runeSync.contains(userId);
+            if (feedPlayer(event, skill, entry.getKey(), entry.getValue(), counted.getOrDefault(userId, 0L), theirs)) updated++;
         }
         return updated;
     }
 
-    private boolean feedPlayer(Event event, int skill, Participant player, String rsn, long alreadyCounted) {
+    /** Adds a player's new gain; with {@code checkOnly} (an auto competition's RuneSync player) only compares it with what RuneSync counted. */
+    private boolean feedPlayer(Event event, int skill, Participant player, String rsn, long alreadyCounted, boolean checkOnly) {
         var snapshot = stats.getLatestSnapshot(rsn);
         if (snapshot == null) return false;
         OptionalLong xp = CompetitionTracking.xpOf(skill, snapshot.totalXp(), stats.getSkillsForSnapshot(snapshot.snapshotId()));
@@ -126,6 +140,10 @@ public class EventTracker {
         OptionalLong baseline = repository.baseline(event.id(), player.userId());
         if (baseline.isEmpty()) {
             repository.setBaseline(event.id(), player.userId(), xp.getAsLong());
+            return false;
+        }
+        if (checkOnly) {
+            pluginXp.check(event.id(), player.userId(), alreadyCounted, Math.max(0, xp.getAsLong() - baseline.getAsLong()));
             return false;
         }
         long add = CompetitionTracking.toRecord(baseline.getAsLong(), xp.getAsLong(), alreadyCounted);

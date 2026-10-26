@@ -1,6 +1,7 @@
 package com.younglings.bot.giveaway;
 
 import com.younglings.bot.alerts.AutoPostRouter;
+import com.younglings.bot.discord.jobs.DiscordJobs;
 import com.younglings.bot.internal.MemberApi;
 import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
@@ -59,26 +60,36 @@ public class GiveawayService {
         return start(guild, channelId, prize, hostId, winners, endsAt, requiredRoleId, null, false, false);
     }
 
-    /** As above, with an optional role for the winners, a DM to each winner, and entry by reacting as well as by the button. */
+    /**
+     * As above, with an optional role for the winners, a DM to each winner, and entry by reacting as well as by the button. Waits for Discord, so the
+     * website runs it as a Discord job ({@code GiveawayJobs}, T-456); a rate limit comes back as {@link DiscordJobs.RetryLater} with nothing kept.
+     */
     public Giveaway start(Guild guild, long channelId, String prize, long hostId, int winners, Instant endsAt, Long requiredRoleId, Long winnerRoleId, boolean dmWinners,
                           boolean reactionEntry) {
-        GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, channelId);
-        if (channel == null) throw new GiveawayException("That channel doesn't exist in this server.");
-        if (!channel.canTalk()) throw new GiveawayException("The bot can't post in #" + channel.getName() + ". It needs permission to view the channel and send messages there.");
+        GuildMessageChannel channel = postable(guild, channelId);
 
         long id = repository.create(guild.getIdLong(), channelId, prize, hostId, winners, endsAt, requiredRoleId, winnerRoleId, dmWinners, reactionEntry);
         Giveaway g = repository.get(guild.getIdLong(), id).orElseThrow();
         try {
             var edit = GiveawayMessage.edit(g, 0);
-            Message sent = channel.sendMessage(new MessageCreateBuilder().setEmbeds(edit.getEmbeds()).setComponents(edit.getComponents()).build()).complete();
+            Message sent = DiscordJobs.send(channel.sendMessage(new MessageCreateBuilder().setEmbeds(edit.getEmbeds()).setComponents(edit.getComponents()).build()));
             repository.setMessage(id, sent.getIdLong());
             if (reactionEntry) sent.addReaction(Emoji.fromUnicode(Giveaway.ENTRY_EMOJI)).queue(ok -> {}, error -> log.warn("Couldn't add the entry reaction to giveaway {}", id, error));
             return repository.get(guild.getIdLong(), id).orElseThrow();
         } catch (RuntimeException e) {
             repository.delete(guild.getIdLong(), id);
+            if (e instanceof DiscordJobs.RetryLater) throw e; // nothing was posted: the next try starts afresh
             log.warn("Couldn't post giveaway {} in channel {}", id, channelId, e);
             throw new GiveawayException("Discord refused the message. Check the bot can post and embed links in #" + channel.getName() + ".");
         }
+    }
+
+    /** The channel, if the bot can post a giveaway there. Asks nothing of Discord, so the website checks with it before queueing a start. */
+    public static GuildMessageChannel postable(Guild guild, long channelId) {
+        GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, channelId);
+        if (channel == null) throw new GiveawayException("That channel doesn't exist in this server.");
+        if (!channel.canTalk()) throw new GiveawayException("The bot can't post in #" + channel.getName() + ". It needs permission to view the channel and send messages there.");
+        return channel;
     }
 
     /** Refreshes the entry count shown on the button. */

@@ -3,7 +3,7 @@
   "look": {
     "theme": "modern",
     "mode": "light",
-    "accent": "#16a34a",
+    "accent": "#15803d",
     "logo": null,
     "banner": null
   },
@@ -44,7 +44,7 @@
     "mobile": "drawer",
     "nav": [
       {
-        "id": "skiln072",
+        "id": "skiln074",
         "label": "Home",
         "link": {
           "kind": "page",
@@ -52,7 +52,7 @@
         }
       },
       {
-        "id": "skiln073",
+        "id": "skiln075",
         "label": "Leaderboards",
         "link": {
           "kind": "page",
@@ -60,7 +60,7 @@
         }
       },
       {
-        "id": "skiln074",
+        "id": "skiln076",
         "label": "Progress",
         "link": {
           "kind": "page",
@@ -68,7 +68,7 @@
         }
       },
       {
-        "id": "skiln075",
+        "id": "skiln077",
         "label": "Members",
         "link": {
           "kind": "page",
@@ -76,7 +76,7 @@
         }
       },
       {
-        "id": "skiln076",
+        "id": "skiln078",
         "label": "Join",
         "link": {
           "kind": "page",
@@ -238,7 +238,8 @@
                             "link": null
                           }
                         ],
-                        "columns": "4"
+                        "columns": "4",
+                        "numbers": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -335,7 +336,9 @@
                         "showDay": true,
                         "showWeek": true,
                         "showMonth": true,
-                        "defaultTab": "week"
+                        "defaultTab": "week",
+                        "bars": "under",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -359,7 +362,11 @@
                       "v": 1,
                       "settings": {
                         "title": "Latest milestones",
-                        "limit": 8
+                        "limit": 8,
+                        "bigOnly": false,
+                        "look": "lines",
+                        "more": null,
+                        "moreText": "Hall of fame"
                       },
                       "unmet": "hide"
                     }
@@ -525,7 +532,9 @@
                         "metric": "xp",
                         "period": "week",
                         "visitorPeriods": true,
-                        "limit": 15
+                        "limit": 15,
+                        "bars": "under",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -552,7 +561,9 @@
                         "metric": "xp",
                         "period": "month",
                         "visitorPeriods": false,
-                        "limit": 15
+                        "limit": 15,
+                        "bars": "under",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -591,7 +602,9 @@
                       "settings": {
                         "title": "Highest total XP",
                         "metric": "xp",
-                        "limit": 15
+                        "limit": 15,
+                        "bars": "under",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -616,7 +629,9 @@
                       "settings": {
                         "title": "Highest total level",
                         "metric": "level",
-                        "limit": 15
+                        "limit": 15,
+                        "bars": "under",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -886,7 +901,11 @@
                       "settings": {
                         "title": "Adventure log",
                         "limit": 15,
-                        "tabs": true
+                        "tabs": true,
+                        "filter": "all",
+                        "look": "lines",
+                        "more": null,
+                        "moreText": "See all"
                       },
                       "unmet": "hide"
                     }
@@ -1137,7 +1156,7 @@
           ]
         },
         {
-          "id": "skils071",
+          "id": "skils073",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1155,7 +1174,7 @@
           },
           "rows": [
             {
-              "id": "skilr070",
+              "id": "skilr067",
               "gap": {
                 "lg": "md"
               },
@@ -1169,14 +1188,13 @@
                 {
                   "id": "skilc066",
                   "span": {
-                    "lg": 7,
-                    "md": 12
+                    "lg": 12
                   },
                   "padding": {
-                    "lg": "none"
+                    "lg": "md"
                   },
                   "valign": "start",
-                  "surface": "none",
+                  "surface": "panel",
                   "widgets": [
                     {
                       "id": "skilw065",
@@ -1190,11 +1208,25 @@
                       "unmet": "hide"
                     }
                   ]
-                },
+                }
+              ]
+            },
+            {
+              "id": "skilr072",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
                 {
                   "id": "skilc069",
                   "span": {
-                    "lg": 5,
+                    "lg": 6,
                     "md": 12
                   },
                   "padding": {
@@ -1204,7 +1236,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "skilw067",
+                      "id": "skilw068",
                       "type": "recruiting",
                       "v": 1,
                       "settings": {
@@ -1213,9 +1245,23 @@
                         "showRequirements": true
                       },
                       "unmet": "hide"
-                    },
+                    }
+                  ]
+                },
+                {
+                  "id": "skilc071",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
                     {
-                      "id": "skilw068",
+                      "id": "skilw070",
                       "type": "discord-join",
                       "v": 1,
                       "settings": {

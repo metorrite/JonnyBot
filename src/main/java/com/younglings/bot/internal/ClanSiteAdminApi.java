@@ -50,6 +50,8 @@ import com.younglings.bot.config.BotBrand;
  *   (copies it into the draft; never publishes)</li>
  *   <li>connections (N7): {@code GET|PUT clan-site/connections} and {@code POST clan-site/connections/connect|disconnect}, the site
  *   admin's Discord server, data provider and Discord features ({@link SiteDiscordService})</li>
+ *   <li>members ({@link SiteMembersAdmin}): {@code GET|PUT clan-site/member-privacy} (T-395) and {@code GET clan-site/roles/people?q=&role=&page=}
+ *   (T-396), admin; for a GET, {@code body} holds the query string's parameters</li>
  * </ul>
  * Reached only through {@link TicketAdminApi}, which has already checked the asker may use the dashboard here and audit-logs every write.
  */
@@ -72,8 +74,16 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
     /** What a bot-less site says about Discord roles (editor, member and staff roles): the bot would have to be in the server to see them. */
     static final String DISCORD_ROLES_UNAVAILABLE = "Discord roles are unavailable without the bot: add RuneClan Bot to the server to pick roles, or name editors by Discord user ID.";
 
+    private final SiteAddressRoutes address;
+    private final SiteMemberOptionsAdminApi memberOptions;
+    private final SiteMembersAdmin members;
+
     public ClanSiteAdminApi(ClanSiteRepository repository, ClanSiteLayoutRepository layouts, ClanSiteService sites, ClanProfileService profiles, BotOwners owners,
-                            Premium premium, SiteRoleGuard siteRoles, SiteDiscordService discord) {
+                            Premium premium, SiteRoleGuard siteRoles, SiteDiscordService discord, SiteAddressRoutes address,
+                            SiteMemberOptionsAdminApi memberOptions, SiteMembersAdmin members) {
+        this.address = address;
+        this.memberOptions = memberOptions;
+        this.members = members;
         this.repository = repository;
         this.layouts = layouts;
         this.sites = sites;
@@ -132,8 +142,19 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
         if (parts.length < 1 || !parts[0].equals("clan-site")) return null;
         SiteRoles.Action action = actionFor(method, parts);
         if (action != null && !c.may(siteRoles, action)) throw new ApiError(403, Text.of(c.guildId(), "dashboard.the_website_can_t_be_saved"), List.of(refusal(action)));
+        if (parts.length == 3 && parts[1].equals("roles") && parts[2].equals("people")) {
+            AdminRouteExtension.requireMethod(method, "GET");
+            return members.people(c, body.get());
+        }
         if (parts.length >= 2 && parts[1].equals("roles")) return roles(c, method, parts, body);
+        if (parts.length == 2 && parts[1].equals("member-privacy")) return members.privacy(c, method, body);
         if (parts.length >= 2 && parts[1].equals("connections")) return connections(c, method, parts, body);
+        if (parts.length >= 2 && parts.length <= 3 && parts[1].equals("address")) return address.route(c.guildId(), method, parts.length == 3 ? parts[2] : "", body);
+        // the site admin's own way to the member options (site admins who aren't dashboard admins included): needs the bot in the server
+        if (parts.length == 2 && parts[1].equals("member-options")) {
+            if (c.botless()) throw new ApiError(409, "Members change their nickname and name colour through " + BotBrand.NAME + ", and it isn't in this server.");
+            return memberOptions.route(c.guild(), method, body);
+        }
         if (parts.length == 1) {
             if (method.equals("GET")) return get(c);
             AdminRouteExtension.requireMethod(method, "PUT");
@@ -466,6 +487,7 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
         layouts.delete(id);
         repository.delete(id);
         siteRoles.delete(id);
+        members.forget(id);
         return get(c);
     }
 
@@ -609,7 +631,7 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
         for (int i = 0; i < raw.length(); i++) {
             long roleId = parseId(raw.getString(i, ""));
             if (roleId == 0 || guild.getRoleById(roleId) == null) problems.add("One of the roles doesn't exist any more. Reload the page.");
-            else if (roleId == c.guildId() && !everyoneAllowed) problems.add("@everyone can't be an editor or staff role.");
+            else if (roleId == c.guildId() && !everyoneAllowed) problems.add("@everyone can't be an admin, editor or staff role: that would be everyone in the server.");
             else out.add(roleId);
         }
         return List.copyOf(out);

@@ -1,5 +1,7 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.discord.jobs.DiscordJob;
+import com.younglings.bot.discord.jobs.DiscordOutbox;
 import com.younglings.bot.events.EventBoards;
 import com.younglings.bot.events.EventProblem;
 import com.younglings.bot.events.EventRepository;
@@ -34,7 +36,8 @@ import java.util.function.Supplier;
  * {@code GET} says where they stand (the choices, whether they are set up, and a plan of what setting up would do now), and
  * {@code PUT .../settings} saves the choices ({@code config.channels}, the whole object), {@code POST .../preview} shows the plan for choices without saving
  * them, {@code POST .../apply} starts setting them up on Discord (in the background; {@code GET} shows how far it got), {@code POST .../remove} starts taking
- * them down and {@code POST .../sync} puts who holds each role right at once. Every rule is {@link EventSpace}'s and the engine's. Reached through
+ * them down and {@code POST .../sync} queues putting who holds each role right as a Discord job ({@link EventSpaceSyncJob}, T-456; the answer has
+ * {@code syncJob} for the page to follow). Every rule is {@link EventSpace}'s and the engine's. Reached through
  * {@link TicketAdminApi}, which has already checked the asker may use the dashboard in this server and audit-logs every change.
  */
 @BService
@@ -45,12 +48,14 @@ public class EventSpaceApi implements AdminRouteExtension {
     private final EventRepository repository;
     private final EventSpaces spaces;
     private final EventSpaceOps ops;
+    private final DiscordOutbox outbox;
 
-    public EventSpaceApi(EventService service, EventRepository repository, EventSpaces spaces, EventSpaceOps ops) {
+    public EventSpaceApi(EventService service, EventRepository repository, EventSpaces spaces, EventSpaceOps ops, DiscordOutbox outbox) {
         this.service = service;
         this.repository = repository;
         this.spaces = spaces;
         this.ops = ops;
+        this.outbox = outbox;
     }
 
     @Override
@@ -79,9 +84,12 @@ public class EventSpaceApi implements AdminRouteExtension {
             }
             if (parts.length == 4 && parts[3].equals("sync")) {
                 AdminRouteExtension.requireMethod(method, "POST");
-                int failed = ops.syncMembers(guild, service.event(guild.getIdLong(), id));
-                log.info("Dashboard: {} put the role holders of event {} right ({} failed)", actor.getId(), id, failed);
-                return view(guild, id).put("syncFailed", failed);
+                service.event(guild.getIdLong(), id);
+                DiscordJob job = outbox.enqueue(EventSpaceSyncJob.KIND, guild.getIdLong(), actor.getIdLong(), "event-space-sync:" + guild.getIdLong() + ":" + id,
+                        EventSpaceSyncJob.payload(id));
+                log.info("Dashboard: {} queued putting the role holders of event {} right (job {})", actor.getId(), id, job.id());
+                // "job" is already the set-up / removal progress, so the Discord job goes under its own name
+                return view(guild, id).put("syncJob", job.ticket());
             }
             if (parts.length == 4 && parts[3].equals("preview")) {
                 AdminRouteExtension.requireMethod(method, "POST");

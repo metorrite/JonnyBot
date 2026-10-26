@@ -34,7 +34,7 @@
     "mobile": "dropdown",
     "nav": [
       {
-        "id": "recrun043",
+        "id": "recrun044",
         "label": "About",
         "link": {
           "kind": "page",
@@ -43,7 +43,7 @@
         }
       },
       {
-        "id": "recrun044",
+        "id": "recrun045",
         "label": "Why join",
         "link": {
           "kind": "page",
@@ -52,7 +52,7 @@
         }
       },
       {
-        "id": "recrun045",
+        "id": "recrun046",
         "label": "Questions",
         "link": {
           "kind": "page",
@@ -61,7 +61,7 @@
         }
       },
       {
-        "id": "recrun046",
+        "id": "recrun047",
         "label": "Apply",
         "link": {
           "kind": "page",
@@ -115,7 +115,7 @@
           "id": "recrus007",
           "width": "full",
           "background": {
-            "kind": "accent"
+            "kind": "surface"
           },
           "padding": {
             "lg": {
@@ -160,7 +160,11 @@
                       "settings": {
                         "showBanner": true,
                         "showTagline": true,
-                        "align": "center"
+                        "align": "center",
+                        "eyebrow": "",
+                        "logoShape": "rounded",
+                        "look": "standard",
+                        "size": "large"
                       },
                       "unmet": "hide"
                     }
@@ -215,6 +219,7 @@
                         ],
                         "align": "center",
                         "size": "large",
+                        "look": "buttons",
                         "fullWidth": false
                       },
                       "unmet": "hide"
@@ -264,10 +269,10 @@
                     "md": 12
                   },
                   "padding": {
-                    "lg": "none"
+                    "lg": "md"
                   },
                   "valign": "start",
-                  "surface": "none",
+                  "surface": "panel",
                   "widgets": [
                     {
                       "id": "recruw008",
@@ -321,7 +326,8 @@
                             "link": null
                           }
                         ],
-                        "columns": "2"
+                        "columns": "2",
+                        "numbers": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -478,6 +484,7 @@
                       "v": 1,
                       "settings": {
                         "title": "What's coming up",
+                        "style": "list",
                         "limit": 3,
                         "showImages": true
                       },
@@ -522,7 +529,7 @@
               },
               "cells": [
                 {
-                  "id": "recruc026",
+                  "id": "recruc027",
                   "span": {
                     "lg": 7,
                     "md": 12
@@ -559,6 +566,17 @@
                         ]
                       },
                       "unmet": "hide"
+                    },
+                    {
+                      "id": "recruw026",
+                      "type": "discord-join",
+                      "v": 1,
+                      "settings": {
+                        "title": "Say hello first",
+                        "text": "Not sure yet? Come and chat with us on Discord.",
+                        "buttonLabel": "Join the Discord"
+                      },
+                      "unmet": "hide"
                     }
                   ]
                 },
@@ -575,24 +593,13 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "recruw027",
+                      "id": "recruw028",
                       "type": "recruiting",
                       "v": 1,
                       "settings": {
                         "title": "Join us",
                         "buttonLabel": "Apply now",
                         "showRequirements": true
-                      },
-                      "unmet": "hide"
-                    },
-                    {
-                      "id": "recruw028",
-                      "type": "discord-join",
-                      "v": 1,
-                      "settings": {
-                        "title": "Say hello first",
-                        "text": "Not sure yet? Come and chat with us on Discord.",
-                        "buttonLabel": "Join the Discord"
                       },
                       "unmet": "hide"
                     }
@@ -612,7 +619,68 @@
       "access": "public",
       "sections": [
         {
-          "id": "recrus042",
+          "id": "recrus035",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "recrur034",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "recruc033",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "recruw032",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Apply to {clan}",
+                        "subtitle": "Three steps, usually done the same day.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "recrus043",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -630,7 +698,7 @@
           },
           "rows": [
             {
-              "id": "recrur038",
+              "id": "recrur042",
               "gap": {
                 "lg": "md"
               },
@@ -642,7 +710,7 @@
               },
               "cells": [
                 {
-                  "id": "recruc034",
+                  "id": "recruc038",
                   "span": {
                     "lg": 8,
                     "md": 12
@@ -654,21 +722,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "recruw032",
-                      "type": "heading",
-                      "v": 1,
-                      "settings": {
-                        "text": "Apply to {clan}",
-                        "subtitle": "",
-                        "size": "large",
-                        "align": "left",
-                        "colour": "",
-                        "level": "h1"
-                      },
-                      "unmet": "hide"
-                    },
-                    {
-                      "id": "recruw033",
+                      "id": "recruw036",
                       "type": "text",
                       "v": 1,
                       "settings": {
@@ -677,72 +731,9 @@
                         "width": "readable"
                       },
                       "unmet": "hide"
-                    }
-                  ]
-                },
-                {
-                  "id": "recruc037",
-                  "span": {
-                    "lg": 4,
-                    "md": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "recruw035",
-                      "type": "discord-join",
-                      "v": 1,
-                      "settings": {
-                        "title": "Step 1",
-                        "text": "Join the {clan} Discord.",
-                        "buttonLabel": "Join the Discord"
-                      },
-                      "unmet": "hide"
                     },
                     {
-                      "id": "recruw036",
-                      "type": "recruiting",
-                      "v": 1,
-                      "settings": {
-                        "title": "Our requirements",
-                        "buttonLabel": "Apply now",
-                        "showRequirements": true
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                }
-              ]
-            },
-            {
-              "id": "recrur041",
-              "gap": {
-                "lg": "md"
-              },
-              "align": "stretch",
-              "height": {
-                "lg": {
-                  "mode": "auto"
-                }
-              },
-              "cells": [
-                {
-                  "id": "recruc040",
-                  "span": {
-                    "lg": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "recruw039",
+                      "id": "recruw037",
                       "type": "faq",
                       "v": 1,
                       "settings": {
@@ -757,6 +748,42 @@
                             "a": "Leave it in game before the invite; we'll keep a spot for you."
                           }
                         ]
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "recruc041",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "recruw039",
+                      "type": "discord-join",
+                      "v": 1,
+                      "settings": {
+                        "title": "Step 1",
+                        "text": "Join the {clan} Discord.",
+                        "buttonLabel": "Join the Discord"
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "recruw040",
+                      "type": "recruiting",
+                      "v": 1,
+                      "settings": {
+                        "title": "Our requirements",
+                        "buttonLabel": "Apply now",
+                        "showRequirements": true
                       },
                       "unmet": "hide"
                     }

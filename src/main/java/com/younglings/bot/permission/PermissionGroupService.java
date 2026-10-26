@@ -102,14 +102,22 @@ public class PermissionGroupService {
     /** Whether {@code member} is in the group: holds one of its roles, or (for a group that includes higher roles) any role ranked above its lowest. */
     public boolean isMember(Guild guild, Member member, String key) {
         Optional<PermissionGroup> group = group(guild.getIdLong(), key);
-        if (group.isEmpty() || group.get().roleIds().isEmpty()) return false;
+        if (group.isEmpty()) return false;
+        // @everyone in a group (saved before it was refused) would rank every member above it, so it never counts
+        List<Long> groupRoles = withoutEveryone(guild.getIdLong(), group.get().roleIds());
+        if (groupRoles.isEmpty()) return false;
 
         List<Role> memberRoles = member.getRoles(); // highest role first
-        OptionalInt lowest = group.get().roleIds().stream()
+        OptionalInt lowest = groupRoles.stream()
                 .map(guild::getRoleById).filter(java.util.Objects::nonNull)
                 .mapToInt(Role::getPosition).min();
         return qualifies(memberRoles.stream().map(Role::getIdLong).toList(), memberRoles.isEmpty() ? -1 : memberRoles.getFirst().getPosition(),
-                group.get().roleIds(), group.get().includeHigher(), lowest);
+                groupRoles, group.get().includeHigher(), lowest);
+    }
+
+    /** {@code roleIds} without @everyone (its id is the server's): a group holding it would hold the whole server (T-626). */
+    static List<Long> withoutEveryone(long guildId, List<Long> roleIds) {
+        return roleIds.stream().filter(id -> id != guildId).toList();
     }
 
     /** The decision itself, separate from looking things up so it can be tested on its own. */
@@ -140,8 +148,12 @@ public class PermissionGroupService {
 
     // ---------- writing ----------
 
-    /** Replaces one group's roles (what {@code /configure}'s role menus do), keeping everything else about it. */
-    public void setRoles(long guildId, String key, List<Long> roleIds) {
+    /**
+     * Replaces one group's roles (what {@code /configure}'s role menus do), keeping everything else about it. Discord's role menu offers
+     * @everyone, which is dropped (T-626): it would put the whole server in the group.
+     */
+    public void setRoles(long guildId, String key, List<Long> picked) {
+        List<Long> roleIds = withoutEveryone(guildId, picked);
         List<PermissionGroup> target = new ArrayList<>();
         boolean found = false;
         for (PermissionGroup g : groups(guildId)) {
@@ -176,7 +188,7 @@ public class PermissionGroupService {
             names.add(existing.name().toLowerCase(Locale.ROOT));
             usedKeys.add(existing.key());
             target.add(draft == null ? existing : new PermissionGroup(existing.groupId(), guildId, existing.key(), existing.name(), true,
-                    draft.includeHigher(), cleanRoles(existing.name(), draft.roleIds(), problems)));
+                    draft.includeHigher(), cleanRoles(guildId, existing.name(), draft.roleIds(), problems)));
         }
 
         for (Draft draft : drafts) {
@@ -204,7 +216,7 @@ public class PermissionGroupService {
                 problems.add("\"" + name + "\" appears twice.");
                 continue;
             }
-            target.add(new PermissionGroup(0, guildId, key, name, false, draft.includeHigher(), cleanRoles(name, draft.roleIds(), problems)));
+            target.add(new PermissionGroup(0, guildId, key, name, false, draft.includeHigher(), cleanRoles(guildId, name, draft.roleIds(), problems)));
         }
 
         if (!problems.isEmpty()) throw new InvalidGroupsException(problems);
@@ -213,8 +225,9 @@ public class PermissionGroupService {
         return groups(guildId);
     }
 
-    private static List<Long> cleanRoles(String groupName, List<Long> roleIds, List<String> problems) {
+    private static List<Long> cleanRoles(long guildId, String groupName, List<Long> roleIds, List<String> problems) {
         List<Long> unique = roleIds.stream().distinct().toList();
+        if (unique.contains(guildId)) problems.add("\"" + groupName + "\" can't use @everyone: that would be everyone.");
         if (unique.size() > MAX_ROLES_PER_GROUP) problems.add("\"" + groupName + "\" can hold at most " + MAX_ROLES_PER_GROUP + " roles.");
         return unique;
     }

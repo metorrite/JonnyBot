@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.discord.jobs.DiscordOutbox;
 import com.younglings.bot.embedder.EmbedderRepository;
 import com.younglings.bot.embedder.EmbedderRepository.Stored;
 import com.younglings.bot.embedder.EmbedderService;
@@ -28,7 +29,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** The Message embedder's routes: drafts, posting, editing in place, cloning and deleting, and the guards around them. */
+/** The Message embedder's routes: drafts, posting, editing in place, cloning and deleting, and the guards around them. Discord is only reached through queued jobs. */
 class EmbedderAdminApiTest {
     private static final long GUILD = 1L;
     private static final String SIMPLE = "{\"messageType\":\"MESSAGE\",\"content\":\"Hello\"}";
@@ -36,6 +37,7 @@ class EmbedderAdminApiTest {
 
     private EmbedderRepository repository;
     private EmbedderService service;
+    private DiscordOutbox outbox;
     private EmbedderAdminApi api;
     private Guild guild;
     private Member actor;
@@ -51,7 +53,8 @@ class EmbedderAdminApiTest {
         when(guild.getId()).thenReturn(Long.toString(GUILD));
         when(actor.getUser()).thenReturn(user);
         when(user.getIdLong()).thenReturn(9L);
-        api = new EmbedderAdminApi(repository, service);
+        outbox = com.younglings.bot.testsupport.QueuedJobs.outbox();
+        api = new EmbedderAdminApi(repository, service, outbox);
     }
 
     private Stored stored(long id, String bodyJson, Long channelId, Long messageId) {
@@ -73,7 +76,7 @@ class EmbedderAdminApiTest {
 
         ApiError e = assertThrows(ApiError.class, () -> call("GET", () -> "{}", "embedder", "messages", "5"));
         assertEquals(404, e.status);
-        verify(service, never()).delete(any(), any(), anyLong(), anyLong());
+        verify(outbox, never()).enqueue(anyString(), anyLong(), anyLong(), any(), any());
     }
 
     @Test
@@ -88,14 +91,26 @@ class EmbedderAdminApiTest {
     }
 
     @Test
-    void postingADraftRecordsTheDiscordMessage() {
-        when(repository.get(GUILD, 5L)).thenReturn(stored(5L, SIMPLE, null, null), stored(5L, SIMPLE, 20L, 30L));
-        when(service.post(eq(guild), eq(actor), any(), eq(20L))).thenReturn(30L);
+    void postingADraftQueuesItAndAnswersTheJob() {
+        when(repository.get(GUILD, 5L)).thenReturn(stored(5L, SIMPLE, null, null));
 
-        DataObject posted = call("POST", () -> "{\"channelId\":\"20\"}", "embedder", "messages", "5", "post");
+        DataObject answer = call("POST", () -> "{\"channelId\":\"20\"}", "embedder", "messages", "5", "post");
 
-        verify(repository).markPosted(GUILD, 5L, 20L, 30L);
-        assertEquals("POSTED", posted.getString("status"));
+        verify(service).checkedChannel(guild, actor, 20L);
+        verify(outbox).enqueue(eq(EmbedderJobs.POST), eq(GUILD), anyLong(), eq("embedder-post:1:5"), any());
+        verify(repository, never()).markPosted(anyLong(), anyLong(), anyLong(), anyLong());
+        assertEquals("DRAFT", answer.getString("status"), "it shows as posted once the job has posted it");
+        assertEquals("77", answer.getObject("job").getString("id"));
+    }
+
+    @Test
+    void aChannelTheAdminCantPostInIsRefusedBeforeAnythingIsQueued() {
+        when(repository.get(GUILD, 5L)).thenReturn(stored(5L, SIMPLE, null, null));
+        when(service.checkedChannel(guild, actor, 20L)).thenThrow(new IllegalStateException("You can't post in #x yourself"));
+
+        ApiError e = assertThrows(ApiError.class, () -> call("POST", () -> "{\"channelId\":\"20\"}", "embedder", "messages", "5", "post"));
+        assertEquals(400, e.status);
+        verify(outbox, never()).enqueue(anyString(), anyLong(), anyLong(), any(), any());
     }
 
     @Test
@@ -103,7 +118,7 @@ class EmbedderAdminApiTest {
         when(repository.get(GUILD, 5L)).thenReturn(stored(5L, "{\"messageType\":\"MESSAGE\",\"content\":\"\"}", null, null));
 
         assertThrows(ApiError.class, () -> call("POST", () -> "{\"channelId\":\"20\"}", "embedder", "messages", "5", "post"));
-        verify(service, never()).post(any(), any(), any(), anyLong());
+        verify(outbox, never()).enqueue(anyString(), anyLong(), anyLong(), any(), any());
     }
 
     @Test
@@ -111,49 +126,50 @@ class EmbedderAdminApiTest {
         when(repository.get(GUILD, 5L)).thenReturn(stored(5L, SIMPLE, 20L, 30L));
 
         assertThrows(ApiError.class, () -> call("POST", () -> "{\"channelId\":\"21\"}", "embedder", "messages", "5", "post"));
-        verify(service, never()).post(any(), any(), any(), anyLong());
+        verify(outbox, never()).enqueue(anyString(), anyLong(), anyLong(), any(), any());
     }
 
     @Test
-    void savingWithApplyEditsTheLiveMessageInPlace() {
+    void savingWithApplySavesThenQueuesTheLiveEdit() {
         when(repository.get(GUILD, 5L)).thenReturn(stored(5L, SIMPLE, 20L, 30L));
 
-        call("PUT", () -> "{\"name\":\"Rules\",\"apply\":true,\"message\":{\"messageType\":\"MESSAGE\",\"content\":\"Changed\"}}", "embedder", "messages", "5");
+        DataObject answer = call("PUT", () -> "{\"name\":\"Rules\",\"apply\":true,\"message\":{\"messageType\":\"MESSAGE\",\"content\":\"Changed\"}}", "embedder", "messages", "5");
 
-        verify(service).edit(eq(guild), eq(actor), any(), any(), eq(20L), eq(30L));
         verify(repository).saveBody(eq(GUILD), eq(5L), eq("Rules"), anyString());
+        verify(outbox).enqueue(eq(EmbedderJobs.EDIT), eq(GUILD), anyLong(), eq("embedder-edit:1:5"), any());
+        assertEquals("77", answer.getObject("job").getString("id"));
     }
 
     @Test
     void savingADraftNeverTouchesDiscord() {
         when(repository.get(GUILD, 5L)).thenReturn(stored(5L, SIMPLE, null, null));
 
-        call("PUT", () -> "{\"name\":\"Rules\",\"apply\":true,\"message\":{\"messageType\":\"MESSAGE\",\"content\":\"Changed\"}}", "embedder", "messages", "5");
+        DataObject answer = call("PUT", () -> "{\"name\":\"Rules\",\"apply\":true,\"message\":{\"messageType\":\"MESSAGE\",\"content\":\"Changed\"}}", "embedder", "messages", "5");
 
-        verify(service, never()).edit(any(), any(), any(), any(), anyLong(), anyLong());
+        verify(outbox, never()).enqueue(anyString(), anyLong(), anyLong(), any(), any());
         verify(repository).saveBody(eq(GUILD), eq(5L), eq("Rules"), anyString());
+        assertFalse(answer.hasKey("job"));
     }
 
     @Test
-    void aRefusedLiveEditKeepsTheStoredCopyUnchanged() {
+    void aPostedContainerCantBecomeAnotherKindAndTheStoredCopyStays() {
         when(repository.get(GUILD, 5L)).thenReturn(stored(5L, CONTAINER, 20L, 30L));
-        org.mockito.Mockito.doThrow(new IllegalStateException("kind")).when(service).edit(any(), any(), any(), any(), anyLong(), anyLong());
 
         assertThrows(ApiError.class, () -> call("PUT", () -> "{\"name\":\"Rules\",\"apply\":true,\"message\":{\"messageType\":\"MESSAGE\",\"content\":\"x\"}}", "embedder", "messages", "5"));
         verify(repository, never()).saveBody(anyLong(), anyLong(), anyString(), anyString());
+        verify(outbox, never()).enqueue(anyString(), anyLong(), anyLong(), any(), any());
     }
 
     @Test
-    void cloningPostsToExactlyOneChannelAndKeepsTheOriginal() {
+    void cloningKeepsACopyAndQueuesItForExactlyOneChannel() {
         when(repository.get(GUILD, 5L)).thenReturn(stored(5L, SIMPLE, 20L, 30L));
-        when(repository.get(GUILD, 6L)).thenReturn(stored(6L, SIMPLE, 21L, 31L));
-        when(service.post(eq(guild), eq(actor), any(), eq(21L))).thenReturn(31L);
-        when(repository.create(eq(GUILD), eq("Rules (copy)"), anyString(), eq(21L), eq(31L), eq(9L))).thenReturn(6L);
+        when(repository.get(GUILD, 6L)).thenReturn(stored(6L, SIMPLE, null, null));
+        when(repository.create(eq(GUILD), eq("Rules (copy)"), anyString(), eq(null), eq(null), eq(9L))).thenReturn(6L);
 
         DataObject copy = call("POST", () -> "{\"channelId\":\"21\"}", "embedder", "messages", "5", "clone");
 
         assertEquals("6", copy.getString("id"));
-        verify(service).post(eq(guild), eq(actor), any(), eq(21L));
+        verify(outbox).enqueue(eq(EmbedderJobs.POST), eq(GUILD), anyLong(), eq("embedder-post:1:6"), any());
         verify(repository, never()).delete(anyLong(), anyLong());
     }
 
@@ -163,17 +179,18 @@ class EmbedderAdminApiTest {
         when(repository.count(GUILD)).thenReturn(EmbedderService.MAX_MESSAGES_PER_GUILD);
 
         assertThrows(ApiError.class, () -> call("POST", () -> "{\"channelId\":\"21\"}", "embedder", "messages", "5", "clone"));
-        verify(service, never()).post(any(), any(), any(), anyLong());
+        verify(outbox, never()).enqueue(anyString(), anyLong(), anyLong(), any(), any());
     }
 
     @Test
-    void deletingAPostedMessageRemovesItFromDiscordThenTheList() {
+    void deletingAPostedMessageQueuesItsRemovalAndDropsTheEntry() {
         when(repository.get(GUILD, 5L)).thenReturn(stored(5L, SIMPLE, 20L, 30L));
+        when(service.mayDeleteIn(guild, actor, 20L)).thenReturn(true);
 
         DataObject result = call("POST", () -> "{}", "embedder", "messages", "5", "delete");
 
         assertTrue(result.getBoolean("deleted"));
-        verify(service).delete(guild, actor, 20L, 30L);
+        verify(outbox).enqueue(eq(EmbedderJobs.DELETE), eq(GUILD), anyLong(), eq(null), any());
         verify(repository).delete(GUILD, 5L);
     }
 
@@ -183,17 +200,18 @@ class EmbedderAdminApiTest {
 
         call("POST", () -> "{}", "embedder", "messages", "5", "delete");
 
-        verify(service, never()).delete(any(), any(), anyLong(), anyLong());
+        verify(outbox, never()).enqueue(anyString(), anyLong(), anyLong(), any(), any());
         verify(repository).delete(GUILD, 5L);
     }
 
     @Test
-    void aFailedDiscordDeleteKeepsTheEntry() {
+    void aDeleteTheAdminMayNotMakeKeepsTheEntry() {
         when(repository.get(GUILD, 5L)).thenReturn(stored(5L, SIMPLE, 20L, 30L));
-        org.mockito.Mockito.doThrow(new IllegalStateException("nope")).when(service).delete(any(), any(), anyLong(), anyLong());
+        when(service.mayDeleteIn(any(), any(), anyLong())).thenThrow(new IllegalStateException("nope"));
 
         assertThrows(ApiError.class, () -> call("POST", () -> "{}", "embedder", "messages", "5", "delete"));
         verify(repository, never()).delete(anyLong(), anyLong());
+        verify(outbox, never()).enqueue(anyString(), anyLong(), anyLong(), any(), any());
     }
 
     @Test

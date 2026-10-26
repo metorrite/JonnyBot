@@ -84,6 +84,11 @@ class VerifyPiecesTest {
         assertInstanceOf(PublicData.RuneMetrics.Failed.class, HttpPublicData.parseRuneMetrics("{\"name\":\"x\"}"));
     }
 
+    @Test
+    void switchedOffRuneMetricsIsNeverAsked() {
+        assertInstanceOf(PublicData.RuneMetrics.Off.class, new HttpPublicData("test", () -> false).runeMetrics("Zezima"));
+    }
+
     // ---------- settings ----------
 
     @Test

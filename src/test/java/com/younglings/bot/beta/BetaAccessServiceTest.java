@@ -1,6 +1,7 @@
 package com.younglings.bot.beta;
 
 import com.younglings.bot.access.AccessLevel;
+import com.younglings.bot.access.GateSource;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Guild;
@@ -38,7 +39,7 @@ class BetaAccessServiceTest {
         member = mock(Member.class);
         when(jda.getGuildById(BETA_GUILD)).thenReturn(guild);
         when(guild.getMemberById(USER)).thenReturn(member);
-        service = new BetaAccessService(repository);
+        service = new BetaAccessService(GateSource.ownTables(repository::all, null, null));
         service.clock = now::get;
     }
 

@@ -5,7 +5,8 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import org.junit.jupiter.api.condition.EnabledIf;
+import com.younglings.bot.testsupport.TestDatabaseUrl;
 import org.mockito.Mockito;
 
 import java.sql.Connection;
@@ -18,16 +19,16 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Runs the Hub SQL against a real Postgres. Skipped unless {@code JONNYBOT_TEST_DB_URL} points at an <em>empty scratch</em> database
+ * Runs the Hub SQL against a real Postgres. Skipped unless {@code JONNYBOT_TEST_DATABASE_URL} (or the older JDBC-form {@code JONNYBOT_TEST_DB_URL}) points at an <em>empty scratch</em> database
  * it may fill and wipe: never point it at a database that holds real data.
  */
-@EnabledIfEnvironmentVariable(named = "JONNYBOT_TEST_DB_URL", matches = ".+")
+@EnabledIf("com.younglings.bot.testsupport.TestDatabaseUrl#configured")
 class HubDatabaseTest {
     private static HubRepository repository;
 
     @BeforeAll
     static void connect() throws SQLException {
-        String url = System.getenv("JONNYBOT_TEST_DB_URL");
+        String url = TestDatabaseUrl.jdbc();
         ConnectionSupplier connections = Mockito.mock(ConnectionSupplier.class);
         Mockito.when(connections.getConnection()).thenAnswer(call -> DriverManager.getConnection(url));
         repository = new HubRepository(connections, new HubDatabaseInitializer(connections));
@@ -44,7 +45,7 @@ class HubDatabaseTest {
     }
 
     private static void clean() throws SQLException {
-        try (Connection c = DriverManager.getConnection(System.getenv("JONNYBOT_TEST_DB_URL")); Statement s = c.createStatement()) {
+        try (Connection c = DriverManager.getConnection(TestDatabaseUrl.jdbc()); Statement s = c.createStatement()) {
             s.execute("TRUNCATE younglings.hub_command_setting");
         }
     }

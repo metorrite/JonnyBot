@@ -23,7 +23,8 @@ import java.util.Optional;
  * <ul>
  *   <li>{@code connect} {@code {userId, accessToken, refreshToken, expiresIn, rsLinkRsn?, rsLinkSince?}}: keeps the tokens (sealed) and sends
  *       the person's metadata to Discord; answers what was shared.</li>
- *   <li>{@code status} {@code {userId}}: whether they are connected and what is shared, worked out fresh.</li>
+ *   <li>{@code status} {@code {userId}}: whether they are connected and what is shared, worked out fresh, and whether RS Link names must be
+ *       confirmed first ({@code requireConfirmed}; {@code rsLinkUnconfirmed} names one that isn't counted yet, T-552).</li>
  *   <li>{@code unlink} {@code {userId}}: clears what Discord has, revokes and forgets the tokens.</li>
  * </ul>
  * Answers 404 {@code {"error":"off"}} while Linked Roles is switched off.
@@ -69,16 +70,23 @@ public class LinkedRolesApi implements InternalRouteModule {
         try {
             switch (route) {
                 case "connect" -> {
-                    Shared shared = roles.connect(userId, body.getString("accessToken", null), body.getString("refreshToken", null),
-                            body.getLong("expiresIn", 604800), body.getString("rsLinkRsn", null), instant(body.getString("rsLinkSince", null)));
+                    String accessToken = body.getString("accessToken", null);
+                    String refreshToken = body.getString("refreshToken", null);
+                    long expiresIn = body.getLong("expiresIn", 604800);
+                    String rsn = body.getString("rsLinkRsn", null);
+                    Instant since = instant(body.getString("rsLinkSince", null));
+                    Shared shared = AdminReads.withinBudget(() -> roles.connect(userId, accessToken, refreshToken, expiresIn, rsn, since));
                     InternalApiServer.sendJson(exchange, 200, view(Optional.of(shared)));
                 }
-                case "status" -> InternalApiServer.sendJson(exchange, 200, view(roles.status(userId)));
-                case "unlink" -> InternalApiServer.sendJson(exchange, 200, DataObject.empty().put("unlinked", roles.unlink(userId)));
+                case "status" -> InternalApiServer.sendJson(exchange, 200, view(AdminReads.withinBudget(() -> roles.status(userId)))
+                        .put("requireConfirmed", roles.requireConfirmed()));
+                case "unlink" -> InternalApiServer.sendJson(exchange, 200, DataObject.empty().put("unlinked", AdminReads.withinBudget(() -> roles.unlink(userId))));
                 default -> InternalApiServer.sendJson(exchange, 404, error("not_found", "Not found"));
             }
         } catch (LinkedRoles.Problem p) {
             InternalApiServer.sendJson(exchange, p.status(), error(p.code(), p.getMessage()));
+        } catch (StaleCache.Late late) {
+            InternalApiServer.sendJson(exchange, 503, error("slow", "Discord is slow right now, so this is still being done. Check again in a minute."));
         } catch (RuntimeException e) {
             // the class name only: a message could carry a value from the request
             log.warn("Linked roles route {} failed: {}", route, e.getClass().getSimpleName());
@@ -94,7 +102,8 @@ public class LinkedRolesApi implements InternalRouteModule {
         s.values().forEach(values::put);
         return DataObject.empty().put("connected", true).put("rsn", p.rsn()).put("totalLevel", p.totalLevel()).put("combatLevel", p.combatLevel())
                 .put("clanMember", p.clanMember()).put("linkedSince", p.linkedSince() == null ? null : p.linkedSince().toString())
-                .put("values", values).put("pushedAt", s.pushedAt() == null ? null : s.pushedAt().toString());
+                .put("values", values).put("pushedAt", s.pushedAt() == null ? null : s.pushedAt().toString())
+                .put("rsLinkUnconfirmed", s.unconfirmedRsLink());
     }
 
     private static DataObject error(String code, String message) {

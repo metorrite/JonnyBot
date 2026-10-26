@@ -359,6 +359,8 @@ public final class XpVerifier {
             case PublicData.RuneMetrics.Public p -> v.runeMetrics = p.xp10();
             case PublicData.RuneMetrics.Private p -> v.runeMetrics = null;
             case PublicData.RuneMetrics.NotFound n -> v.runeMetrics = null;
+            // Retired or switched off: there is nothing left to refuse with, so the Hiscores alone decide.
+            case PublicData.RuneMetrics.Off o -> v.runeMetrics = null;
             // RuneMetrics is only used to refuse, so not knowing it would let a value it already shows through. Treat as a failed read.
             case PublicData.RuneMetrics.Failed f -> v.hiscoresOk = false;
         }

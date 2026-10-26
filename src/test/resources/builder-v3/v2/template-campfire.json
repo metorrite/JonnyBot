@@ -50,7 +50,7 @@
     "mobile": "drawer",
     "nav": [
       {
-        "id": "campn028",
+        "id": "campn031",
         "label": "Home",
         "link": {
           "kind": "page",
@@ -58,7 +58,7 @@
         }
       },
       {
-        "id": "campn029",
+        "id": "campn032",
         "label": "About us",
         "link": {
           "kind": "page",
@@ -108,8 +108,8 @@
       "access": "public",
       "sections": [
         {
-          "id": "camps008",
-          "width": "wide",
+          "id": "camps010",
+          "width": "content",
           "background": {
             "kind": "surface"
           },
@@ -127,7 +127,7 @@
           "label": "Welcome",
           "rows": [
             {
-              "id": "campr007",
+              "id": "campr003",
               "gap": {
                 "lg": "md"
               },
@@ -139,10 +139,9 @@
               },
               "cells": [
                 {
-                  "id": "campc004",
+                  "id": "campc002",
                   "span": {
-                    "lg": 7,
-                    "md": 12
+                    "lg": 12
                   },
                   "padding": {
                     "lg": "none"
@@ -158,25 +157,79 @@
                         "text": "Welcome to {clan}",
                         "subtitle": "{tagline}",
                         "size": "large",
-                        "align": "left",
+                        "align": "center",
                         "colour": "",
                         "level": "h1"
                       },
                       "unmet": "hide"
-                    },
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "campr006",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "campc005",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
                     {
-                      "id": "campw002",
+                      "id": "campw004",
                       "type": "text",
                       "v": 1,
                       "settings": {
                         "markdown": "We're a small group of friends who play RuneScape together. Grab a seat by the fire: there's always someone to chat with.",
-                        "align": "left",
+                        "align": "center",
                         "width": "readable"
                       },
                       "unmet": "hide"
-                    },
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "campr009",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "campc008",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
                     {
-                      "id": "campw003",
+                      "id": "campw007",
                       "type": "button-row",
                       "v": 1,
                       "settings": {
@@ -197,35 +250,10 @@
                             "style": "quiet"
                           }
                         ],
-                        "align": "left",
+                        "align": "center",
                         "size": "medium",
+                        "look": "buttons",
                         "fullWidth": false
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                },
-                {
-                  "id": "campc006",
-                  "span": {
-                    "lg": 5,
-                    "md": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "campw005",
-                      "type": "discord-online",
-                      "v": 1,
-                      "settings": {
-                        "title": "Around the fire",
-                        "show": "names+avatars",
-                        "groups": true,
-                        "limit": 16
                       },
                       "unmet": "hide"
                     }
@@ -236,7 +264,7 @@
           ]
         },
         {
-          "id": "camps015",
+          "id": "camps018",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -254,7 +282,7 @@
           },
           "rows": [
             {
-              "id": "campr014",
+              "id": "campr017",
               "gap": {
                 "lg": "md"
               },
@@ -266,7 +294,7 @@
               },
               "cells": [
                 {
-                  "id": "campc010",
+                  "id": "campc012",
                   "span": {
                     "lg": 7,
                     "md": 12
@@ -278,22 +306,24 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "campw009",
+                      "id": "campw011",
                       "type": "channel-feed",
-                      "v": 1,
+                      "v": 2,
                       "settings": {
                         "title": "Latest from Discord",
                         "channel": "",
-                        "limit": 5,
                         "showAuthors": true,
-                        "showImages": true
+                        "showImages": true,
+                        "look": "list",
+                        "showEvents": false,
+                        "eventsLink": null
                       },
                       "unmet": "hide"
                     }
                   ]
                 },
                 {
-                  "id": "campc013",
+                  "id": "campc016",
                   "span": {
                     "lg": 5,
                     "md": 12
@@ -305,18 +335,29 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "campw011",
+                      "id": "campw013",
                       "type": "events",
                       "v": 1,
                       "settings": {
                         "title": "Next hangout",
+                        "style": "list",
                         "limit": 3,
                         "showImages": true
                       },
                       "unmet": "hide"
                     },
                     {
-                      "id": "campw012",
+                      "id": "campw014",
+                      "type": "discord-online",
+                      "v": 2,
+                      "settings": {
+                        "title": "Around the fire",
+                        "look": "list"
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "campw015",
                       "type": "polls",
                       "v": 1,
                       "settings": {
@@ -342,7 +383,7 @@
       "access": "public",
       "sections": [
         {
-          "id": "camps019",
+          "id": "camps022",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -360,7 +401,7 @@
           },
           "rows": [
             {
-              "id": "campr018",
+              "id": "campr021",
               "gap": {
                 "lg": "md"
               },
@@ -372,7 +413,7 @@
               },
               "cells": [
                 {
-                  "id": "campc017",
+                  "id": "campc020",
                   "span": {
                     "lg": 12
                   },
@@ -383,7 +424,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "campw016",
+                      "id": "campw019",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -403,7 +444,7 @@
           ]
         },
         {
-          "id": "camps027",
+          "id": "camps030",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -421,7 +462,7 @@
           },
           "rows": [
             {
-              "id": "campr026",
+              "id": "campr029",
               "gap": {
                 "lg": "md"
               },
@@ -433,7 +474,7 @@
               },
               "cells": [
                 {
-                  "id": "campc022",
+                  "id": "campc025",
                   "span": {
                     "lg": 7,
                     "md": 12
@@ -445,7 +486,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "campw020",
+                      "id": "campw023",
                       "type": "text",
                       "v": 1,
                       "settings": {
@@ -456,19 +497,23 @@
                       "unmet": "hide"
                     },
                     {
-                      "id": "campw021",
+                      "id": "campw024",
                       "type": "milestones",
                       "v": 1,
                       "settings": {
                         "title": "Recent achievements",
-                        "limit": 5
+                        "limit": 5,
+                        "bigOnly": false,
+                        "look": "lines",
+                        "more": null,
+                        "moreText": "Hall of fame"
                       },
                       "unmet": "hide"
                     }
                   ]
                 },
                 {
-                  "id": "campc025",
+                  "id": "campc028",
                   "span": {
                     "lg": 5,
                     "md": 12
@@ -480,7 +525,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "campw023",
+                      "id": "campw026",
                       "type": "roster",
                       "v": 1,
                       "settings": {
@@ -497,7 +542,7 @@
                       "unmet": "hide"
                     },
                     {
-                      "id": "campw024",
+                      "id": "campw027",
                       "type": "discord-join",
                       "v": 1,
                       "settings": {

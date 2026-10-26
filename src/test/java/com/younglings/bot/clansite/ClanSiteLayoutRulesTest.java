@@ -85,6 +85,16 @@ class ClanSiteLayoutRulesTest {
     }
 
     @Test
+    void theClanHallThemeIsAcceptedAndAnUnknownOneIsNot() {
+        DataObject hall = good();
+        hall.getObject("look").put("theme", "clanhall");
+        assertTrue(problems(hall).isEmpty(), "Clan Hall (T-574)");
+        DataObject odd = good();
+        odd.getObject("look").put("theme", "gold");
+        assertTrue(problems(odd).contains("Pick one of the site themes."));
+    }
+
+    @Test
     void theVersionMustMatch() {
         assertFalse(problems(good().put("v", 2)).isEmpty());
     }
@@ -158,6 +168,19 @@ class ClanSiteLayoutRulesTest {
 
         DataObject odd = good().put("wizard", DataObject.empty().put("step", "pages").put("slug", "Not A Slug"));
         assertFalse(DataObject.fromJson(ClanSiteLayoutRules.clean(odd, new ArrayList<>())).getObject("wizard").hasKey("slug"));
+    }
+
+    @Test
+    void wizardTemplateIsKeptWhenItIsATemplateId() {
+        String hub = "hub:" + "0123abcd-0000-4000-8000-00000000abcd";
+        for (String id : List.of("guild-hall", "basic", hub)) {
+            DataObject layout = good().put("wizard", DataObject.empty().put("step", "theme").put("template", id));
+            assertEquals(id, DataObject.fromJson(ClanSiteLayoutRules.clean(layout, new ArrayList<>())).getObject("wizard").getString("template"));
+        }
+        for (String bad : List.of("Guild Hall", "hub:not-a-uuid", "x".repeat(41), "")) {
+            DataObject layout = good().put("wizard", DataObject.empty().put("step", "theme").put("template", bad));
+            assertFalse(DataObject.fromJson(ClanSiteLayoutRules.clean(layout, new ArrayList<>())).getObject("wizard").hasKey("template"));
+        }
     }
 
     @Test
