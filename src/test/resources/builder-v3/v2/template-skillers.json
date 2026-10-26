@@ -3,7 +3,7 @@
   "look": {
     "theme": "modern",
     "mode": "light",
-    "accent": "#16a34a",
+    "accent": "#15803d",
     "logo": null,
     "banner": null
   },
@@ -44,7 +44,7 @@
     "mobile": "drawer",
     "nav": [
       {
-        "id": "skiln072",
+        "id": "skiln074",
         "label": "Home",
         "link": {
           "kind": "page",
@@ -52,7 +52,7 @@
         }
       },
       {
-        "id": "skiln073",
+        "id": "skiln075",
         "label": "Leaderboards",
         "link": {
           "kind": "page",
@@ -60,7 +60,7 @@
         }
       },
       {
-        "id": "skiln074",
+        "id": "skiln076",
         "label": "Progress",
         "link": {
           "kind": "page",
@@ -68,7 +68,7 @@
         }
       },
       {
-        "id": "skiln075",
+        "id": "skiln077",
         "label": "Members",
         "link": {
           "kind": "page",
@@ -76,7 +76,7 @@
         }
       },
       {
-        "id": "skiln076",
+        "id": "skiln078",
         "label": "Join",
         "link": {
           "kind": "page",
@@ -886,7 +886,8 @@
                       "settings": {
                         "title": "Adventure log",
                         "limit": 15,
-                        "tabs": true
+                        "tabs": true,
+                        "filter": "all"
                       },
                       "unmet": "hide"
                     }
@@ -1137,7 +1138,7 @@
           ]
         },
         {
-          "id": "skils071",
+          "id": "skils073",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1155,7 +1156,7 @@
           },
           "rows": [
             {
-              "id": "skilr070",
+              "id": "skilr067",
               "gap": {
                 "lg": "md"
               },
@@ -1169,14 +1170,13 @@
                 {
                   "id": "skilc066",
                   "span": {
-                    "lg": 7,
-                    "md": 12
+                    "lg": 12
                   },
                   "padding": {
-                    "lg": "none"
+                    "lg": "md"
                   },
                   "valign": "start",
-                  "surface": "none",
+                  "surface": "panel",
                   "widgets": [
                     {
                       "id": "skilw065",
@@ -1190,11 +1190,25 @@
                       "unmet": "hide"
                     }
                   ]
-                },
+                }
+              ]
+            },
+            {
+              "id": "skilr072",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
                 {
                   "id": "skilc069",
                   "span": {
-                    "lg": 5,
+                    "lg": 6,
                     "md": 12
                   },
                   "padding": {
@@ -1204,7 +1218,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "skilw067",
+                      "id": "skilw068",
                       "type": "recruiting",
                       "v": 1,
                       "settings": {
@@ -1213,9 +1227,23 @@
                         "showRequirements": true
                       },
                       "unmet": "hide"
-                    },
+                    }
+                  ]
+                },
+                {
+                  "id": "skilc071",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
                     {
-                      "id": "skilw068",
+                      "id": "skilw070",
                       "type": "discord-join",
                       "v": 1,
                       "settings": {

@@ -47,7 +47,7 @@
     "mobile": "drawer",
     "nav": [
       {
-        "id": "commn153",
+        "id": "commn155",
         "label": "Home",
         "link": {
           "kind": "page",
@@ -55,7 +55,7 @@
         }
       },
       {
-        "id": "commn154",
+        "id": "commn156",
         "label": "People",
         "link": {
           "kind": "page",
@@ -63,7 +63,7 @@
         },
         "children": [
           {
-            "id": "commn155",
+            "id": "commn157",
             "label": "Members",
             "link": {
               "kind": "page",
@@ -72,7 +72,7 @@
             "description": "Everyone in the clan"
           },
           {
-            "id": "commn156",
+            "id": "commn158",
             "label": "On Discord",
             "link": {
               "kind": "page",
@@ -83,7 +83,7 @@
         ]
       },
       {
-        "id": "commn157",
+        "id": "commn159",
         "label": "Events",
         "link": {
           "kind": "page",
@@ -91,7 +91,7 @@
         },
         "children": [
           {
-            "id": "commn158",
+            "id": "commn160",
             "label": "Coming up",
             "link": {
               "kind": "page",
@@ -100,7 +100,7 @@
             "description": "Events and competitions"
           },
           {
-            "id": "commn159",
+            "id": "commn161",
             "label": "Calendar",
             "link": {
               "kind": "page",
@@ -109,7 +109,7 @@
             "description": "Everything by day"
           },
           {
-            "id": "commn160",
+            "id": "commn162",
             "label": "Signups",
             "link": {
               "kind": "page",
@@ -121,7 +121,7 @@
         "badge": "events"
       },
       {
-        "id": "commn161",
+        "id": "commn163",
         "label": "Polls",
         "link": {
           "kind": "page",
@@ -129,7 +129,7 @@
         }
       },
       {
-        "id": "commn162",
+        "id": "commn164",
         "label": "Join",
         "link": {
           "kind": "page",
@@ -279,7 +279,9 @@
                       "settings": {
                         "showBanner": true,
                         "showTagline": true,
-                        "align": "center"
+                        "align": "center",
+                        "eyebrow": "",
+                        "logoShape": "rounded"
                       },
                       "unmet": "hide"
                     }
@@ -326,10 +328,10 @@
                     "md": 12
                   },
                   "padding": {
-                    "lg": "none"
+                    "lg": "md"
                   },
                   "valign": "start",
-                  "surface": "none",
+                  "surface": "panel",
                   "widgets": [
                     {
                       "id": "commw005",
@@ -367,7 +369,7 @@
                         ],
                         "align": "left",
                         "size": "medium",
-                        "fullWidth": true
+                        "fullWidth": false
                       },
                       "unmet": "hide"
                     }
@@ -388,11 +390,10 @@
                     {
                       "id": "commw008",
                       "type": "channel-feed",
-                      "v": 1,
+                      "v": 2,
                       "settings": {
                         "title": "Announcements",
                         "channel": "",
-                        "limit": 4,
                         "showAuthors": true,
                         "showImages": true
                       },
@@ -418,6 +419,7 @@
                       "v": 1,
                       "settings": {
                         "title": "Coming up",
+                        "style": "list",
                         "limit": 3,
                         "showImages": true
                       },
@@ -489,12 +491,9 @@
                     {
                       "id": "commw016",
                       "type": "discord-online",
-                      "v": 1,
+                      "v": 2,
                       "settings": {
-                        "title": "Online now",
-                        "show": "names",
-                        "groups": true,
-                        "limit": 20
+                        "title": "Online now"
                       },
                       "unmet": "hide"
                     }
@@ -737,8 +736,10 @@
                         "showLevel": true,
                         "showXp": false,
                         "showJoined": false,
+                        "showPoints": false,
                         "search": true,
                         "rankFilter": true,
+                        "sortControls": false,
                         "linkPages": true
                       },
                       "unmet": "hide"
@@ -842,7 +843,9 @@
                         "comparePage": {
                           "kind": "page",
                           "pageId": "commpcompare"
-                        }
+                        },
+                        "showRecap": false,
+                        "recapPage": null
                       },
                       "unmet": "hide"
                     }
@@ -1030,7 +1033,8 @@
                       "v": 1,
                       "settings": {
                         "title": "Clan points",
-                        "limit": 8
+                        "limit": 8,
+                        "showChart": false
                       },
                       "unmet": "hide"
                     }
@@ -1352,11 +1356,10 @@
                     {
                       "id": "commw071",
                       "type": "channel-feed",
-                      "v": 1,
+                      "v": 2,
                       "settings": {
                         "title": "Announcements",
                         "channel": "",
-                        "limit": 10,
                         "showAuthors": true,
                         "showImages": true
                       },
@@ -1379,12 +1382,9 @@
                     {
                       "id": "commw073",
                       "type": "discord-online",
-                      "v": 1,
+                      "v": 2,
                       "settings": {
-                        "title": "Online now",
-                        "show": "names+avatars",
-                        "groups": true,
-                        "limit": 40
+                        "title": "Online now"
                       },
                       "unmet": "hide"
                     },
@@ -1523,7 +1523,7 @@
                       "v": 1,
                       "settings": {
                         "title": "Competitions and bingos",
-                        "limit": 6,
+                        "limit": 4,
                         "showFinished": false
                       },
                       "unmet": "hide"
@@ -1571,7 +1571,7 @@
                 {
                   "id": "commc088",
                   "span": {
-                    "lg": 8,
+                    "lg": 6,
                     "md": 12
                   },
                   "padding": {
@@ -1586,7 +1586,8 @@
                       "v": 1,
                       "settings": {
                         "title": "On Discord",
-                        "limit": 8,
+                        "style": "list",
+                        "limit": 5,
                         "showImages": true
                       },
                       "unmet": "hide"
@@ -1596,7 +1597,7 @@
                 {
                   "id": "commc090",
                   "span": {
-                    "lg": 4,
+                    "lg": 6,
                     "md": 12
                   },
                   "padding": {
@@ -2418,7 +2419,7 @@
           ]
         },
         {
-          "id": "comms152",
+          "id": "comms154",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -2436,7 +2437,7 @@
           },
           "rows": [
             {
-              "id": "commr151",
+              "id": "commr150",
               "gap": {
                 "lg": "md"
               },
@@ -2496,7 +2497,7 @@
                   ]
                 },
                 {
-                  "id": "commc150",
+                  "id": "commc149",
                   "span": {
                     "lg": 5,
                     "md": 12
@@ -2528,9 +2529,36 @@
                         "buttonLabel": "Join the Discord"
                       },
                       "unmet": "hide"
-                    },
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "commr153",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "commc152",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
                     {
-                      "id": "commw149",
+                      "id": "commw151",
                       "type": "alliances",
                       "v": 1,
                       "settings": {
