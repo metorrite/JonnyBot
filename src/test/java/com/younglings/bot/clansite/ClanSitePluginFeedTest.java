@@ -71,6 +71,18 @@ class ClanSitePluginFeedTest {
     }
 
     @Test
+    void eachItemSaysWhetherTheMembersLinkWasConfirmed() {
+        RuneClansHubClient hub = hubWith(
+                event("2", "LEVEL_UP", "Skill Queen", DataObject.empty().put("skill", "Magic").put("level", 90)).put("verification", "public_data_corroborated"),
+                event("1", "QUEST_COMPLETE", "Raid Caller", DataObject.empty().put("quest", "While Guthix Sleeps")).put("verification", "implicit"),
+                event("0", "QUEST_COMPLETE", "Old Hub", DataObject.empty().put("quest", "Plague City")));
+        DataArray items = new ClanSitePluginFeed(hub, profiles(null)).feed(GUILD, "activity", 10).getArray("items");
+        assertTrue(items.getObject(0).getBoolean("confirmed"));
+        assertFalse(items.getObject(1).getBoolean("confirmed"));
+        assertFalse(items.getObject(2).getBoolean("confirmed"), "an event without the stamp counts as not confirmed");
+    }
+
+    @Test
     void onlineStatusAliasesAndHiddenMembersNeverShow() {
         RuneClansHubClient hub = hubWith(
                 event("3", "PRESENCE", "Skill Queen", DataObject.empty().put("state", "ONLINE")),

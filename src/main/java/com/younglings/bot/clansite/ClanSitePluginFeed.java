@@ -25,6 +25,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *   <li>online status ({@code PRESENCE}) is never shown;</li>
  *   <li>a member who hid their adventure log on the clan site is left out.</li>
  * </ul>
+ * Each item says whether the member's link was {@code confirmed} (T-552), for the admin-only marker.
  * Three views: {@code activity} (levels, quests, achievements, collection log, clues), {@code drops} (drops, collection log, clues) and
  * {@code runesync} (everything but online status). One hub call per server, cached a minute.
  */
@@ -77,7 +78,7 @@ public class ClanSitePluginFeed {
                 String text = text(type, data);
                 if (text == null) continue;
                 items.add(DataObject.empty().put("id", e.getString("id", Integer.toString(i))).put("who", rsn).put("text", text)
-                        .put("at", e.getString("occurredAt", "")).put("kind", kind(type)));
+                        .put("at", e.getString("occurredAt", "")).put("kind", kind(type)).put("confirmed", confirmed(e)));
             }
         }
         return DataObject.empty().put("available", events != null).put("items", items);
@@ -96,6 +97,15 @@ public class ClanSitePluginFeed {
             cache.put(guildId, new Cached(Instant.now(), events));
         }
         return events;
+    }
+
+    /**
+     * Whether the member's RS Link was confirmed from public data when the hub took the event (T-552: the hub's {@code verification} stamp
+     * above {@code implicit}). The website shows "not confirmed" to the site's admins only; an older hub that doesn't say counts as not.
+     */
+    static boolean confirmed(DataObject event) {
+        String level = event.getString("verification", "implicit");
+        return level.equals("public_data_corroborated") || level.equals("jagex_signed");
     }
 
     /** The widget's icon for a hub event type. */
