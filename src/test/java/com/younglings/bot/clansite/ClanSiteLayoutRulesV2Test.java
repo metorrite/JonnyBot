@@ -504,6 +504,39 @@ class ClanSiteLayoutRulesV2Test {
     }
 
     @Test
+    void younglingsRebuildFields() {
+        // runeclans T-518 (1:1 Younglings rebuild): narrower widths, a glowing background, a hidden footer, a centred menu, a plain current item
+        DataObject look = good();
+        DataObject section = look.getArray("pages").getObject(0).getArray("sections").getObject(0);
+        section.put("width", "slim").put("background", DataObject.empty().put("kind", "glow"));
+        look.getObject("header").put("navAlign", "center").put("navActive", "text");
+        look.getObject("footer").put("hidden", true);
+        assertTrue(problems(look).isEmpty(), problems(look).toString());
+        DataObject clean = DataObject.fromJson(ClanSiteLayoutRulesV2.clean(look, ClanSiteLayoutRulesV2.Limits.PREMIUM, new ArrayList<>()));
+        DataObject cleanSection = clean.getArray("pages").getObject(0).getArray("sections").getObject(0);
+        assertEquals("slim", cleanSection.getString("width"));
+        assertEquals("glow", cleanSection.getObject("background").getString("kind"));
+        assertEquals("center", clean.getObject("header").getString("navAlign"));
+        assertEquals("text", clean.getObject("header").getString("navActive"));
+        assertTrue(clean.getObject("footer").getBoolean("hidden"));
+
+        DataObject plain = DataObject.fromJson(ClanSiteLayoutRulesV2.clean(good(), ClanSiteLayoutRulesV2.Limits.PREMIUM, new ArrayList<>()));
+        assertFalse(plain.getObject("header").hasKey("navAlign"), "nothing is added to a layout that doesn't set it");
+        assertFalse(plain.getObject("header").hasKey("navActive"));
+        assertFalse(plain.getObject("footer").hasKey("hidden"));
+
+        DataObject bad = good();
+        bad.getArray("pages").getObject(0).getArray("sections").getObject(0).put("width", "tiny");
+        bad.getObject("header").put("navAlign", "left").put("navActive", "blink");
+        bad.getObject("footer").put("hidden", "yes");
+        List<String> found = problems(bad);
+        assertTrue(has(found, "unknown width"));
+        assertTrue(has(found, "unknown position"));
+        assertTrue(has(found, "current page"));
+        assertTrue(has(found, "hide setting"));
+    }
+
+    @Test
     void sizes() {
         DataObject bigWidget = good();
         bigWidget.getArray("pages").getObject(0).getArray("sections").getObject(0).getArray("rows").getObject(0).getArray("cells").getObject(0)
