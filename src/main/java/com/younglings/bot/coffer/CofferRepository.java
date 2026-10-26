@@ -1,6 +1,7 @@
 package com.younglings.bot.coffer;
 
 import com.younglings.bot.commands.coffer.CofferDonation;
+import com.younglings.bot.commands.coffer.CofferGiveaway;
 import com.younglings.bot.commands.coffer.CofferHolder;
 import com.younglings.bot.commands.coffer.CofferTransfer;
 import io.github.freya022.botcommands.api.core.db.ConnectionSupplier;
@@ -407,6 +408,53 @@ public class CofferRepository {
         } catch (SQLException e) {
             log.error("Failed to insert coffer giveaway", e);
             throw new RuntimeException("Failed to insert coffer giveaway", e);
+        }
+    }
+
+    /** The newest giveaways first, for the dashboard's coffer page. */
+    public List<CofferGiveaway> getRecentGiveaways(long guildId, int limit) {
+        String sql = """
+                SELECT * FROM younglings.coffer_giveaway
+                WHERE guild_id = ?
+                ORDER BY given_at DESC
+                LIMIT ?
+                """;
+        try (Connection conn = connectionSupplier.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, guildId);
+            ps.setInt(2, limit);
+            ResultSet rs = ps.executeQuery();
+            List<CofferGiveaway> giveaways = new ArrayList<>();
+            while (rs.next()) {
+                giveaways.add(new CofferGiveaway(rs.getLong("giveaway_id"), rs.getLong("guild_id"), rs.getLong("given_by_discord_id"),
+                        rs.getLong("recipient_discord_id"), rs.getLong("amount"), rs.getString("description"), rs.getObject("given_at", OffsetDateTime.class)));
+            }
+            return giveaways;
+        } catch (SQLException e) {
+            log.error("Failed to get recent coffer giveaways", e);
+            throw new RuntimeException("Failed to get recent coffer giveaways", e);
+        }
+    }
+
+    /** The newest completed transfers first, for the dashboard's coffer page. */
+    public List<CofferTransfer> getRecentTransfers(long guildId, int limit) {
+        String sql = """
+                SELECT * FROM younglings.coffer_transfer
+                WHERE guild_id = ? AND status = 'COMPLETED'
+                ORDER BY created_at DESC
+                LIMIT ?
+                """;
+        try (Connection conn = connectionSupplier.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, guildId);
+            ps.setInt(2, limit);
+            ResultSet rs = ps.executeQuery();
+            List<CofferTransfer> transfers = new ArrayList<>();
+            while (rs.next()) transfers.add(mapTransfer(rs));
+            return transfers;
+        } catch (SQLException e) {
+            log.error("Failed to get recent coffer transfers", e);
+            throw new RuntimeException("Failed to get recent coffer transfers", e);
         }
     }
 }
