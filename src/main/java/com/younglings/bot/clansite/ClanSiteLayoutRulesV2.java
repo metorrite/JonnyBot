@@ -75,6 +75,10 @@ public final class ClanSiteLayoutRulesV2 {
     public static final Set<String> DENSITY = Set.of("compact", "normal", "airy");
     public static final Set<String> GLOW = Set.of("off", "soft");
     public static final Set<String> BUTTONS = Set.of("solid", "outline", "soft");
+    public static final Set<String> TITLES = Set.of("theme", "caps");
+    public static final Set<String> LOGO_TEXT_COLOURS = Set.of("text", "accent");
+    public static final Set<String> LOGO_TEXT_CASES = Set.of("normal", "upper");
+    public static final Set<String> LOGO_SHAPES = Set.of("rounded", "round");
     /** v1's reserved addresses plus the routes of the dynamic pages and the site admin (section 3.2). */
     static final Set<String> RESERVED_PATHS;
 
@@ -438,6 +442,9 @@ public final class ClanSiteLayoutRulesV2 {
         if (custom != null) cleanLogo.put("custom", custom);
         else if (text.equals("custom")) problems.add("Type the header's logo text, or show the clan name.");
         cleanLogo.put("height", whole(l, "height", 24, 96, 40, "The header's logo height must be 24 to 96.", problems));
+        optionalChoice(l, cleanLogo, "textColour", LOGO_TEXT_COLOURS, "The header's logo text has an unknown colour.", problems);
+        optionalChoice(l, cleanLogo, "textCase", LOGO_TEXT_CASES, "The header's logo text has an unknown letter case.", problems);
+        optionalChoice(l, cleanLogo, "shape", LOGO_SHAPES, "The header's logo has an unknown shape.", problems);
         out.put("logo", cleanLogo);
 
         DataArray nav = h.optArray("nav").orElse(DataArray.empty());
@@ -498,6 +505,10 @@ public final class ClanSiteLayoutRulesV2 {
             }
             a.put("tone", choice(announcement, "tone", TONES, "info", "The announcement has an unknown colour.", problems));
             out.put("announcement", a);
+        }
+        if (h.hasKey("accentLine") && !h.isNull("accentLine")) {
+            if (!h.isType("accentLine", DataType.BOOLEAN)) problems.add("The header's coloured line must be on or off.");
+            else out.put("accentLine", h.getBoolean("accentLine"));
         }
         return out;
     }
@@ -612,6 +623,7 @@ public final class ClanSiteLayoutRulesV2 {
         optionalChoice(style, out, "density", DENSITY, "The site has an unknown spacing.", problems);
         optionalChoice(style, out, "glow", GLOW, "The site has an unknown glow setting.", problems);
         optionalChoice(style, out, "buttons", BUTTONS, "The site has an unknown button look.", problems);
+        optionalChoice(style, out, "titles", TITLES, "The site has an unknown panel title look.", problems);
         return out;
     }
 
