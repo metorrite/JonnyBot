@@ -23,19 +23,33 @@ import java.util.function.Supplier;
  * </ul>
  * {@link #invalidate} drops matching answers and also marks any refresh already under way as out of date, so a write is never followed by an
  * old answer being stored. A loader that fails is never cached; the old answer, if there is one, keeps being served.
+ * <p>An answer older than its {@code maxStaleMs} plus {@link #GRACE_MS} is no longer kept: a sweep, run at most once every
+ * {@link #SWEEP_EVERY_MS} when a load finishes (no extra thread), drops it, so keys that carry a query string don't pile up forever.
  */
 final class StaleCache {
-    private record Entry(Object value, long loadedAt) {}
+    /** How long past {@code maxStaleMs} an answer is kept as the fallback for a failed load before a sweep may drop it. */
+    static final long GRACE_MS = 60 * 60_000L;
+    /** The sweep runs at most this often. */
+    static final long SWEEP_EVERY_MS = 60_000L;
+
+    private record Entry(Object value, long loadedAt, long maxStaleMs) {
+        boolean droppable(long now) {
+            if (maxStaleMs > Long.MAX_VALUE - GRACE_MS) return false; // "practically forever"
+            return now - loadedAt > maxStaleMs + GRACE_MS;
+        }
+    }
 
     private final ConcurrentHashMap<String, Entry> entries = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, CompletableFuture<Object>> inFlight = new ConcurrentHashMap<>();
     private final AtomicLong epoch = new AtomicLong();
     private final LongSupplier clock;
     private final Executor executor;
+    private final AtomicLong lastSweep;
 
     StaleCache(LongSupplier clock, Executor executor) {
         this.clock = clock;
         this.executor = executor;
+        this.lastSweep = new AtomicLong(clock.getAsLong());
     }
 
     @SuppressWarnings("unchecked")
@@ -45,13 +59,13 @@ final class StaleCache {
         if (entry != null && age < freshMs) return (T) entry.value();
         if (entry != null && age < maxStaleMs) {
             try {
-                refresh(key, freshMs, loader);
+                refresh(key, freshMs, maxStaleMs, loader);
             } catch (DiscordLookups.Slow busy) {
                 // no worker free right now; the old answer is still good enough
             }
             return (T) entry.value();
         }
-        CompletableFuture<Object> future = refresh(key, freshMs, loader);
+        CompletableFuture<Object> future = refresh(key, freshMs, maxStaleMs, loader);
         try {
             return (T) future.get(budgetMs, TimeUnit.MILLISECONDS);
         } catch (TimeoutException e) {
@@ -69,7 +83,7 @@ final class StaleCache {
     }
 
     /** Starts (or joins) the one load for {@code key}. */
-    private CompletableFuture<Object> refresh(String key, long freshMs, Supplier<?> loader) {
+    private CompletableFuture<Object> refresh(String key, long freshMs, long maxStaleMs, Supplier<?> loader) {
         CompletableFuture<Object> existing = inFlight.get(key);
         if (existing != null) return existing;
         CompletableFuture<Object> fresh = new CompletableFuture<>();
@@ -88,9 +102,11 @@ final class StaleCache {
             executor.execute(() -> {
                 try {
                     Object value = loader.get();
-                    if (value != null && startedIn == epoch.get()) entries.put(key, new Entry(value, clock.getAsLong()));
+                    long loadedAt = clock.getAsLong();
+                    if (value != null && startedIn == epoch.get()) entries.put(key, new Entry(value, loadedAt, maxStaleMs));
                     inFlight.remove(key, fresh);
                     fresh.complete(value);
+                    sweepIfDue(loadedAt);
                 } catch (Throwable t) {
                     inFlight.remove(key, fresh);
                     fresh.completeExceptionally(t);
@@ -101,6 +117,18 @@ final class StaleCache {
             fresh.completeExceptionally(new DiscordLookups.Slow());
         }
         return fresh;
+    }
+
+    private void sweepIfDue(long now) {
+        long last = lastSweep.get();
+        if (now - last < SWEEP_EVERY_MS || !lastSweep.compareAndSet(last, now)) return;
+        // Leaves keys with a load under way alone; removes an entry only if it is still the one tested.
+        entries.entrySet().removeIf(e -> !inFlight.containsKey(e.getKey()) && e.getValue().droppable(now));
+    }
+
+    /** For tests. */
+    int size() {
+        return entries.size();
     }
 
     /** The task given to {@link #within} didn't finish in time; it carries on in the background. */

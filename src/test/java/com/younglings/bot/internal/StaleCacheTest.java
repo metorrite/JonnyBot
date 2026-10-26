@@ -154,4 +154,32 @@ class StaleCacheTest {
             Thread.currentThread().interrupt();
         }
     }
+
+    @Test
+    void answersLongPastTheirMaxStaleAreDroppedAndYoungOnesKept() {
+        StaleCache direct = new StaleCache(now::get, Runnable::run);
+        for (int i = 0; i < 5_000; i++) {
+            final int n = i;
+            direct.get("1|members?q=" + n, FRESH, STALE, 500, () -> n);
+        }
+        assertEquals(5_000, direct.size());
+        now.addAndGet(STALE + StaleCache.GRACE_MS - 1);
+        direct.get("young", FRESH, STALE, 500, () -> "y"); // a sweep runs, but everything is still inside the window
+        assertEquals(5_001, direct.size());
+        now.addAndGet(StaleCache.SWEEP_EVERY_MS);
+        direct.get("young2", FRESH, STALE, 500, () -> "y");
+        assertEquals(2, direct.size(), "only the two recent answers are left");
+    }
+
+    @Test
+    void anOverStaleAnswerIsStillTheFallbackInsideTheGraceWindow() {
+        StaleCache direct = new StaleCache(now::get, Runnable::run);
+        direct.get("k", FRESH, STALE, 500, () -> "old");
+        now.addAndGet(STALE + StaleCache.GRACE_MS - 1);
+        direct.get("other", FRESH, STALE, 500, () -> "x"); // a sweep runs here
+        assertEquals("old", direct.get("k", FRESH, STALE, 500, () -> {
+            throw new IllegalStateException("down");
+        }));
+    }
+
 }
