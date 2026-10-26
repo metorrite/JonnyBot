@@ -188,7 +188,7 @@ public class TicketAdminApi {
                     }
                     if (!method.equals("GET")) {
                         AdminReads.forget(guild);
-                        String name = actor != null ? actor.getEffectiveName() : site.facts().overallAdmin() ? "RuneClans admin" : "Site admin";
+                        String name = actor != null ? actor.getEffectiveName() : site.facts().overallAdmin() ? "A RuneClan Admin" : "A Site Admin";
                         auditStore.audit(guild.getIdLong(), Long.toString(site.userId()), name, method, route, 200);
                     }
                     InternalApiServer.sendJson(exchange, 200, answer);
