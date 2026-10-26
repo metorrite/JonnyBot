@@ -27,7 +27,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * </ul>
  * Each item says whether the member's link was {@code confirmed} (T-552), for the admin-only marker.
  * Three views: {@code activity} (levels, quests, achievements, collection log, clues), {@code drops} (drops, collection log, clues) and
- * {@code runesync} (everything but online status). One hub call per server, cached a minute.
+ * {@code runesync} (everything but online status). One hub call per server, cached a minute. {@link #xpActivity} is the activity heatmap's
+ * clan totals (T-583).
  */
 @BService
 public class ClanSitePluginFeed {
@@ -82,6 +83,20 @@ public class ClanSitePluginFeed {
             }
         }
         return DataObject.empty().put("available", events != null).put("items", items);
+    }
+
+    /**
+     * The clan's activity heatmap (T-583): the hub's clan totals as they came ({@code enough}, {@code byDay}, {@code week}; never a member's
+     * own numbers), plus {@code available}. A server the hub doesn't know, or a hub without the XP ledger, is {@code enough: false}; a hub
+     * that can't be reached is {@code available: false}.
+     */
+    public DataObject xpActivity(long guildId) {
+        RuneClansHubClient.Read read = hub.enabled() ? hub.guildXpActivity(guildId) : null;
+        RuneClansHubClient.Answer a = read == null ? null : read.answer();
+        if (a != null && a.status() == 404) return DataObject.empty().put("available", true).put("enough", false);
+        if (a == null || !a.ok() || a.json() == null) return DataObject.empty().put("available", false).put("enough", false);
+        DataObject out = DataObject.fromJson(a.json().toJson());
+        return out.put("available", true).put("enough", out.getBoolean("enough", false));
     }
 
     private DataArray events(long guildId) {
