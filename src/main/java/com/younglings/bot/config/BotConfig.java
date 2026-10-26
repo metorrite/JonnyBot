@@ -478,11 +478,11 @@ public class BotConfig {
     }
 
     /**
-     * How many of the plugin's raw XP units make one point of experience. The game client reports skill experience in tenths, so the default is 10;
-     * {@code PLUGIN_XP_SCALE} changes it if that ever turns out to be different. Always at least 1.
+     * How many of the plugin's raw XP units make one point of experience. RuneSync sends whole XP (checked against the Hiscores on 2026-10-26),
+     * so the default is 1; {@code PLUGIN_XP_SCALE} changes it for a client that ever sends tenths. Always at least 1.
      */
     public long getPluginXpScale() {
-        return positiveNumber("PLUGIN_XP_SCALE", 10);
+        return positiveNumber("PLUGIN_XP_SCALE", 1);
     }
 
     private long positiveMinutes(String name, long fallback) {

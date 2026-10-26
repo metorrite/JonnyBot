@@ -138,7 +138,7 @@ Every environment variable the bot reads. Each one can also go in the git-ignore
 
 | Setting | What it does | When unset |
 |---|---|---|
-| `PLUGIN_XP_SCALE` | Raw plugin XP units per point of experience. | `10` (the client reports tenths). |
+| `PLUGIN_XP_SCALE` | Raw plugin XP units per point of experience. | `1` (RuneSync sends whole XP; checked against the Hiscores on 2026-10-26). |
 | `RUNESYNC_MIN_CLIENT_VERSION` | RuneSync versions below this are told to update. | `0.0.0`: none are refused. |
 | `LINK_DATABASE_URL`, `LINK_ENC_KEY`, `LINK_ENC_KEY_OLD`, `LINK_LOOKUP_KEY`, `LINK_ALIAS_KEY`, `LINK_SIGNING_KEY`, `LINK_PUBLIC_BASE_URL` | The RSN link service (section 3 above, and LINK-SYSTEM.md section 6.1). | The link service is off. |
 | `RSNLINK_DM_SECRET` | Lets runeclans-hub have the bot DM RS Link codes for it (T-166): the hub's `LINK_DM_BOT_SECRET`, sent as `X-RsLink-Dm-Secret` to `/internal/rsnlink-dm/resolve` and `/send` on the internal API port. It opens those two routes only, never the rest of the internal API. At least 32 characters. The DM's buttons go back to the hub with the hub client (`RUNECLANS_HUB_*`). | The hub can't send DM codes (its DM routes answer 503). |

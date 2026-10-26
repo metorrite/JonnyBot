@@ -15,7 +15,7 @@ import java.util.function.LongSupplier;
 /**
  * What the server adds to an event as it is stored, so nothing that matters is taken on the client's word:
  * <ul>
- *     <li>a skill {@code XP} event keeps the client's raw number as {@code xp} and gains {@code xpScaled} (raw divided by the scale, 10 by default,
+ *     <li>a skill {@code XP} event keeps the client's raw number as {@code xp} and gains {@code xpScaled} (raw divided by the scale, 1 by default since RuneSync sends whole XP,
  *     see {@link BotConfig#getPluginXpScale}) and the {@code xpScale} used;</li>
  *     <li>a {@code DROP} loses any {@code value} the client sent and gains {@code unitPriceGp} and {@code valueGp} (quantity times price) from the
  *     Grand Exchange price when it is known. When the price is not known they are simply absent. Anything that awards points for a drop must read
