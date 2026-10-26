@@ -473,6 +473,37 @@ class ClanSiteLayoutRulesV2Test {
     }
 
     @Test
+    void headerLogoLookLineAndPanelTitlesAreKept() {
+        // T-508 (runeclans Younglings gaps): stored only when the website sets them, and kept exactly as sent
+        DataObject look = good();
+        look.getObject("header").getObject("logo").put("textColour", "accent").put("textCase", "upper").put("shape", "round");
+        look.getObject("header").put("accentLine", false);
+        look.put("style", DataObject.empty().put("titles", "caps"));
+        assertTrue(problems(look).isEmpty(), problems(look).toString());
+        DataObject clean = DataObject.fromJson(ClanSiteLayoutRulesV2.clean(look, ClanSiteLayoutRulesV2.Limits.PREMIUM, new ArrayList<>()));
+        DataObject logo = clean.getObject("header").getObject("logo");
+        assertEquals("accent", logo.getString("textColour"));
+        assertEquals("upper", logo.getString("textCase"));
+        assertEquals("round", logo.getString("shape"));
+        assertFalse(clean.getObject("header").getBoolean("accentLine"));
+        assertEquals("caps", clean.getObject("style").getString("titles"));
+
+        DataObject plain = DataObject.fromJson(ClanSiteLayoutRulesV2.clean(good(), ClanSiteLayoutRulesV2.Limits.PREMIUM, new ArrayList<>()));
+        assertFalse(plain.getObject("header").hasKey("accentLine"), "nothing is added to a layout that doesn't set it");
+        assertFalse(plain.getObject("header").getObject("logo").hasKey("textColour"));
+
+        DataObject bad = good();
+        bad.getObject("header").getObject("logo").put("textColour", "pink").put("shape", "star");
+        bad.getObject("header").put("accentLine", "yes");
+        bad.put("style", DataObject.empty().put("titles", "huge"));
+        List<String> found = problems(bad);
+        assertTrue(has(found, "unknown colour"));
+        assertTrue(has(found, "unknown shape"));
+        assertTrue(has(found, "coloured line"));
+        assertTrue(has(found, "panel title look"));
+    }
+
+    @Test
     void sizes() {
         DataObject bigWidget = good();
         bigWidget.getArray("pages").getObject(0).getArray("sections").getObject(0).getArray("rows").getObject(0).getArray("cells").getObject(0)

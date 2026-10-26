@@ -23,14 +23,18 @@
     "radius": "md",
     "density": "normal",
     "glow": "off",
-    "buttons": "solid"
+    "buttons": "solid",
+    "titles": "caps"
   },
   "header": {
     "layout": "logo-left",
     "logo": {
       "show": true,
       "text": "name",
-      "height": 32
+      "height": 32,
+      "textColour": "accent",
+      "textCase": "upper",
+      "shape": "round"
     },
     "nav": [
       {
@@ -220,7 +224,8 @@
     "sticky": false,
     "transparent": "never",
     "height": "normal",
-    "mobile": "drawer"
+    "mobile": "drawer",
+    "accentLine": false
   },
   "footer": {
     "columns": [],
@@ -283,7 +288,9 @@
                       "settings": {
                         "showBanner": true,
                         "showTagline": true,
-                        "align": "center"
+                        "align": "center",
+                        "eyebrow": "Welcome to",
+                        "logoShape": "round"
                       },
                       "unmet": "hide"
                     }
@@ -521,6 +528,7 @@
                       "v": 1,
                       "settings": {
                         "title": "From Discord",
+                        "style": "list",
                         "limit": 3,
                         "showImages": false
                       },
@@ -529,11 +537,10 @@
                     {
                       "id": "hmw011",
                       "type": "channel-feed",
-                      "v": 1,
+                      "v": 2,
                       "settings": {
                         "title": "News",
                         "channel": "",
-                        "limit": 5,
                         "showAuthors": true,
                         "showImages": true
                       },
@@ -561,12 +568,9 @@
                     {
                       "id": "hmw013",
                       "type": "discord-online",
-                      "v": 1,
+                      "v": 2,
                       "settings": {
-                        "title": "Online on Discord",
-                        "show": "names",
-                        "groups": true,
-                        "limit": 24
+                        "title": "Online on Discord"
                       },
                       "unmet": "hide"
                     }
@@ -640,7 +644,9 @@
                       "settings": {
                         "showBanner": false,
                         "showTagline": false,
-                        "align": "center"
+                        "align": "center",
+                        "eyebrow": "",
+                        "logoShape": "round"
                       },
                       "unmet": "hide"
                     }
@@ -957,7 +963,9 @@
                       "settings": {
                         "showBanner": false,
                         "showTagline": false,
-                        "align": "center"
+                        "align": "center",
+                        "eyebrow": "",
+                        "logoShape": "round"
                       },
                       "unmet": "hide"
                     }
@@ -1100,8 +1108,49 @@
                         "comparePage": {
                           "kind": "page",
                           "pageId": "ptplcompare"
+                        },
+                        "showRecap": true,
+                        "recapPage": {
+                          "kind": "page",
+                          "pageId": "ptplrecaps"
                         }
                       },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "ylg511r1",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ylg511c1",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ylg511w1",
+                      "type": "member-gains",
+                      "settings": {
+                        "title": ""
+                      },
+                      "v": 1,
                       "unmet": "hide"
                     }
                   ]
@@ -1143,7 +1192,7 @@
                 {
                   "id": "ylgc0034",
                   "span": {
-                    "lg": 12
+                    "lg": 8
                   },
                   "padding": {
                     "lg": "none"
@@ -1160,6 +1209,31 @@
                         "days": "90",
                         "gains": "week"
                       },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "ylg511c2",
+                  "span": {
+                    "lg": 4
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ylg511w2",
+                      "type": "member-xp-split",
+                      "settings": {
+                        "title": "Where the XP went",
+                        "period": "week",
+                        "tabs": true,
+                        "slices": 7
+                      },
+                      "v": 1,
                       "unmet": "hide"
                     }
                   ]
@@ -1236,7 +1310,8 @@
                       "v": 1,
                       "settings": {
                         "title": "Clan points",
-                        "limit": 8
+                        "limit": 8,
+                        "showChart": true
                       },
                       "unmet": "hide"
                     }
@@ -1428,11 +1503,13 @@
                   "widgets": [
                     {
                       "id": "ylgw0117",
-                      "type": "activity-feed",
+                      "type": "adventure-log",
                       "v": 1,
                       "settings": {
                         "title": "",
-                        "limit": 20
+                        "limit": 80,
+                        "tabs": true,
+                        "filter": "all"
                       },
                       "unmet": "hide"
                     }
@@ -1732,6 +1809,44 @@
                   ]
                 }
               ]
+            },
+            {
+              "id": "ylg515r1",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ylg515c1",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "type": "badge-catalogue",
+                      "settings": {
+                        "title": "Badges you can earn",
+                        "note": "Shown on member pages",
+                        "columns": "2"
+                      },
+                      "id": "ylg515w1",
+                      "v": 1,
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
             }
           ]
         }
@@ -1896,7 +2011,9 @@
                         "title": "Recent joins, leaves and renames",
                         "showTimeline": true,
                         "showPromotions": true,
-                        "limit": 25
+                        "limit": 25,
+                        "showLadder": true,
+                        "layout": "panels"
                       },
                       "unmet": "hide"
                     }
@@ -2126,7 +2243,9 @@
                       "settings": {
                         "showBanner": false,
                         "showTagline": false,
-                        "align": "center"
+                        "align": "center",
+                        "eyebrow": "",
+                        "logoShape": "round"
                       },
                       "unmet": "hide"
                     }
@@ -2651,7 +2770,9 @@
                       "settings": {
                         "showBanner": false,
                         "showTagline": false,
-                        "align": "center"
+                        "align": "center",
+                        "eyebrow": "",
+                        "logoShape": "round"
                       },
                       "unmet": "hide"
                     }
@@ -2852,6 +2973,44 @@
                         "period": "last-week",
                         "visitorPeriods": true,
                         "showTop": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "ylg517r1",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ylg517c1",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ylg517w1",
+                      "type": "recap-picker",
+                      "v": 1,
+                      "settings": {
+                        "title": "A member's recap",
+                        "period": "month",
+                        "skills": 3
                       },
                       "unmet": "hide"
                     }
@@ -3185,7 +3344,7 @@
                       "settings": {
                         "title": "",
                         "weeks": 12,
-                        "limit": 50
+                        "limit": 150
                       },
                       "unmet": "hide"
                     }
@@ -3336,6 +3495,45 @@
               ]
             },
             {
+              "id": "ylg513r1",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "ylg513c1",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "ylg513w1",
+                      "type": "boss-grid",
+                      "v": 1,
+                      "settings": {
+                        "title": "Bosses",
+                        "period": "all",
+                        "showQuiet": true,
+                        "limit": 60
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
               "id": "ylgr0068",
               "gap": {
                 "lg": "md"
@@ -3472,7 +3670,11 @@
                       "v": 1,
                       "settings": {
                         "period": "all",
-                        "limit": 25
+                        "limit": 25,
+                        "header": true,
+                        "players": "table",
+                        "days": "45",
+                        "collection": true
                       },
                       "unmet": "hide"
                     }
@@ -3606,7 +3808,8 @@
                         "title": "Collection",
                         "period": "all",
                         "showGrid": true,
-                        "limit": 25
+                        "limit": 25,
+                        "bossFilter": true
                       },
                       "unmet": "hide"
                     }
@@ -3881,7 +4084,9 @@
                       "settings": {
                         "showBanner": false,
                         "showTagline": false,
-                        "align": "center"
+                        "align": "center",
+                        "eyebrow": "",
+                        "logoShape": "round"
                       },
                       "unmet": "hide"
                     }
@@ -4135,6 +4340,7 @@
                       "v": 1,
                       "settings": {
                         "title": "Coming up",
+                        "style": "featured",
                         "limit": 8,
                         "showImages": true
                       },
@@ -4207,7 +4413,9 @@
                       "settings": {
                         "showBanner": false,
                         "showTagline": false,
-                        "align": "center"
+                        "align": "center",
+                        "eyebrow": "",
+                        "logoShape": "round"
                       },
                       "unmet": "hide"
                     }
