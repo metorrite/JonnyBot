@@ -68,7 +68,8 @@ public final class ClanSiteLayoutRulesV2 {
     public static final Set<String> SLOT_KINDS = Set.of("search", "bell", "profile", "theme", "discord", "citadel-timer", "online-count", "button");
     public static final Set<String> TRANSPARENT = Set.of("never", "home", "always");
     public static final Set<String> HEADER_HEIGHTS = Set.of("compact", "normal", "tall");
-    public static final Set<String> MOBILE_NAV = Set.of("drawer", "dropdown");
+    // "row": every link in a row under the bar that scrolls sideways (runeclans T-518)
+    public static final Set<String> MOBILE_NAV = Set.of("drawer", "dropdown", "row");
     public static final Set<String> NAV_ALIGN = Set.of("end", "center");
     public static final Set<String> NAV_ACTIVE = Set.of("pill", "text");
     public static final Set<String> TONES = Set.of("info", "accent");
