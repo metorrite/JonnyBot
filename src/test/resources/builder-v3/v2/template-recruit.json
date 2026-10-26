@@ -162,7 +162,9 @@
                         "showTagline": true,
                         "align": "center",
                         "eyebrow": "",
-                        "logoShape": "rounded"
+                        "logoShape": "rounded",
+                        "look": "standard",
+                        "size": "large"
                       },
                       "unmet": "hide"
                     }
@@ -217,6 +219,7 @@
                         ],
                         "align": "center",
                         "size": "large",
+                        "look": "buttons",
                         "fullWidth": false
                       },
                       "unmet": "hide"
@@ -323,7 +326,8 @@
                             "link": null
                           }
                         ],
-                        "columns": "2"
+                        "columns": "2",
+                        "numbers": "accent"
                       },
                       "unmet": "hide"
                     }

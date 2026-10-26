@@ -252,6 +252,7 @@
                         ],
                         "align": "center",
                         "size": "medium",
+                        "look": "buttons",
                         "fullWidth": false
                       },
                       "unmet": "hide"

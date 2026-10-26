@@ -290,7 +290,9 @@
                         "showTagline": true,
                         "align": "center",
                         "eyebrow": "Welcome to",
-                        "logoShape": "round"
+                        "logoShape": "round",
+                        "look": "standard",
+                        "size": "large"
                       },
                       "unmet": "hide"
                     }
@@ -370,6 +372,7 @@
                         ],
                         "align": "center",
                         "size": "medium",
+                        "look": "buttons",
                         "fullWidth": false
                       },
                       "unmet": "hide"
@@ -437,7 +440,9 @@
                         "showDay": true,
                         "showWeek": true,
                         "showMonth": true,
-                        "defaultTab": "week"
+                        "defaultTab": "week",
+                        "bars": "under",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     },
@@ -518,7 +523,8 @@
                             "link": null
                           }
                         ],
-                        "columns": "4"
+                        "columns": "4",
+                        "numbers": "accent"
                       },
                       "unmet": "hide"
                     },
@@ -646,7 +652,9 @@
                         "showTagline": false,
                         "align": "center",
                         "eyebrow": "",
-                        "logoShape": "round"
+                        "logoShape": "round",
+                        "look": "standard",
+                        "size": "large"
                       },
                       "unmet": "hide"
                     }
@@ -726,6 +734,7 @@
                         ],
                         "align": "center",
                         "size": "medium",
+                        "look": "buttons",
                         "fullWidth": false
                       },
                       "unmet": "hide"
@@ -890,11 +899,11 @@
                         "showLevel": true,
                         "showXp": true,
                         "showJoined": true,
-                        "rankFilter": true,
-                        "linkPages": true,
                         "showPoints": true,
                         "search": true,
-                        "sortControls": true
+                        "rankFilter": true,
+                        "sortControls": true,
+                        "linkPages": true
                       },
                       "unmet": "hide"
                     }
@@ -967,7 +976,9 @@
                         "showTagline": false,
                         "align": "center",
                         "eyebrow": "",
-                        "logoShape": "round"
+                        "logoShape": "round",
+                        "look": "standard",
+                        "size": "large"
                       },
                       "unmet": "hide"
                     }
@@ -1047,6 +1058,7 @@
                         ],
                         "align": "center",
                         "size": "medium",
+                        "look": "buttons",
                         "fullWidth": false
                       },
                       "unmet": "hide"
@@ -1781,7 +1793,9 @@
                       "settings": {
                         "title": "Most total XP",
                         "metric": "xp",
-                        "limit": 5
+                        "limit": 5,
+                        "bars": "under",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -2248,7 +2262,9 @@
                         "showTagline": false,
                         "align": "center",
                         "eyebrow": "",
-                        "logoShape": "round"
+                        "logoShape": "round",
+                        "look": "standard",
+                        "size": "large"
                       },
                       "unmet": "hide"
                     }
@@ -2328,6 +2344,7 @@
                         ],
                         "align": "center",
                         "size": "medium",
+                        "look": "buttons",
                         "fullWidth": false
                       },
                       "unmet": "hide"
@@ -2467,7 +2484,8 @@
                             "link": null
                           }
                         ],
-                        "columns": "4"
+                        "columns": "4",
+                        "numbers": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -2508,7 +2526,9 @@
                         "showDay": true,
                         "showWeek": true,
                         "showMonth": true,
-                        "defaultTab": "week"
+                        "defaultTab": "week",
+                        "bars": "under",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -2574,7 +2594,9 @@
                         "metric": "citadel",
                         "period": "all",
                         "visitorPeriods": false,
-                        "limit": 10
+                        "limit": 10,
+                        "bars": "under",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -2677,7 +2699,9 @@
                       "settings": {
                         "title": "Highest total XP",
                         "metric": "xp",
-                        "limit": 10
+                        "limit": 10,
+                        "bars": "under",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -2775,7 +2799,9 @@
                         "showTagline": false,
                         "align": "center",
                         "eyebrow": "",
-                        "logoShape": "round"
+                        "logoShape": "round",
+                        "look": "standard",
+                        "size": "large"
                       },
                       "unmet": "hide"
                     }
@@ -2855,6 +2881,7 @@
                         ],
                         "align": "center",
                         "size": "medium",
+                        "look": "buttons",
                         "fullWidth": false
                       },
                       "unmet": "hide"
@@ -3148,7 +3175,9 @@
                         "metric": "xp",
                         "period": "month",
                         "visitorPeriods": true,
-                        "limit": 15
+                        "limit": 15,
+                        "bars": "under",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -3175,7 +3204,9 @@
                         "metric": "citadel",
                         "period": "month",
                         "visitorPeriods": true,
-                        "limit": 15
+                        "limit": 15,
+                        "bars": "under",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -3215,7 +3246,9 @@
                         "metric": "joins",
                         "period": "month",
                         "visitorPeriods": true,
-                        "limit": 15
+                        "limit": 15,
+                        "bars": "under",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -3489,6 +3522,7 @@
                         ],
                         "align": "right",
                         "size": "medium",
+                        "look": "buttons",
                         "fullWidth": false
                       },
                       "unmet": "hide"
@@ -4016,7 +4050,9 @@
                         "title": "",
                         "showDonors": true,
                         "showGiveaways": true,
-                        "limit": 10
+                        "limit": 10,
+                        "bars": "under",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -4089,7 +4125,9 @@
                         "showTagline": false,
                         "align": "center",
                         "eyebrow": "",
-                        "logoShape": "round"
+                        "logoShape": "round",
+                        "look": "standard",
+                        "size": "large"
                       },
                       "unmet": "hide"
                     }
@@ -4169,6 +4207,7 @@
                         ],
                         "align": "center",
                         "size": "medium",
+                        "look": "buttons",
                         "fullWidth": false
                       },
                       "unmet": "hide"
@@ -4306,6 +4345,7 @@
                         ],
                         "align": "right",
                         "size": "medium",
+                        "look": "buttons",
                         "fullWidth": false
                       },
                       "unmet": "hide"
@@ -4418,7 +4458,9 @@
                         "showTagline": false,
                         "align": "center",
                         "eyebrow": "",
-                        "logoShape": "round"
+                        "logoShape": "round",
+                        "look": "standard",
+                        "size": "large"
                       },
                       "unmet": "hide"
                     }
@@ -4498,6 +4540,7 @@
                         ],
                         "align": "center",
                         "size": "medium",
+                        "look": "buttons",
                         "fullWidth": false
                       },
                       "unmet": "hide"
