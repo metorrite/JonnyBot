@@ -646,6 +646,9 @@ public class SiteApi {
                 .put("name", next.rankName())
                 .put("threshold", next.pointThreshold())
                 .put("pointsNeeded", Math.max(0, next.pointThreshold() - row.points())));
+        // The highest rank order, so the website can colour the member's rank by how high it is (rsyounglings' rank badge).
+        json.put("maxRankOrder", ranks.stream().mapToInt(RankConfigRow::rankOrder).max().orElse(0));
+        json.put("standing", standing(guildId, row, now));
 
         // Skills now.
         DataArray skills = DataArray.empty();
@@ -707,6 +710,28 @@ public class SiteApi {
         json.put("activities", activities);
 
         return json;
+    }
+
+    /**
+     * Where the member stands among the clan's leaders (rsyounglings' Rising star and Points leader badges): their place for XP gained in the
+     * last 7 days and for clan points, 1 being first, as the overview's top-10 lists count it (members hidden from boards left out); null
+     * outside the top 10 or when they are hidden themselves.
+     */
+    private DataObject standing(long guildId, MemberRow row, OffsetDateTime now) {
+        Set<String> hiddenBoards = profiles.hiddenRsns(guildId, true);
+        if (!shown(hiddenBoards, row.rsn())) return DataObject.empty().put("weekGain", null).put("points", null);
+        List<String> gainers = visible(stats.xpGains(guildId, now.minusDays(7)), hiddenBoards).stream().filter(g -> g.xp() > 0)
+                .sorted(Comparator.comparingLong(Gain::xp).reversed()).limit(10).map(Gain::rsn).toList();
+        List<String> pointsLeaders = stats.members(guildId).stream().filter(m -> shown(hiddenBoards, m.rsn()) && m.points() > 0)
+                .sorted(Comparator.comparingLong(MemberRow::points).reversed()).limit(10).map(MemberRow::rsn).toList();
+        return DataObject.empty().put("weekGain", place(gainers, row.rsn())).put("points", place(pointsLeaders, row.rsn()));
+    }
+
+    private static Integer place(List<String> rsns, String rsn) {
+        for (int i = 0; i < rsns.size(); i++) {
+            if (rsns.get(i).equalsIgnoreCase(rsn)) return i + 1;
+        }
+        return null;
     }
 
     // ---------- activity feed, records, history, polls, PvM and drops ----------
