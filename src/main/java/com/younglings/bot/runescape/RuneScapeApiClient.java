@@ -17,6 +17,8 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BooleanSupplier;
 
 /**
  * Thin client for RuneScape 3's public web endpoints — no API key, no OSRS. Both endpoints are
@@ -64,8 +66,37 @@ public class RuneScapeApiClient {
     private static final int MAX_ATTEMPTS = 2;
     private static final Duration RETRY_DELAY = Duration.ofMillis(500);
 
-    /** Same fetch as {@link #fetchProfile}, but keeps the reason a failure happened instead of collapsing it to empty. */
+    private final BooleanSupplier runeMetricsOn = RuneMetricsSwitch.fromEnv();
+    private final RuneMetricsBreaker breaker = new RuneMetricsBreaker();
+    private final AtomicBoolean loggedSwitchedOff = new AtomicBoolean();
+
+    /**
+     * Same fetch as {@link #fetchProfile}, but keeps the reason a failure happened instead of collapsing it to empty. Answers
+     * {@link ProfileResult.Unavailable} without a request when RuneMetrics is switched off ({@link RuneMetricsSwitch}) or has just failed
+     * many times in a row ({@link RuneMetricsBreaker}).
+     */
     public ProfileResult fetchProfileResult(String rsn) {
+        if (!runeMetricsOn.getAsBoolean()) {
+            if (loggedSwitchedOff.compareAndSet(false, true)) {
+                log.warn("RuneMetrics is switched off (RUNEMETRICS, or its {} retirement date has passed): profile polls now answer 'unavailable' without asking.",
+                        RuneMetricsSwitch.SUNSET);
+            }
+            return new ProfileResult.Unavailable();
+        }
+        if (!breaker.allow(System.currentTimeMillis())) return new ProfileResult.Unavailable();
+        ProfileResult result = fetchProfileResultUncounted(rsn);
+        if (result instanceof ProfileResult.Unavailable) {
+            if (breaker.recordFailure(System.currentTimeMillis())) {
+                log.warn("RuneMetrics failed {} times in a row; pausing profile polls for {} minutes, then trying one.",
+                        RuneMetricsBreaker.FAILURES_TO_OPEN, RuneMetricsBreaker.PAUSE_MS / 60_000);
+            }
+        } else if (breaker.recordAnswer()) {
+            log.info("RuneMetrics is answering again; profile polls resume.");
+        }
+        return result;
+    }
+
+    private ProfileResult fetchProfileResultUncounted(String rsn) {
         for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
             try {
                 return attemptFetchProfile(rsn);
