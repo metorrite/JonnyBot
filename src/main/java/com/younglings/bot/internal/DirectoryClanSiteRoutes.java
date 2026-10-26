@@ -23,6 +23,8 @@ import java.util.Optional;
  *   than {@link com.younglings.bot.clanprofile.ProfileRules#SLUG_GRACE} ago, so its old subdomain forwards (T-290)</li>
  *   <li>{@code GET sites/{slug}/data/plugin/{activity|drops|runesync}?limit=}: the clan's recent plugin events from the RuneClans hub, for the
  *   builder's activity widgets ({@link ClanSitePluginFeed}, T-303)</li>
+ *   <li>{@code GET sites/{slug}/data/plugin/xp-activity}: the clan's XP per day and busy hours of the week from the RuneClans hub, as clan
+ *   totals only, for the activity heatmap widget (T-583)</li>
  *   <li>{@code GET sites/{slug}/data/{route}}: that site's clan data, the same answers the clan site's own routes give the home server, for
  *   every route in {@link SiteApi#TENANT_ROUTES} (members, overview, leaderboard, recap, feed, records, citadel-grid, history, coffer, polls,
  *   signups, events, pvm, drops, bosses, boss, item, drop-log, member/skill, notifications; T-364) with the same query parameters; a recap is
@@ -63,7 +65,8 @@ public class DirectoryClanSiteRoutes implements DirectoryRouteModule {
         if (parts.length == 5 && parts[2].equals("data") && parts[3].equals("plugin")) {
             if (!request.requireGet()) return true;
             Optional<ClanSite> site = request.viewable(parts[1]).flatMap(p -> sites.visible(p.guildId()));
-            DataObject feed = site.isEmpty() ? null : pluginFeed.feed(site.get().guildId(), parts[4], limit(request));
+            DataObject feed = site.isEmpty() ? null : parts[4].equals("xp-activity") ? pluginFeed.xpActivity(site.get().guildId())
+                    : pluginFeed.feed(site.get().guildId(), parts[4], limit(request));
             if (feed == null) request.sendError(404, "Not found");
             else request.send(200, feed);
             return true;
