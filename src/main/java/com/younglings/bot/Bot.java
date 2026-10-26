@@ -194,6 +194,9 @@ public class Bot extends JDAService {
                 // low-frequency, admin-triggered calls, so trading an occasional ~100-300ms REST
                 // round trip for a much smaller resident cache is a clear win, not a regression.
                 .setMemberCachePolicy(MemberCachePolicy.ONLINE)
+                // members who come online after login arrive as bare presence updates JDA can't cache: PresenceMemberLoader reads
+                // those raw updates and loads the missing members, so the clan sites' online lists name everyone online
+                .setRawEventsEnabled(true)
                 .addEventListeners(signupInteractionListener, pollInteractionListener, cofferInteractionListener,
                         teamformingInteractionListener, embedInteractionListener, rsInteractionListener,
                         rsAdminInteractionListener, pruneInteractionListener, clanPointsInteractionListener, rsChartInteractionListener, rsnRenameInteractionListener,
