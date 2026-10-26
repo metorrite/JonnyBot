@@ -21,7 +21,8 @@ import java.util.Set;
 
 /**
  * The privacy rules of Discord on a clan website (T-365, design section 11), kept apart from HTTP so they can be tested on their own:
- * which channels may feed a public page, and what the online widget may show in each mode. Nothing here returns a Discord user id.
+ * which channels may feed a public page, and what the online widget may show in each mode. Nothing here returns a Discord user id
+ * (avatar addresses aside, which Discord serves publicly).
  */
 public final class SiteDiscordRules {
     /** At most this many names in one online answer; the rest are counted. */
@@ -34,14 +35,19 @@ public final class SiteDiscordRules {
     /** Why a channel can't feed a public website, or null when it can. A refusal the admin can't fix by giving the bot access is {@code forbidden}. */
     public record Refusal(boolean forbidden, String reason) {}
 
+    /**
+     * Whether {@code @everyone} can't read the channel's history. A private channel may still feed the site, but only once a site admin
+     * chose it knowing that (the Connections page asks), as on the old Younglings site where the admin picked any channel the bot reads.
+     */
+    public static boolean isPrivate(Guild guild, GuildChannel channel) {
+        return channel != null && !guild.getPublicRole().hasPermission(channel, Permission.VIEW_CHANNEL, Permission.MESSAGE_HISTORY);
+    }
+
     public static Refusal channelRefusal(Guild guild, GuildChannel channel) {
         if (channel == null) return new Refusal(false, "That channel doesn't exist in this server.");
         if (channel instanceof ThreadChannel) return new Refusal(true, "Threads can't be shown on the website. Pick the channel itself.");
         if (channel instanceof IAgeRestrictedChannel aged && aged.isNSFW()) {
             return new Refusal(true, "#" + channel.getName() + " is age-restricted, so it can't be shown on the website.");
-        }
-        if (!guild.getPublicRole().hasPermission(channel, Permission.VIEW_CHANNEL, Permission.MESSAGE_HISTORY)) {
-            return new Refusal(true, "#" + channel.getName() + " is private (@everyone can't read its history), so it can't be shown on the website.");
         }
         if (!guild.getSelfMember().hasPermission(channel, Permission.VIEW_CHANNEL, Permission.MESSAGE_HISTORY)) {
             return new Refusal(false, "The bot can't read #" + channel.getName() + ". Give it View Channel and Read Message History there.");
@@ -118,15 +124,15 @@ public final class SiteDiscordRules {
     }
 
     /**
-     * One post of the site's channel feed as the website gets it: a copy (the home site's news shares these objects). The author's avatar
-     * (its address holds their Discord id) only when the site already shows avatars in its online list ({@code names+avatars}), the same
-     * choice the admin made there; otherwise none.
+     * One post of the site's channel feed as the website gets it: a copy (the home site's news shares these objects), with the poster's
+     * avatar sized for a card. A post is the poster's public message in a channel the admin chose to show, and Discord shows its picture
+     * beside it, so the site does too (as rsyounglings always did).
      */
-    public static DataObject feedPost(DataObject post, OnlineMode mode) {
+    public static DataObject feedPost(DataObject post) {
         DataObject out = DataObject.fromJson(post.toJson());
         String avatar = out.isNull("avatarUrl") ? null : out.getString("avatarUrl", null);
         out.remove("avatarUrl");
-        if (mode == OnlineMode.NAMES_AVATARS && avatar != null && !avatar.isBlank()) out.put("avatarUrl", avatar + "?size=64");
+        if (avatar != null && !avatar.isBlank()) out.put("avatarUrl", avatar + (avatar.contains("?") ? "&" : "?") + "size=64");
         return out;
     }
 }

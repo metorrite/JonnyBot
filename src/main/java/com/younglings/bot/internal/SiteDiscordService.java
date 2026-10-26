@@ -32,9 +32,9 @@ import java.util.Set;
  * Discord on a clan website (builder v3, T-365): the "who's online" and channel feed answers for the public site, read from the site's
  * connections ({@link SiteConnectionStore}, N7), and the site admin's Connections page that edits them. RuneClan Bot is the provider here:
  * the website asks, the bot answers with what the site's settings allow. Both are off until an admin opts in: the online list by picking a
- * mode, the feed channel by channel; a disconnected server shows nothing at all. A channel that
- * {@code @everyone} can't read, an age-restricted channel and a thread are refused when chosen and skipped again on every read, so a
- * channel made private later drops off the site by itself. Answers are cached per server in {@link SiteCache} (online 10 s, feed 15 s; the
+ * mode, the feed channel by channel; a disconnected server shows nothing at all. An age-restricted channel and a thread are refused
+ * when chosen and skipped again on every read. A channel {@code @everyone} can't read is shown only when the admin chose it saying so
+ * ({@code allowPrivate}); the Connections page marks it private. Answers are cached per server in {@link SiteCache} (online 10 s, feed 15 s; the
  * messages themselves 60 s in {@link SiteNewsService}), so a deleted message is gone within a minute.
  */
 @BService
@@ -101,8 +101,8 @@ public class SiteDiscordService {
 
     /**
      * The newest posts from the site's public channels, or from one of them ({@code channelId}), newest first. Null when that channel isn't
-     * one the admin opted in (or no longer passes the rules). Posts carry the author's name, and their avatar only when the site shows
-     * avatars in its online list too ({@link SiteDiscordRules#feedPost}); the site decides whether to show names. How many is the site's feed setting (N7), never what the asker sends.
+     * one the admin opted in (or no longer passes the rules). Posts carry the author's server display name and avatar
+     * ({@link SiteDiscordRules#feedPost}); the site decides whether to show them. How many is the site's feed setting (N7), never what the asker sends.
      */
     public DataObject feed(Guild guild, String channelId) {
         Connection connection = publicConnection(guild.getIdLong());
@@ -122,12 +122,11 @@ public class SiteDiscordService {
             return DataObject.empty().put("unavailable", true).put("limit", capped).put("channels", channels).put("posts", DataArray.empty());
         }
         List<SiteNewsService.NewsChannel> finalChosen = chosen;
-        OnlineMode mode = connection.onlineMode();
-        String key = CACHE_PREFIX + "feed?" + (channelId == null ? "" : channelId.strip()) + "&" + capped + "&" + mode.key() + "#g" + guild.getIdLong();
+        String key = CACHE_PREFIX + "feed?" + (channelId == null ? "" : channelId.strip()) + "&" + capped + "#g" + guild.getIdLong();
         DataArray posts = cache.get(key, FEED_TTL, () -> {
             DataArray out = DataArray.empty();
             DataArray latest = news.latest(guild, finalChosen, capped);
-            for (int i = 0; i < latest.length(); i++) out.add(SiteDiscordRules.feedPost(latest.getObject(i), mode));
+            for (int i = 0; i < latest.length(); i++) out.add(SiteDiscordRules.feedPost(latest.getObject(i)));
             return out;
         });
         return DataObject.empty().put("unavailable", false).put("limit", capped).put("channels", channels).put("posts", posts);
@@ -228,13 +227,15 @@ public class SiteDiscordService {
     private static DataObject channelJson(Guild guild, GuildChannel channel, long id, String label) {
         Refusal refusal = SiteDiscordRules.channelRefusal(guild, channel);
         return DataObject.empty().put("channelId", Long.toString(id)).put("name", channel == null ? null : channel.getName()).put("label", label)
-                .put("eligible", refusal == null).put("reason", refusal == null ? null : refusal.reason());
+                .put("eligible", refusal == null).put("reason", refusal == null ? null : refusal.reason())
+                .put("private", SiteDiscordRules.isPrivate(guild, channel));
     }
 
     /**
      * {@code PUT clan-site/connections}: saves what the body names ({@code online: {mode, limit, groupByRole}}, {@code feed: {limit,
-     * channels: [{channelId, label}]}}, {@code events: {enabled}}); a part left out is kept. A channel the rules forbid (private,
-     * age-restricted, a thread) is a 403 with the reason; one the bot can't read yet is a 400. Channels need the bot in the server.
+     * channels: [{channelId, label, allowPrivate}]}}, {@code events: {enabled}}); a part left out is kept. A channel the rules forbid
+     * (age-restricted, a thread) is a 403 with the reason; one the bot can't read yet is a 400. A private channel ({@code @everyone} can't
+     * read it) is a 403 unless it was already shown or the admin sends {@code allowPrivate: true}. Channels need the bot in the server.
      */
     DataObject saveConnection(SiteCaller c, DataObject body) {
         Connection now = connections.of(c.guildId());
@@ -257,7 +258,7 @@ public class SiteDiscordService {
             if (feed.hasKey("channels") && !feed.isNull("channels")) {
                 DataArray input = feed.getArray("channels");
                 if (c.botless() && input.length() > 0) throw new ApiError(409, BotlessAdminApi.NEEDS_BOT);
-                channels = c.botless() ? List.of() : parseChannels(c.guild(), input);
+                channels = c.botless() ? List.of() : parseChannels(c.guild(), input, now.channels());
             }
         }
         boolean events = now.eventsEnabled();
@@ -308,7 +309,9 @@ public class SiteDiscordService {
         return n;
     }
 
-    private static List<Channel> parseChannels(Guild guild, DataArray input) {
+    private static List<Channel> parseChannels(Guild guild, DataArray input, List<Channel> before) {
+        Set<Long> shown = new HashSet<>();
+        before.forEach(ch -> shown.add(ch.channelId()));
         if (input.length() > MAX_CHANNELS) throw new ApiError(400, "Pick at most " + MAX_CHANNELS + " channels.");
         List<Channel> chosen = new ArrayList<>();
         Set<Long> seen = new HashSet<>();
@@ -318,8 +321,12 @@ public class SiteDiscordService {
             if (!raw.matches("\\d{1,20}")) throw new ApiError(400, "A chosen channel isn't valid.");
             long channelId = Long.parseLong(raw);
             if (!seen.add(channelId)) continue;
-            Refusal refusal = SiteDiscordRules.channelRefusal(guild, guild.getGuildChannelById(channelId));
+            GuildChannel channel = guild.getGuildChannelById(channelId);
+            Refusal refusal = SiteDiscordRules.channelRefusal(guild, channel);
             if (refusal != null) throw new ApiError(refusal.forbidden() ? 403 : 400, refusal.reason());
+            if (SiteDiscordRules.isPrivate(guild, channel) && !shown.contains(channelId) && !item.getBoolean("allowPrivate", false)) {
+                throw new ApiError(403, "#" + channel.getName() + " is private (@everyone can't read it). Choose \"Show it anyway\" to put its posts on the website.");
+            }
             String label = item.getString("label", "").strip();
             if (label.length() > 40) throw new ApiError(400, "Labels are up to 40 characters.");
             chosen.add(new Channel(channelId, label.isEmpty() ? null : label, chosen.size()));

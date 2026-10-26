@@ -173,10 +173,12 @@ class SiteDiscordRulesTest {
     }
 
     @Test
-    void privateAgeRestrictedAndThreadChannelsAreForbidden() {
-        Refusal hidden = SiteDiscordRules.channelRefusal(guild, channel("staff", false, false, true));
-        assertTrue(hidden.forbidden());
-        assertTrue(hidden.reason().contains("#staff is private"));
+    void ageRestrictedAndThreadChannelsAreForbiddenAndAPrivateOneIsOnlyMarked() {
+        TextChannel staff = channel("staff", false, false, true);
+        assertNull(SiteDiscordRules.channelRefusal(guild, staff), "a private channel is the admin's choice (the save asks them)");
+        assertTrue(SiteDiscordRules.isPrivate(guild, staff));
+        assertFalse(SiteDiscordRules.isPrivate(guild, channel("news", false, true, true)));
+        assertFalse(SiteDiscordRules.isPrivate(guild, null));
 
         Refusal nsfw = SiteDiscordRules.channelRefusal(guild, channel("memes", true, true, true));
         assertTrue(nsfw.forbidden());
@@ -196,16 +198,14 @@ class SiteDiscordRulesTest {
     }
 
     @Test
-    void feedPostsCarryAvatarsOnlyWhereTheOnlineListShowsThem() {
+    void feedPostsCarryTheirPostersAvatarSizedForACard() {
         DataObject post = DataObject.empty().put("id", "1").put("author", "Alice").put("avatarUrl", "https://cdn.example/avatars/a.png").put("text", "hi");
-        DataObject shown = SiteDiscordRules.feedPost(post, OnlineMode.NAMES_AVATARS);
+        DataObject shown = SiteDiscordRules.feedPost(post);
         assertEquals("https://cdn.example/avatars/a.png?size=64", shown.getString("avatarUrl"));
         assertEquals("Alice", shown.getString("author"));
-        for (OnlineMode mode : OnlineMode.values()) {
-            if (mode == OnlineMode.NAMES_AVATARS) continue;
-            assertFalse(SiteDiscordRules.feedPost(post, mode).hasKey("avatarUrl"), mode.key());
-        }
-        assertTrue(post.hasKey("avatarUrl"), "the shared post is left as it was");
-        assertFalse(SiteDiscordRules.feedPost(DataObject.empty().put("id", "2").putNull("avatarUrl"), OnlineMode.NAMES_AVATARS).hasKey("avatarUrl"));
+        assertEquals("https://cdn.example/a.png?v=2&size=64",
+                SiteDiscordRules.feedPost(DataObject.empty().put("id", "3").put("avatarUrl", "https://cdn.example/a.png?v=2")).getString("avatarUrl"));
+        assertEquals("https://cdn.example/avatars/a.png", post.getString("avatarUrl"), "the shared post is left as it was");
+        assertFalse(SiteDiscordRules.feedPost(DataObject.empty().put("id", "2").putNull("avatarUrl")).hasKey("avatarUrl"));
     }
 }

@@ -29,6 +29,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -38,6 +39,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -161,28 +163,29 @@ class SiteDiscordServiceTest {
     }
 
     @Test
-    void theFeedOnlyReadsChannelsThatAreStillPublicAndDropsAvatars() {
-        chosen(PUBLIC, PRIVATE, ADULT); // the two bad ones were chosen before the rules, or made private later
+    void theFeedReadsTheChosenChannelsSkipsAgeRestrictedOnesAndSendsAvatars() {
+        chosen(PUBLIC, PRIVATE, ADULT); // the private one the admin chose on purpose; the age-restricted one was made so later
         DataObject post = DataObject.empty().put("id", "1").put("author", "Ann").put("avatarUrl", "https://cdn.example/a.png").put("text", "hi");
-        when(news.latest(eq(guild), eq(List.of(new SiteNewsService.NewsChannel(PUBLIC, null, 0))), anyInt())).thenReturn(DataArray.empty().add(post));
+        when(news.latest(eq(guild), eq(List.of(new SiteNewsService.NewsChannel(PUBLIC, null, 0), new SiteNewsService.NewsChannel(PRIVATE, null, 1))),
+                anyInt())).thenReturn(DataArray.empty().add(post));
 
         DataObject feed = service.feed(guild, null);
 
         assertFalse(feed.getBoolean("unavailable"));
-        assertEquals(1, feed.getArray("channels").length());
+        assertEquals(2, feed.getArray("channels").length());
         assertEquals("news", feed.getArray("channels").getObject(0).getString("name"));
         DataObject shown = feed.getArray("posts").getObject(0);
         assertEquals("Ann", shown.getString("author"));
-        assertFalse(shown.hasKey("avatarUrl"));
-        assertTrue(post.hasKey("avatarUrl"), "the home site's cached post is left alone");
+        assertEquals("https://cdn.example/a.png?size=64", shown.getString("avatarUrl"));
+        assertEquals("https://cdn.example/a.png", post.getString("avatarUrl"), "the home site's cached post is left alone");
     }
 
     @Test
-    void oneChannelMustBeAnOptedInPublicOne() {
+    void oneChannelMustBeAnOptedInOne() {
         chosen(PUBLIC, PRIVATE);
         when(news.latest(eq(guild), any(), anyInt())).thenReturn(DataArray.empty());
 
-        assertNull(service.feed(guild, Long.toString(PRIVATE)));
+        assertNotNull(service.feed(guild, Long.toString(PRIVATE)));
         assertNull(service.feed(guild, Long.toString(ADULT)));
         assertEquals(0, service.feed(guild, Long.toString(PUBLIC)).getArray("posts").length());
     }
@@ -271,8 +274,9 @@ class SiteDiscordServiceTest {
     }
 
     @Test
-    void aPrivateOrAgeRestrictedChannelCantBeOptedIn() {
+    void anAgeRestrictedChannelCantBeOptedInAndAPrivateOneNeedsTheAdminsSayso() {
         SiteCaller c = admin();
+        Connection now = site(OnlineMode.OFF);
         for (long bad : new long[]{PRIVATE, ADULT}) {
             DataObject body = DataObject.empty().put("feed", DataObject.empty()
                     .put("channels", DataArray.empty().add(DataObject.empty().put("channelId", Long.toString(bad)))));
@@ -280,6 +284,17 @@ class SiteDiscordServiceTest {
             assertEquals(403, error.status);
         }
         verify(connections, never()).saveFeatures(any(), anyLong());
+
+        DataObject anyway = DataObject.empty().put("feed", DataObject.empty()
+                .put("channels", DataArray.empty().add(DataObject.empty().put("channelId", Long.toString(PRIVATE)).put("allowPrivate", true))));
+        service.saveConnection(c, anyway);
+        verify(connections).saveFeatures(now.withFeatures(OnlineMode.OFF, 24, true, 5, true, List.of(new Channel(PRIVATE, null, 0))), 5L);
+
+        // once shown, saving it again (a new label, the order) doesn't ask again
+        site(OnlineMode.OFF, PRIVATE);
+        service.saveConnection(c, DataObject.empty().put("feed", DataObject.empty()
+                .put("channels", DataArray.empty().add(DataObject.empty().put("channelId", Long.toString(PRIVATE)).put("label", "Staff news")))));
+        verify(connections, times(2)).saveFeatures(any(), eq(5L));
     }
 
     @Test
@@ -314,8 +329,9 @@ class SiteDiscordServiceTest {
         assertTrue(state.getObject("provider").getArray("capabilities").toList().contains(SiteDiscordService.PRESENCE));
         assertEquals("names+avatars", state.getObject("online").getString("mode"));
         DataObject staff = state.getObject("feed").getArray("chosen").getObject(0);
-        assertFalse(staff.getBoolean("eligible"));
-        assertTrue(staff.getString("reason").contains("private"));
+        assertTrue(staff.getBoolean("eligible"));
+        assertTrue(staff.getBoolean("private"), "the page marks a private channel");
+        assertFalse(state.getObject("feed").getArray("channels").getObject(0).getBoolean("private"));
         assertEquals(1, state.getObject("feed").getArray("channels").length(), "a chosen channel isn't offered twice");
     }
 
