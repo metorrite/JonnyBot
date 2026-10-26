@@ -23,7 +23,7 @@ import java.security.MessageDigest;
  *   <li>{@code POST /internal/rsnlink-dm/resolve} {@code {username}} answers {@code {discordId}} (null when not found or not unique);</li>
  *   <li>{@code POST /internal/rsnlink-dm/send} {@code {discordId, rsn, code, pairingId, expiresInMinutes}} answers {@code {sent}}.</li>
  * </ul>
- * They take {@code X-RsLink-Dm-Secret} ({@code RSNLINK_DM_SECRET}), never the internal API secret, so the hub can't call anything else; with
+ * They take {@code X-RsLink-Dm-Secret} ({@code RUNELINK_DM_SECRET}, old name {@code RSNLINK_DM_SECRET}), never the internal API secret, so the hub can't call anything else; with
  * the setting unset they answer 401. The DM's buttons are answered by {@link HubDmButtons}, which passes them back to the hub. Nothing here
  * logs an id, username or code.
  */
@@ -45,7 +45,7 @@ public class HubDmRelay implements InternalRouteModule {
     public HubDmRelay(BotConfig config) {
         String s = config.getRsnLinkDmSecret();
         if (s != null && s.length() < MIN_SECRET) {
-            log.warn("RSNLINK_DM_SECRET is shorter than {} characters; DM codes for the hub stay off", MIN_SECRET);
+            log.warn("RUNELINK_DM_SECRET (or the old RSNLINK_DM_SECRET) is shorter than {} characters; DM codes for the hub stay off", MIN_SECRET);
             s = null;
         }
         this.secret = s;
