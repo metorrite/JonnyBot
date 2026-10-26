@@ -239,7 +239,7 @@ public class CitadelAdminApi implements AdminRouteExtension {
             String raw = body.isNull("channelId") ? "" : body.getString("channelId", "").strip();
             if (raw.isEmpty()) {
                 channelId = null;
-            } else if (!raw.matches("\\d{1,20}")) {
+            } else if (!raw.matches("\\d{1,20}") || !fitsALong(raw)) {
                 problems.add("That channel isn't valid.");
             } else {
                 channelId = Long.parseLong(raw);
@@ -476,8 +476,19 @@ public class CitadelAdminApi implements AdminRouteExtension {
         if (!body.hasKey(key) || body.isNull(key)) return null;
         String raw = body.getString(key, "").strip();
         if (raw.isEmpty()) return null;
-        if (!raw.matches("\\d{1,20}")) throw new ApiError(400, Text.en("dashboard.that_isn_t_a_discord_user"));
+        // digits that overflow a long are still the asker's mistake (a 400), never a 500
+        if (!raw.matches("\\d{1,20}") || !fitsALong(raw)) throw new ApiError(400, Text.en("dashboard.that_isn_t_a_discord_user"));
         return Long.parseLong(raw);
+    }
+
+    /** Whether these digits are a number a long holds (an id typed with 20 digits can overflow it). */
+    static boolean fitsALong(String digits) {
+        try {
+            Long.parseLong(digits);
+            return true;
+        } catch (NumberFormatException e) {
+            return false;
+        }
     }
 
     /** {@code {end, place, action: "given" | "pending", amount?, paidBy?, note?}}: marks a prize handed over (without the coffer) or puts it back to not given. */

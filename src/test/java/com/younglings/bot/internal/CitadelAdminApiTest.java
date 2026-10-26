@@ -373,4 +373,39 @@ class CitadelAdminApiTest {
         assertEquals(400, assertThrows(ApiError.class, () -> api.route(guild, actor(), "PUT", new String[]{"citadel", "prize", "defaults"}, () -> DataObject.empty().put("note", "x".repeat(201)))).status);
         assertEquals(405, assertThrows(ApiError.class, () -> api.route(guild, actor(), "POST", new String[]{"citadel", "prize", "defaults"}, DataObject::empty)).status);
     }
+
+    // ---------- ids that overflow a long are the asker's mistake (400), never a 500 ----------
+
+    @Test
+    void aPaidByIdTooBigForALongIsA400AndMarksNothing() {
+        when(winners.forWeek(7L, WEEK_END)).thenReturn(List.of(locked(1, "Giff", true)));
+        for (String id : new String[]{"9".repeat(20), "abc", "1".repeat(21)}) {
+            DataObject body = DataObject.empty().put("end", "2026-10-14").put("place", 1).put("action", "given").put("paidBy", id);
+            assertEquals(400, assertThrows(ApiError.class, () -> api.route(guild, actor(), "POST", new String[]{"citadel", "prize"}, () -> body)).status, id);
+            DataObject coffer = DataObject.empty().put("end", "2026-10-14").put("place", 1).put("amount", "1m").put("paidBy", id);
+            assertEquals(400, assertThrows(ApiError.class, () -> api.route(guild, actor(), "POST", new String[]{"citadel", "prize", "coffer"}, () -> coffer)).status, id);
+        }
+        verify(prizes, never()).markGiven(anyLong(), any(), org.mockito.ArgumentMatchers.anyInt(), any(), any(), any(), anyLong());
+        verify(prizes, never()).markGiven(anyLong(), any(), org.mockito.ArgumentMatchers.anyInt(), any(), any(), anyLong());
+        verify(prizes, never()).recordInCoffer(any(), any(), org.mockito.ArgumentMatchers.anyInt(), any(), anyLong(), any(), any(), anyLong());
+    }
+
+    @Test
+    void aWheelChannelIdTooBigForALongIsA400() {
+        when(settings.get(7L)).thenReturn(new WheelSettingsRepository.Settings(false, null, WheelMessage.DEFAULT));
+        assertEquals(400, assertThrows(ApiError.class, () -> api.saveWheelSettings(guild, actor(), DataObject.empty().put("channelId", "9".repeat(20)))).status);
+        verify(settings, never()).save(anyLong(), any());
+    }
+
+    @Test
+    void savingPrizeDefaultsRefusesAZeroOrNegativeAmountAndClearsWithNull() {
+        when(settings.getPrizeDefaults(7L)).thenReturn(new WheelSettingsRepository.PrizeDefaults(true, 5_000_000L, "Weekly prize"));
+        for (String bad : new String[]{"0", "-1m", "NaN", "1e9"}) {
+            assertEquals(400, assertThrows(ApiError.class, () -> api.route(guild, actor(), "PUT", new String[]{"citadel", "prize", "defaults"},
+                    () -> DataObject.empty().put("amount", bad))).status, bad);
+        }
+        verify(settings, never()).savePrizeDefaults(anyLong(), any());
+        api.route(guild, actor(), "PUT", new String[]{"citadel", "prize", "defaults"}, () -> DataObject.empty().put("amount", null).put("note", null));
+        verify(settings).savePrizeDefaults(7L, new WheelSettingsRepository.PrizeDefaults(true, null, null));
+    }
 }
