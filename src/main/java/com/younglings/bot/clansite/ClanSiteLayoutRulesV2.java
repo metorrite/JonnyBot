@@ -76,6 +76,8 @@ public final class ClanSiteLayoutRulesV2 {
     public static final Set<String> GLOW = Set.of("off", "soft");
     public static final Set<String> BUTTONS = Set.of("solid", "outline", "soft");
     public static final Set<String> TITLES = Set.of("theme", "caps");
+    /** The site's motion style (runeclans docs/MOTION.md): missing follows the theme. */
+    public static final Set<String> MOTION = Set.of("forge", "quill", "crisp");
     public static final Set<String> LOGO_TEXT_COLOURS = Set.of("text", "accent");
     public static final Set<String> LOGO_TEXT_CASES = Set.of("normal", "upper");
     public static final Set<String> LOGO_SHAPES = Set.of("rounded", "round");
@@ -624,6 +626,7 @@ public final class ClanSiteLayoutRulesV2 {
         optionalChoice(style, out, "glow", GLOW, "The site has an unknown glow setting.", problems);
         optionalChoice(style, out, "buttons", BUTTONS, "The site has an unknown button look.", problems);
         optionalChoice(style, out, "titles", TITLES, "The site has an unknown panel title look.", problems);
+        optionalChoice(style, out, "motion", MOTION, "The site has an unknown animation style.", problems);
         return out;
     }
 
