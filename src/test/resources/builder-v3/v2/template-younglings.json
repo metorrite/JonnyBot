@@ -883,16 +883,18 @@
                       "v": 1,
                       "settings": {
                         "title": "",
-                        "style": "list",
+                        "style": "table",
                         "limit": 200,
                         "sort": "rank",
                         "showRank": true,
                         "showLevel": true,
                         "showXp": true,
                         "showJoined": true,
-                        "search": true,
                         "rankFilter": true,
-                        "linkPages": true
+                        "linkPages": true,
+                        "showPoints": true,
+                        "search": true,
+                        "sortControls": true
                       },
                       "unmet": "hide"
                     }
@@ -1101,6 +1103,7 @@
                       "type": "member-card",
                       "v": 1,
                       "settings": {
+                        "showStrip": false,
                         "showBio": true,
                         "showTotals": true,
                         "showNextRank": true,
