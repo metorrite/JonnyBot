@@ -72,7 +72,7 @@ class MemberEventsApiTest {
         profiles = Mockito.mock(ClanProfileRepository.class);
         Mockito.when(profiles.get(G)).thenReturn(Optional.empty());
         api = new MemberEventsApi(service, repository, profiles, new com.younglings.bot.events.EventSpaceRepository(supplier, repository),
-                new com.younglings.bot.clanprofile.JoinLinks(guildSettings, Mockito.mock(com.younglings.bot.clanprofile.ClanRecruitingRepository.class, Mockito.RETURNS_DEEP_STUBS)));
+                new com.younglings.bot.clanprofile.JoinLinks(guildSettings, Mockito.mock(com.younglings.bot.clanprofile.ClanRecruitingRepository.class, Mockito.RETURNS_DEEP_STUBS)), null);
         guild = Mockito.mock(Guild.class);
         Mockito.when(guild.getIdLong()).thenReturn(G);
         Mockito.when(guild.getName()).thenReturn("Younglings");
@@ -240,5 +240,7 @@ class MemberEventsApiTest {
         assertEquals("APPROVED", page.getArray("submissions").getObject(0).getString("status"));
         assertEquals(0, page.getArray("channels").length(), "no channels were set up");
         assertTrue(page.isNull("board"), "a custom event has no board");
+        assertFalse(page.hasKey("xpTiles"), "XP tiles aren't counted (off by default): the page is as before");
+        assertFalse(page.getObject("me").hasKey("xpNotCounted"));
     }
 }

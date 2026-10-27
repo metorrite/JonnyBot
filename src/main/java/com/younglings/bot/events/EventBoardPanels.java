@@ -252,7 +252,7 @@ public class EventBoardPanels {
                 BingoBoardView.firstCompleters(objectives, entries).forEach((key, subject) -> firstBy.put(key, nameOf(guild, subject, teams)));
             }
             tileViews = BingoBoardView.shared(BingoBoardView.boardKeys(config), objectives, standings, subjects, tiles::iconKeyFor, firstBy);
-            text = panelText(guild, event, standings);
+            text = panelText(guild, event, standings) + xpTilesNote(event, objectives);
         } catch (RuntimeException e) {
             log.warn("Could not build the board of event {}", eventId, e);
             return "The board couldn't be built: " + e.getMessage();
@@ -286,6 +286,12 @@ public class EventBoardPanels {
         }
         post(channel, eventId, message, file);
         return "Posted the board in #" + channel.getName() + "." + how;
+    }
+
+    /** Under a bingo whose XP tiles are counted from RuneSync (T-543, {@code EVENT_XP_TILES_ENABLED}), the same note as the website's event pages (T-707). */
+    static String xpTilesNote(Event event, List<ObjectiveSpec> objectives) {
+        if (!PluginObjectiveMatcher.xpTilesOffered() || PluginObjectiveMatcher.shownXpTiles(ClanVsClan.game(event), event.status(), objectives).isEmpty()) return "";
+        return "\n-# XP tiles count RuneSync XP only: players without RuneSync (RuneMetrics only) make no progress on them.";
     }
 
     /** The panel text with the tiles listed under it, for when the picture can't be drawn. Kept inside Discord's message length. */
