@@ -42,12 +42,15 @@ import java.util.concurrent.TimeUnit;
  * over. Per-event XP points are the competitions' own ({@code xpPerPoint}) and have nothing to do with this.
  * <ul>
  *   <li><b>Who:</b> as RuneSync XP comes in (a {@link PluginEventSink}: the bot's own ingest or the hub's feed), the member is noted for that UTC day
- *       in each server they share with the bot whose rule is on ({@code plugin_xp_points_day}).</li>
- *   <li><b>How much:</b> every 15 minutes, each day that ended at least {@link #GRACE} ago is settled: one {@code POST /v1/guilds/{id}/xp/gains} per
- *       server and day (up to 500 members a call) asks the hub's ledger what each gained from midnight to midnight UTC, timed XP only (catch-up and
+ *       in each server they share with the bot whose rule is on ({@code plugin_xp_points_day}). Before a day is settled, the hub is asked once who
+ *       gained XP in each such server that day ({@code POST /v1/guilds/{id}/xp/gainers}, T-712), and those members are noted too, so XP that
+ *       reaches only the hub is paid. A hub without that route (404) leaves the bot's own notes.</li>
+ *   <li><b>How much:</b> every 15 minutes, each day that ended at least the grace ago ({@code PLUGIN_XP_POINTS_GRACE_MINUTES}, default 15) is
+ *       settled: one {@code POST /v1/guilds/{id}/xp/gains} per server and day (up to 500 members a call) asks the hub's ledger what each gained from midnight to midnight UTC, timed XP only (catch-up and
  *       suspect XP never pay), and the rule turns that into points: one award per member per day, "RuneSync: 1.2M XP gained".</li>
  *   <li><b>Never twice:</b> each award's source key is {@code plugin:XP:<user>:<day>}, which the points ledger pays once per server, and a settled day
- *       is never read again, so a re-run of a day pays nothing. XP that reaches the hub after its day was settled isn't paid.</li>
+ *       is never read again, so a re-run of a day pays nothing. XP that reaches the hub after its day was settled isn't paid: a longer grace
+ *       waits for it.</li>
  *   <li><b>Off:</b> nothing is paid unless the rule is on when the day is settled and the server uses points. A day the hub can't answer is tried
  *       again on the next pass, for up to {@link #RETRY_DAYS} days.</li>
  * </ul>
@@ -57,8 +60,10 @@ import java.util.concurrent.TimeUnit;
 public class PluginXpPoints implements PluginEventSink {
     private static final Logger log = LoggerFactory.getLogger(PluginXpPoints.class);
     private static final Duration PERIOD = Duration.ofMinutes(15);
-    /** How long after midnight UTC a day is settled, so its last minutes of XP have reached the hub. */
+    /** How long after midnight UTC a day is settled by default, so its last minutes of XP have reached the hub. */
     static final Duration GRACE = Duration.ofMinutes(15);
+    /** The longest grace {@code PLUGIN_XP_POINTS_GRACE_MINUTES} may set. */
+    static final Duration MAX_GRACE = Duration.ofHours(12);
     /** How many days back a day that couldn't be settled (hub down, bot off) is still tried. */
     static final int RETRY_DAYS = 7;
     /** How long the bookkeeping of a day is kept (the points ledger keeps what was paid for good). */
@@ -81,6 +86,9 @@ public class PluginXpPoints implements PluginEventSink {
     private final ScheduledExecutorService executor = BotScheduler.lane("plugin-xp-points");
     private final Map<String, Instant> noted = new ConcurrentHashMap<>();
     private final Map<Long, CachedAlias> aliases = new ConcurrentHashMap<>();
+    /** Server and day pairs the hub has already answered (or can't: an older hub), so each is asked once while the bot runs. */
+    private final Map<String, LocalDate> askedHub = new ConcurrentHashMap<>();
+    private final Duration grace;
     private volatile JDA jda;
     private Clock clock = Clock.systemUTC();
 
@@ -90,6 +98,13 @@ public class PluginXpPoints implements PluginEventSink {
         this.pointsService = pointsService;
         this.hub = hub;
         this.switchedOn = config.getPluginXpPointsEnabled();
+        this.grace = grace(config.getPluginXpPointsGraceMinutes());
+    }
+
+    /** The grace from its setting: unset or below a minute is the default, and it is never more than {@link #MAX_GRACE}. */
+    static Duration grace(long minutes) {
+        if (minutes < 1) return GRACE;
+        return minutes > MAX_GRACE.toMinutes() ? MAX_GRACE : Duration.ofMinutes(minutes);
     }
 
     @BEventListener
@@ -170,8 +185,9 @@ public class PluginXpPoints implements PluginEventSink {
         try {
             Instant now = clock.instant();
             LocalDate today = LocalDate.ofInstant(now, ZoneOffset.UTC);
-            // a day is settled once it ended at least GRACE ago
-            LocalDate before = LocalDate.ofInstant(now.minus(GRACE), ZoneOffset.UTC);
+            // a day is settled once it ended at least the grace ago
+            LocalDate before = LocalDate.ofInstant(now.minus(grace), ZoneOffset.UTC);
+            noteHubGainers(today.minusDays(RETRY_DAYS), before, now);
             for (XpDay d : repository.openXpDays(today.minusDays(RETRY_DAYS), before)) {
                 try {
                     settle(d.guildId(), d.day(), now);
@@ -180,8 +196,62 @@ public class PluginXpPoints implements PluginEventSink {
                 }
             }
             repository.forgetXpDays(today.minusDays(KEPT_DAYS));
+            askedHub.values().removeIf(day -> day.isBefore(today.minusDays(RETRY_DAYS)));
         } catch (RuntimeException e) {
             log.warn("The XP points pass failed", e);
+        }
+    }
+
+    /**
+     * Notes the members the hub saw gaining XP on each day from {@code from} up to (not including) {@code before} in every server whose rule is on
+     * (T-712), each server and day asked once. They join the bot's own notes, so the usual settling pays them. Only members whose grant shares
+     * their Discord id can be paid, and a member the bot sees has left the server isn't noted. Never throws.
+     */
+    void noteHubGainers(LocalDate from, LocalDate before, Instant now) {
+        List<Long> guilds;
+        try {
+            guilds = repository.xpRuleGuilds();
+        } catch (RuntimeException e) {
+            log.warn("Couldn't list the servers with an XP points rule", e);
+            return;
+        }
+        JDA current = jda;
+        for (long guildId : guilds) {
+            for (LocalDate day = from; day.isBefore(before); day = day.plusDays(1)) {
+                String key = guildId + ":" + day;
+                if (askedHub.containsKey(key)) continue;
+                RuneClansHubClient.Answer answer = hub.xpGainers(guildId, day);
+                if (answer == null || (!answer.ok() && answer.status() != 404) || (answer.ok() && answer.json() == null)) {
+                    // the hub is down or busy: asked again on the next pass, while the bot's own notes settle as usual
+                    if (answer != null) log.warn("XP gainers in server {} for {}: the hub answered {}", guildId, day, answer.status());
+                    continue;
+                }
+                askedHub.put(key, day); // a 404 (an older hub, its ledger off, the server not registered): the bot's own notes only
+                if (!answer.ok()) continue;
+                Guild guild = current == null ? null : current.getGuildById(guildId);
+                DataArray rows = answer.json().optArray("players").orElse(DataArray.empty());
+                for (int i = 0; i < rows.length(); i++) {
+                    DataObject row = rows.getObject(i);
+                    long user = userId(row.getString("discordId", null));
+                    String alias = row.getString("alias", null);
+                    if (user == 0 || alias == null || (guild != null && guild.getMemberById(user) == null)) continue;
+                    aliases.put(user, new CachedAlias(Optional.of(alias), now.plus(ALIAS_KEPT)));
+                    try {
+                        repository.noteXpDay(guildId, user, day);
+                    } catch (RuntimeException e) {
+                        log.warn("Couldn't note an XP day from the hub in server {}", guildId, e);
+                    }
+                }
+            }
+        }
+    }
+
+    private static long userId(String raw) {
+        if (raw == null || !raw.matches("\\d{17,20}")) return 0;
+        try {
+            return Long.parseLong(raw);
+        } catch (NumberFormatException e) {
+            return 0;
         }
     }
 

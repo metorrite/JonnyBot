@@ -105,10 +105,24 @@ class PluginXpPointsDatabaseTest {
     }
 
     @Test
+    void aMemberWhoseXpReachesOnlyTheHubIsPaid() {
+        repository.saveXpRule(GUILD, new XpRule(true, 10, 100_000, 50), 1L, NOW);
+        assertTrue(repository.xpRuleGuilds().contains(GUILD));
+        // the bot never saw Alice's XP: only the hub did (T-712)
+        DataArray gainers = DataArray.empty().add(DataObject.empty().put("alias", "a1_alice").put("discordId", Long.toString(ALICE)).put("xp", 1_250_000L));
+        when(hub.xpGainers(GUILD, DAY)).thenReturn(new RuneClansHubClient.Answer(200, DataObject.empty().put("day", DAY.toString()).put("players", gainers)));
+
+        xpPoints.sweep();
+        assertEquals(50, points.balance(GUILD, ALICE));
+        assertTrue(repository.openXpDays(DAY.minusDays(7), DAY.plusDays(1)).isEmpty(), "settled");
+    }
+
+    @Test
     void noAwardWhileTheRuleIsOff() {
         repository.saveXpRule(GUILD, new XpRule(true, 10, 100_000, 0), 1L, NOW);
         xpPoints.note(ALICE, List.of(GUILD), Set.of(DAY), NOW);
         repository.saveXpRule(GUILD, new XpRule(false, 10, 100_000, 0), 1L, NOW); // switched off before the day was settled
+        assertTrue(!repository.xpRuleGuilds().contains(GUILD), "the hub isn't asked for a server whose rule is off");
 
         xpPoints.sweep();
         assertEquals(0, points.balance(GUILD, ALICE));

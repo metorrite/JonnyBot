@@ -179,6 +179,19 @@ public class PluginPointsRepository {
         }
     }
 
+    /** The servers whose XP rule is on, by the numbers they saved (whether the server uses points is checked when a day is settled). */
+    public List<Long> xpRuleGuilds() {
+        List<Long> guilds = new ArrayList<>();
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(
+                "SELECT guild_id FROM younglings.plugin_xp_points_rule WHERE enabled AND points > 0 AND per_xp > 0 ORDER BY guild_id");
+             ResultSet rs = s.executeQuery()) {
+            while (rs.next()) guilds.add(rs.getLong(1));
+            return guilds;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read the servers with an XP points rule", e);
+        }
+    }
+
     /** The member sent RuneSync XP on this UTC day in a server whose XP rule is on: remember to settle it (once; a day already noted stays as it is). */
     public void noteXpDay(long guildId, long userId, LocalDate day) {
         try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(

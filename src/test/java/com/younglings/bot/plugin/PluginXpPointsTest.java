@@ -189,6 +189,85 @@ class PluginXpPointsTest {
         verify(repository).openXpDays(DAY.plusDays(1).minusDays(PluginXpPoints.RETRY_DAYS), DAY);
     }
 
+    @Test
+    void theGraceIsASettingHeldToItsBounds() {
+        assertEquals(PluginXpPoints.GRACE, PluginXpPoints.grace(0), "unset keeps 15 minutes");
+        assertEquals(java.time.Duration.ofMinutes(60), PluginXpPoints.grace(60));
+        assertEquals(PluginXpPoints.MAX_GRACE, PluginXpPoints.grace(100_000));
+
+        BotConfig config = mock(BotConfig.class);
+        when(config.getPluginXpPointsEnabled()).thenReturn(true);
+        when(config.getPluginXpPointsGraceMinutes()).thenReturn(60L);
+        when(repository.openXpDays(any(), any())).thenReturn(List.of());
+        new PluginXpPoints(repository, points, service, hub, config).withClock(Clock.fixed(NOW, ZoneOffset.UTC)).sweep();
+        // 00:20 UTC with an hour's grace: the 25th waits
+        verify(repository).openXpDays(DAY.plusDays(1).minusDays(PluginXpPoints.RETRY_DAYS), DAY);
+    }
+
+    // ---------- members found through the hub (T-712) ----------
+
+    private static RuneClansHubClient.Answer gainers(String alias, Long discordId, long xp) {
+        DataObject row = DataObject.empty().put("alias", alias).put("xp", xp);
+        if (discordId != null) row.put("discordId", Long.toString(discordId));
+        return new RuneClansHubClient.Answer(200, DataObject.empty().put("day", DAY.toString()).put("players", DataArray.empty().add(row)).put("truncated", false));
+    }
+
+    @Test
+    void aMemberWhoseXpReachesOnlyTheHubIsPaidForTheDay() {
+        serverUsesPoints(true);
+        paysDone();
+        when(repository.xpRuleGuilds()).thenReturn(List.of(GUILD));
+        when(hub.xpGainers(GUILD, DAY)).thenReturn(gainers("a1_bob", BOB, 250_000));
+        xpPoints.noteHubGainers(DAY, DAY.plusDays(1), NOW);
+        verify(repository).noteXpDay(GUILD, BOB, DAY);
+
+        // the usual settling: Bob's alias came with the answer, so the hub isn't asked for it again
+        when(repository.openXpMembers(GUILD, DAY)).thenReturn(List.of(BOB));
+        when(repository.xpRule(GUILD)).thenReturn(TEN_PER_100K_CAP_50);
+        when(hub.xpGains(eq(GUILD), eq(List.of("a1_bob")), isNull(), eq(FROM), eq(TO))).thenReturn(gains("a1_bob", "250000"));
+        when(repository.settleXpDay(anyLong(), anyLong(), any(), any(), anyInt(), any())).thenReturn(true);
+        assertEquals(1, xpPoints.settle(GUILD, DAY, NOW));
+        verify(service).apply(GUILD, BOB, 20, "RuneSync: 250k XP gained", Category.PLUGIN, "plugin:XP:" + BOB + ":2026-10-25", null);
+        verify(hub, never()).aliasIfAnswered(BOB);
+
+        // each server and day is asked once
+        xpPoints.noteHubGainers(DAY, DAY.plusDays(1), NOW);
+        verify(hub, times(1)).xpGainers(GUILD, DAY);
+    }
+
+    @Test
+    void anOlderHubLeavesTheBotsOwnNotesAndADownHubIsAskedAgain() {
+        LocalDate before = DAY.minusDays(1);
+        when(repository.xpRuleGuilds()).thenReturn(List.of(GUILD));
+        when(hub.xpGainers(GUILD, before)).thenReturn(new RuneClansHubClient.Answer(404, null));
+        when(hub.xpGainers(GUILD, DAY)).thenReturn(null);
+        xpPoints.noteHubGainers(before, DAY.plusDays(1), NOW);
+        xpPoints.noteHubGainers(before, DAY.plusDays(1), NOW);
+
+        verify(hub, times(1)).xpGainers(GUILD, before);
+        verify(hub, times(2)).xpGainers(GUILD, DAY);
+        verify(repository, never()).noteXpDay(anyLong(), anyLong(), any());
+    }
+
+    @Test
+    void aGainerWhoseGrantHidesTheirDiscordIdCantBePaid() {
+        when(repository.xpRuleGuilds()).thenReturn(List.of(GUILD));
+        when(hub.xpGainers(GUILD, DAY)).thenReturn(gainers("a1_alice", null, 900_000));
+        xpPoints.noteHubGainers(DAY, DAY.plusDays(1), NOW);
+        verify(repository, never()).noteXpDay(anyLong(), anyLong(), any());
+    }
+
+    @Test
+    void theSweepAsksTheHubBeforeSettling() {
+        when(repository.xpRuleGuilds()).thenReturn(List.of(GUILD));
+        when(repository.openXpDays(any(), any())).thenReturn(List.of());
+        xpPoints.sweep();
+        // the settle-able days only: the last RETRY_DAYS days up to the 25th
+        verify(hub).xpGainers(GUILD, DAY);
+        verify(hub, never()).xpGainers(GUILD, DAY.plusDays(1));
+        verify(hub, times(PluginXpPoints.RETRY_DAYS)).xpGainers(eq(GUILD), any());
+    }
+
     // ---------- noting who sent XP ----------
 
     @Test

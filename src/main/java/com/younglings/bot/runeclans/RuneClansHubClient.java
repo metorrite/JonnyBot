@@ -198,6 +198,15 @@ public class RuneClansHubClient {
     }
 
     /**
+     * {@code POST /v1/guilds/{id}/xp/gainers} (T-712): who among the server's members gained timed RuneSync XP on one UTC day, and how much, with
+     * their Discord id when their grant shares it. Null when the hub can't be reached; {@code 404} from a hub without the route, with its ledger
+     * off, or when the server isn't registered.
+     */
+    public Answer xpGainers(long guildId, java.time.LocalDate day) {
+        return call("POST", "/v1/guilds/" + guildId + "/xp/gainers", DataObject.empty().put("day", day.toString()).toString());
+    }
+
+    /**
      * {@code GET /v1/guilds/{id}/events}: the newest plugin events of a server's members, as the hub filters them (only members whose grant
      * to JonnyBot covers that server, only categories both the grant and the player's current consent allow). For clan websites (T-303).
      */
