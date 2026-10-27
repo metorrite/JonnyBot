@@ -17,7 +17,9 @@ import java.sql.Types;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * A clan's points rules for plugin reports ({@code plugin_points_rule}, T-061), and how much a member was already paid today for one type
@@ -72,7 +74,15 @@ public class PluginPointsRepository {
                     PRIMARY KEY (guild_id, user_id, day)
                 );
                 """,
-                "CREATE INDEX IF NOT EXISTS plugin_xp_points_day_open ON younglings.plugin_xp_points_day (day) WHERE settled_at IS NULL;"));
+                "CREATE INDEX IF NOT EXISTS plugin_xp_points_day_open ON younglings.plugin_xp_points_day (day) WHERE settled_at IS NULL;",
+                """
+                CREATE TABLE IF NOT EXISTS younglings.plugin_xp_points_hub_day (
+                    guild_id BIGINT NOT NULL,
+                    day DATE NOT NULL,
+                    asked_at TIMESTAMPTZ NOT NULL,
+                    PRIMARY KEY (guild_id, day)
+                );
+                """));
     }
 
     /** The clan's rules that are on (points above 0). */
@@ -253,9 +263,40 @@ public class PluginPointsRepository {
         }
     }
 
+    /** The server and day pairs from {@code from} on whose gainers the hub has already listed (T-712), so each is asked once, restarts included. */
+    public Set<XpDay> hubAskedDays(LocalDate from) {
+        Set<XpDay> days = new HashSet<>();
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(
+                "SELECT guild_id, day FROM younglings.plugin_xp_points_hub_day WHERE day >= ?")) {
+            s.setObject(1, from);
+            try (ResultSet rs = s.executeQuery()) {
+                while (rs.next()) days.add(new XpDay(rs.getLong(1), rs.getObject(2, LocalDate.class)));
+            }
+            return days;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read the XP days the hub was asked about", e);
+        }
+    }
+
+    /** The hub listed this server's gainers for the day and they were all noted: never ask again. */
+    public void markHubAsked(long guildId, LocalDate day, Instant now) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(
+                "INSERT INTO younglings.plugin_xp_points_hub_day (guild_id, day, asked_at) VALUES (?, ?, ?) ON CONFLICT (guild_id, day) DO NOTHING")) {
+            s.setLong(1, guildId);
+            s.setObject(2, day);
+            s.setTimestamp(3, Timestamp.from(now));
+            s.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to mark an XP day asked of the hub", e);
+        }
+    }
+
     /** Forgets XP days before {@code before}, settled or not (the points ledger keeps what was paid). */
     public int forgetXpDays(LocalDate before) {
-        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("DELETE FROM younglings.plugin_xp_points_day WHERE day < ?")) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("DELETE FROM younglings.plugin_xp_points_day WHERE day < ?");
+             PreparedStatement h = c.prepareStatement("DELETE FROM younglings.plugin_xp_points_hub_day WHERE day < ?")) {
+            h.setObject(1, before);
+            h.executeUpdate();
             s.setObject(1, before);
             return s.executeUpdate();
         } catch (SQLException e) {
