@@ -6,7 +6,7 @@ import java.util.function.Function;
 
 /**
  * Whether JonnyBot reads and writes plugin data through the RuneClans hub (runeclans-hub docs/HUB-DESIGN.md section 7). Off unless
- * {@code RUNECLANS_HUB_ENABLED=true} and both {@code RUNECLANS_HUB_URL} and {@code RUNECLANS_HUB_API_KEY} are set; off, the bot's own RS Link
+ * {@code RUNECLANS_HUB_ENABLED=true} and both {@code RUNECLANS_HUB_URL} and {@code RUNECLANS_HUB_API_KEY} are set; off, the bot's own RuneLink
  * and plugin ingest code does everything exactly as before. The key is never logged ({@link #toString()} hides it).
  *
  * @param enabled whether the hub is used

@@ -63,7 +63,7 @@ public class OverviewAdminApi {
 
         DataObject result = DataObject.empty()
                 .put("members", members)
-                .put("community", DataObject.empty().put("openSignups", siteStats.activeSignups(guildId).size()).put("openPolls", polls.activePolls(guildId).size()))
+                .put("community", DataObject.empty().put("openSignups", siteStats.countActiveSignups(guildId)).put("openPolls", polls.activePolls(guildId).size()))
                 .put("health", healthSummary(health))
                 .put("notices", noticeList())
                 .put("isOwner", isOwner(guild, actor.getIdLong()));

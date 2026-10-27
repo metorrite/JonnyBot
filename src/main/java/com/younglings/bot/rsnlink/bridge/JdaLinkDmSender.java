@@ -92,7 +92,7 @@ public final class JdaLinkDmSender implements LinkDmSender {
 
     /** Section 13.3: neutral, no clan name, no invite, no links. RSNs hold only letters, digits, space, - and _, so escaping _ is enough. */
     static String text(String rsnDisplay, String userCode, long expiresInMinutes) {
-        return "Someone playing RuneScape as **" + rsnDisplay.replace("_", "\\_") + "** asked to link this Discord account using the RS Link plugin.\n"
+        return "Someone playing RuneScape as **" + rsnDisplay.replace("_", "\\_") + "** asked to link this Discord account using the RuneLink plugin.\n"
                 + "If that was you, type this code into the plugin: **" + userCode + "** (expires in " + expiresInMinutes + " minutes).\n"
                 + "If it wasn't you, ignore this message. Nothing is linked without the code.";
     }

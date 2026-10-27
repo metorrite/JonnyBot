@@ -17,13 +17,14 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 
 /**
- * Sends RS Link's DM codes for runeclans-hub (T-166). The hub runs the RS Link service, but a code DM needs a bot that shares a server with
+ * Sends RuneLink's DM codes for runeclans-hub (T-166). The hub runs the RuneLink service, but a code DM needs a bot that shares a server with
  * the person, so the hub calls these two routes (its {@code BotDmSender}):
  * <ul>
  *   <li>{@code POST /internal/rsnlink-dm/resolve} {@code {username}} answers {@code {discordId}} (null when not found or not unique);</li>
  *   <li>{@code POST /internal/rsnlink-dm/send} {@code {discordId, rsn, code, pairingId, expiresInMinutes}} answers {@code {sent}}.</li>
  * </ul>
- * They take {@code X-RsLink-Dm-Secret} ({@code RSNLINK_DM_SECRET}), never the internal API secret, so the hub can't call anything else; with
+ * They take {@code X-RuneLink-Dm-Secret} or the older {@code X-RsLink-Dm-Secret} ({@code RUNELINK_DM_SECRET}, formerly
+ * {@code RSNLINK_DM_SECRET}), never the internal API secret, so the hub can't call anything else; with
  * the setting unset they answer 401. The DM's buttons are answered by {@link HubDmButtons}, which passes them back to the hub. Nothing here
  * logs an id, username or code.
  */
@@ -31,7 +32,9 @@ import java.security.MessageDigest;
 public class HubDmRelay implements InternalRouteModule {
     private static final Logger log = LoggerFactory.getLogger(HubDmRelay.class);
     public static final String PREFIX = "/internal/rsnlink-dm/";
-    public static final String SECRET_HEADER = "X-RsLink-Dm-Secret";
+    public static final String SECRET_HEADER = "X-RuneLink-Dm-Secret";
+    /** The header's name before RS Link became RuneLink, still accepted so a hub that sends it keeps working (T-659). */
+    public static final String LEGACY_SECRET_HEADER = "X-RsLink-Dm-Secret";
     static final String NOT_ME = "rsnlink:hubnotme:";
     static final String STOP = "rsnlink:hubstop:";
     static final int MIN_SECRET = 32;
@@ -43,13 +46,13 @@ public class HubDmRelay implements InternalRouteModule {
     private final JdaLinkDmSender sender = new JdaLinkDmSender(NOT_ME, STOP);
 
     public HubDmRelay(BotConfig config) {
-        String s = config.getRsnLinkDmSecret();
+        String s = config.getRuneLinkDmSecret();
         if (s != null && s.length() < MIN_SECRET) {
-            log.warn("RSNLINK_DM_SECRET is shorter than {} characters; DM codes for the hub stay off", MIN_SECRET);
+            log.warn("RUNELINK_DM_SECRET is shorter than {} characters; DM codes for the hub stay off", MIN_SECRET);
             s = null;
         }
         this.secret = s;
-        if (s != null) log.info("RS Link DM codes for the hub are on (/internal/rsnlink-dm/)");
+        if (s != null) log.info("RuneLink DM codes for the hub are on (/internal/rsnlink-dm/)");
     }
 
     @BEventListener
@@ -64,7 +67,13 @@ public class HubDmRelay implements InternalRouteModule {
 
     @Override
     public boolean authorized(HttpExchange exchange, String internalSecret) {
-        return secretMatches(secret, exchange.getRequestHeaders().getFirst(SECRET_HEADER));
+        return secretMatches(secret, providedSecret(exchange.getRequestHeaders()));
+    }
+
+    /** The secret the caller sent: {@link #SECRET_HEADER}, else {@link #LEGACY_SECRET_HEADER}. */
+    static String providedSecret(com.sun.net.httpserver.Headers headers) {
+        String provided = headers.getFirst(SECRET_HEADER);
+        return provided != null ? provided : headers.getFirst(LEGACY_SECRET_HEADER);
     }
 
     static boolean secretMatches(String expected, String provided) {

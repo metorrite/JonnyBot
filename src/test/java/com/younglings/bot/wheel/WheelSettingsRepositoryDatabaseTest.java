@@ -53,4 +53,40 @@ class WheelSettingsRepositoryDatabaseTest {
         repository.save(GUILD, new WheelSettingsRepository.Settings(false, null, "Bye {mention}"));
         assertEquals(new WheelSettingsRepository.Settings(false, null, "Bye {mention}"), repository.get(GUILD));
     }
+
+    // ---------- the Citadel prize defaults (#449) ----------
+
+    @Test
+    void thePrizeDefaultsAreOffAndEmptyForAServerThatNeverSavedAnything() {
+        assertEquals(WheelSettingsRepository.PrizeDefaults.none(), repository.getPrizeDefaults(GUILD));
+        assertEquals(false, repository.getPrizeDefaults(GUILD).autoRecord());
+    }
+
+    @Test
+    void savingThePrizeDefaultsFirstGivesTheServerTheDefaultAnnouncement() {
+        repository.savePrizeDefaults(GUILD, new WheelSettingsRepository.PrizeDefaults(true, 100_000_000L, "Weekly cap prize"));
+        assertEquals(new WheelSettingsRepository.PrizeDefaults(true, 100_000_000L, "Weekly cap prize"), repository.getPrizeDefaults(GUILD));
+        WheelSettingsRepository.Settings announcement = repository.get(GUILD);
+        assertEquals(false, announcement.autoPost(), "saving a prize default never turns auto posting on");
+        assertNull(announcement.channelId());
+        assertEquals(WheelMessage.DEFAULT, announcement.message());
+        assertEquals(false, announcement.video());
+    }
+
+    @Test
+    void thePrizeDefaultsAndTheAnnouncementSettingsNeverOverwriteEachOther() {
+        repository.save(GUILD, new WheelSettingsRepository.Settings(true, 42L, "Hi {winner}", true));
+        repository.savePrizeDefaults(GUILD, new WheelSettingsRepository.PrizeDefaults(true, 5_000_000L, "Prize"));
+        assertEquals(new WheelSettingsRepository.Settings(true, 42L, "Hi {winner}", true), repository.get(GUILD), "the announcement is kept");
+
+        repository.save(GUILD, new WheelSettingsRepository.Settings(false, null, "Bye {mention}"));
+        assertEquals(new WheelSettingsRepository.PrizeDefaults(true, 5_000_000L, "Prize"), repository.getPrizeDefaults(GUILD), "the prize defaults are kept");
+    }
+
+    @Test
+    void anAmountAndNoteCanBeClearedAgain() {
+        repository.savePrizeDefaults(GUILD, new WheelSettingsRepository.PrizeDefaults(true, 5_000_000L, "Prize"));
+        repository.savePrizeDefaults(GUILD, new WheelSettingsRepository.PrizeDefaults(false, null, null));
+        assertEquals(WheelSettingsRepository.PrizeDefaults.none(), repository.getPrizeDefaults(GUILD));
+    }
 }

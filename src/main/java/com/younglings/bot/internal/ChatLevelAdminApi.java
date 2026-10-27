@@ -174,14 +174,8 @@ public class ChatLevelAdminApi implements AdminRouteExtension {
 
     DataObject top(Guild guild) {
         List<Standing> standings = repository.top(guild.getIdLong(), 20);
-        Map<Long, String> names = new LinkedHashMap<>();
-        if (!standings.isEmpty()) {
-            try {
-                guild.retrieveMembersByIds(standings.stream().map(Standing::userId).toList()).get().forEach(m -> names.put(m.getIdLong(), m.getEffectiveName()));
-            } catch (Exception e) {
-                log.debug("Couldn't look up leaderboard names: {}", e.getMessage());
-            }
-        }
+        // the cache first, then one lookup for the rest, waited on for a limited time
+        Map<Long, String> names = standings.isEmpty() ? Map.of() : CitadelAdminApi.memberNames(guild, standings.stream().map(Standing::userId).toList());
         DataArray rows = DataArray.empty();
         int rank = 1;
         for (Standing s : standings) {
