@@ -4,6 +4,7 @@ import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.database.DatabaseSource;
 import com.younglings.bot.runescape.polling.PollCoordinator;
 import com.younglings.bot.runescape.polling.PollEngine;
+import com.younglings.bot.discord.Shards;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.db.ConnectionSupplier;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
@@ -126,7 +127,7 @@ public class OpsMetrics {
         if (current != null) {
             g.add(MetricRegistry.Gauge.of("rc_discord_gateway_events", "Gateway events received since the connection started.", current.getResponseTotal()));
             g.add(MetricRegistry.Gauge.of("rc_discord_gateway_ping_seconds", "The last gateway heartbeat round trip.", current.getGatewayPing() / 1000.0));
-            g.add(MetricRegistry.Gauge.of("rc_discord_guilds", "Servers the bot is in.", current.getGuildCache().size()));
+            g.add(MetricRegistry.Gauge.of("rc_discord_guilds", "Servers the bot is in.", Shards.guilds(current).size()));
         }
         return g;
     }

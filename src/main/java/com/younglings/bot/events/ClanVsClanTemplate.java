@@ -1,5 +1,6 @@
 package com.younglings.bot.events;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.clanprofile.ClanProfile;
 import com.younglings.bot.clanprofile.ClanProfileRepository;
 import com.younglings.bot.events.EventRepository.Event;
@@ -180,7 +181,7 @@ public class ClanVsClanTemplate implements EventTemplate {
     String teamName(long guildId) {
         String name = profiles.get(guildId).map(ClanProfile::displayName).filter(n -> n != null && !n.isBlank()).orElse(null);
         if (name == null && jda != null) {
-            Guild guild = jda.getGuildById(guildId);
+            Guild guild = Shards.guild(jda, guildId);
             if (guild != null) name = guild.getName();
         }
         if (name == null) name = clanSync.getClanName(guildId);

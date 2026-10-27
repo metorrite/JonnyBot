@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.events.EventListing;
 import com.younglings.bot.events.EventRepository;
 import com.younglings.bot.events.EventRepository.Event;
@@ -127,7 +128,7 @@ public class HubModerationAdminApi implements AdminRouteExtension {
     }
 
     private static String serverName(Guild any, long guildId) {
-        Guild g = any.getJDA().getGuildById(guildId);
+        Guild g = Shards.guild(any.getJDA(), guildId);
         return g == null ? null : g.getName();
     }
 

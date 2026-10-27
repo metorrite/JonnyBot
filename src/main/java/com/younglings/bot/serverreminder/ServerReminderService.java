@@ -1,5 +1,6 @@
 package com.younglings.bot.serverreminder;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.discord.Mentions;
 import com.younglings.bot.alerts.AutoPostRouter;
 import com.younglings.bot.serverreminder.ServerReminder.Status;
@@ -97,7 +98,7 @@ public class ServerReminderService {
     void sweep(JDA jda) {
         try {
             for (ServerReminder reminder : repository.due(Instant.now(), 20)) {
-                Guild guild = jda.getGuildById(reminder.guildId());
+                Guild guild = Shards.guild(jda, reminder.guildId());
                 if (guild == null) continue; // not connected yet: the next pass tries again
                 post(guild, reminder);
             }

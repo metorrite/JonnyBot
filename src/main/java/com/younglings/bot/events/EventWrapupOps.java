@@ -1,6 +1,7 @@
 package com.younglings.bot.events;
 
 import com.younglings.bot.alerts.AutoPostRouter;
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.events.EventRepository.Event;
 import com.younglings.bot.events.EventRules.Status;
 import com.younglings.bot.events.EventSpace.Kind;
@@ -130,7 +131,7 @@ public class EventWrapupOps {
 
     private void unlockReopened(long guildId, Event event) {
         JDA client = jda;
-        Guild guild = client == null ? null : client.getGuildById(guildId);
+        Guild guild = client == null ? null : Shards.guild(client, guildId);
         if (guild == null || ownedChannels(event.id()).isEmpty()) return;
         try {
             startUnlock(guild, event);
@@ -152,7 +153,7 @@ public class EventWrapupOps {
      */
     void sweep(JDA client) {
         if (client == null || AutoPostRouter.skipSweep("event wrap-up")) return;
-        for (Guild guild : client.getGuilds()) {
+        for (Guild guild : Shards.guilds(client)) {
             try {
                 for (long eventId : space.eventsWithSpace(guild.getIdLong())) runDue(guild, eventId);
             } catch (RuntimeException e) {

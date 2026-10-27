@@ -6,6 +6,7 @@ import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.discord.Mentions;
 import com.younglings.bot.runescape.polling.RuneMetricsBudget;
 import com.younglings.bot.util.BotScheduler;
+import com.younglings.bot.discord.Shards;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -118,7 +119,7 @@ public class OpsAlerts {
         try {
             JDA current = jda;
             String text = OpsReport.text(BotBrand.NAME, metrics.snapshot(), metrics.gauges(), OpsTelemetry.registry(), budget.history(7), rules.firing(),
-                    current == null ? -1 : current.getGuildCache().size(), previous);
+                    current == null ? -1 : Shards.guilds(current).size(), previous);
             post(text);
         } catch (RuntimeException e) {
             log.warn("The weekly ops numbers post failed: {}", e.getClass().getSimpleName());

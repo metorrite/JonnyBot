@@ -440,6 +440,27 @@ public class BotConfig {
     }
 
     /**
+     * How many gateway shards the bot logs in with ({@code SHARD_COUNT}, T-668). Defaults to 1, which behaves exactly like the single
+     * connection the bot always had. Discord requires sharding from 2,500 servers; see docs/DEV-SETUP.md 3c.
+     */
+    public int getShardCount() {
+        return parseShardCount(envOrDotenv("SHARD_COUNT"));
+    }
+
+    /** {@code SHARD_COUNT}'s value as a shard total: unset, not a number or below 1 is 1. */
+    static int parseShardCount(String raw) {
+        if (raw == null || raw.isBlank()) return 1;
+        try {
+            int count = Integer.parseInt(raw.trim());
+            if (count >= 1) return count;
+        } catch (NumberFormatException ignored) {
+            // falls through to the warning
+        }
+        org.slf4j.LoggerFactory.getLogger(BotConfig.class).warn("SHARD_COUNT must be a whole number of 1 or more; using 1");
+        return 1;
+    }
+
+    /**
      * Whether {@code RosterPollScheduler} and {@code ClanSyncScheduler} poll automatically at all.
      * Defaults to {@code true} now that the storage format has settled — every guild's clan roster is
      * spread evenly across a 3-hour window, linked-but-not-a-member accounts across an 8-hour window

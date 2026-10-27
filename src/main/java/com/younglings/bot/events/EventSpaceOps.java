@@ -1,6 +1,7 @@
 package com.younglings.bot.events;
 
 import com.younglings.bot.alerts.AutoPostRouter;
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.events.EventRepository.Event;
 import com.younglings.bot.events.EventRules.Status;
 import com.younglings.bot.events.EventSpace.Action;
@@ -612,7 +613,7 @@ public class EventSpaceOps {
     /** Puts every event's role holders right. Skipped while the bot is not live: it gives and takes roles in the real server (T-187). */
     void sweep(JDA client) {
         if (client == null || AutoPostRouter.skipSweep("event roles")) return;
-        for (Guild guild : client.getGuilds()) {
+        for (Guild guild : Shards.guilds(client)) {
             try {
                 for (long eventId : space.eventsWithSpace(guild.getIdLong())) reconcile(guild.getIdLong(), eventId);
             } catch (RuntimeException e) {
@@ -626,7 +627,7 @@ public class EventSpaceOps {
         JDA client = jda;
         if (client == null) return;
         try {
-            Guild guild = client.getGuildById(guildId);
+            Guild guild = Shards.guild(client, guildId);
             Event event = events.event(guildId, eventId).orElse(null);
             if (guild == null || event == null || event.status() == Status.DONE || event.status() == Status.CANCELLED || !space.hasSpace(eventId)) return;
             ReentrantLock lock = lockOf(eventId);

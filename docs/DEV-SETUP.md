@@ -80,6 +80,7 @@ Every environment variable the bot reads. Each one can also go in the git-ignore
 | `BOT_STATUS` | The bot's Discord status text. | `bot.activity` from `config.properties`. |
 | `PREMIUM_ENABLED` | `1` (or `true`) brings Premium back for clan websites (T-422): free servers get the free page, widget, version and picture limits again. Keep it equal to the website's `PREMIUM_ENABLED`. | Off: everything is free for now; every server gets the website's Premium features and limits (nothing is granted or stored). Faster polling and the server profile still follow the plans. |
 | `LANGUAGE_PACKS_ENABLED` | `true` offers the machine-drafted language packs (T-099, docs/TRANSLATION.md) on the dashboard's Language page. | Off: only English can be picked (a server that already picked a pack keeps it). |
+| `SHARD_COUNT` | How many gateway shards the bot logs in with (T-668). Discord requires sharding from 2,500 servers and recommends about 1,000 servers per shard; raise it only when that comes close. The bot always uses exactly this total (never Discord's recommendation), and every bot-wide lookup (internal API, schedulers, server lookups) asks all shards. A value that isn't a whole number of 1 or more is treated as 1. | `1`: one shard, the single gateway connection the bot always had. |
 
 **Internal API and website**
 

@@ -1,5 +1,6 @@
 package com.younglings.bot.alerts;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.tracking.TrackingPostingToggle;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
@@ -82,7 +83,7 @@ public class AutoPostRouter {
         Routing router = instance;
         if (router == null || !router.diverting().getAsBoolean() || target == null) return target;
         Long dev = router.devChannelId();
-        GuildMessageChannel devChannel = dev == null ? null : target.getJDA().getChannelById(GuildMessageChannel.class, dev);
+        GuildMessageChannel devChannel = dev == null ? null : Shards.channel(target.getJDA(), GuildMessageChannel.class, dev);
         if (devChannel == null) {
             log.info("[dev, not posted] {} would have gone to #{} ({}).", what, target.getName(), target.getId());
             return null;
