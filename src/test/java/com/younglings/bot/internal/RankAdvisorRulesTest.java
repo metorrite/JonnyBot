@@ -87,6 +87,18 @@ class RankAdvisorRulesTest {
     }
 
     @Test
+    void xpGainedAtTheOldRankDoesntCountTowardTheRankAfterATick() {
+        Map<String, Rule> r = rules(new Rule("Corporal", 1_000_000L, null, null, null), new Rule("Sergeant", 1_000_000L, null, null, null));
+        List<Tick> ticks = List.of(new Tick("big xp", "Corporal", STAFF, "Staff", NOW));
+        Facts waiting = member("Big Xp", "Recruit", 50_000_000L, 30, null, 0);
+        assertTrue(RankAdvisorRules.ready(List.of(waiting), r, ticks, NOW).isEmpty(),
+                "ticked for Corporal while the game still shows Recruit: the Recruit XP can't make them ready for Sergeant");
+        Facts shown = member("Big Xp", "Corporal", 2_000_000L, 30, null, 0);
+        assertEquals("Sergeant", RankAdvisorRules.ready(List.of(shown), r, ticks, NOW).getFirst().target(),
+                "once the game shows Corporal, XP at Corporal counts");
+    }
+
+    @Test
     void ownersAndUnknownRanksAreNeverListedAndHigherTargetsComeFirst() {
         Map<String, Rule> r = rules(new Rule("Corporal", null, 1, null, null), new Rule("General", null, 1, null, null));
         List<Ready> ready = RankAdvisorRules.ready(List.of(

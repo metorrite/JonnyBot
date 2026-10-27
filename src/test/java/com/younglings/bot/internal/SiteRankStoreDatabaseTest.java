@@ -108,9 +108,9 @@ class SiteRankStoreDatabaseTest {
 
     @Test
     void ticksAreKeptPerRankAndCanBeTakenBack() {
-        store.tick(G, "zezima", "Corporal", OWNER, "Owner name");
-        store.tick(G, "zezima", "Corporal", OWNER, "Owner name");
-        store.tick(G, "zezima", "Sergeant", OWNER, null);
+        assertTrue(store.tick(G, "zezima", "Corporal", OWNER, "Owner name"), "a first tick is new");
+        assertFalse(store.tick(G, "zezima", "Corporal", OWNER, "Owner name"), "a repeated tick isn't, so no second congrats post");
+        assertTrue(store.tick(G, "zezima", "Sergeant", OWNER, null));
         List<Tick> ticks = store.ticks(G);
         assertEquals(2, ticks.size());
         store.untick(G, "zezima", "Corporal");

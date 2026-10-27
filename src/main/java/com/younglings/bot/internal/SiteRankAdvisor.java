@@ -307,12 +307,17 @@ public class SiteRankAdvisor {
             store.untick(c.guildId(), key, rank);
             return DataObject.empty().put("tick", null).put("job", null).put("congratsProblem", null);
         }
+        String current = rosterRank(c.guildId(), key);
+        if (current != null && RankAdvisorRules.indexOf(current) >= RankAdvisorRules.indexOf(rank)) {
+            throw refused(c, "The clan Hiscores already show " + rsn.strip() + " at " + current + " or higher. Reload the page.");
+        }
         String name = SiteCockpitAdmin.displayName(c, body.getString("name", ""));
-        store.tick(c.guildId(), key, rank, c.userId(), name);
+        boolean fresh = store.tick(c.guildId(), key, rank, c.userId(), name);
         DataObject tick = DataObject.empty().put("rank", rank).put("by", Long.toString(c.userId())).put("byName", name)
                 .put("at", OffsetDateTime.now(ZoneOffset.UTC).toString());
         DataObject answer = DataObject.empty().put("tick", tick).put("job", null).put("congratsProblem", null);
-        if (!body.getBoolean("congrats", false)) return answer;
+        // one congrats post per tick: a repeated tick (a double click, two staff at once) doesn't post it again
+        if (!fresh || !body.getBoolean("congrats", false)) return answer;
         Congrats congrats = store.congrats(c.guildId());
         if (!congrats.on() || c.botless()) return answer;
         String problem = null;
@@ -326,6 +331,12 @@ public class SiteRankAdvisor {
                 RankCongratsJob.payload(ch.getIdLong(), text));
         log.info("Clan health: {} ticked a rank-up in server {} and queued a congrats post (job {})", c.userId(), c.guildId(), job.id());
         return answer.put("job", job.ticket());
+    }
+
+    /** The member's in-game rank on the roster, or null. */
+    private String rosterRank(long guildId, String key) {
+        for (SiteRankStore.Row r : store.roster(guildId)) if (CockpitRules.keyOf(r.rsn()).equals(key)) return r.rank();
+        return null;
     }
 
     /** The name as the roster spells it (the website may send any case). */

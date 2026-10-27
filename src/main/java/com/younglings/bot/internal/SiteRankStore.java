@@ -255,13 +255,17 @@ public class SiteRankStore {
         }
     }
 
-    /** Ticks a member off for a rank (again: who and when move to now), and drops ticks long past keeping. */
-    public void tick(long guildId, String rsnKey, String rank, long by, String byName) {
+    /**
+     * Ticks a member off for a rank (again: who and when move to now), and drops ticks long past keeping. True when the tick is new, false
+     * when the member was already ticked off for that rank (a second click, or two staff at once): the congrats post goes out once.
+     */
+    public boolean tick(long guildId, String rsnKey, String rank, long by, String byName) {
         try (Connection c = connection();
              PreparedStatement s = c.prepareStatement("""
                      INSERT INTO younglings.site_rank_tick (guild_id, rsn_key, rank_name, ticked_by, ticked_by_name, ticked_at) VALUES (?, ?, ?, ?, ?, NOW())
                      ON CONFLICT (guild_id, rsn_key, rank_name) DO UPDATE SET ticked_by = EXCLUDED.ticked_by, ticked_by_name = EXCLUDED.ticked_by_name,
                          ticked_at = NOW()
+                     RETURNING (xmax = 0) AS inserted
                      """);
              PreparedStatement prune = c.prepareStatement(
                      "DELETE FROM younglings.site_rank_tick WHERE guild_id = ? AND ticked_at < NOW() - (? * INTERVAL '1 day')")) {
@@ -270,10 +274,14 @@ public class SiteRankStore {
             s.setString(3, rank);
             s.setLong(4, by);
             s.setString(5, byName);
-            s.executeUpdate();
+            boolean inserted;
+            try (ResultSet rs = s.executeQuery()) {
+                inserted = rs.next() && rs.getBoolean("inserted");
+            }
             prune.setLong(1, guildId);
             prune.setInt(2, RankAdvisorRules.TICK_KEEP_DAYS);
             prune.executeUpdate();
+            return inserted;
         } catch (SQLException e) {
             throw fail("save a tick", e);
         }

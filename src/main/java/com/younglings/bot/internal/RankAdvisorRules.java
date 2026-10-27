@@ -130,7 +130,11 @@ public final class RankAdvisorRules {
             if (target >= LADDER.size() || !TARGETS.contains(LADDER.get(target))) continue;
             Rule rule = rules.get(LADDER.get(target));
             if (rule == null || rule.empty()) continue;
-            List<Check> checks = check(rule, m, now);
+            // Ticked off for a rank the game doesn't show yet: the XP counted so far was gained at the old rank, so it can't count toward
+            // the rank after. XP at the new rank starts once the roster shows it (until then it is unknown, so an XP rule isn't met).
+            Facts counted = target > at + 1 && m.xpGained() != null
+                    ? new Facts(m.rsn(), m.rank(), null, m.rankSince(), m.joined(), m.caps(), m.points()) : m;
+            List<Check> checks = check(rule, counted, now);
             if (checks.stream().allMatch(Check::met)) out.add(new Ready(m, LADDER.get(target), checks));
         }
         out.sort(Comparator.comparingInt((Ready r) -> indexOf(r.target())).reversed()
