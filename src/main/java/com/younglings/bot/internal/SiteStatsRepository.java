@@ -143,6 +143,15 @@ public class SiteStatsRepository {
     }
 
     /**
+     * The servers whose clan roster has {@code rsn} as an active member (name matched ignoring case), for a player's public profile
+     * ({@link DirectoryPlayerRoutes}). Only server ids: whether each clan and member page may be shown is decided by the caller.
+     */
+    public List<Long> guildsWithActiveMember(String rsn) {
+        return query("guilds with member", "SELECT DISTINCT guild_id FROM younglings.clan_member WHERE LOWER(rsn) = LOWER(?) AND active",
+                rs -> rs.getLong("guild_id"), rsn);
+    }
+
+    /**
      * Total XP gained by each active member since {@code since}: their newest snapshot minus the snapshot at
      * (or, failing that, just after) the start. Members with no snapshots yet are left out.
      */

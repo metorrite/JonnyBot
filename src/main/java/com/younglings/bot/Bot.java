@@ -180,7 +180,12 @@ public class Bot extends JDAService {
         Mentions.installDefault();
         // This uses JDABuilder#createLight, with the intents and the additional cache flags set above
         // It also sets the EventManager and a special rate limiter
-        createLight(botConfig.getToken())
+        var builder = createLight(botConfig.getToken());
+        // T-674: count Discord's 429 answers for /metrics and the ops alerts, only when one of them is on (otherwise JDA's own client, untouched)
+        if (botConfig.isMetricsEnabled() || botConfig.isOpsAlertsEnabled()) {
+            builder.setHttpClientBuilder(net.dv8tion.jda.internal.utils.IOUtil.newHttpClientBuilder().addInterceptor(com.younglings.bot.ops.OpsTelemetry.discord429Counter()));
+        }
+        builder
                 .setActivity(botConfig.getActivity())
                 // createLight's low-memory profile defaults to a restrictive member cache policy.
                 // The internal API's online-members endpoint (InternalApiServer#buildOnlineMembers)
