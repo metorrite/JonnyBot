@@ -27,6 +27,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class AccessGrantAdminApiTest {
+    private static final String PERSON = "3".repeat(18); // made up at runtime: never a real Discord id
+    private static final long PERSON_ID = Long.parseLong(PERSON);
+    private static final String SERVER = "4".repeat(19); // made up at runtime: never a real Discord id
+    private static final long SERVER_ID = Long.parseLong(SERVER);
+
     private AccessGrantRepository repository;
     private AccessGrantService service;
     private BotOwners owners;
@@ -49,14 +54,14 @@ class AccessGrantAdminApiTest {
     }
 
     private static DataObject userGrant() {
-        return DataObject.empty().put("area", "hub").put("subject", "user").put("userId", "577853260153618443").put("note", "tester");
+        return DataObject.empty().put("area", "hub").put("subject", "user").put("userId", PERSON).put("note", "tester");
     }
 
     @Test
     void theOwnerCanLetAUserInAndTheRememberedAnswersAreForgotten() {
         api.route(guild, actor, "POST", new String[]{"access-grants"}, AccessGrantAdminApiTest::userGrant);
 
-        verify(repository).add(AccessArea.HUB, 577853260153618443L, null, null, "tester", 7L, null);
+        verify(repository).add(AccessArea.HUB, PERSON_ID, null, null, "tester", 7L, null);
         verify(service).listChanged();
     }
 
@@ -82,11 +87,11 @@ class AccessGrantAdminApiTest {
 
     @Test
     void theOwnerCanLetAServerInAtALevel() {
-        DataObject body = DataObject.empty().put("area", "dashboard").put("subject", "server").put("guildId", "1388208054008545300").put("level", "manage_server");
+        DataObject body = DataObject.empty().put("area", "dashboard").put("subject", "server").put("guildId", SERVER).put("level", "manage_server");
 
         api.route(guild, actor, "POST", new String[]{"access-grants"}, () -> body);
 
-        verify(repository).add(AccessArea.DASHBOARD, null, 1388208054008545300L, AccessLevel.MANAGE_SERVER, "", 7L, null);
+        verify(repository).add(AccessArea.DASHBOARD, null, SERVER_ID, AccessLevel.MANAGE_SERVER, "", 7L, null);
     }
 
     @Test
@@ -104,7 +109,7 @@ class AccessGrantAdminApiTest {
     void aBadAreaIdLevelOrDateIsRefused() {
         DataObject badArea = userGrant().put("area", "nope");
         DataObject badUser = userGrant().put("userId", "12");
-        DataObject noLevel = DataObject.empty().put("area", "hub").put("subject", "server").put("guildId", "1388208054008545300");
+        DataObject noLevel = DataObject.empty().put("area", "hub").put("subject", "server").put("guildId", SERVER);
         DataObject pastDate = userGrant().put("expiresOn", "2020-01-01");
         DataObject noSubject = DataObject.empty().put("area", "hub");
 
@@ -162,7 +167,7 @@ class AccessGrantAdminApiTest {
             @SuppressWarnings("unchecked")
             net.dv8tion.jda.api.requests.restaction.CacheRestAction<net.dv8tion.jda.api.entities.User> action = mock(net.dv8tion.jda.api.requests.restaction.CacheRestAction.class);
             when(action.submit()).thenReturn(late);
-            when(guild.getJDA().retrieveUserById(577853260153618443L)).thenReturn(action);
+            when(guild.getJDA().retrieveUserById(PERSON_ID)).thenReturn(action);
 
             long started = System.nanoTime();
             api.route(guild, actor, "POST", new String[]{"access-grants"}, AccessGrantAdminApiTest::userGrant);
@@ -171,11 +176,11 @@ class AccessGrantAdminApiTest {
             verify(repository, never()).rememberUser(anyLong(), any(), any());
 
             net.dv8tion.jda.api.entities.User user = mock(net.dv8tion.jda.api.entities.User.class);
-            when(user.getIdLong()).thenReturn(577853260153618443L);
+            when(user.getIdLong()).thenReturn(PERSON_ID);
             when(user.getName()).thenReturn("newcomer");
             when(user.getEffectiveAvatarUrl()).thenReturn("https://cdn.example/n.png");
             late.complete(user);
-            verify(repository).rememberUser(577853260153618443L, "newcomer", "https://cdn.example/n.png");
+            verify(repository).rememberUser(PERSON_ID, "newcomer", "https://cdn.example/n.png");
         } finally {
             com.younglings.bot.discord.DiscordLookups.forgetAll();
         }

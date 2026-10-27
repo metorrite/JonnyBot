@@ -38,10 +38,10 @@ These are the items that break or misbehave with a second process. Each maps to 
 | M4 | Discord outbox claim by shard | `DiscordJobRepository.claimDue` | Already `FOR UPDATE SKIP LOCKED` (no double run), but any gateway process takes any server's job; under B3 a process cannot reach servers on other shards and fails the job. | **Move to Postgres**: claim only rows whose `guild_id` maps to this process's shards (`(guild_id >> 22) % SHARD_COUNT`). |
 | M5 | Boot-loaded live registries | `PollService.activePollsById` / `optionsByPollId`, `SignupService.activeSignupsById` | Loaded once at start-up and then trusted. A poll created through the website (`CommunityAdminApi`, `MemberApi`) on the `api` process is unknown to the gateway process until it restarts, so its buttons fail. | **Move to Postgres** as the source of truth: look up on a miss (load-through), keep the map only as a cache. **Done** (F3): `getSessionById` reads the one row on a miss (a miss that finds nothing is remembered for 10 s), the `/poll` panel and the website's signup list read their server's rows from Postgres and drop cached ones ended or deleted elsewhere. A poll ended or signup deleted on another process stays cached here until that server's list is read again or the process restarts; a push signal for that is M10's job. |
 | M6 | Long-running website jobs and their progress | `EventSpaceOps.jobs` / `locks` / `pending`, `EventWrapupOps.exports`, `RoleSyncBackfill.progress` | The dashboard starts a job on one `api` replica and polls progress every two seconds; the next poll can land on another replica that knows nothing ("no job"). The per-event `ReentrantLock` does not stop a second replica. | **Move to Postgres**: a small job table (state, done, total, message, finished_at) and `pg_advisory_xact_lock` per event instead of the in-memory lock. |
-| M7 | Security rate limits for RuneLink | `LinkService` `WindowLimiter`s: `wrongCodesPerDiscord`, `codePerIpMinute`, `codePerIpHour`, `startPerIp`, `startPerRsn`, `startPerTracking`; `LinkDm` `dmPerIp`, `dmPerTracking` | These cap guessing of link codes and DM spam. With N `api` replicas behind a load balancer the real limit is N times the intended one. | **Move to Postgres** (a sliding-window table keyed by the hashed lookup, or the hub when RuneLink moves there). The other `WindowLimiter` uses (token and alias routes, web account) can stay per process. |
+| M7 | Security rate limits for RuneLink | `LinkService` `WindowLimiter`s: `wrongCodesPerDiscord`, `codePerIpMinute`, `codePerIpHour`, `startPerIp`, `startPerRsn`, `startPerTracking`; `LinkDm` `dmPerIp`, `dmPerTracking` | These cap guessing of link codes and DM spam. With N `api` replicas behind a load balancer the real limit is N times the intended one. | **Move to Postgres**, done: `SharedWindowLimiter` keeps them in the link schema's `rate_window` table (one row per limiter and hashed key holding the hit times inside the window; one `INSERT ... ON CONFLICT DO UPDATE` per check, whose row lock makes racing replicas queue; old rows go in the hourly retention sweep on the `rsnlink-retention` lane). A database error refuses the route (500), as the route's own work needs the same database. The other `WindowLimiter` uses (token and alias routes, web account) stay per process. |
 | M8 | Hiscores read budget for XP verification | `XpVerifier.globalReads` (and its `cache`), `RsnLinkModule` lane `rsnlink-verify` | Two workers would each spend the full public-read budget and check the same claims. | **One owner** (`api` role). The claims themselves are already in Postgres (`PgVerifyStore`). |
 | M9 | "Server not visible" treated as "server gone" | `PollCloser` (clears the poll's schedule), `TwitchService.announce` (claims, then finds no channel, alert lost), `GuildRetentionService.sweep` (uses `getGuildById` as proof of absence), other lanes that skip a `null` guild | Under B3 a process sees only its own shards' servers, and under B2 the `api` role may have no gateway at all. A `null` from `getGuildById` then means "not mine", not "the bot left". | **One owner** per lane plus a shard check: add one helper (`ShardRouting.owns(guildId)`) and only treat `null` as "gone" for servers this process owns. Retention decides "gone" from the stored departure row alone. |
-| M10 | Settings caches with no TTL | see section 4.3 | The website saves a setting on the `api` process; the gateway process keeps the old value until it restarts (for example an automod rule removed on the dashboard keeps deleting messages). | **Invalidate across processes**: one `LISTEN/NOTIFY` channel (`bot_cache`, payload `area:guildId`) that every cache subscribes to, or a short TTL as a stop-gap. |
+| M10 | Settings caches with no TTL | see section 4.3 | The website saves a setting on the `api` process; the gateway process keeps the old value until it restarts (for example an automod rule removed on the dashboard keeps deleting messages). | **Invalidate across processes**: one `LISTEN/NOTIFY` channel (`bot_cache`, payload `area:guildId`) that every cache subscribes to, or a short TTL as a stop-gap. **Done** (F7, behind `BOT_CACHE_NOTIFY`, off by default): see section 4.5. |
 | M11 | Scheduler lanes that read rows, not servers | most lanes in section 5 | A lane that loops over database rows (reminders, giveaways, scheduled posts, ticket closes, premium expiry) runs in every process that starts it, so the same reminder fires twice. | **One owner**: each lane declares its role (section 5). Lanes whose work needs Discord run in the gateway and filter rows to their own shards (`guild_id` → shard). |
 
 ### 3.1 Follow-up work
@@ -54,9 +54,9 @@ Each must-fix item maps to one follow-up. A follow-up is not done until its row 
 | F2 | M3, M4 | Outbox `claimed_by` / `claimed_at`; `recover()` touches only expired or own claims; claims filtered to this process's shards. | open |
 | F3 | M5 | Load-through lookups for polls and signups; the boot maps become caches. | done (#473) |
 | F4 | M6 | Job table and per-event `pg_advisory_xact_lock` for event space, wrap-up export and role backfill jobs. | open |
-| F5 | M7 | RuneLink code, start and DM limits in a Postgres sliding-window table (or the hub). | open |
+| F5 | M7 | RuneLink code, start and DM limits in a Postgres sliding-window table (or the hub). | done (T-699) |
 | F6 | M9 | `ShardRouting.owns(guildId)` helper; fix the "null guild = gone" branches; retention uses the departure row only. | open |
-| F7 | M10 | One `LISTEN/NOTIFY` channel (`bot_cache`) that the settings caches in section 4.3 subscribe to. | open |
+| F7 | M10 | One `LISTEN/NOTIFY` channel (`bot_cache`) that the settings caches in section 4.3 subscribe to. | done (T-701); switch on with `BOT_CACHE_NOTIFY=true` in every process once there is more than one |
 | F8 | M11 | Each scheduler lane declares its `BOT_ROLE` (section 5); gateway lanes filter rows to their own shards. | open |
 
 ## 4. Full inventory
@@ -70,7 +70,7 @@ Paths are under `src/main/java/com/younglings/bot/`. "TTL" means the entry expir
 | RuneMetrics queue, bucket, in-flight, recent polls, counters | `runescape/polling/PollEngine`, `RateBucket`, `PollQueue`, `PollCoordinator.jobs` | global budget | M1: One owner, then move to the hub |
 | RuneMetrics daily tally | `runescape/polling/RuneMetricsBudget` | global counter | M2: follows M1 |
 | Hiscores read log and view cache | `rsnlink/verify/XpVerifier.globalReads`, `cache` | global budget | M8: One owner |
-| RuneLink abuse limits | `rsnlink/LinkService` (9 `WindowLimiter`s), `rsnlink/LinkDm` (2) | security limit | M7: the code, start and DM limits move to Postgres; token and alias route limits per process |
+| RuneLink abuse limits | `rsnlink/LinkService` (6 `SharedWindowLimiter`s, 3 `WindowLimiter`s), `rsnlink/LinkDm` (2 `SharedWindowLimiter`s) | security limit | M7: the code, start and DM limits are in Postgres (`SharedWindowLimiter`, `rate_window`), done; token, alias and web-account route limits per process |
 | Website button and API limits | `internal/RateLimiter` used by `FormsPublicApi`, `TicketAdminApi`, `DirectorySite*Routes`, `WebUserStateRoutes`, `SiteMembersAdmin`, `AppealsPublicApi`, `MemberApi`, `SiteViewerRoutes`, `DiscordJobRoutes`, `ClanSiteAdminApi`, `OverallAdminApi`, `PluginApi`, `LinkedRolesApi`, `BotlessAdminApi` | anti-mashing | Per process is fine (N replicas allow N times the burst; the website and Discord have their own limits) |
 | Plugin ingest limits | `internal/PluginApi` (`ingestLimit`, `accountLimit`, `runeSyncLimit`) | anti-flood | Per process is fine; revisit if plugin traffic grows (hub owns ingest long term) |
 | Message cooldowns | `chatlevel/ChatLevelListener.lastEarned`, `highlight/HighlightListener.lastSent`, `autoreply/AutoReplyListener.lastAnswered`, `commands/customtag/TagCommand.lastUsed`, `commands/recap/WrappedCommand.lastUse`, `suggestion/SuggestionService.lastSubmitted`, `tempvoice/TempVoiceService.lastCreate`, `commandchannel/CommandChannelListener.lastNoticeAt`, `servertag/ServerTagListener.recent`, `honeypot/HoneypotListener.recent` | per-server event dedupe | Per shard set is fine (events for a server arrive on its shard only) |
@@ -108,33 +108,33 @@ Paths are under `src/main/java/com/younglings/bot/`. "TTL" means the entry expir
 
 ### 4.3 Caches of database rows (writes may come from the website)
 
-No TTL: the cache is only refreshed when the same process writes. All of these are **M10: Invalidate across processes**.
+No TTL: the cache is only refreshed when the same process writes. All of these are **M10: Invalidate across processes**, done: each class implements `CacheInvalidator` under the area in the last column (section 4.5).
 
-| Cache | Where |
-|---|---|
-| Automod config | `automod/AutomodRepository.cache` |
-| Auto replies | `autoreply/AutoReplyRepository.cache` |
-| Custom tags and their switch | `customtag/CustomTagRepository.cache`, `enabled` |
-| Highlights (configs, keywords, ignores) | `highlight/HighlightRepository` |
-| Chat level config and roles | `chatlevel/ChatLevelRepository.configs`, `roles` |
-| Server tag config | `servertag/ServerTagRepository.cache` |
-| Honeypot config | `honeypot/HoneypotRepository.cache` |
-| Auto-delete rules | `autodelete/AutoDeleteRepository.cache` |
-| Message log config | `messagelog/MessageLogRepository.configs` |
-| Points extras triggers | `points/PointsExtrasRepository.triggerCache` |
-| Role rules | `rolerules/RoleRuleService.cache` |
-| Command channels | `commandchannel/CommandChannelService.channelIndexByGuild` |
-| Permission groups | `permission/PermissionGroupService.cache` |
-| Hub command settings | `hub/HubService.cache` |
-| Server language | `i18n/Messages.chosen` |
-| AFK list | `afk/AfkService.byGuild` (the dashboard can clear AFK through `HubAdminApi`) |
-| Bot-less site list | `clansite/BotlessSiteRepository.known` |
+| Cache | Where | Area |
+|---|---|---|
+| Automod config | `automod/AutomodRepository.cache` | `automod` |
+| Auto replies | `autoreply/AutoReplyRepository.cache` | `auto-reply` |
+| Custom tags and their switch | `customtag/CustomTagRepository.cache`, `enabled` | `custom-tag` |
+| Highlights (configs, keywords, ignores) | `highlight/HighlightRepository` | `highlight` |
+| Chat level config and roles | `chatlevel/ChatLevelRepository.configs`, `roles` | `chat-level` |
+| Server tag config | `servertag/ServerTagRepository.cache` | `server-tag` |
+| Honeypot config | `honeypot/HoneypotRepository.cache` | `honeypot` |
+| Auto-delete rules | `autodelete/AutoDeleteRepository.cache` | `auto-delete` |
+| Message log config | `messagelog/MessageLogRepository.configs` | `message-log` |
+| Points extras triggers | `points/PointsExtrasRepository.triggerCache` | `points-extras` |
+| Role rules | `rolerules/RoleRuleService.cache` | `role-rules` |
+| Command channels | `commandchannel/CommandChannelService.channelIndexByGuild` | `command-channels` |
+| Permission groups | `permission/PermissionGroupService.cache` | `permission-groups` |
+| Hub command settings | `hub/HubService.cache` | `hub-commands` |
+| Server language | `i18n/Messages.chosen` | `language` |
+| AFK list | `afk/AfkService.byGuild` (the dashboard can clear AFK through `HubAdminApi`) | `afk` |
+| Bot-less site list | `clansite/BotlessSiteRepository.known` | `botless-sites` |
 
-With a TTL (stale for at most the TTL on another replica): **Per process is fine**, and M10's signal shortens it when it lands.
+With a TTL (stale for at most the TTL on another replica): **Per process is fine**. The admin reads are subscribed to M10's signal; the rest stay on their TTL.
 
 | Cache | Where | TTL |
 |---|---|---|
-| Admin reads (Discord-derived answers) | `internal/AdminReads` static `StaleCache` | fresh 30 s, served stale up to 10 min while refreshing; local `invalidate` after a write only clears this process, so subscribe it to M10 |
+| Admin reads (Discord-derived answers) | `internal/AdminReads` static `StaleCache` | fresh 30 s, served stale up to 10 min while refreshing; `AdminReads.forget` after a write also sends `admin-reads:guildId`, and `internal/AdminReadsCache` drops that server's pages in the other processes (M10) |
 | Site and directory caches | `internal/SiteCache`, `DirectoryApi`, `DirectoryClanVsClanSection`, `HubEventsApi`, `TicketAdminApi.archivedThreadCache` (`internal/TtlCache`) | short TTL |
 | Site viewer roles | `clansite/SiteRoleGuard.viewers` | 60 s |
 | Beta and access answers | `beta/BetaAccessService.remembered`, `access/AccessGrantService.remembered` | about a minute |
@@ -149,6 +149,18 @@ With a TTL (stale for at most the TTL on another replica): **Per process is fine
 | Phishing domain list | `automod/PhishingList` | timed reload |
 | Twitch and Kick app tokens | `twitch/TwitchClient`, `kick/KickClient` | until expiry; each process holds its own token (allowed by both APIs) |
 | RuneLink signing keys | `plugin/RsLinkAuth.keys` | timed refetch |
+
+### 4.5 How the cache signal works (M10)
+
+Paths are under `src/main/java/com/younglings/bot/cachebus/`.
+
+- **Switch:** `BOT_CACHE_NOTIFY=true` (docs/DEV-SETUP.md 3c). Off by default; then nothing below runs and every cache behaves exactly as with one process. Turn it on in every process at the same time.
+- **Sending:** a cache that wrote calls `CacheBus.changed(area, guildId)` after its write committed (it has already updated or dropped its own entry, as before). The signal is queued on the `cache-bus-send` lane and sent with `SELECT pg_notify('bot_cache', 'area:guildId')` on a pool connection, so the web request that saved never waits for it. The same signal queued twice before it is sent goes once.
+- **Listening:** `CacheListener` holds one connection of its own, opened from `DATABASE_URL` outside the Hikari pool, and runs `LISTEN bot_cache` on the `cache-bus-listen` lane. Each turn waits up to a second for signals, then queues the next turn. The connection is checked every 30 s; when it fails it is reopened after 1 s, doubling to at most a minute. **Every (re)connect clears every subscribed cache**, because signals sent while nobody listened are lost.
+- **Dispatching:** `CacheDispatcher` parses `area:guildId` (anything else is ignored) and calls `evictCached(guildId)` on each `CacheInvalidator` of that area. A cache that throws is logged and the others still run.
+- **Own signals:** a process hears its own signals too and drops the entry it just wrote; the next read loads the same row. That costs one read per change but needs no bookkeeping, and whatever order two processes write in, both end with what Postgres holds.
+- **Adding a cache:** implement `CacheInvalidator` on its `@BService` (an `@InterfacedService`, so `CacheBus` finds it without an edit), give it a `CACHE_AREA` of its own (`CacheAreasTest` lists them), and call `CacheBus.changed(CACHE_AREA, guildId)` after each write. `evictCached` and `evictAllCached` only drop entries; they never write or send a signal.
+- **Not covered yet:** `events/EventChanges.subscribers` (section 4.2) and the boot-loaded poll and signup maps (M5) still learn of another process's change only on their next read from Postgres; they can subscribe the same way when needed.
 
 ### 4.4 Application-wide Discord state
 

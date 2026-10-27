@@ -33,7 +33,7 @@ import java.util.Random;
 
 /** Throwaway: paints RuneScape-flavoured backgrounds for the four board shapes in code, then draws sample boards on them to look at. Not committed. */
 class BingoSkinScratchTest {
-    private static final Path OUT = Path.of("C:/Users/drake/AppData/Local/Temp/claude/C--Users-drake-Documents-Github-Repositories-JonnyBot/37797ab7-e4bc-4097-8007-571e5bb594a6/scratchpad/skins");
+    private static final Path OUT = Path.of(System.getProperty("java.io.tmpdir"), "bingo-skins");
     private static final int W = 1600;
     private static final int H = 1000;
 
@@ -753,7 +753,8 @@ class BingoSkinScratchTest {
     /** Writes the small pictures the website shows when someone picks a look: every shape and the grid, in each look, from a made-up event. */
     @Test
     void lookPreviews() throws Exception {
-        Path out = Path.of("C:/Users/drake/Documents/Github/Repositories/yw-wheel-wt/public/bingo-looks");
+        // pass -Dbingo.looks.dir=<website checkout>/public/bingo-looks to write straight into the website
+        Path out = Path.of(System.getProperty("bingo.looks.dir", "target/bingo-looks"));
         Files.createDirectories(out);
         BingoTemplate template = new BingoTemplate();
         BingoTiles icons = new BingoTiles(new com.younglings.bot.internal.WikiCatalog());

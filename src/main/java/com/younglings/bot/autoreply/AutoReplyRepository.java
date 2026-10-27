@@ -1,6 +1,8 @@
 package com.younglings.bot.autoreply;
 
 import com.younglings.bot.autoreply.AutoReply.Match;
+import com.younglings.bot.cachebus.CacheBus;
+import com.younglings.bot.cachebus.CacheInvalidator;
 import com.younglings.bot.database.SchemaBootstrapper;
 import io.github.freya022.botcommands.api.core.db.ConnectionSupplier;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -19,7 +21,10 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /** Automatic replies, kept in memory per server too (every message in a server asks for them) and refreshed whenever they change. */
 @BService
-public class AutoReplyRepository {
+public class AutoReplyRepository implements CacheInvalidator {
+    /** The {@code bot_cache} area of this class's caches (docs/SCALING-STATE.md M10). */
+    static final String CACHE_AREA = "auto-reply";
+
     private static final Logger log = LoggerFactory.getLogger(AutoReplyRepository.class);
 
     private final ConnectionSupplier connectionSupplier;
@@ -104,6 +109,7 @@ public class AutoReplyRepository {
                 }
             }
             cache.remove(reply.guildId());
+            CacheBus.changed(CACHE_AREA, reply.guildId());
             return get(reply.guildId(), id).orElseThrow();
         } catch (SQLException e) {
             log.error("Failed to save an automatic reply for guild {}", reply.guildId(), e);
@@ -118,10 +124,28 @@ public class AutoReplyRepository {
             s.setLong(2, id);
             boolean gone = s.executeUpdate() > 0;
             cache.remove(guildId);
+            CacheBus.changed(CACHE_AREA, guildId);
             return gone;
         } catch (SQLException e) {
             log.error("Failed to delete automatic reply {}", id, e);
             throw new RuntimeException("Failed to delete the automatic reply", e);
         }
+    }
+
+    // ---------- cross-process invalidation (CacheBus) ----------
+
+    @Override
+    public String cacheArea() {
+        return CACHE_AREA;
+    }
+
+    @Override
+    public void evictCached(long guildId) {
+        cache.remove(guildId);
+    }
+
+    @Override
+    public void evictAllCached() {
+        cache.clear();
     }
 }

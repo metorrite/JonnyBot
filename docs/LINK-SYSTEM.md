@@ -1,14 +1,14 @@
 # RSN link system: design and protocol spec
 
-Ticket T-112. Status: **draft; Drake's decisions of 2026-10-19 applied (section 18)**. Build tickets T-113..T-118 follow this document; a build worker who finds a gap here asks (ticket back to `planning`) rather than inventing.
+Ticket T-112. Status: **draft; Drake's decisions of 2026-10-19 applied (section 18)**. Build tickets T-113..T-118 follow this document; whoever finds a gap here asks rather than inventing.
 
 ## 0. In one paragraph
 
-A standalone RS3 plugin named **RuneLink** (Drake's pick, section 15) lets a player link the character they are logged into to their Discord account. The plugin shows a short code and a short web address; the player opens the address on any device, signs in with Discord, types the code and confirms "Link RuneScape name X to this Discord". The plugin then holds a private random token and never shows it to anyone. Other plugins depend on it and can ask only two things: "is this player linked?" and "what is this player's alias for my plugin?" (a stable random-looking id that is different for every plugin). For players who prefer it, a fallback has JonnyBot DM them a code instead, which only works when JonnyBot can reach them on Discord. Trust is implicit for now, with a `verification` field and a hook so a real check can be added later. The service has its own database, its own keys and a neutral, unbranded web face whose address is configuration, so the final domain can be chosen before the Jagex submission.
+A standalone RS3 plugin named **RuneLink** (Drake's pick, section 15) lets a player link the character they are logged into to their Discord account. The plugin shows a short code and a short web address; the player opens the address on any device, signs in with Discord, types the code and confirms "Link RuneScape name X to this Discord". The plugin then holds a private random token and never shows it to anyone. Other plugins depend on it and can ask only two things: "is this player linked?" and "what is this player's alias for my plugin?" (a stable random-looking id that is different for every plugin). For players who prefer it, a fallback has RuneClan Bot DM them a code instead, which only works when RuneClan Bot can reach them on Discord. Trust is implicit for now, with a `verification` field and a hook so a real check can be added later. The service has its own database, its own keys and a neutral, unbranded web face whose address is configuration, so the final domain can be chosen before the Jagex submission.
 
 ## 1. Fixed decisions (from Drake's Q&A, 2026-10-19; not re-opened here)
 
-- Generic: any plugin can depend on it. JonnyBot and RuneSync are its first users, nothing more.
+- Generic: any plugin can depend on it. RuneClan Bot and RuneSync are its first users, nothing more.
 - Primary pairing: Discord sign-in, device-code style. Fallback: a DM code, only when the bot can DM the player.
 - Codes expire (about 10 minutes), wrong attempts lock out, cooldowns per account and per IP. No server membership or slash command needed.
 - Sign-in page: neutral and unbranded (same visual theme is fine; no clan name, no ads, no "personal gain" look). Base URL is configuration; final domain decided before submission.
@@ -20,7 +20,7 @@ A standalone RS3 plugin named **RuneLink** (Drake's pick, section 15) lets a pla
 ## 2. The pieces
 
 ```
-  RS3 client (player's PC)                     Neutral link host (website app, own host face)          JonnyBot process
+  RS3 client (player's PC)                     Neutral link host (website app, own host face)          RuneClan Bot process
  +---------------------------+   HTTPS         +--------------------------------------+   internal   +------------------------------+
  | RuneLink plugin (Lua)      | --------------> | /v1/*   plugin API (proxy + limits)  | -----------> | rsnlink service (Java)       |
  |  - pairing panel          |                 | /       code entry + Discord sign-in |  X-Internal- |  - own DataSource            |
@@ -35,12 +35,12 @@ A standalone RS3 plugin named **RuneLink** (Drake's pick, section 15) lets a pla
 
 - **RuneLink plugin** (new repo, T-116): Lua 5.4. Shows the pairing panel, talks to the link host, stores the token, exports a small library.
 - **Link host face** (website, T-114): a separate host face of the existing Next.js app, chosen by hostname like the `api.`/`clans.`/`jonnybot.` faces in `src/proxy.ts`. It serves the plugin API (thin proxy with its own per-IP limits, the same pattern as `src/lib/pluginProxy.ts`) and the sign-in pages. It shares no cookies, sessions or nav with the clan site or the dashboard.
-- **rsnlink service** (bot, T-113): a new package `com.younglings.bot.rsnlink` inside the JonnyBot process for now (Drake, 2026-10-19), exposed only on the internal port behind `X-Internal-Secret`. It becomes its own service when Drake is ready to transition, so the module boundary is kept clean enough that the split is a move, not a rewrite:
+- **rsnlink service** (bot, T-113): a new package `com.younglings.bot.rsnlink` inside the RuneClan Bot process for now (Drake, 2026-10-19), exposed only on the internal port behind `X-Internal-Secret`. It becomes its own service when Drake is ready to transition, so the module boundary is kept clean enough that the split is a move, not a rewrite:
   - **its own DataSource** (`LINK_DATABASE_URL`), schema, keys and config; it never touches the clan schema `younglings`;
   - it imports nothing from other bot packages except a tiny shared HTTP/bootstrap layer, and other packages never import its internals; a unit test checks both directions;
-  - what it needs from JonnyBot sits behind two interfaces: `LinkDmSender` (send a DM, resolve a username; JDA today, a small bot-side endpoint after the split) and `LinkHttpRoutes` (mounting its routes); the `/internal/rsnlink/*` contract, tables and keys move unchanged;
-  - consumers inside JonnyBot (T-121) use only the same internal routes a separate service would expose, never its classes.
-- **DM fallback** (bot, T-115): uses JonnyBot's gateway connection to send the code. This is the one place the JonnyBot name appears, because it is the bot that sends the DM.
+  - what it needs from RuneClan Bot sits behind two interfaces: `LinkDmSender` (send a DM, resolve a username; JDA today, a small bot-side endpoint after the split) and `LinkHttpRoutes` (mounting its routes); the `/internal/rsnlink/*` contract, tables and keys move unchanged;
+  - consumers inside RuneClan Bot (T-121) use only the same internal routes a separate service would expose, never its classes.
+- **DM fallback** (bot, T-115): uses RuneClan Bot's gateway connection to send the code. This is the one place the RuneClan Bot name appears, because it is the bot that sends the DM.
 - **Abuse view** (the website's RuneClan Admin console at runeclans.com/admin, plus bot `/internal/admin/rsnlink/*`, T-118).
 
 Why the website proxies instead of the plugin calling the bot: the bot's port is not public, the website already owns TLS, hosts and per-IP limits, and one manifest base URL then covers both the API and the page the player is told to open.
@@ -63,7 +63,7 @@ Still unknown, for T-119: HTTP rate limits and timeouts; dependency HTTP context
 
 ### 3.1a Settled by the full read of the guide (2026-10-21, T-129)
 
-The whole guide is now in the local API library `CLAUDE_RESOURCES/rs-api-library` (open `site/index.html`; facts and their impact in `notes/findings.md`). Four results changed the plugins:
+The whole guide has now been read (a local copy, kept outside this repository). Four results changed the plugins:
 
 | Finding | Library page | What the plugins do |
 |---|---|---|
@@ -77,11 +77,11 @@ The whole guide is now in the local API library `CLAUDE_RESOURCES/rs-api-library
 - **No device grant.** Discord OAuth2 supports the authorization code grant (with refresh), implicit and client credentials; there is no RFC 8628 device grant. So "device-style" is built on top: our own short user code typed on our page, plus a normal authorization code sign-in in the browser.
 - **`identify` scope** returns the user's id, username, global name and avatar, without email. That is all we ask for. We use the access token once to read `/users/@me`, then **throw it away** (no refresh token stored).
 - **State and PKCE:** Discord returns `state` and an `iss` value (`https://discord.com`) on the redirect; we require both to match. PKCE is only mentioned in passing in Discord's docs, so the server also uses the client secret (confidential client) and sends PKCE S256 as an extra.
-- **Consent screen shows the OAuth application's name.** Decision (Q2): a **separate, neutral Discord application** eventually, **JonnyBot's application for now**. Client id, secret and redirect URL are configuration (`LINK_DISCORD_CLIENT_ID` / `LINK_DISCORD_CLIENT_SECRET` / `LINK_PUBLIC_BASE_URL`), so the switch is a config change plus registering the redirect URL on the new app; no code change. Discord does not allow "discord" inside usernames, so the separate app is simply named "RuneLink" (section 15).
+- **Consent screen shows the OAuth application's name.** Decision (Q2): a **separate, neutral Discord application** eventually, **RuneClan Bot's application for now**. Client id, secret and redirect URL are configuration (`LINK_DISCORD_CLIENT_ID` / `LINK_DISCORD_CLIENT_SECRET` / `LINK_PUBLIC_BASE_URL`), so the switch is a config change plus registering the redirect URL on the new app; no code change. Discord does not allow "discord" inside usernames, so the separate app is simply named "RuneLink" (section 15).
 - **DMs.** Discord's Create DM docs say DMs should generally follow a user action, must not be used to message a whole server, and that opening many DMs quickly gets a bot rate limited or blocked from opening new ones. The pages read do **not** state the mutual-server rule or what a user-installed app may do.
 - **Usernames are unique.** Since Discord's username change, a username is unique and lowercase: letters, digits, `.` and `_` (Discord blog post on usernames); old `name#1234` tags keep working as aliases. The developer docs' user page still calls usernames "not unique" (wording from the discriminator days) and gives 2 to 32 characters, so the id stays the stored key and a username is only an input to resolve.
-- **Resolving a username as a bot:** there is no bot API to look a user up by username across Discord. A bot can only find members of servers it is in (its member cache, or each server's member search). That loses nothing here, because the DM can only reach someone who shares a server with JonnyBot anyway (next bullet).
-- **Honest limit for the DM fallback:** a bot can only DM a user it shares a server with, and only if that user allows DMs from members of that server (Discord's per-server privacy setting); otherwise the send fails with "Cannot send messages to this user". Whether a **user-installed** JonnyBot can DM the person who installed it is **not documented**; T-115 treats it as unsupported until Drake tests it with the dev bot (test step in T-115). So in practice the fallback reaches only players who are in a server with JonnyBot and have server DMs on, which is a small slice of all RS3 players. Sign-in is the path that always works.
+- **Resolving a username as a bot:** there is no bot API to look a user up by username across Discord. A bot can only find members of servers it is in (its member cache, or each server's member search). That loses nothing here, because the DM can only reach someone who shares a server with RuneClan Bot anyway (next bullet).
+- **Honest limit for the DM fallback:** a bot can only DM a user it shares a server with, and only if that user allows DMs from members of that server (Discord's per-server privacy setting); otherwise the send fails with "Cannot send messages to this user". Whether a **user-installed** RuneClan Bot can DM the person who installed it is **not documented**; T-115 treats it as unsupported until Drake tests it with the dev bot (test step in T-115). So in practice the fallback reaches only players who are in a server with RuneClan Bot and have server DMs on, which is a small slice of all RS3 players. Sign-in is the path that always works.
 
 ## 4. Flows
 
@@ -101,9 +101,9 @@ The whole guide is now in the local API library `CLAUDE_RESOURCES/rs-api-library
 
 1. In the panel the player types their Discord **username or user id** (decision Q4) and presses **Send me a code**. `POST /v1/pair/dm`.
    - Input rules: all digits and 17 to 20 long = an id; otherwise a username: trimmed, a leading `@` dropped, lowercased, 2 to 32 of `a-z 0-9 . _`. Old `name#1234` tags are refused with "type your new username".
-   - Username resolution (T-115): exact username match only (never display names or nicknames), first JonnyBot's member cache, then each shared server's member search, stopping at the first hit; a username that matches two different ids is treated as not found. It runs in the background after the reply, never while the request waits, so response timing leaks nothing.
-2. The service always answers the same way (`202`, a pairing id and device secret), whether or not a DM could be sent, so the endpoint cannot be used to learn whether an id or username exists, shares a server with JonnyBot or accepts DMs (decision Q3). The panel says: *"If JonnyBot can reach you, a DM with a code arrives within a minute (check Message Requests). No DM? Use Sign in instead; it always works."*
-3. JonnyBot DMs (neutral text, section 13.3) the code, the RSN that asked, and two buttons: **Not me** (denies the pairing) and **Stop these messages** (opts the Discord ID out of DM codes for 90 days).
+   - Username resolution (T-115): exact username match only (never display names or nicknames), first RuneClan Bot's member cache, then each shared server's member search, stopping at the first hit; a username that matches two different ids is treated as not found. It runs in the background after the reply, never while the request waits, so response timing leaks nothing.
+2. The service always answers the same way (`202`, a pairing id and device secret), whether or not a DM could be sent, so the endpoint cannot be used to learn whether an id or username exists, shares a server with RuneClan Bot or accepts DMs (decision Q3). The panel says: *"If RuneClan Bot can reach you, a DM with a code arrives within a minute (check Message Requests). No DM? Use Sign in instead; it always works."*
+3. RuneClan Bot DMs (neutral text, section 13.3) the code, the RSN that asked, and two buttons: **Not me** (denies the pairing) and **Stop these messages** (opts the Discord ID out of DM codes for 90 days).
 4. Player types the code into the panel: `POST /v1/pair/dm/confirm`. Correct code returns the token once. Five wrong codes lock the pairing.
 
 ### 4.3 After pairing
@@ -186,7 +186,7 @@ Every "lookup" column is an HMAC-SHA-256 with a server key, never a plain hash: 
 | `LINK_LOOKUP_KEY` | HMAC for the lookup columns. |
 | `LINK_ALIAS_KEY` | HMAC for aliases (separate so it can never be rotated by accident: rotating it changes every alias). |
 | `LINK_SIGNING_KEY` | Ed25519 private key for alias assertions; public half published at `/v1/keys`. |
-| `LINK_DISCORD_CLIENT_ID`, `LINK_DISCORD_CLIENT_SECRET` | The OAuth application used for sign-in (website side only): JonnyBot's app for now, the separate neutral app later. |
+| `LINK_DISCORD_CLIENT_ID`, `LINK_DISCORD_CLIENT_SECRET` | The OAuth application used for sign-in (website side only): RuneClan Bot's app for now, the separate neutral app later. |
 | `LINK_PUBLIC_BASE_URL` | Section 14. |
 
 The service refuses to start if a key is missing or shorter than 32 bytes. Local dev keys go in the git-ignored env files only. Tests build random keys at runtime; no key-shaped literal appears in the repo.
@@ -209,7 +209,7 @@ The service refuses to start if a key is missing or shorter than 32 bytes. Local
 
 ## 8. Rate limits, lockouts and blocks
 
-Two layers: the website applies coarse per-IP limits before forwarding (as `pluginProxy.ts` does), the bot applies the real ones below. The bot runs as one instance today, so in-memory token buckets are fine; counters that must survive a restart (lockouts, blocks, DM caps) are in the database. All numbers are constants in one class so they can be tuned.
+Two layers: the website applies coarse per-IP limits before forwarding (as `pluginProxy.ts` does), the bot applies the real ones below. The code, start and DM limits (wrong codes per Discord account, codes per IP, starts per IP / tracking id / RSN, DMs per IP / tracking id) are counted in the link database's `rate_window` table, so every replica shares one count (SCALING-STATE.md M7); the token, alias and web-account route limits stay in memory per process. Counters that must survive a restart (lockouts, blocks, DM caps) are in the database. All numbers are constants in one class so they can be tuned.
 
 | Action | Limit | On breach |
 |---|---|---|
@@ -352,9 +352,9 @@ No clan name, no invite, no links other than the configured base URL.
 ## 14. Neutral branding and configuration
 
 **The page** (T-114):
-- Uses the website's visual theme (colours, fonts, components) but no clan name, clan logo, JonnyBot branding, Discord server invites, ads, donation links, or links into the clan site.
+- Uses the website's visual theme (colours, fonts, components) but no clan name, clan logo, RuneClan Bot branding, Discord server invites, ads, donation links, or links into the clan site.
 - Title and header are the plugin name and the words "Link your RuneScape name to Discord". Footer: privacy page, source link to the public plugin repo, contact email (T-120).
-- OAuth app: JonnyBot's for now, so Discord's consent screen says JonnyBot; later a separate neutral app (Q2), switched by config only. The page itself stays unbranded either way.
+- OAuth app: RuneClan Bot's for now, so Discord's consent screen says RuneClan Bot; later a separate neutral app (Q2), switched by config only. The page itself stays unbranded either way.
 - Not "official": it never uses Jagex or Discord logos, and says "not affiliated with Jagex or Discord".
 - Phone-width first; clear messages for wrong, expired and locked codes and for rate limits.
 
@@ -394,21 +394,21 @@ Drake picked **RS Link** (2026-10-19), replacing the earlier "Discord Link", and
 | **Log leak** | Never log codes, tokens, device secrets, Discord ids, tracking ids or IPs in plain text; log the pairing id and lookup prefix only. A unit test runs the flows with a capturing logger and fails if any of those values appear. |
 | **OAuth CSRF / session mix-up** | `state`, `iss` and PKCE checked; pairing bound to the browser session that entered the code; `__Host-` cookie, CSRF token on POSTs. |
 | **Scale** (tens of thousands of players, login bursts after updates) | Polling only while a pairing is open (10 min max, `slow_down`); `/v1/session` once per login; aliases cached in the plugin; indexed lookups only; per-IP limits at the website; DM circuit breaker protects the bot from Discord limits; single-instance limits noted as a thing to revisit if the service is scaled out. |
-| **Bot account risk** (Discord flags JonnyBot for DM volume) | Same DM caps and opt-out; DMs only to users who share a server; the primary flow sends no DMs at all. |
+| **Bot account risk** (Discord flags RuneClan Bot for DM volume) | Same DM caps and opt-out; DMs only to users who share a server; the primary flow sends no DMs at all. |
 
 ## 17. How each build ticket maps to this spec
 
 | Ticket | Builds | Sections |
 |---|---|---|
 | **T-113** link service + database | `rsnlink` package with the clean boundary of section 2 (import test, `LinkDmSender`), own DataSource and schema, every table, keys, codes, tokens, pairing state machine, section 9 link rules, section 11 recycling, rate limits and blocks, aliases and assertions, verification field + `LinkVerifier` hook (no verifiers), internal routes 5.3, delete paths, retention jobs. Tests: expiry, lockout, limits, token hashing, alias stability, recycling rules, "no secrets in logs". | 2, 5, 6, 7, 8, 9, 11, 12, 13.1, 13.2, 16 |
-| **T-114** neutral sign-in page | Link host face (`LINK_HOST`), plugin API proxy with per-IP limits, code entry, OAuth (JonnyBot's app for now, client from config), confirm screen, `/links` with unlink and delete-my-data, privacy text, preview-harness views of each screen with made-up data. | 3.2, 4.1, 5.1 (proxy), 5.2, 14 |
+| **T-114** neutral sign-in page | Link host face (`LINK_HOST`), plugin API proxy with per-IP limits, code entry, OAuth (RuneClan Bot's app for now, client from config), confirm screen, `/links` with unlink and delete-my-data, privacy text, preview-harness views of each screen with made-up data. | 3.2, 4.1, 5.1 (proxy), 5.2, 14 |
 | **T-115** DM fallback | `pair/dm` + confirm, id or username input with resolution among shared servers, uniform 202, DM sending with JDA, DM buttons (Not me, Stop), opt-out, DM caps and circuit breaker, panel copy; Drake tests user-install DMs with the dev bot. | 3.2, 4.2, 8, 13.3 |
 | **T-116** RuneLink plugin | New private repo (MIT), `plugin.json` (`httpAccess` required, `trackingAccess` optional, one `link` URL), pairing panel (code + address, Discord username-or-id box, code box, status, unlink, delete), token in PersistentDB, `/v1/session` on login, library section 10 with queue + `pcall`, README for dependents. | 3.1, 4, 9.3, 10, 14 |
 | **T-117** RuneSync uses it | Adds RuneLink to RuneSync's dependencies, uses `IsLinked` / `GetAlias` / `GetAssertion`, drops the dev-echo pairing assumptions. | 10, 13.2 |
 | **T-118** abuse view | RuneClan Admin page: counts and recent `abuse_event`s, lockouts, DM breaker state, block/unblock (IP, tracking, Discord), remove a link; owner-only, audit-logged; Discord ids shown only to the owner (decrypted on demand); never codes or tokens. | 5.3, 6, 8, 16 |
 | T-119 (Drake asks Jagex) | Unknowns in 3.1. | 3.1 |
 | T-120 (release) | Domain, region, privacy page, backup wording, contact email, repo public, submission. | 9.5, 14 |
-| T-121 (clan server) | Needs Discord ids, which dependents never get: the opt-in for JonnyBot servers is decided there (Q5). | 1, 13 |
+| T-121 (clan server) | Needs Discord ids, which dependents never get: the opt-in for RuneClan Bot servers is decided there (Q5). | 1, 13 |
 | T-122 (parked) | Verifiers against the hook. | 12 |
 
 Website-first rule: the player's controls (link, unlink, delete, see links) are on the link host, not in Discord. Discord-only use is the DM fallback, which still works. Owner controls are in RuneClan Admin (T-118, runeclans.com/admin); there are no per-server settings in v1, so no dashboard page is needed until T-121.
@@ -416,10 +416,10 @@ Website-first rule: the player's controls (link, unlink, delete, see links) are 
 ## 18. Decisions (Drake, 2026-10-19)
 
 1. **Name:** "RuneLink" (2026-10-26; was "RS Link", which replaced "Discord Link"); Discord only in descriptions; Jagex-guideline check on the name before release (section 15).
-2. **Sign-in app:** a separate neutral Discord app eventually, JonnyBot's app for now. Client id, secret and redirect come from config, so switching is config only (sections 3.2, 6.1, 14).
+2. **Sign-in app:** a separate neutral Discord app eventually, RuneClan Bot's app for now. Client id, secret and redirect come from config, so switching is config only (sections 3.2, 6.1, 14).
 3. **DM fallback answer:** always the same, whether or not a DM can be sent (section 4.2).
-4. **DM fallback input:** a Discord id or a username. Usernames are unique since Discord's username change; they are resolved only among servers JonnyBot shares, exact match only, and the same-answer rule still applies (sections 3.2, 4.2).
-5. **JonnyBot servers seeing the real link:** decided in T-121.
+4. **DM fallback input:** a Discord id or a username. Usernames are unique since Discord's username change; they are resolved only among servers RuneClan Bot shares, exact match only, and the same-answer rule still applies (sections 3.2, 4.2).
+5. **RuneClan Bot servers seeing the real link:** decided in T-121.
 6. **Signed alias assertions:** included now (section 13.2).
 7. **Recycled names:** 30-day wait (section 11).
 8. **Where it runs:** inside the bot for now; split into its own service when ready, with a clean module boundary so the split is a move, not a rewrite (section 2).

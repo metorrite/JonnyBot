@@ -26,7 +26,7 @@ import urllib.request
 from pathlib import Path
 
 API = "https://runescape.wiki/api.php"
-UA = "YounglingsClanBot/1.0 (RuneScape clan site; contact drakeforness@gmail.com)"
+UA = "YounglingsClanBot/1.0 (RuneScape clan site; https://github.com/metorrite/JonnyBot)"
 PAUSE = 0.25
 
 # display name, wiki page title (None = search for it), extra names the adventure log may use for the same boss

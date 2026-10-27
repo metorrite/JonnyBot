@@ -1,5 +1,5 @@
 # Secret-scan config (gitleaks). Used by the pre-commit hook and the CI "Secret scan" job.
-# Keep this list SHORT and specific. Never allow-list a real secret: remove it and tell Drake.
+# Keep this list SHORT and specific. Never allow-list a real secret: remove it and tell the repository owner (it must be rotated).
 title = "JonnyBot secret scan"
 
 [extend]

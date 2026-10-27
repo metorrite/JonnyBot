@@ -2,11 +2,11 @@
 
 Ticket T-002. Status: **draft with defaults** (Drake away, 2026-10-20: "build everything ... except where you absolutely need my input"). Every open choice has a default in section 13; nothing here blocks on Drake except the items in section 14.
 
-Read with: `docs/LINK-SYSTEM.md` (RuneLink, T-112), `docs/ECOSYSTEM.md`, memory notes `rs3-plugin-dev-setup` and `rsn-link-plugin`.
+Read with: `docs/LINK-SYSTEM.md` (RuneLink, T-112) and `docs/ECOSYSTEM.md`.
 
 ## 0. In one paragraph
 
-RuneSync is a Lua plugin in each member's own RS3 client. It reports **only the local player's own** XP, loot, boss kills and clue completions to JonnyBot's existing plugin ingest API, and only the categories that member has switched on (everything starts off). It does not pair by itself: it depends on **RuneLink** (T-116), asks it for a short-lived signed assertion, and sends that with every batch, so JonnyBot knows which Discord member the data belongs to without RuneSync ever holding a secret of its own. The data feeds what already exists (event objectives through `PluginEventFeed`, the points ledger, the member profile) and every setting lives on the website first: the member's profile for personal consent and data, the dashboard for clan settings.
+RuneSync is a Lua plugin in each member's own RS3 client. It reports **only the local player's own** XP, loot, boss kills and clue completions to RuneClan Bot's existing plugin ingest API, and only the categories that member has switched on (everything starts off). It does not pair by itself: it depends on **RuneLink** (T-116), asks it for a short-lived signed assertion, and sends that with every batch, so RuneClan Bot knows which Discord member the data belongs to without RuneSync ever holding a secret of its own. The data feeds what already exists (event objectives through `PluginEventFeed`, the points ledger, the member profile) and every setting lives on the website first: the member's profile for personal consent and data, the dashboard for clan settings.
 
 ## 1. Hard limits (not design choices)
 
@@ -35,10 +35,10 @@ RuneSync is a Lua plugin in each member's own RS3 client. It reports **only the 
 
 - RuneSync declares RuneLink as a **required dependency** (T-117). With no link, RuneSync shows "Link your account with RuneLink first" and a button that calls `RuneLink:OpenLinkPanel()`; it sends nothing.
 - Before each upload RuneSync calls `RuneLink:GetAssertion("RuneSync", cb)` (signed, 15 minutes, LINK-SYSTEM section 13.2) and caches it until 2 minutes before expiry.
-- Upload header: `Authorization: RuneLink <assertion>` (the older `RSLink` scheme is still accepted). The ingest verifies the signature with the link key set, then asks the link service through its **internal route** (never its classes, LINK-SYSTEM section 2) who the first-party consumer JonnyBot should credit: `POST /internal/rsnlink/resolve` -> `{ discordId, rsn, verification }`. This route exists only for first-party consumers on the internal port; other plugins keep seeing an alias only.
+- Upload header: `Authorization: RuneLink <assertion>` (the older `RSLink` scheme is still accepted). The ingest verifies the signature with the link key set, then asks the link service through its **internal route** (never its classes, LINK-SYSTEM section 2) who the first-party consumer RuneClan Bot should credit: `POST /internal/rsnlink/resolve` -> `{ discordId, rsn, verification }`. This route exists only for first-party consumers on the internal port; other plugins keep seeing an alias only.
 - The RSN in the batch must equal the link's RSN (after `normaliseRsn`), otherwise the batch is refused like today's "not your name" case.
 - **Manual tokens stay** (`X-Plugin-Token`, profile "Create token") for the simulator (`tools/plugin_simulator.py`) and for players who do not want RuneLink. Default: the profile hides token creation behind an "Advanced" disclosure once RuneLink is live.
-- A RuneLink link counts as "this Discord owns this RSN" for ingest only. Whether it also creates or verifies a JonnyBot `player_link` is T-121's call (clan adoption), not this design's.
+- A RuneLink link counts as "this Discord owns this RSN" for ingest only. Whether it also creates or verifies a RuneClan Bot `player_link` is T-121's call (clan adoption), not this design's.
 
 ## 4. What RuneSync reports (first data, per the ticket)
 
@@ -86,7 +86,7 @@ The server is the source of truth for consent (`plugin_consent`); the plugin onl
 - `POST /internal/plugin/runesync/diagnostics` -> stores a redacted snapshot for 14 days, returns a short id like the bot's dev snapshot (T-093) (T-202).
   - Built (T-202): `minClientVersion` comes from `RUNESYNC_MIN_CLIENT_VERSION` (unset = `0.0.0`, nobody refused). The config call may add `?client=<name version>&paused=true|false`, which only feeds the profile's device card. Snapshots: 16 KB max, 10 per member per day, fields named like token, assertion, tracking id, chat text/message, secret, password, authorization, cookie or discord dropped at any depth (permission flags like `chatAccess` stay). Owner view: `GET /internal/admin/runesync/diagnostics/{id}` (RuneClan Admin at runeclans.com/admin -> RuneSync diagnostics). Member view: `GET /internal/plugin/me/runesync`.
 - `GET /internal/plugin/runesync/panel` -> the member's own clan's upcoming and running events, their own points and their own event progress (T-206). Data flows **into** the client only; this does not break the own-data rule.
-  - Built (T-206): one entry per server the member shares with JonnyBot whose **Clan plugin** page has "Allow the in-game clan panel" on (`plugin_guild_settings.clan_panel`, default off; admin route `GET/PUT plugin-settings`). Events: SIGNUPS and RUNNING, 10 per clan, with `joined`. Points: the member's own balance when the clan uses points. Progress: for running events the member is in, their (or their team's) points, objectives done of total, bingo tiles done. Cached 60 s per member; `panelAvailable` in the config is true when at least one clan allows it.
+  - Built (T-206): one entry per server the member shares with RuneClan Bot whose **Clan plugin** page has "Allow the in-game clan panel" on (`plugin_guild_settings.clan_panel`, default off; admin route `GET/PUT plugin-settings`). Events: SIGNUPS and RUNNING, 10 per clan, with `joined`. Points: the member's own balance when the clan uses points. Progress: for running events the member is in, their (or their team's) points, objectives done of total, bingo tiles done. Cached 60 s per member; `panelAvailable` in the config is true when at least one clan allows it.
   - Added (T-142, T-143; PLUGIN-ERA-FEATURES.md sections 2 and 3, Drake's Q2/Q3 defaults): a bingo carries its board, `bingo.board = { size, cells: [{ label, done, locked }] }` in a solo event and `bingo.teamBoard` (same shape) in a team event, where the team's board is the one played. A team event carries `teamStatus = { name, members: [{ name, inGame }] }`: the member's own team only, names as the server shows them, and `inGame` (a RuneSync check-in in the last 11 minutes) only for teammates who switched on the **Presence** category; `null` for the rest ("not shared"). No location, combat stats or gear. RuneSync 0.0.8 draws both (tap-to-read tile grid, team lines).
 - All behind the website proxy on the `api.` host, which keeps its own per-IP limits.
 
@@ -115,17 +115,17 @@ The server is the source of truth for consent (`plugin_consent`); the plugin onl
 
 - `plugin.json`: name `RuneSync`, version `0.1.0` for the first submission, `requiredDependencies: { "RuneLink": "RuneLink" }`, `optionalPermissions: ["httpAccess", "chatAccess", "trackingAccess"]` (http is required in practice; the panel explains each), `urls: { "jonnybot": "<API_BASE>" }`, `hasSettingsIcon: true`, contact email from 13.D6.
 - Install from mod.io. Updates through mod.io; each release passes Jagex moderation. The server sends `minClientVersion`; an older client shows "Update RuneSync" and stops sending (never breaks the game).
-- `<API_BASE>` today is `https://api.rsyounglings.com`. If T-063 moves the API to a neutral domain, it must happen **before** the first RuneSync submission (same rule as RuneLink). Default: RuneSync keeps the JonnyBot API host; it is JonnyBot's plugin, so the neutral-domain requirement applies to RuneLink, not RuneSync.
+- `<API_BASE>` today is `https://api.rsyounglings.com`. If T-063 moves the API to a neutral domain, it must happen **before** the first RuneSync submission (same rule as RuneLink). Default: RuneSync keeps the RuneClan Bot API host; it is RuneClan Bot's plugin, so the neutral-domain requirement applies to RuneLink, not RuneSync.
 
-## 12. Privacy notice (draft for the submission, to publish at `/runesync/privacy` on the JonnyBot site)
+## 12. Privacy notice (draft for the submission, to publish at `/runesync/privacy` on the RuneClan Bot site)
 
 > **RuneSync privacy notice (draft)**
-> RuneSync is a free plugin that sends some of **your own** RuneScape activity to JonnyBot, a Discord bot your clan uses, so your clan's events and points can count it automatically.
+> RuneSync is a free plugin that sends some of **your own** RuneScape activity to RuneClan Bot, a Discord bot your clan uses, so your clan's events and points can count it automatically.
 > **What is sent, only if you switch it on:** your skill XP totals; items you receive and the monster or activity they came from; your boss kill counts; your clue scroll completions. With each upload: your RuneScape name and a signed proof from the RuneLink plugin that this name is linked to your Discord account. Nothing about other players is ever sent. Chat text is never sent.
 > **What is not sent:** passwords, chat, other players, your location, your bank.
-> **Where it goes:** JonnyBot's servers, hosted by Railway in the United States (US West). The United States is not a UK-adequate country; your data is protected by encrypted connections (HTTPS), access limited to the bot's operator, and automatic deletion.
+> **Where it goes:** RuneClan Bot's servers, hosted by Railway in the United States (US West). The United States is not a UK-adequate country; your data is protected by encrypted connections (HTTPS), access limited to the bot's operator, and automatic deletion.
 > **How long:** raw reports are deleted after 180 days. Points and event results that came from them stay with the clan's event history.
-> **Your rights:** see and delete everything RuneSync sent on your JonnyBot profile (Plugin tab), switch any category off at any time, or remove the plugin. Contact: <contact email, 13.D6>.
+> **Your rights:** see and delete everything RuneSync sent on your RuneClan Bot profile (Plugin tab), switch any category off at any time, or remove the plugin. Contact: <contact email, 13.D6>.
 
 The Jagex submission form answers (permissions, Case 3 details) are filled from this notice in T-205; Drake submits.
 
@@ -146,7 +146,7 @@ The Jagex submission form answers (permissions, Case 3 details) are filled from 
 | D11 | Presence | Category stays, not sent in v1 | No feature uses it yet |
 | D12 | Batch timing | Every 60 s, 100 events max, queue 500 persisted on shutdown | Cheap on the server; little loss on crash |
 | D13 | Retention | Keep the existing 180 days | Already built and documented |
-| D14 | Base URL | Keep `api.rsyounglings.com` for RuneSync; RuneLink alone gets the neutral domain | RuneSync is JonnyBot's plugin |
+| D14 | Base URL | Keep `api.rsyounglings.com` for RuneSync; RuneLink alone gets the neutral domain | RuneSync is RuneClan Bot's plugin |
 | D15 | Version for first submission | 0.1.0 | Numbers and dots only |
 
 ## 14. Drake's actions (cannot be done for him)

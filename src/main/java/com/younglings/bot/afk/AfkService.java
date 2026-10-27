@@ -1,6 +1,8 @@
 package com.younglings.bot.afk;
 
 import com.younglings.bot.afk.AfkRepository.Afk;
+import com.younglings.bot.cachebus.CacheBus;
+import com.younglings.bot.cachebus.CacheInvalidator;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 
 import java.time.Instant;
@@ -13,7 +15,10 @@ import java.util.concurrent.ConcurrentHashMap;
  * memory (loaded once per server, and tiny) and the database is only touched when someone goes away or comes back.
  */
 @BService
-public class AfkService {
+public class AfkService implements CacheInvalidator {
+    /** The {@code bot_cache} area of this class's caches (docs/SCALING-STATE.md M10). */
+    static final String CACHE_AREA = "afk";
+
     public static final int MAX_REASON = 200;
 
     private final AfkRepository repository;
@@ -45,13 +50,17 @@ public class AfkService {
         Afk afk = new Afk(guildId, userId, clean.length() > MAX_REASON ? clean.substring(0, MAX_REASON) : clean, Instant.now());
         repository.set(afk);
         guild(guildId).put(userId, afk);
+        CacheBus.changed(CACHE_AREA, guildId);
         return afk;
     }
 
     /** Whether the person was away (and so is now back). */
     public boolean clear(long guildId, long userId) {
         boolean was = guild(guildId).remove(userId) != null;
-        if (was) repository.clear(guildId, userId);
+        if (was) {
+            repository.clear(guildId, userId);
+            CacheBus.changed(CACHE_AREA, guildId);
+        }
         return was;
     }
 
@@ -59,5 +68,22 @@ public class AfkService {
     public static String line(String name, Afk afk) {
         String why = afk.reason().isBlank() ? "" : ": " + afk.reason();
         return "**" + name + "** is away" + why + " (since <t:" + afk.since().getEpochSecond() + ":R>)";
+    }
+
+    // ---------- cross-process invalidation (CacheBus) ----------
+
+    @Override
+    public String cacheArea() {
+        return CACHE_AREA;
+    }
+
+    @Override
+    public void evictCached(long guildId) {
+        byGuild.remove(guildId);
+    }
+
+    @Override
+    public void evictAllCached() {
+        byGuild.clear();
     }
 }
