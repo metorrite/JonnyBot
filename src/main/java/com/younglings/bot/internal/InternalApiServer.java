@@ -5,6 +5,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.hubsites.HubSites;
+import com.younglings.bot.ops.OpsTelemetry;
 import com.younglings.bot.hubsites.SitesMoved;
 import com.younglings.bot.tracking.CitadelWinners;
 import com.younglings.bot.upload.ImageUploadService;
@@ -130,21 +131,21 @@ public class InternalApiServer {
             int port = botConfig.getInternalApiPort();
             HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
 
-            server.createContext("/internal/online-members", exchange -> handleOnlineMembers(exchange, secret, guildId));
-            server.createContext("/internal/events", exchange -> handleEvents(exchange, secret, guildId));
-            server.createContext("/internal/member", exchange -> handleGetMember(exchange, secret, guildId));
-            server.createContext("/internal/nickname", exchange -> handleSetNickname(exchange, secret, guildId));
-            server.createContext("/internal/color-role", exchange -> handleSetColorRole(exchange, secret, guildId));
+            OpsTelemetry.context(server, "/internal/online-members", exchange -> handleOnlineMembers(exchange, secret, guildId));
+            OpsTelemetry.context(server, "/internal/events", exchange -> handleEvents(exchange, secret, guildId));
+            OpsTelemetry.context(server, "/internal/member", exchange -> handleGetMember(exchange, secret, guildId));
+            OpsTelemetry.context(server, "/internal/nickname", exchange -> handleSetNickname(exchange, secret, guildId));
+            OpsTelemetry.context(server, "/internal/color-role", exchange -> handleSetColorRole(exchange, secret, guildId));
 
-            server.createContext("/internal/admin/", exchange -> handleAdmin(exchange, secret, guildId));
-            server.createContext("/internal/site/", exchange -> handleSite(exchange, secret, guildId));
-            server.createContext("/internal/directory/", exchange -> handleDirectory(exchange, secret));
-            server.createContext("/internal/plugin/", exchange -> handlePlugin(exchange, secret));
-            server.createContext("/internal/me/", exchange -> handleMe(exchange, secret, guildId));
-            server.createContext("/internal/image/", exchange -> handleImage(exchange, secret));
-            server.createContext("/internal/forms/", exchange -> handleForms(exchange, secret));
-            server.createContext("/internal/wheel-gif/", exchange -> handleWheelGif(exchange, secret));
-            for (InternalRouteModule module : routeModules) server.createContext(module.prefix(), exchange -> handleModule(exchange, secret, module));
+            OpsTelemetry.context(server, "/internal/admin/", exchange -> handleAdmin(exchange, secret, guildId));
+            OpsTelemetry.context(server, "/internal/site/", exchange -> handleSite(exchange, secret, guildId));
+            OpsTelemetry.context(server, "/internal/directory/", exchange -> handleDirectory(exchange, secret));
+            OpsTelemetry.context(server, "/internal/plugin/", exchange -> handlePlugin(exchange, secret));
+            OpsTelemetry.context(server, "/internal/me/", exchange -> handleMe(exchange, secret, guildId));
+            OpsTelemetry.context(server, "/internal/image/", exchange -> handleImage(exchange, secret));
+            OpsTelemetry.context(server, "/internal/forms/", exchange -> handleForms(exchange, secret));
+            OpsTelemetry.context(server, "/internal/wheel-gif/", exchange -> handleWheelGif(exchange, secret));
+            for (InternalRouteModule module : routeModules) OpsTelemetry.context(server, module.prefix(), exchange -> handleModule(exchange, secret, module));
 
             // A fixed crew with a bounded queue. When it's full the accepting thread runs the work itself, which slows
             // new connections down (back-pressure) instead of letting an unbounded backlog build up behind a flood.

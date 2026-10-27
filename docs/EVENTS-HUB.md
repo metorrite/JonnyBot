@@ -1,10 +1,10 @@
 # Events hub: open clan and community events (design)
 
-Ticket T-006. Status: **draft with defaults** (Drake away, 2026-10-20). Builds behind a flag, **off by default**. Related designs: `docs/EVENTS-CROSS-SERVER.md` (T-059, alliance co-hosting and the fill queue) and `docs/EVENTS-CLAN-VS-CLAN.md` (T-058). Background: memory note `project-backlog-events-subdomain`, `docs/EVENT-LIFECYCLE.md`.
+Ticket T-006. Status: **draft with defaults** (Drake away, 2026-10-20). Builds behind a flag, **off by default**. Related designs: `docs/EVENTS-CROSS-SERVER.md` (T-059, alliance co-hosting and the fill queue) and `docs/EVENTS-CLAN-VS-CLAN.md` (T-058). Background: `docs/EVENT-LIFECYCLE.md`.
 
 ## 0. In one paragraph
 
-Any server that uses JonnyBot (a clan server or a community server with no clan) can mark an event made with the event manager as **Open**. Open events appear on the events hub, a section of the existing clans hub site, where anyone signed in with Discord can find them, read the rules and press Join, whether or not they are in a clan. Joining still means joining the host's Discord first (Drake's rule D10), so roles, channels and `/submit` keep working exactly as today. Nothing is listed unless the host chooses Open, and the whole hub stays behind its beta gate and a new `EVENTS_HUB` flag.
+Any server that uses RuneClan Bot (a clan server or a community server with no clan) can mark an event made with the event manager as **Open**. Open events appear on the events hub, a section of the existing clans hub site, where anyone signed in with Discord can find them, read the rules and press Join, whether or not they are in a clan. Joining still means joining the host's Discord first (Drake's rule D10), so roles, channels and `/submit` keep working exactly as today. Nothing is listed unless the host chooses Open, and the whole hub stays behind its beta gate and a new `EVENTS_HUB` flag.
 
 ## 1. What exists
 
@@ -18,8 +18,8 @@ Any server that uses JonnyBot (a clan server or a community server with no clan)
 
 | Host | Allowed | Notes |
 |---|---|---|
-| A clan server using JonnyBot | yes | the usual case |
-| A community server using JonnyBot with no clan set up | yes | the clan-only options (clan-first queue, HOME_CLAN mixing) are hidden |
+| A clan server using RuneClan Bot | yes | the usual case |
+| A community server using RuneClan Bot with no clan set up | yes | the clan-only options (clan-first queue, HOME_CLAN mixing) are hidden |
 | A single person with no server | **no** | roles, channels, staff review and moderation all need a server; an individual can make a small server |
 
 Only people who can use the event manager in that server (today's dashboard access, plus the events coordinator tier T-060) can make an event Open.
@@ -50,9 +50,9 @@ Once joined, the player uses the existing player page (`/clan-events/<id>`, slic
 ## 5. Moderation
 
 - Every Open event page has **Report** (reason required, rate-limited like `clan_report`, no sign-in needed but signed-in reporter recorded).
-- Reports go to the owner's **Super admin** area (T-089) beside clan reports: open the event, **Unlist** (sets a takedown flag; the host sees "Removed from the events hub by JonnyBot staff: <reason>" on the event and cannot re-list until the owner clears it) or dismiss.
+- Reports go to the bot owner's **Directory moderation** page on the bot dashboard (`/dashboard/<server>/listings`, T-089) beside clan reports: open the event, **Unlist** (sets a takedown flag; the host sees "Removed from the events hub by RuneClan Bot staff: <reason>" on the event and cannot re-list until the owner clears it) or dismiss.
 - A server can be barred from listing events (owner action) after repeated takedowns.
-- Hosts agree to a one-line rule when first choosing Open: "Open events are public. Don't post anything that breaks Discord's or Jagex's rules; JonnyBot staff may unlist an event."
+- Hosts agree to a one-line rule when first choosing Open: "Open events are public. Don't post anything that breaks Discord's or Jagex's rules; RuneClan Bot staff may unlist an event."
 
 ## 6. Where it lives
 
@@ -68,19 +68,19 @@ Once joined, the player uses the existing player page (`/clan-events/<id>`, slic
 | Event invite link | Events defaults card (server-wide) | none |
 | Show standings on the hub | "Who can see and join" card | none |
 | Takedown notice | shown on the event Overview | none |
-| Reports / unlist | Super admin (owner) | none |
+| Reports / unlist | Directory moderation (bot dashboard, owner) | none |
 
 ## 8. Decisions made for Drake
 
 | # | Question | Default |
 |---|---|---|
-| H1 | Who may host | Any server using JonnyBot (clan or community); no individuals |
+| H1 | Who may host | Any server using RuneClan Bot (clan or community); no individuals |
 | H2 | Reuse `scope` or a new field | Reuse PRIVATE / ALLIANCE / PUBLIC, renamed in the UI |
 | H3 | Must players join the host Discord | Yes (D10); hub shows the invite; no automatic server join |
 | H4 | Separate events subdomain | Not now: a section of the clans hub, host-aware for a later `events.` alias |
 | H5 | RSN needed to join | Only when the template tracks game data |
 | H6 | What the public sees | No participant names; standings only with an extra switch, RSNs only |
-| H7 | Moderation | Report -> owner Super admin -> unlist; repeat offenders barred from listing |
+| H7 | Moderation | Report -> owner's Directory moderation page -> unlist; repeat offenders barred from listing |
 | H8 | Flag | `EVENTS_HUB` off by default, under the existing `HUB_PUBLIC` beta gate |
 | H9 | Default mixing for Open events | Everyone mixes |
 | H10 | Discord command to open an event | None in v1 |
@@ -91,4 +91,4 @@ Once joined, the player uses the existing player page (`/clan-events/<id>`, slic
 |---|---|---|
 | T-216 | Bot: listing feed of PUBLIC/ALLIANCE engine events, `events.inviteUrl`, `hub.publicStandings`, `needsRsn`; dashboard "Who can see and join" card | none |
 | T-217 | Website: hub events tab, `/e/<id>` page, Join with invite fallback, behind `EVENTS_HUB` | T-216 |
-| T-218 | Bot + website: event reports, unlist/takedown, barred servers in Super admin | T-216 |
+| T-218 | Bot + website: event reports, unlist/takedown, barred servers on the bot dashboard's Directory moderation page | T-216 |

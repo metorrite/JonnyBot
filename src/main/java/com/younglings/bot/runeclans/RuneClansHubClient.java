@@ -175,6 +175,17 @@ public class RuneClansHubClient {
     }
 
     /**
+     * {@link #aliasOf} for work that must not take an outage for an answer: empty only when the hub said the player has no alias for JonnyBot
+     * ({@code 404}), and null when it couldn't be asked or answered anything else.
+     */
+    public Optional<String> aliasIfAnswered(long discordId) {
+        Answer a = call("GET", "/v1/links/discord/" + discordId, null);
+        if (a == null) return null;
+        if (a.status() == 404) return Optional.empty();
+        return a.ok() && a.json() != null ? Optional.ofNullable(a.json().getString("alias", null)) : null;
+    }
+
+    /**
      * {@code POST /v1/guilds/{id}/xp/gains} (T-536): the XP each player gained from {@code from} to {@code to} in the hub's ledger, RuneSync's
      * timed XP only (catch-up and suspect XP left out). {@code skillId} null is every skill. Null when the hub can't be reached; the hub's own
      * answer otherwise ({@code 404} while its XP ledger is off or the guild isn't registered).
@@ -226,13 +237,16 @@ public class RuneClansHubClient {
         return URLEncoder.encode(s, StandardCharsets.UTF_8);
     }
 
-    private static Transport http(RuneClansSettings settings) {
+    static Transport http(RuneClansSettings settings) {
         // one client for the bot's life: HTTP/1.1 keeps its connections to the hub open between calls (no connect cost per call)
         HttpClient client = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).connectTimeout(Duration.ofSeconds(3)).build();
         return (method, path, body) -> {
             try {
                 HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(settings.baseUrl() + path)).timeout(Duration.ofSeconds(8))
                         .header("Authorization", "Bearer " + settings.apiKey()).header("Content-Type", "application/json").header("User-Agent", "JonnyBot runeclans-client");
+                // the website's request id, when this call is part of an internal API request (T-674), so the hub's log line carries it too
+                String requestId = com.younglings.bot.ops.OpsTelemetry.currentRequestId();
+                if (requestId != null) request.header(com.younglings.bot.ops.RequestIds.HEADER, requestId);
                 request = body == null ? request.method(method, HttpRequest.BodyPublishers.noBody()) : request.method(method, HttpRequest.BodyPublishers.ofString(body));
                 HttpResponse<String> response = client.send(request.build(), HttpResponse.BodyHandlers.ofString());
                 DataObject json = null;

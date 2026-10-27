@@ -78,7 +78,10 @@ public class AdminToolsStore {
                     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     error TEXT NULL
                 );
-                """));
+                """,
+                // The 30 s due-post poll reads only PENDING rows; finished rows are kept, so the table only grows.
+                "CREATE INDEX IF NOT EXISTS scheduled_post_due ON younglings.scheduled_post (send_at) WHERE status = 'PENDING';",
+                "CREATE INDEX IF NOT EXISTS scheduled_post_guild ON younglings.scheduled_post (guild_id, send_at);"));
     }
 
     private static OffsetDateTime at(ResultSet rs, String column) throws SQLException {

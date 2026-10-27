@@ -8,7 +8,7 @@ The website caches what it reads from the bot (`next: { revalidate: N }`, 10 s t
 2. `SiteInvalidator` merges signals for one second (a roster sync writing 200 members is one call), then sends `POST <SITE_URL>/api/revalidate` on a background thread with header `X-Internal-Secret` (the same shared secret as every other bot-to-site call) and body `{"tags":["site:polls","hub:events"]}`. It never blocks the write; a failure is only logged (at most once a minute) and the timers are the fallback.
 3. The site (`src/app/api/revalidate/route.ts`) compares the secret in constant time, accepts only tags of the shape `site:<name>` / `hub:<name>` (at most 30), and calls `revalidateTag(tag, { expire: 0 })` for each: the next request refetches from the bot (no stale copy).
 
-Needs `SITE_URL` set on the bot (the website's public address; locally `http://localhost:3000`) and the same `INTERNAL_API_SECRET` / `JONNYBOT_INTERNAL_API_SECRET` pair that already links the two. With either missing the bot says so once at startup and the timers apply.
+Needs `SITE_URL` set on the bot (the website's public address; locally `http://localhost:3000`) and the same `INTERNAL_API_SECRET` / `RUNECLAN_BOT_INTERNAL_API_SECRET` pair (the website's older name `JONNYBOT_INTERNAL_API_SECRET` still works) that already links the two. With either missing the bot says so once at startup and the timers apply.
 
 Clan sites (runeclans.com) are a second, optional target: `CLAN_SITES_URL` (e.g. `https://runeclans.com`). It gets the same shared tags plus per-site tags, see "Clan sites" below. Unset, clan sites refresh on their timers.
 

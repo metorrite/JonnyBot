@@ -311,6 +311,14 @@ public class BotConfig {
         return envOrDotenv("SITES_BACKEND");
     }
 
+    /** The servers put on the beta list when a database is first set up ({@code com.younglings.bot.beta.BetaSeed}). */
+    public static final String BETA_SEED_GUILDS_ENV = "BETA_SEED_GUILDS";
+
+    /** {@link #BETA_SEED_GUILDS_ENV}: comma-separated server ids, each optionally {@code id:label}; null when unset (nothing is seeded). */
+    public String getBetaSeedGuilds() {
+        return envOrDotenv(BETA_SEED_GUILDS_ENV);
+    }
+
     /** A RuneSync server setting ({@code RUNESYNC_*}, e.g. {@code RUNESYNC_MIN_CLIENT_VERSION}); null when unset. */
     public String getRuneSyncSetting(String name) {
         if (!name.startsWith("RUNESYNC_")) throw new IllegalArgumentException("Only RUNESYNC_ settings are served here");
@@ -401,13 +409,12 @@ public class BotConfig {
 
     /**
      * The address of JonnyBot's own website (the {@code jonnybot} face of the site host map), no trailing slash. Sent as contact information in the
-     * User-Agent of every request the bot makes to a third party, so they can tell who is calling. {@code JONNYBOT_SITE_URL}; unset, it is
+     * User-Agent of every request the bot makes to a third party, so they can tell who is calling. {@code RUNECLAN_BOT_SITE_URL} (old name
+     * {@code JONNYBOT_SITE_URL}, still read when the new one is unset); unset, it is
      * {@value #DEFAULT_JONNYBOT_URL}, exactly as before.
      */
     public String getJonnybotUrl() {
-        String url = System.getenv("JONNYBOT_SITE_URL");
-        if (url == null || url.isBlank()) url = dotenv.get("JONNYBOT_SITE_URL");
-        return jonnybotUrlFrom(url);
+        return jonnybotUrlFrom(envOrDotenv("RUNECLAN_BOT_SITE_URL", "JONNYBOT_SITE_URL"));
     }
 
     /** The configured address cleaned up, or the default when there is none. Separate so it can be tested without the environment. */
@@ -531,6 +538,15 @@ public class BotConfig {
         return positiveNumber("PLUGIN_XP_SCALE", 1);
     }
 
+    /**
+     * Whether clans may pay points for the XP members gain each UTC day (T-542, the Clan plugin page's "Points for XP gained"), read from the RuneClans
+     * hub's XP ledger. Off by default; needs the hub client ({@code RUNECLANS_HUB_ENABLED}) too. Off, the rule isn't offered and nothing is paid.
+     */
+    public boolean getPluginXpPointsEnabled() {
+        String raw = envOrDotenv("PLUGIN_XP_POINTS_ENABLED");
+        return raw != null && raw.trim().equalsIgnoreCase("true");
+    }
+
     private long positiveMinutes(String name, long fallback) {
         return positiveNumber(name, fallback);
     }
@@ -575,6 +591,15 @@ public class BotConfig {
     }
 
     /**
+     * Whether bingo and scavenger XP tiles ("Gain 1M Fletching XP", T-543) are counted from the RuneClans hub's XP ledger. Off by default; needs the
+     * hub client ({@code RUNECLANS_HUB_ENABLED}) too. Off, such tiles take proof or an organiser like any other tile.
+     */
+    public boolean getEventXpTilesEnabled() {
+        String raw = envOrDotenv("EVENT_XP_TILES_ENABLED");
+        return raw != null && raw.trim().equalsIgnoreCase("true");
+    }
+
+    /**
      * Whether Premium exists for clan websites (T-422). Off by default ("everything is free for now"): every server gets the website's
      * Premium features and limits until {@code PREMIUM_ENABLED=1} (or true). Keep it equal to the website's switch of the same name.
      */
@@ -592,10 +617,77 @@ public class BotConfig {
         return raw == null || !raw.trim().equalsIgnoreCase("false");
     }
 
+    // --- Metrics, request log and ops alerts (T-674, docs/DEV-SETUP.md section 3c). All off by default. ---
+
+    /** {@code METRICS_ENABLED=on}: the internal API serves {@code /metrics} (with {@link #getMetricsToken()}, private network only). */
+    public boolean isMetricsEnabled() {
+        return com.younglings.bot.ops.MetricsAccess.on(envOrDotenv("METRICS_ENABLED"));
+    }
+
+    /** {@code METRICS_TOKEN}: the bearer token for {@code /metrics}, or null when unset or shorter than 24 characters (metrics then stay off). */
+    public String getMetricsToken() {
+        return com.younglings.bot.ops.MetricsAccess.token(envOrDotenv("METRICS_TOKEN"));
+    }
+
+    /** Whether {@code METRICS_TOKEN} is set at all (to explain a too-short one in the log). */
+    public boolean hasMetricsTokenSetting() {
+        return envOrDotenv("METRICS_TOKEN") != null;
+    }
+
+    /** {@code REQUEST_LOG=on}: one log line per internal API request, with its {@code X-Request-Id}. */
+    public boolean isRequestLogEnabled() {
+        return com.younglings.bot.ops.MetricsAccess.on(envOrDotenv("REQUEST_LOG"));
+    }
+
+    /** {@code OPS_ALERTS=on}: the ops alert rules run every minute and post to {@link #getOpsAlertChannelId()}. */
+    public boolean isOpsAlertsEnabled() {
+        return com.younglings.bot.ops.MetricsAccess.on(envOrDotenv("OPS_ALERTS"));
+    }
+
+    /** {@code OPS_WEEKLY=on}: the weekly numbers post, Mondays 09:00 UTC, in {@link #getOpsAlertChannelId()}. */
+    public boolean isOpsWeeklyEnabled() {
+        return com.younglings.bot.ops.MetricsAccess.on(envOrDotenv("OPS_WEEKLY"));
+    }
+
+    /** {@code OPS_ALERT_CHANNEL_ID}: the ops channel in the owner's server, or null. */
+    public Long getOpsAlertChannelId() {
+        String raw = envOrDotenv("OPS_ALERT_CHANNEL_ID");
+        if (raw == null || !raw.strip().matches("\\d{15,20}")) return null;
+        return Long.parseLong(raw.strip());
+    }
+
+    /** {@code OPS_HEALTH_URLS}: comma-separated health addresses the ops alerts check every minute (http or https), possibly empty. */
+    public java.util.List<String> getOpsHealthUrls() {
+        String raw = envOrDotenv("OPS_HEALTH_URLS");
+        if (raw == null) return java.util.List.of();
+        java.util.List<String> urls = new java.util.ArrayList<>();
+        for (String part : raw.split(",")) {
+            String u = part.strip();
+            if (u.startsWith("https://") || u.startsWith("http://")) urls.add(u);
+        }
+        return java.util.List.copyOf(urls);
+    }
+
+    /** {@code OPS_429_THRESHOLD}: Discord 429 answers within 5 minutes that make a spike (default 20). */
+    public int getOps429Threshold() {
+        String raw = envOrDotenv("OPS_429_THRESHOLD");
+        try {
+            int n = raw == null ? 20 : Integer.parseInt(raw.strip());
+            return n > 0 ? n : 20;
+        } catch (NumberFormatException e) {
+            return 20;
+        }
+    }
+
     private String envOrDotenv(String name) {
         String raw = System.getenv(name);
         if (raw == null || raw.isBlank()) raw = dotenv.get(name);
         return raw == null || raw.isBlank() ? null : raw;
+    }
+
+    /** A renamed setting: {@code name} (environment, then {@code .env}), else the old {@code deprecatedName}, with a one-time note ({@link EnvAliases}). */
+    private String envOrDotenv(String name, String deprecatedName) {
+        return EnvAliases.get(name, deprecatedName, this::envOrDotenv);
     }
 
 

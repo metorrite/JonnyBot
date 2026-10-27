@@ -74,6 +74,7 @@ public class TicketDatabaseInitializer {
                     max_length INTEGER NULL
                 );
                 """,
+                "CREATE INDEX IF NOT EXISTS ticket_panel_field_panel ON younglings.ticket_panel_field (panel_id, position);",
 
                 // A dropdown question's choices; a choice can carry the role to ping and the role to escalate to.
                 """
@@ -86,6 +87,7 @@ public class TicketDatabaseInitializer {
                     escalate_role_id BIGINT NULL
                 );
                 """,
+                "CREATE INDEX IF NOT EXISTS ticket_panel_option_field ON younglings.ticket_panel_option (field_id);",
 
                 // HELPER roles can see every ticket on the panel and join as helpers (up to the cap);
                 // STAFF roles can also close any ticket and are exempt from the cap.

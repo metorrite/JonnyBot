@@ -10,6 +10,8 @@ import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -19,7 +21,9 @@ import java.util.function.BooleanSupplier;
  * <ul>
  *     <li>an alert that is only a message ({@link #route}) goes to the channel named by {@code DEV_ALERT_CHANNEL_ID}, or is only logged when that is
  *     not set, and never pings anybody ({@link #noPings});</li>
- *     <li>anything tied to stored state or a person (a post the bot later edits, a DM) is skipped and logged ({@link #skip}).</li>
+ *     <li>anything tied to stored state or a person (a post the bot later edits, a DM) is skipped and logged ({@link #skip});</li>
+ *     <li>a background sweep that changes the real server by itself (auto-clean deleting messages, autoroles, timed roles, event roles, event
+ *     wrap-up, the daily clan sync's Member/Guest roles) does not run at all ({@link #skipSweep}, T-187). The live bot runs the same sweeps, so nothing is lost in the server.</li>
  * </ul>
  * What somebody runs on purpose (a command, a button, a dashboard action) never goes through here and replies where it was run. Sites reach this
  * through the static methods so the many posters need no new constructor arguments; with no router built (a unit test) everything passes through.
@@ -28,6 +32,8 @@ import java.util.function.BooleanSupplier;
 public class AutoPostRouter {
     private static final Logger log = LoggerFactory.getLogger(AutoPostRouter.class);
     private static volatile Routing instance;
+    /** The sweeps whose skipping has been logged since the bot last stopped being live, so a sweep that runs every few seconds logs once. */
+    private static final Set<String> sweepsSkipped = ConcurrentHashMap.newKeySet();
 
     /** The switch and the dev channel. Kept apart from the service because the framework needs the service to have exactly one constructor. */
     private record Routing(BooleanSupplier diverting, Long devChannelId) {}
@@ -54,6 +60,7 @@ public class AutoPostRouter {
     /** Forgets the router (tests). */
     public static void reset() {
         instance = null;
+        sweepsSkipped.clear();
     }
 
     /** Whether the bot's automatic posts are being kept out of the servers' channels right now. */
@@ -89,6 +96,19 @@ public class AutoPostRouter {
     public static boolean skip(String what) {
         if (!diverting()) return false;
         log.info("[dev, skipped] {}.", what);
+        return true;
+    }
+
+    /**
+     * True while the bot is not live, for a background sweep that would change the real server by itself (delete messages, give or take roles, post
+     * files): the sweep returns at once. Logs one line the first time each sweep is skipped (again after posting has been on in between), not every round.
+     */
+    public static boolean skipSweep(String sweep) {
+        if (!diverting()) {
+            sweepsSkipped.remove(sweep);
+            return false;
+        }
+        if (sweepsSkipped.add(sweep)) log.info("[dev, skipped] The {} sweep does not run while this bot is not live (turn posting on with /dev toggleposting to test it).", sweep);
         return true;
     }
 

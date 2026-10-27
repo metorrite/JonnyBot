@@ -26,6 +26,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class BetaAdminApiTest {
+    private static final String SERVER_A = "3".repeat(18); // made up at runtime: never a real Discord id
+    private static final long SERVER_A_ID = Long.parseLong(SERVER_A);
+    private static final String SERVER_B = "4".repeat(19); // made up at runtime: never a real Discord id
+    private static final long SERVER_B_ID = Long.parseLong(SERVER_B);
+    private static final String SERVER_C = "5".repeat(19); // made up at runtime: never a real Discord id
+    private static final long SERVER_C_ID = Long.parseLong(SERVER_C);
+
     private BetaGuildRepository repository;
     private BetaAccessService access;
     private BotOwners owners;
@@ -45,24 +52,24 @@ class BetaAdminApiTest {
         actor = mock(Member.class);
         when(actor.getIdLong()).thenReturn(7L);
         when(owners.isOwner(any(), anyLong())).thenReturn(true);
-        when(repository.all()).thenReturn(List.of(new BetaGuildRepository.BetaGuild(1388208054008545300L, "RS Noobs", AccessLevel.MANAGE_SERVER)));
+        when(repository.all()).thenReturn(List.of(new BetaGuildRepository.BetaGuild(SERVER_B_ID, "Clan B", AccessLevel.MANAGE_SERVER)));
     }
 
     @Test
     void theListShowsEachServerAndWhetherThePersonMayChangeIt() {
         DataObject result = api.list(guild, actor);
 
-        assertEquals("1388208054008545300", result.getArray("guilds").getObject(0).getString("guildId"));
-        assertEquals("RS Noobs", result.getArray("guilds").getObject(0).getString("label"));
+        assertEquals(SERVER_B, result.getArray("guilds").getObject(0).getString("guildId"));
+        assertEquals("Clan B", result.getArray("guilds").getObject(0).getString("label"));
         assertFalse(result.getArray("guilds").getObject(0).getBoolean("botPresent"));
         assertTrue(result.getBoolean("canEdit"));
     }
 
     @Test
     void theOwnerCanAddOrRenameAServerAndTheRememberedAnswersAreForgotten() {
-        api.save(guild, actor, "577853260153618443", DataObject.empty().put("label", "  Koalafied  "));
+        api.save(guild, actor, SERVER_A, DataObject.empty().put("label", "  Clan A  "));
 
-        verify(repository).upsert(577853260153618443L, "Koalafied", AccessLevel.ADMINISTRATOR, 7L);
+        verify(repository).upsert(SERVER_A_ID, "Clan A", AccessLevel.ADMINISTRATOR, 7L);
         verify(access).listChanged();
     }
 
@@ -81,19 +88,19 @@ class BetaAdminApiTest {
 
     @Test
     void aLabelChangeKeepsTheServersLevelAndAChosenLevelIsSaved() {
-        api.save(guild, actor, "1388208054008545300", DataObject.empty().put("label", "Noobs"));
-        verify(repository).upsert(1388208054008545300L, "Noobs", AccessLevel.MANAGE_SERVER, 7L);
+        api.save(guild, actor, SERVER_B, DataObject.empty().put("label", "Clan B renamed"));
+        verify(repository).upsert(SERVER_B_ID, "Clan B renamed", AccessLevel.MANAGE_SERVER, 7L);
 
-        api.save(guild, actor, "1388208054008545300", DataObject.empty().put("label", "Noobs").put("level", "owner"));
-        verify(repository).upsert(1388208054008545300L, "Noobs", AccessLevel.OWNER, 7L);
+        api.save(guild, actor, SERVER_B, DataObject.empty().put("label", "Clan B renamed").put("level", "owner"));
+        verify(repository).upsert(SERVER_B_ID, "Clan B renamed", AccessLevel.OWNER, 7L);
     }
 
     @Test
     void aBetaServerCannotLetInEveryMember() {
         assertEquals(400, assertThrows(TicketAdminApi.ApiError.class,
-                () -> api.save(guild, actor, "1388208054008545300", DataObject.empty().put("level", "member"))).status);
+                () -> api.save(guild, actor, SERVER_B, DataObject.empty().put("level", "member"))).status);
         assertEquals(400, assertThrows(TicketAdminApi.ApiError.class,
-                () -> api.save(guild, actor, "1388208054008545300", DataObject.empty().put("level", "nonsense"))).status);
+                () -> api.save(guild, actor, SERVER_B, DataObject.empty().put("level", "nonsense"))).status);
         verify(repository, never()).upsert(anyLong(), anyString(), any(), anyLong());
     }
 
@@ -104,8 +111,8 @@ class BetaAdminApiTest {
         DataObject list = api.list(guild, actor);
         assertFalse(list.getBoolean("canEdit"));
         assertEquals(0, list.getArray("guilds").length());
-        assertEquals(403, assertThrows(TicketAdminApi.ApiError.class, () -> api.save(guild, actor, "577853260153618443", DataObject.empty())).status);
-        assertEquals(403, assertThrows(TicketAdminApi.ApiError.class, () -> api.remove(guild, actor, "577853260153618443")).status);
+        assertEquals(403, assertThrows(TicketAdminApi.ApiError.class, () -> api.save(guild, actor, SERVER_A, DataObject.empty())).status);
+        assertEquals(403, assertThrows(TicketAdminApi.ApiError.class, () -> api.remove(guild, actor, SERVER_A)).status);
         verify(repository, never()).upsert(anyLong(), anyString(), any(), anyLong());
         verify(repository, never()).delete(anyLong());
     }
@@ -114,21 +121,21 @@ class BetaAdminApiTest {
     void aServerIdMustLookLikeOne() {
         assertEquals(400, assertThrows(TicketAdminApi.ApiError.class, () -> api.save(guild, actor, "abc", DataObject.empty())).status);
         assertEquals(400, assertThrows(TicketAdminApi.ApiError.class, () -> api.save(guild, actor, "123", DataObject.empty())).status);
-        assertEquals(400, assertThrows(TicketAdminApi.ApiError.class, () -> api.save(guild, actor, "577853260153618443", DataObject.empty().put("label", "x".repeat(61)))).status);
+        assertEquals(400, assertThrows(TicketAdminApi.ApiError.class, () -> api.save(guild, actor, SERVER_A, DataObject.empty().put("label", "x".repeat(61)))).status);
     }
 
     @Test
     void removingAServerNotOnTheListIsANotFound() {
-        when(repository.delete(1062157106347786240L)).thenReturn(false);
+        when(repository.delete(SERVER_C_ID)).thenReturn(false);
 
-        assertEquals(404, assertThrows(TicketAdminApi.ApiError.class, () -> api.remove(guild, actor, "1062157106347786240")).status);
+        assertEquals(404, assertThrows(TicketAdminApi.ApiError.class, () -> api.remove(guild, actor, SERVER_C)).status);
     }
 
     @Test
     void removingOneTakesItOffAndForgetsRememberedAnswers() {
-        when(repository.delete(1388208054008545300L)).thenReturn(true);
+        when(repository.delete(SERVER_B_ID)).thenReturn(true);
 
-        api.remove(guild, actor, "1388208054008545300");
+        api.remove(guild, actor, SERVER_B);
 
         verify(access).listChanged();
     }

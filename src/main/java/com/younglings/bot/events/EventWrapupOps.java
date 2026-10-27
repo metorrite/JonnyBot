@@ -1,5 +1,6 @@
 package com.younglings.bot.events;
 
+import com.younglings.bot.alerts.AutoPostRouter;
 import com.younglings.bot.discord.Shards;
 import com.younglings.bot.events.EventRepository.Event;
 import com.younglings.bot.events.EventRules.Status;
@@ -143,8 +144,15 @@ public class EventWrapupOps {
     // ---------- the schedule ----------
 
     private void sweep() {
-        JDA client = jda;
-        if (client == null) return;
+        sweep(jda);
+    }
+
+    /**
+     * Runs the wrap-up steps that are due. Skipped while the bot is not live (T-187): it locks and deletes channels, takes roles back and posts the
+     * archived transcripts as files in the real server. An organiser starting a step from the dashboard is not affected.
+     */
+    void sweep(JDA client) {
+        if (client == null || AutoPostRouter.skipSweep("event wrap-up")) return;
         for (Guild guild : Shards.guilds(client)) {
             try {
                 for (long eventId : space.eventsWithSpace(guild.getIdLong())) runDue(guild, eventId);

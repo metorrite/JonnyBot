@@ -28,7 +28,7 @@ import java.time.ZoneOffset;
 import java.util.function.Supplier;
 
 /**
- * The restricted-content access list, managed from the website's Super admin area: who may enter each restricted area (JonnyBot website, hub,
+ * The restricted-content access list, managed from the RuneClan Admin console (runeclans.com/admin): who may enter each restricted area (JonnyBot website, hub,
  * dashboard) without being a beta server admin. A grant is a Discord user, or a server plus the least a person must be there. Reading and changing
  * the list is for the bot's owner only. Reached only through {@link TicketAdminApi}, which has already checked the asker and audit-logs every change.
  */

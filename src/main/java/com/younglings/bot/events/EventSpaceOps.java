@@ -1,5 +1,6 @@
 package com.younglings.bot.events;
 
+import com.younglings.bot.alerts.AutoPostRouter;
 import com.younglings.bot.discord.Shards;
 import com.younglings.bot.events.EventRepository.Event;
 import com.younglings.bot.events.EventRules.Status;
@@ -172,6 +173,7 @@ public class EventSpaceOps {
     public void onMemberJoin(GuildMemberJoinEvent event) {
         try {
             spaces.forget(event.getGuild().getIdLong(), event.getUser().getIdLong());
+            if (AutoPostRouter.skipSweep("event roles")) return; // giving a newcomer their event roles is the live bot's job (T-187)
             for (long eventId : space.eventsWithSpace(event.getGuild().getIdLong())) schedule(event.getGuild().getIdLong(), eventId);
         } catch (RuntimeException e) {
             log.warn("Could not look for roles to give {}", event.getUser().getId(), e);
@@ -605,8 +607,12 @@ public class EventSpaceOps {
     }
 
     private void sweep() {
-        JDA client = jda;
-        if (client == null) return;
+        sweep(jda);
+    }
+
+    /** Puts every event's role holders right. Skipped while the bot is not live: it gives and takes roles in the real server (T-187). */
+    void sweep(JDA client) {
+        if (client == null || AutoPostRouter.skipSweep("event roles")) return;
         for (Guild guild : Shards.guilds(client)) {
             try {
                 for (long eventId : space.eventsWithSpace(guild.getIdLong())) reconcile(guild.getIdLong(), eventId);

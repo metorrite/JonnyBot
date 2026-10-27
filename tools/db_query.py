@@ -13,8 +13,8 @@ Three independent guards, so one mistake never writes:
   2. the session is opened with default_transaction_read_only=on;
   3. the query runs inside BEGIN READ ONLY (never committed), so the server itself rejects a write that slipped past the check (and nothing is ever committed: the connection just closes).
 
-The live database: `--live` only prints that Drake must approve the use and exits. It connects only when you ALSO pass --drake-approved AND
-LIVE_DATABASE_URL is set in the environment (the credentials are not stored anywhere in this repository). Still read-only. See docs/BUG-REPORT.md.
+The live database: `--live` only prints that the bot owner must approve the use and exits. It connects only when you ALSO pass --owner-approved
+(old name --drake-approved, still accepted) AND LIVE_DATABASE_URL is set in the environment (the credentials are not stored anywhere in this repository). Still read-only. See docs/BUG-REPORT.md.
 """
 import argparse
 import os
@@ -152,15 +152,16 @@ def main() -> None:
     parser.add_argument("sql", nargs="?", help="one read-only statement")
     parser.add_argument("--format", choices=["table", "json"], default="table")
     parser.add_argument("--tables", action="store_true", help="list the tables in the younglings schema")
-    parser.add_argument("--live", action="store_true", help="the live database: prints the approval reminder and stops unless --drake-approved is also given")
-    parser.add_argument("--drake-approved", action="store_true", help="only with --live, and only after Drake has said yes in this thread")
+    parser.add_argument("--live", action="store_true", help="the live database: prints the approval reminder and stops unless --owner-approved is also given")
+    parser.add_argument("--owner-approved", "--drake-approved", dest="owner_approved", action="store_true",
+                        help="only with --live, and only after the bot owner has said yes (--drake-approved is the old name)")
     args = parser.parse_args()
 
     if args.live:
-        print("LIVE DATABASE: Drake must approve before this is used. Ask him in this thread, say which question the query answers, then re-run with\n"
-              "  --live --drake-approved   (and LIVE_DATABASE_URL set in your environment; it is not stored in the repository).\n"
+        print("LIVE DATABASE: the bot owner must approve before this is used. Ask first, say which question the query answers, then re-run with\n"
+              "  --live --owner-approved   (and LIVE_DATABASE_URL set in your environment; it is not stored in the repository).\n"
               "Read-only still applies. Prefer the snapshot (tools/snapshot_inspect.py) or the local dev database first.", file=sys.stderr)
-        if not args.drake_approved:
+        if not args.owner_approved:
             sys.exit(3)
         url = os.environ.get("LIVE_DATABASE_URL")
         if not url:
