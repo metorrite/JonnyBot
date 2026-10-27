@@ -35,12 +35,17 @@ public class ClanMemberRepository {
      * it active again if it had left. {@code totalXp}/{@code kills} are overwritten every sync from
      * the Clan Hiscores CSV — see {@link RsnRenameService}, which reads the row's pre-update value
      * for a name that just vanished from the roster.
+     * <p>
+     * T-593: a changed XP total stamps {@code xp_changed_at}, and the first sync that compares it stamps {@code xp_watched_since}, so the site
+     * admin's Clan health page can tell who gained no XP for a while from the clan Hiscores alone.
      */
     public void upsert(long guildId, String rsn, String clanRank, long totalXp, long kills) {
         String sql = """
-                INSERT INTO younglings.clan_member (guild_id, rsn, clan_rank, total_xp, kills)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO younglings.clan_member (guild_id, rsn, clan_rank, total_xp, kills, xp_watched_since)
+                VALUES (?, ?, ?, ?, ?, NOW())
                 ON CONFLICT (guild_id, LOWER(rsn)) DO UPDATE SET
+                    xp_changed_at = CASE WHEN clan_member.total_xp <> EXCLUDED.total_xp THEN NOW() ELSE clan_member.xp_changed_at END,
+                    xp_watched_since = COALESCE(clan_member.xp_watched_since, NOW()),
                     clan_rank = EXCLUDED.clan_rank, total_xp = EXCLUDED.total_xp, kills = EXCLUDED.kills,
                     last_seen = NOW(), active = TRUE
                 """;
