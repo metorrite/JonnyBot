@@ -77,6 +77,9 @@ class RsLinkAuthTest {
         assertNull(RsLinkAuth.assertionFrom("Bearer abc"));
         assertNull(RsLinkAuth.assertionFrom(null));
         assertNull(RsLinkAuth.assertionFrom("RSLink "));
+        assertEquals("abc.def.ghi", RsLinkAuth.assertionFrom("RuneLink abc.def.ghi"), "the RuneLink scheme");
+        assertNull(RsLinkAuth.assertionFrom("RuneLink "));
+        assertNull(RsLinkAuth.assertionFrom("RuneLinkabc"));
     }
 
     @Test

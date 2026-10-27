@@ -50,7 +50,7 @@ Once joined, the player uses the existing player page (`/clan-events/<id>`, slic
 ## 5. Moderation
 
 - Every Open event page has **Report** (reason required, rate-limited like `clan_report`, no sign-in needed but signed-in reporter recorded).
-- Reports go to the owner's **Super admin** area (T-089) beside clan reports: open the event, **Unlist** (sets a takedown flag; the host sees "Removed from the events hub by JonnyBot staff: <reason>" on the event and cannot re-list until the owner clears it) or dismiss.
+- Reports go to the bot owner's **Directory moderation** page on the bot dashboard (`/dashboard/<server>/listings`, T-089) beside clan reports: open the event, **Unlist** (sets a takedown flag; the host sees "Removed from the events hub by JonnyBot staff: <reason>" on the event and cannot re-list until the owner clears it) or dismiss.
 - A server can be barred from listing events (owner action) after repeated takedowns.
 - Hosts agree to a one-line rule when first choosing Open: "Open events are public. Don't post anything that breaks Discord's or Jagex's rules; JonnyBot staff may unlist an event."
 
@@ -68,7 +68,7 @@ Once joined, the player uses the existing player page (`/clan-events/<id>`, slic
 | Event invite link | Events defaults card (server-wide) | none |
 | Show standings on the hub | "Who can see and join" card | none |
 | Takedown notice | shown on the event Overview | none |
-| Reports / unlist | Super admin (owner) | none |
+| Reports / unlist | Directory moderation (bot dashboard, owner) | none |
 
 ## 8. Decisions made for Drake
 
@@ -80,7 +80,7 @@ Once joined, the player uses the existing player page (`/clan-events/<id>`, slic
 | H4 | Separate events subdomain | Not now: a section of the clans hub, host-aware for a later `events.` alias |
 | H5 | RSN needed to join | Only when the template tracks game data |
 | H6 | What the public sees | No participant names; standings only with an extra switch, RSNs only |
-| H7 | Moderation | Report -> owner Super admin -> unlist; repeat offenders barred from listing |
+| H7 | Moderation | Report -> owner's Directory moderation page -> unlist; repeat offenders barred from listing |
 | H8 | Flag | `EVENTS_HUB` off by default, under the existing `HUB_PUBLIC` beta gate |
 | H9 | Default mixing for Open events | Everyone mixes |
 | H10 | Discord command to open an event | None in v1 |
@@ -91,4 +91,4 @@ Once joined, the player uses the existing player page (`/clan-events/<id>`, slic
 |---|---|---|
 | T-216 | Bot: listing feed of PUBLIC/ALLIANCE engine events, `events.inviteUrl`, `hub.publicStandings`, `needsRsn`; dashboard "Who can see and join" card | none |
 | T-217 | Website: hub events tab, `/e/<id>` page, Join with invite fallback, behind `EVENTS_HUB` | T-216 |
-| T-218 | Bot + website: event reports, unlist/takedown, barred servers in Super admin | T-216 |
+| T-218 | Bot + website: event reports, unlist/takedown, barred servers on the bot dashboard's Directory moderation page | T-216 |

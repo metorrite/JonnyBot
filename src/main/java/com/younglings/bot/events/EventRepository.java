@@ -254,6 +254,7 @@ public class EventRepository {
                     split TEXT NOT NULL DEFAULT 'EQUAL'
                 );
                 """,
+                "CREATE INDEX IF NOT EXISTS event_prize_event ON younglings.event_prize (event_id, place);",
                 """
                 CREATE TABLE IF NOT EXISTS younglings.event_award (
                     id BIGSERIAL PRIMARY KEY,

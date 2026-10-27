@@ -326,13 +326,38 @@ public class BotConfig {
         return envOrDotenv(name);
     }
 
+    /** The DM-code secret's name (T-659). */
+    public static final String RUNELINK_DM_SECRET_ENV = "RUNELINK_DM_SECRET";
+    /** Its name before RS Link became RuneLink; still read when the new one is unset, with a one-time deprecation warning. */
+    public static final String LEGACY_RUNELINK_DM_SECRET_ENV = "RSNLINK_DM_SECRET";
+
     /**
-     * {@code RSNLINK_DM_SECRET}: the secret runeclans-hub sends ({@code X-RsLink-Dm-Secret}) to have the bot DM RS Link codes for it (T-166).
+     * {@code RUNELINK_DM_SECRET} (formerly {@code RSNLINK_DM_SECRET}, still read as a fallback): the secret runeclans-hub sends
+     * ({@code X-RuneLink-Dm-Secret}, or the older {@code X-RsLink-Dm-Secret}) to have the bot DM RuneLink codes for it (T-166).
      * It opens only {@code /internal/rsnlink-dm/}. Null when unset (those routes are then closed).
      */
-    public String getRsnLinkDmSecret() {
-        String secret = envOrDotenv("RSNLINK_DM_SECRET");
+    public String getRuneLinkDmSecret() {
+        String secret = renamedSettingFrom(RUNELINK_DM_SECRET_ENV, LEGACY_RUNELINK_DM_SECRET_ENV, this::envOrDotenv, this::warnLegacy);
         return secret == null || secret.isBlank() ? null : secret.strip();
+    }
+
+    /**
+     * A setting that was renamed: the new name wins; else the old name, reported to {@code usedLegacy}; else null (T-659). Values are
+     * passed through as the lookup gives them.
+     */
+    static String renamedSettingFrom(String name, String legacy, java.util.function.Function<String, String> lookup,
+                                     java.util.function.BiConsumer<String, String> usedLegacy) {
+        String value = lookup.apply(name);
+        if (value != null) return value;
+        value = lookup.apply(legacy);
+        if (value != null) usedLegacy.accept(legacy, name);
+        return value;
+    }
+
+    private void warnLegacy(String legacy, String name) {
+        if (LEGACY_WARNED.add(legacy)) {
+            org.slf4j.LoggerFactory.getLogger(BotConfig.class).warn("{} is deprecated and will be removed in a later release; rename it to {}", legacy, name);
+        }
     }
 
     /** A Discord Linked Roles setting ({@code LINKED_ROLES_*}, see {@code linkedroles.LinkedRolesSettings}); null when unset. */
@@ -376,13 +401,12 @@ public class BotConfig {
 
     /**
      * The address of JonnyBot's own website (the {@code jonnybot} face of the site host map), no trailing slash. Sent as contact information in the
-     * User-Agent of every request the bot makes to a third party, so they can tell who is calling. {@code JONNYBOT_SITE_URL}; unset, it is
+     * User-Agent of every request the bot makes to a third party, so they can tell who is calling. {@code RUNECLAN_BOT_SITE_URL} (old name
+     * {@code JONNYBOT_SITE_URL}, still read when the new one is unset); unset, it is
      * {@value #DEFAULT_JONNYBOT_URL}, exactly as before.
      */
     public String getJonnybotUrl() {
-        String url = System.getenv("JONNYBOT_SITE_URL");
-        if (url == null || url.isBlank()) url = dotenv.get("JONNYBOT_SITE_URL");
-        return jonnybotUrlFrom(url);
+        return jonnybotUrlFrom(envOrDotenv("RUNECLAN_BOT_SITE_URL", "JONNYBOT_SITE_URL"));
     }
 
     /** The configured address cleaned up, or the default when there is none. Separate so it can be tested without the environment. */
@@ -559,6 +583,11 @@ public class BotConfig {
         String raw = System.getenv(name);
         if (raw == null || raw.isBlank()) raw = dotenv.get(name);
         return raw == null || raw.isBlank() ? null : raw;
+    }
+
+    /** A renamed setting: {@code name} (environment, then {@code .env}), else the old {@code deprecatedName}, with a one-time note ({@link EnvAliases}). */
+    private String envOrDotenv(String name, String deprecatedName) {
+        return EnvAliases.get(name, deprecatedName, this::envOrDotenv);
     }
 
 

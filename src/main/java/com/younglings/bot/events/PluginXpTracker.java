@@ -36,7 +36,7 @@ import java.util.concurrent.TimeUnit;
  * standings, wrap-ups and prizes need nothing new. The hub's {@code from} is the baseline, so there is no baseline table.
  * <p>
  * Players the hub can't count (no RuneSync, no XP shared with this bot, or no identity grant to match them by) score nothing and are listed by
- * {@link #notCounted} for the event page. With {@code confirmedLinksOnly} (T-552), a player the hub counts but whose RS Link it hasn't confirmed from
+ * {@link #notCounted} for the event page. With {@code confirmedLinksOnly} (T-552), a player the hub counts but whose RuneLink it hasn't confirmed from
  * public data scores nothing either, listed apart as {@code unconfirmed}. Runs only while the bot talks to the hub ({@code RUNECLANS_HUB_ENABLED}); otherwise the option is not
  * even offered.
  * <p>
@@ -452,7 +452,7 @@ public class PluginXpTracker {
         return true;
     }
 
-    /** The hub confirmed the player's RS Link from public data ({@code verification} on the gains row; an older hub without it: not confirmed). */
+    /** The hub confirmed the player's RuneLink from public data ({@code verification} on the gains row; an older hub without it: not confirmed). */
     static boolean confirmed(DataObject row) {
         String level = row.getString("verification", "implicit");
         return level.equals("public_data_corroborated") || level.equals("jagex_signed");
