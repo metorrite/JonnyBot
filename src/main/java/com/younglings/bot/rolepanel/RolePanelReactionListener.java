@@ -61,6 +61,7 @@ public class RolePanelReactionListener extends ListenerAdapter implements BotLis
         if (!event.isFromGuild() || event.getUserIdLong() == event.getJDA().getSelfUser().getIdLong()) return;
         try {
             Guild guild = event.getGuild();
+            if (!repository.mayHaveReactionPanel(guild.getIdLong(), event.getMessageIdLong())) return; // no reactions panel here: byMessage would find none
             Optional<RolePanel> found = repository.byMessage(guild.getIdLong(), event.getMessageIdLong());
             if (found.isEmpty() || found.get().style() != RolePanel.Style.REACTIONS) return;
             RolePanel panel = found.get();

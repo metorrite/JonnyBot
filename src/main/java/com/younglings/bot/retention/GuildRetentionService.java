@@ -1,6 +1,8 @@
 package com.younglings.bot.retention;
 
 import com.younglings.bot.config.BotConfig;
+import com.younglings.bot.rolepanel.RolePanelRepository;
+import com.younglings.bot.starboard.StarboardRepository;
 import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
@@ -32,11 +34,16 @@ public class GuildRetentionService {
 
     private final GuildRetentionRepository repository;
     private final BotConfig botConfig;
+    /** Repositories that cache a server's rows in memory: told to forget the server after a purge deletes its rows behind their back. */
+    private final StarboardRepository starboard;
+    private final RolePanelRepository rolePanels;
     private final ScheduledExecutorService executor = BotScheduler.lane("guild-retention");
 
-    public GuildRetentionService(GuildRetentionRepository repository, BotConfig botConfig) {
+    public GuildRetentionService(GuildRetentionRepository repository, BotConfig botConfig, StarboardRepository starboard, RolePanelRepository rolePanels) {
         this.repository = repository;
         this.botConfig = botConfig;
+        this.starboard = starboard;
+        this.rolePanels = rolePanels;
     }
 
     @BEventListener
@@ -91,7 +98,13 @@ public class GuildRetentionService {
             log.info("Retention dry run: server {} left more than the retention period ago; {} rows would be deleted.", guildId, rows);
             return;
         }
-        GuildPurge.Result result = GuildPurge.purge(tables, guildId, repository::delete);
+        GuildPurge.Result result;
+        try {
+            result = GuildPurge.purge(tables, guildId, repository::delete);
+        } finally {
+            starboard.evict(guildId);
+            rolePanels.evict(guildId);
+        }
         if (result.complete()) {
             repository.finish(guildId);
             log.info("Retention: deleted {} rows of data for server {} (the bot has been gone from it for over the retention period).", result.totalRows(), guildId);
