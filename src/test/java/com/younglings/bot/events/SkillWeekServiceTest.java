@@ -18,13 +18,13 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.OptionalInt;
 import java.util.OptionalLong;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -51,7 +51,7 @@ class SkillWeekServiceTest {
     void opensTheNextSkillOfTheRotaAsAWholeWeekRuneSyncCompetition() {
         when(weeks.settings(GUILD)).thenReturn(new Settings(true, List.of(9, 15, 25), 4, ADMIN));
         when(weeks.week(GUILD, MONDAY)).thenReturn(Optional.empty());
-        when(weeks.claim(GUILD, MONDAY, 15)).thenReturn(true);
+        when(weeks.claim(GUILD, MONDAY)).thenReturn(OptionalInt.of(15));
         when(events.createWholeSpanEvent(eq(GUILD), eq(ADMIN), any())).thenReturn(42L);
 
         assertEquals(OptionalLong.of(42), service.open(GUILD, NOW));
@@ -77,7 +77,7 @@ class SkillWeekServiceTest {
         when(weeks.settings(GUILD)).thenReturn(new Settings(true, List.of(9), 0, ADMIN));
         when(weeks.week(GUILD, MONDAY)).thenReturn(Optional.of(new Week(GUILD, MONDAY, 9, 1L, null, null)));
         assertTrue(service.open(GUILD, NOW).isEmpty());
-        verify(weeks, never()).claim(anyLong(), any(), anyInt());
+        verify(weeks, never()).claim(anyLong(), any());
         verify(events, never()).createWholeSpanEvent(anyLong(), anyLong(), any());
     }
 
@@ -85,7 +85,7 @@ class SkillWeekServiceTest {
     void aCompetitionThatCantBeMadeGivesTheWeekBackForTheNextPass() {
         when(weeks.settings(GUILD)).thenReturn(new Settings(true, List.of(9), 0, ADMIN));
         when(weeks.week(GUILD, MONDAY)).thenReturn(Optional.empty());
-        when(weeks.claim(GUILD, MONDAY, 9)).thenReturn(true);
+        when(weeks.claim(GUILD, MONDAY)).thenReturn(OptionalInt.of(9));
         when(events.createWholeSpanEvent(eq(GUILD), eq(ADMIN), any())).thenThrow(new EventProblem(409, "Too many unfinished events."));
 
         assertTrue(service.open(GUILD, NOW).isEmpty());
@@ -97,7 +97,7 @@ class SkillWeekServiceTest {
     void aDatabaseFailureMakingItGivesTheWeekBackToo() {
         when(weeks.settings(GUILD)).thenReturn(new Settings(true, List.of(9), 0, ADMIN));
         when(weeks.week(GUILD, MONDAY)).thenReturn(Optional.empty());
-        when(weeks.claim(GUILD, MONDAY, 9)).thenReturn(true);
+        when(weeks.claim(GUILD, MONDAY)).thenReturn(OptionalInt.of(9));
         when(events.createWholeSpanEvent(eq(GUILD), eq(ADMIN), any())).thenThrow(new RuntimeException("database down"));
 
         assertTrue(service.open(GUILD, NOW).isEmpty());
@@ -108,7 +108,7 @@ class SkillWeekServiceTest {
     void aCompetitionTheWeekCantPointAtIsCancelledAndTheWeekGivenBack() {
         when(weeks.settings(GUILD)).thenReturn(new Settings(true, List.of(9), 0, ADMIN));
         when(weeks.week(GUILD, MONDAY)).thenReturn(Optional.empty());
-        when(weeks.claim(GUILD, MONDAY, 9)).thenReturn(true);
+        when(weeks.claim(GUILD, MONDAY)).thenReturn(OptionalInt.of(9));
         when(events.createWholeSpanEvent(eq(GUILD), eq(ADMIN), any())).thenReturn(42L);
         Mockito.doThrow(new RuntimeException("database down")).when(weeks).setEvent(GUILD, MONDAY, 42);
 
@@ -127,7 +127,7 @@ class SkillWeekServiceTest {
 
         assertTrue(service.open(GUILD, NOW).isEmpty());
         verify(events).moveStage(GUILD, 42, Status.RUNNING);
-        verify(weeks, never()).claim(anyLong(), any(), anyInt());
+        verify(weeks, never()).claim(anyLong(), any());
 
         when(weeks.close(eq(GUILD), eq(MONDAY), any())).thenReturn(true);
         assertEquals(List.of(), service.close(week).orElseThrow());
@@ -203,22 +203,26 @@ class SkillWeekServiceTest {
 
     @Test
     void aWeekLeftWithoutItsCompetitionByARestartIsGivenBackAndOpenedAgain() {
-        when(weeks.settings(GUILD)).thenReturn(new Settings(true, List.of(9), 1, ADMIN));
+        // read before the claim is given back: position 1 (15) is already past this week's skill (9)
+        when(weeks.settings(GUILD)).thenReturn(new Settings(true, List.of(9, 15), 1, ADMIN));
         when(weeks.week(GUILD, MONDAY)).thenReturn(Optional.of(new Week(GUILD, MONDAY, 9, null, null, null)));
         // claimed only a moment ago: another pass may still be making it
         assertTrue(service.open(GUILD, NOW).isEmpty());
         verify(weeks).releaseStale(GUILD, MONDAY, NOW.minus(SkillWeekService.STALE_CLAIM));
-        verify(weeks, never()).claim(anyLong(), any(), anyInt());
+        verify(weeks, never()).claim(anyLong(), any());
 
         when(weeks.releaseStale(GUILD, MONDAY, NOW.minus(SkillWeekService.STALE_CLAIM))).thenReturn(true);
         EventRepository.Event orphan = new EventRepository.Event(40, GUILD, CompetitionTemplate.KEY, SkillWeekRules.eventName(9, MONDAY), "", Status.DRAFT, null,
                 EventRules.ScoringMode.INDIVIDUAL, MONDAY, SkillWeekRules.weekEnd(MONDAY), 0, "{}", ADMIN, MONDAY, null, false);
         when(repository.events(GUILD, List.of(Status.DRAFT), 50)).thenReturn(List.of(orphan));
-        when(weeks.claim(GUILD, MONDAY, 9)).thenReturn(true);
+        when(weeks.claim(GUILD, MONDAY)).thenReturn(OptionalInt.of(9));
         when(events.createWholeSpanEvent(eq(GUILD), eq(ADMIN), any())).thenReturn(42L);
         assertEquals(OptionalLong.of(42), service.open(GUILD, NOW));
         verify(events).moveStage(GUILD, 40, Status.CANCELLED);
         verify(weeks).setEvent(GUILD, MONDAY, 42);
+        ArgumentCaptor<EventService.EventInput> input = ArgumentCaptor.forClass(EventService.EventInput.class);
+        verify(events).createWholeSpanEvent(eq(GUILD), eq(ADMIN), input.capture());
+        assertEquals(9, CompetitionTemplate.skillOf(input.getValue().config()), "the week opens again in the skill the claim gives, not the stale read's");
     }
 
     @Test

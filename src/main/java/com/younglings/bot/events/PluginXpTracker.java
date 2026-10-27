@@ -75,6 +75,8 @@ public class PluginXpTracker {
     private final Map<Long, Set<Long>> runeSyncPlayers = new ConcurrentHashMap<>();
     /** Auto competitions: eventId → userId → the latest disagreement. */
     private final Map<Long, Map<Long, Disagreement>> disagreements = new ConcurrentHashMap<>();
+    /** One lock per competition, so {@link #pass} never runs twice at once for it (kept for the bot's lifetime: one small object per competition). */
+    private final Map<Long, Object> passing = new ConcurrentHashMap<>();
     private Clock clock = Clock.systemUTC();
 
     public PluginXpTracker(EventRepository repository, EventService service, RuneClansHubClient hub) {
@@ -170,8 +172,19 @@ public class PluginXpTracker {
         return pass(event).updated();
     }
 
-    /** {@link #feed}, saying too whether the hub answered for everyone, so a closing pass can tell "nothing new" from "couldn't ask" (T-541). */
+    /**
+     * {@link #feed}, saying too whether the hub answered for everyone, so a closing pass can tell "nothing new" from "couldn't ask" (T-541).
+     * One pass at a time per competition: each reads what is already counted and adds the rest under a per-minute key, so two passes at once
+     * (this sweep and skill of the week's closing pass) would both add the same gain.
+     */
     public Pass pass(Event event) {
+        Object lock = passing.computeIfAbsent(event.id(), k -> new Object());
+        synchronized (lock) {
+            return passLocked(event);
+        }
+    }
+
+    private Pass passLocked(Event event) {
         DataObject settings = DataObject.fromJson(event.config());
         boolean auto = CompetitionTemplate.countsAuto(settings);
         int skill = CompetitionTemplate.skillOf(settings);
@@ -197,6 +210,7 @@ public class PluginXpTracker {
         for (Participant p : repository.participants(event.id())) {
             if (p.waiting()) continue;
             if (owners.get(p.userId()) == CompetitionTracking.Counter.RUNEMETRICS) continue; // auto: RuneMetrics counted them first
+            if (end != null && p.joinedAt() != null && !p.joinedAt().isBefore(end)) continue; // whole span: joined after it ended, so not in it
             Optional<String> alias;
             try {
                 alias = alias(p.userId(), now);

@@ -31,8 +31,8 @@ public final class SkillWeekRules {
     /** How long after the week ends it is closed anyway when the hub still can't be asked for everyone. */
     public static final Duration GIVE_UP_AFTER = Duration.ofHours(24);
     /**
-     * Points in the competition: a point is 1M XP (the most a point can be), so the objective's {@link EventRules#MAX_REPEAT} points hold 1B XP,
-     * above any week's gain in one skill (200M cap); the website shows the XP itself.
+     * The XP objective's target: 1M XP (the most it can be), so its {@link EventRules#MAX_REPEAT} completions hold 1B XP, above any week's gain in one
+     * skill (200M cap). The competition's points are the XP itself, not completions ({@link CompetitionTemplate#standings} for {@code wholeSpan}).
      */
     public static final long XP_PER_POINT = 1_000_000;
 
@@ -70,7 +70,10 @@ public final class SkillWeekRules {
         return at < 0 ? 0 : at + 1;
     }
 
-    /** Problems with a rota as an admin sent it: skills from the catalogue (no "overall"), at least one when switched on, at most {@link #MAX_ROTA}. */
+    /**
+     * Problems with a rota as an admin sent it: skills from the catalogue (no "overall"), each once (so {@link #positionAfter} always knows where
+     * this week's skill is), at least one when switched on, at most {@link #MAX_ROTA}.
+     */
     public static List<String> rotaProblems(List<Integer> rota, boolean enabled) {
         List<String> problems = new ArrayList<>();
         if (enabled && rota.isEmpty()) problems.add("Choose at least one skill for the rota.");
@@ -81,6 +84,7 @@ public final class SkillWeekRules {
                 break;
             }
         }
+        if (new java.util.HashSet<>(rota).size() < rota.size()) problems.add("Each skill can be in the rota once.");
         return problems;
     }
 

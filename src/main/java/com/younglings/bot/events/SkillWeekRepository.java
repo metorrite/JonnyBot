@@ -16,6 +16,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalInt;
 
 /**
  * Skill of the week (T-541): each server's settings (off unless saved on, the rota and where in it the next week is) and one row per week opened,
@@ -76,24 +77,52 @@ public class SkillWeekRepository {
         }
     }
 
-    /** Saves the switch and the rota; a changed rota goes on from the skill after the latest week's ({@link SkillWeekRules#positionAfter}). */
+    /**
+     * Saves the switch and the rota; a changed rota goes on from the skill after the latest week's ({@link SkillWeekRules#positionAfter}). The
+     * settings row is locked first, so a {@link #claim} running at the same time either sees the new rota or is seen by it.
+     */
     public void save(long guildId, boolean enabled, List<Integer> rota, long actorId) {
         String sql = """
                 INSERT INTO younglings.skill_week_settings (guild_id, enabled, rota, position, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, NOW())
                 ON CONFLICT (guild_id) DO UPDATE SET enabled = EXCLUDED.enabled, rota = EXCLUDED.rota, updated_by = EXCLUDED.updated_by, updated_at = NOW(),
                     position = CASE WHEN younglings.skill_week_settings.rota = EXCLUDED.rota THEN younglings.skill_week_settings.position ELSE EXCLUDED.position END
                 """;
-        List<Week> latest = recent(guildId, 1);
-        int position = SkillWeekRules.positionAfter(rota, latest.isEmpty() ? null : latest.get(0).skillId());
-        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
-            s.setLong(1, guildId);
-            s.setBoolean(2, enabled);
-            s.setString(3, DataArray.fromCollection(rota).toString());
-            s.setInt(4, position);
-            s.setLong(5, actorId);
-            s.executeUpdate();
+        try (Connection c = connectionSupplier.getConnection()) {
+            c.setAutoCommit(false);
+            try {
+                lockSettings(c, guildId);
+                Integer last = null;
+                try (PreparedStatement s = c.prepareStatement("SELECT skill_id FROM younglings.skill_week WHERE guild_id = ? ORDER BY week_start DESC LIMIT 1")) {
+                    s.setLong(1, guildId);
+                    try (ResultSet rs = s.executeQuery()) {
+                        if (rs.next()) last = rs.getInt(1);
+                    }
+                }
+                try (PreparedStatement s = c.prepareStatement(sql)) {
+                    s.setLong(1, guildId);
+                    s.setBoolean(2, enabled);
+                    s.setString(3, DataArray.fromCollection(rota).toString());
+                    s.setInt(4, SkillWeekRules.positionAfter(rota, last));
+                    s.setLong(5, actorId);
+                    s.executeUpdate();
+                }
+                c.commit();
+            } catch (SQLException e) {
+                c.rollback();
+                throw e;
+            }
         } catch (SQLException e) {
             throw new RuntimeException("Failed to save the skill of the week settings", e);
+        }
+    }
+
+    /** Locks a server's settings row for the transaction; the row read, or null when it has none. */
+    private static Settings lockSettings(Connection c, long guildId) throws SQLException {
+        try (PreparedStatement s = c.prepareStatement("SELECT enabled, rota, position, updated_by FROM younglings.skill_week_settings WHERE guild_id = ? FOR UPDATE")) {
+            s.setLong(1, guildId);
+            try (ResultSet rs = s.executeQuery()) {
+                return rs.next() ? new Settings(rs.getBoolean(1), rota(rs.getString(2)), rs.getInt(3), rs.getLong(4)) : null;
+            }
         }
     }
 
@@ -111,13 +140,20 @@ public class SkillWeekRepository {
     }
 
     /**
-     * Claims a week for {@code skillId} and moves the rota on, in one transaction. False when the week was already claimed (another pass, or a
-     * restart), so a week is only ever opened once.
+     * Claims a week for the skill at the rota's stored position and moves the rota on, in one transaction with the settings row locked, so the
+     * skill always follows what is stored (a stale claim given back just before, or a rota saved at the same moment). The skill claimed, or empty
+     * when the week was already claimed (another pass, or a restart), so a week is only ever opened once, or the server has no rota.
      */
-    public boolean claim(long guildId, Instant start, int skillId) {
+    public OptionalInt claim(long guildId, Instant start) {
         try (Connection c = connectionSupplier.getConnection()) {
             c.setAutoCommit(false);
             try {
+                Settings settings = lockSettings(c, guildId);
+                if (settings == null || settings.rota().isEmpty()) {
+                    c.rollback();
+                    return OptionalInt.empty();
+                }
+                int skillId = SkillWeekRules.skillAt(settings.rota(), settings.position());
                 int added;
                 try (PreparedStatement s = c.prepareStatement("INSERT INTO younglings.skill_week (guild_id, week_start, skill_id) VALUES (?, ?, ?) ON CONFLICT DO NOTHING")) {
                     s.setLong(1, guildId);
@@ -132,7 +168,7 @@ public class SkillWeekRepository {
                     }
                 }
                 c.commit();
-                return added == 1;
+                return added == 1 ? OptionalInt.of(skillId) : OptionalInt.empty();
             } catch (SQLException e) {
                 c.rollback();
                 throw e;
@@ -159,6 +195,7 @@ public class SkillWeekRepository {
         try (Connection c = connectionSupplier.getConnection()) {
             c.setAutoCommit(false);
             try {
+                lockSettings(c, guildId); // the same order as claim: settings row first, then the week
                 int removed;
                 String sql = "DELETE FROM younglings.skill_week WHERE guild_id = ? AND week_start = ? AND event_id IS NULL" + (claimedBefore == null ? "" : " AND claimed_at < ?");
                 try (PreparedStatement s = c.prepareStatement(sql)) {

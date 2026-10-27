@@ -259,6 +259,24 @@ class EventsAdminApiTest {
     }
 
     @Test
+    void aSkillOfTheWeeksDatesCantBeChangedOnTheEventManager() throws Exception {
+        String id = create("{\"name\":\"Span dates\",\"template\":\"competition\",\"startsAt\":\"2030-10-28T00:00:00Z\",\"endsAt\":\"2030-11-03T23:59:59Z\","
+                + "\"config\":{\"skillId\":9,\"xpSource\":\"runemetrics\"}}");
+        // only skill of the week itself makes a wholeSpan competition: set it as it would
+        try (Connection c = supplier.getConnection(); PreparedStatement s = c.prepareStatement("UPDATE younglings.event SET config = ? WHERE id = ?")) {
+            s.setString(1, "{\"skillId\":9,\"xpPerPoint\":1000000,\"xpSource\":\"plugin\",\"wholeSpan\":true}");
+            s.setLong(2, Long.parseLong(id));
+            s.executeUpdate();
+        }
+        call("PUT", "events/" + id, "{\"name\":\"Renamed span\",\"startsAt\":\"2030-10-29T00:00:00Z\",\"endsAt\":\"2030-11-10T00:00:00Z\"}");
+        var event = call("GET", "events/" + id, null).getObject("event");
+        assertEquals("Renamed span", event.getString("name"));
+        assertEquals("2030-10-28T00:00:00Z", event.getString("startsAt"), "the week the tracker counts stays the week");
+        assertEquals("2030-11-03T23:59:59Z", event.getString("endsAt"));
+        assertTrue(event.getObject("config").getBoolean("wholeSpan"));
+    }
+
+    @Test
     void anEventCantStartWithoutObjectivesAndItsStagesOnlyGoForward() {
         String id = create("{\"name\":\"Stage test\"}");
         assertEquals(409, failure("POST", "events/" + id + "/status", "{\"status\":\"running\"}").status);

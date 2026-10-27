@@ -3,6 +3,7 @@ package com.younglings.bot.events;
 import com.younglings.bot.events.EventRepository.Event;
 import com.younglings.bot.events.EventRepository.Participant;
 import com.younglings.bot.events.EventRepository.Progress;
+import com.younglings.bot.events.EventRules.ObjectiveSpec;
 import com.younglings.bot.events.EventRules.ScoringMode;
 import com.younglings.bot.events.EventRules.Source;
 import com.younglings.bot.events.EventRules.Status;
@@ -214,6 +215,79 @@ class SkillWeekAcceptanceTest {
         verify(hub, times(1)).aliasOf(anyLong());
         verify(hub, never()).xpGains(anyLong(), any(), any(), any(), any());
         assertEquals(java.util.Set.of(), tracker.notCounted(1).orElseThrow().userIds(), "the hub couldn't be asked: nobody is listed as having no RuneSync");
+    }
+
+    @Test
+    void theCompetitionsOwnStandingsAreInTheWinnersOrder() {
+        fixture();
+        PluginXpTracker tracker = new PluginXpTracker(repository, events, hub).withClock(Clock.fixed(Instant.parse("2026-11-02T00:12:00Z"), ZoneOffset.UTC));
+        tracker.feed(event);
+        // Bob 9,000, Dave 8,999, Alice 8,000, Carol 7,000: all under a completion of the objective (1M XP), so the usual standings tie at 0 points
+        List<ObjectiveSpec> objectives = new CompetitionTemplate().starterObjectives(DataObject.fromJson(event.config()));
+        List<EventScoring.Entry> log = new ArrayList<>();
+        for (Progress p : progress) log.add(new EventScoring.Entry("u:" + p.userId(), p.objectiveKey(), p.amount(), p.createdAt()));
+        List<EventScoring.Standing> usual = EventScoring.standings(objectives, log);
+        assertTrue(usual.stream().allMatch(x -> x.points() == 0));
+
+        List<EventScoring.Standing> own = new CompetitionTemplate().standings(event, objectives, List.copyOf(progress), usual);
+        List<Winner> winners = SkillWeekRules.winners(CompetitionTemplate.importedXp(progress), 10);
+        assertEquals(winners.stream().map(w -> "u:" + w.userId()).toList(), own.stream().map(EventScoring.Standing::subject).toList());
+        assertEquals(winners.stream().map(Winner::xp).toList(), own.stream().map(EventScoring.Standing::points).toList(), "a point is an XP");
+
+        Event ordinary = new Event(2, GUILD, CompetitionTemplate.KEY, "Ordinary", "", Status.RUNNING, null, ScoringMode.INDIVIDUAL, START, END, 0,
+                "{\"skillId\":9,\"xpSource\":\"plugin\"}", 1, START, null, false);
+        assertEquals(null, new CompetitionTemplate().standings(ordinary, objectives, List.copyOf(progress), usual), "other competitions keep their points");
+    }
+
+    @Test
+    void whoJoinsAfterTheWeekEndedIsntCounted() {
+        fixture();
+        long erin = Long.parseLong("6".repeat(18));
+        List<Participant> players = new ArrayList<>(repository.participants(1));
+        players.add(player(erin, Instant.parse("2026-11-02T00:05:00Z")));
+        when(repository.participants(1)).thenReturn(players);
+        when(hub.aliasOf(erin)).thenReturn(Optional.of("a1_alice")); // the ledger has gains for this alias in the week
+        PluginXpTracker tracker = new PluginXpTracker(repository, events, hub).withClock(Clock.fixed(Instant.parse("2026-11-02T00:12:00Z"), ZoneOffset.UTC));
+        assertTrue(tracker.pass(event).complete());
+        assertFalse(CompetitionTemplate.importedXp(progress).containsKey(erin));
+        verify(hub, never()).aliasOf(erin);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void twoPassesAtOnceAcrossAMinuteNeverCountAGainTwice() throws Exception {
+        fixture();
+        java.util.concurrent.CountDownLatch inHub = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.CountDownLatch letGo = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.atomic.AtomicBoolean first = new java.util.concurrent.atomic.AtomicBoolean(true);
+        org.mockito.stubbing.Answer<?> ledgerAnswer = i -> {
+            Collection<String> aliases = i.getArgument(1);
+            DataArray rows = DataArray.empty();
+            ledger(aliases, i.getArgument(2), i.getArgument(3), i.getArgument(4)).forEach((alias, xp) -> rows.add(DataObject.empty().put("alias", alias).put("xp", xp)));
+            return new RuneClansHubClient.Answer(200, DataObject.empty().put("players", rows));
+        };
+        Mockito.doAnswer(i -> {
+            if (first.getAndSet(false)) {
+                // the sweep's pass is at the hub when the closing pass starts, a minute later
+                inHub.countDown();
+                assertTrue(letGo.await(10, java.util.concurrent.TimeUnit.SECONDS));
+            }
+            return ledgerAnswer.answer(i);
+        }).when(hub).xpGains(eq(GUILD), any(Collection.class), any(), any(Instant.class), any(Instant.class));
+        PluginXpTracker tracker = new PluginXpTracker(repository, events, hub).withClock(Clock.fixed(Instant.parse("2026-11-02T00:11:59Z"), ZoneOffset.UTC));
+        Thread sweep = new Thread(() -> tracker.pass(event));
+        sweep.start();
+        assertTrue(inHub.await(10, java.util.concurrent.TimeUnit.SECONDS));
+        tracker.withClock(Clock.fixed(Instant.parse("2026-11-02T00:12:00Z"), ZoneOffset.UTC));
+        Thread closing = new Thread(() -> tracker.pass(event));
+        closing.start();
+        // the closing pass waits for the sweep's to finish rather than reading what is counted before it
+        long deadline = System.nanoTime() + 10_000_000_000L;
+        while (closing.getState() != Thread.State.BLOCKED && closing.isAlive() && System.nanoTime() < deadline) Thread.onSpinWait();
+        letGo.countDown();
+        sweep.join(10_000);
+        closing.join(10_000);
+        assertEquals(Map.of(ALICE, 8_000L, BOB, 9_000L, CAROL, 7_000L, DAVE, 8_999L), CompetitionTemplate.importedXp(progress), "each gain counted once");
     }
 
     private static Participant player(long userId, Instant joined) {

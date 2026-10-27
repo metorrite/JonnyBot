@@ -11,6 +11,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.time.Instant;
 import java.util.List;
+import java.util.OptionalInt;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -55,7 +56,7 @@ class SkillWeekRepositoryDatabaseTest {
         assertEquals(new SkillWeekRepository.Settings(true, List.of(9, 15), 0, ADMIN), repository.settings(GUILD));
         assertTrue(repository.enabledGuilds().contains(GUILD));
 
-        assertTrue(repository.claim(GUILD, MONDAY, 9));
+        assertEquals(OptionalInt.of(9), repository.claim(GUILD, MONDAY));
         assertEquals(1, repository.settings(GUILD).position());
         repository.save(GUILD, true, List.of(9, 15), ADMIN);
         assertEquals(1, repository.settings(GUILD).position(), "the same rota keeps its place");
@@ -71,8 +72,8 @@ class SkillWeekRepositoryDatabaseTest {
     @Test
     void aWeekIsClaimedOnceAndClosedOnce() {
         repository.save(GUILD, true, List.of(9, 15), ADMIN);
-        assertTrue(repository.claim(GUILD, MONDAY, 9));
-        assertFalse(repository.claim(GUILD, MONDAY, 15), "a second pass or a restart doesn't open the week again");
+        assertEquals(OptionalInt.of(9), repository.claim(GUILD, MONDAY));
+        assertTrue(repository.claim(GUILD, MONDAY).isEmpty(), "a second pass or a restart doesn't open the week again");
         assertEquals(1, repository.settings(GUILD).position());
 
         SkillWeekRepository.Week week = repository.week(GUILD, MONDAY).orElseThrow();
@@ -91,23 +92,44 @@ class SkillWeekRepositoryDatabaseTest {
     @Test
     void aReleasedWeekCanBeClaimedAgainWithTheSameSkill() {
         repository.save(GUILD, true, List.of(9, 15), ADMIN);
-        assertTrue(repository.claim(GUILD, MONDAY, 9));
+        assertEquals(OptionalInt.of(9), repository.claim(GUILD, MONDAY));
         repository.release(GUILD, MONDAY);
         assertTrue(repository.week(GUILD, MONDAY).isEmpty());
         assertEquals(0, repository.settings(GUILD).position());
-        assertTrue(repository.claim(GUILD, MONDAY, 9));
+        assertEquals(OptionalInt.of(9), repository.claim(GUILD, MONDAY));
     }
 
     @Test
     void onlyAnOldClaimWithoutACompetitionIsGivenBackAsStale() {
         repository.save(GUILD, true, List.of(9, 15), ADMIN);
-        assertTrue(repository.claim(GUILD, MONDAY, 9));
+        assertEquals(OptionalInt.of(9), repository.claim(GUILD, MONDAY));
         assertFalse(repository.releaseStale(GUILD, MONDAY, Instant.now().minusSeconds(600)), "claimed just now");
         assertTrue(repository.releaseStale(GUILD, MONDAY, Instant.now().plusSeconds(60)));
         assertEquals(0, repository.settings(GUILD).position());
 
-        assertTrue(repository.claim(GUILD, MONDAY, 9));
+        assertEquals(OptionalInt.of(9), repository.claim(GUILD, MONDAY));
         repository.setEvent(GUILD, MONDAY, 42);
         assertFalse(repository.releaseStale(GUILD, MONDAY, Instant.now().plusSeconds(60)), "a week with its competition is never given back");
+    }
+
+    @Test
+    void aStaleClaimGivenBackIsClaimedAgainInTheSameSkillAndTheRotaDoesntSkip() {
+        repository.save(GUILD, true, List.of(9, 15, 25), ADMIN);
+        assertEquals(OptionalInt.of(9), repository.claim(GUILD, MONDAY));
+        // the pass that claimed it died before its competition was kept; a later pass read the settings (position 1) and then gives it back
+        SkillWeekRepository.Settings readBefore = repository.settings(GUILD);
+        assertEquals(1, readBefore.position());
+        assertTrue(repository.releaseStale(GUILD, MONDAY, Instant.now().plusSeconds(60)));
+        assertEquals(OptionalInt.of(9), repository.claim(GUILD, MONDAY), "the week opens in the skill it was claimed in, not the one after");
+        assertEquals(OptionalInt.of(15), repository.claim(GUILD, MONDAY.plusSeconds(7 * 86_400)), "and next week is the next skill");
+        assertEquals(OptionalInt.of(25), repository.claim(GUILD, MONDAY.plusSeconds(14 * 86_400)));
+    }
+
+    @Test
+    void noRotaClaimsNothing() {
+        assertTrue(repository.claim(GUILD, MONDAY).isEmpty(), "no settings saved");
+        repository.save(GUILD, false, List.of(), ADMIN);
+        assertTrue(repository.claim(GUILD, MONDAY).isEmpty());
+        assertTrue(repository.week(GUILD, MONDAY).isEmpty());
     }
 }

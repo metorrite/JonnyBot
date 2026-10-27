@@ -37,7 +37,8 @@ class SkillWeekRulesTest {
         assertTrue(SkillWeekRules.rotaProblems(List.of(), false).isEmpty(), "off with nothing chosen is fine");
         assertEquals(1, SkillWeekRules.rotaProblems(List.of(), true).size());
         assertEquals(1, SkillWeekRules.rotaProblems(List.of(-1), true).size(), "overall isn't a skill of the week");
-        assertEquals(1, SkillWeekRules.rotaProblems(java.util.Collections.nCopies(SkillWeekRules.MAX_ROTA + 1, 1), true).size());
+        assertTrue(SkillWeekRules.rotaProblems(java.util.Collections.nCopies(SkillWeekRules.MAX_ROTA + 1, 1), true).contains("A rota holds at most " + SkillWeekRules.MAX_ROTA + " skills."));
+        assertEquals(List.of("Each skill can be in the rota once."), SkillWeekRules.rotaProblems(List.of(9, 15, 9), true), "a skill twice would leave the rota unsure where it is");
     }
 
     @Test

@@ -22,10 +22,10 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
@@ -115,8 +115,11 @@ public class SkillWeekService {
         Instant start = SkillWeekRules.weekStart(now);
         Optional<Week> existing = weeks.week(guildId, start);
         if (existing.isPresent() && !resume(existing.get(), now)) return OptionalLong.empty();
-        int skill = SkillWeekRules.skillAt(settings.rota(), settings.position());
-        if (!weeks.claim(guildId, start, skill)) return OptionalLong.empty();
+        // the skill comes from the rota as stored when the week is claimed, not from the settings read above: a stale claim given back by
+        // resume() has just moved the rota back one
+        OptionalInt claimed = weeks.claim(guildId, start);
+        if (claimed.isEmpty()) return OptionalLong.empty();
+        int skill = claimed.getAsInt();
         DataObject config = DataObject.empty().put("skillId", skill).put("xpPerPoint", SkillWeekRules.XP_PER_POINT).put("xpSource", CompetitionTemplate.SOURCE_PLUGIN)
                 .put("wholeSpan", true);
         long eventId;
@@ -223,11 +226,7 @@ public class SkillWeekService {
 
     /** Each player's XP gained in a week's competition: RuneSync's gains on its XP objective only, so an organiser's correction never changes it. */
     public Map<Long, Long> xpByUser(long eventId) {
-        Map<Long, Long> xp = new HashMap<>();
-        for (EventRepository.Progress p : repository.progress(eventId)) {
-            if (p.source() == EventRules.Source.IMPORT && p.objectiveKey().equals(CompetitionTemplate.OBJECTIVE_KEY)) xp.merge(p.userId(), p.amount(), Long::sum);
-        }
-        return xp;
+        return CompetitionTemplate.importedXp(repository.progress(eventId));
     }
 
     /**
