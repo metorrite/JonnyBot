@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Runs the account SQL against a real Postgres. Skipped unless {@code JONNYBOT_TEST_DATABASE_URL} (or the older JDBC-form {@code JONNYBOT_TEST_DB_URL}) points at an <em>empty
+ * Runs the account SQL against a real Postgres. Skipped unless {@code RUNECLAN_BOT_TEST_DATABASE_URL} (or the older JDBC-form {@code RUNECLAN_BOT_TEST_DB_URL}; old names {@code JONNYBOT_*}) points at an <em>empty
  * scratch</em> database it may fill and wipe (e.g. {@code jdbc:postgresql://localhost:5432/jonnybot_scratch?user=..&password=..}):
  * never point it at a database that holds real data.
  */

@@ -1,6 +1,7 @@
 package com.younglings.bot;
 
 import com.younglings.bot.testsupport.HeadlessStartup;
+import com.younglings.bot.testsupport.TestDatabaseUrl;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
@@ -22,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * interface service without {@code @InterfacedService}, a bad constructor, a SQL error in a repository's table setup.
  *
  * <p>It needs a Postgres to run the repositories' idempotent {@code CREATE TABLE IF NOT EXISTS}: CI provides a throwaway one
- * ({@code STARTUP_CHECK_DATABASE_URL}); on a developer machine the local dev database ({@code JONNYBOT_TEST_DATABASE_URL}) is used
+ * ({@code STARTUP_CHECK_DATABASE_URL}); on a developer machine the local dev database ({@code RUNECLAN_BOT_TEST_DATABASE_URL}, old name {@code JONNYBOT_TEST_DATABASE_URL}) is used
  * and the test is skipped when neither is set. It only ever connects to 127.0.0.1/localhost.
  *
  * <p>What it cannot cover: anything that needs a live gateway (command registration with Discord, listener behaviour). The listener
@@ -32,12 +33,12 @@ class StartupWiringTest {
     @Test
     void theWholeWiringBootsWithoutDiscord() throws Exception {
         String url = System.getenv("STARTUP_CHECK_DATABASE_URL");
-        if (url == null || url.isBlank()) url = System.getenv("JONNYBOT_TEST_DATABASE_URL");
+        if (url == null || url.isBlank()) url = TestDatabaseUrl.uriOrNull();
         if (url == null || url.isBlank()) {
             // Where the check is required (the GitHub workflow sets this) a missing database must fail loudly instead of silently
             // skipping the very check this test exists for.
             assertTrue(System.getenv("STARTUP_CHECK_REQUIRED") == null, "STARTUP_CHECK_REQUIRED is set but STARTUP_CHECK_DATABASE_URL is not");
-            Assumptions.assumeTrue(false, "no local database configured (set JONNYBOT_TEST_DATABASE_URL)");
+            Assumptions.assumeTrue(false, "no local database configured (set RUNECLAN_BOT_TEST_DATABASE_URL)");
         }
         String host = URI.create(url.trim()).getHost();
         Assumptions.assumeTrue("127.0.0.1".equals(host) || "localhost".equals(host), "refusing a database that isn't local");
