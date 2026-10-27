@@ -153,6 +153,19 @@ public final class LinkSchema {
             );
             CREATE INDEX IF NOT EXISTS dm_send_target ON %1$s.dm_send (target_lookup, at);
             CREATE INDEX IF NOT EXISTS dm_send_at ON %1$s.dm_send (at);
+            """,
+            // v3 (T-699, SCALING-STATE.md M7): the code, start and DM rate limits, shared by every replica. One row per limiter and key
+            // with the hit times (epoch millis) still inside the window; expires_at is the newest hit plus the window, for the sweep.
+            """
+            CREATE TABLE IF NOT EXISTS %1$s.rate_window (
+                limiter text NOT NULL,
+                key text NOT NULL,
+                hits bigint[] NOT NULL,
+                expires_at bigint NOT NULL,
+                last_allowed boolean NOT NULL,
+                PRIMARY KEY (limiter, key)
+            );
+            CREATE INDEX IF NOT EXISTS rate_window_expires ON %1$s.rate_window (expires_at);
             """
     );
 
