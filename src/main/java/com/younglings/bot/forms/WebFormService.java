@@ -101,8 +101,47 @@ public class WebFormService {
                 notes.add("Your answers were saved, but the ticket could not be opened. Someone will still see them.");
             }
         }
-        if (form.channelId() != null) postToChannel(guild, member, form, checked.answers(), notes);
+        if (form.channelId() != null) postToChannel(guild, member, member.getIdLong(), form, checked.answers(), null);
         if (form.roleId() != null) giveRole(guild, member, form, notes);
+        return new Outcome(submissionId, ticketOpened, notes);
+    }
+
+    /**
+     * T-590: an application sent from the clan's site (its application form widget), delivered where this form sends its answers. The person
+     * signed in with Discord on the website but needn't be in the server yet (that's who applies): the answers are saved and posted to the
+     * form's channel either way; a ticket is opened and the role given only to someone already in the server. The form's wait between sends
+     * and one-per-person rule still apply. {@code labels} and {@code values} are the site's questions and answers, in order.
+     */
+    public Outcome submitFromSite(Guild guild, long userId, long formId, List<String> labels, List<String> values, String site) {
+        Form saved = forms.get(formId).filter(f -> f.guildId() == guild.getIdLong() && f.enabled()).orElseThrow(() -> new FormProblem(404, "That form does not exist or is closed."));
+        Optional<String> refusal = WebForms.cannotSubmit(saved, forms.lastSubmission(saved.id(), userId), Instant.now());
+        if (refusal.isPresent()) throw new FormProblem(409, refusal.get());
+
+        Form form = WebForms.asSiteForm(saved, labels);
+        if (form.questions().isEmpty()) throw new FormProblem(400, "Answer the questions first.");
+        Map<String, String> raw = new HashMap<>();
+        for (int i = 0; i < form.questions().size(); i++) raw.put(form.questions().get(i).id(), i < values.size() ? values.get(i) : "");
+        Checked checked = WebForms.check(form, raw);
+        if (!checked.ok()) throw new FormProblem(400, checked.problems().getFirst(), checked.problems());
+
+        Member member = memberOf(guild, userId);
+        long submissionId = forms.addSubmission(form, userId, checked.answers());
+        List<String> notes = new ArrayList<>();
+        boolean ticketOpened = false;
+        if (form.panelId() != null) {
+            if (member == null) {
+                notes.add("You're not in the clan's Discord server yet, so no ticket was opened. Your answers were still sent.");
+            } else {
+                try {
+                    ticketOpened = openTicket(guild, member, form, submissionId, checked.answers(), notes);
+                } catch (RuntimeException e) {
+                    log.warn("Web form {}: opening the ticket for a site application failed", form.id(), e);
+                    notes.add("Your answers were saved, but the ticket could not be opened. Someone will still see them.");
+                }
+            }
+        }
+        if (form.channelId() != null) postToChannel(guild, member, userId, form, checked.answers(), site);
+        if (form.roleId() != null && member != null) giveRole(guild, member, form, notes);
         return new Outcome(submissionId, ticketOpened, notes);
     }
 
@@ -161,14 +200,16 @@ public class WebFormService {
         }
     }
 
-    private void postToChannel(Guild guild, Member member, Form form, List<Answer> answers, List<String> notes) {
+    /** {@code member} is null for someone not in the server (a site application, T-590); {@code site} names the clan site it came from. */
+    private void postToChannel(Guild guild, Member member, long userId, Form form, List<Answer> answers, String site) {
         TextChannel channel = guild.getTextChannelById(form.channelId());
         if (channel == null || !channel.canTalk()) {
             log.warn("Web form {}: channel {} is missing or not writable", form.id(), form.channelId());
             return;
         }
-        EmbedBuilder embed = new EmbedBuilder().setTitle(trim(form.name() + " - new answers", 256)).setDescription("From " + member.getAsMention())
-                .setThumbnail(member.getEffectiveAvatarUrl()).setTimestamp(Instant.now());
+        String from = "From <@" + userId + ">" + (member == null ? " (not in the server yet)" : "") + (site == null ? "" : "\nSent from the clan site " + trim(site, 60));
+        EmbedBuilder embed = new EmbedBuilder().setTitle(trim(form.name() + " - new answers", 256)).setDescription(from).setTimestamp(Instant.now());
+        if (member != null) embed.setThumbnail(member.getEffectiveAvatarUrl());
         for (var line : WebForms.asLines(answers).entrySet()) {
             if (embed.length() > 5000 || embed.getFields().size() >= 25) break;
             embed.addField(trim(line.getKey(), 256), trim(line.getValue(), 1024), false);
