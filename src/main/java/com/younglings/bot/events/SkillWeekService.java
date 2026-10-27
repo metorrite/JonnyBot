@@ -8,6 +8,7 @@ import com.younglings.bot.events.SkillWeekRepository.Settings;
 import com.younglings.bot.events.SkillWeekRepository.Week;
 import com.younglings.bot.events.SkillWeekRules.Winner;
 import com.younglings.bot.member.MemberProfileRepository;
+import com.younglings.bot.plugin.PluginVisibilityRepository;
 import com.younglings.bot.runeclans.RuneClansHubClient;
 import com.younglings.bot.runescape.PlayerLink;
 import com.younglings.bot.runescape.PlayerLinkService;
@@ -15,6 +16,7 @@ import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
+import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.utils.data.DataArray;
 import net.dv8tion.jda.api.utils.data.DataObject;
 import org.slf4j.Logger;
@@ -30,6 +32,7 @@ import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.LongPredicate;
 
 /**
  * Skill of the week (T-541): with it switched on (off by default, on the dashboard's Levels & points > Skill of the week), each Monday the bot opens a
@@ -53,11 +56,13 @@ public class SkillWeekService {
     private final RuneClansHubClient hub;
     private final PlayerLinkService links;
     private final MemberProfileRepository profiles;
+    private final PluginVisibilityRepository plugins;
     private final ScheduledExecutorService executor = BotScheduler.lane("skill-of-the-week");
     private Clock clock = Clock.systemUTC();
+    private volatile JDA jda;
 
     public SkillWeekService(SkillWeekRepository weeks, EventService service, EventRepository repository, PluginXpTracker tracker, RuneClansHubClient hub, PlayerLinkService links,
-                            MemberProfileRepository profiles) {
+                            MemberProfileRepository profiles, PluginVisibilityRepository plugins) {
         this.weeks = weeks;
         this.service = service;
         this.repository = repository;
@@ -65,11 +70,13 @@ public class SkillWeekService {
         this.hub = hub;
         this.links = links;
         this.profiles = profiles;
+        this.plugins = plugins;
     }
 
     @BEventListener
     public void onJdaReady(InjectedJDAEvent event) {
         if (!hub.enabled()) return;
+        jda = event.getJda();
         executor.scheduleWithFixedDelay(this::sweep, 2, 10, TimeUnit.MINUTES);
     }
 
@@ -84,8 +91,14 @@ public class SkillWeekService {
         return hub.enabled();
     }
 
-    /** One pass: closes the weeks that are over, then opens this week where it is switched on. Never throws. */
+    /** One pass: closes the weeks that are over, then opens this week where it is switched on and the bot is still in the server. Never throws. */
     public void sweep() {
+        JDA current = jda;
+        sweep(guildId -> current == null || current.getGuildById(guildId) != null);
+    }
+
+    /** {@link #sweep}, opening weeks only in the servers {@code inServer} says the bot is in (a server it left keeps its setting, but nobody could join). */
+    void sweep(LongPredicate inServer) {
         Instant now = clock.instant();
         try {
             for (Week w : weeks.unclosedBefore(SkillWeekRules.weekStart(now).plusSeconds(1))) {
@@ -97,6 +110,7 @@ public class SkillWeekService {
                 }
             }
             for (long guildId : weeks.enabledGuilds()) {
+                if (!inServer.test(guildId)) continue;
                 try {
                     open(guildId, now);
                 } catch (RuntimeException e) {
@@ -199,7 +213,9 @@ public class SkillWeekService {
             }
             log.warn("Skill of the week {} in {}: the hub still couldn't be asked for everyone, closing it with what it has", w.start(), w.guildId());
         }
-        List<Winner> winners = SkillWeekRules.winners(event.isPresent() ? xpByUser(event.get().id()) : Map.of(), SkillWeekRules.WINNERS);
+        // a competition an organiser cancelled (cheating, say) has no winners
+        boolean counts = event.isPresent() && event.get().status() != Status.CANCELLED;
+        List<Winner> winners = SkillWeekRules.winners(counts ? xpByUser(event.get().id()) : Map.of(), SkillWeekRules.WINNERS);
         DataArray json = DataArray.empty();
         for (Winner x : winners) json.add(DataObject.empty().put("rank", x.rank()).put("userId", String.valueOf(x.userId())).put("xp", x.xp()));
         // the competition is finished before the week is closed: if finishing fails (the database), the week stays open and a later pass tries again
@@ -238,16 +254,18 @@ public class SkillWeekService {
     }
 
     /**
-     * {@link #view} for anyone (the clan website): a member who hid themselves from the rankings, or hid which Discord account is theirs, shows as
-     * "A member", as on every other clan-site answer.
+     * {@link #view} for anyone (the clan website). A player is named, and their XP shown, only when they chose to show their RuneSync activity
+     * on clan sites ({@link PluginVisibilityRepository#showToClan}, off by default; docs/XP-LEDGER.md section 5.4 in the hub) and didn't hide
+     * themselves from the rankings or hide which Discord account is theirs: everyone else is "A member" with no XP. A week whose competition
+     * keeps its standings to staff, or hides them until it ends, shows none ({@code hidden}), as on its event page (T-211).
      */
     public DataObject publicView(long guildId, int shown) {
-        return view(guildId, shown, new Names(profiles.hiddenDiscordUsers(guildId), profiles.hiddenRsns(guildId, true)));
+        return view(guildId, shown, new Names(false, profiles.hiddenDiscordUsers(guildId), profiles.hiddenRsns(guildId, true)));
     }
 
-    /** Who is named: Discord users and (lower-cased) RuneScape names that show as "A member". */
-    private record Names(Set<Long> hiddenUsers, Set<String> hiddenRsns) {
-        static final Names ALL = new Names(Set.of(), Set.of());
+    /** Who is named: everyone (staff), or on the clan website those who chose to be, less Discord users and (lower-cased) RuneScape names hidden. */
+    private record Names(boolean staff, Set<Long> hiddenUsers, Set<String> hiddenRsns) {
+        static final Names ALL = new Names(true, Set.of(), Set.of());
     }
 
     private DataObject view(long guildId, int shown, Names names) {
@@ -260,17 +278,19 @@ public class SkillWeekService {
         DataObject last = null;
         for (Week w : weeks.recent(guildId, 4)) {
             if (current == null && last == null && w.start().equals(start)) {
-                current = week(w);
-                Map<Long, Long> xp = w.eventId() == null ? Map.of() : xpByUser(w.eventId());
+                Optional<Event> e = w.eventId() == null ? Optional.empty() : repository.event(guildId, w.eventId());
+                boolean hidden = !names.staff() && !tableShown(e);
+                current = week(w, e).put("hidden", hidden);
+                Map<Long, Long> xp = w.eventId() == null || hidden ? Map.of() : xpByUser(w.eventId());
                 DataArray standings = DataArray.empty();
                 for (Winner x : SkillWeekRules.winners(xp, Math.max(1, Math.min(shown, MAX_SHOWN)))) standings.add(row(guildId, names, x.rank(), x.userId(), x.xp()));
                 current.put("standings", standings).put("players", w.eventId() == null ? 0 : repository.participants(w.eventId()).size());
-                Optional<Event> e = w.eventId() == null ? Optional.empty() : repository.event(guildId, w.eventId());
-                current.put("status", e.map(x -> x.status().name()).orElse(null));
             } else if (last == null && w.closedAt() != null) {
-                last = week(w);
+                Optional<Event> e = w.eventId() == null ? Optional.empty() : repository.event(guildId, w.eventId());
+                boolean hidden = !names.staff() && !tableShown(e);
+                last = week(w, e).put("hidden", hidden);
                 DataArray winners = DataArray.empty();
-                DataArray stored = w.winners() == null ? DataArray.empty() : DataArray.fromJson(w.winners());
+                DataArray stored = w.winners() == null || hidden ? DataArray.empty() : DataArray.fromJson(w.winners());
                 for (int i = 0; i < stored.length(); i++) {
                     DataObject x = stored.getObject(i);
                     winners.add(row(guildId, names, x.getInt("rank"), Long.parseLong(x.getString("userId")), x.getLong("xp")));
@@ -281,14 +301,28 @@ public class SkillWeekService {
         return out.put("current", current).put("last", last);
     }
 
-    private static DataObject week(Week w) {
+    private static DataObject week(Week w, Optional<Event> e) {
         return DataObject.empty().put("skillId", w.skillId()).put("skill", CompetitionTemplate.skillName(w.skillId())).put("start", w.start().toString())
-                .put("end", SkillWeekRules.weekEnd(w.start()).toString()).put("eventId", w.eventId() == null ? null : String.valueOf(w.eventId()));
+                .put("end", SkillWeekRules.weekEnd(w.start()).toString()).put("eventId", w.eventId() == null ? null : String.valueOf(w.eventId()))
+                .put("status", e.map(x -> x.status().name()).orElse(null));
+    }
+
+    /** Whether players may see a week's standings: its competition's own setting (T-211) at its stage; a week without one has none to hide. */
+    private static boolean tableShown(Optional<Event> e) {
+        if (e.isEmpty()) return true;
+        DataObject config;
+        try {
+            config = DataObject.fromJson(e.get().config());
+        } catch (RuntimeException x) {
+            config = null;
+        }
+        return EventStandings.tableShown(EventStandings.of(config), e.get().status());
     }
 
     private DataObject row(long guildId, Names names, int rank, long userId, long xp) {
-        List<PlayerLink> mine = names.hiddenUsers().contains(userId) ? List.of() : links.getLinksForUser(guildId, userId);
+        boolean shows = names.staff() || (!names.hiddenUsers().contains(userId) && plugins.showToClan(userId));
+        List<PlayerLink> mine = shows ? links.getLinksForUser(guildId, userId) : List.of();
         boolean named = !mine.isEmpty() && !names.hiddenRsns().contains(mine.get(0).rsn().toLowerCase());
-        return DataObject.empty().put("rank", rank).put("name", named ? mine.get(0).rsn() : "A member").put("xp", xp);
+        return DataObject.empty().put("rank", rank).put("name", named ? mine.get(0).rsn() : "A member").put("xp", shows ? xp : null);
     }
 }

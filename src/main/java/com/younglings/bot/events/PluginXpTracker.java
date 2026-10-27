@@ -18,6 +18,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -232,8 +233,10 @@ public class PluginXpTracker {
         }
 
         Map<Long, Long> counted = new HashMap<>();
+        Set<String> keys = new HashSet<>();
         for (EventRepository.Progress p : progress) {
             if (p.source() == Source.IMPORT && p.objectiveKey().equals(CompetitionTemplate.OBJECTIVE_KEY)) counted.merge(p.userId(), p.amount(), Long::sum);
+            if (p.sourceKey() != null) keys.add(p.sourceKey());
         }
         int updated = 0;
         for (Map.Entry<Instant, Map<String, Participant>> group : groups.entrySet()) {
@@ -258,7 +261,13 @@ public class PluginXpTracker {
                         unconfirmed.add(p.userId());
                         continue;
                     }
-                    if (record(event, p, row.getLong("xp", 0), counted.getOrDefault(p.userId(), 0L), now)) updated++;
+                    long add = CompetitionTracking.toRecord(0, row.getLong("xp", 0), counted.getOrDefault(p.userId(), 0L));
+                    if (add > 0 && keys.contains(CompetitionTracking.pluginSourceKey(p.userId(), now))) {
+                        // another pass already counted this player this minute: the rest is added next minute, and this pass isn't complete
+                        complete = false;
+                        continue;
+                    }
+                    if (record(event, p, add, now)) updated++;
                 }
                 for (String alias : part) if (!seen.contains(alias)) missing.add(group.getValue().get(alias).userId());
             }
@@ -291,8 +300,7 @@ public class PluginXpTracker {
         return level.equals("public_data_corroborated") || level.equals("jagex_signed");
     }
 
-    private boolean record(Event event, Participant player, long gain, long alreadyCounted, Instant now) {
-        long add = CompetitionTracking.toRecord(0, gain, alreadyCounted);
+    private boolean record(Event event, Participant player, long add, Instant now) {
         if (add == 0) return false;
         try {
             service.recordProgress(event.guildId(), event.id(), CompetitionTemplate.OBJECTIVE_KEY, player.userId(), add, Source.IMPORT,

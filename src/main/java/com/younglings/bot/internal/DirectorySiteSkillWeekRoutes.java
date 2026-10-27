@@ -8,8 +8,9 @@ import java.io.IOException;
 
 /**
  * {@code GET sites/{slug}/data/skill-week?limit=}: the clan website's "Skill of the week" widget (T-541), only while the site is published: this
- * week's skill and standings by XP gained (linked RuneScape names only, members who hid themselves from the rankings as "A member"), and last week's winners ({@link SkillWeekService#view}). A server
- * that never switched it on answers {@code enabled: false} and nothing else to show.
+ * week's skill and standings by XP gained, and last week's winners ({@link SkillWeekService#publicView}: only members who chose to show their
+ * RuneSync activity on clan sites are named with their XP, and a competition's standings kept to staff or hidden until it ends aren't shown). A
+ * server that never switched it on answers {@code enabled: false} and nothing else to show.
  */
 @BService
 public class DirectorySiteSkillWeekRoutes implements DirectoryRouteModule {
