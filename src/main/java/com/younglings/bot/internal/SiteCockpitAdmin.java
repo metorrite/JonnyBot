@@ -35,6 +35,7 @@ import java.util.function.Supplier;
  *   <li>{@code PUT clan-site/cockpit/settings} {@code {quietDays}} (the site's owner): 7 to 90 days; answers the page.</li>
  *   <li>{@code POST clan-site/cockpit/marks} {@code {kind, rsn, done, name?}} (site admins): marks a row done or clears the mark; {@code name}
  *   is how the website shows the asker (used where the bot can't see them). Answers {@code {mark}} (null when cleared).</li>
+ *   <li>{@code clan-site/cockpit/ranks...} (T-594): the rank-up advisor ({@link SiteRankAdvisor}); its rules are the owner's.</li>
  * </ul>
  * Read-only on Discord: a linked member's Discord name comes from the bot's member cache only, never a request.
  */
@@ -47,11 +48,13 @@ public class SiteCockpitAdmin {
     private final SiteStatsRepository stats;
     private final AdminToolsStore activity;
     private final SiteRoleGuard siteRoles;
+    private final SiteRankAdvisor ranks;
     /** Marks per person: a burst of 10 (working down a list), then 2 a second. */
     private final RateLimiter marks = new RateLimiter(10, 500);
 
-    public SiteCockpitAdmin(SiteCockpitStore store, SiteStatsRepository stats, AdminToolsStore activity, SiteRoleGuard siteRoles) {
+    public SiteCockpitAdmin(SiteCockpitStore store, SiteStatsRepository stats, AdminToolsStore activity, SiteRoleGuard siteRoles, SiteRankAdvisor ranks) {
         this.store = store;
+        this.ranks = ranks;
         this.stats = stats;
         this.activity = activity;
         this.siteRoles = siteRoles;
@@ -59,6 +62,7 @@ public class SiteCockpitAdmin {
 
     /** The site role a cockpit route needs: changing the threshold is the owner's (Drake's planning answer); the rest is any site admin. */
     static SiteRoles.Action actionFor(String method, String[] parts) {
+        if (parts.length >= 3 && parts[2].equals(SiteRankAdvisor.PATH)) return SiteRankAdvisor.actionFor(method, parts);
         return parts.length == 3 && parts[2].equals("settings") && !method.equals("GET") ? SiteRoles.Action.OWN : SiteRoles.Action.SETTINGS;
     }
 
@@ -68,6 +72,7 @@ public class SiteCockpitAdmin {
             AdminRouteExtension.requireMethod(method, "GET");
             return view(c, OffsetDateTime.now(ZoneOffset.UTC));
         }
+        if (parts[2].equals(SiteRankAdvisor.PATH)) return ranks.route(c, method, parts, body);
         if (parts.length != 3) return null;
         return switch (parts[2]) {
             case "settings" -> {
@@ -85,6 +90,7 @@ public class SiteCockpitAdmin {
     /** Drops the page's settings and marks with the server's deleted website. */
     void forget(long guildId) {
         store.forget(guildId);
+        ranks.forget(guildId);
     }
 
     // ---------- the page ----------
