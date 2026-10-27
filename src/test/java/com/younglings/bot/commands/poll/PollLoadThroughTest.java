@@ -1,6 +1,7 @@
 package com.younglings.bot.commands.poll;
 
 import com.younglings.bot.poll.PollRepository;
+import net.dv8tion.jda.api.entities.Guild;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -120,5 +121,31 @@ class PollLoadThroughTest {
         when(repository.getActivePolls(GUILD)).thenThrow(new RuntimeException("database down"));
 
         assertEquals(Set.of(3L), Set.copyOf(service.activePolls(GUILD).stream().map(PollSession::pollId).toList()));
+    }
+
+    @Test
+    void aPollCachedBeforeItsMessageWasPostedPicksUpTheMessageIdFromTheList() {
+        PollRepository repository = emptyRepository();
+        PollService service = new PollService(repository);
+        // another process inserted the poll but has not saved its message id yet
+        when(repository.getActivePolls(GUILD)).thenReturn(List.of(poll(7, "ACTIVE", null)));
+        service.activePolls(GUILD);
+        assertNull(service.getSessionById(7).messageId());
+
+        when(repository.getActivePolls(GUILD)).thenReturn(List.of(poll(7, "ACTIVE", 70L)));
+        assertEquals(70L, service.activePolls(GUILD).getFirst().messageId());
+        assertEquals(70L, service.getSessionById(7).messageId());
+    }
+
+    @Test
+    void updatingAMessageRereadsAPollCachedBeforeItsMessageWasPosted() {
+        PollRepository repository = emptyRepository();
+        PollService service = new PollService(repository);
+        when(repository.getPollById(7)).thenReturn(poll(7, "ACTIVE", null));
+        assertNull(service.getSessionById(7).messageId());
+
+        when(repository.getPollById(7)).thenReturn(poll(7, "ACTIVE", 70L));
+        service.updateMessage(mock(Guild.class), 7);
+        assertEquals(70L, service.getSessionById(7).messageId());
     }
 }

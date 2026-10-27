@@ -151,14 +151,36 @@ public class PollService {
         List<PollSession> polls = new ArrayList<>();
         for (PollSession poll : stored) {
             ids.add(poll.pollId());
-            PollSession raced = activePollsById.putIfAbsent(poll.pollId(), poll);
-            polls.add(raced != null ? raced : poll); // the cached copy may already carry the message id
+            polls.add(activePollsById.merge(poll.pollId(), poll, PollService::newerPosting));
         }
         // Ended by another process: drop them here too. One closed here is gone from the map already.
         activePollsById.values().removeIf(poll -> poll.guildId() == guildId && !ids.contains(poll.pollId()));
         optionsByPollId.keySet().retainAll(activePollsById.keySet());
         polls.sort(Comparator.comparingLong(PollSession::pollId).reversed());
         return polls;
+    }
+
+    /**
+     * Keeps the cached copy unless it was cached before the poll's message was posted (by another process, which saves the message id
+     * only after posting) and the row now has the id: without it this process could never edit the poll's message.
+     */
+    private static PollSession newerPosting(PollSession cached, PollSession stored) {
+        return cached.messageId() == null && stored.messageId() != null ? stored : cached;
+    }
+
+    /** A cached poll still waiting for its message id: re-reads the row, since another process may have posted it since. */
+    private PollSession withPostedMessage(PollSession session) {
+        if (session.messageId() != null) return session;
+        PollSession stored;
+        try {
+            stored = pollRepository.getPollById(session.pollId());
+        } catch (RuntimeException e) {
+            log.warn("Could not re-read poll {} for its message id", session.pollId(), e);
+            return session;
+        }
+        if (stored == null || stored.messageId() == null || !"ACTIVE".equalsIgnoreCase(stored.status())) return session;
+        PollSession merged = activePollsById.computeIfPresent(session.pollId(), (id, cached) -> newerPosting(cached, stored));
+        return merged != null ? merged : stored;
     }
 
     private List<PollSession> cachedActivePolls(long guildId) {
@@ -233,8 +255,10 @@ public class PollService {
     // --- Message updates ---
 
     public void updateMessage(Guild guild, long pollId) {
-        PollSession session = getSessionById(pollId);
-        if (session == null || session.messageId() == null) return;
+        PollSession found = getSessionById(pollId);
+        if (found == null) return;
+        PollSession session = withPostedMessage(found);
+        if (session.messageId() == null) return;
 
         GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, session.channelId());
         if (channel == null) return;
