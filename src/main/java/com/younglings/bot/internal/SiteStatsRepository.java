@@ -14,7 +14,9 @@ import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Read-only aggregate queries behind the website's public clan pages (roster, leaderboards, charts, member
@@ -159,24 +161,24 @@ public class SiteStatsRepository {
 
     /** XP gained inside {@code [from, to]}: the newest snapshot at or before {@code to}, minus the one at (or, failing that, just after) {@code from}. */
     public List<Gain> xpGainsBetween(long guildId, OffsetDateTime from, OffsetDateTime to) {
+        // One index probe per member (player_stats_snapshot_global_rsn_idx) instead of DISTINCT ON over every member's whole history.
+        // ORDER BY m.k keeps the row order the DISTINCT ON form produced, so callers that sort by XP break ties the same way.
         return query("xp gains", """
                 WITH members AS (
-                    SELECT LOWER(rsn) AS k, rsn FROM younglings.clan_member WHERE guild_id = ? AND active),
-                latest AS (
-                    SELECT DISTINCT ON (LOWER(s.rsn)) LOWER(s.rsn) AS k, s.total_xp FROM younglings.player_stats_snapshot s
-                    JOIN members m ON m.k = LOWER(s.rsn) WHERE s.snapshot_at <= ? ORDER BY LOWER(s.rsn), s.snapshot_at DESC),
-                before AS (
-                    SELECT DISTINCT ON (LOWER(s.rsn)) LOWER(s.rsn) AS k, s.total_xp FROM younglings.player_stats_snapshot s
-                    JOIN members m ON m.k = LOWER(s.rsn) WHERE s.snapshot_at <= ? ORDER BY LOWER(s.rsn), s.snapshot_at DESC),
-                after AS (
-                    SELECT DISTINCT ON (LOWER(s.rsn)) LOWER(s.rsn) AS k, s.total_xp FROM younglings.player_stats_snapshot s
-                    JOIN members m ON m.k = LOWER(s.rsn) WHERE s.snapshot_at > ? ORDER BY LOWER(s.rsn), s.snapshot_at ASC)
+                    SELECT LOWER(rsn) AS k, rsn FROM younglings.clan_member WHERE guild_id = ? AND active)
                 SELECT m.rsn, l.total_xp - COALESCE(b.total_xp, a.total_xp) AS gain
                 FROM members m
-                JOIN latest l ON l.k = m.k
-                LEFT JOIN before b ON b.k = m.k
-                LEFT JOIN after a ON a.k = m.k
+                JOIN LATERAL (
+                    SELECT s.total_xp FROM younglings.player_stats_snapshot s
+                    WHERE LOWER(s.rsn) = m.k AND s.snapshot_at <= ? ORDER BY s.snapshot_at DESC LIMIT 1) l ON TRUE
+                LEFT JOIN LATERAL (
+                    SELECT s.total_xp FROM younglings.player_stats_snapshot s
+                    WHERE LOWER(s.rsn) = m.k AND s.snapshot_at <= ? ORDER BY s.snapshot_at DESC LIMIT 1) b ON TRUE
+                LEFT JOIN LATERAL (
+                    SELECT s.total_xp FROM younglings.player_stats_snapshot s
+                    WHERE LOWER(s.rsn) = m.k AND s.snapshot_at > ? ORDER BY s.snapshot_at ASC LIMIT 1) a ON TRUE
                 WHERE COALESCE(b.total_xp, a.total_xp) IS NOT NULL
+                ORDER BY m.k
                 """, rs -> new Gain(rs.getString("rsn"), rs.getLong("gain")), guildId, to, from, from);
     }
 
@@ -232,24 +234,27 @@ public class SiteStatsRepository {
 
     /** Skill XP gained inside {@code [from, to]} by one member ({@code rsn}) or, with {@code rsn == null}, by every active member together. */
     public List<SkillGain> skillGainsBetween(long guildId, String rsn, OffsetDateTime from, OffsetDateTime to) {
+        // Per-member index probes, as in xpGainsBetween. The inner LATERAL for latest keeps only members who have a snapshot.
         return query("skill gains", """
                 WITH members AS (
                     SELECT LOWER(rsn) AS k FROM younglings.clan_member WHERE guild_id = ? AND active AND (?::text IS NULL OR LOWER(rsn) = LOWER(?))),
-                latest AS (
-                    SELECT DISTINCT ON (LOWER(s.rsn)) s.snapshot_id, LOWER(s.rsn) AS k FROM younglings.player_stats_snapshot s
-                    JOIN members m ON m.k = LOWER(s.rsn) WHERE s.snapshot_at <= ? ORDER BY LOWER(s.rsn), s.snapshot_at DESC),
-                before AS (
-                    SELECT DISTINCT ON (LOWER(s.rsn)) s.snapshot_id, LOWER(s.rsn) AS k FROM younglings.player_stats_snapshot s
-                    JOIN members m ON m.k = LOWER(s.rsn) WHERE s.snapshot_at <= ? ORDER BY LOWER(s.rsn), s.snapshot_at DESC),
-                after AS (
-                    SELECT DISTINCT ON (LOWER(s.rsn)) s.snapshot_id, LOWER(s.rsn) AS k FROM younglings.player_stats_snapshot s
-                    JOIN members m ON m.k = LOWER(s.rsn) WHERE s.snapshot_at > ? ORDER BY LOWER(s.rsn), s.snapshot_at ASC),
-                base AS (SELECT l.k, COALESCE(b.snapshot_id, a.snapshot_id) AS snapshot_id FROM latest l LEFT JOIN before b ON b.k = l.k LEFT JOIN after a ON a.k = l.k)
+                base AS (
+                    SELECT m.k, l.snapshot_id AS latest_id, COALESCE(b.snapshot_id, a.snapshot_id) AS snapshot_id
+                    FROM members m
+                    JOIN LATERAL (
+                        SELECT s.snapshot_id FROM younglings.player_stats_snapshot s
+                        WHERE LOWER(s.rsn) = m.k AND s.snapshot_at <= ? ORDER BY s.snapshot_at DESC LIMIT 1) l ON TRUE
+                    LEFT JOIN LATERAL (
+                        SELECT s.snapshot_id FROM younglings.player_stats_snapshot s
+                        WHERE LOWER(s.rsn) = m.k AND s.snapshot_at <= ? ORDER BY s.snapshot_at DESC LIMIT 1) b ON TRUE
+                    LEFT JOIN LATERAL (
+                        SELECT s.snapshot_id FROM younglings.player_stats_snapshot s
+                        WHERE LOWER(s.rsn) = m.k AND s.snapshot_at > ? ORDER BY s.snapshot_at ASC LIMIT 1) a ON TRUE)
                 SELECT ls.skill_id, SUM(ls.xp - bs.xp) AS gain
-                FROM latest l
-                JOIN base ba ON ba.k = l.k AND ba.snapshot_id IS NOT NULL
-                JOIN younglings.player_skill_snapshot ls ON ls.snapshot_id = l.snapshot_id
+                FROM base ba
+                JOIN younglings.player_skill_snapshot ls ON ls.snapshot_id = ba.latest_id
                 JOIN younglings.player_skill_snapshot bs ON bs.snapshot_id = ba.snapshot_id AND bs.skill_id = ls.skill_id
+                WHERE ba.snapshot_id IS NOT NULL
                 GROUP BY ls.skill_id HAVING SUM(ls.xp - bs.xp) > 0 ORDER BY gain DESC
                 """, rs -> new SkillGain(rs.getInt("skill_id"), rs.getLong("gain")), guildId, rsn, rsn, to, from, from);
     }
@@ -406,14 +411,31 @@ public class SiteStatsRepository {
                 WHERE guild_id = ? AND status IN ('ACTIVE', 'PAUSED') AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 20
                 """, rs -> new Head(rs.getLong("signup_id"), rs.getString("title"), rs.getString("notification_message"), (Integer) rs.getObject("max_signups"),
                 rs.getString("status"), rs.getObject("created_at", OffsetDateTime.class)), guildId);
+        if (heads.isEmpty()) return new ArrayList<>();
+
+        // Every sheet's entries in one round trip, split per sheet below (the newest-first sheet order comes from the heads).
+        record Entry(long signupId, SignupEntry entry) {}
+        Map<Long, List<SignupEntry>> entriesBySheet = new HashMap<>();
+        for (Entry e : query("signup entries", "SELECT signup_id, discord_user_id, rsn, queue_position FROM younglings.signup_entry WHERE signup_id = ANY(?) ORDER BY signup_id, queue_position",
+                rs -> new Entry(rs.getLong("signup_id"), new SignupEntry(rs.getLong("discord_user_id"), rs.getString("rsn"), rs.getInt("queue_position"))),
+                (Object) heads.stream().map(Head::id).toArray(Long[]::new))) {
+            entriesBySheet.computeIfAbsent(e.signupId(), k -> new ArrayList<>()).add(e.entry());
+        }
 
         List<SignupRow> rows = new ArrayList<>();
         for (Head head : heads) {
-            List<SignupEntry> entries = query("signup entries", "SELECT discord_user_id, rsn, queue_position FROM younglings.signup_entry WHERE signup_id = ? ORDER BY queue_position",
-                    rs -> new SignupEntry(rs.getLong("discord_user_id"), rs.getString("rsn"), rs.getInt("queue_position")), head.id());
+            List<SignupEntry> entries = entriesBySheet.getOrDefault(head.id(), new ArrayList<>());
             rows.add(new SignupRow(head.id(), head.title(), head.notification(), head.max(), head.status(), head.createdAt(), entries));
         }
         return rows;
+    }
+
+    /** How many sheets {@link #activeSignups} lists (so capped at its 20), without loading their entries. */
+    public int countActiveSignups(long guildId) {
+        return query("signup count", """
+                SELECT COUNT(*) AS n FROM (SELECT 1 FROM younglings.signup
+                WHERE guild_id = ? AND status IN ('ACTIVE', 'PAUSED') AND deleted_at IS NULL LIMIT 20) s
+                """, rs -> rs.getInt("n"), guildId).getFirst();
     }
 
     /** The server's polls, newest first, each with its options and vote counts. */
@@ -426,13 +448,23 @@ public class SiteStatsRepository {
                 rs.getBoolean("anonymous"), rs.getBoolean("multiple_votes"), rs.getString("status"),
                 rs.getObject("created_at", OffsetDateTime.class), rs.getObject("closed_at", OffsetDateTime.class)), guildId, limit);
 
+        if (heads.isEmpty()) return new ArrayList<>();
+
+        // Every poll's options and vote counts in one round trip, split per poll below (the newest-first poll order comes from the heads).
+        record Option(long pollId, PollOption option) {}
+        Map<Long, List<PollOption>> optionsByPoll = new HashMap<>();
+        for (Option o : query("poll options", """
+                SELECT o.poll_id, o.option_number, o.label, COUNT(v.vote_id) AS votes FROM younglings.poll_option o
+                LEFT JOIN younglings.poll_vote v ON v.option_id = o.option_id
+                WHERE o.poll_id = ANY(?) GROUP BY o.poll_id, o.option_number, o.label ORDER BY o.poll_id, o.option_number
+                """, rs -> new Option(rs.getLong("poll_id"), new PollOption(rs.getInt("option_number"), rs.getString("label"), rs.getInt("votes"))),
+                (Object) heads.stream().map(Head::id).toArray(Long[]::new))) {
+            optionsByPoll.computeIfAbsent(o.pollId(), k -> new ArrayList<>()).add(o.option());
+        }
+
         List<PollRow> polls = new ArrayList<>();
         for (Head head : heads) {
-            List<PollOption> options = query("poll options", """
-                    SELECT o.option_number, o.label, COUNT(v.vote_id) AS votes FROM younglings.poll_option o
-                    LEFT JOIN younglings.poll_vote v ON v.option_id = o.option_id
-                    WHERE o.poll_id = ? GROUP BY o.option_number, o.label ORDER BY o.option_number
-                    """, rs -> new PollOption(rs.getInt("option_number"), rs.getString("label"), rs.getInt("votes")), head.id());
+            List<PollOption> options = optionsByPoll.getOrDefault(head.id(), new ArrayList<>());
             polls.add(new PollRow(head.id(), head.channelId(), head.messageId(), head.title(), head.anonymous(), head.multiple(), head.status(),
                     head.createdAt(), head.closedAt(), options));
         }

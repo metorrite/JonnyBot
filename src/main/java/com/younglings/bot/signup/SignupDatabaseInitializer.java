@@ -71,6 +71,7 @@ public class SignupDatabaseInitializer {
                     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 );
                 """,
+                "CREATE INDEX IF NOT EXISTS signup_message_signup ON younglings.signup_message (signup_id);",
 
                 // Migration: add type system columns (safe to run on existing databases)
                 """

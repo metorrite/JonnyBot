@@ -13,6 +13,7 @@ import java.sql.SQLException;
 import java.sql.Types;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 @BService
 public class StarboardRepository {
@@ -22,6 +23,11 @@ public class StarboardRepository {
     public record Post(long guildId, long sourceChannelId, long sourceMessageId, long boardMessageId, int stars) {}
 
     private final ConnectionSupplier connectionSupplier;
+    /**
+     * Each server's config as last read, since every reaction in every server asks for it. Filled through computeIfAbsent and dropped
+     * after every write, so a read that races a save can't leave the old config behind (the drop waits for the read to finish).
+     */
+    private final ConcurrentHashMap<Long, StarboardConfig> cache = new ConcurrentHashMap<>();
 
     public StarboardRepository(ConnectionSupplier connectionSupplier) {
         this.connectionSupplier = connectionSupplier;
@@ -54,6 +60,15 @@ public class StarboardRepository {
     }
 
     public StarboardConfig get(long guildId) {
+        return cache.computeIfAbsent(guildId, this::load);
+    }
+
+    /** Forgets a server's cached config, for when its rows are deleted outside this class (the retention purge). */
+    public void evict(long guildId) {
+        cache.remove(guildId);
+    }
+
+    private StarboardConfig load(long guildId) {
         try (Connection c = connectionSupplier.getConnection();
              PreparedStatement s = c.prepareStatement("SELECT enabled, channel_id, emoji, threshold, self_star, channel_thresholds, skip_hidden, only_channels FROM younglings.starboard_config WHERE guild_id = ?")) {
             s.setLong(1, guildId);
@@ -92,6 +107,8 @@ public class StarboardRepository {
         } catch (SQLException e) {
             log.error("Failed to save the starboard of guild {}", config.guildId(), e);
             throw new RuntimeException("Failed to save the starboard", e);
+        } finally {
+            cache.remove(config.guildId());
         }
     }
 

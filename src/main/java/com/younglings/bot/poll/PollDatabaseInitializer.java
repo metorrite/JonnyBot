@@ -53,6 +53,9 @@ public class PollDatabaseInitializer {
                 );
                 """,
 
+                // Vote counts join poll_vote on option_id, which the (poll_id, option_id, user_id) key can't serve.
+                "CREATE INDEX IF NOT EXISTS poll_vote_option ON younglings.poll_vote (option_id);",
+
                 """
                 CREATE INDEX IF NOT EXISTS poll_guild_status_idx
                 ON younglings.poll (guild_id, status);
