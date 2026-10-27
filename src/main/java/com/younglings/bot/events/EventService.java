@@ -881,33 +881,56 @@ public class EventService {
     }
 
     /**
-     * Works out who is owed what from the final standings, the prizes and the pot, and records it. Only once the event is in scoring or done, and
-     * safe to repeat: an award that already exists is left alone.
+     * Works out who is owed what from the final places, the prizes and the pot, and records it. Only once the event is in scoring or done, and
+     * safe to repeat: an award that already exists is left alone. The places are the standings (most points first) unless the event is won another
+     * way ({@link WinModes}): first to a line or the whole board gives them in the order those were finished. A prize draw records its own awards
+     * when it is drawn ({@link #recordAwards}).
      */
     public List<AwardRow> generateAwards(long guildId, long id) {
         Event event = event(guildId, id);
         if (event.status() != Status.SCORING && event.status() != Status.DONE) throw new EventProblem(409, Text.of(guildId, "events.problem.awards_are_worked_out_once_the"));
+        WinModes.Settings win = WinModes.of(DataObject.fromJson(event.config()));
+        if (win.draws()) throw new EventProblem(409, "This event is won by a prize draw: its awards are recorded when the winners are drawn (Win tab).");
+        List<String> subjects = switch (win.mode()) {
+            case FIRST_LINE, FIRST_BLACKOUT -> WinModes.finishOrder(win.mode(), repository.objectives(id), bonusesOf(event), progressLog(event));
+            default -> standings(guildId, id).stream().map(Standing::subject).toList();
+        };
+        return recordAwards(event, subjects);
+    }
+
+    /**
+     * Records the awards for these places ({@code subjects}, place 1 first: "u:id" or "t:id"; a null place is skipped but keeps its number) at any stage,
+     * for a prize draw. Safe to repeat. Awards start pending: nothing is paid until staff mark them paid.
+     */
+    public List<AwardRow> recordAwards(long guildId, long id, List<String> subjects) {
+        return recordAwards(event(guildId, id), subjects);
+    }
+
+    private List<AwardRow> recordAwards(Event event, List<String> subjects) {
+        long id = event.id();
         List<PrizePlan.Prize> prizes = repository.prizes(id);
-        if (prizes.isEmpty()) throw new EventProblem(409, Text.of(guildId, "events.problem.this_event_has_no_prizes_yet"));
+        if (prizes.isEmpty()) throw new EventProblem(409, Text.of(event.guildId(), "events.problem.this_event_has_no_prizes_yet"));
         var participants = repository.participants(id);
+        var teams = repository.teams(id);
         List<Place> places = new ArrayList<>();
-        for (Standing s : standings(guildId, id)) {
-            long subject = Long.parseLong(s.subject().substring(2));
-            if (s.subject().startsWith("t:")) {
-                var team = repository.teams(id).stream().filter(t -> t.id() == subject).findFirst();
-                List<Long> members = new ArrayList<>();
-                team.map(EventRepository.Team::captainId).ifPresent(c -> {
-                    if (c != null && participants.stream().anyMatch(p -> p.userId() == c && !p.waiting())) members.add(c);
-                });
-                participants.stream().filter(p -> p.teamId() != null && p.teamId() == subject && !p.waiting() && !members.contains(p.userId())).map(EventRepository.Participant::userId).forEach(members::add);
-                places.add(new Place(s.subject(), members));
-            } else {
-                places.add(new Place(s.subject(), List.of(subject)));
-            }
-        }
+        for (String subject : subjects) places.add(placeOf(subject, teams, participants));
         long pot = PrizeRules.pot(settingsOf(event).buyIn(), participants.stream().map(EventRepository.Participant::buyIn).toList());
         for (PrizePlan.Award a : PrizePlan.plan(prizes, places, pot)) repository.addAward(id, a);
         return repository.awards(id);
+    }
+
+    /** A place in the results: a player, or a team with its members (captain first, then who joined first, never anyone on the waitlist). */
+    private static Place placeOf(String subject, List<EventRepository.Team> teams, List<EventRepository.Participant> participants) {
+        if (subject == null) return new Place("", List.of());
+        long subjectId = Long.parseLong(subject.substring(2));
+        if (!subject.startsWith("t:")) return new Place(subject, List.of(subjectId));
+        var team = teams.stream().filter(t -> t.id() == subjectId).findFirst();
+        List<Long> members = new ArrayList<>();
+        team.map(EventRepository.Team::captainId).ifPresent(c -> {
+            if (c != null && participants.stream().anyMatch(p -> p.userId() == c && !p.waiting())) members.add(c);
+        });
+        participants.stream().filter(p -> p.teamId() != null && p.teamId() == subjectId && !p.waiting() && !members.contains(p.userId())).map(EventRepository.Participant::userId).forEach(members::add);
+        return new Place(subject, members);
     }
 
     public List<AwardRow> awards(long guildId, long id) {
@@ -1092,17 +1115,23 @@ public class EventService {
     /** Standings from the progress log. Subjects are "u:&lt;userId&gt;" for players or "t:&lt;teamId&gt;" when the event scores by team. */
     public List<Standing> standings(long guildId, long id) {
         Event event = event(guildId, id);
-        boolean byTeam = event.scoringMode() == ScoringMode.TEAM;
-        List<Entry> log = new ArrayList<>();
-        for (EventRepository.Progress p : repository.progress(id)) {
-            if (byTeam && p.teamId() == null) continue;
-            log.add(new Entry(byTeam ? "t:" + p.teamId() : "u:" + p.userId(), p.objectiveKey(), p.amount(), p.createdAt()));
-        }
+        List<Entry> log = progressLog(event);
         List<ObjectiveSpec> objectives = repository.objectives(id);
         List<Standing> usual = EventScoring.standings(objectives, log, bonusesOf(event));
         EventTemplate template = templates.byKey(event.template()).orElse(null);
         List<Standing> own = template == null ? null : template.standings(event, objectives, repository.progress(id), usual);
         return own == null ? usual : own;
+    }
+
+    /** The event's progress log as the standings read it: one entry per row, for the player, or their team when the event scores by team. */
+    public List<Entry> progressLog(Event event) {
+        boolean byTeam = event.scoringMode() == ScoringMode.TEAM;
+        List<Entry> log = new ArrayList<>();
+        for (EventRepository.Progress p : repository.progress(event.id())) {
+            if (byTeam && p.teamId() == null) continue;
+            log.add(new Entry(byTeam ? "t:" + p.teamId() : "u:" + p.userId(), p.objectiveKey(), p.amount(), p.createdAt()));
+        }
+        return log;
     }
 
     private static String clean(String text) {

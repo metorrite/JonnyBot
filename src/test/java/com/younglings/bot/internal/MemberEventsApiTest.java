@@ -73,7 +73,7 @@ class MemberEventsApiTest {
         Mockito.when(profiles.get(G)).thenReturn(Optional.empty());
         api = new MemberEventsApi(service, repository, profiles, new com.younglings.bot.events.EventSpaceRepository(supplier, repository),
                 new com.younglings.bot.clanprofile.JoinLinks(guildSettings, Mockito.mock(com.younglings.bot.clanprofile.ClanRecruitingRepository.class, Mockito.RETURNS_DEEP_STUBS)),
-                new com.younglings.bot.events.EventUpdateRepository(supplier, repository));
+                new com.younglings.bot.events.EventUpdateRepository(supplier, repository), new com.younglings.bot.events.EventDrawRepository(supplier, repository));
         guild = Mockito.mock(Guild.class);
         Mockito.when(guild.getIdLong()).thenReturn(G);
         Mockito.when(guild.getName()).thenReturn("Younglings");

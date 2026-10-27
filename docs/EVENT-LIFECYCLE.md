@@ -158,3 +158,28 @@ How it works:
 - A bot that is not live (`/dev toggleposting` off) holds back nothing and posts no recap or milestone.
 - Routes: `GET/PUT events/{id}/updates` (`EventUpdatesApi`: the rules in words, a preview of each post, when a held-back board is next drawn, the latest posts). The player's event page (`/internal/me/events/detail`) gets `updates` (the rules in words and the latest posts) when an event uses anything but the defaults or has posted something.
 - Tests: `BoardUpdatesTest` (pure rules), `EventBoardUpdateRulesTest` (every rule on a pretend Discord server), `EventUpdatesApiTest` (the routes and the post table).
+
+## Ways to win (T-649)
+
+How an event is won, per event, in `config.win` (`WinModes`). An event that never saved it is won on points exactly as before; every other way is an organiser's choice on the event manager's **Win** section.
+
+| Setting | Default | What it does |
+|---|---|---|
+| `mode` | `POINTS` | `POINTS`: the standings decide the places (today). `DRAW`: the bot draws winners among everyone who qualified. `FIRST_LINE` / `FIRST_BLACKOUT` (bingo only): places go in the order teams or players first finished a line (any bonus group but the whole board) or every tile. |
+| `entries` | `PER_TILE` | Draw only. `PER_TILE`: one entry per finished tile. `PER_PLAYER`: one entry each (one per team in a team event). |
+| `minTiles` | 1 | Draw only. Finished tiles needed to qualify (1 to 1000). |
+| `winners` | 1 | Draw only. How many the draw picks: places 1 to N (up to 25). |
+| `autoDraw` | on | Draw only. The bot draws by itself at the event's end time. Staff can always press "Draw now". |
+
+How it works:
+
+- The draw reuses the giveaway's fair pick (`GiveawayDraw.pick`) over numbered entries, with a `java.util.Random` seeded from a number the bot chooses. Entries are listed in a fixed order (subject keys sorted, each one's entries together); the seed and the list are saved with the draw (`younglings.event_draw`, one row per round) and shown on the event page and in the post, so anyone can re-run `WinModes.draw` and get the same winners.
+- Only tiles finished by the end time count, and only players still in the event (not on the waitlist) and teams that still exist.
+- **Automatic draw**: `EventDraws` checks every minute on its own `BotScheduler` lane (`event-draws`) for draw events past their end time (up to 2 days late, so a bot that was down catches up), drawn once (a round number is the table's key, so a "Draw now" at the same moment can't draw twice). A bot that is not live (`/dev toggleposting` off) draws nothing by itself.
+- **Draw now**: staff, from the website (`POST events/{id}/win/draw`). Allowed once the event is running, and again only if the last draw found nobody who qualified.
+- **Reroll**: for a winner who doesn't claim (`POST events/{id}/win/reroll` with `{place}`): a new winner from the same entries, never anyone drawn before; the old winner's pending awards at that place are revoked. Refused once that prize is paid.
+- **Prizes**: the draw records the winners' prizes from the event's prize list as **pending** awards (`PrizePlan`, fixed amounts or pot shares, split for teams as set); nothing is paid until staff mark an award paid. For first to a line or blackout, "Work out awards" uses the finishing order instead of the standings.
+- **Posts**: the draw and each reroll are announced where the event's update posts go (T-650: the chosen channel, the announcements channel, else the board) through the Discord outbox (`EventUpdatePostJob`, key `draw:<round>`, noted once in `event_update_post`), with names, never mentions.
+- The win rules can change until the winners are drawn or the awards worked out, and not once the event is over.
+- Routes: `GET/PUT events/{id}/win`, `POST events/{id}/win/draw`, `POST events/{id}/win/reroll` (`EventWinApi`, staff only through the dashboard). The player's event page (`/internal/me/events/detail`) gets `win` (the rules in words and the draw with its seed and entries) when the event isn't won on points.
+- Tests: `WinModesTest` (pure: every mode, the draw, rerolls, finishing order), `EventDrawsTest` (the automatic draw, Draw now, Reroll, awards and posts over Postgres), `EventWinApiTest` (the routes).

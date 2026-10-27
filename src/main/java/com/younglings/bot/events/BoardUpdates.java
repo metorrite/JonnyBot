@@ -290,11 +290,11 @@ public final class BoardUpdates {
         return out;
     }
 
-    private static boolean isBlackout(EventBonuses.Bonus b, Set<String> all) {
+    static boolean isBlackout(EventBonuses.Bonus b, Set<String> all) {
         return b.name().equalsIgnoreCase("Blackout") || (!all.isEmpty() && Set.copyOf(b.keys()).containsAll(all));
     }
 
-    private static boolean done(java.util.Collection<String> keys, Map<String, Long> totals, Map<String, ObjectiveSpec> byKey) {
+    static boolean done(java.util.Collection<String> keys, Map<String, Long> totals, Map<String, ObjectiveSpec> byKey) {
         for (String key : keys) {
             ObjectiveSpec o = byKey.get(key);
             if (o == null || EventScoring.completions(o, totals.getOrDefault(key, 0L)) < 1) return false;
