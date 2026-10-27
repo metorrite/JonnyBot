@@ -61,7 +61,8 @@ class SecondServerSmokeTest {
         when(config.getUnverifiedRoleId()).thenReturn(66L);
 
         retentionRepository = mock(GuildRetentionRepository.class);
-        listener = new GuildLifecycleListener(new GuildRetentionService(retentionRepository, config));
+        listener = new GuildLifecycleListener(new GuildRetentionService(retentionRepository, config, mock(com.younglings.bot.starboard.StarboardRepository.class),
+                mock(com.younglings.bot.rolepanel.RolePanelRepository.class)));
 
         newGuild = mock(Guild.class, (InvocationOnMock call) -> {
             String method = call.getMethod().getName();

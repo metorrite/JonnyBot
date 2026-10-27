@@ -13,8 +13,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * A connection to the developer's own local Postgres, for tests that need real SQL. The address is read from the {@code JONNYBOT_TEST_DATABASE_URL}
- * environment variable, or failing that from the DATABASE_URL in the IDE's run configuration ({@code .idea/workspace.xml}). It only ever connects to
+ * A connection to the developer's own local Postgres, for tests that need real SQL. The address is read from the {@code RUNECLAN_BOT_TEST_DATABASE_URL}
+ * environment variable (old name {@code JONNYBOT_TEST_DATABASE_URL}), or failing that from the DATABASE_URL in the IDE's run configuration ({@code .idea/workspace.xml}). It only ever connects to
  * 127.0.0.1 or localhost, and a test that can't find one is skipped rather than failed, so a build machine (which has neither) just skips them.
  * Tests using it must clean up after themselves and use made-up server ids.
  */
@@ -23,7 +23,7 @@ public final class LocalDatabase {
 
     /** A supplier for the local database, or the calling test is skipped. */
     public static ConnectionSupplier supplier() throws Exception {
-        String raw = System.getenv("JONNYBOT_TEST_DATABASE_URL");
+        String raw = TestDatabaseUrl.uriOrNull();
         if (raw == null || raw.isBlank()) {
             Path workspace = Path.of(".idea/workspace.xml");
             Assumptions.assumeTrue(Files.exists(workspace), "no local database configured");
