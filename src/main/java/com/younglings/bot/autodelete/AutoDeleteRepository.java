@@ -1,6 +1,8 @@
 package com.younglings.bot.autodelete;
 
 import com.younglings.bot.autodelete.AutoDeleteRule.Filter;
+import com.younglings.bot.cachebus.CacheBus;
+import com.younglings.bot.cachebus.CacheInvalidator;
 import com.younglings.bot.database.SchemaBootstrapper;
 import io.github.freya022.botcommands.api.core.db.ConnectionSupplier;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -20,7 +22,10 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /** Auto-delete rules, kept in memory per server too (every message in a server asks for them) and refreshed whenever they change. */
 @BService
-public class AutoDeleteRepository {
+public class AutoDeleteRepository implements CacheInvalidator {
+    /** The {@code bot_cache} area of this class's caches (docs/SCALING-STATE.md M10). */
+    static final String CACHE_AREA = "auto-delete";
+
     private static final Logger log = LoggerFactory.getLogger(AutoDeleteRepository.class);
 
     private final ConnectionSupplier connectionSupplier;
@@ -93,6 +98,7 @@ public class AutoDeleteRepository {
             throw new RuntimeException("Failed to save the auto-delete rule", e);
         } finally {
             cache.remove(rule.guildId());
+            CacheBus.changed(CACHE_AREA, rule.guildId());
         }
     }
 
@@ -105,6 +111,7 @@ public class AutoDeleteRepository {
             throw new RuntimeException("Failed to delete the auto-delete rule", e);
         } finally {
             cache.remove(guildId);
+            CacheBus.changed(CACHE_AREA, guildId);
         }
     }
 
@@ -147,5 +154,22 @@ public class AutoDeleteRepository {
         if (array == null) return ids;
         for (Object id : (Object[]) array.getArray()) ids.add(((Number) id).longValue());
         return ids;
+    }
+
+    // ---------- cross-process invalidation (CacheBus) ----------
+
+    @Override
+    public String cacheArea() {
+        return CACHE_AREA;
+    }
+
+    @Override
+    public void evictCached(long guildId) {
+        cache.remove(guildId);
+    }
+
+    @Override
+    public void evictAllCached() {
+        cache.clear();
     }
 }

@@ -66,3 +66,7 @@ tools/ratetest_logs/
 *.sql.gz
 *.bak
 dev-snapshots/
+
+# Python bytecode
+__pycache__/
+*.pyc

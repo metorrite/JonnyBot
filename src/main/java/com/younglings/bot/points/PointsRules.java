@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * The rules for a server's points (what Eternal Rising calls tickets): who may be given how many, why, and what counts as a valid
+ * The rules for a server's points (what some clans call tickets): who may be given how many, why, and what counts as a valid
  * name for them. Pure, so it can be tested. The ledger itself only ever grows: a mistake is corrected with an opposite entry, never an edit.
  */
 public final class PointsRules {
