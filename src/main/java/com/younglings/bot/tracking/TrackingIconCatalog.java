@@ -14,8 +14,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -76,56 +77,77 @@ public class TrackingIconCatalog extends ListenerAdapter {
     // rank's (admin-editable) name, so renaming a rank never breaks its icon lookup.
     private static final int RANK_COUNT = 12;
 
-    private static final Map<String, byte[]> DROP_BYTES = new HashMap<>();
-    private static final Map<String, byte[]> CATEGORY_BYTES = new HashMap<>();
-    private static final Map<String, byte[]> BOSS_BYTES = new HashMap<>();
-    private static final Map<Integer, byte[]> RANK_BYTES = new HashMap<>();
-    private static final byte[] DEFAULT_DROP_BYTES;
-    private static final byte[] DEFAULT_BOSS_BYTES;
+    // Discord rejects any emoji image over 256 KiB, so uploading a bigger file can never succeed.
+    static final int MAX_EMOJI_BYTES = 256 * 1024;
+
+    // Only the resource paths of the icons that exist are kept here, not their bytes: the bytes are
+    // needed once, while syncing in onReady, and holding every image (the boss icons alone are tens
+    // of megabytes) on the heap for the life of the process bought nothing. Insertion-ordered so the
+    // sync runs in catalogue order.
+    private static final Map<String, String> DROP_PATHS = new LinkedHashMap<>();
+    private static final Map<String, String> CATEGORY_PATHS = new LinkedHashMap<>();
+    private static final Map<String, String> BOSS_PATHS = new LinkedHashMap<>();
+    private static final Map<Integer, String> RANK_PATHS = new LinkedHashMap<>();
+    private static final String DEFAULT_DROP_PATH;
+    private static final String DEFAULT_BOSS_PATH;
 
     static {
         int found = 0;
         for (DropItemCatalog.DropItem item : DropItemCatalog.all()) {
-            byte[] bytes = readResource("images/drops/" + item.key() + ".png");
-            if (bytes != null) {
-                DROP_BYTES.put(item.key(), bytes);
+            String path = "images/drops/" + item.key() + ".png";
+            if (resourceExists(path)) {
+                DROP_PATHS.put(item.key(), path);
                 found++;
             }
         }
         for (String key : CATEGORY_KEYS) {
-            byte[] bytes = readResource("images/tracking/" + key + ".png");
-            if (bytes != null) CATEGORY_BYTES.put(key, bytes);
+            String path = "images/tracking/" + key + ".png";
+            if (resourceExists(path)) CATEGORY_PATHS.put(key, path);
         }
         int bossesFound = 0;
         List<String> bossKeys = BossCatalog.keys();
         for (String bossKey : bossKeys) {
-            byte[] bytes = readResource("images/bosses/" + bossKey + ".png");
-            if (bytes != null) {
-                BOSS_BYTES.put(bossKey, bytes);
+            String path = "images/bosses/" + bossKey + ".png";
+            if (resourceExists(path)) {
+                BOSS_PATHS.put(bossKey, path);
                 bossesFound++;
             }
         }
         int ranksFound = 0;
         for (int order = 0; order < RANK_COUNT; order++) {
-            byte[] bytes = readResource("images/ranks/" + order + ".png");
-            if (bytes != null) {
-                RANK_BYTES.put(order, bytes);
+            String path = "images/ranks/" + order + ".png";
+            if (resourceExists(path)) {
+                RANK_PATHS.put(order, path);
                 ranksFound++;
             }
         }
-        DEFAULT_DROP_BYTES = readResource("images/tracking/default_drop.png");
-        DEFAULT_BOSS_BYTES = readResource("images/tracking/default_boss.png");
+        DEFAULT_DROP_PATH = resourceExists("images/tracking/default_drop.png") ? "images/tracking/default_drop.png" : null;
+        DEFAULT_BOSS_PATH = resourceExists("images/tracking/default_boss.png") ? "images/tracking/default_boss.png" : null;
         log.info("Loaded {}/{} drop icon images, {}/{} category icon images, {}/{} boss icon images, {}/{} rank icon images, default drop icon: {}, default boss icon: {}.",
-                found, DropItemCatalog.all().size(), CATEGORY_BYTES.size(), CATEGORY_KEYS.size(),
+                found, DropItemCatalog.all().size(), CATEGORY_PATHS.size(), CATEGORY_KEYS.size(),
                 bossesFound, bossKeys.size(), ranksFound, RANK_COUNT,
-                DEFAULT_DROP_BYTES != null ? "found" : "missing — run IconDownloader",
-                DEFAULT_BOSS_BYTES != null ? "found" : "missing — run IconDownloader");
+                DEFAULT_DROP_PATH != null ? "found" : "missing — run IconDownloader",
+                DEFAULT_BOSS_PATH != null ? "found" : "missing — run IconDownloader");
     }
 
-    private static byte[] readResource(String resource) {
+    private static boolean resourceExists(String resource) {
+        return TrackingIconCatalog.class.getClassLoader().getResource(resource) != null;
+    }
+
+    static byte[] readResource(String resource) {
+        return readResource(resource, Integer.MAX_VALUE);
+    }
+
+    /**
+     * The resource's bytes, or {@code null} if it is missing or unreadable. A file longer than
+     * {@code limit} comes back as only its first {@code limit + 1} bytes: enough to tell that it is
+     * too big without reading the rest.
+     */
+    static byte[] readResource(String resource, int limit) {
+        if (resource == null) return null;
         try (InputStream stream = TrackingIconCatalog.class.getClassLoader().getResourceAsStream(resource)) {
             if (stream == null) return null;
-            return stream.readAllBytes();
+            return limit == Integer.MAX_VALUE ? stream.readAllBytes() : stream.readNBytes(limit + 1);
         } catch (IOException e) {
             log.warn("Failed to load icon resource '{}'", resource, e);
             return null;
@@ -154,16 +176,21 @@ public class TrackingIconCatalog extends ListenerAdapter {
             Map<String, ApplicationEmoji> byName = existing.stream()
                     .collect(Collectors.toMap(ApplicationEmoji::getName, e -> e, (a, b) -> a));
 
-            DROP_BYTES.forEach((key, bytes) ->
-                    syncEmoji(jda, byName, storedHashes, "d_" + key, bytes, mention -> dropMentions.put(key, mention)));
-            CATEGORY_BYTES.forEach((key, bytes) ->
-                    syncEmoji(jda, byName, storedHashes, "cat_" + key, bytes, mention -> categoryMentions.put(key, mention)));
-            BOSS_BYTES.forEach((key, bytes) ->
-                    syncEmoji(jda, byName, storedHashes, "b_" + key, bytes, mention -> bossMentions.put(key, mention)));
-            RANK_BYTES.forEach((order, bytes) ->
-                    syncEmoji(jda, byName, storedHashes, "rank_" + order, bytes, mention -> rankMentions.put(order, mention)));
-            syncEmoji(jda, byName, storedHashes, "cat_default_drop", DEFAULT_DROP_BYTES, mention -> defaultDropMention = mention);
-            syncEmoji(jda, byName, storedHashes, "cat_default_boss", DEFAULT_BOSS_BYTES, mention -> defaultBossMention = mention);
+            List<String> tooLarge = new ArrayList<>();
+            DROP_PATHS.forEach((key, path) ->
+                    syncEmoji(jda, byName, storedHashes, "d_" + key, path, mention -> dropMentions.put(key, mention), tooLarge));
+            CATEGORY_PATHS.forEach((key, path) ->
+                    syncEmoji(jda, byName, storedHashes, "cat_" + key, path, mention -> categoryMentions.put(key, mention), tooLarge));
+            BOSS_PATHS.forEach((key, path) ->
+                    syncEmoji(jda, byName, storedHashes, "b_" + key, path, mention -> bossMentions.put(key, mention), tooLarge));
+            RANK_PATHS.forEach((order, path) ->
+                    syncEmoji(jda, byName, storedHashes, "rank_" + order, path, mention -> rankMentions.put(order, mention), tooLarge));
+            syncEmoji(jda, byName, storedHashes, "cat_default_drop", DEFAULT_DROP_PATH, mention -> defaultDropMention = mention, tooLarge);
+            syncEmoji(jda, byName, storedHashes, "cat_default_boss", DEFAULT_BOSS_PATH, mention -> defaultBossMention = mention, tooLarge);
+            if (!tooLarge.isEmpty()) {
+                log.warn("Skipped uploading {} icon emoji(s) whose image is over Discord's {} KiB emoji limit (they keep their fallback icon): {}",
+                        tooLarge.size(), MAX_EMOJI_BYTES / 1024, tooLarge);
+            }
         }, error -> log.warn("Failed to retrieve application emojis for tracking icons", error));
     }
 
@@ -184,33 +211,70 @@ public class TrackingIconCatalog extends ListenerAdapter {
      * rather than mass-recreating every already-fine emoji the first time this ships) — unless it's in
      * {@link #FORCE_REFRESH_ONCE}.
      */
+    /** What {@link #syncEmoji} does with one icon; see {@link #decide}. */
+    enum SyncAction { REUSE, REUSE_AND_RECORD_HASH, CREATE, RECREATE, SKIP_TOO_LARGE }
+
+    /**
+     * The sync rule for one icon, kept free of JDA so it can be tested on its own. An upload
+     * ({@link SyncAction#CREATE} or {@link SyncAction#RECREATE}) of a file over
+     * {@link #MAX_EMOJI_BYTES} becomes {@link SyncAction#SKIP_TOO_LARGE}: Discord would reject it
+     * anyway, and skipping it also keeps an existing emoji from being deleted for a replacement that
+     * can never be created. {@code currentHash} is only read when the emoji exists.
+     */
+    static SyncAction decide(boolean exists, String storedHash, String currentHash, boolean forceRefresh, int sizeBytes) {
+        SyncAction action;
+        if (!exists) {
+            action = SyncAction.CREATE;
+        } else if (storedHash == null && !forceRefresh) {
+            action = SyncAction.REUSE_AND_RECORD_HASH;
+        } else if (storedHash != null && storedHash.equals(currentHash)) {
+            action = SyncAction.REUSE;
+        } else {
+            action = SyncAction.RECREATE; // a changed file, or a forced refresh with no recorded hash
+        }
+        if ((action == SyncAction.CREATE || action == SyncAction.RECREATE) && sizeBytes > MAX_EMOJI_BYTES) {
+            return SyncAction.SKIP_TOO_LARGE;
+        }
+        return action;
+    }
+
+    /**
+     * An existing emoji under this name is reused as-is if its recorded hash matches the current file
+     * (the common case — nothing changed), recreated from scratch if it doesn't (the file was corrected
+     * since this emoji was last uploaded), or just trusted and backfilled with today's hash if there's
+     * no recorded hash at all yet (a legacy emoji from before this check existed — assumed correct
+     * rather than mass-recreating every already-fine emoji the first time this ships) — unless it's in
+     * {@link #FORCE_REFRESH_ONCE}. A file too big to ever upload is skipped (its name added to
+     * {@code tooLarge}) instead of being sent to Discord.
+     */
     private void syncEmoji(JDA jda, Map<String, ApplicationEmoji> existing, Map<String, String> storedHashes,
-                            String name, byte[] bytes, Consumer<String> onMention) {
-        if (bytes == null) return;
+                            String name, String resource, Consumer<String> onMention, List<String> tooLarge) {
         ApplicationEmoji found = existing.get(name);
+        // With no emoji under this name the file only matters if it can be uploaded, so an oversized
+        // one is not read past the limit; an existing emoji needs the whole file for its hash check.
+        byte[] bytes = readResource(resource, found == null ? MAX_EMOJI_BYTES : Integer.MAX_VALUE);
+        if (bytes == null) return;
+        if (bytes.length > MAX_EMOJI_BYTES && found == null) {
+            tooLarge.add(name);
+            return;
+        }
         String currentHash = sha256Hex(bytes);
 
-        if (found == null) {
-            createEmoji(jda, name, bytes, currentHash, onMention);
-            return;
+        switch (decide(found != null, storedHashes.get(name), currentHash, FORCE_REFRESH_ONCE.contains(name), bytes.length)) {
+            case REUSE -> onMention.accept(found.getAsMention());
+            case REUSE_AND_RECORD_HASH -> {
+                onMention.accept(found.getAsMention());
+                hashRepository.setHash(name, currentHash);
+            }
+            case CREATE -> createEmoji(jda, name, bytes, currentHash, onMention);
+            case RECREATE -> {
+                log.info("Icon file for emoji '{}' changed since it was last uploaded — recreating it.", name);
+                found.delete().queue(
+                        success -> createEmoji(jda, name, bytes, currentHash, onMention),
+                        error -> log.warn("Failed to delete stale application emoji '{}' for replacement", name, error));
+            }
+            case SKIP_TOO_LARGE -> tooLarge.add(name);
         }
-
-        String storedHash = storedHashes.get(name);
-        if (storedHash == null && !FORCE_REFRESH_ONCE.contains(name)) {
-            onMention.accept(found.getAsMention());
-            hashRepository.setHash(name, currentHash);
-            return;
-        }
-        if (storedHash == null) storedHash = ""; // forced refresh — never matches currentHash, falls through to recreate below
-        if (storedHash.equals(currentHash)) {
-            onMention.accept(found.getAsMention());
-            return;
-        }
-
-        log.info("Icon file for emoji '{}' changed since it was last uploaded — recreating it.", name);
-        found.delete().queue(
-                success -> createEmoji(jda, name, bytes, currentHash, onMention),
-                error -> log.warn("Failed to delete stale application emoji '{}' for replacement", name, error));
     }
 
     private void createEmoji(JDA jda, String name, byte[] bytes, String contentHash, Consumer<String> onMention) {
