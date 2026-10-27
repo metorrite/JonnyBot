@@ -26,7 +26,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Standalone tool — NOT wired into the bot, never run by it, never run by Claude either. Run it
+ * Standalone tool — NOT wired into the bot, never run by it or by automated tooling. Run it
  * yourself, whenever you want, to (re)download every icon the tracking system references from the RS3
  * wiki and lay them out under {@code src/main/resources/images/}. Adding a new item to
  * {@link DropItemCatalog} or a new boss to {@link BossCatalog} just needs a re-run of this afterward to
