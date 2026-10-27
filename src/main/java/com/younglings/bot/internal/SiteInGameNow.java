@@ -57,7 +57,7 @@ public class SiteInGameNow {
     }
 
     /**
-     * {@code {available, placed, visibility, windowMinutes, count, members:[{name}]}} for the site of {@code guildId}; {@code guild} is null for a
+     * {@code {available, placed, visibility, windowMinutes, count, members:[{rsn}]}} for the site of {@code guildId}; {@code guild} is null for a
      * site whose server doesn't have the bot. {@code available} false: the bot couldn't read it just now.
      */
     public DataObject answer(long guildId, Guild guild) {

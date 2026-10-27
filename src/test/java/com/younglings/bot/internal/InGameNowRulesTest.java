@@ -73,6 +73,6 @@ class InGameNowRulesTest {
         assertEquals(2, a.getInt("unnamed"));
         assertEquals(11, a.getInt("windowMinutes"));
         DataObject m = a.getArray("members").getObject(0);
-        assertEquals(Set.of("name"), m.keys(), "no world, no times, no ids");
+        assertEquals(Set.of("rsn"), m.keys(), "no world, no times, no ids");
     }
 }

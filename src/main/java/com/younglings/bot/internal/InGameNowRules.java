@@ -125,7 +125,7 @@ public final class InGameNowRules {
     /** The answer with these names, plus {@code unnamed} clan members in the game who have no RuneScape name to show. */
     public static DataObject answer(String visibility, List<String> names, int unnamed) {
         DataArray members = DataArray.empty();
-        for (String n : names) members.add(DataObject.empty().put("name", n));
+        for (String n : names) members.add(DataObject.empty().put("rsn", n));
         return DataObject.empty().put("available", true).put("placed", true).put("visibility", visibility)
                 .put("windowMinutes", WINDOW.toMinutes()).put("count", names.size() + unnamed).put("unnamed", unnamed).put("members", members);
     }

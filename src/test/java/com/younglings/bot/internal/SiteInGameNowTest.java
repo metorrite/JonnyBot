@@ -67,7 +67,7 @@ class SiteInGameNowTest {
     private static List<String> names(DataObject answer) {
         DataArray members = answer.getArray("members");
         List<String> out = new ArrayList<>();
-        for (int i = 0; i < members.length(); i++) out.add(members.getObject(i).getString("name"));
+        for (int i = 0; i < members.length(); i++) out.add(members.getObject(i).getString("rsn"));
         return out;
     }
 

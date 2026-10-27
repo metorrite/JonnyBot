@@ -79,7 +79,7 @@ class DirectoryInGameRoutesTest {
         when(inGame.answer(eq(GUILD), isNull())).thenReturn(InGameNowRules.answer("members", List.of("Skill Queen"), 0));
         Reply r = call("GET", "/internal/directory/sites/younglings/data/in-game");
         assertEquals(200, r.status());
-        assertEquals("Skill Queen", r.body().getArray("members").getObject(0).getString("name"));
+        assertEquals("Skill Queen", r.body().getArray("members").getObject(0).getString("rsn"));
         assertEquals(405, call("POST", "/internal/directory/sites/younglings/data/in-game").status());
     }
 
