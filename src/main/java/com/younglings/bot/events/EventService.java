@@ -78,6 +78,17 @@ public class EventService {
     // ---------- events ----------
 
     public long createEvent(long guildId, long actorId, EventInput in) {
+        // wholeSpan is skill of the week's own (T-541): never taken from the dashboard, a setup or a saved template
+        if (in.config() != null && in.config().hasKey("wholeSpan")) in = in.withConfig(DataObject.fromJson(in.config().toJson()).remove("wholeSpan"));
+        return create(guildId, actorId, in);
+    }
+
+    /** {@link #createEvent} for skill of the week (T-541), the one caller whose competition may count its whole span ({@code wholeSpan}). */
+    long createWholeSpanEvent(long guildId, long actorId, EventInput in) {
+        return create(guildId, actorId, in);
+    }
+
+    private long create(long guildId, long actorId, EventInput in) {
         EventTemplate template = templates.byKey(in.template()).orElseThrow(() -> new EventProblem(400, Text.of(guildId, "events.problem.that_kind_of_event_doesn_t")));
         DataObject config = in.config() == null ? DataObject.empty() : in.config();
         List<String> problems = new ArrayList<>(EventRules.eventProblems(in.name(), in.description(), in.maxParticipants(), in.startsAt(), in.endsAt()));
@@ -117,6 +128,10 @@ public class EventService {
         if (!EventRules.editable(existing.status())) throw new EventProblem(409, Text.of(guildId, "events.problem.an_event_can_only_be_changed"));
         EventTemplate template = templates.byKey(existing.template()).orElseThrow(() -> new EventProblem(409, Text.of(guildId, "events.problem.this_event_template_no_longer_exists")));
         DataObject config = in.config() == null ? DataObject.fromJson(existing.config()) : DataObject.fromJson(in.config().toString());
+        if (CompetitionTemplate.countsWholeSpan(DataObject.fromJson(existing.config()))) {
+            // skill of the week (T-541): its dates are the week's, the span the tracker counts for everyone, so they stay as they are
+            in = new EventInput(in.name(), in.description(), in.template(), in.scope(), in.scoringMode(), existing.startsAt(), existing.endsAt(), in.maxParticipants(), in.config());
+        }
         if (in.config() != null) {
             DataObject kept = DataObject.fromJson(existing.config());
             for (String key : template.fixedSettings()) {

@@ -49,6 +49,13 @@ public class RuneClansHubClient {
         }
     }
 
+    /** The hub couldn't be asked (down, busy or failing), as opposed to answering "nobody": {@link #aliasOf}. */
+    public static final class Unreachable extends RuntimeException {
+        public Unreachable(String message) {
+            super(message);
+        }
+    }
+
     /** A {@link #read} answer: from the cache or not, and stale when the hub couldn't be asked and the cached copy is past its fresh time. */
     public record Read(Answer answer, boolean fromCache, boolean stale) {}
 
@@ -166,10 +173,12 @@ public class RuneClansHubClient {
 
     /**
      * JonnyBot's alias for the player behind a Discord account ({@code GET /v1/links/discord/{id}}): only when they granted JonnyBot identity.
-     * Empty when they didn't, have no link, or the hub can't be reached.
+     * Empty when they didn't, have no link, or the hub client is off; {@link Unreachable} when the hub can't be asked right now, so a caller
+     * never takes "the hub is down" for "no link".
      */
     public Optional<String> aliasOf(long discordId) {
         Answer a = call("GET", "/v1/links/discord/" + discordId, null);
+        if (enabled() && (a == null || a.status() >= 500 || a.status() == 429)) throw new Unreachable("The hub couldn't look up a link (" + (a == null ? "no answer" : a.status()) + ")");
         if (a == null || !a.ok() || a.json() == null) return Optional.empty();
         return Optional.ofNullable(a.json().getString("alias", null));
     }
