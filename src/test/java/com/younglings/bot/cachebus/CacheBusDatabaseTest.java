@@ -120,6 +120,27 @@ class CacheBusDatabaseTest {
     }
 
     @Test
+    void aSaveSendsItsOwnSignalThroughTheBus() throws Exception {
+        AutomodRepository api = new AutomodRepository(db);
+        AutomodRepository gateway = new AutomodRepository(db);
+        listen("api-bus", api);
+        listen("gateway-bus", gateway);
+        assertFalse(gateway.get(guild).enabled(), "the gateway caches the default (off)");
+
+        CacheBus.Sender previous = CacheBus.swapSender(new CacheBus.Sender(db, BotScheduler.lane("cache-bus-test-send")));
+        try {
+            AutomodRepository.Config on = new AutomodRepository.Config(guild, true, Set.of(), Set.of(), AutomodRepository.Config.defaults(guild).rules());
+            savedRow = true;
+            // the real path: save, then CacheBus.changed queues pg_notify on the send lane; nothing here sends by hand
+            api.save(on);
+            waitFor(() -> gateway.get(guild).enabled(), "the gateway to read the saved setting");
+            assertTrue(api.get(guild).enabled(), "the writer reloads the same row after its own signal");
+        } finally {
+            CacheBus.swapSender(previous);
+        }
+    }
+
+    @Test
     void aDroppedConnectionReconnectsAndClearsEverything() throws Exception {
         CacheDispatcherTest.Recording cache = new CacheDispatcherTest.Recording("automod");
         CacheListener listener = listen("drop", cache);

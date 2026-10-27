@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * The Discord servers whose clan website is run without the bot in them (a bot-less site): one row per server, written the first time a person
@@ -35,6 +36,8 @@ public class BotlessSiteRepository implements CacheInvalidator {
 
     private final ConnectionSupplier connectionSupplier;
     private volatile Set<Long> known;
+    /** Bumped before every drop of {@link #known}, so a read that started before a change can't put the old list back after it. */
+    private final AtomicLong generation = new AtomicLong();
 
     public BotlessSiteRepository(ConnectionSupplier connectionSupplier) {
         this.connectionSupplier = connectionSupplier;
@@ -59,6 +62,7 @@ public class BotlessSiteRepository implements CacheInvalidator {
     public Set<Long> ids() {
         Set<Long> current = known;
         if (current != null) return current;
+        long started = generation.get();
         Set<Long> loaded = ConcurrentHashMap.newKeySet();
         try (Connection c = connectionSupplier.getConnection();
              PreparedStatement s = c.prepareStatement("SELECT guild_id FROM younglings.botless_site");
@@ -70,6 +74,8 @@ public class BotlessSiteRepository implements CacheInvalidator {
         }
         Set<Long> frozen = Set.copyOf(loaded);
         known = frozen;
+        // a drop since this read started may have come before the line above: then don't keep what may be the old list
+        if (generation.get() != started) known = null;
         return frozen;
     }
 
@@ -81,7 +87,7 @@ public class BotlessSiteRepository implements CacheInvalidator {
             s.setLong(1, guildId);
             s.setLong(2, userId);
             boolean added = s.executeUpdate() == 1;
-            known = null;
+            dropKnown();
             CacheBus.changed(CACHE_AREA, guildId);
             if (added) log.info("Clan website of guild {} is now bot-less (set up by {})", guildId, userId);
             return added;
@@ -96,7 +102,7 @@ public class BotlessSiteRepository implements CacheInvalidator {
         try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("DELETE FROM younglings.botless_site WHERE guild_id = ?")) {
             s.setLong(1, guildId);
             s.executeUpdate();
-            known = null;
+            dropKnown();
             CacheBus.changed(CACHE_AREA, guildId);
         } catch (SQLException e) {
             log.error("Failed to forget the bot-less clan website of guild {}", guildId, e);
@@ -120,11 +126,16 @@ public class BotlessSiteRepository implements CacheInvalidator {
 
     @Override
     public void evictCached(long guildId) {
-        known = null;
+        dropKnown();
     }
 
     @Override
     public void evictAllCached() {
+        dropKnown();
+    }
+
+    private void dropKnown() {
+        generation.incrementAndGet();
         known = null;
     }
 }

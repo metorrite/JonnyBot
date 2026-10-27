@@ -40,25 +40,15 @@ public class CacheBus {
     private static final Logger log = LoggerFactory.getLogger(CacheBus.class);
     static final String SWITCH_VARIABLE = "BOT_CACHE_NOTIFY";
 
-    /** The running bus, or null when it's off (then {@link #changed} does nothing). */
-    private static volatile CacheBus instance;
-
-    private final ConnectionSupplier connections;
-    private final ScheduledExecutorService sendLane;
-    /** Signals waiting on the send lane: the same one queued twice is sent once. */
-    private final Set<String> queued = ConcurrentHashMap.newKeySet();
+    /** The running bus's sender, or null when it's off (then {@link #changed} does nothing). */
+    private static volatile Sender sender;
 
     public CacheBus(BotConfig config, ConnectionSupplier connections, List<CacheInvalidator> invalidators) {
-        this.connections = connections;
-        if (!switchedOn(setting())) {
-            this.sendLane = null;
-            return;
-        }
+        if (!switchedOn(setting())) return;
         CacheDispatcher dispatcher = new CacheDispatcher(invalidators);
         String databaseUrl = config.getDatabaseUrl();
-        this.sendLane = BotScheduler.lane("cache-bus-send");
         new CacheListener(() -> open(databaseUrl), dispatcher, BotScheduler.lane("cache-bus-listen")).start();
-        instance = this;
+        sender = new Sender(connections, BotScheduler.lane("cache-bus-send"));
         log.info("Cache signals on: listening on {} for {}", CacheSignal.CHANNEL, dispatcher.areas());
     }
 
@@ -67,29 +57,49 @@ public class CacheBus {
      * throws and never waits; does nothing while the bus is off.
      */
     public static void changed(String area, long guildId) {
-        CacheBus bus = instance;
-        if (bus == null || guildId <= 0 || !CacheSignal.validArea(area)) return;
-        bus.queue(new CacheSignal(area, guildId).payload());
+        Sender current = sender;
+        if (current == null || guildId <= 0 || !CacheSignal.validArea(area)) return;
+        current.queue(new CacheSignal(area, guildId).payload());
     }
 
-    private void queue(String payload) {
-        if (!queued.add(payload)) return;
-        try {
-            sendLane.execute(() -> {
-                queued.remove(payload);
-                send(payload);
-            });
-        } catch (RejectedExecutionException e) {
-            queued.remove(payload);
+    /** Puts {@code next} in place of the running sender and returns the old one (tests: null switches sending off again). */
+    static Sender swapSender(Sender next) {
+        Sender old = sender;
+        sender = next;
+        return old;
+    }
+
+    /** Sends queued signals one at a time on its own lane, on a pool connection. */
+    static final class Sender {
+        private final ConnectionSupplier connections;
+        private final ScheduledExecutorService lane;
+        /** Signals waiting on the lane: the same one queued twice is sent once. */
+        private final Set<String> queued = ConcurrentHashMap.newKeySet();
+
+        Sender(ConnectionSupplier connections, ScheduledExecutorService lane) {
+            this.connections = connections;
+            this.lane = lane;
         }
-    }
 
-    private void send(String payload) {
-        try (Connection c = connections.getConnection()) {
-            notify(c, payload);
-        } catch (SQLException | RuntimeException e) {
-            // the other processes keep the old entry until their next reconnect clears everything; nothing better to do here
-            log.warn("Couldn't send cache signal {}: {}", payload, e.getMessage());
+        void queue(String payload) {
+            if (!queued.add(payload)) return;
+            try {
+                lane.execute(() -> {
+                    queued.remove(payload);
+                    send(payload);
+                });
+            } catch (RejectedExecutionException e) {
+                queued.remove(payload);
+            }
+        }
+
+        private void send(String payload) {
+            try (Connection c = connections.getConnection()) {
+                CacheBus.notify(c, payload);
+            } catch (SQLException | RuntimeException e) {
+                // the other processes keep the old entry until their next reconnect clears everything; nothing better to do here
+                log.warn("Couldn't send cache signal {}: {}", payload, e.getMessage());
+            }
         }
     }
 
