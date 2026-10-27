@@ -18,6 +18,7 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -298,8 +299,8 @@ public final class LinkService {
 
     /**
      * {@code POST /v1/forget-me}: deletes this character, its links, tokens and name history at once. When another Discord account also
-     * has a link on the character (a tracking-less character is shared by every claim without a tracking id), only the caller's own
-     * links are ended and deleted; the character and the others' links stay.
+     * has an active or disputed link on the character (a tracking-less character is shared by every claim without a tracking id), only
+     * the caller's own links are ended and deleted; the character and the others' links stay. Other accounts' ended links don't count.
      */
     public DataObject forgetMe(String token, String confirm) {
         if (!"DELETE".equals(confirm)) throw LinkException.bad("confirm_required", "Send \"confirm\": \"DELETE\" to delete this character's data.");
@@ -308,7 +309,7 @@ public final class LinkService {
             TokenAuth auth = authenticate(c, token, tokenRoutes, now);
             endLink(c, auth.link(), "unlinked", "player", now);
             UUID characterId = auth.character().id();
-            if (store.otherDiscordHasLinkOn(c, characterId, auth.link().discordUserId(), false)) {
+            if (store.otherDiscordHasLinkOn(c, characterId, auth.link().discordUserId(), true)) {
                 store.deleteLinksOf(c, characterId, auth.link().discordUserId());
             } else {
                 store.deleteCharacter(c, characterId);
@@ -591,11 +592,14 @@ public final class LinkService {
         }
 
         Link incumbentToDispute = null;
+        // Links this claim replaces for the same owner: their open disputes pass to the new link instead of being settled for the claimant.
+        List<UUID> handedOver = new ArrayList<>();
         for (TokenAuth h : holders) {
             if (!h.character().tracked()) {
                 if (h.link().discordUserId().equals(discordUserId)) {
-                    // The same Discord account pairing its tracking-less character again with a tracking id: the new link replaces its own.
-                    endLink(c, h.link(), "superseded", "tracked_claim", now);
+                    // The same Discord account pairing its tracking-less character again with a tracking id: the new link replaces its own,
+                    // and keeps the name in any dispute the old one was defending (an unproven claimant never wins by the owner's upgrade).
+                    handedOver.addAll(supersedeKeepingDisputes(c, h.link(), "tracked_claim", now));
                 } else {
                     // A tracked claim on a name another Discord account holds with a tracking-less link goes to a dispute, as two
                     // tracking-less claims do. The incumbent stays linked until the dispute is settled.
@@ -612,7 +616,7 @@ public final class LinkService {
             }
         }
 
-        if (replaced != null) endLink(c, replaced, "superseded", "renamed", now);
+        if (replaced != null) handedOver.addAll(supersedeKeepingDisputes(c, replaced, "renamed", now));
 
         Character character = ch;
         if (character == null) {
@@ -626,7 +630,7 @@ public final class LinkService {
         if (activeOther != null) {
             if (character.tracked()) {
                 // Only someone running the plugin as this character can present its tracking id: the owner moving to another Discord.
-                endLink(c, activeOther, "superseded", "moved_discord", now);
+                handedOver.addAll(supersedeKeepingDisputes(c, activeOther, "moved_discord", now));
             } else {
                 // The tracking-less character is shared by every claim without a tracking id, so another Discord's link there is a dispute.
                 incumbentToDispute = activeOther;
@@ -636,6 +640,7 @@ public final class LinkService {
         String status = incumbentToDispute == null ? "active" : "disputed";
         Link link = new Link(UUID.randomUUID(), character.id(), discordUserId, status, method, Verification.IMPLICIT.key(), now, null);
         store.insertLink(c, link);
+        for (UUID disputeId : handedOver) store.setDisputeIncumbent(c, disputeId, link.id());
         if (incumbentToDispute != null) {
             UUID disputeId = UUID.randomUUID();
             store.insertDispute(c, disputeId, p.rsnLookup(), p.rsnDisplay(), incumbentToDispute.id(), link.id(), now);
@@ -693,6 +698,26 @@ public final class LinkService {
                 store.resolveDispute(c, d.id(), "withdrawn", "system", "claimant " + why, now);
             }
         }
+    }
+
+    /**
+     * Ends a link that a new link of the same owner replaces (a re-pair with a tracking id, a re-pair under another name, or the tracked
+     * character moving to another Discord). Unlike {@link #endLink}, a dispute where this link holds the name is not settled for the
+     * claimant: it stays open and the caller points it at the new link, so the claimant stays disputed. A dispute where this link is the
+     * claimant is withdrawn as usual. Returns the disputes to re-point.
+     */
+    private List<UUID> supersedeKeepingDisputes(Connection c, Link link, String why, Instant now) throws SQLException {
+        store.endLink(c, link.id(), "superseded", now);
+        List<UUID> keep = new ArrayList<>();
+        for (LinkStore.Dispute d : store.openDisputesFor(c, link.id())) {
+            if (link.id().equals(d.incumbentLinkId())) {
+                keep.add(d.id());
+                log.info("Dispute {} passes from link {} to its replacement ({})", d.id(), link.id(), why);
+            } else {
+                store.resolveDispute(c, d.id(), "withdrawn", "system", "claimant " + why, now);
+            }
+        }
+        return keep;
     }
 
     /** Runs every {@link LinkVerifier}; the strongest result above the current level is stored. Returns the link as it now stands. */

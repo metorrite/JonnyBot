@@ -24,6 +24,7 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -550,6 +551,53 @@ class LinkServiceTest {
         assertTrue(service.session(claimant, "Zezima", null).getBoolean("linked"), "the waiting claimant now holds the name");
         service.forgetMe(claimant, "DELETE");
         assertEquals(0, count("SELECT count(*) FROM {s}.game_character"), "the last holder's forget-me deletes the character");
+    }
+
+    @Test
+    void anOwnersUpgradeToTrackingDuringADisputeKeepsTheNameFromAnUntrackedClaimant() throws Exception {
+        ownersUpgradeKeepsTheName(null);
+    }
+
+    @Test
+    void anOwnersUpgradeToTrackingDuringADisputeKeepsTheNameFromATrackedClaimant() throws Exception {
+        ownersUpgradeKeepsTheName("999");
+    }
+
+    /** The owner of a tracking-less link pairs again with tracking allowed while a claim on the name waits in a dispute. */
+    private void ownersUpgradeKeepsTheName(String claimantTracking) throws Exception {
+        String loose = link("Zezima", null, BOB);
+        Paired claim = start("Zezima", claimantTracking, "198.51.100.5");
+        assertEquals("disputed", approve(claim, ALICE));
+        String claimant = pollNow(claim).getString("token");
+
+        String owner = link("Zezima", "222", BOB);
+        assertEquals("token_revoked", assertThrows(LinkException.class, () -> service.session(loose, "Zezima", null)).code());
+        DataObject mine = service.session(owner, "Zezima", "222");
+        assertTrue(mine.getBoolean("linked"));
+        assertTrue(mine.getBoolean("disputed"), "the dispute passed to the owner's new link");
+        DataObject theirs = service.session(claimant, "Zezima", "999");
+        assertFalse(theirs.getBoolean("linked"), "the claimant is still held for review");
+        assertEquals("not_linked", assertThrows(LinkException.class, () -> service.alias(claimant, "RuneSync")).code());
+        assertEquals(1, count("SELECT count(*) FROM {s}.link WHERE status = 'active'"), "one active link on the name");
+        assertEquals(1, count("SELECT count(*) FROM {s}.dispute WHERE status = 'open'"));
+        assertEquals(0, count("SELECT count(*) FROM {s}.dispute WHERE status <> 'open'"), "nothing was settled");
+        assertEquals(1, count("SELECT count(*) FROM {s}.dispute d JOIN {s}.link l ON l.id = d.incumbent_link_id "
+                + "JOIN {s}.game_character g ON g.id = l.character_id WHERE l.status = 'active' AND g.tracking_lookup IS NOT NULL"));
+        if (claimantTracking == null) {
+            assertEquals(1, count("SELECT count(*) FROM {s}.game_character WHERE tracking_lookup IS NOT NULL"),
+                    "the claimant's shared character never took the reported tracking id");
+        }
+        assertNotNull(service.alias(owner, "RuneSync").getString("alias"));
+    }
+
+    @Test
+    void forgetMeIgnoresAnotherAccountsEndedLinks() throws Exception {
+        String old = link("Zezima", "111", BOB);
+        String moved = link("Zezima", "111", ALICE);
+        assertEquals("token_revoked", assertThrows(LinkException.class, () -> service.session(old, "Zezima", "111")).code());
+        service.forgetMe(moved, "DELETE");
+        assertEquals(0, count("SELECT count(*) FROM {s}.game_character"), "the character and its history are deleted");
+        assertEquals(0, count("SELECT count(*) FROM {s}.link"));
     }
 
     @Test

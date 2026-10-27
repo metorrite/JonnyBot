@@ -428,6 +428,11 @@ final class LinkStore {
         return found.isEmpty() ? Optional.empty() : Optional.of(found.get(0));
     }
 
+    /** Points an open dispute at a new incumbent link (the link that replaced the old incumbent for the same owner). */
+    void setDisputeIncumbent(Connection c, UUID disputeId, UUID incumbentLinkId) throws SQLException {
+        update(c, "UPDATE {s}.dispute SET incumbent_link_id = ? WHERE id = ? AND status = 'open'", incumbentLinkId, disputeId);
+    }
+
     void resolveDispute(Connection c, UUID id, String status, String by, String note, Instant now) throws SQLException {
         update(c, "UPDATE {s}.dispute SET status = ?, resolved_by = ?, note = ?, resolved_at = ? WHERE id = ?", status, by, note, ts(now), id);
     }
