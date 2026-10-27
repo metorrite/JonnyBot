@@ -1,5 +1,7 @@
 package com.younglings.bot.messagelog;
 
+import com.younglings.bot.cachebus.CacheBus;
+import com.younglings.bot.cachebus.CacheInvalidator;
 import com.younglings.bot.database.SchemaBootstrapper;
 import com.younglings.bot.starboard.StarboardConfig;
 import io.github.freya022.botcommands.api.core.db.ConnectionSupplier;
@@ -21,7 +23,10 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /** Message log settings (kept in memory per server) and the short-lived cache of message text that edits and deletes are compared with. */
 @BService
-public class MessageLogRepository {
+public class MessageLogRepository implements CacheInvalidator {
+    /** The {@code bot_cache} area of this class's caches (docs/SCALING-STATE.md M10). */
+    static final String CACHE_AREA = "message-log";
+
     private static final Logger log = LoggerFactory.getLogger(MessageLogRepository.class);
 
     /** What a message said when it was last seen. */
@@ -103,6 +108,7 @@ public class MessageLogRepository {
             setNullable(s, 7, config.voiceChannelId());
             s.executeUpdate();
             configs.remove(config.guildId());
+            CacheBus.changed(CACHE_AREA, config.guildId());
         } catch (SQLException e) {
             log.error("Failed to save the message log settings of guild {}", config.guildId(), e);
             throw new RuntimeException("Failed to save the message log settings", e);
@@ -227,5 +233,22 @@ public class MessageLogRepository {
             log.error("The message log purge failed", e);
             return 0;
         }
+    }
+
+    // ---------- cross-process invalidation (CacheBus) ----------
+
+    @Override
+    public String cacheArea() {
+        return CACHE_AREA;
+    }
+
+    @Override
+    public void evictCached(long guildId) {
+        configs.remove(guildId);
+    }
+
+    @Override
+    public void evictAllCached() {
+        configs.clear();
     }
 }

@@ -1,5 +1,7 @@
 package com.younglings.bot.rolerules;
 
+import com.younglings.bot.cachebus.CacheBus;
+import com.younglings.bot.cachebus.CacheInvalidator;
 import com.younglings.bot.configure.GuildSettings;
 import com.younglings.bot.configure.GuildSettingsService;
 import com.younglings.bot.internal.MemberApi;
@@ -37,7 +39,10 @@ import java.util.function.LongSupplier;
  * Rules only react to changes that happen from now on; saving or switching on a rule changes nobody's roles by itself.
  */
 @BService
-public class RoleRuleService {
+public class RoleRuleService implements CacheInvalidator {
+    /** The {@code bot_cache} area of this class's caches (docs/SCALING-STATE.md M10). */
+    static final String CACHE_AREA = "role-rules";
+
     private static final Logger log = LoggerFactory.getLogger(RoleRuleService.class);
     private static final long CHAIN_WINDOW_MILLIS = 20_000;
 
@@ -116,6 +121,7 @@ public class RoleRuleService {
 
     public void changed(long guildId) {
         cache.remove(guildId);
+        CacheBus.changed(CACHE_AREA, guildId);
     }
 
     private List<Rule> rules(long guildId) {
@@ -182,5 +188,22 @@ public class RoleRuleService {
         Set<Long> ids = new HashSet<>();
         for (Role role : roles) ids.add(role.getIdLong());
         return ids;
+    }
+
+    // ---------- cross-process invalidation (CacheBus) ----------
+
+    @Override
+    public String cacheArea() {
+        return CACHE_AREA;
+    }
+
+    @Override
+    public void evictCached(long guildId) {
+        cache.remove(guildId);
+    }
+
+    @Override
+    public void evictAllCached() {
+        cache.clear();
     }
 }
