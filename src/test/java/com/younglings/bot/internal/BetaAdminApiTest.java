@@ -88,11 +88,11 @@ class BetaAdminApiTest {
 
     @Test
     void aLabelChangeKeepsTheServersLevelAndAChosenLevelIsSaved() {
-        api.save(guild, actor, SERVER_B, DataObject.empty().put("label", "Noobs"));
-        verify(repository).upsert(SERVER_B_ID, "Noobs", AccessLevel.MANAGE_SERVER, 7L);
+        api.save(guild, actor, SERVER_B, DataObject.empty().put("label", "Clan B renamed"));
+        verify(repository).upsert(SERVER_B_ID, "Clan B renamed", AccessLevel.MANAGE_SERVER, 7L);
 
-        api.save(guild, actor, SERVER_B, DataObject.empty().put("label", "Noobs").put("level", "owner"));
-        verify(repository).upsert(SERVER_B_ID, "Noobs", AccessLevel.OWNER, 7L);
+        api.save(guild, actor, SERVER_B, DataObject.empty().put("label", "Clan B renamed").put("level", "owner"));
+        verify(repository).upsert(SERVER_B_ID, "Clan B renamed", AccessLevel.OWNER, 7L);
     }
 
     @Test

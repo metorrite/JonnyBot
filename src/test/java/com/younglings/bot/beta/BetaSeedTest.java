@@ -47,9 +47,10 @@ class BetaSeedTest {
     }
 
     @Test
-    void aLongLabelIsCut() {
+    void aLongLabelIsCutToWhatTheWebsiteAccepts() {
         BetaSeed.Parsed parsed = BetaSeed.parse(A + ":" + "x".repeat(300));
 
-        assertEquals(100, parsed.entries().get(0).label().length());
+        assertEquals(BetaGuildRepository.MAX_LABEL, parsed.entries().get(0).label().length());
+        assertEquals(60, BetaGuildRepository.MAX_LABEL, "the website's Beta page refuses a label over 60 characters (BetaAdminApi)");
     }
 }

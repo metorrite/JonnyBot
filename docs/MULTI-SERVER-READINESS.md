@@ -30,7 +30,7 @@ Ticket T-073. Status: **the work that needs no second server** (Drake away, 2026
 
 ## 2. Second-server onboarding checklist (for when Drake has a willing server)
 
-Do it with a small server first (e.g. Eternal Rising's test server or a fresh one Drake owns), on **live**, after the next deploy.
+Do it with a small server first (e.g. a friendly clan's test server or a fresh one Drake owns), on **live**, after the next deploy.
 
 1. Add RuneClan Bot to the beta list (`/admin` Beta access) so the dashboard opens for them.
 2. They invite RuneClan Bot with the install link; check the bot's join log line and that **nothing** is posted in their server.
@@ -72,7 +72,7 @@ The RuneClan Bot privacy page already covers: what is stored per server and per 
 ## 6. Drake's actions
 
 1. Pick and run the first real second-server onboarding (section 2).
-2. Create a RuneClan Bot support server or contact address, then set `JONNYBOT_SUPPORT_URL` on Railway (the FAQ and privacy page use it).
+2. Create a RuneClan Bot support server or contact address, then set the website's `RUNECLAN_BOT_SUPPORT_URL` on Railway (the FAQ and privacy page use it; the older name `JONNYBOT_SUPPORT_URL` still works).
 3. Discord: complete identity verification and submit the bot for verification with the intent reasons in section 4 when nearing 75 servers.
 4. Read the privacy/terms pages once more with section 5 in mind.
 

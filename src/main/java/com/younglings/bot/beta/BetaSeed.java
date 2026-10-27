@@ -19,8 +19,8 @@ import java.util.Map;
 /**
  * The servers put on the beta list when a database is first set up, read from {@link BotConfig#BETA_SEED_GUILDS_ENV} and never from the
  * code (this repository holds no real server ids). The setting is a comma-separated list of server ids, each optionally followed by
- * {@code :label}, for example {@code <first id>:Clan A,<second id>}. Seeded rows get the column's default level, Manage
- * Server, as the first testers' servers always had.
+ * {@code :label}, for example {@code <first id>:Clan A,<second id>}. A label is cut to the length the website's Beta page accepts
+ * ({@link BetaGuildRepository#MAX_LABEL}). Seeded rows get the column's default level, Manage Server, as the first testers' servers always had.
  * <p>
  * It is applied once per database. The marker table {@code younglings.beta_guild_seeded} records that it ran, so a server removed on the
  * website later stays removed, and a database an older build already seeded (from ids that build kept in code) is left exactly as it is.
@@ -29,7 +29,6 @@ import java.util.Map;
 @BService
 public class BetaSeed {
     private static final Logger log = LoggerFactory.getLogger(BetaSeed.class);
-    private static final int MAX_LABEL = 100;
 
     /** One server to seed; {@code label} is empty when the entry had none. */
     record Entry(long guildId, String label) {}
@@ -56,7 +55,7 @@ public class BetaSeed {
             int colon = part.indexOf(':');
             String id = (colon < 0 ? part : part.substring(0, colon)).strip();
             String label = colon < 0 ? "" : part.substring(colon + 1).strip();
-            if (label.length() > MAX_LABEL) label = label.substring(0, MAX_LABEL);
+            if (label.length() > BetaGuildRepository.MAX_LABEL) label = label.substring(0, BetaGuildRepository.MAX_LABEL);
             long guildId;
             try {
                 guildId = id.matches("\\d{15,20}") ? Long.parseLong(id) : -1;
