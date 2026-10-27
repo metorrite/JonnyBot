@@ -200,6 +200,21 @@ final class LinkStore {
         return out;
     }
 
+    /** Every link on the name that is active or waiting in a dispute: anyone with a current claim to it. */
+    List<TokenAuth> currentHoldersOfName(Connection c, String rsnLookup) throws SQLException {
+        List<TokenAuth> out = new ArrayList<>();
+        try (PreparedStatement s = c.prepareStatement(sql("""
+                SELECT l.*, ch.id AS ch_id, ch.tracking_lookup, ch.rsn_display, ch.rsn_lookup, ch.last_seen_at, ch.created_at AS ch_created
+                FROM {s}.link l JOIN {s}.game_character ch ON ch.id = l.character_id
+                WHERE ch.rsn_lookup = ? AND l.status IN ('active', 'disputed') FOR UPDATE OF l"""))) {
+            s.setString(1, rsnLookup);
+            try (ResultSet rs = s.executeQuery()) {
+                while (rs.next()) out.add(new TokenAuth(null, link(rs), joinedCharacter(rs)));
+            }
+        }
+        return out;
+    }
+
     /** The character's current link that is active or waiting in a dispute, if any. */
     Optional<Link> currentLink(Connection c, UUID characterId, UUID discordUserId) throws SQLException {
         try (PreparedStatement s = c.prepareStatement(sql("SELECT * FROM {s}.link WHERE character_id = ? AND status IN ('active', 'disputed')"
@@ -357,6 +372,26 @@ final class LinkStore {
         return update(c, "DELETE FROM {s}.discord_user WHERE id = ?", id) > 0;
     }
 
+    /**
+     * Whether a Discord user other than this one has a link on the character: only a current one (active or disputed) when
+     * {@code currentOnly}, otherwise any, ended ones included.
+     */
+    boolean otherDiscordHasLinkOn(Connection c, UUID characterId, UUID discordUserId, boolean currentOnly) throws SQLException {
+        try (PreparedStatement s = c.prepareStatement(sql("SELECT 1 FROM {s}.link WHERE character_id = ? AND discord_user_id <> ?"
+                + (currentOnly ? " AND status IN ('active', 'disputed')" : "") + " LIMIT 1"))) {
+            s.setObject(1, characterId);
+            s.setObject(2, discordUserId);
+            try (ResultSet rs = s.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    /** Deletes this Discord user's links on one character (their tokens go with them; disputes and pairings keep a null reference). */
+    int deleteLinksOf(Connection c, UUID characterId, UUID discordUserId) throws SQLException {
+        return update(c, "DELETE FROM {s}.link WHERE character_id = ? AND discord_user_id = ?", characterId, discordUserId);
+    }
+
     /** Characters whose every link belongs to this Discord user (deleted with the user's data: nobody else has a claim on them). */
     List<UUID> charactersOnlyLinkedTo(Connection c, UUID discordUserId) throws SQLException {
         List<UUID> ids = new ArrayList<>();
@@ -391,6 +426,11 @@ final class LinkStore {
     Optional<Dispute> dispute(Connection c, UUID id) throws SQLException {
         List<Dispute> found = disputes(c, "SELECT * FROM {s}.dispute WHERE id = ? FOR UPDATE", id);
         return found.isEmpty() ? Optional.empty() : Optional.of(found.get(0));
+    }
+
+    /** Points an open dispute at a new incumbent link (the link that replaced the old incumbent for the same owner). */
+    void setDisputeIncumbent(Connection c, UUID disputeId, UUID incumbentLinkId) throws SQLException {
+        update(c, "UPDATE {s}.dispute SET incumbent_link_id = ? WHERE id = ? AND status = 'open'", incumbentLinkId, disputeId);
     }
 
     void resolveDispute(Connection c, UUID id, String status, String by, String note, Instant now) throws SQLException {
