@@ -63,7 +63,7 @@ public class FeatureStatusApi implements AdminRouteExtension {
             "/levels/points", "/levels/chat-levels",
             "/voice/temp-voice", "/voice/voice-text",
             "/event-tools/event-manager", "/event-tools/event-announcer", "/event-tools/discord-events", "/event-tools/citadel-wheel", "/event-tools/bingo-pool",
-            "/event-tools/coffer",
+            "/event-tools/coffer", "/event-tools/group-finder",
             "/clan/clan-profile", "/clan/members", "/clan/attention", "/clan/promotions", "/clan/clan-points", "/clan/role-sync",
             "/runescape/tracking", "/runescape/rs-timers", "/runescape/anniversaries", "/runescape/pvm-help", "/runescape/alliances", "/runescape/plugin",
             "/tools/snapshots");

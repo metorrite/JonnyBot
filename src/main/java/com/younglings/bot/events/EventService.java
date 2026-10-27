@@ -109,7 +109,7 @@ public class EventService {
     }
 
     public Event event(long guildId, long id) {
-        return repository.event(guildId, id).orElseThrow(() -> new EventProblem(404, Text.of(guildId, "events.problem.that_event_doesn_t_exist_in")));
+        return repository.event(guildId, id).filter(e -> !QuickGroups.isGroup(e)).orElseThrow(() -> new EventProblem(404, Text.of(guildId, "events.problem.that_event_doesn_t_exist_in")));
     }
 
     public void updateEvent(long guildId, long id, EventInput in) {
