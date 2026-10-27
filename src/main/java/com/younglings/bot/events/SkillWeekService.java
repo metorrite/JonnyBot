@@ -1,0 +1,209 @@
+package com.younglings.bot.events;
+
+import com.younglings.bot.events.EventRepository.Event;
+import com.younglings.bot.events.EventRules.Scope;
+import com.younglings.bot.events.EventRules.ScoringMode;
+import com.younglings.bot.events.EventRules.Status;
+import com.younglings.bot.events.SkillWeekRepository.Settings;
+import com.younglings.bot.events.SkillWeekRepository.Week;
+import com.younglings.bot.events.SkillWeekRules.Winner;
+import com.younglings.bot.runeclans.RuneClansHubClient;
+import com.younglings.bot.runescape.PlayerLink;
+import com.younglings.bot.runescape.PlayerLinkService;
+import com.younglings.bot.util.BotScheduler;
+import io.github.freya022.botcommands.api.core.annotations.BEventListener;
+import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
+import io.github.freya022.botcommands.api.core.service.annotations.BService;
+import net.dv8tion.jda.api.utils.data.DataArray;
+import net.dv8tion.jda.api.utils.data.DataObject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.time.Clock;
+import java.time.Instant;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.OptionalLong;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
+/**
+ * Skill of the week (T-541): with it switched on (off by default, on the dashboard's Levels & points > Skill of the week), each Monday the bot opens a
+ * competition in the next skill of the server's rota, Monday 00:00 UTC to Sunday 23:59:59 UTC, counted from RuneSync through the hub's XP ledger
+ * ({@link PluginXpTracker}, {@code xpSource = plugin}, {@code wholeSpan}), so the standings are the ledger's gains for that skill and span. Members
+ * join it like any competition. Shortly after the week ends it is brought up to date one last time, its top {@value SkillWeekRules#WINNERS} kept
+ * as the week's winners, and finished. Runs only while the bot talks to the hub ({@code RUNECLANS_HUB_ENABLED}).
+ */
+@BService
+public class SkillWeekService {
+    private static final Logger log = LoggerFactory.getLogger(SkillWeekService.class);
+    /** How many places the website's standings show at most. */
+    public static final int MAX_SHOWN = 25;
+
+    private final SkillWeekRepository weeks;
+    private final EventService service;
+    private final EventRepository repository;
+    private final PluginXpTracker tracker;
+    private final RuneClansHubClient hub;
+    private final PlayerLinkService links;
+    private final ScheduledExecutorService executor = BotScheduler.lane("skill-of-the-week");
+    private Clock clock = Clock.systemUTC();
+
+    public SkillWeekService(SkillWeekRepository weeks, EventService service, EventRepository repository, PluginXpTracker tracker, RuneClansHubClient hub, PlayerLinkService links) {
+        this.weeks = weeks;
+        this.service = service;
+        this.repository = repository;
+        this.tracker = tracker;
+        this.hub = hub;
+        this.links = links;
+    }
+
+    @BEventListener
+    public void onJdaReady(InjectedJDAEvent event) {
+        if (!hub.enabled()) return;
+        executor.scheduleWithFixedDelay(this::sweep, 2, 10, TimeUnit.MINUTES);
+    }
+
+    /** For tests. */
+    SkillWeekService withClock(Clock clock) {
+        this.clock = clock;
+        return this;
+    }
+
+    /** Whether weeks can be opened at all: the bot talks to the hub. */
+    public boolean available() {
+        return hub.enabled();
+    }
+
+    /** One pass: closes the weeks that are over, then opens this week where it is switched on. Never throws. */
+    public void sweep() {
+        Instant now = clock.instant();
+        try {
+            for (Week w : weeks.unclosedBefore(SkillWeekRules.weekStart(now).plusSeconds(1))) {
+                if (!SkillWeekRules.closeDue(SkillWeekRules.weekEnd(w.start()), now)) continue;
+                try {
+                    close(w);
+                } catch (RuntimeException e) {
+                    log.warn("Could not close skill of the week {} in {}", w.start(), w.guildId(), e);
+                }
+            }
+            for (long guildId : weeks.enabledGuilds()) {
+                try {
+                    open(guildId, now);
+                } catch (RuntimeException e) {
+                    log.warn("Could not open skill of the week in {}", guildId, e);
+                }
+            }
+        } catch (RuntimeException e) {
+            log.warn("The skill of the week pass failed", e);
+        }
+    }
+
+    /** Opens this week's competition when the server has skill of the week on and the week isn't open yet; its event id, or empty. */
+    public OptionalLong open(long guildId, Instant now) {
+        Settings settings = weeks.settings(guildId);
+        if (!settings.enabled() || settings.rota().isEmpty()) return OptionalLong.empty();
+        Instant start = SkillWeekRules.weekStart(now);
+        if (weeks.week(guildId, start).isPresent()) return OptionalLong.empty();
+        int skill = SkillWeekRules.skillAt(settings.rota(), settings.position());
+        if (!weeks.claim(guildId, start, skill)) return OptionalLong.empty();
+        DataObject config = DataObject.empty().put("skillId", skill).put("xpPerPoint", SkillWeekRules.XP_PER_POINT).put("xpSource", CompetitionTemplate.SOURCE_PLUGIN)
+                .put("wholeSpan", true);
+        long eventId;
+        try {
+            eventId = service.createEvent(guildId, settings.updatedBy(), new EventService.EventInput(SkillWeekRules.eventName(skill, start),
+                    "Who gains the most " + CompetitionTemplate.skillName(skill) + " XP this week, Monday to Sunday (UTC), counted from RuneSync. Join to take part: all your XP this week counts, "
+                            + "whenever you join.", CompetitionTemplate.KEY, Scope.PRIVATE, ScoringMode.INDIVIDUAL, start, SkillWeekRules.weekEnd(start), 0, config));
+        } catch (EventProblem e) {
+            // too many unfinished events, or the like: give the week back so a later pass tries again
+            weeks.release(guildId, start);
+            log.info("Skill of the week in {} couldn't be opened: {}", guildId, e.getMessage());
+            return OptionalLong.empty();
+        }
+        weeks.setEvent(guildId, start, eventId);
+        try {
+            service.moveStage(guildId, eventId, Status.RUNNING);
+        } catch (EventProblem e) {
+            log.warn("Skill of the week {} in {} was made but couldn't start: {}", eventId, guildId, e.getMessage());
+        }
+        log.info("Opened skill of the week in {}: {} (event {})", guildId, CompetitionTemplate.skillName(skill), eventId);
+        return OptionalLong.of(eventId);
+    }
+
+    /** Brings a finished week up to date from the ledger one last time, keeps its winners and finishes its competition. */
+    public List<Winner> close(Week w) {
+        Optional<Event> event = w.eventId() == null ? Optional.empty() : repository.event(w.guildId(), w.eventId());
+        if (event.isPresent() && event.get().status() == Status.RUNNING) tracker.feed(event.get());
+        List<Winner> winners = SkillWeekRules.winners(event.isPresent() ? xpByUser(event.get().id()) : Map.of(), SkillWeekRules.WINNERS);
+        DataArray json = DataArray.empty();
+        for (Winner x : winners) json.add(DataObject.empty().put("rank", x.rank()).put("userId", String.valueOf(x.userId())).put("xp", x.xp()));
+        if (!weeks.close(w.guildId(), w.start(), json.toString())) return winners;
+        if (event.isPresent()) finish(event.get());
+        return winners;
+    }
+
+    private void finish(Event event) {
+        try {
+            if (event.status() == Status.RUNNING) service.moveStage(event.guildId(), event.id(), Status.SCORING);
+            if (event.status() == Status.RUNNING || event.status() == Status.SCORING) service.moveStage(event.guildId(), event.id(), Status.DONE);
+        } catch (EventProblem e) {
+            log.info("Skill of the week {} couldn't be finished: {}", event.id(), e.getMessage());
+        }
+    }
+
+    /** Each player's XP gained in a week's competition: the sum of its XP objective's progress (RuneSync's gains, and any organiser's correction). */
+    public Map<Long, Long> xpByUser(long eventId) {
+        Map<Long, Long> xp = new HashMap<>();
+        for (EventRepository.Progress p : repository.progress(eventId)) {
+            if (p.objectiveKey().equals(CompetitionTemplate.OBJECTIVE_KEY)) xp.merge(p.userId(), p.amount(), Long::sum);
+        }
+        return xp;
+    }
+
+    /**
+     * What the dashboard and the clan website show: the switch and rota, the skill next in line, this week (skill, span, competition and its
+     * standings by XP, at most {@code shown} places) and the last closed week's winners. Players are named by their linked RuneScape name only.
+     */
+    public DataObject view(long guildId, int shown) {
+        Instant now = clock.instant();
+        Settings settings = weeks.settings(guildId);
+        DataObject out = DataObject.empty().put("enabled", settings.enabled()).put("available", available()).put("rota", DataArray.fromCollection(settings.rota()))
+                .put("next", settings.rota().isEmpty() ? null : SkillWeekRules.skillAt(settings.rota(), settings.position()));
+        Instant start = SkillWeekRules.weekStart(now);
+        DataObject current = null;
+        DataObject last = null;
+        for (Week w : weeks.recent(guildId, 4)) {
+            if (current == null && last == null && w.start().equals(start)) {
+                current = week(w);
+                Map<Long, Long> xp = w.eventId() == null ? Map.of() : xpByUser(w.eventId());
+                DataArray standings = DataArray.empty();
+                for (Winner x : SkillWeekRules.winners(xp, Math.max(1, Math.min(shown, MAX_SHOWN)))) standings.add(row(guildId, x.rank(), x.userId(), x.xp()));
+                current.put("standings", standings).put("players", w.eventId() == null ? 0 : repository.participants(w.eventId()).size());
+                Optional<Event> e = w.eventId() == null ? Optional.empty() : repository.event(guildId, w.eventId());
+                current.put("status", e.map(x -> x.status().name()).orElse(null));
+            } else if (last == null && w.closedAt() != null) {
+                last = week(w);
+                DataArray winners = DataArray.empty();
+                DataArray stored = w.winners() == null ? DataArray.empty() : DataArray.fromJson(w.winners());
+                for (int i = 0; i < stored.length(); i++) {
+                    DataObject x = stored.getObject(i);
+                    winners.add(row(guildId, x.getInt("rank"), Long.parseLong(x.getString("userId")), x.getLong("xp")));
+                }
+                last.put("winners", winners);
+            }
+        }
+        return out.put("current", current).put("last", last);
+    }
+
+    private static DataObject week(Week w) {
+        return DataObject.empty().put("skillId", w.skillId()).put("skill", CompetitionTemplate.skillName(w.skillId())).put("start", w.start().toString())
+                .put("end", SkillWeekRules.weekEnd(w.start()).toString()).put("eventId", w.eventId() == null ? null : String.valueOf(w.eventId()));
+    }
+
+    private DataObject row(long guildId, int rank, long userId, long xp) {
+        List<PlayerLink> mine = links.getLinksForUser(guildId, userId);
+        return DataObject.empty().put("rank", rank).put("name", mine.isEmpty() ? "A member" : mine.get(0).rsn()).put("xp", xp);
+    }
+}

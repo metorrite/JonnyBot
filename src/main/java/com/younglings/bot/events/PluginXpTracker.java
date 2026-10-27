@@ -166,7 +166,10 @@ public class PluginXpTracker {
         int skill = CompetitionTemplate.skillOf(settings);
         Integer skillId = skill == CompetitionTemplate.OVERALL ? null : skill;
         Instant now = clock.instant();
-        Instant started = repository.startedAt(event.id()).orElse(event.startsAt() == null ? now : event.startsAt());
+        // skill of the week (T-541): from the planned start to the planned end for everyone, so a late pass never counts past the end
+        boolean wholeSpan = CompetitionTemplate.countsWholeSpan(settings) && event.startsAt() != null;
+        Instant until = wholeSpan && event.endsAt() != null && event.endsAt().isBefore(now) ? event.endsAt() : now;
+        Instant started = wholeSpan ? event.startsAt() : repository.startedAt(event.id()).orElse(event.startsAt() == null ? now : event.startsAt());
         List<EventRepository.Progress> progress = repository.progress(event.id());
         Map<Long, CompetitionTracking.Counter> owners = auto ? CompetitionTracking.owners(progress) : Map.of();
 
@@ -183,7 +186,7 @@ public class PluginXpTracker {
                 missing.add(p.userId());
                 continue;
             }
-            groups.computeIfAbsent(CompetitionTracking.countsFrom(started, p.joinedAt()), k -> new LinkedHashMap<>()).put(alias.get(), p);
+            groups.computeIfAbsent(wholeSpan ? started : CompetitionTracking.countsFrom(started, p.joinedAt()), k -> new LinkedHashMap<>()).put(alias.get(), p);
         }
 
         Map<Long, Long> counted = new HashMap<>();
@@ -192,11 +195,11 @@ public class PluginXpTracker {
         }
         int updated = 0;
         for (Map.Entry<Instant, Map<String, Participant>> group : groups.entrySet()) {
-            if (!group.getKey().isBefore(now)) continue; // hasn't started counting yet
+            if (!group.getKey().isBefore(until)) continue; // hasn't started counting yet
             List<String> all = new ArrayList<>(group.getValue().keySet());
             for (int i = 0; i < all.size(); i += MAX_PLAYERS_PER_CALL) {
                 List<String> part = all.subList(i, Math.min(all.size(), i + MAX_PLAYERS_PER_CALL));
-                RuneClansHubClient.Answer answer = hub.xpGains(event.guildId(), part, skillId, group.getKey(), now);
+                RuneClansHubClient.Answer answer = hub.xpGains(event.guildId(), part, skillId, group.getKey(), until);
                 if (answer == null || !answer.ok() || answer.json() == null) {
                     // the hub is down or its ledger is off: say nothing about who counts, try again next minute
                     if (answer != null && answer.status() != 404) log.warn("Competition {}: the hub answered {} for XP gains", event.id(), answer.status());

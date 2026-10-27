@@ -19,6 +19,9 @@ import java.util.List;
  * RuneClans hub's XP ledger fed by RuneSync ({@link PluginXpTracker}, T-537), or {@value #SOURCE_AUTO} (T-557): RuneSync for each player the hub
  * can count, RuneMetrics for the rest, and RuneMetrics checks the RuneSync players' numbers. A player stays with whichever counted them first
  * ({@link CompetitionTracking#owners}). The plugin and auto choices are offered only while the bot is connected to the hub.
+ * <p>
+ * {@code wholeSpan} (set by skill of the week, T-541, never offered on the form): a RuneSync competition counts everyone's gains from the planned
+ * start to the planned end, whenever they joined, so its standings are exactly the ledger's gains for that span.
  */
 @BService
 public class CompetitionTemplate implements EventTemplate {
@@ -48,7 +51,7 @@ public class CompetitionTemplate implements EventTemplate {
 
     @Override
     public java.util.Set<String> fixedSettings() {
-        return java.util.Set.of("skillId", "xpPerPoint", "xpSource", "confirmedLinksOnly");
+        return java.util.Set.of("skillId", "xpPerPoint", "xpSource", "confirmedLinksOnly", "wholeSpan");
     }
 
     @Override
@@ -118,6 +121,11 @@ public class CompetitionTemplate implements EventTemplate {
     public static boolean confirmedLinksOnly(DataObject config) {
         return countsFromPlugin(config) && config.hasKey("confirmedLinksOnly") && !config.isNull("confirmedLinksOnly")
                 && "true".equalsIgnoreCase(String.valueOf(config.get("confirmedLinksOnly")));
+    }
+
+    /** A RuneSync competition counted over its whole planned span (T-541). Off unless it says so. */
+    public static boolean countsWholeSpan(DataObject config) {
+        return countsFromPlugin(config) && config.hasKey("wholeSpan") && !config.isNull("wholeSpan") && "true".equalsIgnoreCase(String.valueOf(config.get("wholeSpan")));
     }
 
     /** Auto (T-557): RuneSync for the players the hub counts, RuneMetrics for the others. */
