@@ -414,7 +414,10 @@ public class CitadelAdminApi implements AdminRouteExtension {
         return DataObject.empty().put("holders", array);
     }
 
-    /** Display names for these members: the cache first (the bot only caches who is online), then one lookup for the rest. Missing ones are left out. */
+    /**
+     * Display names for these members: the cache first (the bot only caches who is online), then one lookup for the rest, waited on for at most
+     * {@link com.younglings.bot.discord.DiscordLookups#BUDGET}. Missing ones (and ones Discord didn't return in time) are left out.
+     */
     static Map<Long, String> memberNames(Guild guild, java.util.Collection<Long> ids) {
         Map<Long, String> names = new HashMap<>();
         List<Long> missing = new ArrayList<>();
@@ -424,10 +427,22 @@ public class CitadelAdminApi implements AdminRouteExtension {
             else if (!missing.contains(id)) missing.add(id);
         }
         if (!missing.isEmpty()) {
+            net.dv8tion.jda.api.utils.concurrent.Task<List<Member>> task = null;
             try {
-                guild.retrieveMembersByIds(missing).get().forEach(m -> names.put(m.getIdLong(), m.getEffectiveName()));
+                task = guild.retrieveMembersByIds(missing);
+                java.util.concurrent.CompletableFuture<List<Member>> found = new java.util.concurrent.CompletableFuture<>();
+                task.onSuccess(found::complete);
+                task.onError(found::completeExceptionally);
+                found.get(com.younglings.bot.discord.DiscordLookups.BUDGET.toMillis(), java.util.concurrent.TimeUnit.MILLISECONDS)
+                        .forEach(m -> names.put(m.getIdLong(), m.getEffectiveName()));
+            } catch (java.util.concurrent.TimeoutException e) {
+                task.cancel();
+                log.debug("Discord didn't return member names in time; showing the cached ones");
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                if (task != null) task.cancel();
             } catch (Exception e) {
-                log.debug("Couldn't look up coffer holder names: {}", e.getMessage());
+                log.debug("Couldn't look up member names: {}", e.getMessage());
             }
         }
         return names;

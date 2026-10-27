@@ -14,11 +14,19 @@ import com.younglings.bot.points.RewardsRepository;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.utils.data.DataArray;
 import net.dv8tion.jda.api.utils.data.DataObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 
 /**
@@ -30,6 +38,8 @@ public class PointsAdminApi implements AdminRouteExtension {
     private static final Logger log = LoggerFactory.getLogger(PointsAdminApi.class);
     private static final int TOP = 25;
     private static final int RECENT = 50;
+    /** The longest the submissions page waits for Discord's review posts, all of them together. Well inside the website's 8 s. */
+    static final Duration PROOF_BUDGET = Duration.ofSeconds(3);
 
     private final PointsRepository repository;
     private final PointsService service;
@@ -136,29 +146,67 @@ public class PointsAdminApi implements AdminRouteExtension {
         return overview(guild);
     }
 
-    /** Waiting submissions (oldest first) and the latest decided ones. Proof links are re-read from the review post, since Discord's expire. */
+    /**
+     * Waiting submissions (oldest first) and the latest decided ones. Proof links are re-read from the review post, since Discord's expire.
+     * The review posts are all asked for at once and waited on together for at most {@link #PROOF_BUDGET}; a post that hasn't arrived by then
+     * shows the stored link, as a deleted or unreadable one always has.
+     */
     DataObject submissions(Guild guild) {
         long guildId = guild.getIdLong();
+        List<Submission> waiting = repository.pending(guildId, 25);
+        List<Submission> done = repository.decided(guildId, 25);
+        List<String> proofs = freshProofs(guild, waiting, PROOF_BUDGET);
         DataArray pending = DataArray.empty();
-        for (Submission s : repository.pending(guildId, 25)) pending.add(submissionJson(guild, s, true));
+        for (int i = 0; i < waiting.size(); i++) pending.add(submissionJson(guild, waiting.get(i), proofs.get(i)));
         DataArray decided = DataArray.empty();
-        for (Submission s : repository.decided(guildId, 25)) decided.add(submissionJson(guild, s, false));
+        for (Submission s : done) decided.add(submissionJson(guild, s, s.proofUrl()));
         return DataObject.empty().put("pending", pending).put("decided", decided).put("maxPerEntry", PointsRules.MAX_PER_ENTRY);
     }
 
-    private DataObject submissionJson(Guild guild, Submission s, boolean freshProof) {
-        String proof = s.proofUrl();
-        if (freshProof && s.reviewChannelId() != null && s.reviewMessageId() != null) {
-            var channel = guild.getTextChannelById(s.reviewChannelId());
-            if (channel != null) {
+    /**
+     * Each submission's proof link, in order: the first attachment of its review post when Discord answers within {@code budget} (all posts are
+     * asked for before any is waited on), otherwise the stored link. A post still on its way at the deadline is cancelled.
+     */
+    static List<String> freshProofs(Guild guild, List<Submission> submissions, Duration budget) {
+        List<CompletableFuture<Message>> asked = new ArrayList<>(submissions.size());
+        for (Submission s : submissions) {
+            CompletableFuture<Message> future = null;
+            if (s.reviewChannelId() != null && s.reviewMessageId() != null) {
+                var channel = guild.getTextChannelById(s.reviewChannelId());
+                if (channel != null) {
+                    try {
+                        future = channel.retrieveMessageById(s.reviewMessageId()).submit();
+                    } catch (RuntimeException e) {
+                        // can't even be asked (no access to the channel): the stored link
+                    }
+                }
+            }
+            asked.add(future);
+        }
+        long deadline = System.nanoTime() + budget.toNanos();
+        List<String> proofs = new ArrayList<>(submissions.size());
+        for (int i = 0; i < submissions.size(); i++) {
+            String proof = submissions.get(i).proofUrl();
+            CompletableFuture<Message> future = asked.get(i);
+            if (future != null) {
                 try {
-                    var message = channel.retrieveMessageById(s.reviewMessageId()).complete();
-                    if (!message.getAttachments().isEmpty()) proof = message.getAttachments().get(0).getUrl();
-                } catch (RuntimeException e) {
+                    Message message = future.get(Math.max(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
+                    if (message != null && !message.getAttachments().isEmpty()) proof = message.getAttachments().get(0).getUrl();
+                } catch (TimeoutException e) {
+                    future.cancel(true); // Discord is slow: the stored link, which may have expired
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    future.cancel(true);
+                } catch (ExecutionException | RuntimeException e) {
                     // the review post was deleted or unreadable: fall back to the stored link, which may have expired
                 }
             }
+            proofs.add(proof);
         }
+        return proofs;
+    }
+
+    private DataObject submissionJson(Guild guild, Submission s, String proof) {
         return DataObject.empty().put("id", Long.toString(s.id())).put("userId", Long.toString(s.userId())).put("userName", name(guild, s.userId()))
                 .put("description", s.description()).put("proofUrl", proof).put("status", s.status().name())
                 .put("decidedByName", s.decidedBy() == null ? null : name(guild, s.decidedBy())).put("decisionNote", s.decisionNote())
