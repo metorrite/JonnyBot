@@ -17,6 +17,8 @@ import org.slf4j.LoggerFactory;
 
 import java.security.SecureRandom;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
@@ -122,7 +124,7 @@ public class EventDraws {
         for (EventRepository.AwardRow a : atPlace) {
             if (a.status() == AwardStatus.PENDING) repository.moveAward(eventId, a.id(), AwardStatus.PENDING, AwardStatus.REVOKED, actorId, "Drawn again: the winner didn't claim.");
         }
-        recordAwards(event, WinModes.winners(draws.rounds(eventId)));
+        if (!picked.isEmpty()) recordAwards(event, onlyPlace(place, picked.get(0)));
         log.info("Event {}: place {} drawn again by {}", eventId, place, actorId);
         announce(event, "draw:" + round.round(), "DRAW", WinModes.rerollText(event.name(), round, names(guild, eventId)));
         return round;
@@ -152,6 +154,16 @@ public class EventDraws {
     private void recordAwards(Event event, List<String> winners) {
         if (service.prizes(event.id()).isEmpty()) return;
         service.recordAwards(event.guildId(), event.id(), winners);
+    }
+
+    /**
+     * The places list for recording one rerolled place: null everywhere but {@code place}, so the other places' awards (recorded at the draw, perhaps for a
+     * team whose roster has changed since) are never added to.
+     */
+    static List<String> onlyPlace(int place, String subject) {
+        List<String> places = new ArrayList<>(Collections.nCopies(place, (String) null));
+        places.set(place - 1, subject);
+        return places;
     }
 
     /** Players still in the event (not on the waitlist) and teams that still exist. */

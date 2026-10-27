@@ -241,22 +241,23 @@ public class MemberEventsApi {
         out.put("channels", channels(guild, eventId, me, teamEvent));
         out.put("canSubmit", !me.waiting() && event.status() == Status.RUNNING);
         out.put("updates", com.younglings.bot.events.ClanVsClan.plays(event, BingoTemplate.KEY) ? updates(eventId, config) : null);
-        out.put("win", win(guild, eventId, config, teams));
+        out.put("win", win(guild, eventId, config, teams, shown));
         return out;
     }
 
     /**
      * How the event is won (T-649), when it isn't the usual "most points": the rules in words, and the prize draw (winners, seed and entries, so anyone
-     * can check it) once it has happened. Null for an event won on points, so the page looks as before.
+     * can check it) once it has happened. Null for an event won on points, so the page looks as before. While the standings are hidden from players
+     * ({@code standingsShown} false) the entry list is left out too, as each entry carries a finished-tile count.
      */
-    private DataObject win(Guild guild, long eventId, DataObject config, List<EventRepository.Team> teams) {
+    private DataObject win(Guild guild, long eventId, DataObject config, List<EventRepository.Team> teams, boolean standingsShown) {
         var rules = com.younglings.bot.events.WinModes.of(config);
         if (rules.isDefault()) return null;
         DataArray lines = DataArray.empty();
         com.younglings.bot.events.WinModes.describe(rules).forEach(lines::add);
         var rounds = draws.rounds(eventId);
         return DataObject.empty().put("mode", rules.mode().name()).put("rules", lines)
-                .put("draw", rounds.isEmpty() ? null : EventWinApi.drawJson(guild, teams, rounds, false));
+                .put("draw", rounds.isEmpty() ? null : EventWinApi.drawJson(guild, teams, rounds, false, standingsShown));
     }
 
     private DataArray prizes(Event event) {

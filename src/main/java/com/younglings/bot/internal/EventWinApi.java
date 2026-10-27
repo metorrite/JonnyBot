@@ -133,15 +133,16 @@ public class EventWinApi implements AdminRouteExtension {
             for (int i = 0; i < Math.min(ORDER_SHOWN, subjects.size()); i++) order.add(DataObject.empty().put("place", i + 1).put("name", name(guild, subjects.get(i), teams)));
         }
         out.put("finishOrder", order);
-        out.put("draw", rounds.isEmpty() ? null : drawJson(guild, teams, rounds, true));
+        out.put("draw", rounds.isEmpty() ? null : drawJson(guild, teams, rounds, true, true));
         return out;
     }
 
     /**
      * The draw as the website shows it: the winners now (place 1 first), and every round with its seed and the entries it drew from, so anyone can check
-     * it. {@code staff} adds who pressed the button.
+     * it. {@code staff} adds who pressed the button. Without {@code entriesShown} (players, while the event hides its standings) the entry list and
+     * entry totals are left out, since finished tiles per player or team are the standings of a bingo; the winners and seed stay.
      */
-    static DataObject drawJson(Guild guild, List<EventRepository.Team> teams, List<WinModes.Round> rounds, boolean staff) {
+    static DataObject drawJson(Guild guild, List<EventRepository.Team> teams, List<WinModes.Round> rounds, boolean staff, boolean entriesShown) {
         DataArray winners = DataArray.empty();
         List<String> places = WinModes.winners(rounds);
         for (int i = 0; i < places.size(); i++) {
@@ -151,12 +152,12 @@ public class EventWinApi implements AdminRouteExtension {
         DataArray list = DataArray.empty();
         for (WinModes.Round r : rounds) {
             DataArray entries = DataArray.empty();
-            for (WinModes.Entrant e : r.entrants()) entries.add(DataObject.empty().put("name", name(guild, e.subject(), teams)).put("tiles", e.tiles()).put("tickets", e.tickets()));
+            if (entriesShown) for (WinModes.Entrant e : r.entrants()) entries.add(DataObject.empty().put("name", name(guild, e.subject(), teams)).put("tiles", e.tiles()).put("tickets", e.tickets()));
             DataArray picked = DataArray.empty();
             r.picked().forEach(p -> picked.add(name(guild, p, teams)));
             DataObject row = DataObject.empty().put("round", r.round()).put("seed", Long.toUnsignedString(r.seed())).put("at", r.at().toString()).put("auto", r.by() == null)
                     .put("place", r.place()).put("replaced", r.replaced() == null ? null : name(guild, r.replaced(), teams)).put("picked", picked)
-                    .put("entries", entries).put("tickets", r.tickets());
+                    .put("entries", entries).put("tickets", entriesShown ? r.tickets() : 0).put("entriesHidden", !entriesShown);
             if (staff) row.put("by", r.by() == null ? null : String.valueOf(r.by()));
             list.add(row);
         }

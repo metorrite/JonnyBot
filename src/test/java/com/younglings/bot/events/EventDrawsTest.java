@@ -205,6 +205,47 @@ class EventDrawsTest {
     }
 
     @Test
+    void aRerollOnlyRecordsItsOwnPlaceEvenWhenAnotherWinningTeamGainedAMember() {
+        long id = repository.createEvent(G, "custom", "Team draw", "", Scope.PRIVATE, ScoringMode.TEAM, null, null, 0,
+                "{\"win\":{\"mode\":\"DRAW\",\"winners\":2,\"autoDraw\":false}}", 1L);
+        repository.replaceObjectives(id, List.of(tile("a"), tile("b"), tile("c"), tile("d")));
+        java.util.Map<Long, Long> teamOf = new java.util.HashMap<>();
+        for (long user = 501; user <= 503; user++) {
+            long team = repository.addTeam(id, "Team " + user, user, 10).orElseThrow();
+            teamOf.put(user, team);
+            repository.join(id, user, G, team, TeamRules.Kind.HOME_CLAN, BuyInStatus.NONE, 0);
+        }
+        repository.replacePrizes(id, List.of(new PrizePlan.Prize(0, 1, 2, PrizeKind.IN_GAME, "Bonds", 1, 0, PrizePlan.Split.EACH)));
+        assertTrue(repository.moveStage(G, id, Status.DRAFT, Status.RUNNING));
+        for (long user = 501; user <= 503; user++) {
+            assertTrue(repository.addProgress(id, "a", user, teamOf.get(user), 1, Source.MANUAL, user + ":a:" + System.nanoTime(), 1L, "").isPresent());
+        }
+
+        WinModes.Round first = draws.drawNow(guild, id, 9L);
+        assertEquals(2, first.picked().size());
+        long firstPlaceTeam = Long.parseLong(first.picked().get(0).substring(2));
+        assertEquals(2, repository.awards(id).size(), "one member on each winning team");
+
+        // someone joins the 1st-place team after the draw (Draw now works while the event runs), then 2nd place is drawn again
+        repository.join(id, 504, G, firstPlaceTeam, TeamRules.Kind.HOME_CLAN, BuyInStatus.NONE, 0);
+        WinModes.Round again = draws.reroll(guild, id, 2, 9L);
+        assertEquals(1, again.picked().size());
+
+        var awards = repository.awards(id);
+        var firstPlace = awards.stream().filter(a -> a.place() == 1).toList();
+        assertEquals(1, firstPlace.size(), "1st place keeps exactly the award it was given at the draw: " + firstPlace);
+        assertTrue(firstPlace.stream().noneMatch(a -> a.userId() == 504), "a member who joined later gets nothing for a place that was not drawn again");
+        assertEquals(1, awards.stream().filter(a -> a.place() == 2 && a.status() == AwardStatus.REVOKED).count());
+        assertEquals(1, awards.stream().filter(a -> a.place() == 2 && a.status() == AwardStatus.PENDING).count());
+    }
+
+    @Test
+    void onlyPlaceLeavesEveryOtherPlaceEmpty() {
+        assertEquals(java.util.Arrays.asList(null, null, "t:7"), EventDraws.onlyPlace(3, "t:7"));
+        assertEquals(List.of("u:1"), EventDraws.onlyPlace(1, "u:1"));
+    }
+
+    @Test
     void aDrawThatFoundNobodyCanBeDrawnAgain() {
         long id = event("{\"mode\":\"DRAW\",\"minTiles\":2}", null);
         done(id, 501, "a");

@@ -242,4 +242,43 @@ class MemberEventsApiTest {
         assertEquals(0, page.getArray("channels").length(), "no channels were set up");
         assertTrue(page.isNull("board"), "a custom event has no board");
     }
+
+    // ---------- the prize draw on the event page (T-649) ----------
+
+    /** A running prize-draw event with INSIDE and 777 in it and one draw made from their entries; {@code standings} is the standings config or null. */
+    private long drawnEvent(String standings) {
+        String config = "{\"win\":{\"mode\":\"DRAW\",\"autoDraw\":false}" + (standings == null ? "" : ",\"standings\":" + standings) + "}";
+        long id = signupsOpen("Draw", config);
+        service.join(G, id, G, INSIDE, null, true, null);
+        service.join(G, id, G, 777, null, true, null);
+        service.moveStage(G, id, EventRules.Status.RUNNING);
+        var entrants = List.of(new com.younglings.bot.events.WinModes.Entrant("u:" + INSIDE, 3, 3), new com.younglings.bot.events.WinModes.Entrant("u:777", 1, 1));
+        assertTrue(new com.younglings.bot.events.EventDrawRepository(supplier, repository).add(id,
+                new com.younglings.bot.events.WinModes.Round(0, 42L, entrants, List.of("u:777"), null, null, java.time.Instant.now(), 9L)));
+        return id;
+    }
+
+    @Test
+    void aDrawShowsItsEntriesToPlayersWhenTheStandingsAreShown() {
+        DataObject draw = api.detail(guild, INSIDE, drawnEvent(null)).getObject("win").getObject("draw");
+        DataObject round = draw.getArray("rounds").getObject(0);
+        assertFalse(round.getBoolean("entriesHidden"));
+        assertEquals(2, round.getArray("entries").length());
+        assertEquals(3, round.getArray("entries").getObject(0).getInt("tiles"));
+        assertEquals(4, round.getInt("tickets"));
+        assertFalse(round.hasKey("by"), "who pressed the button is for staff");
+    }
+
+    @Test
+    void aDrawNeverRevealsTilesPerPlayerWhileTheStandingsAreHidden() {
+        for (String visibility : List.of("STAFF", "HIDDEN_UNTIL_END")) {
+            DataObject draw = api.detail(guild, INSIDE, drawnEvent("{\"visibility\":\"" + visibility + "\"}")).getObject("win").getObject("draw");
+            DataObject round = draw.getArray("rounds").getObject(0);
+            assertTrue(round.getBoolean("entriesHidden"), visibility);
+            assertEquals(0, round.getArray("entries").length(), visibility + ": no entry list, as it carries each player's finished tiles");
+            assertEquals(0, round.getInt("tickets"), visibility + ": no entry total either");
+            assertEquals("42", round.getString("seed"), "the seed is still shown");
+            assertEquals(1, draw.getArray("winners").length(), "and so are the winners");
+        }
+    }
 }
