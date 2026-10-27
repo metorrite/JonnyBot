@@ -1,5 +1,7 @@
 package com.younglings.bot.commandchannel;
 
+import com.younglings.bot.cachebus.CacheBus;
+import com.younglings.bot.cachebus.CacheInvalidator;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
@@ -27,7 +29,10 @@ import java.util.stream.Collectors;
  * own channels, notice, and rules.
  */
 @BService
-public class CommandChannelService {
+public class CommandChannelService implements CacheInvalidator {
+    /** The {@code bot_cache} area of this class's caches (docs/SCALING-STATE.md M10). */
+    static final String CACHE_AREA = "command-channels";
+
     public static final String DEFAULT_GROUP = "Default";
     public static final String CUSTOM_GROUP = "Custom";
     public static final String DEFAULT_MESSAGE = "You can only use bot commands here!";
@@ -72,6 +77,7 @@ public class CommandChannelService {
 
     private void invalidate(long guildId) {
         channelIndexByGuild.remove(guildId);
+        CacheBus.changed(CACHE_AREA, guildId);
     }
 
     // --- Rules ---
@@ -247,5 +253,22 @@ public class CommandChannelService {
     public void removeChannel(long guildId, long groupId, long channelId) {
         repository.removeChannel(guildId, groupId, channelId);
         invalidate(guildId);
+    }
+
+    // ---------- cross-process invalidation (CacheBus) ----------
+
+    @Override
+    public String cacheArea() {
+        return CACHE_AREA;
+    }
+
+    @Override
+    public void evictCached(long guildId) {
+        channelIndexByGuild.remove(guildId);
+    }
+
+    @Override
+    public void evictAllCached() {
+        channelIndexByGuild.clear();
     }
 }

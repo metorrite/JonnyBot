@@ -31,7 +31,7 @@ One server **hosts** an event; servers in the same alliance can be invited as **
 - New column `event_participant.origin_guild_id` (null = host). Set by the road the player used: the co-host's panel, or the website/hub Join with "I'm joining with <server>" picked from servers the person shares with the event's co-hosts (default: host).
 - `EventKinds` uses `origin_guild_id`, so PARTNER finally means something: the existing `TeamRules` policies ("partners on their own teams", "everyone mixes", ...) apply unchanged.
 - **Joining from a co-host panel:** the bot is in both servers, so it checks host membership directly. In the host server -> joined at once. Not in it -> an ephemeral reply with the host's event invite link (T-216 `events.inviteUrl`) and a **pending join** is saved; when they join the host server (member-join listener) the join completes and they get a DM-free notice in the event's general channel only if channels exist (otherwise nothing). Pending joins expire at the signup deadline.
-- Signup panels in co-host servers are normal JonnyBot signup messages created and removed by the host's event lifecycle (opened, paused at close, deleted at DONE), so the existing pause/redraw code is reused.
+- Signup panels in co-host servers are normal RuneClan Bot signup messages created and removed by the host's event lifecycle (opened, paused at close, deleted at DONE), so the existing pause/redraw code is reused.
 
 ## 4. Fill queue
 

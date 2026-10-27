@@ -11,7 +11,7 @@ import java.util.function.Function;
  *
  * @param enabled whether the hub is used
  * @param baseUrl the hub's address without a trailing slash, e.g. {@code https://api.runeclans.com}, or inside the Railway project
- *                {@code http://runeclans-hub.railway.internal:8090}
+ *                {@code http://<service>.railway.internal:8090}
  * @param apiKey  JonnyBot's first-party API key ({@code rsh_...}) with {@code link:resolve}, {@code players:read}, {@code feed:read},
  *                {@code guilds:write}
  * @param problem why the hub is off although {@code RUNECLANS_HUB_ENABLED} is true (names variables, never values), or null

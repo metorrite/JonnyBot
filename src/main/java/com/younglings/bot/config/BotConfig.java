@@ -311,6 +311,14 @@ public class BotConfig {
         return envOrDotenv("SITES_BACKEND");
     }
 
+    /** The servers put on the beta list when a database is first set up ({@code com.younglings.bot.beta.BetaSeed}). */
+    public static final String BETA_SEED_GUILDS_ENV = "BETA_SEED_GUILDS";
+
+    /** {@link #BETA_SEED_GUILDS_ENV}: comma-separated server ids, each optionally {@code id:label}; null when unset (nothing is seeded). */
+    public String getBetaSeedGuilds() {
+        return envOrDotenv(BETA_SEED_GUILDS_ENV);
+    }
+
     /** A RuneSync server setting ({@code RUNESYNC_*}, e.g. {@code RUNESYNC_MIN_CLIENT_VERSION}); null when unset. */
     public String getRuneSyncSetting(String name) {
         if (!name.startsWith("RUNESYNC_")) throw new IllegalArgumentException("Only RUNESYNC_ settings are served here");
@@ -509,6 +517,15 @@ public class BotConfig {
         return positiveNumber("PLUGIN_XP_SCALE", 1);
     }
 
+    /**
+     * Whether clans may pay points for the XP members gain each UTC day (T-542, the Clan plugin page's "Points for XP gained"), read from the RuneClans
+     * hub's XP ledger. Off by default; needs the hub client ({@code RUNECLANS_HUB_ENABLED}) too. Off, the rule isn't offered and nothing is paid.
+     */
+    public boolean getPluginXpPointsEnabled() {
+        String raw = envOrDotenv("PLUGIN_XP_POINTS_ENABLED");
+        return raw != null && raw.trim().equalsIgnoreCase("true");
+    }
+
     private long positiveMinutes(String name, long fallback) {
         return positiveNumber(name, fallback);
     }
@@ -549,6 +566,15 @@ public class BotConfig {
      */
     public boolean getLanguagePacksEnabled() {
         String raw = envOrDotenv("LANGUAGE_PACKS_ENABLED");
+        return raw != null && raw.trim().equalsIgnoreCase("true");
+    }
+
+    /**
+     * Whether bingo and scavenger XP tiles ("Gain 1M Fletching XP", T-543) are counted from the RuneClans hub's XP ledger. Off by default; needs the
+     * hub client ({@code RUNECLANS_HUB_ENABLED}) too. Off, such tiles take proof or an organiser like any other tile.
+     */
+    public boolean getEventXpTilesEnabled() {
+        String raw = envOrDotenv("EVENT_XP_TILES_ENABLED");
         return raw != null && raw.trim().equalsIgnoreCase("true");
     }
 
