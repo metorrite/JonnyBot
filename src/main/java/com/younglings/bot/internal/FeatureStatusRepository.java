@@ -100,7 +100,6 @@ public class FeatureStatusRepository {
         exists("/voice/temp-voice", "tempvoice_hub", "");
         enabled("/voice/voice-text", "voice_text_config");
         exists("/event-tools/event-manager", "event", "NOT t.archived AND t.template <> 'quick-group'");
-        enabled("/event-tools/group-finder", "group_finder_settings");
         enabled("/event-tools/event-announcer", "eventannounce_config");
         exists("/event-tools/citadel-wheel", "citadel_wheel_settings", "t.auto_post AND t.channel_id IS NOT NULL");
         exists("/event-tools/bingo-pool", "bingo_tile", "");

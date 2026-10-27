@@ -48,7 +48,7 @@
     "mobile": "drawer",
     "nav": [
       {
-        "id": "strongn354",
+        "id": "strongn358",
         "label": "Home",
         "link": {
           "kind": "page",
@@ -56,11 +56,11 @@
         }
       },
       {
-        "id": "strongn355",
+        "id": "strongn359",
         "label": "Clan",
         "children": [
           {
-            "id": "strongn356",
+            "id": "strongn360",
             "label": "Members",
             "link": {
               "kind": "page",
@@ -68,7 +68,7 @@
             }
           },
           {
-            "id": "strongn357",
+            "id": "strongn361",
             "label": "About us",
             "link": {
               "kind": "page",
@@ -76,7 +76,7 @@
             }
           },
           {
-            "id": "strongn358",
+            "id": "strongn362",
             "label": "Hall of fame",
             "link": {
               "kind": "page",
@@ -84,7 +84,7 @@
             }
           },
           {
-            "id": "strongn359",
+            "id": "strongn363",
             "label": "History",
             "link": {
               "kind": "page",
@@ -92,7 +92,7 @@
             }
           },
           {
-            "id": "strongn360",
+            "id": "strongn364",
             "label": "Compare",
             "link": {
               "kind": "page",
@@ -102,11 +102,11 @@
         ]
       },
       {
-        "id": "strongn361",
+        "id": "strongn365",
         "label": "Stats",
         "children": [
           {
-            "id": "strongn362",
+            "id": "strongn366",
             "label": "Clan stats",
             "link": {
               "kind": "page",
@@ -114,7 +114,7 @@
             }
           },
           {
-            "id": "strongn363",
+            "id": "strongn367",
             "label": "Leaderboards",
             "link": {
               "kind": "page",
@@ -122,7 +122,7 @@
             }
           },
           {
-            "id": "strongn364",
+            "id": "strongn368",
             "label": "Recaps",
             "link": {
               "kind": "page",
@@ -130,7 +130,7 @@
             }
           },
           {
-            "id": "strongn365",
+            "id": "strongn369",
             "label": "Citadel",
             "link": {
               "kind": "page",
@@ -138,7 +138,7 @@
             }
           },
           {
-            "id": "strongn366",
+            "id": "strongn370",
             "label": "Coffer",
             "link": {
               "kind": "page",
@@ -148,11 +148,11 @@
         ]
       },
       {
-        "id": "strongn367",
+        "id": "strongn371",
         "label": "PvM",
         "children": [
           {
-            "id": "strongn368",
+            "id": "strongn372",
             "label": "Bosses",
             "link": {
               "kind": "page",
@@ -160,7 +160,7 @@
             }
           },
           {
-            "id": "strongn369",
+            "id": "strongn373",
             "label": "Drop log",
             "link": {
               "kind": "page",
@@ -170,11 +170,11 @@
         ]
       },
       {
-        "id": "strongn370",
+        "id": "strongn374",
         "label": "Events",
         "children": [
           {
-            "id": "strongn371",
+            "id": "strongn375",
             "label": "Upcoming",
             "link": {
               "kind": "page",
@@ -182,7 +182,7 @@
             }
           },
           {
-            "id": "strongn372",
+            "id": "strongn376",
             "label": "Calendar",
             "link": {
               "kind": "page",
@@ -190,7 +190,7 @@
             }
           },
           {
-            "id": "strongn373",
+            "id": "strongn377",
             "label": "Signups",
             "link": {
               "kind": "page",
@@ -198,7 +198,7 @@
             }
           },
           {
-            "id": "strongn374",
+            "id": "strongn378",
             "label": "Polls",
             "link": {
               "kind": "page",
@@ -208,7 +208,7 @@
         ]
       },
       {
-        "id": "strongn375",
+        "id": "strongn379",
         "label": "Join",
         "link": {
           "kind": "page",
@@ -430,10 +430,12 @@
                       "settings": {
                         "title": "Top XP gainers",
                         "limit": 8,
+                        "topFive": false,
                         "showDay": true,
                         "showWeek": true,
                         "showMonth": true,
                         "defaultTab": "week",
+                        "totals": false,
                         "bars": "under",
                         "barColour": "accent"
                       },
@@ -471,6 +473,7 @@
                         "title": "Citadel",
                         "weeks": 6,
                         "series": "both",
+                        "look": "simple",
                         "more": null,
                         "moreText": "Attendance"
                       },
@@ -523,7 +526,8 @@
                           }
                         ],
                         "columns": "4",
-                        "numbers": "accent"
+                        "numbers": "accent",
+                        "captions": "full"
                       },
                       "unmet": "hide"
                     },
@@ -898,6 +902,9 @@
                       "type": "member-card",
                       "v": 1,
                       "settings": {
+                        "look": "card",
+                        "back": null,
+                        "backText": "All members",
                         "showStrip": false,
                         "showBio": true,
                         "showTotals": true,
@@ -947,7 +954,8 @@
                       "type": "member-gains",
                       "v": 1,
                       "settings": {
-                        "title": ""
+                        "title": "",
+                        "look": "box"
                       },
                       "unmet": "hide"
                     }
@@ -970,6 +978,7 @@
                       "v": 1,
                       "settings": {
                         "title": "Where the XP went",
+                        "look": "ring",
                         "period": "week",
                         "tabs": true,
                         "slices": 7
@@ -1030,6 +1039,7 @@
                       "v": 1,
                       "settings": {
                         "title": "XP over time",
+                        "look": "bars",
                         "days": "90",
                         "gains": "week"
                       },
@@ -1135,6 +1145,7 @@
                       "v": 1,
                       "settings": {
                         "title": "Citadel",
+                        "look": "facts",
                         "weeks": 12,
                         "showGrid": true
                       },
@@ -1160,6 +1171,7 @@
                       "v": 1,
                       "settings": {
                         "title": "Clan points",
+                        "look": "list",
                         "limit": 8,
                         "showChart": true
                       },
@@ -1200,6 +1212,7 @@
                       "settings": {
                         "title": "Adventure log",
                         "limit": 10,
+                        "look": "dated",
                         "showDetails": false
                       },
                       "unmet": "hide"
@@ -1494,7 +1507,9 @@
                         "showClub": true,
                         "showStreaks": true,
                         "showVeterans": true,
-                        "limit": 8
+                        "limit": 8,
+                        "look": "plain",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -2236,6 +2251,7 @@
                         "tabs": true,
                         "filter": "all",
                         "look": "lines",
+                        "filters": "groups",
                         "more": null,
                         "moreText": "See all"
                       },
@@ -2543,7 +2559,8 @@
                           }
                         ],
                         "columns": "4",
-                        "numbers": "accent"
+                        "numbers": "accent",
+                        "captions": "full"
                       },
                       "unmet": "hide"
                     }
@@ -2607,6 +2624,7 @@
                         "title": "Citadel caps and visits per week",
                         "weeks": 12,
                         "series": "both",
+                        "look": "simple",
                         "more": null,
                         "moreText": "Attendance"
                       },
@@ -2712,6 +2730,7 @@
                         "title": "Highest total XP",
                         "metric": "xp",
                         "limit": 10,
+                        "topFive": false,
                         "bars": "under",
                         "barColour": "accent"
                       },
@@ -2737,10 +2756,13 @@
                       "v": 1,
                       "settings": {
                         "title": "Most Citadel caps",
+                        "layout": "board",
                         "metric": "citadel",
                         "period": "all",
                         "visitorPeriods": false,
+                        "showPeriod": true,
                         "limit": 10,
+                        "topFive": false,
                         "bars": "under",
                         "barColour": "accent"
                       },
@@ -2807,6 +2829,7 @@
                         "title": "Most clan points",
                         "metric": "points",
                         "limit": 10,
+                        "topFive": false,
                         "bars": "under",
                         "barColour": "accent"
                       },
@@ -2871,7 +2894,8 @@
                       "v": 1,
                       "settings": {
                         "title": "Joins and leaves per week",
-                        "weeks": 12
+                        "weeks": 12,
+                        "look": "simple"
                       },
                       "unmet": "hide"
                     }
@@ -3063,10 +3087,13 @@
                       "v": 1,
                       "settings": {
                         "title": "Top XP gainers",
+                        "layout": "board",
                         "metric": "xp",
                         "period": "month",
                         "visitorPeriods": true,
+                        "showPeriod": true,
                         "limit": 15,
+                        "topFive": false,
                         "bars": "under",
                         "barColour": "accent"
                       },
@@ -3092,10 +3119,13 @@
                       "v": 1,
                       "settings": {
                         "title": "Most Citadel caps",
+                        "layout": "board",
                         "metric": "citadel",
                         "period": "month",
                         "visitorPeriods": true,
+                        "showPeriod": true,
                         "limit": 15,
+                        "topFive": false,
                         "bars": "under",
                         "barColour": "accent"
                       },
@@ -3135,10 +3165,13 @@
                       "v": 1,
                       "settings": {
                         "title": "Newest members",
+                        "layout": "board",
                         "metric": "joins",
                         "period": "month",
                         "visitorPeriods": true,
+                        "showPeriod": true,
                         "limit": 15,
+                        "topFive": false,
                         "bars": "under",
                         "barColour": "accent"
                       },
@@ -3165,10 +3198,12 @@
                       "settings": {
                         "title": "Top XP this week",
                         "limit": 8,
+                        "topFive": false,
                         "showDay": true,
                         "showWeek": true,
                         "showMonth": true,
                         "defaultTab": "week",
+                        "totals": false,
                         "bars": "under",
                         "barColour": "accent"
                       },
@@ -3586,6 +3621,7 @@
                         "title": "Caps and visits per week",
                         "weeks": 12,
                         "series": "both",
+                        "look": "simple",
                         "more": null,
                         "moreText": "Attendance"
                       },
@@ -3625,7 +3661,8 @@
                       "settings": {
                         "title": "",
                         "weeks": 12,
-                        "limit": 50
+                        "limit": 50,
+                        "look": "bars"
                       },
                       "unmet": "hide"
                     }
@@ -3759,6 +3796,7 @@
                         "showDonors": true,
                         "showGiveaways": true,
                         "limit": 10,
+                        "look": "box",
                         "bars": "under",
                         "barColour": "accent"
                       },
@@ -3942,7 +3980,10 @@
                         "title": "Bosses",
                         "period": "all",
                         "showQuiet": true,
-                        "limit": 60
+                        "limit": 60,
+                        "look": "cards",
+                        "timeFrame": true,
+                        "dropsPage": null
                       },
                       "unmet": "hide"
                     }
@@ -4115,6 +4156,10 @@
                       "type": "boss-detail",
                       "v": 1,
                       "settings": {
+                        "look": "box",
+                        "back": null,
+                        "backText": "All bosses",
+                        "timeFrame": true,
                         "period": "all",
                         "limit": 25,
                         "header": true,
@@ -4254,7 +4299,9 @@
                         "period": "all",
                         "showGrid": true,
                         "limit": 25,
-                        "bossFilter": true
+                        "bossFilter": true,
+                        "look": "list",
+                        "timeFrame": false
                       },
                       "unmet": "hide"
                     }
@@ -4324,7 +4371,11 @@
                       "type": "item-detail",
                       "v": 1,
                       "settings": {
+                        "look": "box",
                         "period": "all",
+                        "timeFrame": true,
+                        "back": null,
+                        "backText": "Drop log",
                         "limit": 25
                       },
                       "unmet": "hide"
@@ -4782,7 +4833,10 @@
                         "title": "",
                         "showDiscord": true,
                         "showHub": true,
-                        "weekStart": "mon"
+                        "weekStart": "mon",
+                        "look": "box",
+                        "listPage": null,
+                        "listText": "Event list"
                       },
                       "unmet": "hide"
                     }
@@ -4986,7 +5040,8 @@
                       "settings": {
                         "title": "",
                         "limit": 10,
-                        "showNames": true
+                        "showNames": true,
+                        "look": "list"
                       },
                       "unmet": "hide"
                     }
@@ -4995,20 +5050,7 @@
               ]
             }
           ]
-        }
-      ]
-    },
-    {
-      "id": "strongppolls",
-      "title": "Polls",
-      "path": "polls",
-      "hidden": false,
-      "access": "public",
-      "origin": {
-        "template": "polls",
-        "v": 1
-      },
-      "sections": [
+        },
         {
           "id": "strongs303",
           "width": "wide",
@@ -5017,7 +5059,7 @@
           },
           "padding": {
             "lg": {
-              "y": "md",
+              "y": "lg",
               "x": "md"
             }
           },
@@ -5052,15 +5094,13 @@
                   "widgets": [
                     {
                       "id": "strongw300",
-                      "type": "heading",
+                      "type": "group-finder",
                       "v": 1,
                       "settings": {
-                        "text": "Polls",
-                        "subtitle": "The clan's polls. Members vote here or on Discord.",
-                        "size": "large",
-                        "align": "left",
-                        "colour": "",
-                        "level": "h1"
+                        "title": "Group finder",
+                        "intro": "Looking for people? Post a group and others can take a place.",
+                        "roles": "Any, Base, DPS, Tank, Healer",
+                        "showForm": true
                       },
                       "unmet": "hide"
                     }
@@ -5069,7 +5109,20 @@
               ]
             }
           ]
-        },
+        }
+      ]
+    },
+    {
+      "id": "strongppolls",
+      "title": "Polls",
+      "path": "polls",
+      "hidden": false,
+      "access": "public",
+      "origin": {
+        "template": "polls",
+        "v": 1
+      },
+      "sections": [
         {
           "id": "strongs307",
           "width": "wide",
@@ -5078,7 +5131,7 @@
           },
           "padding": {
             "lg": {
-              "y": "lg",
+              "y": "md",
               "x": "md"
             }
           },
@@ -5113,12 +5166,15 @@
                   "widgets": [
                     {
                       "id": "strongw304",
-                      "type": "polls",
+                      "type": "heading",
                       "v": 1,
                       "settings": {
-                        "title": "",
-                        "limit": 10,
-                        "showClosed": true
+                        "text": "Polls",
+                        "subtitle": "The clan's polls. Members vote here or on Discord.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
                       },
                       "unmet": "hide"
                     }
@@ -5127,16 +5183,7 @@
               ]
             }
           ]
-        }
-      ]
-    },
-    {
-      "id": "strongpjoin",
-      "title": "Join us",
-      "path": "join",
-      "hidden": false,
-      "access": "public",
-      "sections": [
+        },
         {
           "id": "strongs311",
           "width": "wide",
@@ -5145,7 +5192,7 @@
           },
           "padding": {
             "lg": {
-              "y": "md",
+              "y": "lg",
               "x": "md"
             }
           },
@@ -5180,6 +5227,74 @@
                   "widgets": [
                     {
                       "id": "strongw308",
+                      "type": "polls",
+                      "v": 1,
+                      "settings": {
+                        "title": "",
+                        "limit": 10,
+                        "showClosed": true,
+                        "look": "list"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "strongpjoin",
+      "title": "Join us",
+      "path": "join",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "strongs315",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "strongr314",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "strongc313",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw312",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -5199,7 +5314,7 @@
           ]
         },
         {
-          "id": "strongs325",
+          "id": "strongs329",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -5217,7 +5332,7 @@
           },
           "rows": [
             {
-              "id": "strongr316",
+              "id": "strongr320",
               "gap": {
                 "lg": "md"
               },
@@ -5229,7 +5344,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc313",
+                  "id": "strongc317",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5241,7 +5356,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw312",
+                      "id": "strongw316",
                       "type": "recruiting",
                       "v": 1,
                       "settings": {
@@ -5254,7 +5369,7 @@
                   ]
                 },
                 {
-                  "id": "strongc315",
+                  "id": "strongc319",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5266,7 +5381,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw314",
+                      "id": "strongw318",
                       "type": "discord-join",
                       "v": 1,
                       "settings": {
@@ -5281,7 +5396,7 @@
               ]
             },
             {
-              "id": "strongr321",
+              "id": "strongr325",
               "gap": {
                 "lg": "md"
               },
@@ -5293,7 +5408,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc318",
+                  "id": "strongc322",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5305,7 +5420,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw317",
+                      "id": "strongw321",
                       "type": "countdown",
                       "v": 1,
                       "settings": {
@@ -5318,7 +5433,7 @@
                   ]
                 },
                 {
-                  "id": "strongc320",
+                  "id": "strongc324",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5330,7 +5445,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw319",
+                      "id": "strongw323",
                       "type": "faq",
                       "v": 1,
                       "settings": {
@@ -5357,7 +5472,7 @@
               ]
             },
             {
-              "id": "strongr324",
+              "id": "strongr328",
               "gap": {
                 "lg": "md"
               },
@@ -5369,7 +5484,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc323",
+                  "id": "strongc327",
                   "span": {
                     "lg": 12
                   },
@@ -5380,7 +5495,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw322",
+                      "id": "strongw326",
                       "type": "roster",
                       "v": 1,
                       "settings": {
@@ -5413,7 +5528,7 @@
       "template": "account",
       "sections": [
         {
-          "id": "strongs329",
+          "id": "strongs333",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -5431,7 +5546,7 @@
           },
           "rows": [
             {
-              "id": "strongr328",
+              "id": "strongr332",
               "gap": {
                 "lg": "md"
               },
@@ -5443,7 +5558,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc327",
+                  "id": "strongc331",
                   "span": {
                     "lg": 12
                   },
@@ -5454,7 +5569,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw326",
+                      "id": "strongw330",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -5474,7 +5589,7 @@
           ]
         },
         {
-          "id": "strongs353",
+          "id": "strongs357",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -5492,7 +5607,7 @@
           },
           "rows": [
             {
-              "id": "strongr334",
+              "id": "strongr338",
               "gap": {
                 "lg": "md"
               },
@@ -5504,7 +5619,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc331",
+                  "id": "strongc335",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5516,7 +5631,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw330",
+                      "id": "strongw334",
                       "type": "account-link",
                       "v": 1,
                       "settings": {
@@ -5527,7 +5642,7 @@
                   ]
                 },
                 {
-                  "id": "strongc333",
+                  "id": "strongc337",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5539,7 +5654,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw332",
+                      "id": "strongw336",
                       "type": "server-profile",
                       "v": 1,
                       "settings": {
@@ -5554,7 +5669,7 @@
               ]
             },
             {
-              "id": "strongr339",
+              "id": "strongr343",
               "gap": {
                 "lg": "md"
               },
@@ -5566,7 +5681,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc336",
+                  "id": "strongc340",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5578,7 +5693,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw335",
+                      "id": "strongw339",
                       "type": "my-goals",
                       "v": 1,
                       "settings": {
@@ -5590,7 +5705,7 @@
                   ]
                 },
                 {
-                  "id": "strongc338",
+                  "id": "strongc342",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5602,7 +5717,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw337",
+                      "id": "strongw341",
                       "type": "my-notices",
                       "v": 1,
                       "settings": {
@@ -5616,7 +5731,7 @@
               ]
             },
             {
-              "id": "strongr344",
+              "id": "strongr348",
               "gap": {
                 "lg": "md"
               },
@@ -5628,7 +5743,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc341",
+                  "id": "strongc345",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5640,7 +5755,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw340",
+                      "id": "strongw344",
                       "type": "my-events",
                       "v": 1,
                       "settings": {
@@ -5652,7 +5767,7 @@
                   ]
                 },
                 {
-                  "id": "strongc343",
+                  "id": "strongc347",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5664,7 +5779,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw342",
+                      "id": "strongw346",
                       "type": "my-signups",
                       "v": 1,
                       "settings": {
@@ -5678,7 +5793,7 @@
               ]
             },
             {
-              "id": "strongr347",
+              "id": "strongr351",
               "gap": {
                 "lg": "md"
               },
@@ -5690,7 +5805,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc346",
+                  "id": "strongc350",
                   "span": {
                     "lg": 12
                   },
@@ -5701,7 +5816,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw345",
+                      "id": "strongw349",
                       "type": "my-polls",
                       "v": 1,
                       "settings": {
@@ -5716,7 +5831,7 @@
               ]
             },
             {
-              "id": "strongr352",
+              "id": "strongr356",
               "gap": {
                 "lg": "md"
               },
@@ -5728,7 +5843,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc349",
+                  "id": "strongc353",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5740,7 +5855,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw348",
+                      "id": "strongw352",
                       "type": "my-coffer",
                       "v": 1,
                       "settings": {
@@ -5752,7 +5867,7 @@
                   ]
                 },
                 {
-                  "id": "strongc351",
+                  "id": "strongc355",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5764,7 +5879,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw350",
+                      "id": "strongw354",
                       "type": "member-privacy",
                       "v": 1,
                       "settings": {
