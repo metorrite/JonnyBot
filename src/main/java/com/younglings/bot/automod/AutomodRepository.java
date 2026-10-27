@@ -2,6 +2,8 @@ package com.younglings.bot.automod;
 
 import com.younglings.bot.automod.AutomodRules.Rule;
 import com.younglings.bot.automod.AutomodRules.RuleConfig;
+import com.younglings.bot.cachebus.CacheBus;
+import com.younglings.bot.cachebus.CacheInvalidator;
 import com.younglings.bot.database.SchemaBootstrapper;
 import io.github.freya022.botcommands.api.core.db.ConnectionSupplier;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -24,7 +26,10 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /** A server's automod settings. Every message in a server asks for them, so they are kept in memory and refreshed whenever they change. */
 @BService
-public class AutomodRepository {
+public class AutomodRepository implements CacheInvalidator {
+    /** The {@code bot_cache} area of this class's caches (docs/SCALING-STATE.md M10). */
+    static final String CACHE_AREA = "automod";
+
     private static final Logger log = LoggerFactory.getLogger(AutomodRepository.class);
 
     /** {@code exemptRoles} and {@code exemptChannels} are never checked, whatever they post. */
@@ -87,6 +92,7 @@ public class AutomodRepository {
             throw new RuntimeException("Failed to save the automod settings", e);
         }
         cache.put(config.guildId(), config);
+        CacheBus.changed(CACHE_AREA, config.guildId());
     }
 
     // ---------- storage format ----------
@@ -154,5 +160,22 @@ public class AutomodRepository {
             }
         }
         return rules;
+    }
+
+    // ---------- cross-process invalidation (CacheBus) ----------
+
+    @Override
+    public String cacheArea() {
+        return CACHE_AREA;
+    }
+
+    @Override
+    public void evictCached(long guildId) {
+        cache.remove(guildId);
+    }
+
+    @Override
+    public void evictAllCached() {
+        cache.clear();
     }
 }

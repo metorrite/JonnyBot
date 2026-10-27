@@ -92,6 +92,7 @@ Every environment variable the bot reads. Each one can also go in the git-ignore
 | `BILLING_RECONCILE_URL` | The runeclans website's billing reconcile route, e.g. `https://runeclans.com/api/billing/reconcile` (T-366). Once a day the bot sends it the paid subscriptions of servers it left 14+ days ago (with `INTERNAL_API_SECRET`), and the website sets them to cancel at the period end. | Nothing is sent; those subscriptions keep renewing until cancelled by hand. |
 | `RUNECLAN_BOT_SITE_URL` | The address put in the User-Agent of every request the bot makes to a third party. | `https://jonnybot.rsyounglings.com`. |
 | `JONNYBOT_SITE_URL` | **Deprecated** old name of `RUNECLAN_BOT_SITE_URL` (T-662). Still read, exactly as before, when the new name is unset; the bot then logs a one-time note naming both variables. | |
+| `BOT_CACHE_NOTIFY` | `true` (or `1`) turns on cross-process cache invalidation (T-701, docs/SCALING-STATE.md M10): after a settings change, the process sends `NOTIFY bot_cache, 'area:guildId'`, and one extra connection of its own (outside the pool) listens and drops that server's cached settings, so a change saved through the website reaches the gateway process at once. Turn it on in every process once the bot runs as more than one. | Off: no listener, no signals; each process keeps its caches until it writes them itself, as with one process. |
 
 **Dev bot safety**
 
