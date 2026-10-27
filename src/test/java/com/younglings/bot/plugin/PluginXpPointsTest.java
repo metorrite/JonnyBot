@@ -222,6 +222,10 @@ class PluginXpPointsTest {
         return new RuneClansHubClient.Answer(200, DataObject.empty().put("day", DAY.toString()).put("players", DataArray.empty().add(row)).put("truncated", false));
     }
 
+    private static PluginPointsRepository.XpRuleOn onSince(long guildId, LocalDate since) {
+        return new PluginPointsRepository.XpRuleOn(guildId, since);
+    }
+
     /** The bot is in the server; these members are in its cache (online). */
     private PluginXpPoints inServer(Long... online) {
         when(jda.getGuildById(GUILD)).thenReturn(guild);
@@ -249,7 +253,7 @@ class PluginXpPointsTest {
         serverUsesPoints(true);
         paysDone();
         inServer(BOB);
-        when(repository.xpRuleGuilds()).thenReturn(List.of(GUILD));
+        when(repository.xpRuleGuilds()).thenReturn(List.of(onSince(GUILD, DAY.minusDays(30))));
         when(hub.xpGainers(GUILD, DAY)).thenReturn(gainers("a1_bob", BOB, 250_000));
         xpPoints.noteHubGainers(DAY, DAY.plusDays(1), NOW);
         verify(repository).noteXpDay(GUILD, BOB, DAY);
@@ -271,6 +275,38 @@ class PluginXpPointsTest {
     }
 
     @Test
+    void daysBeforeTheRuleWasSwitchedOnArentAskedAbout() {
+        inServer(BOB);
+        // switched on on the 25th: the days before passed with the rule off (or before it existed), so nobody is paid for them
+        when(repository.xpRuleGuilds()).thenReturn(List.of(onSince(GUILD, DAY)));
+        when(hub.xpGainers(eq(GUILD), any())).thenReturn(gainers("a1_bob", BOB, 250_000));
+        xpPoints.noteHubGainers(DAY.minusDays(PluginXpPoints.RETRY_DAYS), DAY.plusDays(1), NOW);
+        verify(hub, times(1)).xpGainers(eq(GUILD), any());
+        verify(hub).xpGainers(GUILD, DAY);
+        verify(repository, never()).noteXpDay(eq(GUILD), anyLong(), eq(DAY.minusDays(2)));
+        verify(repository).noteXpDay(GUILD, BOB, DAY);
+    }
+
+    @Test
+    void aMemberLookedUpOnceIsntLookedUpAgainWhenTheDayIsRetried() {
+        inServer();
+        long carol = Long.parseLong("3".repeat(18));
+        lookedUp(BOB, CompletableFuture.completedFuture(mock(Member.class)));
+        lookedUp(carol, discordSays(ErrorResponse.SERVER_ERROR));
+        DataArray rows = DataArray.empty()
+                .add(DataObject.empty().put("alias", "a1_bob").put("discordId", Long.toString(BOB)).put("xp", 300_000L))
+                .add(DataObject.empty().put("alias", "a1_carol").put("discordId", Long.toString(carol)).put("xp", 200_000L));
+        when(repository.xpRuleGuilds()).thenReturn(List.of(onSince(GUILD, DAY.minusDays(30))));
+        when(hub.xpGainers(GUILD, DAY)).thenReturn(new RuneClansHubClient.Answer(200, DataObject.empty().put("players", rows)));
+        xpPoints.noteHubGainers(DAY, DAY.plusDays(1), NOW);
+        xpPoints.noteHubGainers(DAY, DAY.plusDays(1), NOW);
+
+        verify(guild, times(1)).retrieveMemberById(BOB); // the first pass's answer is kept
+        verify(guild, times(2)).retrieveMemberById(carol); // Discord couldn't say: asked again
+        verify(repository, never()).markHubAsked(anyLong(), any(), any());
+    }
+
+    @Test
     void aMemberOfflineOnDiscordIsLookedUpAndOneWhoLeftIsSkipped() {
         inServer();
         lookedUp(BOB, CompletableFuture.completedFuture(mock(Member.class)));
@@ -278,7 +314,7 @@ class PluginXpPointsTest {
         DataArray rows = DataArray.empty()
                 .add(DataObject.empty().put("alias", "a1_bob").put("discordId", Long.toString(BOB)).put("xp", 300_000L))
                 .add(DataObject.empty().put("alias", "a1_alice").put("discordId", Long.toString(ALICE)).put("xp", 200_000L));
-        when(repository.xpRuleGuilds()).thenReturn(List.of(GUILD));
+        when(repository.xpRuleGuilds()).thenReturn(List.of(onSince(GUILD, DAY.minusDays(30))));
         when(hub.xpGainers(GUILD, DAY)).thenReturn(new RuneClansHubClient.Answer(200, DataObject.empty().put("players", rows)));
         xpPoints.noteHubGainers(DAY, DAY.plusDays(1), NOW);
 
@@ -291,7 +327,7 @@ class PluginXpPointsTest {
     void aMemberDiscordCantAnswerForLeavesTheDayForTheNextPass() {
         inServer();
         lookedUp(BOB, discordSays(ErrorResponse.SERVER_ERROR));
-        when(repository.xpRuleGuilds()).thenReturn(List.of(GUILD));
+        when(repository.xpRuleGuilds()).thenReturn(List.of(onSince(GUILD, DAY.minusDays(30))));
         when(hub.xpGainers(GUILD, DAY)).thenReturn(gainers("a1_bob", BOB, 250_000));
         xpPoints.noteHubGainers(DAY, DAY.plusDays(1), NOW);
 
@@ -302,7 +338,7 @@ class PluginXpPointsTest {
 
     @Test
     void aServerTheBotIsntInIsntAskedAbout() {
-        when(repository.xpRuleGuilds()).thenReturn(List.of(GUILD));
+        when(repository.xpRuleGuilds()).thenReturn(List.of(onSince(GUILD, DAY.minusDays(30))));
         xpPoints.noteHubGainers(DAY, DAY.plusDays(1), NOW); // JDA not ready
         xpPoints.withJda(jda).noteHubGainers(DAY, DAY.plusDays(1), NOW); // the bot left the server
         verify(hub, never()).xpGainers(anyLong(), any());
@@ -316,7 +352,7 @@ class PluginXpPointsTest {
         inServer();
         when(jda.getGuildById(other)).thenReturn(otherGuild);
         LocalDate before = DAY.minusDays(1);
-        when(repository.xpRuleGuilds()).thenReturn(List.of(GUILD, other));
+        when(repository.xpRuleGuilds()).thenReturn(List.of(onSince(GUILD, DAY.minusDays(30)), onSince(other, DAY.minusDays(30))));
         when(hub.xpGainers(GUILD, before)).thenReturn(new RuneClansHubClient.Answer(404, null));
         when(hub.xpGainers(other, before)).thenReturn(null);
         xpPoints.noteHubGainers(before, DAY.plusDays(1), NOW);
@@ -334,7 +370,7 @@ class PluginXpPointsTest {
     @Test
     void aGainerWhoseGrantHidesTheirDiscordIdCantBePaid() {
         inServer();
-        when(repository.xpRuleGuilds()).thenReturn(List.of(GUILD));
+        when(repository.xpRuleGuilds()).thenReturn(List.of(onSince(GUILD, DAY.minusDays(30))));
         when(hub.xpGainers(GUILD, DAY)).thenReturn(gainers("a1_alice", null, 900_000));
         xpPoints.noteHubGainers(DAY, DAY.plusDays(1), NOW);
         verify(repository, never()).noteXpDay(anyLong(), anyLong(), any());
@@ -344,7 +380,7 @@ class PluginXpPointsTest {
     @Test
     void theSweepAsksTheHubBeforeSettling() {
         inServer();
-        when(repository.xpRuleGuilds()).thenReturn(List.of(GUILD));
+        when(repository.xpRuleGuilds()).thenReturn(List.of(onSince(GUILD, DAY.minusDays(30))));
         when(repository.openXpDays(any(), any())).thenReturn(List.of());
         when(hub.xpGainers(eq(GUILD), any())).thenReturn(gainers("a1_bob", BOB, 1));
         when(guild.getMemberById(BOB)).thenReturn(mock(Member.class));

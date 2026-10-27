@@ -2,6 +2,7 @@ package com.younglings.bot.plugin;
 
 import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.plugin.PluginPointsRepository.XpDay;
+import com.younglings.bot.plugin.PluginPointsRepository.XpRuleOn;
 import com.younglings.bot.plugin.PluginPointsRules.XpRule;
 import com.younglings.bot.points.PointsRepository;
 import com.younglings.bot.points.PointsRules.Category;
@@ -50,7 +51,8 @@ import java.util.concurrent.TimeoutException;
  *   <li><b>Who:</b> as RuneSync XP comes in (a {@link PluginEventSink}: the bot's own ingest or the hub's feed), the member is noted for that UTC day
  *       in each server they share with the bot whose rule is on ({@code plugin_xp_points_day}). Before a day is settled, the hub is asked who
  *       gained XP in each such server that day ({@code POST /v1/guilds/{id}/xp/gainers}, T-712), and those still in the server are noted too, so
- *       XP that reaches only the hub is paid. Each server and day is asked once (kept in {@code plugin_xp_points_hub_day}, so a restart doesn't
+ *       XP that reaches only the hub is paid. Only days from the one the rule was last switched on are asked about, so switching it on never
+ *       pays for the days before. Each server and day is asked once (kept in {@code plugin_xp_points_hub_day}, so a restart doesn't
  *       ask again); a hub without that route (404) is asked again on later passes while the bot's own notes settle as usual.</li>
  *   <li><b>How much:</b> every 15 minutes, each day that ended at least the grace ago ({@code PLUGIN_XP_POINTS_GRACE_MINUTES}, default 15) is
  *       settled: one {@code POST /v1/guilds/{id}/xp/gains} per server and day (up to 500 members a call) asks the hub's ledger what each gained from midnight to midnight UTC, timed XP only (catch-up and
@@ -84,9 +86,15 @@ public class PluginXpPoints implements PluginEventSink {
     static final int MAX_PLAYERS_PER_CALL = 500;
     /** How long a member the cache doesn't hold (offline) is looked up on Discord before the day is left for the next pass. */
     static final Duration MEMBER_WAIT = Duration.ofSeconds(5);
+    /** How long Discord's answer on whether a gainer is in a server is kept, so a day asked again doesn't look everyone up again. */
+    static final Duration MEMBER_KEPT = Duration.ofHours(1);
+    /** At most this many members are looked up on Discord per pass; the rest of the day waits for the next pass (answers so far are kept). */
+    static final int LOOKUPS_PER_PASS = 200;
 
     /** {@code alias} empty: the hub said there is none. Only definite answers are kept. */
     private record CachedAlias(Optional<String> alias, Instant until) {}
+
+    private record CachedMember(boolean in, Instant until) {}
 
     private final PluginPointsRepository repository;
     private final PointsRepository points;
@@ -96,6 +104,7 @@ public class PluginXpPoints implements PluginEventSink {
     private final ScheduledExecutorService executor = BotScheduler.lane("plugin-xp-points");
     private final Map<String, Instant> noted = new ConcurrentHashMap<>();
     private final Map<Long, CachedAlias> aliases = new ConcurrentHashMap<>();
+    private final Map<String, CachedMember> members = new ConcurrentHashMap<>();
     private final Duration grace;
     private volatile JDA jda;
     private Clock clock = Clock.systemUTC();
@@ -217,14 +226,14 @@ public class PluginXpPoints implements PluginEventSink {
 
     /**
      * Notes the members the hub saw gaining XP on each day from {@code from} up to (not including) {@code before} in every server whose rule is on
-     * (T-712). They join the bot's own notes, so the usual settling pays them. Only members whose grant shares their Discord id can be paid, and a
+     * (T-712), from the day the rule was last switched on: a day that passed while the rule was off (or before it existed) is never paid. They join the bot's own notes, so the usual settling pays them. Only members whose grant shares their Discord id can be paid, and a
      * member Discord says has left the server isn't noted. A server and day is marked asked ({@code plugin_xp_points_hub_day}, so restarts don't
      * ask again) only once every gainer was checked; a server the bot isn't in, a 404 (an older hub, its ledger off, the server not registered
      * yet) or a member Discord couldn't answer for is asked again on a later pass. The first hub or Discord failure ends the asking for this pass,
      * so a hung hub costs one call a pass and the bot's own notes still settle. Never throws.
      */
     void noteHubGainers(LocalDate from, LocalDate before, Instant now) {
-        List<Long> guilds;
+        List<XpRuleOn> guilds;
         Set<XpDay> asked;
         try {
             guilds = repository.xpRuleGuilds();
@@ -235,10 +244,13 @@ public class PluginXpPoints implements PluginEventSink {
         }
         JDA current = jda;
         if (current == null) return;
-        for (long guildId : guilds) {
+        int[] lookups = {0};
+        for (XpRuleOn rule : guilds) {
+            long guildId = rule.guildId();
             Guild guild = current.getGuildById(guildId);
             if (guild == null) continue; // the bot left the server (or isn't ready): nothing is paid there from the hub
-            for (LocalDate day = from; day.isBefore(before); day = day.plusDays(1)) {
+            LocalDate start = rule.since() != null && rule.since().isAfter(from) ? rule.since() : from;
+            for (LocalDate day = start; day.isBefore(before); day = day.plusDays(1)) {
                 if (asked.contains(new XpDay(guildId, day))) continue;
                 RuneClansHubClient.Answer answer = hub.xpGainers(guildId, day);
                 if (answer != null && answer.status() == 404) break; // this server's days all answer the same: try again next pass
@@ -255,8 +267,8 @@ public class PluginXpPoints implements PluginEventSink {
                     long user = userId(row.getString("discordId", null));
                     String alias = row.getString("alias", null);
                     if (user == 0 || alias == null) continue;
-                    Boolean member = isMember(guild, user);
-                    if (member == null) return; // Discord couldn't say: this day (and the rest of the pass) waits for the next pass
+                    Boolean member = inServer(guild, guildId, user, now, lookups);
+                    if (member == null) return; // Discord couldn't say (or this pass looked up enough): the day waits for the next pass
                     if (!member) continue;
                     aliases.put(user, new CachedAlias(Optional.of(alias), now.plus(ALIAS_KEPT)));
                     try {
@@ -273,6 +285,19 @@ public class PluginXpPoints implements PluginEventSink {
                 }
             }
         }
+    }
+
+    /** {@link #isMember}, with definite answers kept for {@link #MEMBER_KEPT} and at most {@link #LOOKUPS_PER_PASS} Discord lookups per pass. */
+    private Boolean inServer(Guild guild, long guildId, long userId, Instant now, int[] lookups) {
+        String key = guildId + ":" + userId;
+        CachedMember cached = members.get(key);
+        if (cached != null && cached.until().isAfter(now)) return cached.in();
+        if (guild.getMemberById(userId) != null) return true;
+        if (lookups[0]++ >= LOOKUPS_PER_PASS) return null;
+        Boolean member = isMember(guild, userId);
+        if (member != null) members.put(key, new CachedMember(member, now.plus(MEMBER_KEPT)));
+        if (members.size() > 50_000) members.values().removeIf(m -> !m.until().isAfter(now));
+        return member;
     }
 
     /**
