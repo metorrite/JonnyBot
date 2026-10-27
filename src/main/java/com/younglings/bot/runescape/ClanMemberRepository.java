@@ -38,12 +38,19 @@ public class ClanMemberRepository {
      * <p>
      * T-593: a changed XP total stamps {@code xp_changed_at}, and the first sync that compares it stamps {@code xp_watched_since}, so the site
      * admin's Clan health page can tell who gained no XP for a while from the clan Hiscores alone.
+     * <p>
+     * T-594: a changed clan rank (or the first sync that sees the row) stamps {@code rank_since} and keeps the XP total then as {@code rank_xp},
+     * so the rank-up advisor can count the XP gained at the current rank.
      */
     public void upsert(long guildId, String rsn, String clanRank, long totalXp, long kills) {
         String sql = """
-                INSERT INTO younglings.clan_member (guild_id, rsn, clan_rank, total_xp, kills, xp_watched_since)
-                VALUES (?, ?, ?, ?, ?, NOW())
+                INSERT INTO younglings.clan_member (guild_id, rsn, clan_rank, total_xp, kills, xp_watched_since, rank_since, rank_xp)
+                VALUES (?, ?, ?, ?, ?, NOW(), NOW(), ?)
                 ON CONFLICT (guild_id, LOWER(rsn)) DO UPDATE SET
+                    rank_since = CASE WHEN clan_member.rank_since IS NULL OR clan_member.clan_rank <> EXCLUDED.clan_rank THEN NOW()
+                        ELSE clan_member.rank_since END,
+                    rank_xp = CASE WHEN clan_member.rank_xp IS NULL OR clan_member.clan_rank <> EXCLUDED.clan_rank THEN EXCLUDED.total_xp
+                        ELSE clan_member.rank_xp END,
                     xp_changed_at = CASE WHEN clan_member.total_xp <> EXCLUDED.total_xp THEN NOW() ELSE clan_member.xp_changed_at END,
                     xp_watched_since = COALESCE(clan_member.xp_watched_since, NOW()),
                     clan_rank = EXCLUDED.clan_rank, total_xp = EXCLUDED.total_xp, kills = EXCLUDED.kills,
@@ -58,6 +65,7 @@ public class ClanMemberRepository {
             statement.setString(3, clanRank);
             statement.setLong(4, totalXp);
             statement.setLong(5, kills);
+            statement.setLong(6, totalXp);
             statement.executeUpdate();
 
             SiteInvalidator.signal(guildId, SiteInvalidator.Area.ROSTER);
