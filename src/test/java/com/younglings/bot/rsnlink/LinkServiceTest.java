@@ -35,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class LinkServiceTest {
     private static final String ALICE = "100000000000000001";
     private static final String BOB = "100000000000000002";
+    private static final String CAROL = "1" + "0".repeat(16) + "3";
     private static final String IP = "203.0.113.7";
 
     private LinkDatabase database;
@@ -379,11 +380,50 @@ class LinkServiceTest {
     }
 
     @Test
-    void aTrackedClaimTakesOverATrackingLessLink() throws Exception {
+    void aTrackedClaimReplacesYourOwnTrackingLessLink() throws Exception {
         String loose = link("Zezima", null, BOB);
-        assertEquals("linked", approve(start("Zezima", "222"), ALICE));
+        assertEquals("linked", approve(start("Zezima", "222"), BOB));
         assertEquals("token_revoked", assertThrows(LinkException.class, () -> service.session(loose, "Zezima", null)).code());
         assertEquals(1, count("SELECT count(*) FROM {s}.link WHERE status = 'superseded'"));
+        assertEquals(0, count("SELECT count(*) FROM {s}.dispute"));
+    }
+
+    @Test
+    void withDefaultSettingsATrackedClaimOnAnotherAccountsTrackingLessLinkGoesToADispute() throws Exception {
+        assertTrue(LinkTestSupport.env("postgresql://127.0.0.1/x").keySet().stream().noneMatch(k -> k.startsWith("LINK_VERIFY")), "default settings");
+        assertTrue(verifiers.isEmpty(), "no verifier raises any link");
+        String loose = link("Zezima", null, BOB);
+        assertEquals("implicit", service.session(loose, "Zezima", null).getString("verification"));
+
+        Paired claim = start("Zezima", "424242", "198.51.100.5");
+        assertEquals("disputed", approve(claim, ALICE));
+        DataObject handed = pollNow(claim);
+        assertTrue(handed.getBoolean("disputed"));
+        String claimant = handed.getString("token");
+        assertFalse(service.session(claimant, "Zezima", "424242").getBoolean("linked"), "held for review");
+        assertEquals("not_linked", assertThrows(LinkException.class, () -> service.alias(claimant, "RuneSync")).code());
+        assertEquals(0, count("SELECT count(*) FROM {s}.link WHERE status = 'superseded'"));
+        assertEquals(1, count("SELECT count(*) FROM {s}.dispute WHERE status = 'open'"));
+    }
+
+    @Test
+    void theTrackingLessIncumbentKeepsItsLinkThroughATrackedClaim() throws Exception {
+        String loose = link("Zezima", null, BOB);
+        String aliasBefore = service.alias(loose, "RuneSync").getString("alias");
+        Paired claim = start("Zezima", "424242", "198.51.100.5");
+        assertEquals("disputed", approve(claim, ALICE));
+        String claimant = pollNow(claim).getString("token");
+
+        DataObject incumbent = service.session(loose, "Zezima", null);
+        assertTrue(incumbent.getBoolean("linked"), "the incumbent stays linked");
+        assertTrue(incumbent.getBoolean("disputed"));
+        assertEquals(aliasBefore, service.alias(loose, "RuneSync").getString("alias"));
+
+        service.unlink(claimant);
+        DataObject after = service.session(loose, "Zezima", null);
+        assertTrue(after.getBoolean("linked"));
+        assertFalse(after.getBoolean("disputed"), "the withdrawn claim leaves the link as it was");
+        assertEquals(aliasBefore, service.alias(loose, "RuneSync").getString("alias"));
     }
 
     @Test
@@ -443,7 +483,7 @@ class LinkServiceTest {
     }
 
     @Test
-    void aTrackedClaimCantTakeOverAVerifiedTrackingLessLink() throws Exception {
+    void aTrackedClaimOnAVerifiedTrackingLessLinkIsRefused() throws Exception {
         raiseOn("zezima");
         String owner = link("Zezima", null, BOB);
         assertEquals("public_data_corroborated", service.session(owner, "Zezima", null).getString("verification"));
@@ -456,7 +496,7 @@ class LinkServiceTest {
     }
 
     @Test
-    void aRenameCantMoveOntoANameAnotherCharacterHolds() throws Exception {
+    void aRenameOntoAHeldNameIsRefused() throws Exception {
         String owner = link("Zezima", "111", BOB);
         String loose = link("Other", null, BOB);
         String mine = link("MyAlt", "222", ALICE);
@@ -467,6 +507,24 @@ class LinkServiceTest {
         assertTrue(service.session(loose, "Other", null).getBoolean("linked"));
         assertEquals(1, count("SELECT count(*) FROM {s}.game_character WHERE rsn_lookup = 'zezima'"));
         assertTrue(service.session(mine, "mYaLT", "222").getBoolean("linked"), "a change of case is still a plain rename");
+    }
+
+    @Test
+    void aRenameOntoANameWaitingInADisputeIsRefused() throws Exception {
+        link("Zezima", null, BOB);
+        Paired claim = start("Zezima", "111", "198.51.100.5");
+        assertEquals("disputed", approve(claim, ALICE));
+        String claimant = pollNow(claim).getString("token");
+        // Leave only the waiting claim on the name.
+        try (Connection c = database.connection(); PreparedStatement s = c.prepareStatement(
+                "UPDATE {s}.link SET status = 'unlinked', ended_at = now() WHERE status = 'active'".replace("{s}", LinkTestSupport.TEST_SCHEMA))) {
+            assertEquals(1, s.executeUpdate());
+        }
+        String mine = link("MyAlt", "222", CAROL);
+        assertEquals("name_unavailable", assertThrows(LinkException.class, () -> service.session(mine, "Zezima", "222")).code());
+        assertEquals("MyAlt", service.webLinks(CAROL).getArray("links").getObject(0).getString("rsn"));
+        assertFalse(service.session(claimant, "Zezima", "111").getBoolean("linked"));
+        assertEquals(1, count("SELECT count(*) FROM {s}.game_character WHERE rsn_lookup = 'zezima' AND tracking_lookup IS NOT NULL"));
     }
 
     @Test

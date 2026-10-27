@@ -196,6 +196,21 @@ final class LinkStore {
         return out;
     }
 
+    /** Every link on the name that is active or waiting in a dispute: anyone with a current claim to it. */
+    List<TokenAuth> currentHoldersOfName(Connection c, String rsnLookup) throws SQLException {
+        List<TokenAuth> out = new ArrayList<>();
+        try (PreparedStatement s = c.prepareStatement(sql("""
+                SELECT l.*, ch.id AS ch_id, ch.tracking_lookup, ch.rsn_display, ch.rsn_lookup, ch.last_seen_at, ch.created_at AS ch_created
+                FROM {s}.link l JOIN {s}.game_character ch ON ch.id = l.character_id
+                WHERE ch.rsn_lookup = ? AND l.status IN ('active', 'disputed') FOR UPDATE OF l"""))) {
+            s.setString(1, rsnLookup);
+            try (ResultSet rs = s.executeQuery()) {
+                while (rs.next()) out.add(new TokenAuth(null, link(rs), joinedCharacter(rs)));
+            }
+        }
+        return out;
+    }
+
     /** The character's current link that is active or waiting in a dispute, if any. */
     Optional<Link> currentLink(Connection c, UUID characterId, UUID discordUserId) throws SQLException {
         try (PreparedStatement s = c.prepareStatement(sql("SELECT * FROM {s}.link WHERE character_id = ? AND status IN ('active', 'disputed')"
