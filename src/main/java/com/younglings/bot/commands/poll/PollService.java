@@ -1,6 +1,7 @@
 package com.younglings.bot.commands.poll;
 
 import com.younglings.bot.poll.PollRepository;
+import com.younglings.bot.util.TtlCache;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.components.container.Container;
 import net.dv8tion.jda.api.entities.Guild;
@@ -9,10 +10,13 @@ import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -26,11 +30,20 @@ public class PollService {
     /** How many polls a regular member can have running at once — admins are unlimited. */
     public static final int MAX_ACTIVE_PER_MEMBER = 5;
 
+    /**
+     * How long a lookup that found no active poll is remembered. A stale button clicked over and over then costs one query per window,
+     * and a poll another process makes (the website's {@code api} process) is never hidden for longer than this.
+     */
+    static final Duration MISS_TTL = Duration.ofSeconds(10);
+
+    // Postgres is the source of truth; these maps are a cache of the active polls (warmed at start-up, filled on a miss by
+    // getSessionById, so a poll made by another process works without a restart).
     // ConcurrentHashMap: JDA/BotCommands can dispatch interaction callbacks (button clicks) from
     // a pooled executor rather than a single thread, so these maps can be read/written
     // concurrently from separate polls' interactions.
     private final Map<Long, PollSession> activePollsById = new ConcurrentHashMap<>();
     private final Map<Long, List<PollOption>> optionsByPollId = new ConcurrentHashMap<>();
+    private final TtlCache<Long, Boolean> recentMisses = new TtlCache<>(MISS_TTL);
     private final PollRepository pollRepository;
 
     public PollService(PollRepository pollRepository) {
@@ -83,16 +96,72 @@ public class PollService {
 
     // --- Lookup ---
 
+    /**
+     * The active poll with this id, or null. A cache miss reads the one row from the database (load-through), so a poll made by another
+     * process (the website) works here without a restart. A miss that finds nothing is remembered for {@link #MISS_TTL} only.
+     */
     public PollSession getSessionById(long pollId) {
-        return activePollsById.get(pollId);
+        PollSession cached = activePollsById.get(pollId);
+        return cached != null ? cached : loadThrough(pollId);
     }
 
+    private PollSession loadThrough(long pollId) {
+        if (recentMisses.get(pollId).isPresent()) return null;
+        PollSession stored;
+        try {
+            stored = pollRepository.getPollById(pollId);
+        } catch (RuntimeException e) {
+            log.warn("Could not look up poll {} after a cache miss", pollId, e);
+            return null; // a failed read is not remembered
+        }
+        if (stored == null || !"ACTIVE".equalsIgnoreCase(stored.status())) {
+            recentMisses.put(pollId, Boolean.TRUE);
+            return null;
+        }
+        PollSession raced = activePollsById.putIfAbsent(pollId, stored);
+        return raced != null ? raced : stored;
+    }
+
+    /**
+     * A poll's options in order. Cached only for an active poll that is already posted: a poll another process is still creating writes
+     * its options one by one before it posts the message, so a half-written list is never kept.
+     */
     public List<PollOption> getOptions(long pollId) {
-        return optionsByPollId.getOrDefault(pollId, pollRepository.getOptions(pollId));
+        List<PollOption> cached = optionsByPollId.get(pollId);
+        if (cached != null) return cached;
+        List<PollOption> stored = pollRepository.getOptions(pollId);
+        PollSession session = activePollsById.get(pollId);
+        if (session != null && session.messageId() != null && !stored.isEmpty()) optionsByPollId.putIfAbsent(pollId, stored);
+        return stored;
     }
 
-    /** Every active poll in the guild, newest first — what an admin sees in the {@code /poll} panel. */
+    /**
+     * Every active poll in the guild, newest first — what an admin sees in the {@code /poll} panel. Read from the database (one query for
+     * the server), so polls made or ended by another process are counted; the cache only fills in what it already knows.
+     */
     public List<PollSession> activePolls(long guildId) {
+        List<PollSession> stored;
+        try {
+            stored = pollRepository.getActivePolls(guildId);
+        } catch (RuntimeException e) {
+            log.warn("Could not list active polls for guild {}; using the cached ones", guildId, e);
+            return cachedActivePolls(guildId);
+        }
+        Set<Long> ids = new HashSet<>();
+        List<PollSession> polls = new ArrayList<>();
+        for (PollSession poll : stored) {
+            ids.add(poll.pollId());
+            PollSession raced = activePollsById.putIfAbsent(poll.pollId(), poll);
+            polls.add(raced != null ? raced : poll); // the cached copy may already carry the message id
+        }
+        // Ended by another process: drop them here too. One closed here is gone from the map already.
+        activePollsById.values().removeIf(poll -> poll.guildId() == guildId && !ids.contains(poll.pollId()));
+        optionsByPollId.keySet().retainAll(activePollsById.keySet());
+        polls.sort(Comparator.comparingLong(PollSession::pollId).reversed());
+        return polls;
+    }
+
+    private List<PollSession> cachedActivePolls(long guildId) {
         return activePollsById.values().stream()
                 .filter(poll -> poll.guildId() == guildId)
                 .sorted(Comparator.comparingLong(PollSession::pollId).reversed())
@@ -140,7 +209,7 @@ public class PollService {
     public enum VoteResult { ADDED, REMOVED, SWITCHED, POLL_CLOSED }
 
     public VoteResult toggleVote(long pollId, long optionId, long userId) {
-        PollSession session = activePollsById.get(pollId);
+        PollSession session = getSessionById(pollId);
         if (session == null || !"ACTIVE".equalsIgnoreCase(session.status())) return VoteResult.POLL_CLOSED;
 
         boolean alreadyVotedThis = pollRepository.hasVotedForOption(pollId, optionId, userId);
@@ -164,7 +233,7 @@ public class PollService {
     // --- Message updates ---
 
     public void updateMessage(Guild guild, long pollId) {
-        PollSession session = activePollsById.get(pollId);
+        PollSession session = getSessionById(pollId);
         if (session == null || session.messageId() == null) return;
 
         GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, session.channelId());
@@ -188,7 +257,7 @@ public class PollService {
     // --- Closing ---
 
     public void closePoll(Guild guild, long pollId) {
-        PollSession session = activePollsById.get(pollId);
+        PollSession session = getSessionById(pollId);
         if (session == null) return;
 
         pollRepository.closePoll(pollId);
@@ -217,7 +286,8 @@ public class PollService {
     // --- Results DM ---
 
     public String buildResultsSummary(long pollId) {
-        PollSession session = activePollsById.getOrDefault(pollId, pollRepository.getPollById(pollId));
+        PollSession session = activePollsById.get(pollId);
+        if (session == null) session = pollRepository.getPollById(pollId); // an ended poll is no longer cached
         if (session == null) return "Poll not found.";
 
         List<PollOption> options = getOptions(pollId);
