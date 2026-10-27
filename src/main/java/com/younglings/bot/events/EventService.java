@@ -78,6 +78,17 @@ public class EventService {
     // ---------- events ----------
 
     public long createEvent(long guildId, long actorId, EventInput in) {
+        // wholeSpan is skill of the week's own (T-541): never taken from the dashboard, a setup or a saved template
+        if (in.config() != null && in.config().hasKey("wholeSpan")) in = in.withConfig(DataObject.fromJson(in.config().toJson()).remove("wholeSpan"));
+        return create(guildId, actorId, in);
+    }
+
+    /** {@link #createEvent} for skill of the week (T-541), the one caller whose competition may count its whole span ({@code wholeSpan}). */
+    long createWholeSpanEvent(long guildId, long actorId, EventInput in) {
+        return create(guildId, actorId, in);
+    }
+
+    private long create(long guildId, long actorId, EventInput in) {
         EventTemplate template = templates.byKey(in.template()).orElseThrow(() -> new EventProblem(400, Text.of(guildId, "events.problem.that_kind_of_event_doesn_t")));
         DataObject config = in.config() == null ? DataObject.empty() : in.config();
         List<String> problems = new ArrayList<>(EventRules.eventProblems(in.name(), in.description(), in.maxParticipants(), in.startsAt(), in.endsAt()));

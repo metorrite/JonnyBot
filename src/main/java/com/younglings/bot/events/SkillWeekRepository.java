@@ -57,6 +57,7 @@ public class SkillWeekRepository {
                     event_id BIGINT NULL,
                     closed_at TIMESTAMPTZ NULL,
                     winners TEXT NULL,
+                    claimed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     PRIMARY KEY (guild_id, week_start)
                 );
                 """,
@@ -143,13 +144,27 @@ public class SkillWeekRepository {
 
     /** Gives a claimed week back (its competition couldn't be made), so a later pass tries again; the rota goes back one too. */
     public void release(long guildId, Instant start) {
+        release(guildId, start, null);
+    }
+
+    /**
+     * {@link #release}, only when the week still has no competition and was claimed before {@code claimedBefore}: the pass that claimed it died
+     * (a restart) before its competition was kept. True when it was given back.
+     */
+    public boolean releaseStale(long guildId, Instant start, Instant claimedBefore) {
+        return release(guildId, start, claimedBefore);
+    }
+
+    private boolean release(long guildId, Instant start, Instant claimedBefore) {
         try (Connection c = connectionSupplier.getConnection()) {
             c.setAutoCommit(false);
             try {
                 int removed;
-                try (PreparedStatement s = c.prepareStatement("DELETE FROM younglings.skill_week WHERE guild_id = ? AND week_start = ? AND event_id IS NULL")) {
+                String sql = "DELETE FROM younglings.skill_week WHERE guild_id = ? AND week_start = ? AND event_id IS NULL" + (claimedBefore == null ? "" : " AND claimed_at < ?");
+                try (PreparedStatement s = c.prepareStatement(sql)) {
                     s.setLong(1, guildId);
                     s.setTimestamp(2, Timestamp.from(start));
+                    if (claimedBefore != null) s.setTimestamp(3, Timestamp.from(claimedBefore));
                     removed = s.executeUpdate();
                 }
                 if (removed == 1) {
@@ -159,6 +174,7 @@ public class SkillWeekRepository {
                     }
                 }
                 c.commit();
+                return removed == 1;
             } catch (SQLException e) {
                 c.rollback();
                 throw e;

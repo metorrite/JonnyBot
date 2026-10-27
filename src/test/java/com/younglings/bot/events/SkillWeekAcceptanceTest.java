@@ -32,6 +32,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -121,7 +122,7 @@ class SkillWeekAcceptanceTest {
         tracker.withClock(Clock.fixed(Instant.parse("2026-10-31T19:00:00Z"), ZoneOffset.UTC)).feed(event);
         Instant closing = Instant.parse("2026-11-02T00:12:00Z");
         tracker.withClock(Clock.fixed(closing, ZoneOffset.UTC));
-        SkillWeekService service = new SkillWeekService(weeks, events, repository, tracker, hub, Mockito.mock(PlayerLinkService.class)).withClock(Clock.fixed(closing, ZoneOffset.UTC));
+        SkillWeekService service = new SkillWeekService(weeks, events, repository, tracker, hub, Mockito.mock(PlayerLinkService.class), Mockito.mock(com.younglings.bot.member.MemberProfileRepository.class)).withClock(Clock.fixed(closing, ZoneOffset.UTC));
         List<Winner> winners = service.close(new SkillWeekRepository.Week(GUILD, START, FLETCHING, 1L, null, null)).orElseThrow();
 
         Map<String, Long> truth = ledger(List.of("a1_alice", "a1_bob", "a1_carol", "a1_dave"), FLETCHING, START, NEXT_MONDAY);
@@ -153,7 +154,7 @@ class SkillWeekAcceptanceTest {
         Instant closing = Instant.parse("2026-11-02T00:12:00Z");
         tracker.withClock(Clock.fixed(closing, ZoneOffset.UTC));
         SkillWeekRepository.Week week = new SkillWeekRepository.Week(GUILD, START, FLETCHING, 1L, null, null);
-        SkillWeekService service = new SkillWeekService(weeks, events, repository, tracker, hub, Mockito.mock(PlayerLinkService.class)).withClock(Clock.fixed(closing, ZoneOffset.UTC));
+        SkillWeekService service = new SkillWeekService(weeks, events, repository, tracker, hub, Mockito.mock(PlayerLinkService.class), Mockito.mock(com.younglings.bot.member.MemberProfileRepository.class)).withClock(Clock.fixed(closing, ZoneOffset.UTC));
         assertTrue(service.close(week).isEmpty());
         verify(weeks, never()).close(anyLong(), any(), anyString());
         verify(events, never()).moveStage(GUILD, 1, Status.SCORING);
@@ -175,19 +176,44 @@ class SkillWeekAcceptanceTest {
         Instant late = Instant.parse("2026-11-03T00:00:00Z");
         PluginXpTracker tracker = new PluginXpTracker(repository, events, hub).withClock(Clock.fixed(late, ZoneOffset.UTC));
         assertFalse(tracker.pass(event).complete());
-        SkillWeekService service = new SkillWeekService(weeks, events, repository, tracker, hub, Mockito.mock(PlayerLinkService.class)).withClock(Clock.fixed(late, ZoneOffset.UTC));
+        SkillWeekService service = new SkillWeekService(weeks, events, repository, tracker, hub, Mockito.mock(PlayerLinkService.class), Mockito.mock(com.younglings.bot.member.MemberProfileRepository.class)).withClock(Clock.fixed(late, ZoneOffset.UTC));
         assertEquals(List.of(), service.close(new SkillWeekRepository.Week(GUILD, START, FLETCHING, 1L, null, null)).orElseThrow());
         verify(weeks).close(GUILD, START, "[]");
     }
 
     @Test
-    void aFailedAliasLookupMakesThePassIncomplete() {
+    void aHubThatCantLookUpLinksIsAskedOncePerPassAndExpiredAliasesStillCount() {
         fixture();
-        when(hub.aliasOf(BOB)).thenThrow(new RuneClansHubClient.Unreachable("down"));
+        PluginXpTracker tracker = new PluginXpTracker(repository, events, hub).withClock(Clock.fixed(Instant.parse("2026-11-01T12:00:00Z"), ZoneOffset.UTC));
+        assertTrue(tracker.pass(event).complete());
+        verify(hub, times(4)).aliasOf(anyLong());
+
+        // the kept aliases have expired and the hub can't look links up: one try, then the expired aliases, and the pass isn't complete
+        when(hub.aliasOf(anyLong())).thenThrow(new RuneClansHubClient.Unreachable("down"));
+        Instant closing = Instant.parse("2026-11-02T00:12:00Z");
+        assertFalse(tracker.withClock(Clock.fixed(closing, ZoneOffset.UTC)).pass(event).complete());
+        verify(hub, times(5)).aliasOf(anyLong());
+        Map<Long, Long> fed = new HashMap<>();
+        for (Progress p : progress) fed.merge(p.userId(), p.amount(), Long::sum);
+        assertEquals(Map.of(ALICE, 8_000L, BOB, 9_000L, CAROL, 7_000L, DAVE, 8_999L), fed, "everyone still counts");
+        assertEquals(java.util.Set.of(), tracker.notCounted(1).orElseThrow().userIds());
+
+        // a moment later it isn't asked again yet
+        assertFalse(tracker.withClock(Clock.fixed(closing.plusSeconds(30), ZoneOffset.UTC)).pass(event).complete());
+        verify(hub, times(5)).aliasOf(anyLong());
+    }
+
+    @Test
+    void withNoAliasKeptAHubThatIsDownIsAskedOnceAndNobodyIsCalledUnlinked() {
+        fixture();
+        when(hub.aliasOf(anyLong())).thenThrow(new RuneClansHubClient.Unreachable("down"));
         PluginXpTracker tracker = new PluginXpTracker(repository, events, hub).withClock(Clock.fixed(Instant.parse("2026-11-02T00:12:00Z"), ZoneOffset.UTC));
         PluginXpTracker.Pass pass = tracker.pass(event);
         assertFalse(pass.complete());
-        assertEquals(3, pass.updated(), "everyone else still counts");
+        assertEquals(0, pass.updated());
+        verify(hub, times(1)).aliasOf(anyLong());
+        verify(hub, never()).xpGains(anyLong(), any(), any(), any(), any());
+        assertEquals(java.util.Set.of(), tracker.notCounted(1).orElseThrow().userIds(), "the hub couldn't be asked: nobody is listed as having no RuneSync");
     }
 
     private static Participant player(long userId, Instant joined) {

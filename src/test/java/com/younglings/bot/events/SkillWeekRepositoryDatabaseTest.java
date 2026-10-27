@@ -97,4 +97,17 @@ class SkillWeekRepositoryDatabaseTest {
         assertEquals(0, repository.settings(GUILD).position());
         assertTrue(repository.claim(GUILD, MONDAY, 9));
     }
+
+    @Test
+    void onlyAnOldClaimWithoutACompetitionIsGivenBackAsStale() {
+        repository.save(GUILD, true, List.of(9, 15), ADMIN);
+        assertTrue(repository.claim(GUILD, MONDAY, 9));
+        assertFalse(repository.releaseStale(GUILD, MONDAY, Instant.now().minusSeconds(600)), "claimed just now");
+        assertTrue(repository.releaseStale(GUILD, MONDAY, Instant.now().plusSeconds(60)));
+        assertEquals(0, repository.settings(GUILD).position());
+
+        assertTrue(repository.claim(GUILD, MONDAY, 9));
+        repository.setEvent(GUILD, MONDAY, 42);
+        assertFalse(repository.releaseStale(GUILD, MONDAY, Instant.now().plusSeconds(60)), "a week with its competition is never given back");
+    }
 }

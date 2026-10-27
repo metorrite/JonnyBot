@@ -8,7 +8,7 @@ import java.io.IOException;
 
 /**
  * {@code GET sites/{slug}/data/skill-week?limit=}: the clan website's "Skill of the week" widget (T-541), only while the site is published: this
- * week's skill and standings by XP gained (linked RuneScape names only), and last week's winners ({@link SkillWeekService#view}). A server
+ * week's skill and standings by XP gained (linked RuneScape names only, members who hid themselves from the rankings as "A member"), and last week's winners ({@link SkillWeekService#view}). A server
  * that never switched it on answers {@code enabled: false} and nothing else to show.
  */
 @BService
@@ -36,7 +36,7 @@ public class DirectorySiteSkillWeekRoutes implements DirectoryRouteModule {
             request.sendError(429, "Too many requests");
             return true;
         }
-        request.send(200, weeks.view(profile.get().guildId(), limit(request.query("limit"))).remove("rota").remove("next").remove("available"));
+        request.send(200, weeks.publicView(profile.get().guildId(), limit(request.query("limit"))).remove("rota").remove("next").remove("available"));
         return true;
     }
 

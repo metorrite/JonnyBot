@@ -51,6 +51,8 @@ public class PluginXpTracker {
     private static final Duration PERIOD = Duration.ofMinutes(1);
     /** How long a Discord account's alias (or the lack of one) is kept before the hub is asked again. */
     static final Duration ALIAS_KEPT = Duration.ofMinutes(15);
+    /** After the hub couldn't be asked for an alias, how long no alias lookup is tried at all (one try per pass while it is down). */
+    static final Duration ALIAS_RETRY = Duration.ofMinutes(1);
     /** The hub takes at most this many players per gains call. */
     static final int MAX_PLAYERS_PER_CALL = 500;
 
@@ -67,6 +69,7 @@ public class PluginXpTracker {
     private final RuneClansHubClient hub;
     private final ScheduledExecutorService executor = BotScheduler.lane("plugin-xp-tracker");
     private final Map<Long, CachedAlias> aliases = new ConcurrentHashMap<>();
+    private volatile Instant aliasLookupsPausedUntil = Instant.MIN;
     private final Map<Long, NotCounted> notCounted = new ConcurrentHashMap<>();
     /** Auto competitions: the players this tracker counts (eventId → userIds), so {@link EventTracker} leaves them alone. */
     private final Map<Long, Set<Long>> runeSyncPlayers = new ConcurrentHashMap<>();
@@ -188,6 +191,8 @@ public class PluginXpTracker {
         Set<Long> unconfirmed = new LinkedHashSet<>();
         // players by alias, grouped by when they started counting: one hub call per group (nearly always one)
         Map<Instant, Map<String, Participant>> groups = new LinkedHashMap<>();
+        // players whose alias the hub couldn't be asked for and none was ever kept: what the last pass said about them stands
+        Set<Long> unknown = new LinkedHashSet<>();
         boolean complete = true;
         for (Participant p : repository.participants(event.id())) {
             if (p.waiting()) continue;
@@ -196,8 +201,14 @@ public class PluginXpTracker {
             try {
                 alias = alias(p.userId(), now);
             } catch (RuneClansHubClient.Unreachable e) {
+                // the hub is down: an expired alias still beats none, and the pass isn't complete either way
                 complete = false;
-                alias = Optional.empty();
+                CachedAlias kept = aliases.get(p.userId());
+                if (kept == null) {
+                    unknown.add(p.userId());
+                    continue;
+                }
+                alias = kept.alias();
             }
             if (alias.isEmpty()) {
                 missing.add(p.userId());
@@ -245,8 +256,16 @@ public class PluginXpTracker {
             owners.forEach((user, counter) -> {
                 if (counter == CompetitionTracking.Counter.RUNESYNC) mine.add(user);
             });
+            for (long user : unknown) if (runeSyncPlayers(event.id()).contains(user)) mine.add(user);
             runeSyncPlayers.put(event.id(), Set.copyOf(mine));
         } else {
+            NotCounted before = notCounted.get(event.id());
+            if (before != null) {
+                for (long user : unknown) {
+                    if (before.userIds().contains(user)) missing.add(user);
+                    if (before.unconfirmed().contains(user)) unconfirmed.add(user);
+                }
+            }
             notCounted.put(event.id(), new NotCounted(Set.copyOf(missing), Set.copyOf(unconfirmed), now));
         }
         return new Pass(updated, complete);
@@ -272,11 +291,22 @@ public class PluginXpTracker {
         return true;
     }
 
-    /** The player's alias for this bot, asked of the hub at most every {@link #ALIAS_KEPT}; a failed lookup isn't kept, and throws {@link RuneClansHubClient.Unreachable}. */
+    /**
+     * The player's alias for this bot, asked of the hub at most every {@link #ALIAS_KEPT}. A failed lookup throws {@link RuneClansHubClient.Unreachable}
+     * and keeps the expired alias, and for {@link #ALIAS_RETRY} after it no lookup is tried at all, so a hub that is down or busy is asked once
+     * per pass, not once per player.
+     */
     private Optional<String> alias(long userId, Instant now) {
         CachedAlias cached = aliases.get(userId);
         if (cached != null && cached.until().isAfter(now)) return cached.alias();
-        Optional<String> alias = hub.aliasOf(userId);
+        if (now.isBefore(aliasLookupsPausedUntil)) throw new RuneClansHubClient.Unreachable("The hub couldn't look up links a moment ago");
+        Optional<String> alias;
+        try {
+            alias = hub.aliasOf(userId);
+        } catch (RuneClansHubClient.Unreachable e) {
+            aliasLookupsPausedUntil = now.plus(ALIAS_RETRY);
+            throw e;
+        }
         aliases.put(userId, new CachedAlias(alias, now.plus(ALIAS_KEPT)));
         if (aliases.size() > 50_000) aliases.entrySet().removeIf(e -> !e.getValue().until().isAfter(now));
         return alias;
