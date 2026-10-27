@@ -100,6 +100,11 @@ public class SiteDiscordService {
         });
     }
 
+    /** Members who asked not to be named in this server's online lists (the home site's too); they are still counted. */
+    public Set<Long> hiddenFromOnline(long guildId) {
+        return settings.hiddenMembers(guildId);
+    }
+
     /**
      * The newest posts from the site's public channels, or from one of them ({@code channelId}), newest first. Null when that channel isn't
      * one the admin opted in (or no longer passes the rules). Posts carry the author's server display name and avatar

@@ -55,9 +55,12 @@ import java.util.function.ToLongFunction;
  * anyone, logged in or not. {@link InternalApiServer} has already checked the shared secret and found the
  * guild; these routes are GET-only and need no acting user, because none of this is private.
  * <p>
- * What it deliberately leaves out: Discord identities. A member's RuneScape name, rank, stats and adventure
- * log are what the clan page shows; whether that name is linked to a Discord account is reduced to a
- * "verified" flag, and the link itself (who it is, their Discord id) never leaves the bot.
+ * Discord identities: a member's RuneScape name, rank, stats and adventure log are what the clan pages show, and
+ * whether that name is linked to a Discord account is reduced to a "verified" flag there. The one exception is
+ * the "who's online" list ({@link #online}): for each online member it sends their Discord user id, display name,
+ * avatar, status, colour and top role, and, for a member whose linked RuneScape name is a current clan member and
+ * who hasn't asked not to be linked ({@code hide_discord_link}, or the server's member privacy default), that RuneScape name too. Members on the server's
+ * hidden-from-online list ({@code site_online_hidden}) are counted but not listed.
  */
 @BService
 public class SiteApi {
@@ -376,6 +379,8 @@ public class SiteApi {
         Set<String> activeRsns = new java.util.HashSet<>();
         stats.members(guildId).forEach(m -> activeRsns.add(m.rsn().toLowerCase()));
         Set<Long> hiddenLinks = profiles.hiddenDiscordUsers(guildId);
+        // Members who asked not to be named in the online list: counted, but not listed (as on a clan site).
+        Set<Long> hiddenNames = discord.hiddenFromOnline(guildId);
         Map<Long, String> rsnByUser = new HashMap<>();
         for (var link : links.getAllLinks(guildId)) {
             if (activeRsns.contains(link.rsn().toLowerCase()) && !hiddenLinks.contains(link.discordUserId())) rsnByUser.putIfAbsent(link.discordUserId(), link.rsn());
@@ -389,6 +394,8 @@ public class SiteApi {
             if (member.getUser().isBot()) continue;
             OnlineStatus status = member.getOnlineStatus();
             if (status == OnlineStatus.OFFLINE || status == OnlineStatus.UNKNOWN) continue;
+            total++;
+            if (hiddenNames.contains(member.getIdLong())) continue;
 
             Role hoisted = member.getRoles().stream().filter(Role::isHoisted).findFirst().orElse(null);
             long key = hoisted == null ? 0 : hoisted.getIdLong();
@@ -396,7 +403,6 @@ public class SiteApi {
                     ? new Group(0, "Online", -1, Integer.MIN_VALUE)
                     : new Group(hoisted.getIdLong(), hoisted.getName(), hoisted.getColors().getPrimaryRaw(), hoisted.getPosition()));
             byGroup.computeIfAbsent(key, k -> new ArrayList<>()).add(member);
-            total++;
         }
 
         DataArray groupArray = DataArray.empty();
