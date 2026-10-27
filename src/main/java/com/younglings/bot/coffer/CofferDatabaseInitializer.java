@@ -59,6 +59,10 @@ public class CofferDatabaseInitializer {
                     resolved_at TIMESTAMPTZ NULL
                 );
                 """,
+                """
+                CREATE INDEX IF NOT EXISTS coffer_transfer_guild
+                ON younglings.coffer_transfer (guild_id, created_at DESC);
+                """,
 
                 // Giveaway log — one row per /coffer giveaway call
                 """
@@ -71,6 +75,10 @@ public class CofferDatabaseInitializer {
                     description TEXT NULL,
                     given_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 );
+                """,
+                """
+                CREATE INDEX IF NOT EXISTS coffer_giveaway_guild
+                ON younglings.coffer_giveaway (guild_id, given_at DESC);
                 """
         ));
     }
