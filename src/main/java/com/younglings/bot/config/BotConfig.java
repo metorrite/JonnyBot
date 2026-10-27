@@ -562,6 +562,15 @@ public class BotConfig {
     }
 
     /**
+     * Whether bingo and scavenger XP tiles ("Gain 1M Fletching XP", T-543) are counted from the RuneClans hub's XP ledger. Off by default; needs the
+     * hub client ({@code RUNECLANS_HUB_ENABLED}) too. Off, such tiles take proof or an organiser like any other tile.
+     */
+    public boolean getEventXpTilesEnabled() {
+        String raw = envOrDotenv("EVENT_XP_TILES_ENABLED");
+        return raw != null && raw.trim().equalsIgnoreCase("true");
+    }
+
+    /**
      * Whether Premium exists for clan websites (T-422). Off by default ("everything is free for now"): every server gets the website's
      * Premium features and limits until {@code PREMIUM_ENABLED=1} (or true). Keep it equal to the website's switch of the same name.
      */
