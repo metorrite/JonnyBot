@@ -102,7 +102,7 @@ public class OverviewAdminApi {
         String where = dev == null ? "only written to the log" : "sent to one test channel without pings";
         return DataObject.empty().put("id", "dev-mode").put("severity", "warning").put("createdAt", java.time.Instant.now().toString())
                 .put("body", "Dev mode: this bot is not the live one, so its automatic alerts (clan sync, rename alerts, reminders, feeds and other scheduled posts) are " + where
-                        + " and nobody is pinged. Background jobs that change the server by themselves (auto-clean, delayed autoroles, timed roles, event roles and wrap-up) are paused;"
+                        + " and nobody is pinged. Background jobs that change the server by themselves (auto-clean, delayed autoroles, timed roles, event roles and wrap-up, and the daily clan sync's Member/Guest roles) are paused;"
                         + " temporary voice channels still work. Things you run yourself still work normally.");
     }
 

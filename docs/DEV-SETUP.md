@@ -76,7 +76,7 @@ Every environment variable the bot reads. Each one can also go in the git-ignore
 |---|---|---|
 | `DISCORD_TOKEN` | The bot's Discord token (the *dev* bot's, locally). | Required. |
 | `DATABASE_URL` | The bot's Postgres (`postgresql://USER:PASSWORD@host:port/db`). | Required. |
-| `LIVE_ENV` | `TRUE` on the live bot only. With `FALSE` the bot is "not live": automatic posts are diverted (see `DEV_ALERT_CHANNEL_ID`), background sweeps that change the server by themselves (auto-clean, delayed autoroles, timed roles, event roles, event wrap-up) are skipped (temp voice channels still work; `/dev toggleposting` turns them all on for testing), and dev-only setup can run. | Required. |
+| `LIVE_ENV` | `TRUE` on the live bot only. With `FALSE` the bot is "not live": automatic posts are diverted (see `DEV_ALERT_CHANNEL_ID`), background sweeps that change the server by themselves (auto-clean, delayed autoroles, timed roles, event roles, event wrap-up, and the Member/Guest roles of the daily clan sync) are skipped (temp voice channels still work; `/dev toggleposting` turns them all on for testing), and dev-only setup can run. | Required. |
 | `GUILD_ID` | The home server. Outside production, commands register there as guild commands, and `@Test` commands only ever go there. Locally it is the **real** clan server (see above). | Commands register globally; `@Test` commands nowhere. The internal API stays off. |
 | `OWNER_IDS` | Comma-separated Discord ids of the bot's owners (Super admin, owner-only commands). | Nobody is an owner. |
 | `ADMIN_ROLE_ID` | The env-default Admin role for the home server: it and every role above it may use admin commands. Servers set their own on the dashboard. | Fails closed: nobody passes the env-default admin check. |
