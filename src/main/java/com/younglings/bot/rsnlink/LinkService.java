@@ -57,12 +57,14 @@ public final class LinkService {
     private final SecureRandom random;
     private final LinkDm dmFlow;
 
-    private final WindowLimiter startPerIp = new WindowLimiter(LinkLimits.START_PER_IP);
-    private final WindowLimiter startPerTracking = new WindowLimiter(LinkLimits.START_PER_TRACKING);
-    private final WindowLimiter startPerRsn = new WindowLimiter(LinkLimits.START_PER_RSN);
-    private final WindowLimiter codePerIpMinute = new WindowLimiter(LinkLimits.WEB_CODE_PER_IP_MINUTE);
-    private final WindowLimiter codePerIpHour = new WindowLimiter(LinkLimits.WEB_CODE_PER_IP_HOUR);
-    private final WindowLimiter wrongCodesPerDiscord = new WindowLimiter(LinkLimits.WRONG_CODES_PER_DISCORD);
+    // Security limits, shared by every replica through the link database (SCALING-STATE.md M7).
+    private final SharedWindowLimiter startPerIp;
+    private final SharedWindowLimiter startPerTracking;
+    private final SharedWindowLimiter startPerRsn;
+    private final SharedWindowLimiter codePerIpMinute;
+    private final SharedWindowLimiter codePerIpHour;
+    private final SharedWindowLimiter wrongCodesPerDiscord;
+    // Anti-flood limits on routes that already need a valid token or sign-in: per process is fine.
     private final WindowLimiter tokenRoutes = new WindowLimiter(LinkLimits.TOKEN_ROUTES_PER_TOKEN);
     private final WindowLimiter aliasRoute = new WindowLimiter(LinkLimits.ALIAS_PER_TOKEN);
     private final WindowLimiter webAccount = new WindowLimiter(LinkLimits.WEB_ACCOUNT_PER_DISCORD);
@@ -77,6 +79,13 @@ public final class LinkService {
         this.settings = settings;
         this.database = database;
         this.store = new LinkStore(settings.schema());
+        String schema = settings.schema();
+        this.startPerIp = new SharedWindowLimiter(schema, "start_ip", LinkLimits.START_PER_IP);
+        this.startPerTracking = new SharedWindowLimiter(schema, "start_tracking", LinkLimits.START_PER_TRACKING);
+        this.startPerRsn = new SharedWindowLimiter(schema, "start_rsn", LinkLimits.START_PER_RSN);
+        this.codePerIpMinute = new SharedWindowLimiter(schema, "code_ip_minute", LinkLimits.WEB_CODE_PER_IP_MINUTE);
+        this.codePerIpHour = new SharedWindowLimiter(schema, "code_ip_hour", LinkLimits.WEB_CODE_PER_IP_HOUR);
+        this.wrongCodesPerDiscord = new SharedWindowLimiter(schema, "wrong_codes_discord", LinkLimits.WRONG_CODES_PER_DISCORD);
         this.crypto = new LinkCrypto(settings, random);
         this.signer = new AliasSigner(settings.signingSeed(), settings.publicBaseUrl());
         this.dm = dm;
@@ -115,7 +124,8 @@ public final class LinkService {
             refuseIfBlocked(c, now, SUBJECT_RSN, crypto.lookup(SUBJECT_RSN, rsnKey));
             limit(c, startPerIp, "ip:" + hex(ipLookup), now, SUBJECT_IP, ipLookup);
             if (trackingLookup != null) limit(c, startPerTracking, "tr:" + hex(trackingLookup), now, SUBJECT_TRACKING, trackingLookup);
-            limit(c, startPerRsn, "rsn:" + rsnKey, now, SUBJECT_RSN, crypto.lookup(SUBJECT_RSN, rsnKey));
+            byte[] rsnLookup = crypto.lookup(SUBJECT_RSN, rsnKey);
+            limit(c, startPerRsn, "rsn:" + hex(rsnLookup), now, SUBJECT_RSN, rsnLookup);
 
             String deviceSecret = LinkCodes.newDeviceSecret(random);
             UUID id = UUID.randomUUID();
@@ -337,7 +347,7 @@ public final class LinkService {
             refuseIfBlocked(c, now, SUBJECT_IP, ipLookup);
             if (discordLookup != null) {
                 refuseIfBlocked(c, now, SUBJECT_DISCORD, discordLookup);
-                if (!wrongCodesPerDiscord.wouldAllow("d:" + hex(discordLookup), now.toEpochMilli())) throw LinkException.slowDown(30 * 60);
+                if (!wrongCodesPerDiscord.wouldAllow(c, "d:" + hex(discordLookup), now.toEpochMilli())) throw LinkException.slowDown(30 * 60);
             }
             limit(c, codePerIpMinute, "ip:" + hex(ipLookup), now, SUBJECT_IP, ipLookup);
             limit(c, codePerIpHour, "ip:" + hex(ipLookup), now, SUBJECT_IP, ipLookup);
@@ -351,8 +361,8 @@ public final class LinkService {
             }
             if (p == null || (p.browserSessionHash() != null && !MessageDigest.isEqual(p.browserSessionHash(), sessionHash))) {
                 store.abuseEvent(c, "wrong_code", SUBJECT_IP, ipLookup, null, now);
-                if (discordLookup != null && wrongCodesPerDiscord.tryAcquire("d:" + hex(discordLookup), now.toEpochMilli()) == 0
-                        && !wrongCodesPerDiscord.wouldAllow("d:" + hex(discordLookup), now.toEpochMilli())) {
+                if (discordLookup != null && wrongCodesPerDiscord.tryAcquire(c, "d:" + hex(discordLookup), now.toEpochMilli()) == 0
+                        && !wrongCodesPerDiscord.wouldAllow(c, "d:" + hex(discordLookup), now.toEpochMilli())) {
                     lockout(c, SUBJECT_DISCORD, discordLookup, "wrong_codes", now);
                 }
                 if (p != null) {
@@ -482,8 +492,8 @@ public final class LinkService {
     public int[] sweep() {
         Instant now = clock.instant();
         int[] counts = tx(c -> store.sweep(c, now));
-        log.info("Link retention sweep: expired {} pairings, deleted {} pairings, {} links, revoked {} unused tokens, deleted {} events, {} blocks, {} characters, {} DM records",
-                counts[0], counts[1], counts[2], counts[3], counts[4], counts[5], counts[6], counts[7]);
+        log.info("Link retention sweep: expired {} pairings, deleted {} pairings, {} links, revoked {} unused tokens, deleted {} events, {} blocks, {} characters, {} DM records, {} rate windows",
+                counts[0], counts[1], counts[2], counts[3], counts[4], counts[5], counts[6], counts[7], counts[8]);
         return counts;
     }
 
@@ -783,8 +793,8 @@ public final class LinkService {
     }
 
     /** Counts one action; when the window is full, records a lockout (three in a day block the subject) and refuses. */
-    private void limit(Connection c, WindowLimiter limiter, String key, Instant now, String kind, byte[] lookup) throws SQLException {
-        int wait = limiter.tryAcquire(key, now.toEpochMilli());
+    private void limit(Connection c, SharedWindowLimiter limiter, String key, Instant now, String kind, byte[] lookup) throws SQLException {
+        int wait = limiter.tryAcquire(c, key, now.toEpochMilli());
         if (wait == 0) return;
         store.abuseEvent(c, "rate_limited", kind, lookup, null, now);
         if (store.countEvents(c, "rate_limited", kind, lookup, now.minusSeconds(wait + 1L)) == 1) lockout(c, kind, lookup, "rate_limited", now);

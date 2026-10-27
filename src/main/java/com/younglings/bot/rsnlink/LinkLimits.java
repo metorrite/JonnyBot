@@ -3,8 +3,9 @@ package com.younglings.bot.rsnlink;
 import java.time.Duration;
 
 /**
- * Every number from LINK-SYSTEM.md sections 7 and 8 in one place, so they can be tuned without hunting. In-memory limits reset on a
- * restart, which is fine for one instance; anything that must survive one (lockouts, blocks, DM caps) is counted in the database.
+ * Every number from LINK-SYSTEM.md sections 7 and 8 in one place, so they can be tuned without hunting. The code, start and DM limits
+ * are counted in the database ({@link SharedWindowLimiter}) so every replica shares them; the token, alias and web-account route limits
+ * are in memory per process ({@link WindowLimiter}). Lockouts, blocks and DM caps are counted in the database too.
  */
 public final class LinkLimits {
     private LinkLimits() {}

@@ -209,7 +209,7 @@ The service refuses to start if a key is missing or shorter than 32 bytes. Local
 
 ## 8. Rate limits, lockouts and blocks
 
-Two layers: the website applies coarse per-IP limits before forwarding (as `pluginProxy.ts` does), the bot applies the real ones below. The bot runs as one instance today, so in-memory token buckets are fine; counters that must survive a restart (lockouts, blocks, DM caps) are in the database. All numbers are constants in one class so they can be tuned.
+Two layers: the website applies coarse per-IP limits before forwarding (as `pluginProxy.ts` does), the bot applies the real ones below. The code, start and DM limits (wrong codes per Discord account, codes per IP, starts per IP / tracking id / RSN, DMs per IP / tracking id) are counted in the link database's `rate_window` table, so every replica shares one count (SCALING-STATE.md M7); the token, alias and web-account route limits stay in memory per process. Counters that must survive a restart (lockouts, blocks, DM caps) are in the database. All numbers are constants in one class so they can be tuned.
 
 | Action | Limit | On breach |
 |---|---|---|
