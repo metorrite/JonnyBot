@@ -1,5 +1,6 @@
 package com.younglings.bot.rolekeep;
 
+import com.younglings.bot.alerts.AutoPostRouter;
 import com.younglings.bot.configure.GuildSettings;
 import com.younglings.bot.configure.GuildSettingsService;
 import com.younglings.bot.internal.MemberApi;
@@ -168,6 +169,7 @@ public class RoleKeepService {
     // ---------- the clock ----------
 
     void expire(JDA jda) {
+        if (AutoPostRouter.skipSweep("timed role")) return; // takes roles away in the real server: only the live bot does that (T-187)
         try {
             for (Temp temp : repository.expired(EXPIRY_BATCH)) {
                 Guild guild = jda.getGuildById(temp.guildId());

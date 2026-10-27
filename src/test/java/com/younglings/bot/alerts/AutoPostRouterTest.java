@@ -112,5 +112,20 @@ class AutoPostRouterTest {
         assertTrue(notice.getString("body").contains("only written to the log"));
         AutoPostRouter.install(() -> true, DEV);
         assertTrue(com.younglings.bot.internal.OverviewAdminApi.devModeNotice().getString("body").contains("one test channel without pings"));
+        assertTrue(com.younglings.bot.internal.OverviewAdminApi.devModeNotice().getString("body").contains("auto-clean, delayed autoroles")); // T-187
+    }
+
+    @Test
+    void sweepsThatChangeTheRealServerRunOnlyOnTheLiveBot() {
+        assertFalse(AutoPostRouter.skipSweep("auto-clean")); // no router built (a unit test): everything runs
+        AtomicBoolean live = new AtomicBoolean(false);
+        AutoPostRouter.install(() -> !live.get(), null);
+
+        assertTrue(AutoPostRouter.skipSweep("auto-clean"));
+        assertTrue(AutoPostRouter.skipSweep("auto-clean")); // logged once, still skipped
+        live.set(true); // /dev toggleposting
+        assertFalse(AutoPostRouter.skipSweep("auto-clean"));
+        live.set(false);
+        assertTrue(AutoPostRouter.skipSweep("auto-clean"));
     }
 }

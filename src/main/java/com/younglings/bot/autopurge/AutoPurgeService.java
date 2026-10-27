@@ -1,5 +1,6 @@
 package com.younglings.bot.autopurge;
 
+import com.younglings.bot.alerts.AutoPostRouter;
 import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
@@ -52,6 +53,7 @@ public class AutoPurgeService {
     }
 
     void sweep(JDA jda) {
+        if (AutoPostRouter.skipSweep("auto-clean")) return; // deletes messages in the real server: only the live bot does that (T-187)
         try {
             for (AutoPurgeRule rule : repository.all()) {
                 Guild guild = jda.getGuildById(rule.guildId());

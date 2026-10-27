@@ -80,7 +80,7 @@ public class ClanSyncScheduler {
         List<Long> botlessIds = botlessWithoutBot(jda);
         for (var group : groupByClan(jda.getGuilds(), botlessIds, clanSyncService::getClanName).values()) {
             try {
-                var results = clanSyncService.syncAndPollGroup(group.guilds(), group.botlessGuildIds());
+                var results = clanSyncService.syncAndPollGroup(group.guilds(), group.botlessGuildIds(), true);
                 results.forEach((guildId, result) -> log.info("Scheduled clan sync for guild {}: {} in roster ({} new, {} departed), {}/{} updated successfully.",
                         guildId, result.rosterSize(), result.newMembers(), result.departedMembers(), result.polled(), result.rosterSize()));
             } catch (Exception e) {
