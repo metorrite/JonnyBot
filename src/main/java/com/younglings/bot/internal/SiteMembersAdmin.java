@@ -28,6 +28,7 @@ import java.util.function.Supplier;
  *   <li>{@code GET clan-site/roles/people?q=&role=&page=} (T-396): who has which site role, by display name, a page at a time. No Discord ids
  *   where the bot is in the server; a bot-less site can't see its members, so it lists only the people it names by user id (the owner who
  *   claimed it, site admins and editors), which its admins already see on the Roles page.</li>
+ *   <li>{@code clan-site/cockpit...} (T-593): the Clan health page ({@link SiteCockpitAdmin})</li>
  * </ul>
  */
 @BService
@@ -41,13 +42,22 @@ public class SiteMembersAdmin {
     private final MemberProfileRepository profiles;
     private final SiteRoleGuard siteRoles;
     private final SiteCache cache;
+    private final SiteCockpitAdmin cockpit;
     /** Searches per person: a burst of 5 (typing), then 2 a second. Reads aren't otherwise limited, and a search walks the member list. */
     private final RateLimiter searches = new RateLimiter(5, 500);
 
-    public SiteMembersAdmin(MemberProfileRepository profiles, SiteRoleGuard siteRoles, SiteCache cache) {
+    public SiteMembersAdmin(MemberProfileRepository profiles, SiteRoleGuard siteRoles, SiteCache cache, SiteCockpitAdmin cockpit) {
         this.profiles = profiles;
         this.siteRoles = siteRoles;
         this.cache = cache;
+        this.cockpit = cockpit;
+    }
+
+    // ---------- the Clan health page (T-593) ----------
+
+    /** {@code clan-site/cockpit...}; null for a path it doesn't serve. */
+    DataObject cockpit(SiteCaller c, String method, String[] parts, Supplier<DataObject> body) {
+        return cockpit.route(c, method, parts, body);
     }
 
     // ---------- member privacy defaults (T-395) ----------
@@ -69,6 +79,7 @@ public class SiteMembersAdmin {
     /** Drops the server's defaults with its deleted website. */
     void forget(long guildId) {
         profiles.deletePrivacyDefaults(guildId);
+        cockpit.forget(guildId);
         cache.clear();
     }
 

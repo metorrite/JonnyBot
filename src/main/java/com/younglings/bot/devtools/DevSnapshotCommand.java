@@ -1,5 +1,6 @@
 package com.younglings.bot.devtools;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.discord.Containers;
 import com.younglings.bot.notice.BotOwners;
 import io.github.freya022.botcommands.api.commands.annotations.Command;
@@ -40,7 +41,7 @@ public class DevSnapshotCommand {
         Guild target = event.getGuild();
         if (guild != null && !guild.isBlank()) {
             try {
-                target = event.getJDA().getGuildById(guild.strip());
+                target = Shards.guild(event.getJDA(), guild.strip());
             } catch (NumberFormatException e) {
                 target = null;
             }

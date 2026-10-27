@@ -1,5 +1,7 @@
 package com.younglings.bot.runescape;
 
+import com.younglings.bot.alerts.AutoPostRouter;
+import com.younglings.bot.alerts.LiveSwitch;
 import com.younglings.bot.configure.GuildSettings;
 import com.younglings.bot.configure.GuildSettingsService;
 import com.younglings.bot.runescape.polling.PollCoordinator;
@@ -7,6 +9,7 @@ import com.younglings.bot.runescape.polling.PollRequest;
 import com.younglings.bot.tracking.TrackingEventRouter;
 import com.younglings.bot.tracking.TrackingIconCatalog;
 import net.dv8tion.jda.api.entities.Guild;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -35,6 +38,8 @@ class ClanSyncGroupTest {
     private GuildSettingsService settings;
     private Guild one;
     private Guild two;
+    private VerificationRoleSyncService roleSync;
+    private PlayerLinkService links;
 
     @BeforeEach
     void setUp() {
@@ -53,7 +58,40 @@ class ClanSyncGroupTest {
 
         service = new ClanSyncService(apiClient, clanMembers, coordinator, mock(RsnRenameService.class), settings,
                 mock(TrackingEventRouter.class), mock(WeeklyDigestRepository.class), mock(TrackingIconCatalog.class),
-                mock(VerificationRoleSyncService.class), mock(PlayerLinkService.class));
+                roleSync = mock(VerificationRoleSyncService.class), links = mock(PlayerLinkService.class));
+    }
+
+    @AfterEach
+    void forgetTheLiveSwitch() {
+        AutoPostRouter.reset();
+    }
+
+    private void linkNewMember() {
+        when(links.getLinkForRsn(1L, "New")).thenReturn(new PlayerLink(1L, 1L, 77L, "New", null, null, null));
+    }
+
+    @Test
+    void theDailyRunOnABotThatIsNotLiveLeavesMemberRolesAlone() {
+        // T-187: the daily background sync on the dev bot would give and take Member/Guest roles in the real server
+        linkNewMember();
+        LiveSwitch.set(false);
+
+        var results = service.syncAndPollGroup(List.of(one), List.of(), true);
+
+        assertEquals(1, results.get(1L).newMembers(), "the roster is still synced");
+        verify(roleSync, never()).syncRoles(any(), org.mockito.ArgumentMatchers.anyLong(), anyString());
+    }
+
+    @Test
+    void theDailyRunOnTheLiveBotAndAnAdminsSyncNowStillApplyRoles() {
+        linkNewMember();
+        LiveSwitch.set(true);
+        service.syncAndPollGroup(List.of(one), List.of(), true);
+        verify(roleSync, times(1)).syncRoles(one, 77L, "New");
+
+        LiveSwitch.set(false);
+        service.syncAndPoll(one); // an admin's "sync now" is something they ran on purpose
+        verify(roleSync, times(2)).syncRoles(one, 77L, "New");
     }
 
     private Guild guild(long id, String clan) {

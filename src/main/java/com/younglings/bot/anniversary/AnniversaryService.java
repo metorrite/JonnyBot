@@ -1,5 +1,6 @@
 package com.younglings.bot.anniversary;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.alerts.AutoPostRouter;
 import com.younglings.bot.anniversary.AnniversaryRepository.Settings;
 import com.younglings.bot.anniversary.AnniversaryRules.Anniversary;
@@ -115,7 +116,7 @@ public class AnniversaryService {
                 if (!s.enabled() || s.channelId() == null || !AnniversaryRules.due(now, s.weekday(), s.hour(), s.lastPostedOn())) continue;
                 // marked first: a failed send is not retried every 15 minutes all day
                 repository.markPosted(guildId, now.toLocalDate());
-                Guild guild = jda.getGuildById(guildId);
+                Guild guild = Shards.guild(jda, guildId);
                 if (guild == null) continue;
                 List<Anniversary> items = week(guildId, now.toLocalDate(), s.minYears());
                 if (items.isEmpty()) continue;

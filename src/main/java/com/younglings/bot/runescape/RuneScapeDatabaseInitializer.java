@@ -225,6 +225,32 @@ public class RuneScapeDatabaseInitializer {
                     ADD COLUMN IF NOT EXISTS clan_joined_at DATE NULL;
                 """,
 
+                // T-593 (the site admin's Clan health page): when the Clan Hiscores' XP total last changed between two roster syncs
+                // (null: no change seen yet), and when the bot started comparing it (the first sync after this column existed, or the
+                // member's first sync). "No XP for N days" is read from these, never from RuneMetrics, so private profiles don't matter.
+                """
+                ALTER TABLE younglings.clan_member
+                    ADD COLUMN IF NOT EXISTS xp_changed_at TIMESTAMPTZ NULL;
+                """,
+
+                """
+                ALTER TABLE younglings.clan_member
+                    ADD COLUMN IF NOT EXISTS xp_watched_since TIMESTAMPTZ NULL;
+                """,
+
+                // T-594 (the rank-up advisor): when the roster sync first saw the member's current clan rank, and their clan Hiscores XP
+                // total at that sync, so "XP gained at this rank" is the total now minus this. Null until the first sync after the column
+                // existed (the bot then starts counting from that sync); set again whenever the rank changes.
+                """
+                ALTER TABLE younglings.clan_member
+                    ADD COLUMN IF NOT EXISTS rank_since TIMESTAMPTZ NULL;
+                """,
+
+                """
+                ALTER TABLE younglings.clan_member
+                    ADD COLUMN IF NOT EXISTS rank_xp BIGINT NULL;
+                """,
+
                 // A name that vanished from the clan roster the same sync cycle a new name appeared,
                 // where XP/skill/activity evidence suggests they're the same account renamed rather
                 // than one member leaving and another joining — see RsnRenameService for the

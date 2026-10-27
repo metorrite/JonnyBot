@@ -1,5 +1,6 @@
 package com.younglings.bot.runeclans;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.plugin.PluginEventSink;
 import com.younglings.bot.plugin.PluginEventType;
 import com.younglings.bot.plugin.PluginPayload;
@@ -64,7 +65,7 @@ public class RuneClansFeedPoller {
         jda = event.getJDA();
         if (!hub.enabled()) return;
         executor.execute(() -> {
-            List<Guild> guilds = event.getJDA().getGuilds();
+            List<Guild> guilds = Shards.guilds(event.getJDA());
             int registered = 0;
             for (Guild g : guilds) if (hub.putGuild(g.getIdLong(), g.getName())) registered++;
             log.info("RuneClans hub: registered {} of {} servers", registered, guilds.size());
@@ -93,7 +94,7 @@ public class RuneClansFeedPoller {
     private void addToGuilds(Map.Entry<String, Long> aliasAndDiscordId) {
         JDA current = jda;
         if (current == null) return;
-        for (Guild g : current.getGuilds()) {
+        for (Guild g : Shards.guilds(current)) {
             if (g.getMemberById(aliasAndDiscordId.getValue()) != null) hub.putGuildMember(g.getIdLong(), aliasAndDiscordId.getKey());
         }
     }

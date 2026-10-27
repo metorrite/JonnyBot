@@ -1,5 +1,6 @@
 package com.younglings.bot.servertag;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.BotListener;
 import com.younglings.bot.moderation.ModAction;
 import com.younglings.bot.moderation.ModCase;
@@ -55,7 +56,7 @@ public class ServerTagListener extends ListenerAdapter implements BotListener {
     public void onUserUpdatePrimaryGuild(UserUpdatePrimaryGuildEvent event) {
         try {
             User user = event.getUser();
-            for (Guild guild : user.getMutualGuilds()) {
+            for (Guild guild : Shards.mutualGuilds(user)) {
                 Member member = guild.getMember(user);
                 if (member != null) check(guild, member);
             }

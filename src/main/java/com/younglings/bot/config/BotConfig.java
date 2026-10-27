@@ -440,6 +440,27 @@ public class BotConfig {
     }
 
     /**
+     * How many gateway shards the bot logs in with ({@code SHARD_COUNT}, T-668). Defaults to 1, which behaves exactly like the single
+     * connection the bot always had. Discord requires sharding from 2,500 servers; see docs/DEV-SETUP.md 3c.
+     */
+    public int getShardCount() {
+        return parseShardCount(envOrDotenv("SHARD_COUNT"));
+    }
+
+    /** {@code SHARD_COUNT}'s value as a shard total: unset, not a number or below 1 is 1. */
+    static int parseShardCount(String raw) {
+        if (raw == null || raw.isBlank()) return 1;
+        try {
+            int count = Integer.parseInt(raw.trim());
+            if (count >= 1) return count;
+        } catch (NumberFormatException ignored) {
+            // falls through to the warning
+        }
+        org.slf4j.LoggerFactory.getLogger(BotConfig.class).warn("SHARD_COUNT must be a whole number of 1 or more; using 1");
+        return 1;
+    }
+
+    /**
      * Whether {@code RosterPollScheduler} and {@code ClanSyncScheduler} poll automatically at all.
      * Defaults to {@code true} now that the storage format has settled — every guild's clan roster is
      * spread evenly across a 3-hour window, linked-but-not-a-member accounts across an 8-hour window
@@ -602,6 +623,68 @@ public class BotConfig {
     public boolean getGuildDataRetentionDryRun() {
         String raw = envOrDotenv("GUILD_DATA_RETENTION_DRY_RUN");
         return raw == null || !raw.trim().equalsIgnoreCase("false");
+    }
+
+    // --- Metrics, request log and ops alerts (T-674, docs/DEV-SETUP.md section 3c). All off by default. ---
+
+    /** {@code METRICS_ENABLED=on}: the internal API serves {@code /metrics} (with {@link #getMetricsToken()}, private network only). */
+    public boolean isMetricsEnabled() {
+        return com.younglings.bot.ops.MetricsAccess.on(envOrDotenv("METRICS_ENABLED"));
+    }
+
+    /** {@code METRICS_TOKEN}: the bearer token for {@code /metrics}, or null when unset or shorter than 24 characters (metrics then stay off). */
+    public String getMetricsToken() {
+        return com.younglings.bot.ops.MetricsAccess.token(envOrDotenv("METRICS_TOKEN"));
+    }
+
+    /** Whether {@code METRICS_TOKEN} is set at all (to explain a too-short one in the log). */
+    public boolean hasMetricsTokenSetting() {
+        return envOrDotenv("METRICS_TOKEN") != null;
+    }
+
+    /** {@code REQUEST_LOG=on}: one log line per internal API request, with its {@code X-Request-Id}. */
+    public boolean isRequestLogEnabled() {
+        return com.younglings.bot.ops.MetricsAccess.on(envOrDotenv("REQUEST_LOG"));
+    }
+
+    /** {@code OPS_ALERTS=on}: the ops alert rules run every minute and post to {@link #getOpsAlertChannelId()}. */
+    public boolean isOpsAlertsEnabled() {
+        return com.younglings.bot.ops.MetricsAccess.on(envOrDotenv("OPS_ALERTS"));
+    }
+
+    /** {@code OPS_WEEKLY=on}: the weekly numbers post, Mondays 09:00 UTC, in {@link #getOpsAlertChannelId()}. */
+    public boolean isOpsWeeklyEnabled() {
+        return com.younglings.bot.ops.MetricsAccess.on(envOrDotenv("OPS_WEEKLY"));
+    }
+
+    /** {@code OPS_ALERT_CHANNEL_ID}: the ops channel in the owner's server, or null. */
+    public Long getOpsAlertChannelId() {
+        String raw = envOrDotenv("OPS_ALERT_CHANNEL_ID");
+        if (raw == null || !raw.strip().matches("\\d{15,20}")) return null;
+        return Long.parseLong(raw.strip());
+    }
+
+    /** {@code OPS_HEALTH_URLS}: comma-separated health addresses the ops alerts check every minute (http or https), possibly empty. */
+    public java.util.List<String> getOpsHealthUrls() {
+        String raw = envOrDotenv("OPS_HEALTH_URLS");
+        if (raw == null) return java.util.List.of();
+        java.util.List<String> urls = new java.util.ArrayList<>();
+        for (String part : raw.split(",")) {
+            String u = part.strip();
+            if (u.startsWith("https://") || u.startsWith("http://")) urls.add(u);
+        }
+        return java.util.List.copyOf(urls);
+    }
+
+    /** {@code OPS_429_THRESHOLD}: Discord 429 answers within 5 minutes that make a spike (default 20). */
+    public int getOps429Threshold() {
+        String raw = envOrDotenv("OPS_429_THRESHOLD");
+        try {
+            int n = raw == null ? 20 : Integer.parseInt(raw.strip());
+            return n > 0 ? n : 20;
+        } catch (NumberFormatException e) {
+            return 20;
+        }
     }
 
     private String envOrDotenv(String name) {

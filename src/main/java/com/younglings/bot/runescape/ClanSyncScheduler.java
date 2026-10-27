@@ -1,5 +1,6 @@
 package com.younglings.bot.runescape;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.clansite.BotlessSiteRepository;
 import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.util.BotScheduler;
@@ -78,9 +79,9 @@ public class ClanSyncScheduler {
 
     private void runForAllGuilds(JDA jda) {
         List<Long> botlessIds = botlessWithoutBot(jda);
-        for (var group : groupByClan(jda.getGuilds(), botlessIds, clanSyncService::getClanName).values()) {
+        for (var group : groupByClan(Shards.guilds(jda), botlessIds, clanSyncService::getClanName).values()) {
             try {
-                var results = clanSyncService.syncAndPollGroup(group.guilds(), group.botlessGuildIds());
+                var results = clanSyncService.syncAndPollGroup(group.guilds(), group.botlessGuildIds(), true);
                 results.forEach((guildId, result) -> log.info("Scheduled clan sync for guild {}: {} in roster ({} new, {} departed), {}/{} updated successfully.",
                         guildId, result.rosterSize(), result.newMembers(), result.departedMembers(), result.polled(), result.rosterSize()));
             } catch (Exception e) {
@@ -92,7 +93,7 @@ public class ClanSyncScheduler {
     /** The bot-less sites' servers the bot still isn't in (one it has joined since is synced as a server of its own). */
     private List<Long> botlessWithoutBot(JDA jda) {
         try {
-            return botless.sorted().stream().filter(id -> jda.getGuildById(id) == null).toList();
+            return botless.sorted().stream().filter(id -> Shards.guild(jda, id) == null).toList();
         } catch (RuntimeException e) {
             log.warn("Couldn't read the bot-less clan websites; syncing the bot's own servers only ({})", e.getClass().getSimpleName());
             return List.of();

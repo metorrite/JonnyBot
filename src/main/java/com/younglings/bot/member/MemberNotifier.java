@@ -1,5 +1,6 @@
 package com.younglings.bot.member;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.alerts.AutoPostRouter;
 import com.younglings.bot.branding.BrandingService;
 import com.younglings.bot.member.MemberProfileRepository.Goal;
@@ -56,7 +57,7 @@ public class MemberNotifier {
 
     /** What the goal message calls the website: the server's display name (clan name, else the Discord server's name). */
     private String websiteName(JDA jda, long guildId) {
-        Guild guild = jda.getGuildById(guildId);
+        Guild guild = Shards.guild(jda, guildId);
         return guild == null ? "clan" : branding.displayName(guild);
     }
 
@@ -91,7 +92,7 @@ public class MemberNotifier {
     // ---------- event reminders ----------
 
     void sendEventReminders(JDA jda) {
-        for (Guild guild : jda.getGuilds()) sendEventReminders(jda, guild);
+        for (Guild guild : Shards.guilds(jda)) sendEventReminders(jda, guild);
     }
 
     private void sendEventReminders(JDA jda, Guild guild) {

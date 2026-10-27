@@ -1,5 +1,6 @@
 package com.younglings.bot.runescape;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.premium.Premium;
 import com.younglings.bot.premium.PremiumFeatures;
@@ -75,7 +76,7 @@ public class RosterPollScheduler {
     }
 
     // InjectedJDAEvent fires once the JDA object exists, not once it's actually finished populating
-    // its guild cache from the gateway — enumerating jda.getGuilds() immediately in onJdaReady can (and
+    // its guild cache from the gateway — enumerating Shards.guilds(jda) immediately in onJdaReady can (and
     // did, in testing) see zero guilds. Deferring the first run by this long gives the cache time to
     // settle first; every run after that finds its servers fresh anyway.
     private static final Duration GUILD_DISCOVERY_DELAY = Duration.ofSeconds(30);
@@ -111,7 +112,7 @@ public class RosterPollScheduler {
     /** The servers the bot is in that have a clan set up. Their rosters are the first tier. */
     private List<Long> clanGuildIds(JDA jda) {
         List<Long> ids = new ArrayList<>();
-        for (Guild guild : jda.getGuilds()) {
+        for (Guild guild : Shards.guilds(jda)) {
             if (clanSyncService.getClanName(guild.getIdLong()) != null) ids.add(guild.getIdLong());
         }
         return ids;
