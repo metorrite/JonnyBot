@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.cachebus.CacheBus;
 import net.dv8tion.jda.api.entities.Guild;
 
 import java.util.concurrent.ArrayBlockingQueue;
@@ -75,9 +76,15 @@ final class AdminReads {
     /** Drops this server's cached pages; called after every change. */
     static void forget(Guild guild) {
         CACHE.invalidate(prefix(guild));
+        CacheBus.changed(AdminReadsCache.CACHE_AREA, guild.getIdLong());
     }
 
-    /** For tests. */
+    /** Drops one server's cached pages because another process changed something there ({@link AdminReadsCache}); sends no signal. */
+    static void forgetSignalled(long guildId) {
+        CACHE.invalidate(guildId + "|");
+    }
+
+    /** For tests, and when the cache listener (re)connects ({@link AdminReadsCache}). */
     static void clearAll() {
         CACHE.clear();
     }
