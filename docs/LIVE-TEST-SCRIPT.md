@@ -2,14 +2,14 @@
 
 **Read first:** [ECOSYSTEM.md](ECOSYSTEM.md), [DEV-SETUP.md](DEV-SETUP.md) and [EVENT-LIFECYCLE.md](EVENT-LIFECYCLE.md).
 
-This is for Drake to run by hand: tickets **T-049** (event features, slices 2-8) and **T-050** (the background listeners). The features were unit-tested and compiled, but their Discord side has never run for real, and every earlier Discord feature needed fixes the first time it did. Nobody else runs these steps: a thread that writes or updates this file must not click anything in Discord.
+This is for the bot owner to run by hand: the event features (slices 2-8, T-049) and the background listeners (T-050). The features were unit-tested and compiled, but their Discord side has never run for real, and every earlier Discord feature needed fixes the first time it did. Nobody else runs these steps: an automated tool or assistant that writes or updates this file must not click anything in Discord.
 
 ## Ground rules
 
-- **The dev bot lives in the real clan server** (guild `1495619657674264717`). A live test is real: roles and channels it creates exist for everyone with the right permissions, and a message it deletes is gone. Keep every test small, do it in a **private test channel**, and use the cleanup steps at the end of each part.
-- You need: your own account, an **alt account** that is a member of the server (no staff roles), the dev bot running as **one** instance (`powershell -ExecutionPolicy Bypass -File tools/dev-start.ps1`; the log says `Finished Loading!`), and the dashboard signed in at `http://localhost:3000/dashboard/1495619657674264717`.
+- **The dev bot lives in a real community server** (guild `<your-server-id>`, the bot's `GUILD_ID`). A live test is real: roles and channels it creates exist for everyone with the right permissions, and a message it deletes is gone. Keep every test small, do it in a **private test channel**, and use the cleanup steps at the end of each part.
+- You need: your own account, an **alt account** that is a member of the server (no staff roles), the dev bot running as **one** instance (`powershell -ExecutionPolicy Bypass -File tools/dev-start.ps1`; the log says `Finished Loading!`), and the dashboard signed in at `http://localhost:3000/dashboard/<your-server-id>`.
 - Step tags: **[READ]** only reads, safe. **[REAL]** creates, changes or deletes something real (a role, channel, message, setting, a member's roles). **[CLEAN]** undoes it. Every [REAL] step has a [CLEAN] step in its part.
-- "Expected" is what you should see. If something differs, stop that feature, write down what you did, what you saw and the time (with your time zone), and file it on the ticket board with the bug form (where, how bad, when, how often, steps, expected, actual, links). Mark the step FAIL in the results table at the end. A step you could not run is SKIP, with why.
+- "Expected" is what you should see. If something differs, stop that feature, write down what you did, what you saw and the time (with your time zone), and file a bug report with the fields in [BUG-REPORT.md](BUG-REPORT.md) (where, how bad, when, how often, steps, expected, actual, links). Mark the step FAIL in the results table at the end. A step you could not run is SKIP, with why.
 - The dev bot does **not** post tracked activity to channels by default (posting is off on a dev instance). Nothing here needs it.
 - Do not run parts at the same time as the website PR work of other people: one dev bot, one database.
 

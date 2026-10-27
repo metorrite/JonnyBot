@@ -1040,7 +1040,7 @@ class EventsAdminApiTest {
 
     @Test
     void aPlayerWithANineteenDigitDiscordIdCanBeMovedRatedAndRemovedLikeAnyOther() {
-        String player = "1006494212210053150";
+        String player = "1".repeat(19); // a made-up 19-digit id, built at runtime
         String id = create("{\"name\":\"Long ids\",\"scoringMode\":\"team\"}");
         call("POST", "events/" + id + "/status", "{\"status\":\"signups\"}");
         call("POST", "events/" + id + "/participants", "{\"userId\":\"" + player + "\"}");
