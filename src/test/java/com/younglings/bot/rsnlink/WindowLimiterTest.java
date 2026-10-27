@@ -22,4 +22,12 @@ class WindowLimiterTest {
         assertTrue(limiter.wouldAllow("k", t + 60_000), "the first one has aged out");
         assertEquals(0, limiter.tryAcquire("k", t + 60_000));
     }
+
+    @Test
+    void waitIsRoundedUpToWholeSecondsAndNeverZero() {
+        assertEquals(57, WindowLimiter.waitSeconds(1_000_000, 60_000, 1_003_000));
+        assertEquals(1, WindowLimiter.waitSeconds(1_000_000, 60_000, 1_059_999));
+        assertEquals(1, WindowLimiter.waitSeconds(1_000_000, 60_000, 1_060_000), "a stale oldest hit still answers at least 1");
+        assertEquals(2, WindowLimiter.waitSeconds(1_000_000, 60_000, 1_058_999));
+    }
 }
