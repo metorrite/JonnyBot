@@ -14,7 +14,9 @@ import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Read-only aggregate queries behind the website's public clan pages (roster, leaderboards, charts, member
@@ -400,14 +402,31 @@ public class SiteStatsRepository {
                 WHERE guild_id = ? AND status IN ('ACTIVE', 'PAUSED') AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 20
                 """, rs -> new Head(rs.getLong("signup_id"), rs.getString("title"), rs.getString("notification_message"), (Integer) rs.getObject("max_signups"),
                 rs.getString("status"), rs.getObject("created_at", OffsetDateTime.class)), guildId);
+        if (heads.isEmpty()) return new ArrayList<>();
+
+        // Every sheet's entries in one round trip, split per sheet below (the newest-first sheet order comes from the heads).
+        record Entry(long signupId, SignupEntry entry) {}
+        Map<Long, List<SignupEntry>> entriesBySheet = new HashMap<>();
+        for (Entry e : query("signup entries", "SELECT signup_id, discord_user_id, rsn, queue_position FROM younglings.signup_entry WHERE signup_id = ANY(?) ORDER BY signup_id, queue_position",
+                rs -> new Entry(rs.getLong("signup_id"), new SignupEntry(rs.getLong("discord_user_id"), rs.getString("rsn"), rs.getInt("queue_position"))),
+                (Object) heads.stream().map(Head::id).toArray(Long[]::new))) {
+            entriesBySheet.computeIfAbsent(e.signupId(), k -> new ArrayList<>()).add(e.entry());
+        }
 
         List<SignupRow> rows = new ArrayList<>();
         for (Head head : heads) {
-            List<SignupEntry> entries = query("signup entries", "SELECT discord_user_id, rsn, queue_position FROM younglings.signup_entry WHERE signup_id = ? ORDER BY queue_position",
-                    rs -> new SignupEntry(rs.getLong("discord_user_id"), rs.getString("rsn"), rs.getInt("queue_position")), head.id());
+            List<SignupEntry> entries = entriesBySheet.getOrDefault(head.id(), new ArrayList<>());
             rows.add(new SignupRow(head.id(), head.title(), head.notification(), head.max(), head.status(), head.createdAt(), entries));
         }
         return rows;
+    }
+
+    /** How many sheets {@link #activeSignups} lists (so capped at its 20), without loading their entries. */
+    public int countActiveSignups(long guildId) {
+        return query("signup count", """
+                SELECT COUNT(*) AS n FROM (SELECT 1 FROM younglings.signup
+                WHERE guild_id = ? AND status IN ('ACTIVE', 'PAUSED') AND deleted_at IS NULL LIMIT 20) s
+                """, rs -> rs.getInt("n"), guildId).getFirst();
     }
 
     /** The server's polls, newest first, each with its options and vote counts. */
@@ -420,13 +439,23 @@ public class SiteStatsRepository {
                 rs.getBoolean("anonymous"), rs.getBoolean("multiple_votes"), rs.getString("status"),
                 rs.getObject("created_at", OffsetDateTime.class), rs.getObject("closed_at", OffsetDateTime.class)), guildId, limit);
 
+        if (heads.isEmpty()) return new ArrayList<>();
+
+        // Every poll's options and vote counts in one round trip, split per poll below (the newest-first poll order comes from the heads).
+        record Option(long pollId, PollOption option) {}
+        Map<Long, List<PollOption>> optionsByPoll = new HashMap<>();
+        for (Option o : query("poll options", """
+                SELECT o.poll_id, o.option_number, o.label, COUNT(v.vote_id) AS votes FROM younglings.poll_option o
+                LEFT JOIN younglings.poll_vote v ON v.option_id = o.option_id
+                WHERE o.poll_id = ANY(?) GROUP BY o.poll_id, o.option_number, o.label ORDER BY o.poll_id, o.option_number
+                """, rs -> new Option(rs.getLong("poll_id"), new PollOption(rs.getInt("option_number"), rs.getString("label"), rs.getInt("votes"))),
+                (Object) heads.stream().map(Head::id).toArray(Long[]::new))) {
+            optionsByPoll.computeIfAbsent(o.pollId(), k -> new ArrayList<>()).add(o.option());
+        }
+
         List<PollRow> polls = new ArrayList<>();
         for (Head head : heads) {
-            List<PollOption> options = query("poll options", """
-                    SELECT o.option_number, o.label, COUNT(v.vote_id) AS votes FROM younglings.poll_option o
-                    LEFT JOIN younglings.poll_vote v ON v.option_id = o.option_id
-                    WHERE o.poll_id = ? GROUP BY o.option_number, o.label ORDER BY o.option_number
-                    """, rs -> new PollOption(rs.getInt("option_number"), rs.getString("label"), rs.getInt("votes")), head.id());
+            List<PollOption> options = optionsByPoll.getOrDefault(head.id(), new ArrayList<>());
             polls.add(new PollRow(head.id(), head.channelId(), head.messageId(), head.title(), head.anonymous(), head.multiple(), head.status(),
                     head.createdAt(), head.closedAt(), options));
         }
