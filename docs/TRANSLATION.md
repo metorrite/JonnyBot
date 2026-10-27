@@ -1,4 +1,4 @@
-# Translating JonnyBot
+# Translating RuneClan Bot
 
 A message catalogue, a per-server language setting and a fallback to English. The bot's own text is on the catalogue (T-098, see "Where the text is"). Three **machine-drafted** language packs ship **off** (T-099, see "Language packs"): German, French and Brazilian Portuguese.
 
@@ -30,8 +30,8 @@ A message catalogue, a per-server language setting and a fallback to English. Th
 - **Off by default:** `LANGUAGE_PACKS_ENABLED=true` (docs/DEV-SETUP.md 3c) offers them on the Language page. Off, only English can be picked; a server that already picked a pack keeps it.
 - **Marked as drafts:** they are listed under `drafts=` in `i18n/languages.properties`, their names on the Language page say "(machine-drafted)", and the first line of each file says so. Take a code off `drafts=` (and the words off its name) once a speaker has checked the pack.
 - **What they cover:** every player-facing key (commands, tickets, events, the listeners). The `dashboard.*` keys are left out on purpose: the dashboard itself is still English until the website moves into the runeclans repo, and a translated error on an English page reads worse than English. A draft may lack keys; English shows for those, so a new string never blocks a PR.
-- **Reporting a bad translation:** players tell staff; staff file it on the board's bug form with the language, what it said and what it should say. Fixing one is editing that line of `messages_<code>.properties` (keep every `{0}`); `MessagesTest` checks the placeholders. A report link on the Language page itself waits for the website move.
-- **Rebuilding a pack** from translated part files: `CLAUDE_RESOURCES/notes/merge-train/build_pack.py` (keeps English's order and headings, refuses unknown keys and changed placeholders).
+- **Reporting a bad translation:** players tell staff; staff file a bug report (docs/BUG-REPORT.md) with the language, what it said and what it should say. Fixing one is editing that line of `messages_<code>.properties` (keep every `{0}`); `MessagesTest` checks the placeholders. A report link on the Language page itself waits for the website move.
+- **Rebuilding a pack** from translated part files: a small helper script kept outside this repository (it keeps English's order and headings, and refuses unknown keys and changed placeholders).
 
 ## Adding a language pack
 
@@ -49,4 +49,4 @@ Moved onto the catalogue, one PR per area: **commands** (#348), **tickets** (#35
 
 Still in the code: modal field labels (`Label.of`), scheduled posts (digests, reports, wrap-ups) and other text built away from an interaction or API call; they move when those areas are next touched. Not meant to move: slash-command names and descriptions (registered once with Discord, not per server), audit-log reasons and log lines (read by staff and the bot's owners, not players), text people write themselves, and default content seeded for a server that its admins then edit. The website's strings move after it joins the runeclans repo.
 
-The mechanical part of a slice is done with `CLAUDE_RESOURCES/notes/merge-train/catalogue_move.py <worktree> <area> <folder>`: it moves literal text in the `Containers.reply` / `edit` helpers and lists what it couldn't (text built in variables, a sum before the first text), which is then moved by hand.
+The mechanical part of a slice is done with a helper script kept outside this repository: it moves literal text in the `Containers.reply` / `edit` helpers and lists what it couldn't (text built in variables, a sum before the first text), which is then moved by hand.

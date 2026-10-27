@@ -1,5 +1,7 @@
 package com.younglings.bot.customtag;
 
+import com.younglings.bot.cachebus.CacheBus;
+import com.younglings.bot.cachebus.CacheInvalidator;
 import com.younglings.bot.customtag.CustomTag.Delivery;
 import com.younglings.bot.database.SchemaBootstrapper;
 import com.younglings.bot.starboard.StarboardConfig;
@@ -21,7 +23,10 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /** A server's tags and whether it uses them at all. Tags are kept in memory per server (the {@code /tag} autocomplete asks for them on every keystroke) and refreshed whenever they change. */
 @BService
-public class CustomTagRepository {
+public class CustomTagRepository implements CacheInvalidator {
+    /** The {@code bot_cache} area of this class's caches (docs/SCALING-STATE.md M10). */
+    static final String CACHE_AREA = "custom-tag";
+
     private static final Logger log = LoggerFactory.getLogger(CustomTagRepository.class);
 
     private final ConnectionSupplier connectionSupplier;
@@ -82,6 +87,7 @@ public class CustomTagRepository {
             s.setBoolean(2, on);
             s.executeUpdate();
             enabled.remove(guildId);
+            CacheBus.changed(CACHE_AREA, guildId);
         } catch (SQLException e) {
             log.error("Failed to save the custom tag switch of guild {}", guildId, e);
             throw new RuntimeException("Failed to save the custom tag switch", e);
@@ -156,6 +162,7 @@ public class CustomTagRepository {
                 }
             }
             cache.remove(tag.guildId());
+            CacheBus.changed(CACHE_AREA, tag.guildId());
             return get(tag.guildId(), id).orElseThrow();
         } catch (SQLException e) {
             log.error("Failed to save a tag for guild {}", tag.guildId(), e);
@@ -183,6 +190,7 @@ public class CustomTagRepository {
             s.setLong(2, id);
             boolean gone = s.executeUpdate() > 0;
             cache.remove(guildId);
+            CacheBus.changed(CACHE_AREA, guildId);
             return gone;
         } catch (SQLException e) {
             log.error("Failed to delete tag {}", id, e);
@@ -197,8 +205,28 @@ public class CustomTagRepository {
             s.setLong(2, id);
             s.executeUpdate();
             cache.remove(guildId);
+            CacheBus.changed(CACHE_AREA, guildId);
         } catch (SQLException e) {
             log.debug("Couldn't count a tag use: {}", e.getMessage());
         }
+    }
+
+    // ---------- cross-process invalidation (CacheBus) ----------
+
+    @Override
+    public String cacheArea() {
+        return CACHE_AREA;
+    }
+
+    @Override
+    public void evictCached(long guildId) {
+        cache.remove(guildId);
+        enabled.remove(guildId);
+    }
+
+    @Override
+    public void evictAllCached() {
+        cache.clear();
+        enabled.clear();
     }
 }

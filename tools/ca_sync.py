@@ -35,7 +35,7 @@ from pathlib import Path
 
 API = "https://runescape.wiki/api.php"
 SITE = "https://runescape.wiki"
-UA = "YounglingsClanBot/1.0 (RuneScape clan site; contact drakeforness@gmail.com)"
+UA = "YounglingsClanBot/1.0 (RuneScape clan site; https://github.com/metorrite/JonnyBot)"
 PAUSE = 0.3
 MAIN_PAGE = "Combat Mastery achievements"
 TIERS = ["Easy", "Medium", "Hard", "Elite", "Master", "Grandmaster"]

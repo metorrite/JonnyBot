@@ -28,7 +28,7 @@ import java.util.function.Supplier;
 @BService
 public class BetaAdminApi implements AdminRouteExtension {
     private static final Logger log = LoggerFactory.getLogger(BetaAdminApi.class);
-    private static final int MAX_LABEL = 60;
+    private static final int MAX_LABEL = BetaGuildRepository.MAX_LABEL;
     /** The levels a beta server may have, most restrictive first. "Any member" is left out: that is what a per-area access grant is for. */
     static final List<AccessLevel> LEVELS = List.of(AccessLevel.OWNER, AccessLevel.ADMINISTRATOR, AccessLevel.MANAGE_SERVER);
     static final AccessLevel DEFAULT_LEVEL = AccessLevel.ADMINISTRATOR;
