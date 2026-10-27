@@ -20,6 +20,10 @@ import java.util.UUID;
 final class LinkStore {
     private final String schema;
 
+    String schema() {
+        return schema;
+    }
+
     LinkStore(String schema) {
         this.schema = schema;
     }
@@ -517,7 +521,8 @@ final class LinkStore {
         int orphans = update(c, "DELETE FROM {s}.game_character ch WHERE NOT EXISTS (SELECT 1 FROM {s}.link l WHERE l.character_id = ch.id) AND ch.last_seen_at < ?",
                 ts(now.minus(LinkLimits.ENDED_LINK_KEPT)));
         int dms = update(c, "DELETE FROM {s}.dm_send WHERE at < ?", ts(now.minus(java.time.Duration.ofDays(2))));
-        return new int[]{expired, pairings, links, stale, events, blocks, orphans, dms};
+        int windows = SharedWindowLimiter.sweep(c, schema, now.toEpochMilli());
+        return new int[]{expired, pairings, links, stale, events, blocks, orphans, dms, windows};
     }
 
     // ---------- helpers ----------
