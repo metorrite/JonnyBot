@@ -13,7 +13,7 @@ Ticket T-073. Status: **the work that needs no second server** (Drake away, 2026
 | Internal API | picks the server by `X-Guild-Id`; home server only the default; actor checked per server (`DashboardAccess`: Manage Server or Administrator in non-home servers) |
 | Dashboard | per server, server picker, install link, beta gate (`DASHBOARD_PUBLIC`) |
 | Home-only things that are correct | dev command registration to `GUILD_ID`, the bundled clan logo only in the home server (`TeamformingService`), the clan site and `/admin` (single-clan by design) |
-| Hard-coded server ids | only the beta-list seed (`BetaDatabaseInitializer`: the friend's server), which is data, not logic |
+| Hard-coded server ids | none: the beta list's first servers come from the `BETA_SEED_GUILDS` setting, once per new database (`BetaSeed`) |
 
 **Gaps that remain** (each has a ticket or is Drake's):
 

@@ -33,13 +33,9 @@ public class BetaDatabaseInitializer {
                 // above; the website adds new servers at Administrator.
                 """
                 ALTER TABLE younglings.beta_guild ADD COLUMN IF NOT EXISTS min_level TEXT NOT NULL DEFAULT 'manage_server';
-                """,
-
-                // This step once put the first testers' servers in, once per database, and this marker table records that it ran. Those rows stay
-                // where it ran; a new database starts with no beta servers (add them on the website). The marker is kept so nothing else changes.
-                """
-                CREATE TABLE IF NOT EXISTS younglings.beta_guild_seeded (done BOOLEAN);
                 """
         ));
+        // The first servers on the list come from the BETA_SEED_GUILDS setting, once per database (BetaSeed), never from ids in the code.
+        // A database an older build seeded keeps those rows and its seeded marker, so nothing changes there.
     }
 }
