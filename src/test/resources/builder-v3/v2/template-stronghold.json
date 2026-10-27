@@ -5407,7 +5407,7 @@
                         "buttonLabel": "Send application",
                         "thanks": "Thanks! Your application was sent. We'll get back to you on Discord.",
                         "sendToDiscord": true,
-                        "hideWhenClosed": true
+                        "hideWhenClosed": false
                       },
                       "unmet": "hide"
                     }
