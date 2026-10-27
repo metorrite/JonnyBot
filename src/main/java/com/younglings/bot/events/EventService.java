@@ -890,7 +890,7 @@ public class EventService {
         Event event = event(guildId, id);
         if (event.status() != Status.SCORING && event.status() != Status.DONE) throw new EventProblem(409, Text.of(guildId, "events.problem.awards_are_worked_out_once_the"));
         WinModes.Settings win = WinModes.of(DataObject.fromJson(event.config()));
-        if (win.draws()) throw new EventProblem(409, "This event is won by a prize draw: its awards are recorded when the winners are drawn (Win tab).");
+        if (win.draws()) throw new EventProblem(409, "This event is won by a prize draw: its awards are recorded when the winners are drawn (How it's won tab).");
         List<String> subjects = switch (win.mode()) {
             case FIRST_LINE, FIRST_BLACKOUT -> WinModes.finishOrder(win.mode(), repository.objectives(id), bonusesOf(event), progressLog(event));
             default -> standings(guildId, id).stream().map(Standing::subject).toList();

@@ -161,7 +161,7 @@ How it works:
 
 ## Ways to win (T-649)
 
-How an event is won, per event, in `config.win` (`WinModes`). An event that never saved it is won on points exactly as before; every other way is an organiser's choice on the event manager's **Win** section.
+How an event is won, per event, in `config.win` (`WinModes`). An event that never saved it is won on points exactly as before; every other way is an organiser's choice on the event manager's **How it's won** tab.
 
 | Setting | Default | What it does |
 |---|---|---|
