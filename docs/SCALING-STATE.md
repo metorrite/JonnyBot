@@ -52,7 +52,7 @@ Each must-fix item maps to one follow-up. A follow-up is not done until its row 
 |---|---|---|---|
 | F1 | M1, M2, M8 | Pin RuneMetrics polling and the Hiscores verify lane to one role (`api`); other roles forward `submit`. Later moves to the hub `poll_queue`. | open |
 | F2 | M3, M4 | Outbox `claimed_by` / `claimed_at`; `recover()` touches only expired or own claims; claims filtered to this process's shards. | open |
-| F3 | M5 | Load-through lookups for polls and signups; the boot maps become caches. | done (PR_PLACEHOLDER) |
+| F3 | M5 | Load-through lookups for polls and signups; the boot maps become caches. | done (#473) |
 | F4 | M6 | Job table and per-event `pg_advisory_xact_lock` for event space, wrap-up export and role backfill jobs. | open |
 | F5 | M7 | RuneLink code, start and DM limits in a Postgres sliding-window table (or the hub). | open |
 | F6 | M9 | `ShardRouting.owns(guildId)` helper; fix the "null guild = gone" branches; retention uses the departure row only. | open |
