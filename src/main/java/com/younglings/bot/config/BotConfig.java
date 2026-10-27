@@ -311,6 +311,14 @@ public class BotConfig {
         return envOrDotenv("SITES_BACKEND");
     }
 
+    /** The servers put on the beta list when a database is first set up ({@code com.younglings.bot.beta.BetaSeed}). */
+    public static final String BETA_SEED_GUILDS_ENV = "BETA_SEED_GUILDS";
+
+    /** {@link #BETA_SEED_GUILDS_ENV}: comma-separated server ids, each optionally {@code id:label}; null when unset (nothing is seeded). */
+    public String getBetaSeedGuilds() {
+        return envOrDotenv(BETA_SEED_GUILDS_ENV);
+    }
+
     /** A RuneSync server setting ({@code RUNESYNC_*}, e.g. {@code RUNESYNC_MIN_CLIENT_VERSION}); null when unset. */
     public String getRuneSyncSetting(String name) {
         if (!name.startsWith("RUNESYNC_")) throw new IllegalArgumentException("Only RUNESYNC_ settings are served here");

@@ -1,5 +1,7 @@
 package com.younglings.bot.permission;
 
+import com.younglings.bot.cachebus.CacheBus;
+import com.younglings.bot.cachebus.CacheInvalidator;
 import com.younglings.bot.configure.GuildSettings;
 import com.younglings.bot.configure.GuildSettingsService;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -31,7 +33,10 @@ import java.util.concurrent.ConcurrentHashMap;
  * server and dropped whenever the groups are saved.
  */
 @BService
-public class PermissionGroupService {
+public class PermissionGroupService implements CacheInvalidator {
+    /** The {@code bot_cache} area of this class's caches (docs/SCALING-STATE.md M10). */
+    static final String CACHE_AREA = "permission-groups";
+
     public static final int MAX_CUSTOM_GROUPS = 20;
     public static final int MAX_ROLES_PER_GROUP = 25;
     public static final int MAX_NAME_LENGTH = 32;
@@ -167,6 +172,7 @@ public class PermissionGroupService {
         if (!found) throw new IllegalArgumentException("No such permission group: " + key);
         repository.replaceAll(guildId, target);
         cache.remove(guildId);
+        CacheBus.changed(CACHE_AREA, guildId);
     }
 
     /**
@@ -222,6 +228,7 @@ public class PermissionGroupService {
         if (!problems.isEmpty()) throw new InvalidGroupsException(problems);
         repository.replaceAll(guildId, target);
         cache.remove(guildId);
+        CacheBus.changed(CACHE_AREA, guildId);
         return groups(guildId);
     }
 
@@ -230,5 +237,22 @@ public class PermissionGroupService {
         if (unique.contains(guildId)) problems.add("\"" + groupName + "\" can't use @everyone: that would be everyone.");
         if (unique.size() > MAX_ROLES_PER_GROUP) problems.add("\"" + groupName + "\" can hold at most " + MAX_ROLES_PER_GROUP + " roles.");
         return unique;
+    }
+
+    // ---------- cross-process invalidation (CacheBus) ----------
+
+    @Override
+    public String cacheArea() {
+        return CACHE_AREA;
+    }
+
+    @Override
+    public void evictCached(long guildId) {
+        cache.remove(guildId);
+    }
+
+    @Override
+    public void evictAllCached() {
+        cache.clear();
     }
 }

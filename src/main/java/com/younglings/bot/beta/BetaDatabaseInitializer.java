@@ -33,22 +33,9 @@ public class BetaDatabaseInitializer {
                 // above; the website adds new servers at Administrator.
                 """
                 ALTER TABLE younglings.beta_guild ADD COLUMN IF NOT EXISTS min_level TEXT NOT NULL DEFAULT 'manage_server';
-                """,
-
-                // The first testers, put in once. A second marker table records that it happened, so removing one of them later sticks.
-                """
-                DO $$
-                BEGIN
-                    IF to_regclass('younglings.beta_guild_seeded') IS NULL THEN
-                        INSERT INTO younglings.beta_guild (guild_id, label) VALUES
-                            (577853260153618443, 'Koalafied'),
-                            (1388208054008545300, 'RS Noobs'),
-                            (1062157106347786240, 'Eternal Rising')
-                        ON CONFLICT (guild_id) DO NOTHING;
-                        CREATE TABLE younglings.beta_guild_seeded (done BOOLEAN);
-                    END IF;
-                END $$;
                 """
         ));
+        // The first servers on the list come from the BETA_SEED_GUILDS setting, once per database (BetaSeed), never from ids in the code.
+        // A database an older build seeded keeps those rows and its seeded marker, so nothing changes there.
     }
 }

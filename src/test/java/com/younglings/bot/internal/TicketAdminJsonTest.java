@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TicketAdminJsonTest {
-    private static final long BIG_ID = 1_495_619_657_674_264_717L; // beyond a JavaScript number's exact range
+    private static final long BIG_ID = Long.parseLong("1".repeat(19)); // made up at runtime, never a real Discord id; beyond a JavaScript number's exact range
 
     @Test
     void aPanelSurvivesTheTripToJsonAndBack() {

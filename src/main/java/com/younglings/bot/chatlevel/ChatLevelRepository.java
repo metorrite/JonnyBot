@@ -1,5 +1,7 @@
 package com.younglings.bot.chatlevel;
 
+import com.younglings.bot.cachebus.CacheBus;
+import com.younglings.bot.cachebus.CacheInvalidator;
 import com.younglings.bot.database.SchemaBootstrapper;
 import com.younglings.bot.starboard.StarboardConfig;
 import io.github.freya022.botcommands.api.core.db.ConnectionSupplier;
@@ -21,7 +23,10 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /** Chat level settings, level roles and every member's XP. Own tables: nothing here touches the points ledger. */
 @BService
-public class ChatLevelRepository {
+public class ChatLevelRepository implements CacheInvalidator {
+    /** The {@code bot_cache} area of this class's caches (docs/SCALING-STATE.md M10). */
+    static final String CACHE_AREA = "chat-level";
+
     private static final Logger log = LoggerFactory.getLogger(ChatLevelRepository.class);
 
     /** A member's standing: total XP and how many XP-earning messages they sent. */
@@ -123,6 +128,7 @@ public class ChatLevelRepository {
             s.setString(13, ChatLevelConfig.writeMultipliers(config.roleMultipliers()));
             s.executeUpdate();
             configs.remove(config.guildId());
+            CacheBus.changed(CACHE_AREA, config.guildId());
         } catch (SQLException e) {
             log.error("Failed to save the chat level settings of guild {}", config.guildId(), e);
             throw new RuntimeException("Failed to save the chat level settings", e);
@@ -171,6 +177,7 @@ public class ChatLevelRepository {
                 throw e;
             }
             roles.remove(guildId);
+            CacheBus.changed(CACHE_AREA, guildId);
         } catch (SQLException e) {
             log.error("Failed to save the level roles of guild {}", guildId, e);
             throw new RuntimeException("Failed to save the level roles", e);
@@ -274,5 +281,24 @@ public class ChatLevelRepository {
             log.error("Failed to reset chat XP in guild {}", guildId, e);
             throw new RuntimeException("Failed to reset chat XP", e);
         }
+    }
+
+    // ---------- cross-process invalidation (CacheBus) ----------
+
+    @Override
+    public String cacheArea() {
+        return CACHE_AREA;
+    }
+
+    @Override
+    public void evictCached(long guildId) {
+        configs.remove(guildId);
+        roles.remove(guildId);
+    }
+
+    @Override
+    public void evictAllCached() {
+        configs.clear();
+        roles.clear();
     }
 }

@@ -1,5 +1,7 @@
 package com.younglings.bot.honeypot;
 
+import com.younglings.bot.cachebus.CacheBus;
+import com.younglings.bot.cachebus.CacheInvalidator;
 import com.younglings.bot.database.SchemaBootstrapper;
 import com.younglings.bot.honeypot.HoneypotConfig.Action;
 import io.github.freya022.botcommands.api.core.db.ConnectionSupplier;
@@ -17,7 +19,10 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 @BService
-public class HoneypotRepository {
+public class HoneypotRepository implements CacheInvalidator {
+    /** The {@code bot_cache} area of this class's caches (docs/SCALING-STATE.md M10). */
+    static final String CACHE_AREA = "honeypot";
+
     private static final Logger log = LoggerFactory.getLogger(HoneypotRepository.class);
 
     private final ConnectionSupplier connectionSupplier;
@@ -85,9 +90,27 @@ public class HoneypotRepository {
             s.setInt(8, config.deleteDays());
             s.executeUpdate();
             cache.remove(config.guildId());
+            CacheBus.changed(CACHE_AREA, config.guildId());
         } catch (SQLException e) {
             log.error("Failed to save the honeypot settings of guild {}", config.guildId(), e);
             throw new RuntimeException("Failed to save the honeypot settings", e);
         }
+    }
+
+    // ---------- cross-process invalidation (CacheBus) ----------
+
+    @Override
+    public String cacheArea() {
+        return CACHE_AREA;
+    }
+
+    @Override
+    public void evictCached(long guildId) {
+        cache.remove(guildId);
+    }
+
+    @Override
+    public void evictAllCached() {
+        cache.clear();
     }
 }

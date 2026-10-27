@@ -20,6 +20,9 @@ public class BetaGuildRepository {
     /** One trusted server. {@code level} is the least a person must be there; null for a stored level the code no longer knows, which lets nobody in. */
     public record BetaGuild(long guildId, String label, AccessLevel level) {}
 
+    /** The longest label a beta server may have: the website's Beta page refuses a longer one ({@code BetaAdminApi}), so the seed cuts to it too. */
+    public static final int MAX_LABEL = 60;
+
     private final ConnectionSupplier connectionSupplier;
 
     public BetaGuildRepository(ConnectionSupplier connectionSupplier, BetaDatabaseInitializer initializer) {
