@@ -1,5 +1,7 @@
 package com.younglings.bot.autorole;
 
+import com.younglings.bot.alerts.AutoPostRouter;
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.internal.MemberApi;
 import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -61,9 +63,10 @@ public class AutoroleService {
 
     /** Gives the roles of everyone whose delay has passed. */
     void sweep(JDA jda) {
+        if (AutoPostRouter.skipSweep("delayed autorole")) return; // gives roles in the real server: only the live bot does that (T-187)
         try {
             for (AutoroleRepository.Pending due : repository.duePending(Instant.now(), 100)) {
-                Guild guild = jda.getGuildById(due.guildId());
+                Guild guild = Shards.guild(jda, due.guildId());
                 if (guild == null) {
                     repository.removePending(due.guildId(), due.userId());
                     continue;

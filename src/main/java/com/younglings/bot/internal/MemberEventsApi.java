@@ -45,9 +45,14 @@ public class MemberEventsApi {
     private final ClanProfileRepository profiles;
     private final EventSpaceRepository space;
     private final JoinLinks joinLinks;
+    private final com.younglings.bot.events.EventUpdateRepository updatePosts;
+    private final com.younglings.bot.events.EventDrawRepository draws;
 
-    public MemberEventsApi(EventService service, EventRepository repository, ClanProfileRepository profiles, EventSpaceRepository space, JoinLinks joinLinks) {
+    public MemberEventsApi(EventService service, EventRepository repository, ClanProfileRepository profiles, EventSpaceRepository space, JoinLinks joinLinks,
+                           com.younglings.bot.events.EventUpdateRepository updatePosts, com.younglings.bot.events.EventDrawRepository draws) {
+        this.draws = draws;
         this.joinLinks = joinLinks;
+        this.updatePosts = updatePosts;
         this.service = service;
         this.repository = repository;
         this.profiles = profiles;
@@ -235,7 +240,24 @@ public class MemberEventsApi {
 
         out.put("channels", channels(guild, eventId, me, teamEvent));
         out.put("canSubmit", !me.waiting() && event.status() == Status.RUNNING);
+        out.put("updates", com.younglings.bot.events.ClanVsClan.plays(event, BingoTemplate.KEY) ? updates(eventId, config, event.status()) : null);
+        out.put("win", win(guild, eventId, config, teams, shown));
         return out;
+    }
+
+    /**
+     * How the event is won (T-649), when it isn't the usual "most points": the rules in words, and the prize draw (winners, seed and entries, so anyone
+     * can check it) once it has happened. Null for an event won on points, so the page looks as before. While the standings are hidden from players
+     * ({@code standingsShown} false) the entry list is left out too, as each entry carries a finished-tile count.
+     */
+    private DataObject win(Guild guild, long eventId, DataObject config, List<EventRepository.Team> teams, boolean standingsShown) {
+        var rules = com.younglings.bot.events.WinModes.of(config);
+        if (rules.isDefault()) return null;
+        DataArray lines = DataArray.empty();
+        com.younglings.bot.events.WinModes.describe(rules).forEach(lines::add);
+        var rounds = draws.rounds(eventId);
+        return DataObject.empty().put("mode", rules.mode().name()).put("rules", lines)
+                .put("draw", rounds.isEmpty() ? null : EventWinApi.drawJson(guild, teams, rounds, false, standingsShown));
     }
 
     private DataArray prizes(Event event) {
@@ -328,5 +350,24 @@ public class MemberEventsApi {
                 .put("buyIn", DataObject.empty().put("enabled", settings.buyIn().enabled()).put("amount", settings.buyIn().amount()).put("status", me.buyIn().name()))
                 .put("rank", rank).put("of", standings.size()).put("points", mineStanding == null ? 0 : mineStanding.points())
                 .put("objectives", objectives).put("pendingProof", repository.pendingClaimsFor(event.id(), userId)).put("awards", awards);
+    }
+
+    /** How many of the event's recaps and milestone posts a player is shown. */
+    static final int UPDATES_SHOWN = 8;
+
+    /**
+     * A bingo's board update rules in words and its latest recaps and milestones (T-650), for the player's event page. Null when the event uses today's
+     * rules and has posted nothing, so the page shows nothing new.
+     */
+    private DataObject updates(long eventId, DataObject config, Status status) {
+        var rules = com.younglings.bot.events.BoardUpdates.of(config);
+        var recent = updatePosts.recent(eventId, UPDATES_SHOWN);
+        if (rules.isDefault() && recent.isEmpty()) return null;
+        DataArray lines = DataArray.empty();
+        boolean hidden = !com.younglings.bot.events.EventStandings.tableShown(com.younglings.bot.events.EventStandings.of(config), status);
+        com.younglings.bot.events.BoardUpdates.describe(rules, hidden).forEach(lines::add);
+        DataArray posts = DataArray.empty();
+        for (var p : recent) posts.add(DataObject.empty().put("key", p.key()).put("kind", p.kind()).put("text", p.text()).put("at", p.at().toString()));
+        return DataObject.empty().put("mode", rules.mode().name()).put("rules", lines).put("posts", posts);
     }
 }

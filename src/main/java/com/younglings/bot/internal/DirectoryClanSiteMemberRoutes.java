@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.clansite.ClanSite;
 import com.younglings.bot.clansite.ClanSiteService;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -37,7 +38,7 @@ public class DirectoryClanSiteMemberRoutes implements DirectoryRouteModule {
         String[] parts = request.parts();
         if (!request.head().equals("sites") || parts.length < 4 || parts.length > 5 || !parts[2].equals("me")) return false;
         Optional<ClanSite> site = request.viewable(parts[1]).flatMap(p -> sites.visible(p.guildId()));
-        Guild guild = site.isEmpty() ? null : request.jda().getGuildById(site.get().guildId());
+        Guild guild = site.isEmpty() ? null : Shards.guild(request.jda(), site.get().guildId());
         if (guild == null) {
             // a bot-less site's server has no bot to know its members, so a member's actions can't be done there: say so, don't 404
             if (site.isPresent() && sites.botless(site.get().guildId())) {

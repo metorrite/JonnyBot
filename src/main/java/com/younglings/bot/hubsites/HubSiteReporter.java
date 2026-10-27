@@ -1,5 +1,6 @@
 package com.younglings.bot.hubsites;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.BotListener;
 import com.younglings.bot.config.PrivilegedIntents;
 import com.younglings.bot.runeclans.HubWriteQueue;
@@ -61,9 +62,9 @@ public class HubSiteReporter extends ListenerAdapter implements BotListener {
         jda = event.getJDA();
         if (!sites.readsHub()) return;
         lane.execute(() -> {
-            capabilities.start(event.getJDA().getGuilds().stream().map(Guild::getIdLong).toList(), PrivilegedIntents.presence(), PrivilegedIntents.messageContent());
+            capabilities.start(Shards.guilds(event.getJDA()).stream().map(Guild::getIdLong).toList(), PrivilegedIntents.presence(), PrivilegedIntents.messageContent());
             int roles = 0;
-            for (Guild guild : event.getJDA().getGuilds()) {
+            for (Guild guild : Shards.guilds(event.getJDA())) {
                 try {
                     roles += reports.all(guild.getIdLong());
                 } catch (RuntimeException e) {
@@ -108,7 +109,7 @@ public class HubSiteReporter extends ListenerAdapter implements BotListener {
     /** Every holder of the role, loaded from Discord (the member cache holds only online members); null when Discord couldn't say. */
     private List<Long> holders(long guildId, long roleId) {
         JDA current = jda;
-        Guild guild = current == null ? null : current.getGuildById(guildId);
+        Guild guild = current == null ? null : Shards.guild(current, guildId);
         Role role = guild == null ? null : guild.getRoleById(roleId);
         if (role == null) return guild == null ? null : List.of(); // a mapped role deleted in Discord has no holders
         try {

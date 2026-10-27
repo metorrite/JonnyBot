@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.discord.Shards;
 import com.sun.net.httpserver.HttpExchange;
 import com.younglings.bot.clanprofile.ClanLeaderboard;
 import com.younglings.bot.clanprofile.ClanLeaderboard.Period;
@@ -124,7 +125,7 @@ public class DirectoryApi {
             DataObject answer = DataObject.empty().put("events", hidden ? DataArray.empty() : eventsJson(profile.get(), jda, EVENTS_PER_CLAN))
                     .put("generatedAt", Instant.now().toString());
             // a bot-less site's clan: its Discord events can't be read, so the widget says the bot is needed rather than looking empty
-            if (jda.getGuildById(profile.get().guildId()) == null && botless.contains(profile.get().guildId())) answer.put("needsBot", true);
+            if (Shards.guild(jda, profile.get().guildId()) == null && botless.contains(profile.get().guildId())) answer.put("needsBot", true);
             send(exchange, 200, answer);
         } else if (head.equals("clans") && parts.length == 3 && parts[2].equals("report")) {
             report(exchange, method, parts[1]);
@@ -263,7 +264,7 @@ public class DirectoryApi {
 
     private DataArray eventsJson(ClanProfile p, JDA jda, int limit) {
         DataArray events = DataArray.empty();
-        Guild guild = jda.getGuildById(p.guildId());
+        Guild guild = Shards.guild(jda, p.guildId());
         if (guild == null) return events;
         for (EventInfo e : PublicEvents.feed(eventsOf(guild), repository.sharedEvents(p.guildId()), Instant.now(), limit)) events.add(eventJson(e));
         return events;
@@ -274,7 +275,7 @@ public class DirectoryApi {
         List<Row> rows = new ArrayList<>();
         for (ClanProfile p : repository.shared()) {
             if (!listed(p, false)) continue;
-            Guild guild = jda.getGuildById(p.guildId());
+            Guild guild = Shards.guild(jda, p.guildId());
             if (guild == null) continue;
             for (EventInfo e : PublicEvents.feed(eventsOf(guild), repository.sharedEvents(p.guildId()), Instant.now(), EVENTS_PER_CLAN)) rows.add(new Row(p, e));
         }

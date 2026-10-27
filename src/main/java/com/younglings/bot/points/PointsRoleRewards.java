@@ -1,5 +1,6 @@
 package com.younglings.bot.points;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.points.PointsExtrasRules.RolePlan;
 import com.younglings.bot.points.PointsExtrasRules.RoleReward;
 import com.younglings.bot.rolepanel.RolePanelService;
@@ -62,7 +63,7 @@ public class PointsRoleRewards {
         try {
             List<RoleReward> rewards = extras.roleRewards(guildId);
             if (rewards.isEmpty()) return;
-            Guild guild = jda.getGuildById(guildId);
+            Guild guild = Shards.guild(jda, guildId);
             if (guild == null) return;
             guild.retrieveMemberById(userId).queue(member -> {
                 try {
