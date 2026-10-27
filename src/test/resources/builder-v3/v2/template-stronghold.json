@@ -48,7 +48,7 @@
     "mobile": "drawer",
     "nav": [
       {
-        "id": "strongn354",
+        "id": "strongn360",
         "label": "Home",
         "link": {
           "kind": "page",
@@ -56,11 +56,11 @@
         }
       },
       {
-        "id": "strongn355",
+        "id": "strongn361",
         "label": "Clan",
         "children": [
           {
-            "id": "strongn356",
+            "id": "strongn362",
             "label": "Members",
             "link": {
               "kind": "page",
@@ -68,7 +68,7 @@
             }
           },
           {
-            "id": "strongn357",
+            "id": "strongn363",
             "label": "About us",
             "link": {
               "kind": "page",
@@ -76,7 +76,7 @@
             }
           },
           {
-            "id": "strongn358",
+            "id": "strongn364",
             "label": "Hall of fame",
             "link": {
               "kind": "page",
@@ -84,7 +84,7 @@
             }
           },
           {
-            "id": "strongn359",
+            "id": "strongn365",
             "label": "History",
             "link": {
               "kind": "page",
@@ -92,7 +92,7 @@
             }
           },
           {
-            "id": "strongn360",
+            "id": "strongn366",
             "label": "Compare",
             "link": {
               "kind": "page",
@@ -102,11 +102,11 @@
         ]
       },
       {
-        "id": "strongn361",
+        "id": "strongn367",
         "label": "Stats",
         "children": [
           {
-            "id": "strongn362",
+            "id": "strongn368",
             "label": "Clan stats",
             "link": {
               "kind": "page",
@@ -114,7 +114,7 @@
             }
           },
           {
-            "id": "strongn363",
+            "id": "strongn369",
             "label": "Leaderboards",
             "link": {
               "kind": "page",
@@ -122,7 +122,7 @@
             }
           },
           {
-            "id": "strongn364",
+            "id": "strongn370",
             "label": "Recaps",
             "link": {
               "kind": "page",
@@ -130,7 +130,7 @@
             }
           },
           {
-            "id": "strongn365",
+            "id": "strongn371",
             "label": "Citadel",
             "link": {
               "kind": "page",
@@ -138,7 +138,7 @@
             }
           },
           {
-            "id": "strongn366",
+            "id": "strongn372",
             "label": "Coffer",
             "link": {
               "kind": "page",
@@ -148,11 +148,11 @@
         ]
       },
       {
-        "id": "strongn367",
+        "id": "strongn373",
         "label": "PvM",
         "children": [
           {
-            "id": "strongn368",
+            "id": "strongn374",
             "label": "Bosses",
             "link": {
               "kind": "page",
@@ -160,7 +160,7 @@
             }
           },
           {
-            "id": "strongn369",
+            "id": "strongn375",
             "label": "Drop log",
             "link": {
               "kind": "page",
@@ -170,11 +170,11 @@
         ]
       },
       {
-        "id": "strongn370",
+        "id": "strongn376",
         "label": "Events",
         "children": [
           {
-            "id": "strongn371",
+            "id": "strongn377",
             "label": "Upcoming",
             "link": {
               "kind": "page",
@@ -182,7 +182,7 @@
             }
           },
           {
-            "id": "strongn372",
+            "id": "strongn378",
             "label": "Calendar",
             "link": {
               "kind": "page",
@@ -190,7 +190,7 @@
             }
           },
           {
-            "id": "strongn373",
+            "id": "strongn379",
             "label": "Signups",
             "link": {
               "kind": "page",
@@ -198,7 +198,7 @@
             }
           },
           {
-            "id": "strongn374",
+            "id": "strongn380",
             "label": "Polls",
             "link": {
               "kind": "page",
@@ -208,7 +208,7 @@
         ]
       },
       {
-        "id": "strongn375",
+        "id": "strongn381",
         "label": "Join",
         "link": {
           "kind": "page",
@@ -430,10 +430,12 @@
                       "settings": {
                         "title": "Top XP gainers",
                         "limit": 8,
+                        "topFive": false,
                         "showDay": true,
                         "showWeek": true,
                         "showMonth": true,
                         "defaultTab": "week",
+                        "totals": false,
                         "bars": "under",
                         "barColour": "accent"
                       },
@@ -471,6 +473,7 @@
                         "title": "Citadel",
                         "weeks": 6,
                         "series": "both",
+                        "look": "simple",
                         "more": null,
                         "moreText": "Attendance"
                       },
@@ -523,7 +526,8 @@
                           }
                         ],
                         "columns": "4",
-                        "numbers": "accent"
+                        "numbers": "accent",
+                        "captions": "full"
                       },
                       "unmet": "hide"
                     },
@@ -898,6 +902,9 @@
                       "type": "member-card",
                       "v": 1,
                       "settings": {
+                        "look": "card",
+                        "back": null,
+                        "backText": "All members",
                         "showStrip": false,
                         "showBio": true,
                         "showTotals": true,
@@ -947,7 +954,8 @@
                       "type": "member-gains",
                       "v": 1,
                       "settings": {
-                        "title": ""
+                        "title": "",
+                        "look": "box"
                       },
                       "unmet": "hide"
                     }
@@ -970,6 +978,7 @@
                       "v": 1,
                       "settings": {
                         "title": "Where the XP went",
+                        "look": "ring",
                         "period": "week",
                         "tabs": true,
                         "slices": 7
@@ -1030,6 +1039,7 @@
                       "v": 1,
                       "settings": {
                         "title": "XP over time",
+                        "look": "bars",
                         "days": "90",
                         "gains": "week"
                       },
@@ -1135,6 +1145,7 @@
                       "v": 1,
                       "settings": {
                         "title": "Citadel",
+                        "look": "facts",
                         "weeks": 12,
                         "showGrid": true
                       },
@@ -1160,6 +1171,7 @@
                       "v": 1,
                       "settings": {
                         "title": "Clan points",
+                        "look": "list",
                         "limit": 8,
                         "showChart": true
                       },
@@ -1200,6 +1212,7 @@
                       "settings": {
                         "title": "Adventure log",
                         "limit": 10,
+                        "look": "dated",
                         "showDetails": false
                       },
                       "unmet": "hide"
@@ -1494,7 +1507,9 @@
                         "showClub": true,
                         "showStreaks": true,
                         "showVeterans": true,
-                        "limit": 8
+                        "limit": 8,
+                        "look": "plain",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -2236,6 +2251,7 @@
                         "tabs": true,
                         "filter": "all",
                         "look": "lines",
+                        "filters": "groups",
                         "more": null,
                         "moreText": "See all"
                       },
@@ -2475,7 +2491,7 @@
           ]
         },
         {
-          "id": "strongs167",
+          "id": "strongs169",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -2543,7 +2559,8 @@
                           }
                         ],
                         "columns": "4",
-                        "numbers": "accent"
+                        "numbers": "accent",
+                        "captions": "full"
                       },
                       "unmet": "hide"
                     }
@@ -2607,6 +2624,7 @@
                         "title": "Citadel caps and visits per week",
                         "weeks": 12,
                         "series": "both",
+                        "look": "simple",
                         "more": null,
                         "moreText": "Attendance"
                       },
@@ -2712,6 +2730,7 @@
                         "title": "Highest total XP",
                         "metric": "xp",
                         "limit": 10,
+                        "topFive": false,
                         "bars": "under",
                         "barColour": "accent"
                       },
@@ -2737,10 +2756,13 @@
                       "v": 1,
                       "settings": {
                         "title": "Most Citadel caps",
+                        "layout": "board",
                         "metric": "citadel",
                         "period": "all",
                         "visitorPeriods": false,
+                        "showPeriod": true,
                         "limit": 10,
+                        "topFive": false,
                         "bars": "under",
                         "barColour": "accent"
                       },
@@ -2807,6 +2829,7 @@
                         "title": "Most clan points",
                         "metric": "points",
                         "limit": 10,
+                        "topFive": false,
                         "bars": "under",
                         "barColour": "accent"
                       },
@@ -2842,7 +2865,7 @@
               ]
             },
             {
-              "id": "strongr166",
+              "id": "strongr168",
               "gap": {
                 "lg": "md"
               },
@@ -2871,7 +2894,33 @@
                       "v": 1,
                       "settings": {
                         "title": "Joins and leaves per week",
-                        "weeks": 12
+                        "weeks": 12,
+                        "look": "simple"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "strongc167",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw166",
+                      "type": "leaderboard-race",
+                      "v": 1,
+                      "settings": {
+                        "title": "The race this month",
+                        "metric": "xp",
+                        "limit": 10
                       },
                       "unmet": "hide"
                     }
@@ -2882,7 +2931,7 @@
           ]
         },
         {
-          "id": "strongs171",
+          "id": "strongs173",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -2900,7 +2949,7 @@
           },
           "rows": [
             {
-              "id": "strongr170",
+              "id": "strongr172",
               "gap": {
                 "lg": "md"
               },
@@ -2912,7 +2961,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc169",
+                  "id": "strongc171",
                   "span": {
                     "lg": 12
                   },
@@ -2923,7 +2972,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw168",
+                      "id": "strongw170",
                       "type": "activity-heatmap",
                       "v": 1,
                       "settings": {
@@ -2955,7 +3004,7 @@
       },
       "sections": [
         {
-          "id": "strongs175",
+          "id": "strongs177",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -2973,7 +3022,7 @@
           },
           "rows": [
             {
-              "id": "strongr174",
+              "id": "strongr176",
               "gap": {
                 "lg": "md"
               },
@@ -2985,7 +3034,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc173",
+                  "id": "strongc175",
                   "span": {
                     "lg": 12
                   },
@@ -2996,7 +3045,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw172",
+                      "id": "strongw174",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -3016,7 +3065,7 @@
           ]
         },
         {
-          "id": "strongs186",
+          "id": "strongs188",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3034,7 +3083,7 @@
           },
           "rows": [
             {
-              "id": "strongr180",
+              "id": "strongr182",
               "gap": {
                 "lg": "md"
               },
@@ -3045,35 +3094,6 @@
                 }
               },
               "cells": [
-                {
-                  "id": "strongc177",
-                  "span": {
-                    "lg": 6,
-                    "md": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "strongw176",
-                      "type": "leaderboard",
-                      "v": 1,
-                      "settings": {
-                        "title": "Top XP gainers",
-                        "metric": "xp",
-                        "period": "month",
-                        "visitorPeriods": true,
-                        "limit": 15,
-                        "bars": "under",
-                        "barColour": "accent"
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                },
                 {
                   "id": "strongc179",
                   "span": {
@@ -3091,34 +3111,23 @@
                       "type": "leaderboard",
                       "v": 1,
                       "settings": {
-                        "title": "Most Citadel caps",
-                        "metric": "citadel",
+                        "title": "Top XP gainers",
+                        "layout": "board",
+                        "metric": "xp",
                         "period": "month",
                         "visitorPeriods": true,
+                        "showPeriod": true,
                         "limit": 15,
+                        "topFive": false,
                         "bars": "under",
                         "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
                   ]
-                }
-              ]
-            },
-            {
-              "id": "strongr185",
-              "gap": {
-                "lg": "md"
-              },
-              "align": "stretch",
-              "height": {
-                "lg": {
-                  "mode": "auto"
-                }
-              },
-              "cells": [
+                },
                 {
-                  "id": "strongc182",
+                  "id": "strongc181",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -3130,22 +3139,39 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw181",
+                      "id": "strongw180",
                       "type": "leaderboard",
                       "v": 1,
                       "settings": {
-                        "title": "Newest members",
-                        "metric": "joins",
+                        "title": "Most Citadel caps",
+                        "layout": "board",
+                        "metric": "citadel",
                         "period": "month",
                         "visitorPeriods": true,
+                        "showPeriod": true,
                         "limit": 15,
+                        "topFive": false,
                         "bars": "under",
                         "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
                   ]
-                },
+                }
+              ]
+            },
+            {
+              "id": "strongr187",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
                 {
                   "id": "strongc184",
                   "span": {
@@ -3160,15 +3186,49 @@
                   "widgets": [
                     {
                       "id": "strongw183",
+                      "type": "leaderboard",
+                      "v": 1,
+                      "settings": {
+                        "title": "Newest members",
+                        "layout": "board",
+                        "metric": "joins",
+                        "period": "month",
+                        "visitorPeriods": true,
+                        "showPeriod": true,
+                        "limit": 15,
+                        "topFive": false,
+                        "bars": "under",
+                        "barColour": "accent"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "strongc186",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw185",
                       "type": "top-xp",
                       "v": 1,
                       "settings": {
                         "title": "Top XP this week",
                         "limit": 8,
+                        "topFive": false,
                         "showDay": true,
                         "showWeek": true,
                         "showMonth": true,
                         "defaultTab": "week",
+                        "totals": false,
                         "bars": "under",
                         "barColour": "accent"
                       },
@@ -3194,7 +3254,7 @@
       },
       "sections": [
         {
-          "id": "strongs190",
+          "id": "strongs192",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3212,7 +3272,7 @@
           },
           "rows": [
             {
-              "id": "strongr189",
+              "id": "strongr191",
               "gap": {
                 "lg": "md"
               },
@@ -3224,7 +3284,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc188",
+                  "id": "strongc190",
                   "span": {
                     "lg": 12
                   },
@@ -3235,7 +3295,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw187",
+                      "id": "strongw189",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -3255,7 +3315,7 @@
           ]
         },
         {
-          "id": "strongs194",
+          "id": "strongs196",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3273,7 +3333,7 @@
           },
           "rows": [
             {
-              "id": "strongr193",
+              "id": "strongr195",
               "gap": {
                 "lg": "md"
               },
@@ -3285,7 +3345,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc192",
+                  "id": "strongc194",
                   "span": {
                     "lg": 12
                   },
@@ -3296,7 +3356,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw191",
+                      "id": "strongw193",
                       "type": "wrapped-recap",
                       "v": 1,
                       "settings": {
@@ -3315,7 +3375,7 @@
           ]
         },
         {
-          "id": "strongs203",
+          "id": "strongs205",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3333,7 +3393,7 @@
           },
           "rows": [
             {
-              "id": "strongr199",
+              "id": "strongr201",
               "gap": {
                 "lg": "md"
               },
@@ -3345,7 +3405,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc196",
+                  "id": "strongc198",
                   "span": {
                     "lg": 7,
                     "md": 12
@@ -3357,7 +3417,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw195",
+                      "id": "strongw197",
                       "type": "recap",
                       "v": 1,
                       "settings": {
@@ -3371,7 +3431,7 @@
                   ]
                 },
                 {
-                  "id": "strongc198",
+                  "id": "strongc200",
                   "span": {
                     "lg": 5,
                     "md": 12
@@ -3383,7 +3443,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw197",
+                      "id": "strongw199",
                       "type": "weekly-recap",
                       "v": 1,
                       "settings": {
@@ -3397,7 +3457,7 @@
               ]
             },
             {
-              "id": "strongr202",
+              "id": "strongr204",
               "gap": {
                 "lg": "md"
               },
@@ -3409,7 +3469,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc201",
+                  "id": "strongc203",
                   "span": {
                     "lg": 12
                   },
@@ -3420,7 +3480,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw200",
+                      "id": "strongw202",
                       "type": "recap-picker",
                       "v": 1,
                       "settings": {
@@ -3450,7 +3510,7 @@
       },
       "sections": [
         {
-          "id": "strongs207",
+          "id": "strongs209",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3468,7 +3528,7 @@
           },
           "rows": [
             {
-              "id": "strongr206",
+              "id": "strongr208",
               "gap": {
                 "lg": "md"
               },
@@ -3480,7 +3540,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc205",
+                  "id": "strongc207",
                   "span": {
                     "lg": 12
                   },
@@ -3491,7 +3551,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw204",
+                      "id": "strongw206",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -3511,7 +3571,7 @@
           ]
         },
         {
-          "id": "strongs216",
+          "id": "strongs218",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3529,7 +3589,7 @@
           },
           "rows": [
             {
-              "id": "strongr212",
+              "id": "strongr214",
               "gap": {
                 "lg": "md"
               },
@@ -3541,7 +3601,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc209",
+                  "id": "strongc211",
                   "span": {
                     "lg": 4,
                     "md": 12
@@ -3553,7 +3613,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw208",
+                      "id": "strongw210",
                       "type": "citadel-timer",
                       "v": 1,
                       "settings": {
@@ -3567,7 +3627,7 @@
                   ]
                 },
                 {
-                  "id": "strongc211",
+                  "id": "strongc213",
                   "span": {
                     "lg": 8,
                     "md": 12
@@ -3579,13 +3639,14 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw210",
+                      "id": "strongw212",
                       "type": "citadel-chart",
                       "v": 1,
                       "settings": {
                         "title": "Caps and visits per week",
                         "weeks": 12,
                         "series": "both",
+                        "look": "simple",
                         "more": null,
                         "moreText": "Attendance"
                       },
@@ -3596,7 +3657,7 @@
               ]
             },
             {
-              "id": "strongr215",
+              "id": "strongr217",
               "gap": {
                 "lg": "md"
               },
@@ -3608,7 +3669,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc214",
+                  "id": "strongc216",
                   "span": {
                     "lg": 12
                   },
@@ -3619,13 +3680,14 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw213",
+                      "id": "strongw215",
                       "type": "citadel-grid",
                       "v": 1,
                       "settings": {
                         "title": "",
                         "weeks": 12,
-                        "limit": 50
+                        "limit": 50,
+                        "look": "bars"
                       },
                       "unmet": "hide"
                     }
@@ -3649,7 +3711,7 @@
       },
       "sections": [
         {
-          "id": "strongs220",
+          "id": "strongs222",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3667,7 +3729,7 @@
           },
           "rows": [
             {
-              "id": "strongr219",
+              "id": "strongr221",
               "gap": {
                 "lg": "md"
               },
@@ -3679,7 +3741,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc218",
+                  "id": "strongc220",
                   "span": {
                     "lg": 12
                   },
@@ -3690,7 +3752,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw217",
+                      "id": "strongw219",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -3710,7 +3772,7 @@
           ]
         },
         {
-          "id": "strongs224",
+          "id": "strongs226",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3728,7 +3790,7 @@
           },
           "rows": [
             {
-              "id": "strongr223",
+              "id": "strongr225",
               "gap": {
                 "lg": "md"
               },
@@ -3740,7 +3802,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc222",
+                  "id": "strongc224",
                   "span": {
                     "lg": 12
                   },
@@ -3751,7 +3813,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw221",
+                      "id": "strongw223",
                       "type": "coffer",
                       "v": 1,
                       "settings": {
@@ -3759,6 +3821,7 @@
                         "showDonors": true,
                         "showGiveaways": true,
                         "limit": 10,
+                        "look": "box",
                         "bars": "under",
                         "barColour": "accent"
                       },
@@ -3784,7 +3847,7 @@
       },
       "sections": [
         {
-          "id": "strongs228",
+          "id": "strongs230",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3802,7 +3865,7 @@
           },
           "rows": [
             {
-              "id": "strongr227",
+              "id": "strongr229",
               "gap": {
                 "lg": "md"
               },
@@ -3814,7 +3877,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc226",
+                  "id": "strongc228",
                   "span": {
                     "lg": 12
                   },
@@ -3825,7 +3888,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw225",
+                      "id": "strongw227",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -3845,7 +3908,7 @@
           ]
         },
         {
-          "id": "strongs243",
+          "id": "strongs245",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3863,7 +3926,7 @@
           },
           "rows": [
             {
-              "id": "strongr231",
+              "id": "strongr233",
               "gap": {
                 "lg": "md"
               },
@@ -3875,7 +3938,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc230",
+                  "id": "strongc232",
                   "span": {
                     "lg": 12
                   },
@@ -3886,7 +3949,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw229",
+                      "id": "strongw231",
                       "type": "button-row",
                       "v": 1,
                       "settings": {
@@ -3912,7 +3975,7 @@
               ]
             },
             {
-              "id": "strongr234",
+              "id": "strongr236",
               "gap": {
                 "lg": "md"
               },
@@ -3924,7 +3987,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc233",
+                  "id": "strongc235",
                   "span": {
                     "lg": 12
                   },
@@ -3935,14 +3998,17 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw232",
+                      "id": "strongw234",
                       "type": "boss-grid",
                       "v": 1,
                       "settings": {
                         "title": "Bosses",
                         "period": "all",
                         "showQuiet": true,
-                        "limit": 60
+                        "limit": 60,
+                        "look": "cards",
+                        "timeFrame": true,
+                        "dropsPage": null
                       },
                       "unmet": "hide"
                     }
@@ -3951,7 +4017,7 @@
               ]
             },
             {
-              "id": "strongr239",
+              "id": "strongr241",
               "gap": {
                 "lg": "md"
               },
@@ -3963,7 +4029,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc236",
+                  "id": "strongc238",
                   "span": {
                     "lg": 7,
                     "md": 12
@@ -3975,7 +4041,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw235",
+                      "id": "strongw237",
                       "type": "kill-tracker",
                       "v": 1,
                       "settings": {
@@ -3988,7 +4054,7 @@
                   ]
                 },
                 {
-                  "id": "strongc238",
+                  "id": "strongc240",
                   "span": {
                     "lg": 5,
                     "md": 12
@@ -4000,7 +4066,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw237",
+                      "id": "strongw239",
                       "type": "drops",
                       "v": 1,
                       "settings": {
@@ -4014,7 +4080,7 @@
               ]
             },
             {
-              "id": "strongr242",
+              "id": "strongr244",
               "gap": {
                 "lg": "md"
               },
@@ -4026,7 +4092,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc241",
+                  "id": "strongc243",
                   "span": {
                     "lg": 12
                   },
@@ -4037,7 +4103,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw240",
+                      "id": "strongw242",
                       "type": "rare-drops",
                       "v": 1,
                       "settings": {
@@ -4070,7 +4136,7 @@
       },
       "sections": [
         {
-          "id": "strongs247",
+          "id": "strongs249",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4088,7 +4154,7 @@
           },
           "rows": [
             {
-              "id": "strongr246",
+              "id": "strongr248",
               "gap": {
                 "lg": "md"
               },
@@ -4100,7 +4166,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc245",
+                  "id": "strongc247",
                   "span": {
                     "lg": 12
                   },
@@ -4111,10 +4177,14 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw244",
+                      "id": "strongw246",
                       "type": "boss-detail",
                       "v": 1,
                       "settings": {
+                        "look": "box",
+                        "back": null,
+                        "backText": "All bosses",
+                        "timeFrame": true,
                         "period": "all",
                         "limit": 25,
                         "header": true,
@@ -4144,7 +4214,7 @@
       },
       "sections": [
         {
-          "id": "strongs251",
+          "id": "strongs253",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4162,7 +4232,7 @@
           },
           "rows": [
             {
-              "id": "strongr250",
+              "id": "strongr252",
               "gap": {
                 "lg": "md"
               },
@@ -4174,7 +4244,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc249",
+                  "id": "strongc251",
                   "span": {
                     "lg": 12
                   },
@@ -4185,7 +4255,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw248",
+                      "id": "strongw250",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -4205,7 +4275,7 @@
           ]
         },
         {
-          "id": "strongs255",
+          "id": "strongs257",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4223,7 +4293,7 @@
           },
           "rows": [
             {
-              "id": "strongr254",
+              "id": "strongr256",
               "gap": {
                 "lg": "md"
               },
@@ -4235,7 +4305,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc253",
+                  "id": "strongc255",
                   "span": {
                     "lg": 12
                   },
@@ -4246,7 +4316,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw252",
+                      "id": "strongw254",
                       "type": "drop-log",
                       "v": 1,
                       "settings": {
@@ -4254,7 +4324,9 @@
                         "period": "all",
                         "showGrid": true,
                         "limit": 25,
-                        "bossFilter": true
+                        "bossFilter": true,
+                        "look": "list",
+                        "timeFrame": false
                       },
                       "unmet": "hide"
                     }
@@ -4279,7 +4351,7 @@
       },
       "sections": [
         {
-          "id": "strongs259",
+          "id": "strongs261",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4297,7 +4369,7 @@
           },
           "rows": [
             {
-              "id": "strongr258",
+              "id": "strongr260",
               "gap": {
                 "lg": "md"
               },
@@ -4309,7 +4381,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc257",
+                  "id": "strongc259",
                   "span": {
                     "lg": 12
                   },
@@ -4320,11 +4392,15 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw256",
+                      "id": "strongw258",
                       "type": "item-detail",
                       "v": 1,
                       "settings": {
+                        "look": "box",
                         "period": "all",
+                        "timeFrame": true,
+                        "back": null,
+                        "backText": "Drop log",
                         "limit": 25
                       },
                       "unmet": "hide"
@@ -4349,7 +4425,7 @@
       },
       "sections": [
         {
-          "id": "strongs263",
+          "id": "strongs265",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4367,7 +4443,7 @@
           },
           "rows": [
             {
-              "id": "strongr262",
+              "id": "strongr264",
               "gap": {
                 "lg": "md"
               },
@@ -4379,7 +4455,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc261",
+                  "id": "strongc263",
                   "span": {
                     "lg": 12
                   },
@@ -4390,7 +4466,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw260",
+                      "id": "strongw262",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -4410,7 +4486,7 @@
           ]
         },
         {
-          "id": "strongs279",
+          "id": "strongs281",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4428,7 +4504,7 @@
           },
           "rows": [
             {
-              "id": "strongr266",
+              "id": "strongr268",
               "gap": {
                 "lg": "md"
               },
@@ -4440,7 +4516,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc265",
+                  "id": "strongc267",
                   "span": {
                     "lg": 12
                   },
@@ -4451,7 +4527,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw264",
+                      "id": "strongw266",
                       "type": "button-row",
                       "v": 1,
                       "settings": {
@@ -4477,7 +4553,7 @@
               ]
             },
             {
-              "id": "strongr269",
+              "id": "strongr271",
               "gap": {
                 "lg": "md"
               },
@@ -4489,7 +4565,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc268",
+                  "id": "strongc270",
                   "span": {
                     "lg": 12
                   },
@@ -4500,7 +4576,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw267",
+                      "id": "strongw269",
                       "type": "hub-events",
                       "v": 1,
                       "settings": {
@@ -4515,7 +4591,7 @@
               ]
             },
             {
-              "id": "strongr272",
+              "id": "strongr274",
               "gap": {
                 "lg": "md"
               },
@@ -4527,7 +4603,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc271",
+                  "id": "strongc273",
                   "span": {
                     "lg": 12
                   },
@@ -4538,7 +4614,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw270",
+                      "id": "strongw272",
                       "type": "events",
                       "v": 1,
                       "settings": {
@@ -4554,7 +4630,7 @@
               ]
             },
             {
-              "id": "strongr275",
+              "id": "strongr277",
               "gap": {
                 "lg": "md"
               },
@@ -4566,7 +4642,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc274",
+                  "id": "strongc276",
                   "span": {
                     "lg": 12
                   },
@@ -4577,7 +4653,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw273",
+                      "id": "strongw275",
                       "type": "rs-today",
                       "v": 1,
                       "settings": {
@@ -4603,7 +4679,7 @@
               ]
             },
             {
-              "id": "strongr278",
+              "id": "strongr280",
               "gap": {
                 "lg": "md"
               },
@@ -4615,7 +4691,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc277",
+                  "id": "strongc279",
                   "span": {
                     "lg": 12
                   },
@@ -4626,7 +4702,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw276",
+                      "id": "strongw278",
                       "type": "ge-watch",
                       "v": 1,
                       "settings": {
@@ -4673,7 +4749,7 @@
       },
       "sections": [
         {
-          "id": "strongs283",
+          "id": "strongs285",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4691,7 +4767,7 @@
           },
           "rows": [
             {
-              "id": "strongr282",
+              "id": "strongr284",
               "gap": {
                 "lg": "md"
               },
@@ -4703,7 +4779,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc281",
+                  "id": "strongc283",
                   "span": {
                     "lg": 12
                   },
@@ -4714,7 +4790,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw280",
+                      "id": "strongw282",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -4734,7 +4810,7 @@
           ]
         },
         {
-          "id": "strongs287",
+          "id": "strongs289",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4752,7 +4828,7 @@
           },
           "rows": [
             {
-              "id": "strongr286",
+              "id": "strongr288",
               "gap": {
                 "lg": "md"
               },
@@ -4764,7 +4840,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc285",
+                  "id": "strongc287",
                   "span": {
                     "lg": 12
                   },
@@ -4775,14 +4851,17 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw284",
+                      "id": "strongw286",
                       "type": "events-calendar",
                       "v": 1,
                       "settings": {
                         "title": "",
                         "showDiscord": true,
                         "showHub": true,
-                        "weekStart": "mon"
+                        "weekStart": "mon",
+                        "look": "box",
+                        "listPage": null,
+                        "listText": "Event list"
                       },
                       "unmet": "hide"
                     }
@@ -4807,7 +4886,7 @@
       },
       "sections": [
         {
-          "id": "strongs291",
+          "id": "strongs293",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4825,7 +4904,7 @@
           },
           "rows": [
             {
-              "id": "strongr290",
+              "id": "strongr292",
               "gap": {
                 "lg": "md"
               },
@@ -4837,7 +4916,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc289",
+                  "id": "strongc291",
                   "span": {
                     "lg": 12
                   },
@@ -4848,7 +4927,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw288",
+                      "id": "strongw290",
                       "type": "event-detail",
                       "v": 1,
                       "settings": {
@@ -4878,7 +4957,7 @@
       },
       "sections": [
         {
-          "id": "strongs295",
+          "id": "strongs297",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4896,7 +4975,7 @@
           },
           "rows": [
             {
-              "id": "strongr294",
+              "id": "strongr296",
               "gap": {
                 "lg": "md"
               },
@@ -4908,7 +4987,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc293",
+                  "id": "strongc295",
                   "span": {
                     "lg": 12
                   },
@@ -4919,7 +4998,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw292",
+                      "id": "strongw294",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -4939,7 +5018,7 @@
           ]
         },
         {
-          "id": "strongs299",
+          "id": "strongs301",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4957,7 +5036,7 @@
           },
           "rows": [
             {
-              "id": "strongr298",
+              "id": "strongr300",
               "gap": {
                 "lg": "md"
               },
@@ -4969,7 +5048,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc297",
+                  "id": "strongc299",
                   "span": {
                     "lg": 12
                   },
@@ -4980,13 +5059,73 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw296",
+                      "id": "strongw298",
                       "type": "signups",
                       "v": 1,
                       "settings": {
                         "title": "",
                         "limit": 10,
-                        "showNames": true
+                        "showNames": true,
+                        "look": "list"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "strongs305",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "strongr304",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "strongc303",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw302",
+                      "type": "group-finder",
+                      "v": 1,
+                      "settings": {
+                        "title": "Group finder",
+                        "intro": "Looking for people? Post a group and others can take a place.",
+                        "roles": "Any, Base, DPS, Tank, Healer",
+                        "showForm": true
                       },
                       "unmet": "hide"
                     }
@@ -5010,7 +5149,7 @@
       },
       "sections": [
         {
-          "id": "strongs303",
+          "id": "strongs309",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -5028,7 +5167,7 @@
           },
           "rows": [
             {
-              "id": "strongr302",
+              "id": "strongr308",
               "gap": {
                 "lg": "md"
               },
@@ -5040,7 +5179,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc301",
+                  "id": "strongc307",
                   "span": {
                     "lg": 12
                   },
@@ -5051,7 +5190,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw300",
+                      "id": "strongw306",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -5071,7 +5210,7 @@
           ]
         },
         {
-          "id": "strongs307",
+          "id": "strongs313",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -5089,7 +5228,7 @@
           },
           "rows": [
             {
-              "id": "strongr306",
+              "id": "strongr312",
               "gap": {
                 "lg": "md"
               },
@@ -5101,7 +5240,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc305",
+                  "id": "strongc311",
                   "span": {
                     "lg": 12
                   },
@@ -5112,13 +5251,14 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw304",
+                      "id": "strongw310",
                       "type": "polls",
                       "v": 1,
                       "settings": {
                         "title": "",
                         "limit": 10,
-                        "showClosed": true
+                        "showClosed": true,
+                        "look": "list"
                       },
                       "unmet": "hide"
                     }
@@ -5138,7 +5278,7 @@
       "access": "public",
       "sections": [
         {
-          "id": "strongs311",
+          "id": "strongs317",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -5146,67 +5286,6 @@
           "padding": {
             "lg": {
               "y": "md",
-              "x": "md"
-            }
-          },
-          "height": {
-            "lg": {
-              "mode": "auto"
-            }
-          },
-          "rows": [
-            {
-              "id": "strongr310",
-              "gap": {
-                "lg": "md"
-              },
-              "align": "stretch",
-              "height": {
-                "lg": {
-                  "mode": "auto"
-                }
-              },
-              "cells": [
-                {
-                  "id": "strongc309",
-                  "span": {
-                    "lg": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "strongw308",
-                      "type": "heading",
-                      "v": 1,
-                      "settings": {
-                        "text": "Join {clan}",
-                        "subtitle": "Everyone is welcome. Here's how to get in.",
-                        "size": "large",
-                        "align": "left",
-                        "colour": "",
-                        "level": "h1"
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "id": "strongs325",
-          "width": "wide",
-          "background": {
-            "kind": "none"
-          },
-          "padding": {
-            "lg": {
-              "y": "lg",
               "x": "md"
             }
           },
@@ -5229,7 +5308,68 @@
               },
               "cells": [
                 {
-                  "id": "strongc313",
+                  "id": "strongc315",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw314",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Join {clan}",
+                        "subtitle": "Everyone is welcome. Here's how to get in.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "strongs331",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "strongr322",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "strongc319",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5241,7 +5381,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw312",
+                      "id": "strongw318",
                       "type": "recruiting",
                       "v": 1,
                       "settings": {
@@ -5254,7 +5394,7 @@
                   ]
                 },
                 {
-                  "id": "strongc315",
+                  "id": "strongc321",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5266,7 +5406,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw314",
+                      "id": "strongw320",
                       "type": "discord-join",
                       "v": 1,
                       "settings": {
@@ -5281,7 +5421,7 @@
               ]
             },
             {
-              "id": "strongr321",
+              "id": "strongr327",
               "gap": {
                 "lg": "md"
               },
@@ -5293,7 +5433,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc318",
+                  "id": "strongc324",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5305,7 +5445,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw317",
+                      "id": "strongw323",
                       "type": "countdown",
                       "v": 1,
                       "settings": {
@@ -5318,7 +5458,7 @@
                   ]
                 },
                 {
-                  "id": "strongc320",
+                  "id": "strongc326",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5330,7 +5470,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw319",
+                      "id": "strongw325",
                       "type": "faq",
                       "v": 1,
                       "settings": {
@@ -5357,7 +5497,7 @@
               ]
             },
             {
-              "id": "strongr324",
+              "id": "strongr330",
               "gap": {
                 "lg": "md"
               },
@@ -5369,7 +5509,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc323",
+                  "id": "strongc329",
                   "span": {
                     "lg": 12
                   },
@@ -5380,7 +5520,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw322",
+                      "id": "strongw328",
                       "type": "roster",
                       "v": 1,
                       "settings": {
@@ -5413,7 +5553,7 @@
       "template": "account",
       "sections": [
         {
-          "id": "strongs329",
+          "id": "strongs335",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -5421,67 +5561,6 @@
           "padding": {
             "lg": {
               "y": "md",
-              "x": "md"
-            }
-          },
-          "height": {
-            "lg": {
-              "mode": "auto"
-            }
-          },
-          "rows": [
-            {
-              "id": "strongr328",
-              "gap": {
-                "lg": "md"
-              },
-              "align": "stretch",
-              "height": {
-                "lg": {
-                  "mode": "auto"
-                }
-              },
-              "cells": [
-                {
-                  "id": "strongc327",
-                  "span": {
-                    "lg": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "strongw326",
-                      "type": "heading",
-                      "v": 1,
-                      "settings": {
-                        "text": "Your account",
-                        "subtitle": "Your linked name, goals, events and privacy.",
-                        "size": "large",
-                        "align": "left",
-                        "colour": "",
-                        "level": "h1"
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "id": "strongs353",
-          "width": "wide",
-          "background": {
-            "kind": "none"
-          },
-          "padding": {
-            "lg": {
-              "y": "lg",
               "x": "md"
             }
           },
@@ -5504,7 +5583,68 @@
               },
               "cells": [
                 {
-                  "id": "strongc331",
+                  "id": "strongc333",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw332",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Your account",
+                        "subtitle": "Your linked name, goals, events and privacy.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "strongs359",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "strongr340",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "strongc337",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5516,7 +5656,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw330",
+                      "id": "strongw336",
                       "type": "account-link",
                       "v": 1,
                       "settings": {
@@ -5527,7 +5667,7 @@
                   ]
                 },
                 {
-                  "id": "strongc333",
+                  "id": "strongc339",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5539,7 +5679,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw332",
+                      "id": "strongw338",
                       "type": "server-profile",
                       "v": 1,
                       "settings": {
@@ -5554,7 +5694,7 @@
               ]
             },
             {
-              "id": "strongr339",
+              "id": "strongr345",
               "gap": {
                 "lg": "md"
               },
@@ -5566,7 +5706,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc336",
+                  "id": "strongc342",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5578,7 +5718,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw335",
+                      "id": "strongw341",
                       "type": "my-goals",
                       "v": 1,
                       "settings": {
@@ -5590,7 +5730,7 @@
                   ]
                 },
                 {
-                  "id": "strongc338",
+                  "id": "strongc344",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5602,7 +5742,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw337",
+                      "id": "strongw343",
                       "type": "my-notices",
                       "v": 1,
                       "settings": {
@@ -5616,7 +5756,7 @@
               ]
             },
             {
-              "id": "strongr344",
+              "id": "strongr350",
               "gap": {
                 "lg": "md"
               },
@@ -5628,7 +5768,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc341",
+                  "id": "strongc347",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5640,7 +5780,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw340",
+                      "id": "strongw346",
                       "type": "my-events",
                       "v": 1,
                       "settings": {
@@ -5651,82 +5791,6 @@
                     }
                   ]
                 },
-                {
-                  "id": "strongc343",
-                  "span": {
-                    "lg": 6,
-                    "md": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "strongw342",
-                      "type": "my-signups",
-                      "v": 1,
-                      "settings": {
-                        "title": "Signups",
-                        "limit": 5
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                }
-              ]
-            },
-            {
-              "id": "strongr347",
-              "gap": {
-                "lg": "md"
-              },
-              "align": "stretch",
-              "height": {
-                "lg": {
-                  "mode": "auto"
-                }
-              },
-              "cells": [
-                {
-                  "id": "strongc346",
-                  "span": {
-                    "lg": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "strongw345",
-                      "type": "my-polls",
-                      "v": 1,
-                      "settings": {
-                        "title": "Open polls",
-                        "limit": 5,
-                        "showResults": true
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                }
-              ]
-            },
-            {
-              "id": "strongr352",
-              "gap": {
-                "lg": "md"
-              },
-              "align": "stretch",
-              "height": {
-                "lg": {
-                  "mode": "auto"
-                }
-              },
-              "cells": [
                 {
                   "id": "strongc349",
                   "span": {
@@ -5741,18 +5805,70 @@
                   "widgets": [
                     {
                       "id": "strongw348",
-                      "type": "my-coffer",
+                      "type": "my-signups",
                       "v": 1,
                       "settings": {
-                        "title": "My coffer",
+                        "title": "Signups",
                         "limit": 5
                       },
                       "unmet": "hide"
                     }
                   ]
-                },
+                }
+              ]
+            },
+            {
+              "id": "strongr353",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
                 {
-                  "id": "strongc351",
+                  "id": "strongc352",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw351",
+                      "type": "my-polls",
+                      "v": 1,
+                      "settings": {
+                        "title": "Open polls",
+                        "limit": 5,
+                        "showResults": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "strongr358",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "strongc355",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5764,7 +5880,31 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw350",
+                      "id": "strongw354",
+                      "type": "my-coffer",
+                      "v": 1,
+                      "settings": {
+                        "title": "My coffer",
+                        "limit": 5
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "strongc357",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw356",
                       "type": "member-privacy",
                       "v": 1,
                       "settings": {
