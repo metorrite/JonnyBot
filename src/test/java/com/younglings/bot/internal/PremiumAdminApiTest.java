@@ -31,6 +31,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class PremiumAdminApiTest {
+    private static final String SERVER_A = "3".repeat(18); // made up at runtime: never a real Discord id
+    private static final long SERVER_A_ID = Long.parseLong(SERVER_A);
+    private static final String SERVER_B = "4".repeat(19); // made up at runtime: never a real Discord id
+    private static final long SERVER_B_ID = Long.parseLong(SERVER_B);
+    private static final String SERVER_C = "5".repeat(19); // made up at runtime: never a real Discord id
+    private static final long SERVER_C_ID = Long.parseLong(SERVER_C);
+
     private PremiumGuildRepository repository;
     private Premium premium;
     private BotOwners owners;
@@ -50,7 +57,7 @@ class PremiumAdminApiTest {
         actor = mock(Member.class);
         when(actor.getIdLong()).thenReturn(7L);
         when(owners.isOwner(any(), anyLong())).thenReturn(true);
-        when(repository.grants()).thenReturn(List.of(new Grant(1388208054008545300L, "RS Noobs", "premium", null, null, "manual", 7L, Instant.now())));
+        when(repository.grants()).thenReturn(List.of(new Grant(SERVER_B_ID, "Clan B", "premium", null, null, "manual", 7L, Instant.now())));
     }
 
     @Test
@@ -94,7 +101,7 @@ class PremiumAdminApiTest {
         assertEquals(1, list.getArray("guilds").length());
         assertNull(api.routeFor(guild, 7L, "GET", new String[]{"other"}, DataObject::empty));
         when(owners.isOwner(any(), anyLong())).thenReturn(false);
-        assertEquals(403, assertThrows(TicketAdminApi.ApiError.class, () -> api.routeFor(guild, 7L, "DELETE", new String[]{"premium-guilds", "577853260153618443"}, DataObject::empty)).status);
+        assertEquals(403, assertThrows(TicketAdminApi.ApiError.class, () -> api.routeFor(guild, 7L, "DELETE", new String[]{"premium-guilds", SERVER_A}, DataObject::empty)).status);
         verify(premium, never()).revoke(anyLong(), anyLong());
     }
 
@@ -102,27 +109,27 @@ class PremiumAdminApiTest {
     void onlyTheOwnerCanChangeIt() {
         when(owners.isOwner(any(), anyLong())).thenReturn(false);
 
-        assertEquals(403, assertThrows(TicketAdminApi.ApiError.class, () -> api.save(guild, actor, "577853260153618443", DataObject.empty())).status);
-        assertEquals(403, assertThrows(TicketAdminApi.ApiError.class, () -> api.remove(guild, actor, "577853260153618443")).status);
-        assertEquals(403, assertThrows(TicketAdminApi.ApiError.class, () -> api.history(guild, actor, "577853260153618443")).status);
+        assertEquals(403, assertThrows(TicketAdminApi.ApiError.class, () -> api.save(guild, actor, SERVER_A, DataObject.empty())).status);
+        assertEquals(403, assertThrows(TicketAdminApi.ApiError.class, () -> api.remove(guild, actor, SERVER_A)).status);
+        assertEquals(403, assertThrows(TicketAdminApi.ApiError.class, () -> api.history(guild, actor, SERVER_A)).status);
         verify(premium, never()).grant(anyLong(), anyString(), anyString(), any(), any(), anyString(), anyLong());
         verify(premium, never()).revoke(anyLong(), anyLong());
     }
 
     @Test
     void theOwnerCanAddAServerWithATidyLabelAndTheDefaultPlan() {
-        api.save(guild, actor, "577853260153618443", DataObject.empty().put("label", "  Koalafied  "));
+        api.save(guild, actor, SERVER_A, DataObject.empty().put("label", "  Clan A  "));
 
-        verify(premium).grant(577853260153618443L, "Koalafied", "premium", null, null, "manual", 7L);
+        verify(premium).grant(SERVER_A_ID, "Clan A", "premium", null, null, "manual", 7L);
     }
 
     @Test
     void aPlanCanHaveANameAnEndAndANote() {
         Instant end = Instant.now().plus(30, ChronoUnit.DAYS);
 
-        api.save(guild, actor, "577853260153618443", DataObject.empty().put("label", "x").put("tier", " Plus ").put("expiresAt", end.toString()).put("note", " trial ").put("source", "trial"));
+        api.save(guild, actor, SERVER_A, DataObject.empty().put("label", "x").put("tier", " Plus ").put("expiresAt", end.toString()).put("note", " trial ").put("source", "trial"));
 
-        verify(premium).grant(577853260153618443L, "x", "plus", end, "trial", "trial", 7L);
+        verify(premium).grant(SERVER_A_ID, "x", "plus", end, "trial", "trial", 7L);
     }
 
     @Test
@@ -138,7 +145,7 @@ class PremiumAdminApiTest {
 
     @Test
     void aBadPlanNameIsRefused() {
-        assertEquals(400, assertThrows(TicketAdminApi.ApiError.class, () -> api.save(guild, actor, "577853260153618443", DataObject.empty().put("tier", "Not A Tier!"))).status);
+        assertEquals(400, assertThrows(TicketAdminApi.ApiError.class, () -> api.save(guild, actor, SERVER_A, DataObject.empty().put("tier", "Not A Tier!"))).status);
     }
 
     @Test
@@ -148,9 +155,9 @@ class PremiumAdminApiTest {
 
     @Test
     void removingAServerNotOnThePlanIsANotFound() {
-        when(premium.revoke(eq(1062157106347786240L), anyLong())).thenReturn(false);
+        when(premium.revoke(eq(SERVER_C_ID), anyLong())).thenReturn(false);
 
-        assertEquals(404, assertThrows(TicketAdminApi.ApiError.class, () -> api.remove(guild, actor, "1062157106347786240")).status);
+        assertEquals(404, assertThrows(TicketAdminApi.ApiError.class, () -> api.remove(guild, actor, SERVER_C)).status);
     }
 
     @Test

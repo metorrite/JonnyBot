@@ -1,5 +1,7 @@
 package com.younglings.bot.points;
 
+import com.younglings.bot.cachebus.CacheBus;
+import com.younglings.bot.cachebus.CacheInvalidator;
 import com.younglings.bot.database.SchemaBootstrapper;
 import com.younglings.bot.points.PointsExtrasRules.RoleReward;
 import com.younglings.bot.points.PointsExtrasRules.Trigger;
@@ -22,7 +24,10 @@ import java.util.Map;
 
 /** Role rewards and keyword triggers of a server's points. Triggers are read for every message, so they are kept in memory and refreshed when they change. */
 @BService
-public class PointsExtrasRepository {
+public class PointsExtrasRepository implements CacheInvalidator {
+    /** The {@code bot_cache} area of this class's caches (docs/SCALING-STATE.md M10). */
+    static final String CACHE_AREA = "points-extras";
+
     private static final Logger log = LoggerFactory.getLogger(PointsExtrasRepository.class);
 
     private final ConnectionSupplier connectionSupplier;
@@ -206,6 +211,7 @@ public class PointsExtrasRepository {
                 }
             }
             triggerCache.remove(t.guildId());
+            CacheBus.changed(CACHE_AREA, t.guildId());
             return done;
         } catch (SQLException e) {
             throw new RuntimeException("Failed to save the keyword trigger", e);
@@ -218,6 +224,7 @@ public class PointsExtrasRepository {
             s.setLong(2, id);
             boolean done = s.executeUpdate() > 0;
             triggerCache.remove(guildId);
+            CacheBus.changed(CACHE_AREA, guildId);
             return done;
         } catch (SQLException e) {
             throw new RuntimeException("Failed to delete the keyword trigger", e);
@@ -237,5 +244,22 @@ public class PointsExtrasRepository {
         } catch (SQLException e) {
             throw new RuntimeException("Failed to count the keyword payments", e);
         }
+    }
+
+    // ---------- cross-process invalidation (CacheBus) ----------
+
+    @Override
+    public String cacheArea() {
+        return CACHE_AREA;
+    }
+
+    @Override
+    public void evictCached(long guildId) {
+        triggerCache.remove(guildId);
+    }
+
+    @Override
+    public void evictAllCached() {
+        triggerCache.clear();
     }
 }

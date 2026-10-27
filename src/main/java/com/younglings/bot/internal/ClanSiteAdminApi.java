@@ -53,6 +53,8 @@ import com.younglings.bot.config.BotBrand;
  *   server's Discord invite ({@link SiteInviteRoutes})</li>
  *   <li>members ({@link SiteMembersAdmin}): {@code GET|PUT clan-site/member-privacy} (T-395) and {@code GET clan-site/roles/people?q=&role=&page=}
  *   (T-396), admin; for a GET, {@code body} holds the query string's parameters</li>
+ *   <li>Clan health (T-593, {@link SiteCockpitAdmin}): {@code GET clan-site/cockpit} and {@code POST clan-site/cockpit/marks} (admin),
+ *   {@code PUT clan-site/cockpit/settings} (owner)</li>
  * </ul>
  * Reached only through {@link TicketAdminApi}, which has already checked the asker may use the dashboard here and audit-logs every write.
  */
@@ -118,6 +120,7 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
             case "roles" -> parts.length == 3 && (parts[2].equals("hand-over") || (parts[2].equals("admin-access") && !get))
                     ? SiteRoles.Action.OWN : SiteRoles.Action.SETTINGS;
             case "delete" -> SiteRoles.Action.OWN;
+            case SiteCockpitAdmin.PATH -> SiteCockpitAdmin.actionFor(method, parts);
             case "takedown", "restore" -> null;
             default -> SiteRoles.Action.SETTINGS;
         };
@@ -151,6 +154,7 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
         }
         if (parts.length >= 2 && parts[1].equals("roles")) return roles(c, method, parts, body);
         if (parts.length == 2 && parts[1].equals("member-privacy")) return members.privacy(c, method, body);
+        if (parts.length >= 2 && parts[1].equals(SiteCockpitAdmin.PATH)) return members.cockpit(c, method, parts, body);
         if (parts.length >= 2 && parts[1].equals("connections")) return connections(c, method, parts, body);
         if (parts.length >= 2 && parts.length <= 3 && parts[1].equals("address")) return address.route(c.guildId(), method, parts.length == 3 ? parts[2] : "", body);
         // the site admin's own way to the member options (site admins who aren't dashboard admins included): needs the bot in the server

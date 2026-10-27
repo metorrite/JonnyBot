@@ -1,5 +1,7 @@
 package com.younglings.bot.i18n;
 
+import com.younglings.bot.cachebus.CacheBus;
+import com.younglings.bot.cachebus.CacheInvalidator;
 import com.younglings.bot.config.BotBrand;
 import com.younglings.bot.config.BotConfig;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -30,7 +32,10 @@ import java.util.concurrent.ConcurrentHashMap;
  * while {@code LANGUAGE_PACKS_ENABLED=true}, and may lack keys (English shows for those).
  */
 @BService
-public class Messages {
+public class Messages implements CacheInvalidator {
+    /** The {@code bot_cache} area of this class's caches (docs/SCALING-STATE.md M10). */
+    static final String CACHE_AREA = "language";
+
     private static final Logger log = LoggerFactory.getLogger(Messages.class);
     public static final String DEFAULT_LANGUAGE = "en";
 
@@ -100,6 +105,7 @@ public class Messages {
         if (!isAvailable(code)) throw new IllegalArgumentException("Unknown language: " + code);
         languages.save(guildId, code);
         chosen.put(guildId, code);
+        CacheBus.changed(CACHE_AREA, guildId);
     }
 
     public String text(Guild guild, String key, Object... args) {
@@ -170,5 +176,22 @@ public class Messages {
         } catch (IOException e) {
             throw new IllegalStateException("Could not read " + resource, e);
         }
+    }
+
+    // ---------- cross-process invalidation (CacheBus) ----------
+
+    @Override
+    public String cacheArea() {
+        return CACHE_AREA;
+    }
+
+    @Override
+    public void evictCached(long guildId) {
+        chosen.remove(guildId);
+    }
+
+    @Override
+    public void evictAllCached() {
+        chosen.clear();
     }
 }

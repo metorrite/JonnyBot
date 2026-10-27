@@ -88,12 +88,14 @@ class StatementCheck(unittest.TestCase):
         env = {k: v for k, v in os.environ.items() if k != "LIVE_DATABASE_URL"}
         out = subprocess.run([sys.executable, str(Path(db_query.__file__)), "--live", "SELECT 1"], capture_output=True, text=True, env=env)
         self.assertEqual(out.returncode, 3)
-        self.assertIn("Drake must approve", out.stderr)
+        self.assertIn("owner must approve", out.stderr)
         self.assertEqual(out.stdout, "")
-        # the second flag alone still does not connect without the live URL being provided by the environment
-        out = subprocess.run([sys.executable, str(Path(db_query.__file__)), "--live", "--drake-approved", "SELECT 1"], capture_output=True, text=True, env=env)
-        self.assertNotEqual(out.returncode, 0)
-        self.assertIn("LIVE_DATABASE_URL is not set", out.stderr)
+        # the second flag (or its old name) alone still does not connect without the live URL being provided by the environment
+        for flag in ("--owner-approved", "--drake-approved"):
+            with self.subTest(flag=flag):
+                out = subprocess.run([sys.executable, str(Path(db_query.__file__)), "--live", flag, "SELECT 1"], capture_output=True, text=True, env=env)
+                self.assertNotEqual(out.returncode, 0)
+                self.assertIn("LIVE_DATABASE_URL is not set", out.stderr)
 
 
 def local_database():

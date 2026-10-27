@@ -1,5 +1,7 @@
 package com.younglings.bot.highlight;
 
+import com.younglings.bot.cachebus.CacheBus;
+import com.younglings.bot.cachebus.CacheInvalidator;
 import com.younglings.bot.database.SchemaBootstrapper;
 import com.younglings.bot.starboard.StarboardConfig;
 import io.github.freya022.botcommands.api.core.db.ConnectionSupplier;
@@ -20,7 +22,10 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /** Highlights settings, members' words and the channels members ignore. Every message in a server asks for these, so they are kept in memory per server and refreshed whenever they change. */
 @BService
-public class HighlightRepository {
+public class HighlightRepository implements CacheInvalidator {
+    /** The {@code bot_cache} area of this class's caches (docs/SCALING-STATE.md M10). */
+    static final String CACHE_AREA = "highlight";
+
     private static final Logger log = LoggerFactory.getLogger(HighlightRepository.class);
 
     /** One word a member watches for. */
@@ -103,6 +108,7 @@ public class HighlightRepository {
             s.setString(6, StarboardConfig.writeIds(config.allowedRoles()));
             s.executeUpdate();
             configs.remove(config.guildId());
+            CacheBus.changed(CACHE_AREA, config.guildId());
         } catch (SQLException e) {
             log.error("Failed to save the Highlights settings of guild {}", config.guildId(), e);
             throw new RuntimeException("Failed to save the Highlights settings", e);
@@ -145,6 +151,7 @@ public class HighlightRepository {
             s.setBoolean(4, wholeWord);
             boolean added = s.executeUpdate() > 0;
             keywords.remove(guildId);
+            CacheBus.changed(CACHE_AREA, guildId);
             return added;
         } catch (SQLException e) {
             log.error("Failed to add a Highlights word in guild {}", guildId, e);
@@ -163,6 +170,7 @@ public class HighlightRepository {
             if (id != null) s.setLong(3, id); else s.setString(3, word);
             boolean gone = s.executeUpdate() > 0;
             keywords.remove(guildId);
+            CacheBus.changed(CACHE_AREA, guildId);
             return gone;
         } catch (SQLException e) {
             log.error("Failed to remove a Highlights word in guild {}", guildId, e);
@@ -201,6 +209,7 @@ public class HighlightRepository {
             s.setLong(3, channelId);
             s.executeUpdate();
             ignores.remove(guildId);
+            CacheBus.changed(CACHE_AREA, guildId);
         } catch (SQLException e) {
             log.error("Failed to change a Highlights ignored channel in guild {}", guildId, e);
             throw new RuntimeException("Failed to change the ignored channel", e);
@@ -219,8 +228,30 @@ public class HighlightRepository {
             }
             keywords.remove(guildId);
             ignores.remove(guildId);
+            CacheBus.changed(CACHE_AREA, guildId);
         } catch (SQLException e) {
             log.error("Failed to clear a member's Highlights in guild {}", guildId, e);
         }
+    }
+
+    // ---------- cross-process invalidation (CacheBus) ----------
+
+    @Override
+    public String cacheArea() {
+        return CACHE_AREA;
+    }
+
+    @Override
+    public void evictCached(long guildId) {
+        configs.remove(guildId);
+        keywords.remove(guildId);
+        ignores.remove(guildId);
+    }
+
+    @Override
+    public void evictAllCached() {
+        configs.clear();
+        keywords.clear();
+        ignores.clear();
     }
 }

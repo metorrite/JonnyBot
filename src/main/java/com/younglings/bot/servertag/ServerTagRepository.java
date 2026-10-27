@@ -1,5 +1,7 @@
 package com.younglings.bot.servertag;
 
+import com.younglings.bot.cachebus.CacheBus;
+import com.younglings.bot.cachebus.CacheInvalidator;
 import com.younglings.bot.database.SchemaBootstrapper;
 import com.younglings.bot.servertag.ServerTagConfig.Action;
 import io.github.freya022.botcommands.api.core.db.ConnectionSupplier;
@@ -17,7 +19,10 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 @BService
-public class ServerTagRepository {
+public class ServerTagRepository implements CacheInvalidator {
+    /** The {@code bot_cache} area of this class's caches (docs/SCALING-STATE.md M10). */
+    static final String CACHE_AREA = "server-tag";
+
     private static final Logger log = LoggerFactory.getLogger(ServerTagRepository.class);
 
     private final ConnectionSupplier connectionSupplier;
@@ -80,6 +85,7 @@ public class ServerTagRepository {
             s.setString(7, join(config.exemptRoleIds()));
             s.executeUpdate();
             cache.remove(config.guildId());
+            CacheBus.changed(CACHE_AREA, config.guildId());
         } catch (SQLException e) {
             log.error("Failed to save the server-tag settings of guild {}", config.guildId(), e);
             throw new RuntimeException("Failed to save the server-tag settings", e);
@@ -94,5 +100,22 @@ public class ServerTagRepository {
 
     private static String join(List<Long> ids) {
         return String.join(",", ids.stream().map(String::valueOf).toList());
+    }
+
+    // ---------- cross-process invalidation (CacheBus) ----------
+
+    @Override
+    public String cacheArea() {
+        return CACHE_AREA;
+    }
+
+    @Override
+    public void evictCached(long guildId) {
+        cache.remove(guildId);
+    }
+
+    @Override
+    public void evictAllCached() {
+        cache.clear();
     }
 }

@@ -1,5 +1,7 @@
 package com.younglings.bot.clansite;
 
+import com.younglings.bot.cachebus.CacheBus;
+import com.younglings.bot.cachebus.CacheInvalidator;
 import com.younglings.bot.database.SchemaBootstrapper;
 import io.github.freya022.botcommands.api.core.db.ConnectionSupplier;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -14,6 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * The Discord servers whose clan website is run without the bot in them (a bot-less site): one row per server, written the first time a person
@@ -25,11 +28,16 @@ import java.util.concurrent.ConcurrentHashMap;
  * The list is small and read on every site request, so it is remembered in memory and refreshed on each write.
  */
 @BService
-public class BotlessSiteRepository {
+public class BotlessSiteRepository implements CacheInvalidator {
+    /** The {@code bot_cache} area of this class's caches (docs/SCALING-STATE.md M10). */
+    static final String CACHE_AREA = "botless-sites";
+
     private static final Logger log = LoggerFactory.getLogger(BotlessSiteRepository.class);
 
     private final ConnectionSupplier connectionSupplier;
     private volatile Set<Long> known;
+    /** Bumped before every drop of {@link #known}, so a read that started before a change can't put the old list back after it. */
+    private final AtomicLong generation = new AtomicLong();
 
     public BotlessSiteRepository(ConnectionSupplier connectionSupplier) {
         this.connectionSupplier = connectionSupplier;
@@ -54,6 +62,7 @@ public class BotlessSiteRepository {
     public Set<Long> ids() {
         Set<Long> current = known;
         if (current != null) return current;
+        long started = generation.get();
         Set<Long> loaded = ConcurrentHashMap.newKeySet();
         try (Connection c = connectionSupplier.getConnection();
              PreparedStatement s = c.prepareStatement("SELECT guild_id FROM younglings.botless_site");
@@ -65,6 +74,8 @@ public class BotlessSiteRepository {
         }
         Set<Long> frozen = Set.copyOf(loaded);
         known = frozen;
+        // a drop since this read started may have come before the line above: then don't keep what may be the old list
+        if (generation.get() != started) known = null;
         return frozen;
     }
 
@@ -76,7 +87,8 @@ public class BotlessSiteRepository {
             s.setLong(1, guildId);
             s.setLong(2, userId);
             boolean added = s.executeUpdate() == 1;
-            known = null;
+            dropKnown();
+            CacheBus.changed(CACHE_AREA, guildId);
             if (added) log.info("Clan website of guild {} is now bot-less (set up by {})", guildId, userId);
             return added;
         } catch (SQLException e) {
@@ -90,7 +102,8 @@ public class BotlessSiteRepository {
         try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("DELETE FROM younglings.botless_site WHERE guild_id = ?")) {
             s.setLong(1, guildId);
             s.executeUpdate();
-            known = null;
+            dropKnown();
+            CacheBus.changed(CACHE_AREA, guildId);
         } catch (SQLException e) {
             log.error("Failed to forget the bot-less clan website of guild {}", guildId, e);
             throw new RuntimeException("Failed to forget the bot-less clan website", e);
@@ -102,5 +115,27 @@ public class BotlessSiteRepository {
         List<Long> out = new ArrayList<>(ids());
         out.sort(Long::compare);
         return out;
+    }
+
+    // ---------- cross-process invalidation (CacheBus) ----------
+
+    @Override
+    public String cacheArea() {
+        return CACHE_AREA;
+    }
+
+    @Override
+    public void evictCached(long guildId) {
+        dropKnown();
+    }
+
+    @Override
+    public void evictAllCached() {
+        dropKnown();
+    }
+
+    private void dropKnown() {
+        generation.incrementAndGet();
+        known = null;
     }
 }
