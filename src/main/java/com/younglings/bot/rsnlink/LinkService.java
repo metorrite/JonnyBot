@@ -35,7 +35,8 @@ import java.util.UUID;
  * {@code dispute} row is opened for the owner's abuse view (T-118) and, later, the automatic tie-breaker (T-122). A link stronger than
  * {@link Verification#IMPLICIT} can't be disputed by an implicit one; that claim is refused instead. A tracked claim on a name another
  * Discord account holds with a tracking-less link goes to a dispute the same way; only the same Discord account's own tracking-less link
- * is replaced outright.
+ * is replaced outright. A tracking-less character is shared by every claim without a tracking id, so it takes a tracking id only while
+ * one active link stands on it alone, and forget-me on it deletes only the caller's links while others hold some.
  */
 public final class LinkService {
     private static final Logger log = LoggerFactory.getLogger(LinkService.class);
@@ -199,7 +200,14 @@ public final class LinkService {
                     // Without a tracking id there is no way to tell a rename from another character using this token.
                     throw new LinkException(409, "character_mismatch", "This link belongs to another character. Link this character on its own.");
                 }
-                if (trackingLookup != null && store.characterByTracking(c, trackingLookup).isEmpty()) store.setTracking(c, ch.id(), trackingLookup);
+                // The tracking-less character is shared by every claim on this name without a tracking id. A tracking id is attached
+                // only for an active link that is the character's one current link: while another Discord account has an active or
+                // disputed link here, the character stays tracking-less, so the claim rules keep treating every side alike.
+                if (trackingLookup != null && current.status().equals("active")
+                        && !store.otherDiscordHasLinkOn(c, ch.id(), current.discordUserId(), true)
+                        && store.characterByTracking(c, trackingLookup).isEmpty()) {
+                    store.setTracking(c, ch.id(), trackingLookup);
+                }
                 if (!ch.rsnDisplay().equals(rsn)) store.renameCharacter(c, ch, rsn, rsnKey, now);
                 else store.touchCharacter(c, ch.id(), now);
             }
@@ -278,14 +286,23 @@ public final class LinkService {
         });
     }
 
-    /** {@code POST /v1/forget-me}: deletes this character, its links, tokens and name history at once. */
+    /**
+     * {@code POST /v1/forget-me}: deletes this character, its links, tokens and name history at once. When another Discord account also
+     * has a link on the character (a tracking-less character is shared by every claim without a tracking id), only the caller's own
+     * links are ended and deleted; the character and the others' links stay.
+     */
     public DataObject forgetMe(String token, String confirm) {
         if (!"DELETE".equals(confirm)) throw LinkException.bad("confirm_required", "Send \"confirm\": \"DELETE\" to delete this character's data.");
         Instant now = clock.instant();
         return tx(c -> {
             TokenAuth auth = authenticate(c, token, tokenRoutes, now);
             endLink(c, auth.link(), "unlinked", "player", now);
-            store.deleteCharacter(c, auth.character().id());
+            UUID characterId = auth.character().id();
+            if (store.otherDiscordHasLinkOn(c, characterId, auth.link().discordUserId(), false)) {
+                store.deleteLinksOf(c, characterId, auth.link().discordUserId());
+            } else {
+                store.deleteCharacter(c, characterId);
+            }
             log.info("A character's link data was deleted from the plugin (link {})", auth.link().id());
             return DataObject.empty().put("deleted", true);
         });
@@ -536,6 +553,15 @@ public final class LinkService {
         }
 
         // First decide, then write: a refusal must leave nothing half-done behind (refusals still commit their abuse record).
+        if (ch != null && !ch.tracked()) {
+            // A claim on the shared tracking-less character disputes another Discord's link there, and an implicit claim can't dispute
+            // a link verified above implicit (section 11): refused instead.
+            Link sharing = store.activeLink(c, ch.id()).orElse(null);
+            if (sharing != null && !sharing.discordUserId().equals(discordUserId)
+                    && Verification.of(sharing.verification()).strongerThan(Verification.IMPLICIT)) {
+                return refuse(c, p, now);
+            }
+        }
         List<TokenAuth> holders = store.activeHoldersOfName(c, p.rsnLookup()).stream()
                 .filter(h -> ch == null || !h.character().id().equals(ch.id())).toList();
         boolean tracked = p.trackingLookup() != null;

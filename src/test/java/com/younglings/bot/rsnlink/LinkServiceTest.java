@@ -496,6 +496,79 @@ class LinkServiceTest {
     }
 
     @Test
+    void aTrackingIdIsNotAttachedToACharacterAnotherAccountHoldsALinkOn() throws Exception {
+        String loose = link("Zezima", null, BOB);
+        Paired claim = start("Zezima", null, "198.51.100.5");
+        assertEquals("disputed", approve(claim, ALICE));
+        String claimant = pollNow(claim).getString("token");
+
+        service.session(claimant, "Zezima", "999");
+        service.session(loose, "Zezima", "111");
+        assertEquals(0, count("SELECT count(*) FROM {s}.game_character WHERE tracking_lookup IS NOT NULL"), "the shared character stays tracking-less");
+
+        // A later claim with that tracking id is a claim on another account's link: a dispute.
+        service.unlink(claimant);
+        assertEquals("disputed", approve(start("Zezima", "999", "198.51.100.6"), ALICE));
+        assertTrue(service.session(loose, "Zezima", null).getBoolean("linked"), "the incumbent keeps its link");
+        assertEquals(0, count("SELECT count(*) FROM {s}.link WHERE status = 'superseded'"));
+        assertEquals(1, count("SELECT count(*) FROM {s}.dispute WHERE status = 'open'"));
+    }
+
+    @Test
+    void aLoneTrackingLessLinkStillTakesItsTrackingId() throws Exception {
+        String loose = link("Zezima", null, BOB);
+        service.session(loose, "Zezima", "111");
+        assertEquals(1, count("SELECT count(*) FROM {s}.game_character WHERE tracking_lookup IS NOT NULL"));
+        assertTrue(service.session(loose, "Zezima2", "111").getBoolean("linked"), "now a rename follows the tracking id");
+    }
+
+    @Test
+    void forgetMeOnASharedCharacterOnlyDeletesTheCallersLinks() throws Exception {
+        String loose = link("Zezima", null, BOB);
+        Paired claim = start("Zezima", null, "198.51.100.5");
+        assertEquals("disputed", approve(claim, ALICE));
+        String claimant = pollNow(claim).getString("token");
+
+        service.forgetMe(claimant, "DELETE");
+        assertEquals(1, count("SELECT count(*) FROM {s}.game_character"));
+        assertEquals(1, count("SELECT count(*) FROM {s}.link"), "only the caller's link is gone");
+        DataObject after = service.session(loose, "Zezima", null);
+        assertTrue(after.getBoolean("linked"));
+        assertFalse(after.getBoolean("disputed"));
+    }
+
+    @Test
+    void forgetMeByTheIncumbentOfASharedCharacterHandsTheNameToTheClaimant() throws Exception {
+        String loose = link("Zezima", null, BOB);
+        Paired claim = start("Zezima", null, "198.51.100.5");
+        assertEquals("disputed", approve(claim, ALICE));
+        String claimant = pollNow(claim).getString("token");
+
+        service.forgetMe(loose, "DELETE");
+        assertEquals(1, count("SELECT count(*) FROM {s}.game_character"));
+        assertEquals(1, count("SELECT count(*) FROM {s}.link"));
+        assertTrue(service.session(claimant, "Zezima", null).getBoolean("linked"), "the waiting claimant now holds the name");
+        service.forgetMe(claimant, "DELETE");
+        assertEquals(0, count("SELECT count(*) FROM {s}.game_character"), "the last holder's forget-me deletes the character");
+    }
+
+    @Test
+    void aTrackingLessClaimCantDisputeAVerifiedTrackingLessLink() throws Exception {
+        raiseOn("zezima");
+        String owner = link("Zezima", null, BOB);
+        assertEquals("public_data_corroborated", service.session(owner, "Zezima", null).getString("verification"));
+        service = new LinkService(settings, database, LinkDmSender.NONE, List.of(), clock, new SecureRandom());
+        Paired p = start("Zezima", null, "198.51.100.5");
+        service.webCode(p.userCode(), p.session(), null, "198.51.100.5");
+        assertEquals("name_unavailable", assertThrows(LinkException.class, () -> service.webConfirm(p.session(), ALICE, null, "link")).code());
+        DataObject after = service.session(owner, "Zezima", null);
+        assertTrue(after.getBoolean("linked"));
+        assertFalse(after.getBoolean("disputed"));
+        assertEquals(0, count("SELECT count(*) FROM {s}.dispute"));
+        assertEquals(1, count("SELECT count(*) FROM {s}.link"), "the refusal left nothing half-done");
+    }
+
+    @Test
     void aRenameOntoAHeldNameIsRefused() throws Exception {
         String owner = link("Zezima", "111", BOB);
         String loose = link("Other", null, BOB);

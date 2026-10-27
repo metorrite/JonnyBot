@@ -368,6 +368,26 @@ final class LinkStore {
         return update(c, "DELETE FROM {s}.discord_user WHERE id = ?", id) > 0;
     }
 
+    /**
+     * Whether a Discord user other than this one has a link on the character: only a current one (active or disputed) when
+     * {@code currentOnly}, otherwise any, ended ones included.
+     */
+    boolean otherDiscordHasLinkOn(Connection c, UUID characterId, UUID discordUserId, boolean currentOnly) throws SQLException {
+        try (PreparedStatement s = c.prepareStatement(sql("SELECT 1 FROM {s}.link WHERE character_id = ? AND discord_user_id <> ?"
+                + (currentOnly ? " AND status IN ('active', 'disputed')" : "") + " LIMIT 1"))) {
+            s.setObject(1, characterId);
+            s.setObject(2, discordUserId);
+            try (ResultSet rs = s.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    /** Deletes this Discord user's links on one character (their tokens go with them; disputes and pairings keep a null reference). */
+    int deleteLinksOf(Connection c, UUID characterId, UUID discordUserId) throws SQLException {
+        return update(c, "DELETE FROM {s}.link WHERE character_id = ? AND discord_user_id = ?", characterId, discordUserId);
+    }
+
     /** Characters whose every link belongs to this Discord user (deleted with the user's data: nobody else has a claim on them). */
     List<UUID> charactersOnlyLinkedTo(Connection c, UUID discordUserId) throws SQLException {
         List<UUID> ids = new ArrayList<>();
