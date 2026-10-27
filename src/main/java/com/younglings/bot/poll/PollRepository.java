@@ -135,6 +135,28 @@ public class PollRepository {
         return poll == null ? OptionalLong.empty() : OptionalLong.of(poll.guildId());
     }
 
+    /** The active polls of one server: the {@code /poll} panel and the website list read this, so a poll made by another process shows up too. */
+    public List<PollSession> getActivePolls(long guildId) {
+        String sql = """
+                SELECT poll_id, guild_id, channel_id, message_id, title, anonymous, multiple_votes, status, created_by_user_id
+                FROM younglings.poll
+                WHERE guild_id = ? AND status = 'ACTIVE'
+                ORDER BY poll_id ASC
+                """;
+        List<PollSession> polls = new ArrayList<>();
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setLong(1, guildId);
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) polls.add(mapPoll(rs));
+            }
+            return polls;
+        } catch (SQLException e) {
+            log.error("Failed to get active polls for guild {}", guildId, e);
+            throw new RuntimeException("Failed to get active polls", e);
+        }
+    }
+
     public PollSession getPollById(long pollId) {
         try (Connection connection = connectionSupplier.getConnection();
              PreparedStatement statement = connection.prepareStatement(
