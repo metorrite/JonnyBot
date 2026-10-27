@@ -41,6 +41,33 @@ class SkillWeekRulesTest {
     }
 
     @Test
+    void aChangedRotaGoesOnAfterThisWeeksSkill() {
+        assertEquals(1, SkillWeekRules.positionAfter(List.of(9, 14, 28), 9), "Necromancy added in a Fletching week: Mining is next, not Fletching again");
+        assertEquals(15, SkillWeekRules.skillAt(List.of(25, 9, 15), SkillWeekRules.positionAfter(List.of(25, 9, 15), 9)));
+        assertEquals(0, SkillWeekRules.positionAfter(List.of(14, 15), 9), "this week's skill left the rota");
+        assertEquals(0, SkillWeekRules.positionAfter(List.of(9, 15), null), "no week yet");
+    }
+
+    @Test
+    void aWeekThatCantBeBroughtUpToDateIsClosedAnywayADayAfter() {
+        Instant end = SkillWeekRules.weekEnd(Instant.parse("2026-10-26T00:00:00Z"));
+        assertFalse(SkillWeekRules.giveUp(end, Instant.parse("2026-11-02T00:20:00Z")));
+        assertTrue(SkillWeekRules.giveUp(end, Instant.parse("2026-11-02T23:59:59Z")));
+    }
+
+    @Test
+    void theObjectiveHoldsAWeekAboveTheSkillCap() {
+        net.dv8tion.jda.api.utils.data.DataObject config = net.dv8tion.jda.api.utils.data.DataObject.empty().put("skillId", 9).put("xpPerPoint", SkillWeekRules.XP_PER_POINT)
+                .put("xpSource", CompetitionTemplate.SOURCE_PLUGIN).put("wholeSpan", true);
+        CompetitionTemplate template = new CompetitionTemplate();
+        assertTrue(template.configProblems(config).isEmpty());
+        EventRules.ObjectiveSpec objective = template.starterObjectives(config).get(0);
+        long gain = 150_000_000L; // a Double XP week in a fast skill, over the old 100M cap
+        assertTrue(objective.target() * objective.repeatLimit() >= 200_000_000L, "room for a whole skill's 200M");
+        assertEquals(gain, Math.min(gain, objective.target() * objective.repeatLimit()));
+    }
+
+    @Test
     void winnersAreTheMostXpWithTiesSharingARankAndNobodyOnNothing() {
         Map<Long, Long> xp = new LinkedHashMap<>();
         xp.put(5L, 1_000L);

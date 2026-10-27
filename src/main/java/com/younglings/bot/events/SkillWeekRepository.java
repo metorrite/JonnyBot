@@ -75,18 +75,21 @@ public class SkillWeekRepository {
         }
     }
 
-    /** Saves the switch and the rota; a changed rota starts again from its first skill. */
+    /** Saves the switch and the rota; a changed rota goes on from the skill after the latest week's ({@link SkillWeekRules#positionAfter}). */
     public void save(long guildId, boolean enabled, List<Integer> rota, long actorId) {
         String sql = """
-                INSERT INTO younglings.skill_week_settings (guild_id, enabled, rota, position, updated_by, updated_at) VALUES (?, ?, ?, 0, ?, NOW())
+                INSERT INTO younglings.skill_week_settings (guild_id, enabled, rota, position, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, NOW())
                 ON CONFLICT (guild_id) DO UPDATE SET enabled = EXCLUDED.enabled, rota = EXCLUDED.rota, updated_by = EXCLUDED.updated_by, updated_at = NOW(),
-                    position = CASE WHEN younglings.skill_week_settings.rota = EXCLUDED.rota THEN younglings.skill_week_settings.position ELSE 0 END
+                    position = CASE WHEN younglings.skill_week_settings.rota = EXCLUDED.rota THEN younglings.skill_week_settings.position ELSE EXCLUDED.position END
                 """;
+        List<Week> latest = recent(guildId, 1);
+        int position = SkillWeekRules.positionAfter(rota, latest.isEmpty() ? null : latest.get(0).skillId());
         try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(sql)) {
             s.setLong(1, guildId);
             s.setBoolean(2, enabled);
             s.setString(3, DataArray.fromCollection(rota).toString());
-            s.setLong(4, actorId);
+            s.setInt(4, position);
+            s.setLong(5, actorId);
             s.executeUpdate();
         } catch (SQLException e) {
             throw new RuntimeException("Failed to save the skill of the week settings", e);

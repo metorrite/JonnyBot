@@ -25,17 +25,20 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
  * T-541 acceptance: a week's winners are exactly the XP ledger's gains for that skill and span. The hub here answers {@code xp/gains} from a fixture
  * ledger (timed gains per player, skill and minute); the week's competition is fed through {@link PluginXpTracker} during the week and once more
- * at the close, and the winners {@link SkillWeekService#close} keeps must equal what the ledger says, with gains in other skills, before Monday
+ * at the close (only once the hub could be asked for everyone, or a day late), and the winners {@link SkillWeekService#close} keeps must equal what the ledger says, with gains in other skills, before Monday
  * and after Sunday left out, and a late joiner counted from Monday.
  */
 class SkillWeekAcceptanceTest {
@@ -48,6 +51,8 @@ class SkillWeekAcceptanceTest {
     private static final int MINING = 14;
     private static final Instant START = Instant.parse("2026-10-26T00:00:00Z");
     private static final Instant END = SkillWeekRules.weekEnd(START);
+    /** The hub's spans are [from, to): the week is asked up to the second after its last. */
+    private static final Instant NEXT_MONDAY = Instant.parse("2026-11-02T00:00:00Z");
 
     private record Gain(String alias, int skill, Instant at, long xp) {}
 
@@ -60,6 +65,7 @@ class SkillWeekAcceptanceTest {
             new Gain("a1_bob", FLETCHING, Instant.parse("2026-10-31T18:00:00Z"), 2_000),
             new Gain("a1_carol", FLETCHING, Instant.parse("2026-10-25T23:59:00Z"), 40_000), // last week
             new Gain("a1_carol", FLETCHING, Instant.parse("2026-10-30T20:00:00Z"), 6_000),
+            new Gain("a1_carol", FLETCHING, Instant.parse("2026-11-01T23:59:59.500Z"), 1_000), // the week's last second still counts
             new Gain("a1_dave", FLETCHING, Instant.parse("2026-10-28T08:00:00Z"), 8_999));
 
     private final EventRepository repository = Mockito.mock(EventRepository.class);
@@ -68,20 +74,21 @@ class SkillWeekAcceptanceTest {
     private final SkillWeekRepository weeks = Mockito.mock(SkillWeekRepository.class);
     private final List<Progress> progress = new ArrayList<>();
 
-    /** What the ledger says each alias gained in {@code skill} from {@code from} to {@code to}. */
+    /** What the ledger says each alias gained in {@code skill} from {@code from} up to (not including) {@code to}, as the hub counts. */
     private static Map<String, Long> ledger(Collection<String> aliases, int skill, Instant from, Instant to) {
         Map<String, Long> out = new HashMap<>();
         for (Gain g : LEDGER) {
-            if (aliases.contains(g.alias()) && g.skill() == skill && !g.at().isBefore(from) && !g.at().isAfter(to)) out.merge(g.alias(), g.xp(), Long::sum);
+            if (aliases.contains(g.alias()) && g.skill() == skill && !g.at().isBefore(from) && g.at().isBefore(to)) out.merge(g.alias(), g.xp(), Long::sum);
         }
         return out;
     }
 
-    @Test
+    private final Event event = new Event(1, GUILD, CompetitionTemplate.KEY, "Skill of the week", "", Status.RUNNING, null, ScoringMode.INDIVIDUAL, START, END, 0,
+            "{\"skillId\":9,\"xpPerPoint\":1000000,\"xpSource\":\"plugin\",\"wholeSpan\":true}", 1, START, null, false);
+    private boolean hubUp = true;
+
     @SuppressWarnings("unchecked")
-    void theWeeksWinnersAreTheLedgersGainsForThatSkillAndSpan() {
-        Event event = new Event(1, GUILD, CompetitionTemplate.KEY, "Skill of the week", "", Status.RUNNING, null, ScoringMode.INDIVIDUAL, START, END, 0,
-                "{\"skillId\":9,\"xpPerPoint\":100000,\"xpSource\":\"plugin\",\"wholeSpan\":true}", 1, START, null, false);
+    private void fixture() {
         when(repository.event(GUILD, 1)).thenReturn(Optional.of(event));
         when(repository.startedAt(1)).thenReturn(Optional.of(START.plusSeconds(300))); // the pass that opened it ran a few minutes in
         when(repository.participants(1)).thenReturn(List.of(player(ALICE, START), player(BOB, Instant.parse("2026-10-29T12:00:00Z")), player(CAROL, START), player(DAVE, START)));
@@ -91,6 +98,7 @@ class SkillWeekAcceptanceTest {
             when(hub.aliasOf(user)).thenReturn(Optional.of("a1_" + name));
         }
         when(hub.xpGains(eq(GUILD), any(Collection.class), any(), any(Instant.class), any(Instant.class))).thenAnswer(i -> {
+            if (!hubUp) return new RuneClansHubClient.Answer(503, null);
             Collection<String> aliases = i.getArgument(1);
             DataArray rows = DataArray.empty();
             ledger(aliases, i.getArgument(2), i.getArgument(3), i.getArgument(4)).forEach((alias, xp) -> rows.add(DataObject.empty().put("alias", alias).put("xp", xp)));
@@ -101,7 +109,12 @@ class SkillWeekAcceptanceTest {
             return null;
         });
         when(weeks.close(eq(GUILD), eq(START), anyString())).thenReturn(true);
+    }
 
+    @Test
+    @SuppressWarnings("unchecked")
+    void theWeeksWinnersAreTheLedgersGainsForThatSkillAndSpan() {
+        fixture();
         PluginXpTracker tracker = new PluginXpTracker(repository, events, hub);
         // passes during the week, then the close a little after Sunday ends (when the next week's gains are already in the ledger)
         tracker.withClock(Clock.fixed(Instant.parse("2026-10-28T09:00:00Z"), ZoneOffset.UTC)).feed(event);
@@ -109,9 +122,9 @@ class SkillWeekAcceptanceTest {
         Instant closing = Instant.parse("2026-11-02T00:12:00Z");
         tracker.withClock(Clock.fixed(closing, ZoneOffset.UTC));
         SkillWeekService service = new SkillWeekService(weeks, events, repository, tracker, hub, Mockito.mock(PlayerLinkService.class)).withClock(Clock.fixed(closing, ZoneOffset.UTC));
-        List<Winner> winners = service.close(new SkillWeekRepository.Week(GUILD, START, FLETCHING, 1L, null, null));
+        List<Winner> winners = service.close(new SkillWeekRepository.Week(GUILD, START, FLETCHING, 1L, null, null)).orElseThrow();
 
-        Map<String, Long> truth = ledger(List.of("a1_alice", "a1_bob", "a1_carol", "a1_dave"), FLETCHING, START, END);
+        Map<String, Long> truth = ledger(List.of("a1_alice", "a1_bob", "a1_carol", "a1_dave"), FLETCHING, START, NEXT_MONDAY);
         Map<Long, Long> byUser = Map.of(ALICE, truth.get("a1_alice"), BOB, truth.get("a1_bob"), CAROL, truth.get("a1_carol"), DAVE, truth.get("a1_dave"));
         assertEquals(SkillWeekRules.winners(byUser, SkillWeekRules.WINNERS), winners);
         assertEquals(List.of(new Winner(1, BOB, 9_000), new Winner(2, DAVE, 8_999), new Winner(3, ALICE, 8_000)), winners);
@@ -125,9 +138,56 @@ class SkillWeekAcceptanceTest {
             assertEquals(String.valueOf(winners.get(i).userId()), stored.getObject(i).getString("userId"));
             assertEquals(winners.get(i).xp(), stored.getObject(i).getLong("xp"));
         }
-        verify(hub, Mockito.atLeastOnce()).xpGains(eq(GUILD), any(Collection.class), eq(FLETCHING), eq(START), eq(END));
+        verify(hub, Mockito.atLeastOnce()).xpGains(eq(GUILD), any(Collection.class), eq(FLETCHING), eq(START), eq(NEXT_MONDAY));
         verify(events).moveStage(GUILD, 1, Status.SCORING);
         verify(events).moveStage(GUILD, 1, Status.DONE);
+    }
+
+    @Test
+    void aWeekIsntClosedWhileTheHubCantBeAskedThenClosedADayLate() {
+        fixture();
+        PluginXpTracker tracker = new PluginXpTracker(repository, events, hub);
+        tracker.withClock(Clock.fixed(Instant.parse("2026-10-31T19:00:00Z"), ZoneOffset.UTC)).feed(event);
+        // the hub is down from Sunday 23:00 until after the first closing passes: Alice's 3,000 at 23:00 isn't in yet
+        hubUp = false;
+        Instant closing = Instant.parse("2026-11-02T00:12:00Z");
+        tracker.withClock(Clock.fixed(closing, ZoneOffset.UTC));
+        SkillWeekRepository.Week week = new SkillWeekRepository.Week(GUILD, START, FLETCHING, 1L, null, null);
+        SkillWeekService service = new SkillWeekService(weeks, events, repository, tracker, hub, Mockito.mock(PlayerLinkService.class)).withClock(Clock.fixed(closing, ZoneOffset.UTC));
+        assertTrue(service.close(week).isEmpty());
+        verify(weeks, never()).close(anyLong(), any(), anyString());
+        verify(events, never()).moveStage(GUILD, 1, Status.SCORING);
+
+        // back up at 00:20: the next pass closes it with the ledger's numbers
+        hubUp = true;
+        Instant later = Instant.parse("2026-11-02T00:22:00Z");
+        tracker.withClock(Clock.fixed(later, ZoneOffset.UTC));
+        List<Winner> winners = service.withClock(Clock.fixed(later, ZoneOffset.UTC)).close(week).orElseThrow();
+        assertEquals(new Winner(3, ALICE, 8_000), winners.get(2));
+        verify(events).moveStage(GUILD, 1, Status.DONE);
+    }
+
+    @Test
+    void aHubThatStaysDownForADayClosesTheWeekWithWhatItHas() {
+        fixture();
+        hubUp = false;
+        when(hub.aliasOf(ALICE)).thenThrow(new RuneClansHubClient.Unreachable("down"));
+        Instant late = Instant.parse("2026-11-03T00:00:00Z");
+        PluginXpTracker tracker = new PluginXpTracker(repository, events, hub).withClock(Clock.fixed(late, ZoneOffset.UTC));
+        assertFalse(tracker.pass(event).complete());
+        SkillWeekService service = new SkillWeekService(weeks, events, repository, tracker, hub, Mockito.mock(PlayerLinkService.class)).withClock(Clock.fixed(late, ZoneOffset.UTC));
+        assertEquals(List.of(), service.close(new SkillWeekRepository.Week(GUILD, START, FLETCHING, 1L, null, null)).orElseThrow());
+        verify(weeks).close(GUILD, START, "[]");
+    }
+
+    @Test
+    void aFailedAliasLookupMakesThePassIncomplete() {
+        fixture();
+        when(hub.aliasOf(BOB)).thenThrow(new RuneClansHubClient.Unreachable("down"));
+        PluginXpTracker tracker = new PluginXpTracker(repository, events, hub).withClock(Clock.fixed(Instant.parse("2026-11-02T00:12:00Z"), ZoneOffset.UTC));
+        PluginXpTracker.Pass pass = tracker.pass(event);
+        assertFalse(pass.complete());
+        assertEquals(3, pass.updated(), "everyone else still counts");
     }
 
     private static Participant player(long userId, Instant joined) {

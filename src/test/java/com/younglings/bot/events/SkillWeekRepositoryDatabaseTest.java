@@ -48,7 +48,7 @@ class SkillWeekRepositoryDatabaseTest {
     }
 
     @Test
-    void offUntilSavedOnAndAChangedRotaStartsAgain() {
+    void offUntilSavedOnAndAChangedRotaGoesOnAfterThisWeeksSkill() {
         assertEquals(SkillWeekRepository.Settings.OFF, repository.settings(GUILD));
         assertFalse(repository.enabledGuilds().contains(GUILD));
         repository.save(GUILD, true, List.of(9, 15), ADMIN);
@@ -59,8 +59,12 @@ class SkillWeekRepositoryDatabaseTest {
         assertEquals(1, repository.settings(GUILD).position());
         repository.save(GUILD, true, List.of(9, 15), ADMIN);
         assertEquals(1, repository.settings(GUILD).position(), "the same rota keeps its place");
+        repository.save(GUILD, true, List.of(9, 15, 25), ADMIN);
+        assertEquals(15, SkillWeekRules.skillAt(List.of(9, 15, 25), repository.settings(GUILD).position()), "a skill added this week doesn't bring this week's back");
         repository.save(GUILD, false, List.of(25, 9), ADMIN);
-        assertEquals(0, repository.settings(GUILD).position());
+        assertEquals(25, SkillWeekRules.skillAt(List.of(25, 9), repository.settings(GUILD).position()));
+        repository.save(GUILD, false, List.of(14, 15), ADMIN);
+        assertEquals(0, repository.settings(GUILD).position(), "a rota without this week's skill starts from its first");
         assertFalse(repository.enabledGuilds().contains(GUILD));
     }
 

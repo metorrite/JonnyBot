@@ -251,6 +251,14 @@ class EventsAdminApiTest {
     }
 
     @Test
+    void wholeSpanIsSkillOfTheWeeksOwnAndNeverSetFromTheDashboard() {
+        String id = create("{\"name\":\"Span test\",\"template\":\"competition\",\"config\":{\"skillId\":9,\"xpSource\":\"runemetrics\",\"wholeSpan\":true}}");
+        var config = call("GET", "events/" + id, null).getObject("event").getObject("config");
+        assertFalse(config.hasKey("wholeSpan"));
+        assertEquals(9, config.getInt("skillId"));
+    }
+
+    @Test
     void anEventCantStartWithoutObjectivesAndItsStagesOnlyGoForward() {
         String id = create("{\"name\":\"Stage test\"}");
         assertEquals(409, failure("POST", "events/" + id + "/status", "{\"status\":\"running\"}").status);

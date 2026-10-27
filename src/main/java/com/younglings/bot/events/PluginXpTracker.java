@@ -159,16 +159,26 @@ public class PluginXpTracker {
         }
     }
 
+    /** One {@link #pass}: how many players got new progress, and whether every player was asked of the hub (false when it couldn't be). */
+    public record Pass(int updated, boolean complete) {}
+
     /** Brings one competition up to date from the hub. Returns how many players got new progress. */
     public int feed(Event event) {
+        return pass(event).updated();
+    }
+
+    /** {@link #feed}, saying too whether the hub answered for everyone, so a closing pass can tell "nothing new" from "couldn't ask" (T-541). */
+    public Pass pass(Event event) {
         DataObject settings = DataObject.fromJson(event.config());
         boolean auto = CompetitionTemplate.countsAuto(settings);
         int skill = CompetitionTemplate.skillOf(settings);
         Integer skillId = skill == CompetitionTemplate.OVERALL ? null : skill;
         Instant now = clock.instant();
         // skill of the week (T-541): from the planned start to the planned end for everyone, so a late pass never counts past the end
+        // the hub's span is [from, to) and endsAt is the span's last second, so the end it is asked up to is the second after it
         boolean wholeSpan = CompetitionTemplate.countsWholeSpan(settings) && event.startsAt() != null;
-        Instant until = wholeSpan && event.endsAt() != null && event.endsAt().isBefore(now) ? event.endsAt() : now;
+        Instant end = wholeSpan && event.endsAt() != null ? event.endsAt().plusSeconds(1) : null;
+        Instant until = end != null && end.isBefore(now) ? end : now;
         Instant started = wholeSpan ? event.startsAt() : repository.startedAt(event.id()).orElse(event.startsAt() == null ? now : event.startsAt());
         List<EventRepository.Progress> progress = repository.progress(event.id());
         Map<Long, CompetitionTracking.Counter> owners = auto ? CompetitionTracking.owners(progress) : Map.of();
@@ -178,10 +188,17 @@ public class PluginXpTracker {
         Set<Long> unconfirmed = new LinkedHashSet<>();
         // players by alias, grouped by when they started counting: one hub call per group (nearly always one)
         Map<Instant, Map<String, Participant>> groups = new LinkedHashMap<>();
+        boolean complete = true;
         for (Participant p : repository.participants(event.id())) {
             if (p.waiting()) continue;
             if (owners.get(p.userId()) == CompetitionTracking.Counter.RUNEMETRICS) continue; // auto: RuneMetrics counted them first
-            Optional<String> alias = alias(p.userId(), now);
+            Optional<String> alias;
+            try {
+                alias = alias(p.userId(), now);
+            } catch (RuneClansHubClient.Unreachable e) {
+                complete = false;
+                alias = Optional.empty();
+            }
             if (alias.isEmpty()) {
                 missing.add(p.userId());
                 continue;
@@ -203,7 +220,7 @@ public class PluginXpTracker {
                 if (answer == null || !answer.ok() || answer.json() == null) {
                     // the hub is down or its ledger is off: say nothing about who counts, try again next minute
                     if (answer != null && answer.status() != 404) log.warn("Competition {}: the hub answered {} for XP gains", event.id(), answer.status());
-                    return updated;
+                    return new Pass(updated, false);
                 }
                 Set<String> seen = new LinkedHashSet<>();
                 DataArray players = answer.json().optArray("players").orElse(DataArray.empty());
@@ -232,7 +249,7 @@ public class PluginXpTracker {
         } else {
             notCounted.put(event.id(), new NotCounted(Set.copyOf(missing), Set.copyOf(unconfirmed), now));
         }
-        return updated;
+        return new Pass(updated, complete);
     }
 
     /** The hub confirmed the player's RuneLink from public data ({@code verification} on the gains row; an older hub without it: not confirmed). */
@@ -255,7 +272,7 @@ public class PluginXpTracker {
         return true;
     }
 
-    /** The player's alias for this bot, asked of the hub at most every {@link #ALIAS_KEPT}. */
+    /** The player's alias for this bot, asked of the hub at most every {@link #ALIAS_KEPT}; a failed lookup isn't kept, and throws {@link RuneClansHubClient.Unreachable}. */
     private Optional<String> alias(long userId, Instant now) {
         CachedAlias cached = aliases.get(userId);
         if (cached != null && cached.until().isAfter(now)) return cached.alias();

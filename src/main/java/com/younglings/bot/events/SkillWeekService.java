@@ -106,7 +106,11 @@ public class SkillWeekService {
         Settings settings = weeks.settings(guildId);
         if (!settings.enabled() || settings.rota().isEmpty()) return OptionalLong.empty();
         Instant start = SkillWeekRules.weekStart(now);
-        if (weeks.week(guildId, start).isPresent()) return OptionalLong.empty();
+        Optional<Week> existing = weeks.week(guildId, start);
+        if (existing.isPresent()) {
+            resume(existing.get());
+            return OptionalLong.empty();
+        }
         int skill = SkillWeekRules.skillAt(settings.rota(), settings.position());
         if (!weeks.claim(guildId, start, skill)) return OptionalLong.empty();
         DataObject config = DataObject.empty().put("skillId", skill).put("xpPerPoint", SkillWeekRules.XP_PER_POINT).put("xpSource", CompetitionTemplate.SOURCE_PLUGIN)
@@ -116,36 +120,76 @@ public class SkillWeekService {
             eventId = service.createEvent(guildId, settings.updatedBy(), new EventService.EventInput(SkillWeekRules.eventName(skill, start),
                     "Who gains the most " + CompetitionTemplate.skillName(skill) + " XP this week, Monday to Sunday (UTC), counted from RuneSync. Join to take part: all your XP this week counts, "
                             + "whenever you join.", CompetitionTemplate.KEY, Scope.PRIVATE, ScoringMode.INDIVIDUAL, start, SkillWeekRules.weekEnd(start), 0, config));
-        } catch (EventProblem e) {
-            // too many unfinished events, or the like: give the week back so a later pass tries again
+        } catch (RuntimeException e) {
+            // too many unfinished events, the database, or the like: give the week back so a later pass tries again
             weeks.release(guildId, start);
             log.info("Skill of the week in {} couldn't be opened: {}", guildId, e.getMessage());
             return OptionalLong.empty();
         }
-        weeks.setEvent(guildId, start, eventId);
         try {
-            service.moveStage(guildId, eventId, Status.RUNNING);
-        } catch (EventProblem e) {
-            log.warn("Skill of the week {} in {} was made but couldn't start: {}", eventId, guildId, e.getMessage());
+            weeks.setEvent(guildId, start, eventId);
+        } catch (RuntimeException e) {
+            // the week can't point at it: cancel it and give the week back, so no stray draft counts toward the open events
+            cancel(guildId, eventId);
+            weeks.release(guildId, start);
+            log.warn("Skill of the week {} in {} couldn't be kept: {}", eventId, guildId, e.getMessage());
+            return OptionalLong.empty();
         }
+        start(guildId, eventId);
         log.info("Opened skill of the week in {}: {} (event {})", guildId, CompetitionTemplate.skillName(skill), eventId);
         return OptionalLong.of(eventId);
     }
 
-    /** Brings a finished week up to date from the ledger one last time, keeps its winners and finishes its competition. */
-    public List<Winner> close(Week w) {
+    /** This week's competition was made but didn't start (it stays a draft otherwise, and counts nothing): try again on each pass. */
+    private void resume(Week w) {
+        if (w.eventId() == null || w.closedAt() != null) return;
+        Optional<Event> event = repository.event(w.guildId(), w.eventId());
+        if (event.isPresent() && (event.get().status() == Status.DRAFT || event.get().status() == Status.SIGNUPS)) start(w.guildId(), w.eventId());
+    }
+
+    private void start(long guildId, long eventId) {
+        try {
+            service.moveStage(guildId, eventId, Status.RUNNING);
+        } catch (RuntimeException e) {
+            log.warn("Skill of the week {} in {} was made but couldn't start yet: {}", eventId, guildId, e.getMessage());
+        }
+    }
+
+    private void cancel(long guildId, long eventId) {
+        try {
+            service.moveStage(guildId, eventId, Status.CANCELLED);
+        } catch (RuntimeException e) {
+            log.warn("Skill of the week {} in {} couldn't be cancelled: {}", eventId, guildId, e.getMessage());
+        }
+    }
+
+    /**
+     * Brings a finished week up to date from the ledger one last time, keeps its winners and finishes its competition. Empty, and nothing kept,
+     * when the hub couldn't be asked for everyone: a later pass tries again, until {@link SkillWeekRules#GIVE_UP_AFTER} past the end, when it
+     * closes with what it has.
+     */
+    public Optional<List<Winner>> close(Week w) {
         Optional<Event> event = w.eventId() == null ? Optional.empty() : repository.event(w.guildId(), w.eventId());
-        if (event.isPresent() && event.get().status() == Status.RUNNING) tracker.feed(event.get());
+        if (event.isPresent() && event.get().status() == Status.RUNNING && !tracker.pass(event.get()).complete()) {
+            Instant end = SkillWeekRules.weekEnd(w.start());
+            if (!SkillWeekRules.giveUp(end, clock.instant())) {
+                log.info("Skill of the week {} in {}: the hub couldn't be asked for everyone, closing it later", w.start(), w.guildId());
+                return Optional.empty();
+            }
+            log.warn("Skill of the week {} in {}: the hub still couldn't be asked for everyone, closing it with what it has", w.start(), w.guildId());
+        }
         List<Winner> winners = SkillWeekRules.winners(event.isPresent() ? xpByUser(event.get().id()) : Map.of(), SkillWeekRules.WINNERS);
         DataArray json = DataArray.empty();
         for (Winner x : winners) json.add(DataObject.empty().put("rank", x.rank()).put("userId", String.valueOf(x.userId())).put("xp", x.xp()));
-        if (!weeks.close(w.guildId(), w.start(), json.toString())) return winners;
+        if (!weeks.close(w.guildId(), w.start(), json.toString())) return Optional.of(winners);
         if (event.isPresent()) finish(event.get());
-        return winners;
+        return Optional.of(winners);
     }
 
     private void finish(Event event) {
         try {
+            // one that never started counted nothing: cancelled, so it doesn't stay among the server's unfinished events
+            if (event.status() == Status.DRAFT || event.status() == Status.SIGNUPS) service.moveStage(event.guildId(), event.id(), Status.CANCELLED);
             if (event.status() == Status.RUNNING) service.moveStage(event.guildId(), event.id(), Status.SCORING);
             if (event.status() == Status.RUNNING || event.status() == Status.SCORING) service.moveStage(event.guildId(), event.id(), Status.DONE);
         } catch (EventProblem e) {
@@ -153,11 +197,11 @@ public class SkillWeekService {
         }
     }
 
-    /** Each player's XP gained in a week's competition: the sum of its XP objective's progress (RuneSync's gains, and any organiser's correction). */
+    /** Each player's XP gained in a week's competition: RuneSync's gains on its XP objective only, so an organiser's correction never changes it. */
     public Map<Long, Long> xpByUser(long eventId) {
         Map<Long, Long> xp = new HashMap<>();
         for (EventRepository.Progress p : repository.progress(eventId)) {
-            if (p.objectiveKey().equals(CompetitionTemplate.OBJECTIVE_KEY)) xp.merge(p.userId(), p.amount(), Long::sum);
+            if (p.source() == EventRules.Source.IMPORT && p.objectiveKey().equals(CompetitionTemplate.OBJECTIVE_KEY)) xp.merge(p.userId(), p.amount(), Long::sum);
         }
         return xp;
     }

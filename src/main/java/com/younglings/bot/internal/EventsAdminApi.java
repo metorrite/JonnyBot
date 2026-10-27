@@ -376,6 +376,8 @@ public class EventsAdminApi implements AdminRouteExtension {
         var created = input(body, null);
         // a bingo event that uses the server's own tile pool gets a copy of it now, so changing the pool later never changes this event
         if (created.config() != null) created = created.withConfig(pools.expand(guild.getIdLong(), created.template(), created.config()));
+        // wholeSpan is skill of the week's own (T-541), never set from the dashboard
+        if (created.config() != null && created.config().hasKey("wholeSpan")) created = created.withConfig(DataObject.fromJson(created.config().toJson()).remove("wholeSpan"));
         long id = service.createEvent(guild.getIdLong(), actor.getIdLong(), created);
         log.info("Dashboard: {} created event {}", actor.getId(), id);
         return detail(guild, id);

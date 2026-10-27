@@ -28,8 +28,13 @@ public final class SkillWeekRules {
     public static final int WINNERS = 3;
     /** How long after the week ends it is closed: RuneSync's gains reach the hub's ledger a minute or two late. */
     public static final Duration CLOSE_AFTER = Duration.ofMinutes(10);
-    /** Points in the competition: a week's XP can run to tens of millions, so a point is 100k XP (the website shows the XP itself). */
-    public static final long XP_PER_POINT = 100_000;
+    /** How long after the week ends it is closed anyway when the hub still can't be asked for everyone. */
+    public static final Duration GIVE_UP_AFTER = Duration.ofHours(24);
+    /**
+     * Points in the competition: a point is 1M XP (the most a point can be), so the objective's {@link EventRules#MAX_REPEAT} points hold 1B XP,
+     * above any week's gain in one skill (200M cap); the website shows the XP itself.
+     */
+    public static final long XP_PER_POINT = 1_000_000;
 
     public record Winner(int rank, long userId, long xp) {}
 
@@ -48,10 +53,21 @@ public final class SkillWeekRules {
         return !now.isBefore(end.plus(CLOSE_AFTER));
     }
 
+    /** Whether a week that ends at {@code end} and still can't be brought up to date is closed anyway at {@code now}. */
+    public static boolean giveUp(Instant end, Instant now) {
+        return !now.isBefore(end.plus(GIVE_UP_AFTER));
+    }
+
     /** The skill at {@code position} of the rota, going round; -1 for an empty rota. */
     public static int skillAt(List<Integer> rota, int position) {
         if (rota.isEmpty()) return -1;
         return rota.get(Math.floorMod(position, rota.size()));
+    }
+
+    /** Where a new rota goes on from: the skill after {@code lastSkill} (the latest week's) when the rota has it, else its first skill. */
+    public static int positionAfter(List<Integer> rota, Integer lastSkill) {
+        int at = lastSkill == null ? -1 : rota.indexOf(lastSkill);
+        return at < 0 ? 0 : at + 1;
     }
 
     /** Problems with a rota as an admin sent it: skills from the catalogue (no "overall"), at least one when switched on, at most {@link #MAX_ROTA}. */

@@ -89,6 +89,64 @@ class SkillWeekServiceTest {
     }
 
     @Test
+    void aDatabaseFailureMakingItGivesTheWeekBackToo() {
+        when(weeks.settings(GUILD)).thenReturn(new Settings(true, List.of(9), 0, ADMIN));
+        when(weeks.week(GUILD, MONDAY)).thenReturn(Optional.empty());
+        when(weeks.claim(GUILD, MONDAY, 9)).thenReturn(true);
+        when(events.createEvent(eq(GUILD), eq(ADMIN), any())).thenThrow(new RuntimeException("database down"));
+
+        assertTrue(service.open(GUILD, NOW).isEmpty());
+        verify(weeks).release(GUILD, MONDAY);
+    }
+
+    @Test
+    void aCompetitionTheWeekCantPointAtIsCancelledAndTheWeekGivenBack() {
+        when(weeks.settings(GUILD)).thenReturn(new Settings(true, List.of(9), 0, ADMIN));
+        when(weeks.week(GUILD, MONDAY)).thenReturn(Optional.empty());
+        when(weeks.claim(GUILD, MONDAY, 9)).thenReturn(true);
+        when(events.createEvent(eq(GUILD), eq(ADMIN), any())).thenReturn(42L);
+        Mockito.doThrow(new RuntimeException("database down")).when(weeks).setEvent(GUILD, MONDAY, 42);
+
+        assertTrue(service.open(GUILD, NOW).isEmpty());
+        verify(events).moveStage(GUILD, 42, Status.CANCELLED);
+        verify(weeks).release(GUILD, MONDAY);
+        verify(events, never()).moveStage(GUILD, 42, Status.RUNNING);
+    }
+
+    @Test
+    void aCompetitionThatDidntStartIsStartedOnTheNextPassAndCancelledIfTheWeekEndsFirst() {
+        when(weeks.settings(GUILD)).thenReturn(new Settings(true, List.of(9), 1, ADMIN));
+        Week week = new Week(GUILD, MONDAY, 9, 42L, null, null);
+        when(weeks.week(GUILD, MONDAY)).thenReturn(Optional.of(week));
+        when(repository.event(GUILD, 42)).thenReturn(Optional.of(event(Status.DRAFT)));
+
+        assertTrue(service.open(GUILD, NOW).isEmpty());
+        verify(events).moveStage(GUILD, 42, Status.RUNNING);
+        verify(weeks, never()).claim(anyLong(), any(), anyInt());
+
+        when(weeks.close(eq(GUILD), eq(MONDAY), any())).thenReturn(true);
+        assertEquals(List.of(), service.close(week).orElseThrow());
+        verify(events).moveStage(GUILD, 42, Status.CANCELLED);
+        verify(events, never()).moveStage(GUILD, 42, Status.DONE);
+    }
+
+    @Test
+    void onlyRuneSyncsGainsCountNotAnOrganisersCorrection() {
+        when(repository.progress(42)).thenReturn(List.of(progress(1, EventRules.Source.IMPORT, 5_000), progress(1, EventRules.Source.MANUAL, 90_000),
+                progress(2, EventRules.Source.IMPORT, 7_000)));
+        assertEquals(java.util.Map.of(1L, 5_000L, 2L, 7_000L), service.xpByUser(42));
+    }
+
+    private static EventRepository.Event event(Status status) {
+        return new EventRepository.Event(42, GUILD, CompetitionTemplate.KEY, "Skill of the week", "", status, null, EventRules.ScoringMode.INDIVIDUAL, MONDAY,
+                SkillWeekRules.weekEnd(MONDAY), 0, "{\"skillId\":9,\"xpSource\":\"plugin\",\"wholeSpan\":true}", ADMIN, MONDAY, null, false);
+    }
+
+    private static EventRepository.Progress progress(long userId, EventRules.Source source, long amount) {
+        return new EventRepository.Progress(1, 42, CompetitionTemplate.OBJECTIVE_KEY, userId, null, amount, source, "k", null, null, MONDAY);
+    }
+
+    @Test
     void theSweepClosesOnlyWeeksThatAreOverAndOpensThisOne() {
         Week last = new Week(GUILD, MONDAY.minusSeconds(7 * 86_400), 9, null, null, null);
         Week current = new Week(GUILD, MONDAY, 15, null, null, null);
