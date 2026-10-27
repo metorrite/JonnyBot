@@ -27,9 +27,11 @@ import java.util.Optional;
  *   totals only, for the activity heatmap widget (T-583)</li>
  *   <li>{@code GET sites/{slug}/data/{route}}: that site's clan data, the same answers the clan site's own routes give the home server, for
  *   every route in {@link SiteApi#TENANT_ROUTES} (members, overview, leaderboard, recap, feed, records, citadel-grid, history, coffer, polls,
- *   signups, events, pvm, drops, bosses, boss, item, drop-log, member/skill, notifications; T-364) with the same query parameters; a recap is
- *   always the clan's, never one member's. For a bot-less site (the bot isn't in its server) the same answers come from the stats stored by
- *   server id, and the Discord-only routes ({@link SiteApi#DISCORD_ROUTES}) answer {@code {"needsBot": true}}</li>
+ *   signups, events, pvm, drops, bosses, boss, item, drop-log, member, member/skill, member/recap, notifications; T-364) with the same query
+ *   parameters. {@code recap} is the clan's; {@code member/recap} is one member's, shown to that member (the {@value RecapGate#VIEWER_HEADER}
+ *   header) and to anyone else only once they have opened it ({@link RecapGate}), otherwise {@code {"private": true}}. For a bot-less site
+ *   (the bot isn't in its server) the same answers come from the stats stored by server id, a member recap is always private there (nobody
+ *   can be told to be its member), and the Discord-only routes ({@link SiteApi#DISCORD_ROUTES}) answer {@code {"needsBot": true}}</li>
  * </ul>
  */
 @BService

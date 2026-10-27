@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.younglings.bot.coffer.CofferDatabaseInitializer;
 import com.younglings.bot.commands.signup.SignupService;
@@ -292,7 +293,7 @@ class SiteApiTenantDatabaseTest {
         assertTrue(recap.hasKey("previous"), "the window before, for growth");
         DataArray levelers = recap.getArray("topLevelers");
         for (int i = 0; i < levelers.length(); i++) assertNotEquals(HIDDEN, levelers.getObject(i).getString("rsn"), "a hidden member is never named");
-        DataObject mine = api.tenant(guildA, "member/recap", exchange("rsn=" + SHOWN + "&period=last-30d"));
+        DataObject mine = api.tenant(guildA, "member/recap", exchange("rsn=" + SHOWN + "&period=last-30d", USER_SHOWN));
         assertEquals("Attack", mine.getObject("activity").getArray("levelUpSkills").getObject(0).getString("skill"));
         assertTrue(mine.hasKey("previous"));
     }
@@ -301,13 +302,14 @@ class SiteApiTenantDatabaseTest {
     void aMemberPageAndMemberRecapOnlyForAVisibleMemberOfThatClan() {
         for (String route : List.of("member", "member/recap")) {
             String period = route.equals("member") ? "" : "&period=last-30d";
-            DataObject page = api.tenant(guildA, route, exchange("rsn=" + SHOWN + period));
+            // a member recap is asked for by its own member here (others wait until they've opened it: theMemberRecapIsPrivateUntil...)
+            DataObject page = api.tenant(guildA, route, exchange("rsn=" + SHOWN + period, USER_SHOWN));
             assertNotNull(page, route);
             assertTrue(text(page).contains(SHOWN.toLowerCase()), route);
-            assertNull(api.tenant(guildA, route, exchange("rsn=" + HIDDEN + period)), route + ": a member hidden from the rankings has no page (404, like an unknown name)");
-            assertNull(api.tenant(guildA, route, exchange("rsn=" + OTHER + period)), route + ": not in this clan");
-            assertNull(api.tenant(guildB, route, exchange("rsn=" + SHOWN + period)), route + ": the same name asked of the other server");
-            assertNotNull(api.tenant(guildB, route, exchange("rsn=" + OTHER + period)), route + ": the other server's own member");
+            assertNull(api.tenant(guildA, route, exchange("rsn=" + HIDDEN + period, USER_HIDDEN)), route + ": a member hidden from the rankings has no page (404, like an unknown name), even for themselves");
+            assertNull(api.tenant(guildA, route, exchange("rsn=" + OTHER + period, USER_OTHER)), route + ": not in this clan");
+            assertNull(api.tenant(guildB, route, exchange("rsn=" + SHOWN + period, USER_SHOWN)), route + ": the same name asked of the other server");
+            assertNotNull(api.tenant(guildB, route, exchange("rsn=" + OTHER + period, USER_OTHER)), route + ": the other server's own member");
         }
         assertNotNull(api.member(guildA, HIDDEN), "the home site's member page is unchanged");
     }
@@ -415,6 +417,112 @@ class SiteApiTenantDatabaseTest {
         }
     }
 
+    private DataObject memberRecap(Guild guild, String rsn, String period, Long viewer) {
+        String query = "rsn=" + rsn + "&period=" + period;
+        return api.tenant(guild, "member/recap", viewer == null ? exchange(query) : exchange(query, viewer));
+    }
+
+    private static boolean isPrivate(DataObject answer) {
+        return answer != null && answer.toString().equals(RecapGate.privateAnswer().toString());
+    }
+
+    @Test
+    void theMemberRecapIsPrivateUntilItsMemberOpenedThatVeryPeriod() throws Exception {
+        assertTrue(isPrivate(memberRecap(guildA, SHOWN, "last-month", null)), "a signed-out visitor, before the member opened it: {\"private\": true} and nothing else");
+        assertTrue(isPrivate(memberRecap(guildA, SHOWN, "last-month", USER_HIDDEN)), "another member, likewise");
+
+        DataObject mine = memberRecap(guildA, SHOWN, "last-month", USER_SHOWN);
+        assertTrue(mine.getBoolean("you"), "the member always sees their own");
+        assertTrue(mine.getBoolean("sharedWithClan"), "and is told the clan can see it now");
+        assertEquals(SHOWN, mine.getObject("subject").getString("name"));
+
+        DataObject theirs = memberRecap(guildA, SHOWN, "last-month", null);
+        assertFalse(isPrivate(theirs), "opened: everyone sees it on the next read, though the answer was cached");
+        assertFalse(theirs.hasKey("you") || theirs.hasKey("sharedWithClan"), "the viewer's own fields never reach anyone else");
+        assertEquals(SHOWN, theirs.getObject("subject").getString("name"));
+        assertFalse(isPrivate(memberRecap(guildA, SHOWN, previousMonthToken(), null)), "the same month by another token is the same recap");
+        assertTrue(isPrivate(memberRecap(guildA, SHOWN, "last-week", null)), "every period needs its own first view");
+        assertTrue(isPrivate(memberRecap(guildA, SHOWN, "month", null)), "even the running month");
+        for (long user : List.of(USER_SHOWN, USER_HIDDEN, USER_OTHER)) assertFalse(text(mine).contains(Long.toString(user)), "no Discord id in the member's answer");
+    }
+
+    /** The month before this one as {@code YYYY-MM}: the same window as {@code last-month}. */
+    private static String previousMonthToken() {
+        return java.time.YearMonth.now(ZoneOffset.UTC).minusMonths(1).toString();
+    }
+
+    @Test
+    void aMemberWhoTurnedRecapsOffKeepsThemAndRollingAndCustomWindowsFollowTheRule() throws Exception {
+        memberRecap(guildA, SHOWN, "last-30d", USER_SHOWN);
+        assertFalse(isPrivate(memberRecap(guildA, SHOWN, "last-30d", null)), "a rolling window has a key too: opened, then shared");
+
+        MemberProfileRepository.Profile p = profiles.getProfile(GUILD_A, USER_SHOWN);
+        profiles.saveProfile(new MemberProfileRepository.Profile(GUILD_A, USER_SHOWN, p.bio(), p.accentColor(), p.pinnedSkill(), p.hideAdventureLog(),
+                p.hideFromLeaderboards(), p.dmGoals(), p.dmEvents(), p.hideDiscordLink(), p.privacyChosen(), true));
+        assertTrue(isPrivate(memberRecap(guildA, SHOWN, "last-30d", null)), "turned off: private again at once, cached answer or not");
+        DataObject mine = memberRecap(guildA, SHOWN, "last-30d", USER_SHOWN);
+        assertTrue(mine.getBoolean("you"));
+        assertFalse(mine.getBoolean("sharedWithClan"), "only they can see it");
+        profiles.saveProfile(p);
+
+        // a custom range that is not one whole week, month or year has no key: only ever the member's
+        String custom = java.time.LocalDate.now(ZoneOffset.UTC).minusDays(12) + "_" + java.time.LocalDate.now(ZoneOffset.UTC).minusDays(3);
+        DataObject range = memberRecap(guildA, SHOWN, custom, USER_SHOWN);
+        assertTrue(range.getBoolean("you"));
+        assertFalse(range.getBoolean("sharedWithClan"));
+        assertTrue(isPrivate(memberRecap(guildA, SHOWN, custom, null)));
+        assertEquals(1, count("SELECT COUNT(*) FROM younglings.member_recap_seen WHERE guild_id = ?", GUILD_A), "only the rolling window was marked");
+    }
+
+    @Test
+    void aBotlessSitesMemberRecapIsPrivateForEveryoneAndAnUnlinkedNameNeverOpens() throws Exception {
+        HttpExchange asMember = exchange("rsn=" + SHOWN + "&period=last-month", USER_SHOWN);
+        assertTrue(isPrivate(api.tenant(GUILD_A, null, "member/recap", asMember)), "no bot, no links: nobody can be told to be the member");
+        assertEquals(0, count("SELECT COUNT(*) FROM younglings.member_recap_seen WHERE guild_id = ?", GUILD_A), "and nothing is recorded");
+
+        String unlinked = "T364Unlinked";
+        sql("INSERT INTO younglings.clan_member (guild_id, rsn, clan_rank) VALUES (?, ?, 'Recruit')", GUILD_A, unlinked);
+        for (Long viewer : java.util.Arrays.asList(USER_SHOWN, USER_HIDDEN, null)) {
+            assertTrue(isPrivate(memberRecap(guildA, unlinked, "last-month", viewer)), "an unlinked name's recap is nobody's to open: " + viewer);
+        }
+        assertNull(memberRecap(guildA, HIDDEN, "last-month", USER_HIDDEN), "hidden from the rankings is still a 404 first");
+    }
+
+    private record Reply(int status, DataObject body) {}
+
+    /** The home site's own {@code /internal/site/<route>} ({@link SiteApi#handle}), as the website calls it. */
+    private Reply home(String route, String query, Long viewer) throws Exception {
+        HttpExchange exchange = viewer == null ? exchange(query) : exchange(query, viewer);
+        when(exchange.getRequestURI()).thenReturn(URI.create("http://localhost/internal/site/" + route + "?" + query));
+        when(exchange.getRequestMethod()).thenReturn("GET");
+        when(exchange.getResponseHeaders()).thenReturn(new Headers());
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        when(exchange.getResponseBody()).thenReturn(out);
+        int[] status = {-1};
+        org.mockito.Mockito.doAnswer(inv -> {
+            status[0] = inv.getArgument(0);
+            return null;
+        }).when(exchange).sendResponseHeaders(org.mockito.ArgumentMatchers.anyInt(), anyLong());
+        api.handle(exchange, guildA);
+        return new Reply(status[0], DataObject.fromJson(out.toString(java.nio.charset.StandardCharsets.UTF_8)));
+    }
+
+    @Test
+    void theHomeSitesMemberRecapFollowsTheSameRulesAndHidesAHiddenMember() throws Exception {
+        assertEquals(404, home("recap", "scope=member&rsn=" + HIDDEN + "&period=last-month", USER_HIDDEN).status(), "hidden from the rankings: no recap, as on clan sites");
+        Reply anonymous = home("recap", "scope=member&rsn=" + SHOWN + "&period=last-month", null);
+        assertEquals(200, anonymous.status());
+        assertTrue(isPrivate(anonymous.body()));
+        Reply mine = home("recap", "scope=member&rsn=" + SHOWN + "&period=last-month", USER_SHOWN);
+        assertTrue(mine.body().getBoolean("you"));
+        assertTrue(mine.body().getBoolean("sharedWithClan"));
+        Reply after = home("recap", "scope=member&rsn=" + SHOWN + "&period=last-month", null);
+        assertEquals(SHOWN, after.body().getObject("subject").getString("name"));
+        assertFalse(after.body().hasKey("you"));
+        Reply clan = home("recap", "scope=clan&period=last-month", null);
+        assertEquals("clan", clan.body().getString("scope"), "the clan's recap is unchanged");
+    }
+
     @Test
     void theHomeSitesOwnAnswersAreUnchanged() {
         // the home site's records still list everyone in "longest serving", and its signups show typed names as before
@@ -441,6 +549,15 @@ class SiteApiTenantDatabaseTest {
     private static HttpExchange exchange(String query) {
         HttpExchange exchange = mock(HttpExchange.class);
         when(exchange.getRequestURI()).thenReturn(URI.create("http://localhost/x" + (query.isEmpty() ? "" : "?" + query)));
+        return exchange;
+    }
+
+    /** A request from a signed-in viewer: the website sends their Discord id in {@link RecapGate#VIEWER_HEADER}. */
+    private static HttpExchange exchange(String query, long viewer) {
+        HttpExchange exchange = exchange(query);
+        Headers headers = new Headers();
+        headers.add(RecapGate.VIEWER_HEADER, Long.toString(viewer));
+        when(exchange.getRequestHeaders()).thenReturn(headers);
         return exchange;
     }
 

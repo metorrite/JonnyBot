@@ -53,7 +53,9 @@ import java.util.function.ToLongFunction;
  * The public-facing half of the internal API, under {@code /internal/site/}: clan roster, leaderboards,
  * charts, member profiles, the live "who's online" list and Discord events — everything the website shows to
  * anyone, logged in or not. {@link InternalApiServer} has already checked the shared secret and found the
- * guild; these routes are GET-only and need no acting user, because none of this is private.
+ * guild; these routes are GET-only and need no acting user, because none of this is private. The one answer that depends on who asks is a
+ * member's recap ({@code recap?scope=member}, and {@code member/recap} on {@link #tenant}): private until that member has opened it
+ * ({@link RecapGate}, which reads the viewer from the {@value RecapGate#VIEWER_HEADER} header).
  * <p>
  * Discord identities: a member's RuneScape name, rank, stats and adventure log are what the clan pages show, and
  * whether that name is linked to a Discord account is reduced to a "verified" flag there. The one exception is
@@ -88,6 +90,7 @@ public class SiteApi {
     private final CommunitySettings community;
     private final BossStatsService bossStats;
     private final SiteDiscordService discord;
+    private final RecapGate recapGate;
 
     public SiteApi(SiteStatsRepository stats, PlayerLinkRepository links, ClanPointsRepository points, GuildSettingsService settings, WeeklyDigestRepository rosterEvents,
                    MemberProfileRepository profiles, SiteNewsService news, SignupService signupService, SiteCache cache, RecapService recap, CommunitySettings community, BossStatsService bossStats,
@@ -105,6 +108,7 @@ public class SiteApi {
         this.recap = recap;
         this.community = community;
         this.bossStats = bossStats;
+        this.recapGate = new RecapGate(profiles);
     }
 
     public void handle(HttpExchange exchange, Guild guild) throws IOException {
@@ -123,6 +127,10 @@ public class SiteApi {
             String cacheKey = route + "?" + exchange.getRequestURI().getRawQuery();
             final String finalRoute = route;
             DataObject result = cache.get(cacheKey, ttlMillis(route), () -> answer(guild, finalRoute, exchange));
+            // A member's recap is private until they've opened it (RecapGate): decided per viewer here, after the cache everyone shares.
+            if (route.equals("recap") && "member".equals(query(exchange, "scope"))) {
+                result = recapGate.answer(guild.getIdLong(), false, result, RecapGate.viewer(exchange));
+            }
 
             if (result == null) {
                 InternalApiServer.sendJson(exchange, 404, DataObject.empty().put("error", "Not found"));
@@ -154,7 +162,8 @@ public class SiteApi {
             case "polls" -> polls(id);
             case "signups" -> signups(id);
             case "news" -> DataObject.empty().put("posts", news.latest(guild, 14));
-            case "recap" -> recap.build(id, query(exchange, "scope"), query(exchange, "rsn"), query(exchange, "period"));
+            case "recap" -> "member".equals(query(exchange, "scope")) && visibleMember(id, query(exchange, "rsn")) == null ? null
+                    : recap.build(id, query(exchange, "scope"), query(exchange, "rsn"), query(exchange, "period"));
             case "pvm" -> pvm(id);
             case "drops" -> drops(id);
             case "options" -> DataObject.empty().put("navEventBubble", community.navEventBubble(id));
@@ -187,7 +196,8 @@ public class SiteApi {
     /**
      * The routes a hosted clan website (website builder) may read: clan-level answers, never the live Discord list, the news channel (T-365
      * has its own module for those) or "me" ({@link DirectoryClanSiteMemberRoutes}). The per-member answers ({@code member}, {@code member/recap},
-     * {@code member/skill}) are only for a current member who hasn't hidden themselves from the rankings ({@link #visibleMember}).
+     * {@code member/skill}) are only for a current member who hasn't hidden themselves from the rankings ({@link #visibleMember}); a member's
+     * recap also waits for that member to open it ({@link RecapGate}).
      */
     public static final java.util.Set<String> TENANT_ROUTES = java.util.Set.of("members", "overview", "leaderboard", "recap", "feed", "records", "citadel-grid",
             "history", "coffer", "polls", "signups", "events", "pvm", "drops", "bosses", "boss", "item", "drop-log", "member/skill", "notifications",
@@ -195,8 +205,9 @@ public class SiteApi {
 
     /**
      * One answer for a hosted clan website, for any server (the clan site's own routes above are for the home server). Only
-     * {@link #TENANT_ROUTES}; a recap is always the clan's, never one member's. Cached per server: the key ends in {@code #g<id>}, so the
-     * home server's keys are unchanged and {@link SiteCache#invalidate} by route still clears these.
+     * {@link #TENANT_ROUTES}: {@code recap} is the clan's, {@code member/recap} one member's, and that one is private until its member has
+     * opened it ({@link RecapGate}, by the {@value RecapGate#VIEWER_HEADER} header, decided after the cache). Cached per server: the key ends
+     * in {@code #g<id>}, so the home server's keys are unchanged and {@link SiteCache#invalidate} by route still clears these.
      * <p>
      * Privacy (builder v3, section 11): the same rules as the home server's routes, a little stricter. A member who hid themselves from the
      * rankings is left out of every list of names here (rankings, records, the timeline, donors, signup names), and one who hid their adventure
@@ -227,7 +238,7 @@ public class SiteApi {
         if (!TENANT_ROUTES.contains(route)) return null;
         if (guild == null && DISCORD_ROUTES.contains(route)) return needsBot();
         String cacheKey = route + "?" + exchange.getRequestURI().getRawQuery() + "#g" + guildId;
-        return cache.get(cacheKey, ttlMillis(route), () -> switch (route) {
+        DataObject answer = cache.get(cacheKey, ttlMillis(route), () -> switch (route) {
             case "members" -> members(guildId);
             case "overview" -> overview(guildId);
             case "leaderboard" -> leaderboard(guildId, query(exchange, "month"), query(exchange, "period"), true);
@@ -252,6 +263,8 @@ public class SiteApi {
             case "notifications" -> guild == null ? notifications(guildId, null).put("needsBot", true) : notifications(guildId, guild);
             default -> null;
         });
+        // The cache is shared by everyone; who may see a member's recap is decided per viewer, after it (a bot-less site has no links).
+        return route.equals("member/recap") ? recapGate.answer(guildId, guild == null, answer, RecapGate.viewer(exchange)) : answer;
     }
 
     /**
