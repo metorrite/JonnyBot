@@ -47,6 +47,7 @@ class DirectoryPlayerRoutesTest {
     private PlayerLinkRepository links;
     private ClanPointsRepository points;
     private JDA jda;
+    private SiteCache cache;
     private DirectoryPlayerRoutes routes;
 
     @BeforeEach
@@ -58,7 +59,8 @@ class DirectoryPlayerRoutesTest {
         links = mock(PlayerLinkRepository.class);
         points = mock(ClanPointsRepository.class);
         jda = mock(JDA.class);
-        routes = new DirectoryPlayerRoutes(profiles, service, siteApi, stats, links, points);
+        cache = new SiteCache();
+        routes = new DirectoryPlayerRoutes(profiles, service, siteApi, stats, links, points, cache);
     }
 
     private void listedClanWith(String rsn) {
@@ -137,6 +139,17 @@ class DirectoryPlayerRoutesTest {
         assertEquals(404, call("GET", "players/Ghost").status());
         assertEquals(404, call("GET", "players/ghost").status());
         verify(stats, times(1)).guildsWithActiveMember("Ghost");
+    }
+
+    @Test
+    void hidingAMemberDropsTheCachedAnswerAtOnce() throws Exception {
+        listedClanWith("Hider");
+        assertEquals(200, call("GET", "players/Hider").status());
+        // the player turns on "hide from rankings": SiteApi stops returning the row and MemberApi clears the shared cache
+        when(siteApi.visibleMember(eq(GUILD), anyString())).thenReturn(null);
+        assertEquals(200, call("GET", "players/Hider").status(), "still cached until something clears it");
+        cache.clear();
+        assertEquals(404, call("GET", "players/Hider").status());
     }
 
     @Test

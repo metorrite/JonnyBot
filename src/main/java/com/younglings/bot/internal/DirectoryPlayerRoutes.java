@@ -28,19 +28,20 @@ import java.util.Optional;
  * Only clans the public directory lists, where the player's member page is public ({@link DirectoryPlayerLogic}); 404 when there is none, so a
  * hidden member looks the same as a name nobody knows; 400 for a name that isn't a RuneScape name. Everything here is already on those clans'
  * public pages, and no Discord identity is ever read. Nothing waits on Discord: it is all the bot's own database. Answers are cached for a
- * minute, by name.
+ * minute, by name, in the shared {@link SiteCache}, so a privacy toggle or an admin hiding a member (which clear that cache) drops them at once.
  */
 @BService
 public class DirectoryPlayerRoutes implements DirectoryRouteModule {
     private static final long TTL_MILLIS = 60_000;
-    /** Names are typed by visitors, so the cache bounds itself: past this many, it starts again. */
-    private static final int MAX_CACHED = 5_000;
+    /** Key prefix in the shared cache. Names are typed by visitors; the cache's own sweep drops names nobody asks for again. */
+    static final String CACHE_PREFIX = "directory-player:";
 
     private final DirectoryPlayerLogic.Source source;
-    private final TtlCache cache = new TtlCache();
+    private final SiteCache cache;
 
     public DirectoryPlayerRoutes(ClanProfileRepository profiles, ClanProfileService service, SiteApi siteApi, SiteStatsRepository stats,
-                                 PlayerLinkRepository links, ClanPointsRepository points) {
+                                 PlayerLinkRepository links, ClanPointsRepository points, SiteCache cache) {
+        this.cache = cache;
         this.source = new DirectoryPlayerLogic.Source() {
             @Override
             public List<Long> guildsWithActiveMember(String rsn) {
@@ -89,8 +90,7 @@ public class DirectoryPlayerRoutes implements DirectoryRouteModule {
             request.sendError(400, "That isn't a RuneScape name.");
             return true;
         }
-        if (cache.size() > MAX_CACHED) cache.clear();
-        DataObject answer = cache.get(rsn.toLowerCase(Locale.ROOT), TTL_MILLIS, () -> {
+        DataObject answer = cache.get(CACHE_PREFIX + rsn.toLowerCase(Locale.ROOT), TTL_MILLIS, () -> {
             DataObject built = DirectoryPlayerLogic.answer(rsn, source, OffsetDateTime.now(ZoneOffset.UTC));
             return built == null ? null : built.put("generatedAt", Instant.now().toString());
         });
