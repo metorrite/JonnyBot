@@ -178,7 +178,8 @@ class SiteApiTenantDatabaseTest {
     @AfterEach
     void cleanUp() throws Exception {
         if (db == null) return;
-        for (String table : List.of("clan_member", "player_link", "member_profile", "coffer_donation", "clan_roster_event", "signup", "poll", "member_privacy_default")) {
+        for (String table : List.of("clan_member", "player_link", "member_profile", "coffer_donation", "clan_roster_event", "signup", "poll", "member_privacy_default",
+                "member_recap_seen")) {
             sql("DELETE FROM younglings." + table + " WHERE guild_id IN (?, ?)", GUILD_A, GUILD_B);
         }
         for (String rsn : NAMES) {
@@ -370,6 +371,48 @@ class SiteApiTenantDatabaseTest {
         assertEquals(new MemberProfileRepository.PrivacyDefaults(false, false, true), profiles.privacyDefaults(GUILD_A));
         profiles.deletePrivacyDefaults(GUILD_A);
         assertEquals(MemberProfileRepository.PrivacyDefaults.NONE, profiles.privacyDefaults(GUILD_A));
+    }
+
+    @Test
+    void aMembersRecapChoiceAndTheRecapsTheyOpenedAreStoredForTheirLinkedName() throws Exception {
+        assertFalse(profiles.getProfile(GUILD_A, USER_SHOWN).hideRecap(), "never saved: recaps are not hidden");
+        assertEquals(new MemberProfileRepository.RecapOwner(USER_SHOWN, false, false), profiles.recapOwner(GUILD_A, SHOWN.toUpperCase(), "month:2026-09:final"),
+                "found by name in any case; no profile row means not hidden");
+        assertNull(profiles.recapOwner(GUILD_A, "T364Nobody", "all"), "nobody linked that name");
+        assertNull(profiles.recapOwner(GUILD_B, SHOWN, "all"), "linked on another server only");
+
+        profiles.markRecapSeen(GUILD_A, SHOWN, "month:2026-09:final", USER_SHOWN);
+        profiles.markRecapSeen(GUILD_A, SHOWN.toLowerCase(), "month:2026-09:final", USER_SHOWN);
+        assertTrue(profiles.recapOwner(GUILD_A, SHOWN, "month:2026-09:final").seen());
+        assertEquals(1, count("SELECT COUNT(*) FROM younglings.member_recap_seen WHERE guild_id = ? AND rsn = ?", GUILD_A, SHOWN.toLowerCase()),
+                "one mark per name and period, kept lower-cased");
+        assertFalse(profiles.recapOwner(GUILD_A, SHOWN, "month:2026-09:running").seen(), "each period has its own mark");
+        assertFalse(profiles.recapOwner(GUILD_A, SHOWN, null).seen(), "a period with no key is never seen");
+        assertFalse(profiles.recapOwner(GUILD_B, OTHER, "month:2026-09:final").seen(), "marks are per server");
+
+        profiles.markRecapSeen(GUILD_A, HIDDEN, "all", USER_SHOWN);
+        assertFalse(profiles.recapOwner(GUILD_A, HIDDEN, "all").seen(), "a mark someone else left on the name isn't its member's");
+        profiles.markRecapSeen(GUILD_A, HIDDEN, "all", USER_HIDDEN);
+        assertTrue(profiles.recapOwner(GUILD_A, HIDDEN, "all").seen(), "the member's own opening replaces it");
+
+        MemberProfileRepository.Profile p = profiles.getProfile(GUILD_A, USER_SHOWN);
+        profiles.saveProfile(new MemberProfileRepository.Profile(GUILD_A, USER_SHOWN, p.bio(), p.accentColor(), p.pinnedSkill(), p.hideAdventureLog(),
+                p.hideFromLeaderboards(), p.dmGoals(), p.dmEvents(), p.hideDiscordLink(), false, true));
+        assertTrue(profiles.getProfile(GUILD_A, USER_SHOWN).hideRecap());
+        assertFalse(profiles.getProfile(GUILD_A, USER_SHOWN).privacyChosen(), "turning recaps off is not choosing the privacy toggles");
+        assertTrue(profiles.getProfileForRsn(GUILD_A, SHOWN).hideRecap());
+        assertTrue(profiles.recapOwner(GUILD_A, SHOWN, "all").hideRecap());
+        assertFalse(profiles.hiddenRsns(GUILD_A, true).contains(SHOWN.toLowerCase()), "and it hides nothing else");
+    }
+
+    private static long count(String query, Object... args) throws Exception {
+        try (Connection c = db.getConnection(); PreparedStatement s = c.prepareStatement(query)) {
+            for (int i = 0; i < args.length; i++) s.setObject(i + 1, args[i]);
+            try (ResultSet rs = s.executeQuery()) {
+                rs.next();
+                return rs.getLong(1);
+            }
+        }
     }
 
     @Test
