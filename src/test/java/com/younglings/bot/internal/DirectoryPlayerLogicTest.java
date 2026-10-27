@@ -80,7 +80,7 @@ class DirectoryPlayerLogicTest {
 
         /** A listed clan (public, verified for its current clan name) with this player on its roster. */
         Fake clan(long guildId, String slug, String name, Visibility visibility, String rsn, OffsetDateTime lastPolled) {
-            profiles.put(guildId, profile(guildId, slug, name, visibility, null));
+            profiles.put(guildId, DirectoryPlayerLogicTest.profile(guildId, slug, name, visibility, null));
             clanNames.put(guildId, name);
             rosters.computeIfAbsent(guildId, g -> new ArrayList<>()).add(row(rsn, lastPolled));
             return this;
