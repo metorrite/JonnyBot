@@ -126,6 +126,7 @@ public class EventService {
             keepOrganisers(kept, config); // organisers are changed with their own call, so a settings save can't wipe them
             keepChannels(kept, config); // so are the roles and channels, on the Channels tab
             keepTakedown(kept, config); // only JonnyBot staff take an event off the events hub or put it back
+            keepUpdates(kept, config); // a bingo's board update rules (T-650) are saved on the Updates tab, so a stale settings copy can't wipe them
         }
         List<String> problems = new ArrayList<>(EventRules.eventProblems(in.name(), in.description(), in.maxParticipants(), in.startsAt(), in.endsAt()));
         problems.addAll(template.configProblems(config));
@@ -267,6 +268,7 @@ public class EventService {
         Event event = event(guildId, id);
         if (!EventRules.editable(event.status())) throw new EventProblem(409, Text.of(guildId, "events.problem.this_can_only_be_changed_while"));
         keepOrganisers(DataObject.fromJson(event.config()), config);
+        keepUpdates(DataObject.fromJson(event.config()), config);
         List<String> problems = new ArrayList<>(checkObjectives(objectives));
         problems.addAll(EventSettings.problems(config));
         problems.addAll(EventBonuses.problems(config, objectives.stream().map(ObjectiveSpec::key).collect(java.util.stream.Collectors.toSet())));
@@ -299,6 +301,12 @@ public class EventService {
     private static void keepOrganisers(DataObject from, DataObject into) {
         if (from.hasKey("organisers") && !from.isNull("organisers")) into.put("organisers", from.get("organisers"));
         else into.remove("organisers");
+    }
+
+    /** {@code updates} (T-650) has its own route ({@code PUT events/{id}/updates}): a settings save or a re-rolled board keeps what was there. */
+    static void keepUpdates(DataObject from, DataObject into) {
+        if (from.hasKey("updates") && !from.isNull("updates")) into.put("updates", from.get("updates"));
+        else into.remove("updates");
     }
 
     private static void keepChannels(DataObject from, DataObject into) {

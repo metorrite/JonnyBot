@@ -92,6 +92,8 @@ public class EventBoardUpdates {
         DataObject config = DataObject.fromJson(event.config());
         BoardUpdates.Settings rules = BoardUpdates.of(config);
         if (!rules.milestones()) return 0;
+        // a milestone says who is ahead, which an event hiding its standings keeps quiet: nothing is claimed, so nothing stale is posted later either
+        if (!EventStandings.tableShown(EventStandings.of(config), event.status())) return 0;
         if (AutoPostRouter.diverting()) {
             log.info("Event {}: milestone posts skipped, this bot is not live", eventId);
             return 0;

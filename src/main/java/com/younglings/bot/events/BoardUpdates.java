@@ -118,7 +118,7 @@ public final class BoardUpdates {
                 }
             }
             if (updates.hasKey("channelId") && !updates.isNull("channelId") && !updates.getString("channelId", "").isBlank()
-                    && !updates.getString("channelId").strip().matches("\\d{15,20}")) {
+                    && channel(updates.getString("channelId")) == null) {
                 problems.add("Choose a channel for the posts (the channel id looks wrong).");
             }
             for (String key : new String[] {"recap", "firstLine", "firstBlackout", "firstTile"}) {
@@ -149,8 +149,7 @@ public final class BoardUpdates {
         }
         Long channel = null;
         if (u.hasKey("channelId") && !u.isNull("channelId")) {
-            String raw = u.getString("channelId", "").strip();
-            if (raw.matches("\\d{15,20}")) channel = Long.parseLong(raw);
+            channel = channel(u.getString("channelId", ""));
         }
         return new Settings(mode, every, flag(u, "recap"), flag(u, "firstLine"), flag(u, "firstBlackout"), flag(u, "firstTile"), channel);
     }
@@ -167,6 +166,18 @@ public final class BoardUpdates {
         if (s.isDefault()) copy.remove("updates");
         else copy.put("updates", toJson(s));
         return copy;
+    }
+
+    /** A Discord channel id (a snowflake of 15 to 19 digits that fits a long), or null when {@code raw} isn't one. */
+    static Long channel(String raw) {
+        if (raw == null) return null;
+        String s = raw.strip();
+        if (!s.matches("\\d{15,19}")) return null;
+        try {
+            return Long.parseLong(s);
+        } catch (NumberFormatException e) {
+            return null; // 19 digits above Long.MAX_VALUE
+        }
     }
 
     static Mode mode(String raw) {
@@ -229,6 +240,11 @@ public final class BoardUpdates {
 
     /** Each rule as one sentence, for the dashboard's Updates section and the player's event page. */
     public static List<String> describe(Settings s) {
+        return describe(s, false);
+    }
+
+    /** As {@link #describe(Settings)}; {@code standingsHidden} adds what the event's hidden standings keep out of the posts. */
+    public static List<String> describe(Settings s, boolean standingsHidden) {
         List<String> lines = new ArrayList<>();
         lines.add(switch (s.mode()) {
             case LIVE -> "The board updates a few seconds after each approved tile.";
@@ -239,6 +255,8 @@ public final class BoardUpdates {
         if (s.firstLine()) lines.add("The bot announces the first team or player to finish a line.");
         if (s.firstBlackout()) lines.add("The bot announces the first team or player to finish the whole board.");
         if (s.firstTile()) lines.add("The bot announces the first time anyone finishes each tile.");
+        if (standingsHidden && s.recap()) lines.add("While the standings are hidden, the recap lists the tiles without saying who finished them, and leaves out the top 3.");
+        if (standingsHidden && s.milestones()) lines.add("While the standings are hidden, no milestones are announced.");
         return lines;
     }
 
@@ -341,8 +359,8 @@ public final class BoardUpdates {
     }
 
     /**
-     * The recap of the day that ended at {@code reset}: the tiles finished that day and the top 3. {@code tableShown} false keeps the ranks out (the event
-     * hides its standings) and says why instead. Null when nothing was finished that day: a quiet day posts nothing.
+     * The recap of the day that ended at {@code reset}: the tiles finished that day and the top 3. {@code tableShown} false (the event hides its standings)
+     * keeps the ranks out and says why instead, and lists the tiles without who finished them. Null when nothing was finished that day: a quiet day posts nothing.
      */
     public static String recapText(String eventName, Instant reset, List<Finished> finished, List<Standing> standings, Function<String, String> nameOf,
                                    boolean tableShown, String hiddenText) {
@@ -353,7 +371,8 @@ public final class BoardUpdates {
         int shown = 0;
         for (Finished f : finished) {
             if (shown == RECAP_TILES) break;
-            text.append("\n- ").append(f.label()).append(" · ").append(nameOf.apply(f.subject()));
+            text.append("\n- ").append(f.label());
+            if (tableShown) text.append(" · ").append(nameOf.apply(f.subject()));
             shown++;
         }
         if (finished.size() > shown) text.append("\n- and ").append(finished.size() - shown).append(" more");
@@ -384,6 +403,11 @@ public final class BoardUpdates {
 
     /** What each post looks like, with made-up names when the event has nothing yet, so an organiser sees it before switching it on. */
     public static Map<String, String> previews(String eventName, Settings s, List<ObjectiveSpec> objectives, Instant now) {
+        return previews(eventName, s, objectives, now, null);
+    }
+
+    /** As {@link #previews(String, Settings, List, Instant)}; a {@code hiddenText} (the event hides its standings) shows the recap as it would really be posted. */
+    public static Map<String, String> previews(String eventName, Settings s, List<ObjectiveSpec> objectives, Instant now, String hiddenText) {
         String tile = objectives.isEmpty() ? "Nex: Torva boots" : objectives.get(0).label();
         String other = objectives.size() < 2 ? "Araxxor: Noxious blade" : objectives.get(1).label();
         Map<String, String> out = new LinkedHashMap<>();
@@ -396,7 +420,7 @@ public final class BoardUpdates {
         List<Finished> sample = List.of(new Finished("a", tile, "t:1", reset.minus(Duration.ofHours(5))), new Finished("b", other, "t:2", reset.minus(Duration.ofHours(2))));
         List<Standing> top = List.of(new Standing("t:1", 120, 6, Map.of(), null), new Standing("t:2", 95, 5, Map.of(), null), new Standing("t:3", 40, 2, Map.of(), null));
         Map<String, String> names = Map.of("t:1", "Team Zaros", "t:2", "Team Seren", "t:3", "Team Guthix");
-        out.put("recap", recapText(eventName, reset, sample, top, k -> names.getOrDefault(k, "A team"), true, ""));
+        out.put("recap", recapText(eventName, reset, sample, top, k -> names.getOrDefault(k, "A team"), hiddenText == null, hiddenText == null ? "" : hiddenText));
         out.put("firstLine", milestoneText(eventName, new Milestone("line", Kind.FIRST_LINE, "t:1", "Row 2", now), "Team Zaros"));
         out.put("firstBlackout", milestoneText(eventName, new Milestone("blackout", Kind.FIRST_BLACKOUT, "t:1", "", now), "Team Zaros"));
         out.put("firstTile", milestoneText(eventName, new Milestone("tile:a", Kind.FIRST_TILE, "t:2", tile, now), "Team Seren"));
