@@ -113,7 +113,7 @@ Every environment variable the bot reads. Each one can also go in the git-ignore
 | `RUNESCAPE_LINKED_POLL_WINDOW_MINUTES` | One pass over linked players not in a registered clan. | `480`. |
 | `RUNESCAPE_PREMIUM_POLL_WINDOW_MINUTES` | One pass over players in premium clans. | `60`. |
 | `RUNEMETRICS_TIME_ZONE` | The zone RuneMetrics' activity times are read in. The clock check warns if it looks wrong (for example `Etc/GMT-1`). Environment only. | `Europe/London`. |
-| `RUNEMETRICS` | Whether RuneMetrics is still asked. Jagex retires it on 2026-11-10: `auto` asks until then and stops after, `on` keeps asking (if Jagex extends it), `off` stops now. Also stops the RuneLink XP check reading it (the Hiscores alone decide). Environment only. | `auto`. |
+| `RUNEMETRICS` | Whether RuneMetrics is still asked. Jagex retires it on 2026-11-10: `auto` asks until then and stops after, `on` keeps asking (if Jagex extends it), `off` stops now. Also stops the RuneLink XP check reading it (the Hiscores alone decide). When off, Clan health's missed Citadel caps list and the rank-up advisor's caps parts show as unavailable (not counted). Environment only. | `auto`. |
 | `RSN_RENAME_ALERT_CHANNEL_ID` | Env-default channel for "this player may have renamed" alerts. | Renames are only logged. |
 | `RSN_VERIFICATION_CHANNEL_ID` | Env-default channel where RSN verification requests go for review. | Requests wait unnoticed. |
 | `VERIFIED_CLAN_ROLE_ID`, `VERIFIED_NON_CLAN_ROLE_ID`, `UNVERIFIED_ROLE_ID` | Env-default roles given or removed on verification (clan member, verified non-member, removed on verify). | Nothing is given or removed for that slot. |

@@ -64,8 +64,20 @@ public final class RankAdvisorRules {
     /** A staff tick: {@code rsnKey} was ranked to {@code rank} in game (as staff say). */
     public record Tick(String rsnKey, String rank, long by, String byName, OffsetDateTime at) {}
 
-    /** One part of a rule: what it needs, what the member has (null: unknown), and whether it is met. */
-    public record Check(String what, long need, Long have, boolean met) {}
+    /**
+     * One part of a rule: what it needs, what the member has (null: unknown), and whether it is met. {@code unavailable}: the bot can't count
+     * this part for anyone right now (Citadel caps once RuneMetrics is off, T-725), so it is left out of the count instead of failing it.
+     */
+    public record Check(String what, long need, Long have, boolean met, boolean unavailable) {
+        public Check(String what, long need, Long have, boolean met) {
+            this(what, need, have, met, false);
+        }
+
+        /** Whether this part is counted at all (an unavailable part is skipped). */
+        public boolean counts() {
+            return !unavailable;
+        }
+    }
 
     /** A member who meets every part of the rule for {@code target}. */
     public record Ready(Facts member, String target, List<Check> checks) {}
@@ -93,15 +105,25 @@ public final class RankAdvisorRules {
         return from == null ? 0 : Math.max(0, java.time.Duration.between(from, now).toDays());
     }
 
-    /** Every part the rule sets, checked against the member. */
+    /** Every part the rule sets, checked against the member, with Citadel caps counted. */
     public static List<Check> check(Rule rule, Facts m, OffsetDateTime now) {
+        return check(rule, m, now, true);
+    }
+
+    /**
+     * Every part the rule sets, checked against the member. {@code capsAvailable} false (RuneMetrics is off, {@link CitadelCaps}): a caps part
+     * is marked unavailable and not counted, so ranks still work on XP, days and points. The owner's {@code minCaps} stays saved for when caps
+     * return.
+     */
+    public static List<Check> check(Rule rule, Facts m, OffsetDateTime now, boolean capsAvailable) {
         List<Check> out = new ArrayList<>();
         if (rule.minXp() != null) out.add(new Check("xp", rule.minXp(), m.xpGained(), m.xpGained() != null && m.xpGained() >= rule.minXp()));
         if (rule.minDays() != null) {
             Long days = m.joined() == null ? null : daysSince(m.joined(), now);
             out.add(new Check("days", rule.minDays(), days, days != null && days >= rule.minDays()));
         }
-        if (rule.minCaps() != null) {
+        if (rule.minCaps() != null && !capsAvailable) out.add(new Check("caps", rule.minCaps(), null, false, true));
+        else if (rule.minCaps() != null) {
             Long caps = m.caps() == null ? null : (long) m.caps();
             out.add(new Check("caps", rule.minCaps(), caps, caps != null && caps >= rule.minCaps()));
         }
@@ -115,6 +137,14 @@ public final class RankAdvisorRules {
      * Highest target first, then the longest waiting at their rank.
      */
     public static List<Ready> ready(List<Facts> members, Map<String, Rule> rules, List<Tick> ticks, OffsetDateTime now) {
+        return ready(members, rules, ticks, now, true);
+    }
+
+    /**
+     * As {@link #ready(List, Map, List, OffsetDateTime)}; with {@code capsAvailable} false a caps part isn't counted, and a rule whose only
+     * part is caps lists nobody (it has nothing left to check, and listing the whole rank would be wrong).
+     */
+    public static List<Ready> ready(List<Facts> members, Map<String, Rule> rules, List<Tick> ticks, OffsetDateTime now, boolean capsAvailable) {
         Map<String, Set<Integer>> ticked = new HashMap<>();
         for (Tick t : ticks) {
             int i = indexOf(t.rank());
@@ -134,8 +164,9 @@ public final class RankAdvisorRules {
             // the rank after. XP at the new rank starts once the roster shows it (until then it is unknown, so an XP rule isn't met).
             Facts counted = target > at + 1 && m.xpGained() != null
                     ? new Facts(m.rsn(), m.rank(), null, m.rankSince(), m.joined(), m.caps(), m.points()) : m;
-            List<Check> checks = check(rule, counted, now);
-            if (checks.stream().allMatch(Check::met)) out.add(new Ready(m, LADDER.get(target), checks));
+            List<Check> checks = check(rule, counted, now, capsAvailable);
+            if (checks.stream().noneMatch(Check::counts)) continue;
+            if (checks.stream().filter(Check::counts).allMatch(Check::met)) out.add(new Ready(m, LADDER.get(target), checks));
         }
         out.sort(Comparator.comparingInt((Ready r) -> indexOf(r.target())).reversed()
                 .thenComparing(r -> r.member().rankSince() == null ? OffsetDateTime.MAX : r.member().rankSince())
