@@ -10,6 +10,7 @@ import com.younglings.bot.events.EventRepository;
 import com.younglings.bot.events.EventRepository.Event;
 import com.younglings.bot.events.EventRules.Status;
 import com.younglings.bot.events.EventService;
+import com.younglings.bot.events.EventStandings;
 import com.younglings.bot.events.EventUpdateRepository;
 import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
@@ -84,14 +85,18 @@ public class EventUpdatesApi implements AdminRouteExtension {
     DataObject view(Guild guild, long id) {
         Event event = service.event(guild.getIdLong(), id);
         boolean bingo = ClanVsClan.plays(event, BingoTemplate.KEY);
-        BoardUpdates.Settings rules = BoardUpdates.of(DataObject.fromJson(event.config()));
+        DataObject config = DataObject.fromJson(event.config());
+        BoardUpdates.Settings rules = BoardUpdates.of(config);
+        EventStandings.Visibility visibility = EventStandings.of(config);
+        boolean hidden = !EventStandings.tableShown(visibility, Status.RUNNING);
         DataObject out = DataObject.empty().put("bingo", bingo).put("settings", BoardUpdates.toJson(rules)).put("isDefault", rules.isDefault())
+                .put("standingsHidden", hidden)
                 .put("limits", DataObject.empty().put("minMinutes", BoardUpdates.MIN_EVERY_MINUTES).put("maxMinutes", BoardUpdates.MAX_EVERY_MINUTES));
         DataArray lines = DataArray.empty();
-        BoardUpdates.describe(rules).forEach(lines::add);
+        BoardUpdates.describe(rules, hidden).forEach(lines::add);
         out.put("rules", lines);
         DataObject previews = DataObject.empty();
-        BoardUpdates.previews(event.name(), rules, bingo ? service.objectives(id) : List.of(), Instant.now()).forEach(previews::put);
+        BoardUpdates.previews(event.name(), rules, bingo ? service.objectives(id) : List.of(), Instant.now(), hidden ? EventStandings.hiddenText(visibility) : null).forEach(previews::put);
         out.put("previews", previews);
         Instant next = panels.nextUpdate(id, rules);
         out.put("nextBoardUpdate", next == null ? null : next.toString());

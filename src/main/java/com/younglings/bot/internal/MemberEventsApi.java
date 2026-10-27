@@ -240,7 +240,7 @@ public class MemberEventsApi {
 
         out.put("channels", channels(guild, eventId, me, teamEvent));
         out.put("canSubmit", !me.waiting() && event.status() == Status.RUNNING);
-        out.put("updates", com.younglings.bot.events.ClanVsClan.plays(event, BingoTemplate.KEY) ? updates(eventId, config) : null);
+        out.put("updates", com.younglings.bot.events.ClanVsClan.plays(event, BingoTemplate.KEY) ? updates(eventId, config, event.status()) : null);
         out.put("win", win(guild, eventId, config, teams, shown));
         return out;
     }
@@ -359,12 +359,13 @@ public class MemberEventsApi {
      * A bingo's board update rules in words and its latest recaps and milestones (T-650), for the player's event page. Null when the event uses today's
      * rules and has posted nothing, so the page shows nothing new.
      */
-    private DataObject updates(long eventId, DataObject config) {
+    private DataObject updates(long eventId, DataObject config, Status status) {
         var rules = com.younglings.bot.events.BoardUpdates.of(config);
         var recent = updatePosts.recent(eventId, UPDATES_SHOWN);
         if (rules.isDefault() && recent.isEmpty()) return null;
         DataArray lines = DataArray.empty();
-        com.younglings.bot.events.BoardUpdates.describe(rules).forEach(lines::add);
+        boolean hidden = !com.younglings.bot.events.EventStandings.tableShown(com.younglings.bot.events.EventStandings.of(config), status);
+        com.younglings.bot.events.BoardUpdates.describe(rules, hidden).forEach(lines::add);
         DataArray posts = DataArray.empty();
         for (var p : recent) posts.add(DataObject.empty().put("key", p.key()).put("kind", p.kind()).put("text", p.text()).put("at", p.at().toString()));
         return DataObject.empty().put("mode", rules.mode().name()).put("rules", lines).put("posts", posts);

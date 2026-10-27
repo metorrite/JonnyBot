@@ -94,6 +94,17 @@ class EventUpdatesApiTest {
         assertEquals(1, view.getArray("rules").length());
         for (String post : List.of("board", "recap", "firstLine", "firstBlackout", "firstTile")) assertTrue(view.getObject("previews").hasKey(post), post);
         assertEquals(0, view.getArray("posts").length());
+        assertFalse(view.getBoolean("standingsHidden"));
+    }
+
+    @Test
+    void hiddenStandingsAreSaidAndKeptOutOfTheRecapPreview() {
+        DataObject config = DataObject.fromJson(repository.event(G, bingo).orElseThrow().config()).put("standings", DataObject.empty().put("visibility", "STAFF"));
+        repository.setConfig(G, bingo, config.toString());
+        DataObject view = call("PUT", bingo, "{\"recap\":true,\"firstTile\":true}");
+        assertTrue(view.getBoolean("standingsHidden"));
+        assertTrue(view.getArray("rules").toList().stream().anyMatch(l -> String.valueOf(l).contains("no milestones are announced")));
+        assertTrue(view.getObject("previews").getString("recap").contains("only shown to staff"));
     }
 
     @Test
@@ -116,6 +127,8 @@ class EventUpdatesApiTest {
         assertEquals(400, bad.status);
         ApiError noChannel = assertThrows(ApiError.class, () -> call("PUT", bingo, "{\"channelId\":\"" + "3".repeat(18) + "\"}"));
         assertEquals(400, noChannel.status);
+        ApiError tooBig = assertThrows(ApiError.class, () -> call("PUT", bingo, "{\"channelId\":\"" + "9".repeat(20) + "\"}"));
+        assertEquals(400, tooBig.status, "an id that doesn't fit a long is a problem, not a crash");
         ApiError notBingo = assertThrows(ApiError.class, () -> call("PUT", custom, "{\"recap\":true}"));
         assertEquals(409, notBingo.status);
         repository.moveStage(G, bingo, Status.DRAFT, Status.DONE);

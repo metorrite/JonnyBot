@@ -61,6 +61,45 @@ class BoardUpdatesTest {
     }
 
     @Test
+    void aChannelIdMustFitALong() {
+        String big = "9".repeat(19); // above Long.MAX_VALUE
+        String twenty = "1".repeat(20);
+        assertEquals(1, BoardUpdates.problems(DataObject.fromJson("{\"channelId\":\"" + big + "\"}")).size());
+        assertEquals(1, BoardUpdates.problems(DataObject.fromJson("{\"channelId\":\"" + twenty + "\"}")).size());
+        assertNull(BoardUpdates.read(DataObject.fromJson("{\"channelId\":\"" + big + "\"}")).channelId(), "read never throws on an id that doesn't fit");
+        assertNull(BoardUpdates.read(DataObject.fromJson("{\"channelId\":\"" + twenty + "\"}")).channelId());
+        String fits = "1".repeat(19);
+        assertEquals(List.of(), BoardUpdates.problems(DataObject.fromJson("{\"channelId\":\"" + fits + "\"}")));
+        assertEquals(Long.parseLong(fits), BoardUpdates.read(DataObject.fromJson("{\"channelId\":\"" + fits + "\"}")).channelId());
+    }
+
+    @Test
+    void aSettingsSaveKeepsTheUpdateRules() {
+        // the dashboard's Setup card sends its own copy of the config, which may not have the rules saved on the Updates tab since
+        DataObject before = DataObject.fromJson("{\"board\":{\"size\":5},\"updates\":{\"mode\":\"DAILY\",\"recap\":true}}");
+        DataObject stale = DataObject.fromJson("{\"board\":{\"size\":5},\"description\":\"x\"}");
+        EventService.keepUpdates(before, stale);
+        assertEquals(Mode.DAILY, BoardUpdates.of(stale).mode());
+        assertTrue(BoardUpdates.of(stale).recap());
+        // and a settings save can't sneak rules in past the Updates route's checks
+        DataObject sneaky = DataObject.fromJson("{\"updates\":{\"mode\":\"BATCHED\"}}");
+        EventService.keepUpdates(DataObject.fromJson("{}"), sneaky);
+        assertFalse(sneaky.hasKey("updates"));
+    }
+
+    @Test
+    void hiddenStandingsAreSaidInThePlainWords() {
+        Settings all = new Settings(Mode.LIVE, 30, true, true, false, false, null);
+        assertEquals(BoardUpdates.describe(all), BoardUpdates.describe(all, false));
+        List<String> hidden = BoardUpdates.describe(all, true);
+        assertTrue(hidden.stream().anyMatch(l -> l.contains("no milestones are announced")), hidden.toString());
+        assertTrue(hidden.stream().anyMatch(l -> l.contains("without saying who finished them")), hidden.toString());
+        assertEquals(BoardUpdates.describe(BoardUpdates.DEFAULTS), BoardUpdates.describe(BoardUpdates.DEFAULTS, true), "nothing to add when nothing is posted");
+        String recap = BoardUpdates.previews("B", all, List.of(), T, "The standings are only shown to staff.").get("recap");
+        assertTrue(recap.contains("The standings are only shown to staff.") && !recap.contains("Team Zaros"), recap);
+    }
+
+    @Test
     void savingTheDefaultsTakesTheRulesOutAgain() {
         DataObject config = DataObject.fromJson("{\"board\":{\"size\":5}}");
         Settings daily = new Settings(Mode.DAILY, 30, true, false, true, false, null);
@@ -184,6 +223,10 @@ class BoardUpdatesTest {
         String hidden = BoardUpdates.recapText("B", reset, one, List.of(new Standing("u:1", 5, 1, Map.of(), null)), s -> "Ann", false, "The standings are only shown to staff.");
         assertTrue(hidden.contains("The standings are only shown to staff."));
         assertFalse(hidden.contains("5 pts"));
+        assertTrue(hidden.contains("- Nex"), "the tiles are still listed");
+        assertFalse(hidden.contains("Ann"), "but not who finished them, which would give the standings away");
+        String shown = BoardUpdates.recapText("B", reset, one, List.of(), s -> "Ann", true, "");
+        assertTrue(shown.contains("- Nex · Ann"));
         assertNull(BoardUpdates.recapText("B", reset, List.of(), List.of(), s -> "x", true, ""));
     }
 

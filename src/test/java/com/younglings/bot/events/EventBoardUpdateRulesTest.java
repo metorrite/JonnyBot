@@ -153,7 +153,12 @@ class EventBoardUpdateRulesTest {
     }
 
     private void event(Status status, String updatesJson) {
-        String config = "{" + BOARD + (updatesJson == null ? "" : ",\"updates\":" + updatesJson) + "}";
+        event(status, updatesJson, null);
+    }
+
+    private void event(Status status, String updatesJson, String visibility) {
+        String config = "{" + BOARD + (updatesJson == null ? "" : ",\"updates\":" + updatesJson)
+                + (visibility == null ? "" : ",\"standings\":{\"visibility\":\"" + visibility + "\"}") + "}";
         when(repository.event(GUILD, EVENT)).thenReturn(Optional.of(eventOf(status, config)));
         when(repository.eventsInStatus(Status.RUNNING)).thenReturn(status == Status.RUNNING ? List.of(eventOf(status, config)) : List.of());
     }
@@ -277,6 +282,18 @@ class EventBoardUpdateRulesTest {
         assertEquals(2, posts.size(), "no announcements channel: the live board channel");
         assertTrue(posts.get(0).contains("**Zaros** is the first to finish **Nex: Torva boots**"), posts.get(0));
         mentionsAllowed.get(BOARD_CHANNEL).forEach(allowed -> assertTrue(allowed.isEmpty(), "no mentions allowed"));
+    }
+
+    @Test
+    void hiddenStandingsAnnounceNoMilestones() {
+        for (String visibility : List.of("STAFF", "HIDDEN_UNTIL_END")) {
+            event(Status.RUNNING, "{\"firstTile\":true,\"firstLine\":true,\"firstBlackout\":true}", visibility);
+            progress.clear();
+            for (String key : List.of("a", "b", "c", "d")) done(key, T.plusSeconds(key.charAt(0)));
+            assertEquals(0, updates.milestones(GUILD, EVENT, T.plus(Duration.ofMinutes(1))), visibility);
+            assertTrue(queued.isEmpty(), visibility);
+            assertTrue(claimed.isEmpty(), "nothing is noted as posted, so nothing stale comes out later: " + visibility);
+        }
     }
 
     @Test
