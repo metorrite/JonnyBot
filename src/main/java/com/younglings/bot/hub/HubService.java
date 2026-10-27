@@ -1,5 +1,7 @@
 package com.younglings.bot.hub;
 
+import com.younglings.bot.cachebus.CacheBus;
+import com.younglings.bot.cachebus.CacheInvalidator;
 import com.younglings.bot.permission.AdminRoleFilter;
 import com.younglings.bot.permission.PermissionGroupService;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -24,7 +26,10 @@ import java.util.stream.Collectors;
  * they manage a command from, but a command switched off is off for them too.
  */
 @BService
-public class HubService {
+public class HubService implements CacheInvalidator {
+    /** The {@code bot_cache} area of this class's caches (docs/SCALING-STATE.md M10). */
+    static final String CACHE_AREA = "hub-commands";
+
     /** What {@link #decide} concluded, and what to tell the person if the answer was no. */
     public record Decision(boolean allowed, String message) {
         static final Decision ALLOW = new Decision(true, null);
@@ -64,6 +69,7 @@ public class HubService {
     public void save(HubSettings settings) {
         repository.save(settings);
         cache.remove(settings.guildId());
+        CacheBus.changed(CACHE_AREA, settings.guildId());
     }
 
     // ---------- the rule ----------
@@ -184,5 +190,22 @@ public class HubService {
         DataArray ignored = DataArray.empty();
         policy.ignoreChannelIds().forEach(id -> ignored.add(Long.toString(id)));
         return DataObject.empty().put("nicknameTag", policy.nicknameTag()).put("ignoreChannelIds", ignored).toString();
+    }
+
+    // ---------- cross-process invalidation (CacheBus) ----------
+
+    @Override
+    public String cacheArea() {
+        return CACHE_AREA;
+    }
+
+    @Override
+    public void evictCached(long guildId) {
+        cache.remove(guildId);
+    }
+
+    @Override
+    public void evictAllCached() {
+        cache.clear();
     }
 }

@@ -1,5 +1,7 @@
 package com.younglings.bot.clansite;
 
+import com.younglings.bot.cachebus.CacheBus;
+import com.younglings.bot.cachebus.CacheInvalidator;
 import com.younglings.bot.database.SchemaBootstrapper;
 import io.github.freya022.botcommands.api.core.db.ConnectionSupplier;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -25,7 +27,10 @@ import java.util.concurrent.ConcurrentHashMap;
  * The list is small and read on every site request, so it is remembered in memory and refreshed on each write.
  */
 @BService
-public class BotlessSiteRepository {
+public class BotlessSiteRepository implements CacheInvalidator {
+    /** The {@code bot_cache} area of this class's caches (docs/SCALING-STATE.md M10). */
+    static final String CACHE_AREA = "botless-sites";
+
     private static final Logger log = LoggerFactory.getLogger(BotlessSiteRepository.class);
 
     private final ConnectionSupplier connectionSupplier;
@@ -77,6 +82,7 @@ public class BotlessSiteRepository {
             s.setLong(2, userId);
             boolean added = s.executeUpdate() == 1;
             known = null;
+            CacheBus.changed(CACHE_AREA, guildId);
             if (added) log.info("Clan website of guild {} is now bot-less (set up by {})", guildId, userId);
             return added;
         } catch (SQLException e) {
@@ -91,6 +97,7 @@ public class BotlessSiteRepository {
             s.setLong(1, guildId);
             s.executeUpdate();
             known = null;
+            CacheBus.changed(CACHE_AREA, guildId);
         } catch (SQLException e) {
             log.error("Failed to forget the bot-less clan website of guild {}", guildId, e);
             throw new RuntimeException("Failed to forget the bot-less clan website", e);
@@ -102,5 +109,22 @@ public class BotlessSiteRepository {
         List<Long> out = new ArrayList<>(ids());
         out.sort(Long::compare);
         return out;
+    }
+
+    // ---------- cross-process invalidation (CacheBus) ----------
+
+    @Override
+    public String cacheArea() {
+        return CACHE_AREA;
+    }
+
+    @Override
+    public void evictCached(long guildId) {
+        known = null;
+    }
+
+    @Override
+    public void evictAllCached() {
+        known = null;
     }
 }
