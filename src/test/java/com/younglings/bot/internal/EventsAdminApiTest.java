@@ -62,6 +62,7 @@ class EventsAdminApiTest {
     private EventRepository repository;
     private EventService service;
     private EventsAdminApi api;
+    private java.util.function.Function<com.younglings.bot.events.PluginXpTracker, EventsAdminApi> apiWith;
     private com.younglings.bot.runescape.PlayerLinkRepository links;
     private Guild guild;
     private Member actor;
@@ -100,9 +101,11 @@ class EventsAdminApiTest {
         links = Mockito.mock(com.younglings.bot.runescape.PlayerLinkRepository.class);
         var eventSetup = new com.younglings.bot.events.EventSetup(service, templates, new com.younglings.bot.events.EventDraftRepository(supplier), new com.younglings.bot.events.EventBlueprintRepository(supplier),
                 new com.younglings.bot.events.EventDefaultsRepository(supplier), new com.younglings.bot.events.BingoPools(Mockito.mock(com.younglings.bot.events.BingoTileRepository.class)));
-        api = new EventsAdminApi(service, repository, templates, signups, new BingoTemplate(), panels, links, new com.younglings.bot.events.BingoTiles(new com.younglings.bot.internal.WikiCatalog()),
-                new EventSetupApi(eventSetup), new com.younglings.bot.events.EventTeams(service, repository, links),
-                new com.younglings.bot.events.BingoPools(Mockito.mock(com.younglings.bot.events.BingoTileRepository.class)), null);
+        apiWith = pluginXp -> new EventsAdminApi(service, repository, templates, signups, new BingoTemplate(), panels, links,
+                new com.younglings.bot.events.BingoTiles(new com.younglings.bot.internal.WikiCatalog()), new EventSetupApi(eventSetup),
+                new com.younglings.bot.events.EventTeams(service, repository, links), new com.younglings.bot.events.BingoPools(Mockito.mock(com.younglings.bot.events.BingoTileRepository.class)),
+                pluginXp);
+        api = apiWith.apply(null);
 
         guild = Mockito.mock(Guild.class);
         Mockito.when(guild.getIdLong()).thenReturn(G);
@@ -1063,7 +1066,7 @@ class EventsAdminApiTest {
 
     @Test
     void aPlayerWithANineteenDigitDiscordIdCanBeMovedRatedAndRemovedLikeAnyOther() {
-        String player = "1006494212210053150";
+        String player = "1".repeat(19); // a made-up 19-digit id, built at runtime
         String id = create("{\"name\":\"Long ids\",\"scoringMode\":\"team\"}");
         call("POST", "events/" + id + "/status", "{\"status\":\"signups\"}");
         call("POST", "events/" + id + "/participants", "{\"userId\":\"" + player + "\"}");
@@ -1086,5 +1089,18 @@ class EventsAdminApiTest {
         assertEquals(400, failure("PUT", "events/" + id + "/participants/99999999999999999999", "{\"teamId\":null}").status, "20 digits don't fit a long");
         assertEquals(400, failure("DELETE", "events/" + id + "/participants/12ab", null).status);
         assertEquals(400, failure("GET", "events/9223372036854775808", null).status, "past the largest id there is");
+    }
+
+    @Test
+    void theNotCountedListIsMarkedForXpTilesOnBingoButNotOnACompetition() {
+        var tracker = Mockito.mock(com.younglings.bot.events.PluginXpTracker.class);
+        Mockito.when(tracker.notCounted(ArgumentMatchers.anyLong()))
+                .thenReturn(java.util.Optional.of(new com.younglings.bot.events.PluginXpTracker.NotCounted(java.util.Set.of(), java.util.Set.of(), java.time.Instant.EPOCH)));
+        EventsAdminApi withTracker = apiWith.apply(tracker);
+        long bingo = Long.parseLong(create("{\"name\":\"XP bingo\",\"template\":\"bingo\",\"config\":{\"board\":{\"size\":3}}}"));
+        long race = Long.parseLong(create("{\"name\":\"XP race\",\"template\":\"competition\",\"config\":{\"skillId\":18}}"));
+        assertTrue(withTracker.standings(guild, bingo).getObject("pluginXp").getBoolean("xpTiles"));
+        assertFalse(withTracker.standings(guild, race).getObject("pluginXp").getBoolean("xpTiles"));
+        assertFalse(api.standings(guild, bingo).hasKey("pluginXp"), "no tracker (the hub client off): nothing to list");
     }
 }

@@ -14,7 +14,7 @@ status=$?
 if [ "$status" -ne 0 ]; then
   echo "$out" | grep -E '^(RuleID|File|Line):' >&2
   echo "pre-commit: possible secret in the staged changes (values hidden). Commit blocked." >&2
-  echo "pre-commit: a real secret -> remove it and tell Drake. A fake test value -> build it at runtime (TestSecrets.fake) or allow-list it in .gitleaks.toml." >&2
+  echo "pre-commit: a real secret -> remove it and tell the repository owner. A fake test value -> build it at runtime (TestSecrets.fake) or allow-list it in .gitleaks.toml." >&2
   exit 1
 fi
 exit 0

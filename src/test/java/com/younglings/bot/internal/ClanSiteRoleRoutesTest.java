@@ -40,6 +40,12 @@ class ClanSiteRoleRoutesTest {
         assertEquals(Action.SETTINGS, action("GET", "clan-site/member-privacy"), "T-395: the privacy defaults are for admins");
         assertEquals(Action.SETTINGS, action("PUT", "clan-site/member-privacy"));
         assertEquals(Action.OWN, action("POST", "clan-site/delete"));
+        assertEquals(Action.SETTINGS, action("GET", "clan-site/cockpit"), "T-593: Clan health is for site admins");
+        assertEquals(Action.SETTINGS, action("POST", "clan-site/cockpit/marks"), "any site admin marks a row done");
+        assertEquals(Action.OWN, action("PUT", "clan-site/cockpit/settings"), "the quiet threshold is the owner's (Drake's planning answer)");
+        assertEquals(Action.SETTINGS, action("GET", "clan-site/cockpit/ranks"), "T-594: the rank-up list is for site admins");
+        assertEquals(Action.SETTINGS, action("POST", "clan-site/cockpit/ranks/ticks"), "any site admin ticks a member off");
+        assertEquals(Action.OWN, action("PUT", "clan-site/cockpit/ranks/rules"), "the rank rules are the owner's (Drake's planning answer)");
         assertNull(action("POST", "clan-site/takedown"), "the bot's owner decides takedowns, not the site");
         assertNull(action("POST", "clan-site/restore"));
         assertNull(action("GET", "polls"), "other features' routes aren't this class's");

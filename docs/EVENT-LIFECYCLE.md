@@ -1,18 +1,10 @@
 # The event lifecycle project
 
-What was asked for, what has been decided, what is built, and what is next. Written 2026-10-17 so the work can be picked up on another machine. (Claude's own notes for the project hold the same plus working lessons: `memory/project_event_lifecycle_channels.md`, `project_event_reminders.md`.)
-
-## Resume here (written 2026-10-17, when the work moved to a new PC)
-
-- **State:** slices 1-4 are merged into `dev` in both repos. Slice 5 (roles and channels) is built and tested and sits in open pull requests: bot [#191](https://github.com/metorrite/JonnyBot/pull/191) and website [#79](https://github.com/metorrite/younglings-website/pull/79), branch `feat/event-space` in both. Nothing is on `master` (master deploys; it needs Drake's explicit go-ahead every time).
-- **First moves on the new machine:** set up the environment from `DEV-SETUP.md`, copy Claude's memory folder across (it holds the plan, decisions, reminders and lessons), check CI on both pull requests, and merge them into `dev` (bot first, then website) when Drake says go or asks for the next slice. A fresh slice branch is made off `dev` after that (no stacked pull requests).
-- **Slice 5 has never been run against Discord for real** (see "What is not proven" below); the first thing worth doing with Drake is the small live test described there.
-- **Next is slice 6, `/submit event` and `/submit event-verify`.** What slice 5 already gives it: `EventSpaceRepository.channelById(guildId, channelId)` maps any channel JonnyBot made or was told to use back to its event and key (`general`, `staff`, `team:<id>`, `player:<userId>`, ...), which is how "the event is worked out from the channel the command is used in" can work; a team's or player's private channel is where their submission is mirrored; the `review` channel (the event's `reviewChannelId`) is the staff queue. Still to decide with Drake or default: the exact subcommand options, the "make `/submit` the only way to submit" flag, receipts to the player, and what `/submit event-verify` accepts (screenshots) and where it lands.
-- After 6: slice 7 (the player-facing event area on the website: my events, my team, board, standings, my submissions, links to the event's channels) and slice 8 (wrap-up: export zip of JSON, delete, archive, compress, de-duplicate, role and channel retention). Then refinement: the items listed under "Open questions" and "Choices I made" below.
+What was asked for, what has been decided, what is built, and what is next for the event lifecycle (first written 2026-10-17).
 
 ## The goal
 
-Drake runs RuneScape clan events (bingo, scavenger hunts, XP competitions, boss nights) through JonnyBot and the clan dashboard. The event engine (create, objectives, teams, players, proof, standings, buy-ins, prizes) already existed. This project turns it into a full lifecycle:
+Clan staff run RuneScape clan events (bingo, scavenger hunts, XP competitions, boss nights) through RuneClan Bot and the clan dashboard. The event engine (create, objectives, teams, players, proof, standings, buy-ins, prizes) already existed. This project turns it into a full lifecycle:
 
 **build -> take signups -> close signups and confirm the roster -> (verify players) -> build teams -> make Discord roles and channels -> run, with players submitting proof -> finish -> wrap up (export, archive, delete).**
 
@@ -75,7 +67,7 @@ Website: `components/dashboard/space/ChannelsTab.tsx` (the Channels tab), `lib/e
 - Default names are short (`{event} Staff`, `{event} Announcements`, `{event} General`, `{event} Board`, `{event} Review`, `{event} {team}`, `{event} {player}`; roles `{event} Participant`, `{event} Organiser`, `{event} {team}`); his example `{event} General Channel` is just a pattern he can type. The patterns are per event; a server-wide default pattern setting was not built.
 - Staff = the Admin group in the server's settings (plus anyone with the Administrator permission, who sees everything anyway). Organisers of an event get their own role. Players of a team event who aren't on a team yet still get the participant role.
 - Team roles are only made when team channels are on (roles are scarce: 250 per server). Per-player channels (solo events) are off by default.
-- A channel an organiser picks is used as it is: JonnyBot never changes who can see it. The board and proof channels JonnyBot makes become the event's `boardChannelId` / `reviewChannelId`.
+- A channel an organiser picks is used as it is: RuneClan Bot never changes who can see it. The board and proof channels RuneClan Bot makes become the event's `boardChannelId` / `reviewChannelId`.
 - Setting up again only makes what is missing; it does not repair permissions or names of channels that already exist (a possible refinement), and removing a team leaves its role and channel until "Bring them up to date" with the remove box ticked.
 - Unverified players (past the gate) and players on the waitlist get no roles. A player who isn't in the Discord server yet is skipped and gets the role when they join (D10).
 - No welcome message is posted in the new channels yet.
@@ -96,7 +88,7 @@ Slice 6, `/submit`: `/submit event` takes the event from the channel it is used 
 
 Slice 7, the player's event page: website `/clan-events` (your events, open events, Join) and `/clan-events/[id]` (timeline, verification, team, channel links, your board or objectives, standings, what you have sent, prizes), from the bot's `GET /internal/me/events/detail`. (`/events` was already the Discord scheduled events page.)
 
-Slice 8, wrapping an event up (Wrap-up tab on the event manager, bot routes `events/{id}/wrapup`): settings `wrapup` {lockOnFinish (default on), rolesDays (default 7; -1 never), channelsDays (default -1: the organiser decides), channelsAction (ARCHIVE | DELETE | NONE), archiveCategoryId}. Defaults: when the event finishes its channels go read-only, its roles are taken back after 7 days, its channels stay until an organiser acts. The schedule runs every 15 minutes (`EventWrapupOps.sweep`), once per step, only on roles and channels JonnyBot made. Actions an organiser can start: lock/unlock, take the roles back, archive (channels move into an "Event archive" category only staff can see, the event's own categories are deleted), compress (each private channel's messages become a transcript file in one staff-only channel, the originals optionally deleted), export (a zip: event.json, messages.json, each channel as .json and .txt in a folder per category, and the images up to 12 MB, the rest as links; the bot's duplicate receipts folded into one; kept for an hour for download), delete (the existing take-down). Everything that deletes asks for confirmation. Not built: unlocking happens by hand only, a reopened event starts its wrap-up over but its channels stay read-only until Unlock.
+Slice 8, wrapping an event up (Wrap-up tab on the event manager, bot routes `events/{id}/wrapup`): settings `wrapup` {lockOnFinish (default on), rolesDays (default 7; -1 never), channelsDays (default -1: the organiser decides), channelsAction (ARCHIVE | DELETE | NONE), archiveCategoryId}. Defaults: when the event finishes its channels go read-only, its roles are taken back after 7 days, its channels stay until an organiser acts. The schedule runs every 15 minutes (`EventWrapupOps.sweep`), once per step, only on roles and channels RuneClan Bot made. Actions an organiser can start: lock/unlock, take the roles back, archive (channels move into an "Event archive" category only staff can see, the event's own categories are deleted), compress (each private channel's messages become a transcript file in one staff-only channel, the originals optionally deleted), export (a zip: event.json, messages.json, each channel as .json and .txt in a folder per category, and the images up to 12 MB, the rest as links; the bot's duplicate receipts folded into one; kept for an hour for download), delete (the existing take-down). Everything that deletes asks for confirmation. Not built: unlocking happens by hand only, a reopened event starts its wrap-up over but its channels stay read-only until Unlock.
 
 ## Phases, forward and back (safeguards, 2026-10-17)
 
@@ -111,7 +103,7 @@ Signups open -> signups closed -> roster confirmed -> teams final (team events) 
 
 ## What is not proven yet
 
-Discord-side code has needed fixes the first time it ran for real every time. Not yet run in Discord: closing signups and the pause, the join messages with verification, `/events create` from the standard answers, `/events team ...`, board posting with the new looks. Test on the dev bot with Drake's account and his alt. The dev bot runs in the real clan server (`1495619657674264717`), so tests there are live: keep them small and clean up after. Lessons that bit before: a new enum slash option needs a resolver in `EventsResolvers` or the bot will not start; a new `ListenerAdapter` must be registered in `Bot.java`; starting the dev bot twice leaves two bots on one token.
+Discord-side code has needed fixes the first time it ran for real every time. Not yet run in Discord: closing signups and the pause, the join messages with verification, `/events create` from the standard answers, `/events team ...`, board posting with the new looks. Test on the dev bot with your own account and an alt. The dev bot runs in a real community server (the one set as `GUILD_ID`), so tests there are live: keep them small and clean up after. Lessons that bit before: a new enum slash option needs a resolver in `EventsResolvers` or the bot will not start; a new `ListenerAdapter` must be registered in `Bot.java`; starting the dev bot twice leaves two bots on one token.
 
 ## Refinement pass (T-051, 2026-10-20): decisions made for Drake
 
@@ -130,13 +122,13 @@ Drake asked to "revisit everything" once all slices were done, then (2026-10-20)
 | E9 | Staff = Admin group | **Keep**; the events-only coordinator tier (T-060) adds a narrower role | One source of staff | none |
 | E10 | Team roles only with team channels; per-player channels off | **Keep** | 250-role limit | none |
 | E11 | Picked (existing) channels are never changed | **Keep**; "Fix permissions for me" stays an explicit button | Never surprise an admin | none |
-| E12 | Repair names/permissions of channels JonnyBot made | **Build**: "Bring them up to date" also repairs drift on bot-made roles/channels, shown in the preview first | Admins rename or edit by accident | T-210 |
+| E12 | Repair names/permissions of channels RuneClan Bot made | **Build**: "Bring them up to date" also repairs drift on bot-made roles/channels, shown in the preview first | Admins rename or edit by accident | T-210 |
 | E13 | Welcome message in new event channels | **Build, off by default**: one message per slot (announcements, general, team, player) with tokens, posted once when the bot makes the channel | Optional-off rule | T-209 |
 | E14 | Standings visibility | **Keep "all participants"** as the default and **build the option**: participants / everyone in the server / staff only / hidden until the event ends | Some clans hide standings for suspense | T-211 |
 | E15 | `/clan-events` path name | **Keep** `/clan-events` (and `/events` stays Discord scheduled events); the events hub (T-006) brings a host-aware `/e/<id>` later | No churn now | none |
 | E16 | Shared live board channel made for an OWN-only bingo | **Already fixed** on dev: `EventSpace.choice` skips the shared board channel for an own-only bingo when team or player channels are on (it stays only as the fallback) | Checked in code 2026-10-20 | none |
 | E17 | Wrap-up defaults (read-only at once, roles back after 7 days, channels kept until an organiser acts) | **Keep** | Safe: nothing deleted without a person | none |
-| E18 | Reopened event stays read-only until Unlock | **Build**: reopening an event unlocks the channels JonnyBot locked (setting `wrapup.unlockOnReopen`, default on) | Reopening is already an explicit staff act | T-212 |
+| E18 | Reopened event stays read-only until Unlock | **Build**: reopening an event unlocks the channels RuneClan Bot locked (setting `wrapup.unlockOnReopen`, default on) | Reopening is already an explicit staff act | T-212 |
 | E19 | What else the export holds | **Build**: add `claims.csv` (every submission with decision, decider, time; the claims are already in `event.json`), `standings.csv` and `participants.csv` for spreadsheets | What staff ask for after an event | T-212 |
 | E20 | Bingo customisation beyond the look | **Already ticketed**: options T-052, variable shape sizes T-108; no new decision | | none |
 | E21 | Empty glyph boxes in `path.png` | **Build**: paint them out in both looks | Cosmetic, safe | T-213 |
@@ -144,3 +136,27 @@ Drake asked to "revisit everything" once all slices were done, then (2026-10-20)
 | E23 | One pending verification at a time; deny = REJECTED; receipts on | **Keep** | Simple to review | none |
 
 Live Discord testing of slices 2-8 stays the script in `docs/LIVE-TEST-SCRIPT.md` (Drake runs it; the dev bot is in the real server).
+
+## Board update rules (T-650)
+
+When and how the bot posts a bingo's board, per event, in `config.updates` (`BoardUpdates`). Every part is "as today" or off until an organiser changes it on the event manager's **Updates** section, so an existing bingo behaves exactly as before.
+
+| Setting | Default | What it does |
+|---|---|---|
+| `mode` | `LIVE` | `LIVE`: the board is redrawn a few seconds after each approval (today). `BATCHED`: at most once every `everyMinutes` (5 to 720, default 30). `DAILY`: once a day at the daily reset (00:00 UTC). Only approvals and tracked progress are held back: a start, a finish, a settings change or the dashboard's refresh button always redraw at once. |
+| `recap` | off | After each reset, a recap of the day that ended: the tiles finished that day and the top 3. When the event hides its standings (`STAFF`, or `HIDDEN_UNTIL_END` while it runs) the recap lists the tiles without who finished them and leaves the top 3 out. A day with no finished tile posts nothing. Posted at most 2 hours late if the bot was down at reset. |
+| `firstLine` | off | Announces the first team or player to finish a line (any row, column, diagonal or shape group that has a bonus). |
+| `firstBlackout` | off | Announces the first team or player to finish every tile. |
+| `firstTile` | off | Announces the first time anyone finishes each tile (one post per tile). |
+| `channelId` | none | Where recaps and milestones go. Without one: the event's announcements channel if the bot made it, else the live board channel. |
+
+How it works:
+
+- `EventBoardPanels` holds a board back (`afterPause`) and a one-minute check on its own `BotScheduler` lane redraws it when due (`flushHeld`). What is held is kept in memory; after a restart the next approval holds it again.
+- `EventBoardUpdates` checks milestones a few seconds after progress and posts recaps after the reset, on its own lane. Each post is noted in `younglings.event_update_post` (by key: `recap:<day>`, `line`, `blackout`, `tile:<key>`) before it is handed to the Discord outbox (`EventUpdatePostJob`, kind `event.update.post`, never repeated after an unclear failure), so nothing is posted twice. Posts carry names, never mentions, and allow none.
+- While the event hides its standings no milestone is announced (or noted as posted), since each one names who is ahead.
+- `updates` is saved only through its own route: a settings save (`PUT events/{id}`) or a re-rolled board keeps what was there (`EventService.keepUpdates`).
+- A milestone reached more than 6 hours ago is never announced, so switching a milestone on mid-event doesn't post old news.
+- A bot that is not live (`/dev toggleposting` off) holds back nothing and posts no recap or milestone.
+- Routes: `GET/PUT events/{id}/updates` (`EventUpdatesApi`: the rules in words, a preview of each post, when a held-back board is next drawn, the latest posts). The player's event page (`/internal/me/events/detail`) gets `updates` (the rules in words and the latest posts) when an event uses anything but the defaults or has posted something.
+- Tests: `BoardUpdatesTest` (pure rules), `EventBoardUpdateRulesTest` (every rule on a pretend Discord server), `EventUpdatesApiTest` (the routes and the post table).
