@@ -39,8 +39,9 @@ public final class LinkDm {
     private final LinkCrypto crypto;
     private final Executor background;
 
-    private final WindowLimiter dmPerIp = new WindowLimiter(LinkLimits.DM_PER_IP);
-    private final WindowLimiter dmPerTracking = new WindowLimiter(LinkLimits.DM_PER_TRACKING);
+    // Shared by every replica through the link database (SCALING-STATE.md M7).
+    private final SharedWindowLimiter dmPerIp;
+    private final SharedWindowLimiter dmPerTracking;
     private volatile Instant breakerReportedAt = Instant.EPOCH;
 
     LinkDm(LinkService service, Executor background) {
@@ -48,6 +49,8 @@ public final class LinkDm {
         this.store = service.store();
         this.crypto = service.crypto();
         this.background = background;
+        this.dmPerIp = new SharedWindowLimiter(store.schema(), "dm_ip", LinkLimits.DM_PER_IP);
+        this.dmPerTracking = new SharedWindowLimiter(store.schema(), "dm_tracking", LinkLimits.DM_PER_TRACKING);
     }
 
     /** What the player typed: a Discord id, or a username to resolve among the servers the bot shares. */
@@ -231,8 +234,8 @@ public final class LinkDm {
         return until;
     }
 
-    private void requesterLimit(Connection c, WindowLimiter limiter, String key, Instant now, String kind, byte[] lookup) throws SQLException {
-        int wait = limiter.tryAcquire(key, now.toEpochMilli());
+    private void requesterLimit(Connection c, SharedWindowLimiter limiter, String key, Instant now, String kind, byte[] lookup) throws SQLException {
+        int wait = limiter.tryAcquire(c, key, now.toEpochMilli());
         if (wait == 0) return;
         store.abuseEvent(c, "rate_limited", kind, lookup, DataObject.empty().put("route", "dm").toString(), now);
         throw LinkException.slowDown(wait);
