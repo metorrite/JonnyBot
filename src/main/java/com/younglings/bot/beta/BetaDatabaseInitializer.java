@@ -35,19 +35,10 @@ public class BetaDatabaseInitializer {
                 ALTER TABLE younglings.beta_guild ADD COLUMN IF NOT EXISTS min_level TEXT NOT NULL DEFAULT 'manage_server';
                 """,
 
-                // The first testers, put in once. A second marker table records that it happened, so removing one of them later sticks.
+                // This step once put the first testers' servers in, once per database, and this marker table records that it ran. Those rows stay
+                // where it ran; a new database starts with no beta servers (add them on the website). The marker is kept so nothing else changes.
                 """
-                DO $$
-                BEGIN
-                    IF to_regclass('younglings.beta_guild_seeded') IS NULL THEN
-                        INSERT INTO younglings.beta_guild (guild_id, label) VALUES
-                            (577853260153618443, 'Koalafied'),
-                            (1388208054008545300, 'RS Noobs'),
-                            (1062157106347786240, 'Eternal Rising')
-                        ON CONFLICT (guild_id) DO NOTHING;
-                        CREATE TABLE younglings.beta_guild_seeded (done BOOLEAN);
-                    END IF;
-                END $$;
+                CREATE TABLE IF NOT EXISTS younglings.beta_guild_seeded (done BOOLEAN);
                 """
         ));
     }
