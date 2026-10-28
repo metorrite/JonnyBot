@@ -447,6 +447,11 @@ public class BotConfig {
         return parseShardCount(envOrDotenv("SHARD_COUNT"));
     }
 
+    /** Which part of the bot this process runs ({@code BOT_ROLE}: all, gateway or api; default all, T-670). See {@link BotRole}. */
+    public BotRole getRole() {
+        return BotRole.parse(envOrDotenv("BOT_ROLE"));
+    }
+
     /** {@code SHARD_COUNT}'s value as a shard total: unset, not a number or below 1 is 1. */
     static int parseShardCount(String raw) {
         if (raw == null || raw.isBlank()) return 1;

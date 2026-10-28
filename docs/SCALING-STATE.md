@@ -14,6 +14,8 @@ Nothing here changes behaviour. It is the checklist the later steps work from.
 | **B2** roles: `BOT_ROLE=gateway` and `BOT_ROLE=api` (default `all` = today) | *gateway*: Discord login, events, interactions, outbox drain. *api*: internal HTTP API and gateway-free schedules | gateway 1, api 2-3 behind a load balancer |
 | **B3** shard sets: several gateway processes, each `SHARD_RANGE` of `SHARD_COUNT` | as B2, with one gateway process per shard set | gateway N, api 2-3 |
 
+`BOT_ROLE` exists since T-670 (`config/BotRole`, `discord/RestOnlyJda`): `gateway` skips the internal API, `api` logs in REST-only and only queues outbox jobs. A process started as `gateway` or `api` refuses to start until every lane names its owner (T-702, `BotRole.splitReady()`).
+
 Under B1 nothing in this list breaks: a `ShardManager` in one JVM still sees every server. The decisions below matter for B2 and B3.
 
 ## 2. Decision key
