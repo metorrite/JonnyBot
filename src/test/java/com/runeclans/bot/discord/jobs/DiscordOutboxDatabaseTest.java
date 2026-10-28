@@ -24,6 +24,8 @@ class DiscordOutboxDatabaseTest {
     private static final long GUILD = 990_000_000_000_000_456L;
     private static final long OTHER_GUILD = 990_000_000_000_000_457L;
     private static final long ACTOR = 990_000_000_000_001_456L;
+    private static final String ME = "test-me";
+    private static final String GONE = "test-gone";
 
     /** A handler the test steers: each run takes the next scripted outcome (none left = success). */
     private static final class Scripted implements DiscordJobHandler {
@@ -140,24 +142,36 @@ class DiscordOutboxDatabaseTest {
             clean(connections);
             String key = "nick:" + GUILD + ":" + ACTOR + ":race";
             DiscordJob running = repository.enqueue("test.nickname", GUILD, ACTOR, key, DataObject.empty().put("value", "A"));
-            assertEquals(running.id(), repository.claimDue(10).stream().filter(j -> j.guildId() == GUILD).findFirst().orElseThrow().id());
+            assertEquals(running.id(), repository.claimDue(ME, 10, null).stream().filter(j -> j.guildId() == GUILD).findFirst().orElseThrow().id());
             DiscordJob newer = repository.enqueue("test.nickname", GUILD, ACTOR, key, DataObject.empty().put("value", "B"));
             assertNotEquals(running.id(), newer.id(), "a running job is never changed under it");
-            repository.retryAt(running.id(), java.time.Instant.now(), "rate limited", true);
+            repository.retryAt(ME, running.id(), java.time.Instant.now(), "rate limited", true);
             assertEquals(State.DONE, repository.get(running.id()).orElseThrow().state(), "the newer change already says how it should end");
             assertEquals(State.QUEUED, repository.get(newer.id()).orElseThrow().state());
 
             // after a restart: an idempotent job is tried again, a post ends as failed (it may already be in the channel)
             DiscordJob nick = repository.enqueue("test.nickname", GUILD, ACTOR, null, DataObject.empty());
             DiscordJob post = repository.enqueue("test.post", GUILD, ACTOR, null, DataObject.empty());
-            repository.claimDue(50);
-            repository.recover(List.of("test.nickname"));
+            repository.claimDue(GONE, 50, null);
+            ageClaims(connections, Duration.ofMinutes(3));
+            repository.recover(ME, List.of("test.nickname"), DiscordOutbox.CLAIM_EXPIRY);
             assertEquals(State.RETRYING, repository.get(nick.id()).orElseThrow().state());
             DiscordJob lost = repository.get(post.id()).orElseThrow();
             assertEquals(State.FAILED, lost.state());
             assertTrue(lost.error().contains("restarted"));
         } finally {
             clean(connections);
+        }
+    }
+
+    /** Makes every claim on the test servers look {@code age} old, as if their process stopped refreshing them. */
+    static void ageClaims(ConnectionSupplier connections, Duration age) throws Exception {
+        try (Connection c = connections.getConnection();
+             PreparedStatement s = c.prepareStatement("UPDATE younglings.discord_job SET claimed_at = now() - make_interval(secs => ?) WHERE guild_id IN (?, ?)")) {
+            s.setDouble(1, age.toSeconds());
+            s.setLong(2, GUILD);
+            s.setLong(3, OTHER_GUILD);
+            s.executeUpdate();
         }
     }
 

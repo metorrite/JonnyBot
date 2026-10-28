@@ -4,10 +4,12 @@ import com.runeclans.bot.discord.jobs.DiscordJobs.Fail;
 import com.runeclans.bot.discord.jobs.DiscordJobs.Next;
 import com.runeclans.bot.discord.jobs.DiscordJobs.Retry;
 import com.runeclans.bot.util.BotScheduler;
+import com.runeclans.bot.util.ProcessId;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.JDA;
+import net.dv8tion.jda.api.sharding.ShardManager;
 import net.dv8tion.jda.api.utils.data.DataObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,6 +29,12 @@ import java.util.concurrent.TimeUnit;
  * runs them in the background on its own {@link BotScheduler#lane}, one at a time, oldest first. A rate limit puts the job back as
  * "retrying" until Discord allows it (never an error); a fault that may pass is tried again with growing waits; Discord's plain "no" ends it
  * as failed with the reason in words. The website polls {@code /internal/discord-jobs} for the state.
+ *
+ * <p>Several bot processes can drain the same table (T-696, docs/SCALING-STATE.md M3, M4): each claims jobs under its own {@link ProcessId},
+ * only for servers on the shards it runs, and refreshes its claims every {@link #HEARTBEAT} on a lane of their own (so a slow job never lets
+ * them lapse). A job whose claim has not been refreshed for {@link #CLAIM_EXPIRY} belonged to a process that is gone; any process puts it
+ * back or ends it, as a restart did before. With one process this is the same outbox as before, except that a job cut off by a restart is
+ * picked up within {@link #CLAIM_EXPIRY} instead of at once (a new process can't tell a restart from a second copy starting).
  */
 @BService
 public class DiscordOutbox {
@@ -35,10 +43,18 @@ public class DiscordOutbox {
     static final int BATCH = 10;
     /** Finished jobs are kept this long, so a page opened later can still say how a change ended. */
     static final Duration KEEP_FINISHED = Duration.ofDays(3);
+    /** How often a process says it still runs the jobs it claimed. */
+    static final Duration HEARTBEAT = Duration.ofSeconds(20);
+    /** A claim not refreshed for this long belongs to a process that is gone. Several heartbeats, so one slow database trip never loses it. */
+    static final Duration CLAIM_EXPIRY = Duration.ofMinutes(2);
+    /** How often a process looks for jobs a gone process left running. */
+    static final Duration RECOVER_EVERY = Duration.ofSeconds(30);
 
     private final DiscordJobRepository repository;
     private final Map<String, DiscordJobHandler> handlers = new HashMap<>();
     private final ScheduledExecutorService lane = BotScheduler.lane("discord-jobs");
+    private final ScheduledExecutorService claims = BotScheduler.lane("discord-job-claims");
+    private final String claimant = ProcessId.get();
     private volatile JDA jda;
 
     public DiscordOutbox(DiscordJobRepository repository, List<DiscordJobHandler> handlers) {
@@ -51,12 +67,34 @@ public class DiscordOutbox {
     @BEventListener
     public void onJdaReady(InjectedJDAEvent event) {
         jda = event.getJda();
-        lane.execute(() -> {
-            int recovered = repository.recover(idempotentKinds());
-            if (recovered > 0) log.info("Discord jobs: {} left running by the last run were put back or ended", recovered);
-        });
+        claims.scheduleWithFixedDelay(() -> repository.heartbeat(claimant), HEARTBEAT.toSeconds(), HEARTBEAT.toSeconds(), TimeUnit.SECONDS);
+        claims.scheduleWithFixedDelay(this::recover, 0, RECOVER_EVERY.toSeconds(), TimeUnit.SECONDS);
         lane.scheduleWithFixedDelay(this::drain, 2, 1, TimeUnit.SECONDS);
         lane.scheduleWithFixedDelay(() -> repository.sweep(Instant.now().minus(KEEP_FINISHED)), 10, 60 * 60, TimeUnit.SECONDS);
+    }
+
+    /** Puts back or ends the jobs a gone process left running (never this process's own). */
+    int recover() {
+        int recovered = repository.recover(claimant, idempotentKinds(), CLAIM_EXPIRY);
+        if (recovered > 0) log.info("Discord jobs: {} left running by a bot process that stopped were put back or ended", recovered);
+        return recovered;
+    }
+
+    /** The name this process claims jobs under. */
+    String claimant() {
+        return claimant;
+    }
+
+    /**
+     * The shards whose servers this process may take jobs for: null (every server) when it runs every shard or has no shard manager. A shard
+     * still starting is left out until it runs, so its jobs wait instead of failing on a server the process can't see yet.
+     */
+    static DiscordJobRepository.ShardSet ownShards(JDA jda) {
+        ShardManager manager = jda == null ? null : jda.getShardManager();
+        if (manager == null) return null;
+        int total = manager.getShardsTotal();
+        List<Integer> owned = manager.getShards().stream().map(shard -> shard.getShardInfo().getShardId()).distinct().sorted().toList();
+        return owned.size() >= total ? null : new DiscordJobRepository.ShardSet(total, owned);
     }
 
     /** The kinds that are safe to run twice: only these are tried again after a restart mid-way. */
@@ -98,8 +136,9 @@ public class DiscordOutbox {
 
     /** Runs every job that is due, a batch at a time. On the lane only (or in a test). */
     void drain(JDA jda) {
+        DiscordJobRepository.ShardSet shards = ownShards(jda);
         while (true) {
-            List<DiscordJob> due = repository.claimDue(BATCH);
+            List<DiscordJob> due = repository.claimDue(claimant, BATCH, shards);
             for (DiscordJob job : due) runOne(jda, job);
             if (due.size() < BATCH) return;
         }
@@ -108,12 +147,12 @@ public class DiscordOutbox {
     void runOne(JDA jda, DiscordJob job) {
         DiscordJobHandler handler = handlers.get(job.kind());
         if (handler == null) {
-            repository.failed(job.id(), "The bot no longer knows how to do this.");
+            repository.failed(claimant, job.id(), "The bot no longer knows how to do this.");
             return;
         }
         try {
             DataObject result = handler.run(jda, job);
-            repository.done(job.id(), result);
+            repository.done(claimant, job.id(), result);
             log.debug("Discord job {} ({}) done after {} tries", job.id(), job.kind(), job.attempts());
         } catch (Throwable error) {
             int realTries = job.attempts() - job.waits();
@@ -121,14 +160,14 @@ public class DiscordOutbox {
             switch (next) {
                 case Retry retry -> {
                     if (!retry.rateLimit()) log.info("Discord job {} ({}) will be tried again: {}", job.id(), job.kind(), error.toString());
-                    repository.retryAt(job.id(), retry.at(), retry.reason(), retry.rateLimit());
+                    repository.retryAt(claimant, job.id(), retry.at(), retry.reason(), retry.rateLimit());
                     long ms = Math.max(0, Duration.between(Instant.now(), retry.at()).toMillis());
                     // wake up for it on time instead of on the next pass
                     lane.schedule((Runnable) this::drain, ms + 50, TimeUnit.MILLISECONDS);
                 }
                 case Fail fail -> {
                     log.info("Discord job {} ({}) failed: {} ({})", job.id(), job.kind(), fail.reason(), error.toString());
-                    repository.failed(job.id(), fail.reason());
+                    repository.failed(claimant, job.id(), fail.reason());
                 }
             }
         }
