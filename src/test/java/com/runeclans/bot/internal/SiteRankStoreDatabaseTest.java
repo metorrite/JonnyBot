@@ -1,7 +1,11 @@
 package com.runeclans.bot.internal;
 
+import com.runeclans.bot.internal.RankAdvisorRules.Due;
+import com.runeclans.bot.internal.RankAdvisorRules.Hold;
+import com.runeclans.bot.internal.RankAdvisorRules.Promoted;
 import com.runeclans.bot.internal.RankAdvisorRules.Rule;
 import com.runeclans.bot.internal.RankAdvisorRules.Tick;
+import com.runeclans.bot.internal.RankAdvisorRules.Turn;
 import com.runeclans.bot.runescape.ClanMemberRepository;
 import com.runeclans.bot.runescape.RuneScapeDatabaseInitializer;
 import com.runeclans.bot.testsupport.LocalDatabase;
@@ -12,6 +16,7 @@ import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -39,7 +44,8 @@ class SiteRankStoreDatabaseTest {
 
     @AfterEach
     void cleanUp() throws Exception {
-        for (String table : List.of("clan_member", "clan_member_points", "site_rank_rule", "site_rank_settings", "site_rank_tick")) {
+        for (String table : List.of("clan_member", "clan_member_points", "site_rank_rule", "site_rank_settings", "site_rank_tick", "site_rank_hold",
+                "site_rank_due", "site_rank_week", "site_rank_promoted")) {
             sql("DELETE FROM younglings." + table + " WHERE guild_id = " + G);
         }
     }
@@ -93,6 +99,50 @@ class SiteRankStoreDatabaseTest {
 
         store.saveRules(G, List.of(new Rule("General", null, 90, null, null)), OWNER);
         assertEquals(List.of("General"), List.copyOf(store.rules(G).keySet()));
+
+        store.saveRules(G, List.of(new Rule("Captain", null, null, null, null, "Master CAs")), OWNER);
+        assertEquals(new Rule("Captain", null, null, null, null, "Master CAs"), store.rules(G).get("Captain"), "a staff check alone is kept");
+        assertTrue(store.serversWithRules().contains(G));
+    }
+
+    @Test
+    void holdsMoveBetweenPendingAndIgnoredAndIgnoringDropsTheDueEntry() {
+        LocalDate week = LocalDate.of(2026, 10, 28);
+        store.noteDue(G, List.of(new Due("zezima", "Zezima", "Recruit", "Corporal", week)));
+        store.hold(G, "zezima", "Zezima", RankAdvisorRules.PENDING, OWNER, "Owner name");
+        assertEquals(List.of("pending"), store.holds(G).stream().map(Hold::kind).toList());
+        assertEquals(1, store.due(G).size(), "pending review keeps them due");
+        store.hold(G, "zezima", "Zezima", RankAdvisorRules.IGNORED, OWNER, null);
+        assertEquals(List.of("ignored"), store.holds(G).stream().map(Hold::kind).toList(), "one hold per member");
+        assertTrue(store.due(G).isEmpty(), "an ignored alt is never congratulated");
+        store.hold(G, "zezima", "Zezima", null, OWNER, null);
+        assertTrue(store.holds(G).isEmpty());
+    }
+
+    @Test
+    void theWeekTurnsOnceAndIsPostedOnce() {
+        LocalDate week = LocalDate.of(2026, 10, 28);
+        store.noteDue(G, List.of(new Due("zezima", "Zezima", "Recruit", "Corporal", week.minusWeeks(1))));
+        store.noteDue(G, List.of(new Due("zezima", "Zezima", "Recruit", "Corporal", week)));
+        assertEquals(week.minusWeeks(1), store.due(G).getFirst().since(), "someone already due keeps their first week");
+        assertNull(store.latestWeek(G));
+        assertFalse(store.turned(G, week));
+        Turn turn = new Turn(List.of(new Promoted("zezima", "Zezima", "Recruit", "Corporal", "Zez")), store.due(G));
+        assertTrue(store.turn(G, week, turn));
+        assertFalse(store.turn(G, week, turn), "a second turn of the same week writes nothing");
+        assertTrue(store.turned(G, week));
+        assertTrue(store.due(G).isEmpty());
+        SiteRankStore.Week w = store.latestWeek(G);
+        assertEquals(week, w.start());
+        assertEquals(List.of("Zezima"), w.promoted().stream().map(Promoted::rsn).toList());
+        assertEquals("Zez", w.promoted().getFirst().discordName());
+        assertNull(w.postedAt());
+        assertTrue(store.claimPost(G, week));
+        assertFalse(store.claimPost(G, week), "never posted twice");
+        store.saveJob(G, week, 42L);
+        assertEquals(42L, store.latestWeek(G).jobId());
+        store.forget(G);
+        assertNull(store.latestWeek(G));
     }
 
     @Test

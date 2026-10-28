@@ -39,14 +39,48 @@ public final class RankAdvisorRules {
     /** Ticks show under "Ticked off recently" this long; kept for {@link #TICK_KEEP_DAYS} so the member stays hidden until the game shows the rank. */
     public static final int TICK_SHOW_DAYS = 14;
     public static final int TICK_KEEP_DAYS = 120;
-    /** The congrats message: at most this long, with {@code {name}} and {@code {rank}} filled in. */
-    public static final int MAX_CONGRATS = 300;
-    public static final String DEFAULT_CONGRATS = "Congratulations {name} on your promotion to {rank}!";
+    /**
+     * The weekly congrats message (Drake's T-594 answer): the owner's text, at most this long, with {@code {list}} (one line per member
+     * promoted, Discord name and RuneScape name) and {@code {count}} filled in. Text without {@code {list}} gets the list under it.
+     */
+    public static final int MAX_CONGRATS = 1000;
+    public static final String DEFAULT_CONGRATS = "Congratulations to everyone promoted this week!\n{list}";
+    /** A rank's staff check (what staff look at by hand, like a Combat Achievements tier): at most this long. */
+    public static final int MAX_STAFF_CHECK = 120;
+    /** Discord's limit for one message: a longer weekly post goes out as several. */
+    public static final int DISCORD_MAX = 2000;
+    /** A due member not promoted after this many weeks is dropped from the weekly update (they are listed again while still due). */
+    public static final int DUE_KEEP_WEEKS = 12;
+    /** The promotion week turns over this long after the Citadel reset, like the weekly digest, so the roster has seen the last ranks. */
+    public static final java.time.Duration WEEK_TURN_DELAY = java.time.Duration.ofHours(12);
 
-    /** One rank's rule; a null field isn't checked. A rule with nothing set is no rule. */
-    public record Rule(String rank, Long minXp, Integer minDays, Integer minCaps, Long minPoints) {
+    /** Staff holds: Pending review (meets the numbers, needs a staff check) and Ignore indefinitely (an alt: never listed). */
+    public static final String PENDING = "pending";
+    public static final String IGNORED = "ignored";
+
+    /**
+     * One rank's rule; a null number isn't checked, and a rule with no number set lists nobody. {@code staffCheck}: what staff check by hand
+     * before ranking someone up (a Combat Achievements tier, say), shown beside the rank's rows; null for none.
+     */
+    public record Rule(String rank, Long minXp, Integer minDays, Integer minCaps, Long minPoints, String staffCheck) {
+        public Rule(String rank, Long minXp, Integer minDays, Integer minCaps, Long minPoints) {
+            this(rank, minXp, minDays, minCaps, minPoints, null);
+        }
+
         public boolean empty() {
             return minXp == null && minDays == null && minCaps == null && minPoints == null;
+        }
+
+        /** Nothing to save at all: no number and no staff check. */
+        public boolean blank() {
+            return empty() && (staffCheck == null || staffCheck.isBlank());
+        }
+    }
+
+    /** A staff hold on a member: {@code kind} {@link #PENDING} or {@link #IGNORED}. */
+    public record Hold(String rsnKey, String rsn, String kind, long by, String byName, OffsetDateTime at) {
+        public boolean ignored() {
+            return IGNORED.equals(kind);
         }
     }
 
@@ -145,32 +179,79 @@ public final class RankAdvisorRules {
      * part is caps lists nobody (it has nothing left to check, and listing the whole rank would be wrong).
      */
     public static List<Ready> ready(List<Facts> members, Map<String, Rule> rules, List<Tick> ticks, OffsetDateTime now, boolean capsAvailable) {
+        return ready(members, rules, ticks, now, capsAvailable, Set.of());
+    }
+
+    /** As above, leaving out the members staff hold ({@code held}: their keys, Pending review or Ignored): they are listed apart. */
+    public static List<Ready> ready(List<Facts> members, Map<String, Rule> rules, List<Tick> ticks, OffsetDateTime now, boolean capsAvailable,
+                                    Set<String> held) {
+        Map<String, Set<Integer>> ticked = tickedByMember(ticks);
+        List<Ready> out = new ArrayList<>();
+        for (Facts m : members) {
+            if (held.contains(m.key())) continue;
+            Ready next = next(m, rules, ticked, now, capsAvailable);
+            if (next != null && next.checks().stream().filter(Check::counts).allMatch(Check::met)) out.add(next);
+        }
+        out.sort(Comparator.comparingInt((Ready r) -> indexOf(r.target())).reversed()
+                .thenComparing(r -> r.member().rankSince() == null ? OffsetDateTime.MAX : r.member().rankSince())
+                .thenComparing(r -> r.member().key()));
+        return out;
+    }
+
+    private static Map<String, Set<Integer>> tickedByMember(List<Tick> ticks) {
         Map<String, Set<Integer>> ticked = new HashMap<>();
         for (Tick t : ticks) {
             int i = indexOf(t.rank());
             if (i >= 0) ticked.computeIfAbsent(t.rsnKey(), k -> new HashSet<>()).add(i);
         }
-        List<Ready> out = new ArrayList<>();
-        for (Facts m : members) {
-            int at = indexOf(m.rank());
-            if (at < 0) continue;
-            int target = at + 1;
-            Set<Integer> mine = ticked.getOrDefault(m.key(), Set.of());
-            while (mine.contains(target)) target++;
-            if (target >= LADDER.size() || !TARGETS.contains(LADDER.get(target))) continue;
-            Rule rule = rules.get(LADDER.get(target));
-            if (rule == null || rule.empty()) continue;
-            // Ticked off for a rank the game doesn't show yet: the XP counted so far was gained at the old rank, so it can't count toward
-            // the rank after. XP at the new rank starts once the roster shows it (until then it is unknown, so an XP rule isn't met).
-            Facts counted = target > at + 1 && m.xpGained() != null
-                    ? new Facts(m.rsn(), m.rank(), null, m.rankSince(), m.joined(), m.caps(), m.points()) : m;
-            List<Check> checks = check(rule, counted, now, capsAvailable);
-            if (checks.stream().noneMatch(Check::counts)) continue;
-            if (checks.stream().filter(Check::counts).allMatch(Check::met)) out.add(new Ready(m, LADDER.get(target), checks));
+        return ticked;
+    }
+
+    /**
+     * The member's next rank and its rule's parts checked (met or not), or null when there is nothing to check: no next rank a rule can be set
+     * for, no rule for it, or no part of the rule that counts. The next rank is the one above their in-game rank, or above the highest rank
+     * staff ticked them off for that the game doesn't show yet.
+     */
+    static Ready next(Facts m, Map<String, Rule> rules, Map<String, Set<Integer>> ticked, OffsetDateTime now, boolean capsAvailable) {
+        int at = indexOf(m.rank());
+        if (at < 0) return null;
+        int target = at + 1;
+        Set<Integer> mine = ticked.getOrDefault(m.key(), Set.of());
+        while (mine.contains(target)) target++;
+        if (target >= LADDER.size() || !TARGETS.contains(LADDER.get(target))) return null;
+        Rule rule = rules.get(LADDER.get(target));
+        if (rule == null || rule.empty()) return null;
+        // Ticked off for a rank the game doesn't show yet: the XP counted so far was gained at the old rank, so it can't count toward
+        // the rank after. XP at the new rank starts once the roster shows it (until then it is unknown, so an XP rule isn't met).
+        Facts counted = target > at + 1 && m.xpGained() != null
+                ? new Facts(m.rsn(), m.rank(), null, m.rankSince(), m.joined(), m.caps(), m.points()) : m;
+        List<Check> checks = check(rule, counted, now, capsAvailable);
+        if (checks.stream().noneMatch(Check::counts)) return null;
+        return new Ready(m, LADDER.get(target), checks);
+    }
+
+    /** Someone staff put on Pending review: their next rank's checks ({@code next} null when no rule applies now) and whether they meet it. */
+    public record Pending(Facts member, Hold hold, Ready next) {
+        public boolean meets() {
+            return next != null && next.checks().stream().filter(Check::counts).allMatch(Check::met);
         }
-        out.sort(Comparator.comparingInt((Ready r) -> indexOf(r.target())).reversed()
-                .thenComparing(r -> r.member().rankSince() == null ? OffsetDateTime.MAX : r.member().rankSince())
-                .thenComparing(r -> r.member().key()));
+    }
+
+    /**
+     * The Pending review list (Drake's T-594 answer): members staff held for a check by hand, lowest current rank first (the order staff go
+     * through it each week), then by name. Members who left the clan drop off.
+     */
+    public static List<Pending> pending(List<Facts> members, Map<String, Rule> rules, List<Tick> ticks, List<Hold> holds, OffsetDateTime now,
+                                        boolean capsAvailable) {
+        Map<String, Hold> byKey = new HashMap<>();
+        for (Hold h : holds) if (PENDING.equals(h.kind())) byKey.put(h.rsnKey(), h);
+        Map<String, Set<Integer>> ticked = tickedByMember(ticks);
+        List<Pending> out = new ArrayList<>();
+        for (Facts m : members) {
+            Hold h = byKey.get(m.key());
+            if (h != null) out.add(new Pending(m, h, next(m, rules, ticked, now, capsAvailable)));
+        }
+        out.sort(Comparator.comparingInt((Pending p) -> indexOf(p.member().rank())).thenComparing(p -> p.member().key()));
         return out;
     }
 
@@ -205,10 +286,112 @@ public final class RankAdvisorRules {
         return s.length() > MAX_CONGRATS ? s.substring(0, MAX_CONGRATS) : s;
     }
 
-    /** The message posted for one member: their RuneScape name and new rank in place of {@code {name}} and {@code {rank}}. */
-    public static String congratsText(String template, String rsn, String rank) {
+    /** A rank's staff check as saved: one line, trimmed, at most {@link #MAX_STAFF_CHECK}; blank is none (null). */
+    public static String cleanStaffCheck(String raw) {
+        String s = raw == null ? "" : raw.replaceAll("\\p{Cntrl}", " ").replaceAll("\\s+", " ").strip();
+        if (s.isEmpty()) return null;
+        return s.length() > MAX_STAFF_CHECK ? s.substring(0, MAX_STAFF_CHECK).strip() : s;
+    }
+
+    // ---------- the weekly update ----------
+
+    /**
+     * The promotion week {@code now} is in: the Citadel week (Wednesday reset), turned over {@link #WEEK_TURN_DELAY} after the reset so
+     * the roster checks have seen the ranks given on the last evening.
+     */
+    public static LocalDate weekOf(OffsetDateTime now) {
+        return RecapPeriod.citadelWeekStart(now.minus(WEEK_TURN_DELAY).withOffsetSameInstant(ZoneOffset.UTC).toLocalDate());
+    }
+
+    /** Someone who was due for {@code target} (listed on the ready or pending list, or ticked) since {@code since}. */
+    public record Due(String rsnKey, String rsn, String rank, String target, LocalDate since) {}
+
+    /** Someone the weekly update congratulates: due for a rank and now at it in game (or ticked off for it). */
+    public record Promoted(String rsnKey, String rsn, String fromRank, String toRank, String discordName) {}
+
+    /** What the week's turn decides: who got their rank, and which due entries to drop (promoted, gone, ignored or too old). */
+    public record Turn(List<Promoted> promoted, List<Due> drop) {}
+
+    /**
+     * Who was due before {@code week} and got the rank since: their in-game rank reached the target, or staff ticked them off for it. Members
+     * who left, are ignored, or were due for more than {@link #DUE_KEEP_WEEKS} weeks are dropped without a congrats. {@code discordNames}:
+     * the linked Discord name per member key, when known.
+     */
+    public static Turn turn(LocalDate week, List<Due> due, List<Facts> members, List<Tick> ticks, Set<String> ignored, Map<String, String> discordNames) {
+        Map<String, Facts> byKey = new HashMap<>();
+        for (Facts f : members) byKey.put(f.key(), f);
+        Map<String, Set<Integer>> ticked = tickedByMember(ticks);
+        Map<String, Promoted> promoted = new java.util.LinkedHashMap<>();
+        List<Due> drop = new ArrayList<>();
+        LocalDate oldest = week.minusWeeks(DUE_KEEP_WEEKS);
+        for (Due d : due) {
+            if (!d.since().isBefore(week)) continue;
+            Facts f = byKey.get(d.rsnKey());
+            int target = indexOf(d.target());
+            if (f == null || target < 0 || ignored.contains(d.rsnKey())) {
+                drop.add(d);
+                continue;
+            }
+            int now = indexOf(f.rank());
+            boolean got = now >= target || ticked.getOrDefault(d.rsnKey(), Set.of()).contains(target);
+            if (got) {
+                drop.add(d);
+                String to = now >= target ? f.rank() : d.target();
+                Promoted before = promoted.get(d.rsnKey());
+                // due for two ranks in a row (ticked, then due again): one line, at the highest rank
+                if (before == null || indexOf(to) > indexOf(before.toRank())) {
+                    String from = before != null ? before.fromRank() : d.rank();
+                    promoted.put(d.rsnKey(), new Promoted(d.rsnKey(), f.rsn(), from, to, discordNames.get(d.rsnKey())));
+                }
+            } else if (d.since().isBefore(oldest)) {
+                drop.add(d);
+            }
+        }
+        List<Promoted> list = new ArrayList<>(promoted.values());
+        list.sort(Comparator.comparingInt((Promoted p) -> indexOf(p.toRank())).reversed().thenComparing(Promoted::rsnKey));
+        return new Turn(list, drop);
+    }
+
+    /** One member's line: {@code • @Discord name (RuneScape name): Rank}, or without the Discord part when they aren't linked. */
+    public static String congratsLine(Promoted p) {
+        String rsn = net.dv8tion.jda.api.utils.MarkdownSanitizer.escape(p.rsn());
+        String who = p.discordName() == null || p.discordName().isBlank() ? rsn
+                : "@" + net.dv8tion.jda.api.utils.MarkdownSanitizer.escape(p.discordName().strip()) + " (" + rsn + ")";
+        return "• " + who + ": " + p.toRank();
+    }
+
+    /** The weekly message: the owner's text with {@code {list}} and {@code {count}} filled in; empty when nobody was promoted. */
+    public static String weeklyText(String template, List<Promoted> promoted) {
+        if (promoted.isEmpty()) return "";
         String t = template == null || template.isBlank() ? DEFAULT_CONGRATS : template;
-        return t.replace("{name}", rsn).replace("{rank}", rank);
+        String list = String.join("\n", promoted.stream().map(RankAdvisorRules::congratsLine).toList());
+        String count = Integer.toString(promoted.size());
+        String out = t.contains("{list}") ? t.replace("{list}", list) : t + "\n" + list;
+        return out.replace("{count}", count);
+    }
+
+    /** The message cut into Discord-sized posts, at line ends where it can be (a single over-long line is cut where it must). */
+    public static List<String> chunks(String text, int max) {
+        List<String> out = new ArrayList<>();
+        StringBuilder cur = new StringBuilder();
+        for (String line : text.split("\n", -1)) {
+            while (line.length() > max) {
+                if (!cur.isEmpty()) {
+                    out.add(cur.toString());
+                    cur.setLength(0);
+                }
+                out.add(line.substring(0, max));
+                line = line.substring(max);
+            }
+            if (cur.length() + line.length() + (cur.isEmpty() ? 0 : 1) > max) {
+                out.add(cur.toString());
+                cur.setLength(0);
+            }
+            if (!cur.isEmpty()) cur.append('\n');
+            cur.append(line);
+        }
+        if (!cur.toString().isBlank()) out.add(cur.toString());
+        return out;
     }
 
     /** A rule part's value from the website: null (not checked) or a whole number in range; anything else is a problem in words. */
