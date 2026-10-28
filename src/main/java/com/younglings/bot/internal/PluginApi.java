@@ -247,7 +247,7 @@ public class PluginApi {
                     // a malformed %-escape: the device card just won't name the client
                 }
             }
-            runeSync.checkIn(userId, clientName, "true".equals(query(exchange, "paused")), Instant.now());
+            runeSync.checkIn(userId, clientName, caller.get().linkedRsn(), "true".equals(query(exchange, "paused")), Instant.now());
             send(exchange, 200, runeSync.config(userId));
             return;
         }

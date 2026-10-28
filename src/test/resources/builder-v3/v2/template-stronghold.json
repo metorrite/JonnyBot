@@ -48,7 +48,7 @@
     "mobile": "drawer",
     "nav": [
       {
-        "id": "strongn360",
+        "id": "strongn363",
         "label": "Home",
         "link": {
           "kind": "page",
@@ -56,11 +56,11 @@
         }
       },
       {
-        "id": "strongn361",
+        "id": "strongn364",
         "label": "Clan",
         "children": [
           {
-            "id": "strongn362",
+            "id": "strongn365",
             "label": "Members",
             "link": {
               "kind": "page",
@@ -68,7 +68,7 @@
             }
           },
           {
-            "id": "strongn363",
+            "id": "strongn366",
             "label": "About us",
             "link": {
               "kind": "page",
@@ -76,7 +76,7 @@
             }
           },
           {
-            "id": "strongn364",
+            "id": "strongn367",
             "label": "Hall of fame",
             "link": {
               "kind": "page",
@@ -84,7 +84,7 @@
             }
           },
           {
-            "id": "strongn365",
+            "id": "strongn368",
             "label": "History",
             "link": {
               "kind": "page",
@@ -92,7 +92,7 @@
             }
           },
           {
-            "id": "strongn366",
+            "id": "strongn369",
             "label": "Compare",
             "link": {
               "kind": "page",
@@ -102,11 +102,11 @@
         ]
       },
       {
-        "id": "strongn367",
+        "id": "strongn370",
         "label": "Stats",
         "children": [
           {
-            "id": "strongn368",
+            "id": "strongn371",
             "label": "Clan stats",
             "link": {
               "kind": "page",
@@ -114,7 +114,7 @@
             }
           },
           {
-            "id": "strongn369",
+            "id": "strongn372",
             "label": "Leaderboards",
             "link": {
               "kind": "page",
@@ -122,7 +122,7 @@
             }
           },
           {
-            "id": "strongn370",
+            "id": "strongn373",
             "label": "Recaps",
             "link": {
               "kind": "page",
@@ -130,7 +130,7 @@
             }
           },
           {
-            "id": "strongn371",
+            "id": "strongn374",
             "label": "Citadel",
             "link": {
               "kind": "page",
@@ -138,7 +138,7 @@
             }
           },
           {
-            "id": "strongn372",
+            "id": "strongn375",
             "label": "Coffer",
             "link": {
               "kind": "page",
@@ -148,11 +148,11 @@
         ]
       },
       {
-        "id": "strongn373",
+        "id": "strongn376",
         "label": "PvM",
         "children": [
           {
-            "id": "strongn374",
+            "id": "strongn377",
             "label": "Bosses",
             "link": {
               "kind": "page",
@@ -160,7 +160,7 @@
             }
           },
           {
-            "id": "strongn375",
+            "id": "strongn378",
             "label": "Drop log",
             "link": {
               "kind": "page",
@@ -170,11 +170,11 @@
         ]
       },
       {
-        "id": "strongn376",
+        "id": "strongn379",
         "label": "Events",
         "children": [
           {
-            "id": "strongn377",
+            "id": "strongn380",
             "label": "Upcoming",
             "link": {
               "kind": "page",
@@ -182,7 +182,7 @@
             }
           },
           {
-            "id": "strongn378",
+            "id": "strongn381",
             "label": "Calendar",
             "link": {
               "kind": "page",
@@ -190,7 +190,7 @@
             }
           },
           {
-            "id": "strongn379",
+            "id": "strongn382",
             "label": "Signups",
             "link": {
               "kind": "page",
@@ -198,7 +198,7 @@
             }
           },
           {
-            "id": "strongn380",
+            "id": "strongn383",
             "label": "Polls",
             "link": {
               "kind": "page",
@@ -208,7 +208,7 @@
         ]
       },
       {
-        "id": "strongn381",
+        "id": "strongn384",
         "label": "Join",
         "link": {
           "kind": "page",
@@ -5339,7 +5339,7 @@
           ]
         },
         {
-          "id": "strongs331",
+          "id": "strongs334",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -5421,7 +5421,7 @@
               ]
             },
             {
-              "id": "strongr327",
+              "id": "strongr325",
               "gap": {
                 "lg": "md"
               },
@@ -5435,6 +5435,85 @@
                 {
                   "id": "strongc324",
                   "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw323",
+                      "type": "application-form",
+                      "v": 1,
+                      "settings": {
+                        "title": "Apply to join {clan}",
+                        "intro": "Tell us a little about yourself. A member of the team will get back to you.",
+                        "questions": [
+                          {
+                            "label": "RuneScape name",
+                            "kind": "rsn",
+                            "required": true,
+                            "choices": ""
+                          },
+                          {
+                            "label": "How old are you?",
+                            "kind": "short",
+                            "required": false,
+                            "choices": ""
+                          },
+                          {
+                            "label": "Your timezone and when you usually play",
+                            "kind": "short",
+                            "required": true,
+                            "choices": ""
+                          },
+                          {
+                            "label": "Why do you want to join?",
+                            "kind": "paragraph",
+                            "required": true,
+                            "choices": ""
+                          },
+                          {
+                            "label": "Which clans are you in now, or have you been in?",
+                            "kind": "paragraph",
+                            "required": false,
+                            "choices": ""
+                          },
+                          {
+                            "label": "I have read the rules and agree to follow them",
+                            "kind": "checkbox",
+                            "required": true,
+                            "choices": ""
+                          }
+                        ],
+                        "buttonLabel": "Send application",
+                        "thanks": "Thanks! Your application was sent. We'll get back to you on Discord.",
+                        "sendToDiscord": true,
+                        "hideWhenClosed": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "strongr330",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "strongc327",
+                  "span": {
                     "lg": 6,
                     "md": 12
                   },
@@ -5445,7 +5524,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw323",
+                      "id": "strongw326",
                       "type": "countdown",
                       "v": 1,
                       "settings": {
@@ -5458,7 +5537,7 @@
                   ]
                 },
                 {
-                  "id": "strongc326",
+                  "id": "strongc329",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5470,7 +5549,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw325",
+                      "id": "strongw328",
                       "type": "faq",
                       "v": 1,
                       "settings": {
@@ -5497,7 +5576,7 @@
               ]
             },
             {
-              "id": "strongr330",
+              "id": "strongr333",
               "gap": {
                 "lg": "md"
               },
@@ -5509,7 +5588,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc329",
+                  "id": "strongc332",
                   "span": {
                     "lg": 12
                   },
@@ -5520,7 +5599,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw328",
+                      "id": "strongw331",
                       "type": "roster",
                       "v": 1,
                       "settings": {
@@ -5553,7 +5632,7 @@
       "template": "account",
       "sections": [
         {
-          "id": "strongs335",
+          "id": "strongs338",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -5571,7 +5650,7 @@
           },
           "rows": [
             {
-              "id": "strongr334",
+              "id": "strongr337",
               "gap": {
                 "lg": "md"
               },
@@ -5583,7 +5662,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc333",
+                  "id": "strongc336",
                   "span": {
                     "lg": 12
                   },
@@ -5594,7 +5673,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw332",
+                      "id": "strongw335",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -5614,7 +5693,7 @@
           ]
         },
         {
-          "id": "strongs359",
+          "id": "strongs362",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -5632,7 +5711,7 @@
           },
           "rows": [
             {
-              "id": "strongr340",
+              "id": "strongr343",
               "gap": {
                 "lg": "md"
               },
@@ -5644,7 +5723,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc337",
+                  "id": "strongc340",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5656,7 +5735,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw336",
+                      "id": "strongw339",
                       "type": "account-link",
                       "v": 1,
                       "settings": {
@@ -5666,45 +5745,6 @@
                     }
                   ]
                 },
-                {
-                  "id": "strongc339",
-                  "span": {
-                    "lg": 6,
-                    "md": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "strongw338",
-                      "type": "server-profile",
-                      "v": 1,
-                      "settings": {
-                        "title": "Your server profile",
-                        "showColour": true,
-                        "showOnline": true
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                }
-              ]
-            },
-            {
-              "id": "strongr345",
-              "gap": {
-                "lg": "md"
-              },
-              "align": "stretch",
-              "height": {
-                "lg": {
-                  "mode": "auto"
-                }
-              },
-              "cells": [
                 {
                   "id": "strongc342",
                   "span": {
@@ -5719,18 +5759,33 @@
                   "widgets": [
                     {
                       "id": "strongw341",
-                      "type": "my-goals",
+                      "type": "server-profile",
                       "v": 1,
                       "settings": {
-                        "title": "My goals",
-                        "showDone": true
+                        "title": "Your server profile",
+                        "showColour": true,
+                        "showOnline": true
                       },
                       "unmet": "hide"
                     }
                   ]
-                },
+                }
+              ]
+            },
+            {
+              "id": "strongr348",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
                 {
-                  "id": "strongc344",
+                  "id": "strongc345",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5742,31 +5797,17 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw343",
-                      "type": "my-notices",
+                      "id": "strongw344",
+                      "type": "my-goals",
                       "v": 1,
                       "settings": {
-                        "title": "Notices",
-                        "limit": 5
+                        "title": "My goals",
+                        "showDone": true
                       },
                       "unmet": "hide"
                     }
                   ]
-                }
-              ]
-            },
-            {
-              "id": "strongr350",
-              "gap": {
-                "lg": "md"
-              },
-              "align": "stretch",
-              "height": {
-                "lg": {
-                  "mode": "auto"
-                }
-              },
-              "cells": [
+                },
                 {
                   "id": "strongc347",
                   "span": {
@@ -5781,34 +5822,10 @@
                   "widgets": [
                     {
                       "id": "strongw346",
-                      "type": "my-events",
+                      "type": "my-notices",
                       "v": 1,
                       "settings": {
-                        "title": "My events",
-                        "showOpen": true
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                },
-                {
-                  "id": "strongc349",
-                  "span": {
-                    "lg": 6,
-                    "md": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "strongw348",
-                      "type": "my-signups",
-                      "v": 1,
-                      "settings": {
-                        "title": "Signups",
+                        "title": "Notices",
                         "limit": 5
                       },
                       "unmet": "hide"
@@ -5830,7 +5847,69 @@
               },
               "cells": [
                 {
+                  "id": "strongc350",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw349",
+                      "type": "my-events",
+                      "v": 1,
+                      "settings": {
+                        "title": "My events",
+                        "showOpen": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
                   "id": "strongc352",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw351",
+                      "type": "my-signups",
+                      "v": 1,
+                      "settings": {
+                        "title": "Signups",
+                        "limit": 5
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "strongr356",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "strongc355",
                   "span": {
                     "lg": 12
                   },
@@ -5841,7 +5920,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw351",
+                      "id": "strongw354",
                       "type": "my-polls",
                       "v": 1,
                       "settings": {
@@ -5856,7 +5935,7 @@
               ]
             },
             {
-              "id": "strongr358",
+              "id": "strongr361",
               "gap": {
                 "lg": "md"
               },
@@ -5868,7 +5947,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc355",
+                  "id": "strongc358",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5880,7 +5959,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw354",
+                      "id": "strongw357",
                       "type": "my-coffer",
                       "v": 1,
                       "settings": {
@@ -5892,7 +5971,7 @@
                   ]
                 },
                 {
-                  "id": "strongc357",
+                  "id": "strongc360",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5904,7 +5983,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw356",
+                      "id": "strongw359",
                       "type": "member-privacy",
                       "v": 1,
                       "settings": {

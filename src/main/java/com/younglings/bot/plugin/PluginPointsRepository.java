@@ -16,8 +16,11 @@ import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * A clan's points rules for plugin reports ({@code plugin_points_rule}, T-061), and how much a member was already paid today for one type
@@ -31,6 +34,9 @@ public class PluginPointsRepository {
 
     /** A server's open XP day: members who sent RuneSync XP that day and haven't been settled yet. */
     public record XpDay(long guildId, LocalDate day) {}
+
+    /** A server whose XP rule is on, and the UTC day it was last switched on (the hub is never asked about days before it, T-712). */
+    public record XpRuleOn(long guildId, LocalDate since) {}
 
     private final ConnectionSupplier connectionSupplier;
 
@@ -72,7 +78,18 @@ public class PluginPointsRepository {
                     PRIMARY KEY (guild_id, user_id, day)
                 );
                 """,
-                "CREATE INDEX IF NOT EXISTS plugin_xp_points_day_open ON younglings.plugin_xp_points_day (day) WHERE settled_at IS NULL;"));
+                "CREATE INDEX IF NOT EXISTS plugin_xp_points_day_open ON younglings.plugin_xp_points_day (day) WHERE settled_at IS NULL;",
+                """
+                CREATE TABLE IF NOT EXISTS younglings.plugin_xp_points_hub_day (
+                    guild_id BIGINT NOT NULL,
+                    day DATE NOT NULL,
+                    asked_at TIMESTAMPTZ NOT NULL,
+                    PRIMARY KEY (guild_id, day)
+                );
+                """,
+                "ALTER TABLE younglings.plugin_xp_points_rule ADD COLUMN IF NOT EXISTS on_since DATE NULL;",
+                // a rule that was on before on_since existed: on since its last save at the latest
+                "UPDATE younglings.plugin_xp_points_rule SET on_since = (updated_at AT TIME ZONE 'UTC')::date WHERE on_since IS NULL AND enabled AND points > 0 AND per_xp > 0;"));
     }
 
     /** The clan's rules that are on (points above 0). */
@@ -161,11 +178,16 @@ public class PluginPointsRepository {
         }
     }
 
+    /** Saves the clan's XP rule; {@code on_since} becomes the UTC day of {@code at} when the rule goes from off to on, and is kept while it stays on. */
     public void saveXpRule(long guildId, XpRule rule, long actorId, Instant at) {
         try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("""
-                INSERT INTO younglings.plugin_xp_points_rule (guild_id, enabled, points, per_xp, daily_cap, updated_at, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO younglings.plugin_xp_points_rule (guild_id, enabled, points, per_xp, daily_cap, updated_at, updated_by, on_since) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT (guild_id) DO UPDATE SET enabled = EXCLUDED.enabled, points = EXCLUDED.points, per_xp = EXCLUDED.per_xp, daily_cap = EXCLUDED.daily_cap,
-                    updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by""")) {
+                    updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by,
+                    on_since = CASE WHEN EXCLUDED.on_since IS NULL THEN NULL
+                        WHEN plugin_xp_points_rule.enabled AND plugin_xp_points_rule.points > 0 AND plugin_xp_points_rule.per_xp > 0
+                            AND plugin_xp_points_rule.on_since IS NOT NULL THEN plugin_xp_points_rule.on_since
+                        ELSE EXCLUDED.on_since END""")) {
             s.setLong(1, guildId);
             s.setBoolean(2, rule.enabled());
             s.setInt(3, rule.points());
@@ -173,9 +195,24 @@ public class PluginPointsRepository {
             s.setInt(5, rule.dailyCap());
             s.setTimestamp(6, Timestamp.from(at));
             s.setLong(7, actorId);
+            if (rule.on()) s.setObject(8, LocalDate.ofInstant(at, ZoneOffset.UTC)); else s.setNull(8, Types.DATE);
             s.executeUpdate();
         } catch (SQLException e) {
             throw new RuntimeException("Failed to save the clan's XP points rule", e);
+        }
+    }
+
+    /** The servers whose XP rule is on, by the numbers they saved, with the day it was switched on (whether the server uses points is checked when a day is settled). */
+    public List<XpRuleOn> xpRuleGuilds() {
+        List<XpRuleOn> guilds = new ArrayList<>();
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("""
+                SELECT guild_id, COALESCE(on_since, (updated_at AT TIME ZONE 'UTC')::date) FROM younglings.plugin_xp_points_rule
+                WHERE enabled AND points > 0 AND per_xp > 0 ORDER BY guild_id""");
+             ResultSet rs = s.executeQuery()) {
+            while (rs.next()) guilds.add(new XpRuleOn(rs.getLong(1), rs.getObject(2, LocalDate.class)));
+            return guilds;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read the servers with an XP points rule", e);
         }
     }
 
@@ -240,9 +277,40 @@ public class PluginPointsRepository {
         }
     }
 
+    /** The server and day pairs from {@code from} on whose gainers the hub has already listed (T-712), so each is asked once, restarts included. */
+    public Set<XpDay> hubAskedDays(LocalDate from) {
+        Set<XpDay> days = new HashSet<>();
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(
+                "SELECT guild_id, day FROM younglings.plugin_xp_points_hub_day WHERE day >= ?")) {
+            s.setObject(1, from);
+            try (ResultSet rs = s.executeQuery()) {
+                while (rs.next()) days.add(new XpDay(rs.getLong(1), rs.getObject(2, LocalDate.class)));
+            }
+            return days;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read the XP days the hub was asked about", e);
+        }
+    }
+
+    /** The hub listed this server's gainers for the day and they were all noted: never ask again. */
+    public void markHubAsked(long guildId, LocalDate day, Instant now) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement(
+                "INSERT INTO younglings.plugin_xp_points_hub_day (guild_id, day, asked_at) VALUES (?, ?, ?) ON CONFLICT (guild_id, day) DO NOTHING")) {
+            s.setLong(1, guildId);
+            s.setObject(2, day);
+            s.setTimestamp(3, Timestamp.from(now));
+            s.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to mark an XP day asked of the hub", e);
+        }
+    }
+
     /** Forgets XP days before {@code before}, settled or not (the points ledger keeps what was paid). */
     public int forgetXpDays(LocalDate before) {
-        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("DELETE FROM younglings.plugin_xp_points_day WHERE day < ?")) {
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("DELETE FROM younglings.plugin_xp_points_day WHERE day < ?");
+             PreparedStatement h = c.prepareStatement("DELETE FROM younglings.plugin_xp_points_hub_day WHERE day < ?")) {
+            h.setObject(1, before);
+            h.executeUpdate();
             s.setObject(1, before);
             return s.executeUpdate();
         } catch (SQLException e) {
