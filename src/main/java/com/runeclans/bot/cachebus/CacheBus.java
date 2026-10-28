@@ -8,13 +8,10 @@ import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.net.URI;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.List;
-import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.RejectedExecutionException;
@@ -122,18 +119,8 @@ public class CacheBus {
         return raw;
     }
 
-    /** The listener's own connection, from {@code DATABASE_URL} ({@code postgresql://user:password@host:port/db}). */
+    /** The listener's own connection, from {@code DATABASE_URL}. */
     private static Connection open(String databaseUrl) throws SQLException {
-        URI uri = URI.create(databaseUrl.trim());
-        String userInfo = uri.getUserInfo() == null ? "" : uri.getUserInfo();
-        int colon = userInfo.indexOf(':');
-        Properties props = new Properties();
-        props.setProperty("user", colon < 0 ? userInfo : userInfo.substring(0, colon));
-        if (colon >= 0) props.setProperty("password", userInfo.substring(colon + 1));
-        props.setProperty("ApplicationName", "bot-cache-listener");
-        props.setProperty("connectTimeout", "10");
-        props.setProperty("tcpKeepAlive", "true");
-        String jdbc = "jdbc:postgresql://" + uri.getHost() + (uri.getPort() > 0 ? ":" + uri.getPort() : "") + uri.getPath();
-        return DriverManager.getConnection(jdbc, props);
+        return com.runeclans.bot.database.OwnConnection.open(databaseUrl, "bot-cache-listener");
     }
 }

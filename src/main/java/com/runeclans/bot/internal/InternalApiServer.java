@@ -4,6 +4,7 @@ import com.runeclans.bot.discord.Shards;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import com.runeclans.bot.config.BotConfig;
+import com.runeclans.bot.config.BotRole;
 import com.runeclans.bot.hubsites.HubSites;
 import com.runeclans.bot.ops.OpsTelemetry;
 import com.runeclans.bot.hubsites.SitesMoved;
@@ -111,6 +112,10 @@ public class InternalApiServer {
     @BEventListener
     public void onJdaReady(InjectedJDAEvent event) {
         this.jda = event.getJda();
+        if (!BotRole.current().internalApi()) {
+            log.info("BOT_ROLE=gateway: the internal API runs in the api process, not here.");
+            return;
+        }
         start();
     }
 

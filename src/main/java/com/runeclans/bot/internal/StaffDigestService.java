@@ -1,5 +1,6 @@
 package com.runeclans.bot.internal;
 
+import com.runeclans.bot.discord.ShardRouting;
 import com.runeclans.bot.discord.Shards;
 import com.runeclans.bot.alerts.AutoPostRouter;
 import com.runeclans.bot.discord.Containers;
@@ -116,6 +117,8 @@ public class StaffDigestService {
     private void runDue(JDA jda) {
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
         for (long guildId : repository.enabledGuilds()) {
+            // a server on another process's shard is that process's to post (and mark) (T-702)
+            if (!ShardRouting.owns(jda, guildId)) continue;
             try {
                 Settings s = repository.settings(guildId);
                 if (!s.enabled() || s.channelId() == null || !StaffDigestRules.due(now, s.weekday(), s.hour(), s.lastPostedOn())) continue;

@@ -24,7 +24,9 @@ import com.runeclans.bot.commands.runescape.RsnRenameInteractionListener;
 import com.runeclans.bot.commands.signup.SignupInteractionListener;
 import com.runeclans.bot.commands.teamforming.TeamformingInteractionListener;
 import com.runeclans.bot.config.BotConfig;
+import com.runeclans.bot.config.BotRole;
 import com.runeclans.bot.discord.EphemeralLifecycle;
+import com.runeclans.bot.discord.RestOnlyJda;
 import com.runeclans.bot.runescape.SkillEmojiCatalog;
 import com.runeclans.bot.tracking.TrackingAuditLogListener;
 import com.runeclans.bot.tracking.TrackingConfigInteractionListener;
@@ -178,6 +180,12 @@ public class Bot extends JDAService {
 
         // T-136: no message pings @everyone, @here or a role unless the feature names exactly what it pings
         Mentions.installDefault();
+        // T-670: BOT_ROLE (default all, installed by Main) picks which part of the bot this process runs; see BotRole
+        if (!BotRole.current().gateway()) {
+            // the api role: REST only, no gateway login, so no events, no interaction listeners and no server cache
+            RestOnlyJda.create(botConfig.getToken(), eventManager);
+            return;
+        }
         // T-668 (docs SCALING section 9, P1): the bot logs in through a shard manager, SHARD_COUNT shards (default 1). With one shard
         // this is the same single gateway connection as before: DefaultShardManagerBuilder#createLight applies the same low-memory
         // profile as JDABuilder#createLight (no member chunking, all cache flags off but the ones set above, large threshold 50), and
