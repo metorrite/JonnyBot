@@ -13,6 +13,7 @@ public final class EmojiUploads {
 
     /** Whether this connection uploads missing or changed application emojis: shard 0 of a gateway process (a stand-alone JDA is shard 0). */
     public static boolean mayUpload(JDA jda) {
-        return BotRole.current().gateway() && jda.getShardInfo().getShardId() == 0;
+        JDA.ShardInfo shard = jda.getShardInfo();
+        return BotRole.current().gateway() && (shard == null || shard.getShardId() == 0);
     }
 }
