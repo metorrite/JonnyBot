@@ -228,6 +228,8 @@ has more than one replica).
 | `command-usage` | `commandusage/CommandUsageListener` | every process (flushes add up) |
 | `phishing-list` | `automod/PhishingList` | every process (each needs the list) |
 | `debouncer`, `site-invalidator` | `internal/Debouncer`, `internal/SiteInvalidator` | every process (local batching) |
+| `job-heartbeat` | `jobs/JobRepository` | every process (keeps that process's own running dashboard jobs alive, T-698) |
+| `event-export-expiry` | `events/EventExportRepository` | api (database only: deletes expired wrap-up exports, T-698) |
 
 Two thread pools sit outside `BotScheduler` and are covered by M6: `EventSpaceOps` (`event-space`) and `EventWrapupOps` (`event-wrapup`),
 plus the `RoleSyncBackfill` worker.

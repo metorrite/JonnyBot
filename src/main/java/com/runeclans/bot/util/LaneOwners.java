@@ -33,6 +33,7 @@ public final class LaneOwners {
             Map.entry("clan-site-cleanup", Owner.API),
             Map.entry("address-change-scheduler", Owner.API),
             Map.entry("quick-groups", Owner.API),
+            Map.entry("event-export-expiry", Owner.API), // deletes expired wrap-up exports (T-698)
             // RuneMetrics polling, its budget and the event trackers that feed it: one budget, kept in the one gateway process (M1, M2).
             // Gateway, not api, because the poll targets are the servers the bot is in (RosterPollScheduler reads the server list).
             Map.entry("poll-jobs", Owner.GATEWAY),
@@ -86,7 +87,8 @@ public final class LaneOwners {
             Map.entry("site-invalidator", Owner.EVERY),
             Map.entry("cache-bus-send", Owner.EVERY),
             Map.entry("cache-bus-listen", Owner.EVERY),
-            Map.entry("api-leader", Owner.EVERY));
+            Map.entry("api-leader", Owner.EVERY),
+            Map.entry("job-heartbeat", Owner.EVERY)); // each process keeps its own running dashboard jobs alive (T-698)
 
     /** Whether this api replica holds the api leader lock (set by {@code ApiLeaderElection}; false until it has it). */
     private static volatile boolean leading;
