@@ -69,6 +69,8 @@ public class RuneSyncRepository {
                 // a dev database may hold the table from before these two columns
                 "ALTER TABLE younglings.plugin_client_status ADD COLUMN IF NOT EXISTS paused BOOLEAN NOT NULL DEFAULT FALSE;",
                 "ALTER TABLE younglings.plugin_client_status ADD COLUMN IF NOT EXISTS last_batch_at TIMESTAMPTZ NULL;",
+                // the RuneLink name of the character that checked in last (T-586, "In game now" on the clan site); null for a token client
+                "ALTER TABLE younglings.plugin_client_status ADD COLUMN IF NOT EXISTS rsn TEXT NULL;",
                 "CREATE INDEX IF NOT EXISTS plugin_diagnostics_user ON younglings.plugin_diagnostics (discord_user_id, created_at DESC);",
                 """
                 CREATE TABLE IF NOT EXISTS younglings.plugin_guild_settings (
@@ -105,14 +107,23 @@ public class RuneSyncRepository {
 
     /** The client asked for its settings: who it is and whether its local pause is on (the last batch is left as it was). */
     public void recordCheckIn(long userId, String client, boolean paused, Instant at) {
+        recordCheckIn(userId, client, null, paused, at);
+    }
+
+    /**
+     * {@link #recordCheckIn(long, String, boolean, Instant)} plus the RuneLink name of the character playing ({@code rsn}, null when the client
+     * signed in another way: the name seen before is then kept).
+     */
+    public void recordCheckIn(long userId, String client, String rsn, boolean paused, Instant at) {
         try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("""
-                INSERT INTO younglings.plugin_client_status (discord_user_id, client, last_seen, paused) VALUES (?, ?, ?, ?)
+                INSERT INTO younglings.plugin_client_status (discord_user_id, client, last_seen, paused, rsn) VALUES (?, ?, ?, ?, ?)
                 ON CONFLICT (discord_user_id) DO UPDATE SET client = COALESCE(EXCLUDED.client, plugin_client_status.client), last_seen = EXCLUDED.last_seen,
-                    paused = EXCLUDED.paused""")) {
+                    paused = EXCLUDED.paused, rsn = COALESCE(EXCLUDED.rsn, plugin_client_status.rsn)""")) {
             s.setLong(1, userId);
             s.setString(2, client);
             s.setTimestamp(3, Timestamp.from(at));
             s.setBoolean(4, paused);
+            s.setString(5, rsn == null || rsn.isBlank() ? null : rsn.strip());
             s.executeUpdate();
         } catch (SQLException e) {
             throw new RuntimeException("Failed to record the plugin client check-in", e);
@@ -131,6 +142,32 @@ public class RuneSyncRepository {
             }
         } catch (SQLException e) {
             throw new RuntimeException("Failed to read the plugin client status", e);
+        }
+    }
+
+    /** A member whose RuneSync checked in recently and who switched on the Presence category (T-586); {@code rsn} is their RuneLink name, or null. */
+    public record Present(long discordUserId, Instant lastSeen, String rsn) {}
+
+    /**
+     * T-586, "In game now": everyone whose RuneSync checked in after {@code since}, who switched on the Presence category ({@code plugin_consent},
+     * their own choice, off by default) and who hasn't paused RuneSync in the game. Newest check-in first. Logging out sends nothing, so a
+     * member drops out once their last check-in is older than {@code since}.
+     */
+    public List<Present> presentSince(Instant since) {
+        List<Present> list = new ArrayList<>();
+        try (Connection c = connectionSupplier.getConnection(); PreparedStatement s = c.prepareStatement("""
+                SELECT cs.discord_user_id, cs.last_seen, cs.rsn FROM younglings.plugin_client_status cs
+                JOIN younglings.plugin_consent pc ON pc.discord_user_id = cs.discord_user_id AND pc.category = 'PRESENCE'
+                WHERE cs.last_seen > ? AND NOT cs.paused
+                ORDER BY cs.last_seen DESC
+                """)) {
+            s.setTimestamp(1, Timestamp.from(since));
+            try (ResultSet rs = s.executeQuery()) {
+                while (rs.next()) list.add(new Present(rs.getLong(1), rs.getTimestamp(2).toInstant(), rs.getString(3)));
+            }
+            return list;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to read who is in the game with RuneSync", e);
         }
     }
 

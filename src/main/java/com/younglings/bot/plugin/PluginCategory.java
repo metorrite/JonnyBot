@@ -10,7 +10,8 @@ public enum PluginCategory {
     KILLS("Boss kills", "Which boss you killed and your kill count."),
     ACHIEVEMENTS("Levels, quests and achievements", "Level-ups, completed quests, achievements and collection log entries."),
     PRESENCE("Online status and activity", "Whether you are online and what you are doing, so clanmates can see who is around. In a team event, "
-            + "your team sees in RuneSync whether you are in the game with RuneSync now.");
+            + "your team sees in RuneSync whether you are in the game with RuneSync now, and a clan website with an \"In game now\" list shows your "
+            + "RuneScape name while you are (to signed-in clan members, unless the clan makes the list public). Never your world.");
 
     private final String label;
     private final String description;
