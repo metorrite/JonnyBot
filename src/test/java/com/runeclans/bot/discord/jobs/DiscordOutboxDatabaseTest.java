@@ -135,6 +135,24 @@ class DiscordOutboxDatabaseTest {
     }
 
     @Test
+    void aStoppingProcessTakesNoMoreJobs() throws Exception {
+        ConnectionSupplier connections = LocalDatabase.supplier();
+        DiscordJobRepository repository = new DiscordJobRepository(connections);
+        Scripted nickname = new Scripted("test.nickname", true);
+        DiscordOutbox outbox = new DiscordOutbox(repository, List.of(nickname));
+        try {
+            clean(connections);
+            DiscordJob waiting = outbox.enqueue("test.nickname", GUILD, ACTOR, null, DataObject.empty());
+            outbox.stop();
+            outbox.drain(null);
+            assertEquals(0, nickname.runs.get());
+            assertEquals(State.QUEUED, repository.get(waiting.id()).orElseThrow().state(), "left for the next process");
+        } finally {
+            clean(connections);
+        }
+    }
+
+    @Test
     void aChangeQueuedWhileTheOldOneRunsWinsAndARestartNeverRepostsByItself() throws Exception {
         ConnectionSupplier connections = LocalDatabase.supplier();
         DiscordJobRepository repository = new DiscordJobRepository(connections);
