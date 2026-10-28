@@ -1,5 +1,6 @@
 package com.runeclans.bot.twitch;
 
+import com.runeclans.bot.discord.ShardRouting;
 import com.runeclans.bot.discord.Shards;
 import com.runeclans.bot.discord.Mentions;
 import com.runeclans.bot.alerts.AutoPostRouter;
@@ -148,6 +149,7 @@ public class TwitchService {
     }
 
     private void announce(JDA jda, Streamer streamer, Stream stream) {
+        if (notHere(jda, streamer.guildId())) return; // the next round tries again, before the alert is claimed and lost
         // claim first: if two rounds overlap, only one gets to send
         if (!repository.claim(streamer.id(), stream.id(), streamer.postedStream())) return;
         Guild guild = Shards.guild(jda, streamer.guildId());
@@ -174,6 +176,7 @@ public class TwitchService {
     }
 
     private void end(JDA jda, Streamer streamer) {
+        if (notHere(jda, streamer.guildId())) return; // keep the posted message on record for the process that can tidy it
         Settings settings = repository.settings(streamer.guildId());
         Guild guild = Shards.guild(jda, streamer.guildId());
         if (guild != null && streamer.postedMessageId() != null && streamer.postedChannelId() != null && settings.offlineAction() != OfflineAction.KEEP) {
@@ -189,6 +192,14 @@ public class TwitchService {
             }
         }
         repository.clearPosted(streamer.id());
+    }
+
+    /**
+     * Whether this process can't see the server right now although the bot may still be in it: on another process's shard, not loaded
+     * yet, or in a Discord outage (T-700). A server the bot really left is not "not here": its alert is dropped as before.
+     */
+    private static boolean notHere(JDA jda, long guildId) {
+        return Shards.guild(jda, guildId) == null && !ShardRouting.gone(jda, guildId);
     }
 
     private static String trim(String text, int max) {
