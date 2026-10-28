@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.discord.Shards;
 import com.sun.net.httpserver.HttpExchange;
 import com.younglings.bot.discord.DiscordLookups;
 import com.younglings.bot.forms.WebFormRepository;
@@ -62,7 +63,7 @@ public class FormsPublicApi {
             }
             long guildId = parseId(parts[0]);
             long formId = parseId(parts[1]);
-            Guild guild = jda.getGuildById(guildId);
+            Guild guild = Shards.guild(jda, guildId);
             Form form = guild == null ? null : repository.get(formId).filter(f -> f.guildId() == guildId && f.enabled()).orElse(null);
             if (guild == null || form == null) {
                 InternalApiServer.sendJson(exchange, 404, DataObject.empty().put("error", "That form does not exist or is closed."));

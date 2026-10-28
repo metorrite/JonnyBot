@@ -1,5 +1,6 @@
 package com.younglings.bot.commands.ticket;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.ticket.TicketModels.Field;
 import com.younglings.bot.ticket.TicketModels.FieldKind;
@@ -68,7 +69,7 @@ public class DevHelpSetup {
         // The guild's channels aren't loaded the instant JDA reports ready, so give them a moment.
         CompletableFuture.delayedExecutor(10, TimeUnit.SECONDS).execute(() -> {
             String name = wanted.strip().toLowerCase(java.util.Locale.ROOT);
-            for (Guild guild : jda.getGuilds()) {
+            for (Guild guild : Shards.guilds(jda)) {
                 // An exact name first, then any channel whose name contains it (a channel called "🧪┃dev-testing", say).
                 var channels = guild.getTextChannels();
                 var channel = channels.stream().filter(c -> c.getName().equalsIgnoreCase(name)).findFirst()

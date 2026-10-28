@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -61,6 +62,8 @@ public class SiteRankAdvisor {
     private final DiscordOutbox outbox;
     /** Ticks per person: a burst of 10 (working down a list), then 2 a second. */
     private final RateLimiter ticks = new RateLimiter(10, 500);
+    /** Whether Citadel caps can be counted (T-725): off once the bot stops asking RuneMetrics. See {@link CitadelCaps}. */
+    private final BooleanSupplier capsAvailable = CitadelCaps.fromEnv();
 
     public SiteRankAdvisor(SiteRankStore store, SiteCockpitStore cockpit, SiteStatsRepository stats, AdminToolsStore activity, SiteRoleGuard siteRoles,
                            DiscordOutbox outbox) {
@@ -104,34 +107,41 @@ public class SiteRankAdvisor {
 
     // ---------- the page ----------
 
-    /** Each roster member's facts, caps included. */
-    List<Facts> facts(long guildId, OffsetDateTime now) {
+    /** Each roster member's facts, caps included when they can be counted ({@code caps} null for everyone when not). */
+    List<Facts> facts(long guildId, OffsetDateTime now, boolean withCaps) {
         LocalDate thisWeek = RecapPeriod.citadelWeekStart(now.toLocalDate());
-        List<CapWeek> grid = stats.citadelGrid(guildId, RankAdvisorRules.CAP_WINDOW_WEEKS).stream()
-                .map(w -> new CapWeek(w.rsn(), w.weekStart(), w.capped())).toList();
-        Map<String, Integer> capped = RankAdvisorRules.capsByMember(grid, thisWeek);
-        Map<String, OffsetDateTime> lastLog = activity.lastActivity(guildId);
+        Map<String, Integer> capped = Map.of();
+        Map<String, OffsetDateTime> lastLog = Map.of();
+        if (withCaps) {
+            List<CapWeek> grid = stats.citadelGrid(guildId, RankAdvisorRules.CAP_WINDOW_WEEKS).stream()
+                    .map(w -> new CapWeek(w.rsn(), w.weekStart(), w.capped())).toList();
+            capped = RankAdvisorRules.capsByMember(grid, thisWeek);
+            lastLog = activity.lastActivity(guildId);
+        }
         List<Facts> out = new ArrayList<>();
         for (SiteRankStore.Row r : store.roster(guildId)) {
             String key = CockpitRules.keyOf(r.rsn());
-            out.add(new Facts(r.rsn(), r.rank(), r.xpGained(), r.rankSince(), r.joined(), RankAdvisorRules.capsOf(key, capped, lastLog, thisWeek), r.points()));
+            Integer caps = withCaps ? RankAdvisorRules.capsOf(key, capped, lastLog, thisWeek) : null;
+            out.add(new Facts(r.rsn(), r.rank(), r.xpGained(), r.rankSince(), r.joined(), caps, r.points()));
         }
         return out;
     }
 
     DataObject view(SiteCaller c, OffsetDateTime now) {
         long guildId = c.guildId();
+        // T-725: caps come from the Adventurer's Log via RuneMetrics; see CitadelCaps and runeclans-hub docs/RUNEMETRICS-SUNSET.md
+        boolean capsOn = capsAvailable.getAsBoolean();
         Map<String, Rule> rules = store.rules(guildId);
         List<Tick> allTicks = store.ticks(guildId);
-        List<Facts> members = facts(guildId, now);
+        List<Facts> members = facts(guildId, now, capsOn);
         Map<String, Facts> byKey = new HashMap<>();
         for (Facts f : members) byKey.put(f.key(), f);
         Map<String, Long> links = c.botless() ? Map.of() : cockpit.links(guildId);
 
         DataArray ready = DataArray.empty();
-        for (Ready r : RankAdvisorRules.ready(members, rules, allTicks, now)) {
+        for (Ready r : RankAdvisorRules.ready(members, rules, allTicks, now, capsOn)) {
             DataArray checks = DataArray.empty();
-            for (Check k : r.checks()) checks.add(DataObject.empty().put("what", k.what()).put("need", k.need()).put("have", k.have()).put("met", k.met()));
+            for (Check k : r.checks()) checks.add(checkJson(k));
             ready.add(person(c, r.member().rsn(), links.get(r.member().key())).put("rank", r.member().rank()).put("target", r.target())
                     .put("rankSince", iso(r.member().rankSince())).put("checks", checks));
         }
@@ -171,6 +181,7 @@ public class SiteRankAdvisor {
                         .put("maxDays", RankAdvisorRules.MAX_DAYS).put("maxPoints", RankAdvisorRules.MAX_POINTS)
                         .put("tickShowDays", RankAdvisorRules.TICK_SHOW_DAYS).put("maxCongrats", RankAdvisorRules.MAX_CONGRATS))
                 .put("rules", ruleRows)
+                .put("caps", capsJson(capsOn))
                 .put("canChangeRules", owner)
                 .put("botPresent", !c.botless())
                 .put("rosterSize", members.size())
@@ -179,6 +190,17 @@ public class SiteRankAdvisor {
                 .put("ticked", ticked)
                 .put("congrats", congratsJson)
                 .put("generatedAt", now.toString());
+    }
+
+    /** One part of a rule as the page shows it; {@code unavailable} true: not counted (Citadel caps once RuneMetrics is off). */
+    static DataObject checkJson(Check k) {
+        return DataObject.empty().put("what", k.what()).put("need", k.need()).put("have", k.have()).put("met", k.met())
+                .put("unavailable", k.unavailable());
+    }
+
+    /** Whether rule caps parts are counted; when not, the page says so on the rules card and each row (T-725). */
+    static DataObject capsJson(boolean available) {
+        return DataObject.empty().put("available", available).put("reason", available ? null : CitadelCaps.RULES_REASON);
     }
 
     static DataObject ruleJson(Rule r) {

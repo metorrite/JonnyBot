@@ -8,6 +8,7 @@ import com.younglings.bot.points.PointsRules.Category;
 import com.younglings.bot.points.PointsService;
 import com.younglings.bot.runeclans.RuneClansHubClient;
 import com.younglings.bot.util.BotScheduler;
+import com.younglings.bot.discord.Shards;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -123,10 +124,10 @@ public class PluginXpPoints implements PluginEventSink {
             Instant now = clock.instant();
             Set<LocalDate> days = xpDays(events, now);
             if (days.isEmpty()) return;
-            User user = current.getUserById(userId);
+            User user = Shards.user(current, userId);
             if (user == null) return;
             List<Long> guilds = new ArrayList<>();
-            for (Guild guild : user.getMutualGuilds()) guilds.add(guild.getIdLong());
+            for (Guild guild : Shards.mutualGuilds(user)) guilds.add(guild.getIdLong());
             note(userId, guilds, days, now);
         } catch (RuntimeException e) {
             // never fails the upload

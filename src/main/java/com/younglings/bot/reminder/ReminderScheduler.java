@@ -1,5 +1,6 @@
 package com.younglings.bot.reminder;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.alerts.AutoPostRouter;
 import com.younglings.bot.reminder.ReminderRepository.Reminder;
 import com.younglings.bot.util.BotScheduler;
@@ -64,7 +65,7 @@ public class ReminderScheduler {
     }
 
     private void fallback(JDA jda, Reminder reminder) {
-        GuildMessageChannel channel = jda.getChannelById(GuildMessageChannel.class, reminder.channelId());
+        GuildMessageChannel channel = Shards.channel(jda, GuildMessageChannel.class, reminder.channelId());
         if (channel == null || !channel.canTalk()) {
             log.info("Reminder {} couldn't be delivered: DMs are closed and the channel is gone", reminder.id());
             return;
