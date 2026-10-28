@@ -13,9 +13,9 @@ import java.util.Locale;
  *   <li>{@link #API}: the internal HTTP API for the website, with a REST-only Discord connection (no gateway login, so no events and no
  *   cache of servers or members). Jobs the website queues are run by a gateway process.</li>
  * </ul>
- * A split (two processes, one per role) also needs every scheduler lane to name its owner role, so a lane that needs the gateway's cache
- * never runs in the API process (T-702). Until then {@link #splitReady()} is false and a process started as gateway or api stops at once
- * with a plain reason instead of running half a bot.
+ * Every scheduler lane names the role that runs it ({@code util/LaneOwners}, T-702). A split still waits for the api role's internal API to
+ * get server and member answers from the gateway process; until then {@link #splitReady()} is false and a process started as gateway or
+ * api stops at once with a plain reason instead of running half a bot.
  */
 public enum BotRole {
     ALL,
@@ -51,8 +51,9 @@ public enum BotRole {
     }
 
     /**
-     * Whether the bot can be split into gateway and api processes yet: false until every scheduler lane declares its owner role (T-702),
-     * because an api process would otherwise run lanes that read a missing server as "the bot left".
+     * Whether the bot can be split into gateway and api processes yet. Every scheduler lane names its owner role (T-702,
+     * {@code util/LaneOwners}), but the api role's internal API still has no server or member list: routes that read one would answer as
+     * if the bot weren't in the server until they ask the gateway process instead. False until that is built.
      */
     public static boolean splitReady() {
         return false;
@@ -62,7 +63,7 @@ public enum BotRole {
     public static BotRole checkedForStart(BotRole role) {
         if (role != ALL && !splitReady()) {
             throw new IllegalStateException("BOT_ROLE=" + role.name().toLowerCase(Locale.ROOT)
-                    + " can't run yet: not every scheduler lane names its owner role (T-702). Leave BOT_ROLE unset (all) for now.");
+                    + " can't run yet: the api role's internal API can't read servers or members yet. Leave BOT_ROLE unset (all) for now.");
         }
         return role;
     }

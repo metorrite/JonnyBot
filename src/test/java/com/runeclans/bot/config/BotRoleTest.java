@@ -49,7 +49,7 @@ class BotRoleTest {
 
     @Test
     void aSplitWaitsForEveryLaneToNameItsOwner() {
-        assertFalse(BotRole.splitReady(), "T-702 turns this on");
+        assertFalse(BotRole.splitReady(), "waits for the api role to read servers through the gateway");
         assertEquals(BotRole.ALL, BotRole.checkedForStart(BotRole.ALL));
         IllegalStateException refused = org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> BotRole.checkedForStart(BotRole.API));
         assertTrue(refused.getMessage().contains("BOT_ROLE=api can't run yet"), refused.getMessage());
