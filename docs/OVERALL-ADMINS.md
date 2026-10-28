@@ -87,3 +87,21 @@ A new pair of headers, next to `X-RC-Actor` (which is unchanged):
 
 Unlike `X-RC-Actor` these aren't about the server a call names, so the website sends them on every call that names a server and on the site
 viewer call. Both sides pin the same fixed vector (`ServerFactsTest`, `packages/api-client/tests/serverFacts.test.mjs`).
+
+## 6. What the clan sees, and the bot owner's override (T-445)
+
+- **The clan sees RuneClan Admin edits.** A change to a site by someone who owns it only as an overall admin (`SiteRoles.onlyAsOverallAdmin`)
+  is written to the server's audit log as `<name> (RuneClan Admin)` (or `A RuneClan Admin` when they aren't a member, and on bot-less sites),
+  so the site's own history shows it. `you.asRuneClanAdmin` on `GET clan-site`, `clan-site/layout` and `clan-site/roles` tells the editor and
+  the Site Admin to say so.
+- **Restrictions stay on by default.** Like every overall admin, the bot owner reaches only the site, layout and site-role routes of a server
+  (section 3) unless they lift the restrictions.
+- **Lifting the restrictions** (bot owner only, `BotOwners`): `owner-override` on the guild-scoped admin API.
+  - `GET` the state, `POST {"acknowledged": true}` lifts it, `DELETE` ends it now. All three answer `{active, until (ISO or null), minutes}`;
+    anyone else gets 403, and a `POST` without the acknowledgement 400.
+  - While it runs (`OwnerOverride.DURATION_MS`, 30 minutes), `DashboardAccess.tierOf` answers ADMIN for that person in that one server, so
+    `whoami` says `allowed` and the whole dashboard opens. A bot owner who isn't a member gets a stand-in member (`OwnerStandIn`): their id
+    and name, no roles and no Discord permissions, so anything needing real Discord rights still refuses.
+  - The lift, the end and every change are written to the server's audit log, changes as `<name> (bot owner, restrictions lifted)`.
+  - `whoami` gives the bot owner `ownerOverride: {active, until, minutes}` so the dashboard shows a banner while it runs.
+  - Kept in memory: a restart ends every override.
