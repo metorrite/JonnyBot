@@ -292,7 +292,8 @@ public class MemberApi {
         return DataObject.empty()
                 .put("bio", p.bio()).put("accentColor", p.accentColor()).put("pinnedSkill", p.pinnedSkill())
                 .put("hideAdventureLog", p.hideAdventureLog()).put("hideFromLeaderboards", p.hideFromLeaderboards())
-                .put("dmGoals", p.dmGoals()).put("dmEvents", p.dmEvents()).put("hideDiscordLink", p.hideDiscordLink());
+                .put("dmGoals", p.dmGoals()).put("dmEvents", p.dmEvents()).put("hideDiscordLink", p.hideDiscordLink())
+                .put("hideRecap", p.hideRecap());
     }
 
     /**
@@ -306,6 +307,10 @@ public class MemberApi {
         return settingsJson(p).put("rsns", rsns).put("privacyChosen", p.privacyChosen());
     }
 
+    /**
+     * The toggles the server's member privacy defaults cover: saving any of them is choosing them ({@code privacyChosen}). {@code hideRecap}
+     * is not one of them, so turning recaps off or on never detaches a member from the defaults for the others.
+     */
     static final java.util.List<String> PRIVACY_KEYS = java.util.List.of("hideAdventureLog", "hideFromLeaderboards", "hideDiscordLink");
 
     private DataObject saveSettings(Guild guild, long userId, DataObject body) {
@@ -331,7 +336,7 @@ public class MemberApi {
         repository.saveProfile(new Profile(guild.getIdLong(), userId, bio, accent, pinned,
                 body.getBoolean("hideAdventureLog", current.hideAdventureLog()), body.getBoolean("hideFromLeaderboards", current.hideFromLeaderboards()),
                 body.getBoolean("dmGoals", current.dmGoals()), body.getBoolean("dmEvents", current.dmEvents()), body.getBoolean("hideDiscordLink", current.hideDiscordLink()),
-                chose));
+                chose, body.getBoolean("hideRecap", current.hideRecap())));
         cache.clear(); // a profile change can alter many cached answers (privacy toggles hide people from several lists) — cleared after the save so nothing re-caches the old answer
         return getSettings(guild, userId);
     }
