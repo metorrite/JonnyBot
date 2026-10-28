@@ -1,5 +1,6 @@
 package com.younglings.bot.events;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.events.EventRepository.Event;
 import com.younglings.bot.events.EventRules.Scope;
 import com.younglings.bot.events.EventRules.ScoringMode;
@@ -94,7 +95,7 @@ public class SkillWeekService {
     /** One pass: closes the weeks that are over, then opens this week where it is switched on and the bot is still in the server. Never throws. */
     public void sweep() {
         JDA current = jda;
-        sweep(guildId -> current == null || current.getGuildById(guildId) != null);
+        sweep(guildId -> current == null || Shards.guild(current, guildId) != null);
     }
 
     /** {@link #sweep}, opening weeks only in the servers {@code inServer} says the bot is in (a server it left keeps its setting, but nobody could join). */

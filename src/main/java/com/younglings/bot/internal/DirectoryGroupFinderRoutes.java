@@ -4,6 +4,7 @@ import com.younglings.bot.clansite.ClanSite;
 import com.younglings.bot.clansite.ClanSiteService;
 import com.younglings.bot.clansite.SiteRoleGuard;
 import com.younglings.bot.discord.DiscordLookups;
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.events.EventProblem;
 import com.younglings.bot.events.QuickGroupRepository.Group;
 import com.younglings.bot.events.QuickGroupRepository.Member;
@@ -52,7 +53,7 @@ public class DirectoryGroupFinderRoutes implements DirectoryRouteModule {
         if (!action.isEmpty() && !action.equals("join") && !action.equals("leave") && !action.equals("close")) return false;
 
         Optional<ClanSite> site = request.viewable(parts[1]).flatMap(p -> sites.visible(p.guildId()));
-        Guild guild = site.isEmpty() ? null : request.jda().getGuildById(site.get().guildId());
+        Guild guild = site.isEmpty() ? null : Shards.guild(request.jda(), site.get().guildId());
         if (guild == null) {
             if (site.isPresent() && sites.botless(site.get().guildId())) {
                 request.send(409, DataObject.empty().put("error", BotlessAdminApi.NEEDS_BOT).put("needsBot", true).put("botless", true));
