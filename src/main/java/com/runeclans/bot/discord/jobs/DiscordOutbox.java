@@ -67,10 +67,23 @@ public class DiscordOutbox {
     @BEventListener
     public void onJdaReady(InjectedJDAEvent event) {
         jda = event.getJda();
-        claims.scheduleWithFixedDelay(() -> repository.heartbeat(claimant), HEARTBEAT.toSeconds(), HEARTBEAT.toSeconds(), TimeUnit.SECONDS);
-        claims.scheduleWithFixedDelay(this::recover, 0, RECOVER_EVERY.toSeconds(), TimeUnit.SECONDS);
-        lane.scheduleWithFixedDelay(this::drain, 2, 1, TimeUnit.SECONDS);
-        lane.scheduleWithFixedDelay(() -> repository.sweep(Instant.now().minus(KEEP_FINISHED)), 10, 60 * 60, TimeUnit.SECONDS);
+        // a lane stops repeating a task that throws, so each repeating task keeps going through a failed database trip: a heartbeat that
+        // stopped for good would let this process's claims expire while it still runs them
+        claims.scheduleWithFixedDelay(keepGoing("refresh claims", () -> repository.heartbeat(claimant)), HEARTBEAT.toSeconds(), HEARTBEAT.toSeconds(), TimeUnit.SECONDS);
+        claims.scheduleWithFixedDelay(keepGoing("recover", this::recover), 0, RECOVER_EVERY.toSeconds(), TimeUnit.SECONDS);
+        lane.scheduleWithFixedDelay(keepGoing("drain", this::drain), 2, 1, TimeUnit.SECONDS);
+        lane.scheduleWithFixedDelay(keepGoing("sweep", () -> repository.sweep(Instant.now().minus(KEEP_FINISHED))), 10, 60 * 60, TimeUnit.SECONDS);
+    }
+
+    /** A repeating task that logs a failure and keeps its schedule, instead of being cancelled by it. */
+    static Runnable keepGoing(String what, Runnable task) {
+        return () -> {
+            try {
+                task.run();
+            } catch (Throwable t) {
+                log.warn("Discord jobs: {} failed; trying again on the next turn", what, t);
+            }
+        };
     }
 
     /** Puts back or ends the jobs a gone process left running (never this process's own). */
