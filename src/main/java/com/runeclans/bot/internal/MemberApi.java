@@ -78,6 +78,7 @@ public class MemberApi {
     private final MemberEventsApi events;
     private final HighlightMemberApi highlights;
     private final ChatLevelMemberApi chatLevel;
+    private final SkillWeekMemberApi skillWeek;
     private final DiscordOutbox outbox;
     // Per member: a handful of quick clicks is normal, a sustained flood is not. Reads are far cheaper than writes.
     private final RateLimiter writes = new RateLimiter(8, 1_500);
@@ -85,8 +86,9 @@ public class MemberApi {
 
     public MemberApi(MemberProfileRepository repository, PlayerLinkRepository links, PollService pollService, SignupService signupService, MemberAccess memberAccess,
                      Debouncer debouncer, SiteCache cache, CommunitySettings community, SiteStatsRepository stats, RsInteractionListener rsLinks, MemberEventsApi events,
-                     HighlightMemberApi highlights, ChatLevelMemberApi chatLevel, DiscordOutbox outbox) {
+                     HighlightMemberApi highlights, ChatLevelMemberApi chatLevel, DiscordOutbox outbox, SkillWeekMemberApi skillWeek) {
         this.outbox = outbox;
+        this.skillWeek = skillWeek;
         this.highlights = highlights;
         this.chatLevel = chatLevel;
         this.rsLinks = rsLinks;
@@ -187,6 +189,7 @@ public class MemberApi {
                 };
                 case "highlights/ignore" -> method.equals("POST") ? highlights.ignore(guild, userId, body) : null;
                 case "level" -> method.equals("GET") ? chatLevel.get(guild, userId) : null;
+                case "skill-week/vote" -> method.equals("GET") ? skillWeek.get(guild, userId) : method.equals("POST") ? skillWeek.vote(guild, userId, body) : null;
                 case "signups" -> method.equals("GET") ? mySignups(guild, userId) : null;
                 case "signups/join" -> method.equals("POST") ? joinSignup(guild, userId, body) : null;
                 case "signups/leave" -> method.equals("POST") ? leaveSignup(guild, userId, body) : null;

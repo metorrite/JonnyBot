@@ -37,7 +37,7 @@ class SkillWeekAdminApiTest {
         when(service.available()).thenReturn(true);
         when(service.view(eq(GUILD), Mockito.anyInt())).thenReturn(DataObject.empty());
         api.save(GUILD, ADMIN, body(true, 9, 15));
-        verify(repository).save(GUILD, true, List.of(9, 15), ADMIN);
+        verify(repository).save(GUILD, true, List.of(9, 15), com.runeclans.bot.events.SkillWeekRepository.Options.OFF, ADMIN);
         verify(service).open(eq(GUILD), any());
     }
 
@@ -47,11 +47,11 @@ class SkillWeekAdminApiTest {
         TicketAdminApi.ApiError noHub = assertThrows(TicketAdminApi.ApiError.class, () -> api.save(GUILD, ADMIN, body(true, 9)));
         assertEquals(400, noHub.status);
         assertThrows(TicketAdminApi.ApiError.class, () -> api.save(GUILD, ADMIN, body(false, 99)));
-        verify(repository, never()).save(anyLong(), anyBoolean(), any(), anyLong());
+        verify(repository, never()).save(anyLong(), anyBoolean(), any(), any(), anyLong());
         // off needs no hub
         when(service.view(eq(GUILD), Mockito.anyInt())).thenReturn(DataObject.empty());
         api.save(GUILD, ADMIN, body(false));
-        verify(repository).save(GUILD, false, List.of(), ADMIN);
+        verify(repository).save(GUILD, false, List.of(), com.runeclans.bot.events.SkillWeekRepository.Options.OFF, ADMIN);
         verify(service, never()).open(anyLong(), any());
     }
 }

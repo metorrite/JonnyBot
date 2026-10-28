@@ -65,7 +65,7 @@ class MemberApiClanSiteTest {
         community = mock(CommunitySettings.class);
         outbox = mock(com.runeclans.bot.discord.jobs.DiscordOutbox.class);
         api = new MemberApi(profiles, links, mock(PollService.class), mock(SignupService.class), mock(MemberAccess.class), mock(Debouncer.class), new SiteCache(), community,
-                mock(SiteStatsRepository.class), mock(RsInteractionListener.class), events, mock(HighlightMemberApi.class), mock(ChatLevelMemberApi.class), outbox);
+                mock(SiteStatsRepository.class), mock(RsInteractionListener.class), events, mock(HighlightMemberApi.class), mock(ChatLevelMemberApi.class), outbox, mock(SkillWeekMemberApi.class));
 
         guild = mock(Guild.class);
         when(guild.getIdLong()).thenReturn(CLAN_GUILD);

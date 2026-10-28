@@ -237,10 +237,17 @@ public class SkillWeekService {
         // the competition is finished before the week is closed: if finishing fails (the database), the week stays open and a later pass tries again
         if (event.isPresent() && !finish(event.get())) return Optional.empty();
         if (weeks.close(w.guildId(), w.start(), json.toString()) && counts) {
-            Settings settings = weeks.settings(w.guildId());
-            Names names = new Names(false, profiles.hiddenDiscordUsers(w.guildId()), profiles.hiddenRsns(w.guildId(), true));
-            List<DataObject> rows = winners.stream().map(x -> row(w.guildId(), names, x.rank(), x.userId(), x.xp())).toList();
-            announce(w.guildId(), settings.options(), event.get().id(), "winners:" + w.start(), winnersText(w.skillId(), w.start(), rows));
+            // the week is closed whatever happens to its post
+            try {
+                Settings settings = weeks.settings(w.guildId());
+                if (settings != null && settings.options().announceChannelId() != null) {
+                    Names names = new Names(false, profiles.hiddenDiscordUsers(w.guildId()), profiles.hiddenRsns(w.guildId(), true));
+                    List<DataObject> rows = winners.stream().map(x -> row(w.guildId(), names, x.rank(), x.userId(), x.xp())).toList();
+                    announce(w.guildId(), settings.options(), event.get().id(), "winners:" + w.start(), winnersText(w.skillId(), w.start(), rows));
+                }
+            } catch (RuntimeException e) {
+                log.warn("Skill of the week {} in {}: the winners post couldn't be made: {}", w.start(), w.guildId(), e.getMessage());
+            }
         }
         return Optional.of(winners);
     }
@@ -307,6 +314,7 @@ public class SkillWeekService {
         if (event.isEmpty() || event.get().status() != Status.RUNNING) return 0;
         JDA current = jda;
         net.dv8tion.jda.api.entities.Guild guild = current == null ? null : Shards.guild(current, guildId);
+        if (current != null && guild == null) return 0; // the bot isn't in the server (any more)
         Set<Long> already = weeks.enrolled(guildId, start);
         Set<Long> playing = new java.util.HashSet<>();
         for (EventRepository.Participant p : repository.participants(eventId)) playing.add(p.userId());
@@ -326,7 +334,6 @@ public class SkillWeekService {
                 }
                 if (playing.contains(user) || already.contains(user)) continue;
                 if (guild != null && guild.getMemberById(user) == null) continue; // not a member the bot sees here
-                if (guild == null && current != null) return added; // the bot isn't in the server (any more)
                 if (!weeks.markEnrolled(guildId, start, user)) continue;
                 already.add(user);
                 try {
