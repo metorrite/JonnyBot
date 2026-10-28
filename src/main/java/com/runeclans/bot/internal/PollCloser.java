@@ -1,5 +1,6 @@
 package com.runeclans.bot.internal;
 
+import com.runeclans.bot.discord.ShardRouting;
 import com.runeclans.bot.discord.Shards;
 import com.runeclans.bot.alerts.AutoPostRouter;
 import com.runeclans.bot.commands.poll.PollService;
@@ -53,8 +54,9 @@ public class PollCloser {
             var poll = polls.getSessionById(pollId);
             Guild guild = poll == null ? null : Shards.guild(jda, poll.guildId());
             if (guild == null) {
-                // the poll is gone, or the bot has left its server: either way there is nothing left to close
-                settings.clearSchedule(pollId);
+                // the poll is gone, or the bot has left its server: either way there is nothing left to close. A server on another
+                // process's shard, or one not loaded yet, keeps its end time for the process that can close it (T-700).
+                if (poll == null || ShardRouting.gone(jda, poll.guildId())) settings.clearSchedule(pollId);
                 continue;
             }
             polls.closePoll(guild, pollId); // does nothing if it was already ended by hand
