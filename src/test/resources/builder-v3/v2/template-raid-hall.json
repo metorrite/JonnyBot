@@ -433,7 +433,10 @@
                         "title": "This week's kills",
                         "period": "week",
                         "showQuiet": false,
-                        "limit": 6
+                        "limit": 6,
+                        "look": "cards",
+                        "timeFrame": true,
+                        "dropsPage": null
                       },
                       "unmet": "hide"
                     }
@@ -774,6 +777,10 @@
                       "type": "boss-detail",
                       "v": 1,
                       "settings": {
+                        "look": "box",
+                        "back": null,
+                        "backText": "All bosses",
+                        "timeFrame": true,
                         "period": "all",
                         "limit": 25,
                         "header": false,
@@ -949,7 +956,9 @@
                         "period": "all",
                         "showGrid": true,
                         "limit": 24,
-                        "bossFilter": true
+                        "bossFilter": true,
+                        "look": "list",
+                        "timeFrame": false
                       },
                       "unmet": "hide"
                     }
@@ -1083,7 +1092,9 @@
                         "period": "all",
                         "showGrid": true,
                         "limit": 25,
-                        "bossFilter": false
+                        "bossFilter": false,
+                        "look": "list",
+                        "timeFrame": false
                       },
                       "unmet": "hide"
                     }
@@ -1153,7 +1164,11 @@
                       "type": "item-detail",
                       "v": 1,
                       "settings": {
+                        "look": "box",
                         "period": "all",
+                        "timeFrame": true,
+                        "back": null,
+                        "backText": "Drop log",
                         "limit": 25
                       },
                       "unmet": "hide"
@@ -1309,7 +1324,8 @@
                       "settings": {
                         "title": "Open signups",
                         "limit": 5,
-                        "showNames": true
+                        "showNames": true,
+                        "look": "list"
                       },
                       "unmet": "hide"
                     }
@@ -1348,7 +1364,10 @@
                         "title": "Calendar",
                         "showDiscord": true,
                         "showHub": true,
-                        "weekStart": "mon"
+                        "weekStart": "mon",
+                        "look": "box",
+                        "listPage": null,
+                        "listText": "Event list"
                       },
                       "unmet": "hide"
                     }
@@ -1672,7 +1691,9 @@
                         "showClub": true,
                         "showStreaks": true,
                         "showVeterans": true,
-                        "limit": 8
+                        "limit": 8,
+                        "look": "plain",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -1907,6 +1928,9 @@
                       "type": "member-card",
                       "v": 1,
                       "settings": {
+                        "look": "card",
+                        "back": null,
+                        "backText": "All members",
                         "showStrip": false,
                         "showBio": true,
                         "showTotals": true,
@@ -1973,6 +1997,7 @@
                       "settings": {
                         "title": "Kills and drops",
                         "limit": 12,
+                        "look": "dated",
                         "showDetails": false
                       },
                       "unmet": "hide"

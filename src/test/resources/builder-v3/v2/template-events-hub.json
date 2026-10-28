@@ -394,7 +394,8 @@
                       "settings": {
                         "title": "Open signups",
                         "limit": 3,
-                        "showNames": true
+                        "showNames": true,
+                        "look": "list"
                       },
                       "unmet": "hide"
                     }
@@ -419,7 +420,8 @@
                       "settings": {
                         "title": "Vote now",
                         "limit": 2,
-                        "showClosed": false
+                        "showClosed": false,
+                        "look": "list"
                       },
                       "unmet": "hide"
                     }
@@ -549,7 +551,10 @@
                         "title": "",
                         "showDiscord": true,
                         "showHub": true,
-                        "weekStart": "mon"
+                        "weekStart": "mon",
+                        "look": "box",
+                        "listPage": null,
+                        "listText": "Event list"
                       },
                       "unmet": "hide"
                     }
@@ -968,7 +973,8 @@
                       "settings": {
                         "title": "",
                         "limit": 10,
-                        "showNames": true
+                        "showNames": true,
+                        "look": "list"
                       },
                       "unmet": "hide"
                     }
@@ -1016,7 +1022,8 @@
                       "settings": {
                         "title": "Vote now",
                         "limit": 2,
-                        "showClosed": false
+                        "showClosed": false,
+                        "look": "list"
                       },
                       "unmet": "hide"
                     }
@@ -1144,7 +1151,8 @@
                       "settings": {
                         "title": "",
                         "limit": 10,
-                        "showClosed": true
+                        "showClosed": true,
+                        "look": "list"
                       },
                       "unmet": "hide"
                     }

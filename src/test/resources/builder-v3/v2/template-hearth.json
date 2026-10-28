@@ -710,7 +710,8 @@
                       "settings": {
                         "title": "Sign up",
                         "limit": 3,
-                        "showNames": true
+                        "showNames": true,
+                        "look": "list"
                       },
                       "unmet": "hide"
                     }
@@ -850,7 +851,8 @@
                           }
                         ],
                         "columns": "2",
-                        "numbers": "accent"
+                        "numbers": "accent",
+                        "captions": "full"
                       },
                       "unmet": "hide"
                     },
@@ -861,10 +863,12 @@
                       "settings": {
                         "title": "Busiest skillers",
                         "limit": 6,
+                        "topFive": false,
                         "showDay": true,
                         "showWeek": true,
                         "showMonth": true,
                         "defaultTab": "week",
+                        "totals": false,
                         "bars": "under",
                         "barColour": "accent"
                       },
@@ -1091,7 +1095,8 @@
                       "settings": {
                         "title": "Polls",
                         "limit": 6,
-                        "showClosed": true
+                        "showClosed": true,
+                        "look": "list"
                       },
                       "unmet": "hide"
                     }
@@ -1116,7 +1121,8 @@
                       "settings": {
                         "title": "Signups",
                         "limit": 6,
-                        "showNames": true
+                        "showNames": true,
+                        "look": "list"
                       },
                       "unmet": "hide"
                     }

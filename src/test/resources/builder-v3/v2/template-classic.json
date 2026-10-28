@@ -284,10 +284,12 @@
                       "settings": {
                         "title": "Top XP gainers",
                         "limit": 8,
+                        "topFive": false,
                         "showDay": true,
                         "showWeek": true,
                         "showMonth": true,
                         "defaultTab": "week",
+                        "totals": false,
                         "bars": "under",
                         "barColour": "accent"
                       },
@@ -366,7 +368,8 @@
                           }
                         ],
                         "columns": "4",
-                        "numbers": "accent"
+                        "numbers": "accent",
+                        "captions": "full"
                       },
                       "unmet": "hide"
                     },
@@ -767,6 +770,9 @@
                       "type": "member-card",
                       "v": 1,
                       "settings": {
+                        "look": "card",
+                        "back": null,
+                        "backText": "All members",
                         "showStrip": false,
                         "showBio": true,
                         "showTotals": true,
@@ -835,6 +841,7 @@
                       "v": 1,
                       "settings": {
                         "title": "XP over time",
+                        "look": "bars",
                         "days": "90",
                         "gains": "week"
                       },
@@ -940,6 +947,7 @@
                       "v": 1,
                       "settings": {
                         "title": "Citadel",
+                        "look": "facts",
                         "weeks": 12,
                         "showGrid": true
                       },
@@ -965,6 +973,7 @@
                       "v": 1,
                       "settings": {
                         "title": "Clan points",
+                        "look": "list",
                         "limit": 8,
                         "showChart": false
                       },
@@ -1005,6 +1014,7 @@
                       "settings": {
                         "title": "Adventure log",
                         "limit": 10,
+                        "look": "dated",
                         "showDetails": false
                       },
                       "unmet": "hide"
@@ -1316,7 +1326,8 @@
                           }
                         ],
                         "columns": "4",
-                        "numbers": "accent"
+                        "numbers": "accent",
+                        "captions": "full"
                       },
                       "unmet": "hide"
                     }
@@ -1380,6 +1391,7 @@
                         "title": "Citadel caps and visits per week",
                         "weeks": 12,
                         "series": "both",
+                        "look": "simple",
                         "more": null,
                         "moreText": "Attendance"
                       },
@@ -1485,6 +1497,7 @@
                         "title": "Highest total XP",
                         "metric": "xp",
                         "limit": 10,
+                        "topFive": false,
                         "bars": "under",
                         "barColour": "accent"
                       },
@@ -1510,10 +1523,13 @@
                       "v": 1,
                       "settings": {
                         "title": "Most Citadel caps",
+                        "layout": "board",
                         "metric": "citadel",
                         "period": "all",
                         "visitorPeriods": false,
+                        "showPeriod": true,
                         "limit": 10,
+                        "topFive": false,
                         "bars": "under",
                         "barColour": "accent"
                       },
@@ -1700,6 +1716,7 @@
                         "title": "Caps and visits per week",
                         "weeks": 12,
                         "series": "both",
+                        "look": "simple",
                         "more": null,
                         "moreText": "Attendance"
                       },
@@ -1739,7 +1756,8 @@
                       "settings": {
                         "title": "",
                         "weeks": 12,
-                        "limit": 50
+                        "limit": 50,
+                        "look": "bars"
                       },
                       "unmet": "hide"
                     }
@@ -1957,7 +1975,8 @@
                       "settings": {
                         "title": "Have your say",
                         "limit": 3,
-                        "showClosed": false
+                        "showClosed": false,
+                        "look": "list"
                       },
                       "unmet": "hide"
                     }

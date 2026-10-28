@@ -350,7 +350,8 @@
                           }
                         ],
                         "columns": "2",
-                        "numbers": "accent"
+                        "numbers": "accent",
+                        "captions": "full"
                       },
                       "unmet": "hide"
                     }
@@ -438,7 +439,9 @@
                         "period": "month",
                         "showGrid": false,
                         "limit": 8,
-                        "bossFilter": false
+                        "bossFilter": false,
+                        "look": "list",
+                        "timeFrame": false
                       },
                       "unmet": "hide"
                     }
@@ -892,6 +895,10 @@
                       "type": "boss-detail",
                       "v": 1,
                       "settings": {
+                        "look": "box",
+                        "back": null,
+                        "backText": "All bosses",
+                        "timeFrame": true,
                         "period": "all",
                         "limit": 25,
                         "header": false,
@@ -1031,7 +1038,9 @@
                         "period": "all",
                         "showGrid": true,
                         "limit": 25,
-                        "bossFilter": false
+                        "bossFilter": false,
+                        "look": "list",
+                        "timeFrame": false
                       },
                       "unmet": "hide"
                     }
@@ -1101,7 +1110,11 @@
                       "type": "item-detail",
                       "v": 1,
                       "settings": {
+                        "look": "box",
                         "period": "all",
+                        "timeFrame": true,
+                        "back": null,
+                        "backText": "Drop log",
                         "limit": 25
                       },
                       "unmet": "hide"
@@ -1255,10 +1268,13 @@
                       "v": 1,
                       "settings": {
                         "title": "Top XP gainers",
+                        "layout": "board",
                         "metric": "xp",
                         "period": "month",
                         "visitorPeriods": true,
+                        "showPeriod": true,
                         "limit": 15,
+                        "topFive": false,
                         "bars": "under",
                         "barColour": "accent"
                       },
@@ -1286,6 +1302,7 @@
                         "title": "Highest total level",
                         "metric": "level",
                         "limit": 15,
+                        "topFive": false,
                         "bars": "under",
                         "barColour": "accent"
                       },
@@ -1479,7 +1496,8 @@
                       "settings": {
                         "title": "Open signups",
                         "limit": 5,
-                        "showNames": true
+                        "showNames": true,
+                        "look": "list"
                       },
                       "unmet": "hide"
                     }
@@ -1725,7 +1743,9 @@
                         "showClub": true,
                         "showStreaks": true,
                         "showVeterans": true,
-                        "limit": 8
+                        "limit": 8,
+                        "look": "plain",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
@@ -1988,6 +2008,9 @@
                       "type": "member-card",
                       "v": 1,
                       "settings": {
+                        "look": "card",
+                        "back": null,
+                        "backText": "All members",
                         "showStrip": false,
                         "showBio": true,
                         "showTotals": true,
@@ -2053,6 +2076,7 @@
                       "v": 1,
                       "settings": {
                         "title": "XP over time",
+                        "look": "bars",
                         "days": "90",
                         "gains": "week"
                       },
@@ -2118,6 +2142,7 @@
                       "settings": {
                         "title": "Kills and drops",
                         "limit": 12,
+                        "look": "dated",
                         "showDetails": false
                       },
                       "unmet": "hide"

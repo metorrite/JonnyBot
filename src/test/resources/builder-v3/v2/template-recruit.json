@@ -327,7 +327,8 @@
                           }
                         ],
                         "columns": "2",
-                        "numbers": "accent"
+                        "numbers": "accent",
+                        "captions": "full"
                       },
                       "unmet": "hide"
                     }

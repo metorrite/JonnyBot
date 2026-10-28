@@ -1096,7 +1096,8 @@
                       "settings": {
                         "title": "Put your name down",
                         "limit": 5,
-                        "showNames": true
+                        "showNames": true,
+                        "look": "list"
                       },
                       "unmet": "hide"
                     }
