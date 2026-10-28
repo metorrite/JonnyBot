@@ -33,8 +33,8 @@ import java.util.concurrent.TimeUnit;
  * <p>Several bot processes can drain the same table (T-696, docs/SCALING-STATE.md M3, M4): each claims jobs under its own {@link ProcessId},
  * only for servers on the shards it runs, and refreshes its claims every {@link #HEARTBEAT} on a lane of their own (so a slow job never lets
  * them lapse). A job whose claim has not been refreshed for {@link #CLAIM_EXPIRY} belonged to a process that is gone; any process puts it
- * back or ends it, as a restart did before. With one process this is the same outbox as before, except that a job cut off by a restart is
- * picked up within {@link #CLAIM_EXPIRY} instead of at once (a new process can't tell a restart from a second copy starting).
+ * back or ends it, as a restart did before. A graceful stop ends the process's own running jobs at once, so with one process this is the
+ * same outbox as before; only a crash (no shutdown hook) leaves its jobs running until their claim expires, about {@link #CLAIM_EXPIRY}.
  */
 @BService
 public class DiscordOutbox {
@@ -72,6 +72,8 @@ public class DiscordOutbox {
         claims.scheduleWithFixedDelay(keepGoing("refresh claims", () -> repository.heartbeat(claimant)), HEARTBEAT.toSeconds(), HEARTBEAT.toSeconds(), TimeUnit.SECONDS);
         claims.scheduleWithFixedDelay(keepGoing("recover", this::recover), 0, RECOVER_EVERY.toSeconds(), TimeUnit.SECONDS);
         lane.scheduleWithFixedDelay(keepGoing("drain", this::drain), 2, 1, TimeUnit.SECONDS);
+        // a graceful stop ends this process's running jobs at once, as a restart always did, instead of after the claim expires
+        Runtime.getRuntime().addShutdownHook(new Thread(keepGoing("release claims", this::release), "discord-jobs-release"));
         lane.scheduleWithFixedDelay(keepGoing("sweep", () -> repository.sweep(Instant.now().minus(KEEP_FINISHED))), 10, 60 * 60, TimeUnit.SECONDS);
     }
 
@@ -91,6 +93,13 @@ public class DiscordOutbox {
         int recovered = repository.recover(claimant, idempotentKinds(), CLAIM_EXPIRY);
         if (recovered > 0) log.info("Discord jobs: {} left running by a bot process that stopped were put back or ended", recovered);
         return recovered;
+    }
+
+    /** Ends this process's own running jobs (graceful shutdown). */
+    int release() {
+        int released = repository.release(claimant, idempotentKinds());
+        if (released > 0) log.info("Discord jobs: {} running at shutdown were put back or ended", released);
+        return released;
     }
 
     /** The name this process claims jobs under. */

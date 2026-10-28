@@ -269,20 +269,44 @@ public class DiscordJobRepository {
      * alone, and {@code claimant}'s own jobs never are touched: it is still running them.
      */
     public int recover(String claimant, Collection<String> idempotentKinds, Duration expiry) {
-        String gone = "state = 'running' AND claimed_by IS DISTINCT FROM ? AND COALESCE(claimed_at, updated_at) < now() - make_interval(secs => ?)";
+        double seconds = expiry.toMillis() / 1000.0;
+        return endRunning("claimed_by IS DISTINCT FROM ? AND COALESCE(claimed_at, updated_at) < now() - make_interval(secs => ?)", idempotentKinds, (s, i) -> {
+            s.setString(i, claimant);
+            s.setDouble(i + 1, seconds);
+            return i + 2;
+        });
+    }
+
+    /**
+     * On a graceful shutdown: this process's own running jobs end the same way as {@link #recover} would end them later (put back or failed),
+     * so the website doesn't show them running until the claim expires. A job that finishes after this changes nothing (it is no longer
+     * running).
+     */
+    public int release(String claimant, Collection<String> idempotentKinds) {
+        return endRunning("claimed_by = ?", idempotentKinds, (s, i) -> {
+            s.setString(i, claimant);
+            return i + 1;
+        });
+    }
+
+    /** Fills the placeholders of a {@code where} clause starting at an index, and answers the next free index. */
+    private interface Binder {
+        int bind(PreparedStatement s, int index) throws SQLException;
+    }
+
+    private int endRunning(String where, Collection<String> idempotentKinds, Binder binder) {
+        String running = "state = 'running' AND " + where;
         try (Connection c = connectionSupplier.getConnection()) {
             int n;
             try (PreparedStatement s = c.prepareStatement("UPDATE younglings.discord_job SET state = 'retrying', next_attempt_at = now(), updated_at = now(), "
-                    + "last_error = 'The bot restarted while doing this; trying again.' WHERE " + gone + " AND kind = ANY (?)")) {
-                s.setString(1, claimant);
-                s.setDouble(2, expiry.toMillis() / 1000.0);
-                s.setArray(3, c.createArrayOf("text", idempotentKinds.toArray()));
+                    + "last_error = 'The bot restarted while doing this; trying again.' WHERE " + running + " AND kind = ANY (?)")) {
+                int next = binder.bind(s, 1);
+                s.setArray(next, c.createArrayOf("text", idempotentKinds.toArray()));
                 n = s.executeUpdate();
             }
             try (PreparedStatement s = c.prepareStatement("UPDATE younglings.discord_job SET state = 'failed', updated_at = now(), "
-                    + "last_error = 'The bot restarted while doing this, so it may or may not have happened. Check Discord before trying again.' WHERE " + gone)) {
-                s.setString(1, claimant);
-                s.setDouble(2, expiry.toMillis() / 1000.0);
+                    + "last_error = 'The bot restarted while doing this, so it may or may not have happened. Check Discord before trying again.' WHERE " + running)) {
+                binder.bind(s, 1);
                 n += s.executeUpdate();
             }
             return n;
