@@ -51,7 +51,7 @@ Each must-fix item maps to one follow-up. A follow-up is not done until its row 
 | Follow-up | Covers | Work | Status |
 |---|---|---|---|
 | F1 | M1, M2, M8 | Pin RuneMetrics polling and the Hiscores verify lane to one role (`api`); other roles forward `submit`. Later moves to the hub `poll_queue`. | open |
-| F2 | M3, M4 | Outbox `claimed_by` / `claimed_at`; `recover()` touches only expired or own claims; claims filtered to this process's shards. | open |
+| F2 | M3, M4 | Outbox `claimed_by` / `claimed_at`; `recover()` touches only expired or own claims; claims filtered to this process's shards. | done (T-696): each process claims under its own `ProcessId`, refreshes its claims every 20 s on the `discord-job-claims` lane, and any process recovers claims not refreshed for 2 min (never its own); claims are filtered to the shards the process runs |
 | F3 | M5 | Load-through lookups for polls and signups; the boot maps become caches. | done (#473) |
 | F4 | M6 | Job table and per-event `pg_advisory_xact_lock` for event space, wrap-up export and role backfill jobs. | open |
 | F5 | M7 | RuneLink code, start and DM limits in a Postgres sliding-window table (or the hub). | done (T-699) |
@@ -200,7 +200,7 @@ has more than one replica).
 | `rsnlink-hub-dm` | `rsnlink/bridge/HubDmButtons` | gateway (own shards) |
 | `runeclans-feed` | `runeclans/RuneClansFeedPoller` | api (cursor in Postgres); posts through the outbox |
 | `hub-sites` | `hubsites/HubSiteReporter` | gateway (own shards) |
-| `discord-jobs` | `discord/jobs/DiscordOutbox` | gateway (own shards), see M3 and M4 |
+| `discord-jobs`, `discord-job-claims` | `discord/jobs/DiscordOutbox` | gateway (own shards), see M3 and M4 (claims per process, done) |
 | `ephemeral-lifecycle` | `discord/EphemeralLifecycle` | gateway (the process that answered) |
 | `event-board-panels`, `cohost-panels`, `event-signups` | `events/...` | gateway (own shards) |
 | `event-announcer-sweep` | `eventannounce/EventAnnounceService` | gateway (own shards) |
