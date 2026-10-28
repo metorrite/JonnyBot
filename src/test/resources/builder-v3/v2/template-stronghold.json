@@ -48,7 +48,7 @@
     "mobile": "drawer",
     "nav": [
       {
-        "id": "strongn364",
+        "id": "strongn367",
         "label": "Home",
         "link": {
           "kind": "page",
@@ -56,11 +56,11 @@
         }
       },
       {
-        "id": "strongn365",
+        "id": "strongn368",
         "label": "Clan",
         "children": [
           {
-            "id": "strongn366",
+            "id": "strongn369",
             "label": "Members",
             "link": {
               "kind": "page",
@@ -68,7 +68,7 @@
             }
           },
           {
-            "id": "strongn367",
+            "id": "strongn370",
             "label": "About us",
             "link": {
               "kind": "page",
@@ -76,7 +76,7 @@
             }
           },
           {
-            "id": "strongn368",
+            "id": "strongn371",
             "label": "Hall of fame",
             "link": {
               "kind": "page",
@@ -84,7 +84,7 @@
             }
           },
           {
-            "id": "strongn369",
+            "id": "strongn372",
             "label": "History",
             "link": {
               "kind": "page",
@@ -92,7 +92,7 @@
             }
           },
           {
-            "id": "strongn370",
+            "id": "strongn373",
             "label": "Compare",
             "link": {
               "kind": "page",
@@ -102,11 +102,11 @@
         ]
       },
       {
-        "id": "strongn371",
+        "id": "strongn374",
         "label": "Stats",
         "children": [
           {
-            "id": "strongn372",
+            "id": "strongn375",
             "label": "Clan stats",
             "link": {
               "kind": "page",
@@ -114,7 +114,7 @@
             }
           },
           {
-            "id": "strongn373",
+            "id": "strongn376",
             "label": "Leaderboards",
             "link": {
               "kind": "page",
@@ -122,7 +122,7 @@
             }
           },
           {
-            "id": "strongn374",
+            "id": "strongn377",
             "label": "Recaps",
             "link": {
               "kind": "page",
@@ -130,7 +130,7 @@
             }
           },
           {
-            "id": "strongn375",
+            "id": "strongn378",
             "label": "Citadel",
             "link": {
               "kind": "page",
@@ -138,7 +138,7 @@
             }
           },
           {
-            "id": "strongn376",
+            "id": "strongn379",
             "label": "Coffer",
             "link": {
               "kind": "page",
@@ -148,11 +148,11 @@
         ]
       },
       {
-        "id": "strongn377",
+        "id": "strongn380",
         "label": "PvM",
         "children": [
           {
-            "id": "strongn378",
+            "id": "strongn381",
             "label": "Bosses",
             "link": {
               "kind": "page",
@@ -160,7 +160,7 @@
             }
           },
           {
-            "id": "strongn379",
+            "id": "strongn382",
             "label": "Drop log",
             "link": {
               "kind": "page",
@@ -170,11 +170,11 @@
         ]
       },
       {
-        "id": "strongn380",
+        "id": "strongn383",
         "label": "Events",
         "children": [
           {
-            "id": "strongn381",
+            "id": "strongn384",
             "label": "Upcoming",
             "link": {
               "kind": "page",
@@ -182,7 +182,7 @@
             }
           },
           {
-            "id": "strongn382",
+            "id": "strongn385",
             "label": "Calendar",
             "link": {
               "kind": "page",
@@ -190,7 +190,7 @@
             }
           },
           {
-            "id": "strongn383",
+            "id": "strongn386",
             "label": "Signups",
             "link": {
               "kind": "page",
@@ -198,7 +198,7 @@
             }
           },
           {
-            "id": "strongn384",
+            "id": "strongn387",
             "label": "Polls",
             "link": {
               "kind": "page",
@@ -208,7 +208,7 @@
         ]
       },
       {
-        "id": "strongn385",
+        "id": "strongn388",
         "label": "Join",
         "link": {
           "kind": "page",
@@ -2941,7 +2941,7 @@
           ]
         },
         {
-          "id": "strongs174",
+          "id": "strongs177",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -2997,6 +2997,46 @@
                   ]
                 }
               ]
+            },
+            {
+              "id": "strongr176",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "strongc175",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw174",
+                      "type": "season-standings",
+                      "v": 1,
+                      "settings": {
+                        "title": "Clan season",
+                        "limit": 10,
+                        "showBreakdown": true,
+                        "showLast": true,
+                        "showWrapped": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
             }
           ]
         }
@@ -3014,7 +3054,7 @@
       },
       "sections": [
         {
-          "id": "strongs178",
+          "id": "strongs181",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3032,7 +3072,7 @@
           },
           "rows": [
             {
-              "id": "strongr177",
+              "id": "strongr180",
               "gap": {
                 "lg": "md"
               },
@@ -3044,7 +3084,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc176",
+                  "id": "strongc179",
                   "span": {
                     "lg": 12
                   },
@@ -3055,7 +3095,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw175",
+                      "id": "strongw178",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -3075,7 +3115,7 @@
           ]
         },
         {
-          "id": "strongs189",
+          "id": "strongs192",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3093,7 +3133,7 @@
           },
           "rows": [
             {
-              "id": "strongr183",
+              "id": "strongr186",
               "gap": {
                 "lg": "md"
               },
@@ -3105,7 +3145,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc180",
+                  "id": "strongc183",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -3117,7 +3157,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw179",
+                      "id": "strongw182",
                       "type": "leaderboard",
                       "v": 1,
                       "settings": {
@@ -3137,7 +3177,7 @@
                   ]
                 },
                 {
-                  "id": "strongc182",
+                  "id": "strongc185",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -3149,7 +3189,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw181",
+                      "id": "strongw184",
                       "type": "leaderboard",
                       "v": 1,
                       "settings": {
@@ -3171,7 +3211,7 @@
               ]
             },
             {
-              "id": "strongr188",
+              "id": "strongr191",
               "gap": {
                 "lg": "md"
               },
@@ -3183,7 +3223,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc185",
+                  "id": "strongc188",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -3195,7 +3235,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw184",
+                      "id": "strongw187",
                       "type": "leaderboard",
                       "v": 1,
                       "settings": {
@@ -3215,7 +3255,7 @@
                   ]
                 },
                 {
-                  "id": "strongc187",
+                  "id": "strongc190",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -3227,7 +3267,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw186",
+                      "id": "strongw189",
                       "type": "top-xp",
                       "v": 1,
                       "settings": {
@@ -3264,7 +3304,7 @@
       },
       "sections": [
         {
-          "id": "strongs193",
+          "id": "strongs196",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3282,7 +3322,7 @@
           },
           "rows": [
             {
-              "id": "strongr192",
+              "id": "strongr195",
               "gap": {
                 "lg": "md"
               },
@@ -3294,7 +3334,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc191",
+                  "id": "strongc194",
                   "span": {
                     "lg": 12
                   },
@@ -3305,7 +3345,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw190",
+                      "id": "strongw193",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -3325,7 +3365,7 @@
           ]
         },
         {
-          "id": "strongs197",
+          "id": "strongs200",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3343,7 +3383,7 @@
           },
           "rows": [
             {
-              "id": "strongr196",
+              "id": "strongr199",
               "gap": {
                 "lg": "md"
               },
@@ -3355,7 +3395,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc195",
+                  "id": "strongc198",
                   "span": {
                     "lg": 12
                   },
@@ -3366,7 +3406,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw194",
+                      "id": "strongw197",
                       "type": "wrapped-recap",
                       "v": 1,
                       "settings": {
@@ -3385,7 +3425,7 @@
           ]
         },
         {
-          "id": "strongs206",
+          "id": "strongs209",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3403,7 +3443,7 @@
           },
           "rows": [
             {
-              "id": "strongr202",
+              "id": "strongr205",
               "gap": {
                 "lg": "md"
               },
@@ -3415,7 +3455,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc199",
+                  "id": "strongc202",
                   "span": {
                     "lg": 7,
                     "md": 12
@@ -3427,7 +3467,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw198",
+                      "id": "strongw201",
                       "type": "recap",
                       "v": 1,
                       "settings": {
@@ -3441,7 +3481,7 @@
                   ]
                 },
                 {
-                  "id": "strongc201",
+                  "id": "strongc204",
                   "span": {
                     "lg": 5,
                     "md": 12
@@ -3453,7 +3493,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw200",
+                      "id": "strongw203",
                       "type": "weekly-recap",
                       "v": 1,
                       "settings": {
@@ -3467,7 +3507,7 @@
               ]
             },
             {
-              "id": "strongr205",
+              "id": "strongr208",
               "gap": {
                 "lg": "md"
               },
@@ -3479,7 +3519,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc204",
+                  "id": "strongc207",
                   "span": {
                     "lg": 12
                   },
@@ -3490,7 +3530,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw203",
+                      "id": "strongw206",
                       "type": "recap-picker",
                       "v": 1,
                       "settings": {
@@ -3520,7 +3560,7 @@
       },
       "sections": [
         {
-          "id": "strongs210",
+          "id": "strongs213",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3538,7 +3578,7 @@
           },
           "rows": [
             {
-              "id": "strongr209",
+              "id": "strongr212",
               "gap": {
                 "lg": "md"
               },
@@ -3550,7 +3590,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc208",
+                  "id": "strongc211",
                   "span": {
                     "lg": 12
                   },
@@ -3561,7 +3601,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw207",
+                      "id": "strongw210",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -3581,7 +3621,7 @@
           ]
         },
         {
-          "id": "strongs219",
+          "id": "strongs222",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3599,7 +3639,7 @@
           },
           "rows": [
             {
-              "id": "strongr215",
+              "id": "strongr218",
               "gap": {
                 "lg": "md"
               },
@@ -3611,7 +3651,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc212",
+                  "id": "strongc215",
                   "span": {
                     "lg": 4,
                     "md": 12
@@ -3623,7 +3663,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw211",
+                      "id": "strongw214",
                       "type": "citadel-timer",
                       "v": 1,
                       "settings": {
@@ -3637,7 +3677,7 @@
                   ]
                 },
                 {
-                  "id": "strongc214",
+                  "id": "strongc217",
                   "span": {
                     "lg": 8,
                     "md": 12
@@ -3649,7 +3689,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw213",
+                      "id": "strongw216",
                       "type": "citadel-chart",
                       "v": 1,
                       "settings": {
@@ -3667,7 +3707,7 @@
               ]
             },
             {
-              "id": "strongr218",
+              "id": "strongr221",
               "gap": {
                 "lg": "md"
               },
@@ -3679,7 +3719,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc217",
+                  "id": "strongc220",
                   "span": {
                     "lg": 12
                   },
@@ -3690,7 +3730,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw216",
+                      "id": "strongw219",
                       "type": "citadel-grid",
                       "v": 1,
                       "settings": {
@@ -3721,7 +3761,7 @@
       },
       "sections": [
         {
-          "id": "strongs223",
+          "id": "strongs226",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3739,7 +3779,7 @@
           },
           "rows": [
             {
-              "id": "strongr222",
+              "id": "strongr225",
               "gap": {
                 "lg": "md"
               },
@@ -3751,7 +3791,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc221",
+                  "id": "strongc224",
                   "span": {
                     "lg": 12
                   },
@@ -3762,7 +3802,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw220",
+                      "id": "strongw223",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -3782,7 +3822,7 @@
           ]
         },
         {
-          "id": "strongs227",
+          "id": "strongs230",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3800,7 +3840,7 @@
           },
           "rows": [
             {
-              "id": "strongr226",
+              "id": "strongr229",
               "gap": {
                 "lg": "md"
               },
@@ -3812,7 +3852,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc225",
+                  "id": "strongc228",
                   "span": {
                     "lg": 12
                   },
@@ -3823,7 +3863,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw224",
+                      "id": "strongw227",
                       "type": "coffer",
                       "v": 1,
                       "settings": {
@@ -3857,7 +3897,7 @@
       },
       "sections": [
         {
-          "id": "strongs231",
+          "id": "strongs234",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3875,7 +3915,7 @@
           },
           "rows": [
             {
-              "id": "strongr230",
+              "id": "strongr233",
               "gap": {
                 "lg": "md"
               },
@@ -3887,7 +3927,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc229",
+                  "id": "strongc232",
                   "span": {
                     "lg": 12
                   },
@@ -3898,7 +3938,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw228",
+                      "id": "strongw231",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -3918,7 +3958,7 @@
           ]
         },
         {
-          "id": "strongs246",
+          "id": "strongs249",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3935,55 +3975,6 @@
             }
           },
           "rows": [
-            {
-              "id": "strongr234",
-              "gap": {
-                "lg": "md"
-              },
-              "align": "stretch",
-              "height": {
-                "lg": {
-                  "mode": "auto"
-                }
-              },
-              "cells": [
-                {
-                  "id": "strongc233",
-                  "span": {
-                    "lg": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "strongw232",
-                      "type": "button-row",
-                      "v": 1,
-                      "settings": {
-                        "buttons": [
-                          {
-                            "label": "Open the drop log",
-                            "link": {
-                              "kind": "page",
-                              "pageId": "strongpdrops"
-                            },
-                            "style": "primary"
-                          }
-                        ],
-                        "align": "left",
-                        "size": "medium",
-                        "look": "buttons",
-                        "fullWidth": true
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                }
-              ]
-            },
             {
               "id": "strongr237",
               "gap": {
@@ -4009,16 +4000,23 @@
                   "widgets": [
                     {
                       "id": "strongw235",
-                      "type": "boss-grid",
+                      "type": "button-row",
                       "v": 1,
                       "settings": {
-                        "title": "Bosses",
-                        "period": "all",
-                        "showQuiet": true,
-                        "limit": 60,
-                        "look": "cards",
-                        "timeFrame": true,
-                        "dropsPage": null
+                        "buttons": [
+                          {
+                            "label": "Open the drop log",
+                            "link": {
+                              "kind": "page",
+                              "pageId": "strongpdrops"
+                            },
+                            "style": "primary"
+                          }
+                        ],
+                        "align": "left",
+                        "size": "medium",
+                        "look": "buttons",
+                        "fullWidth": true
                       },
                       "unmet": "hide"
                     }
@@ -4027,7 +4025,7 @@
               ]
             },
             {
-              "id": "strongr242",
+              "id": "strongr240",
               "gap": {
                 "lg": "md"
               },
@@ -4041,8 +4039,7 @@
                 {
                   "id": "strongc239",
                   "span": {
-                    "lg": 7,
-                    "md": 12
+                    "lg": 12
                   },
                   "padding": {
                     "lg": "none"
@@ -4052,36 +4049,16 @@
                   "widgets": [
                     {
                       "id": "strongw238",
-                      "type": "kill-tracker",
+                      "type": "boss-grid",
                       "v": 1,
                       "settings": {
-                        "title": "Boss kills",
+                        "title": "Bosses",
                         "period": "all",
-                        "limit": 25
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                },
-                {
-                  "id": "strongc241",
-                  "span": {
-                    "lg": 5,
-                    "md": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "strongw240",
-                      "type": "drops",
-                      "v": 1,
-                      "settings": {
-                        "title": "Recent drops",
-                        "limit": 10
+                        "showQuiet": true,
+                        "limit": 60,
+                        "look": "cards",
+                        "timeFrame": true,
+                        "dropsPage": null
                       },
                       "unmet": "hide"
                     }
@@ -4102,7 +4079,70 @@
               },
               "cells": [
                 {
+                  "id": "strongc242",
+                  "span": {
+                    "lg": 7,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw241",
+                      "type": "kill-tracker",
+                      "v": 1,
+                      "settings": {
+                        "title": "Boss kills",
+                        "period": "all",
+                        "limit": 25
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
                   "id": "strongc244",
+                  "span": {
+                    "lg": 5,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw243",
+                      "type": "drops",
+                      "v": 1,
+                      "settings": {
+                        "title": "Recent drops",
+                        "limit": 10
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "strongr248",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "strongc247",
                   "span": {
                     "lg": 12
                   },
@@ -4113,7 +4153,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw243",
+                      "id": "strongw246",
                       "type": "rare-drops",
                       "v": 1,
                       "settings": {
@@ -4146,7 +4186,7 @@
       },
       "sections": [
         {
-          "id": "strongs250",
+          "id": "strongs253",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4164,7 +4204,7 @@
           },
           "rows": [
             {
-              "id": "strongr249",
+              "id": "strongr252",
               "gap": {
                 "lg": "md"
               },
@@ -4176,7 +4216,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc248",
+                  "id": "strongc251",
                   "span": {
                     "lg": 12
                   },
@@ -4187,7 +4227,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw247",
+                      "id": "strongw250",
                       "type": "boss-detail",
                       "v": 1,
                       "settings": {
@@ -4224,7 +4264,7 @@
       },
       "sections": [
         {
-          "id": "strongs254",
+          "id": "strongs257",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4242,7 +4282,7 @@
           },
           "rows": [
             {
-              "id": "strongr253",
+              "id": "strongr256",
               "gap": {
                 "lg": "md"
               },
@@ -4254,7 +4294,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc252",
+                  "id": "strongc255",
                   "span": {
                     "lg": 12
                   },
@@ -4265,7 +4305,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw251",
+                      "id": "strongw254",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -4285,7 +4325,7 @@
           ]
         },
         {
-          "id": "strongs258",
+          "id": "strongs261",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4303,7 +4343,7 @@
           },
           "rows": [
             {
-              "id": "strongr257",
+              "id": "strongr260",
               "gap": {
                 "lg": "md"
               },
@@ -4315,7 +4355,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc256",
+                  "id": "strongc259",
                   "span": {
                     "lg": 12
                   },
@@ -4326,7 +4366,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw255",
+                      "id": "strongw258",
                       "type": "drop-log",
                       "v": 1,
                       "settings": {
@@ -4361,7 +4401,7 @@
       },
       "sections": [
         {
-          "id": "strongs262",
+          "id": "strongs265",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4379,7 +4419,7 @@
           },
           "rows": [
             {
-              "id": "strongr261",
+              "id": "strongr264",
               "gap": {
                 "lg": "md"
               },
@@ -4391,7 +4431,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc260",
+                  "id": "strongc263",
                   "span": {
                     "lg": 12
                   },
@@ -4402,7 +4442,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw259",
+                      "id": "strongw262",
                       "type": "item-detail",
                       "v": 1,
                       "settings": {
@@ -4435,7 +4475,7 @@
       },
       "sections": [
         {
-          "id": "strongs266",
+          "id": "strongs269",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4453,7 +4493,7 @@
           },
           "rows": [
             {
-              "id": "strongr265",
+              "id": "strongr268",
               "gap": {
                 "lg": "md"
               },
@@ -4465,7 +4505,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc264",
+                  "id": "strongc267",
                   "span": {
                     "lg": 12
                   },
@@ -4476,7 +4516,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw263",
+                      "id": "strongw266",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -4496,7 +4536,7 @@
           ]
         },
         {
-          "id": "strongs282",
+          "id": "strongs285",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4513,55 +4553,6 @@
             }
           },
           "rows": [
-            {
-              "id": "strongr269",
-              "gap": {
-                "lg": "md"
-              },
-              "align": "stretch",
-              "height": {
-                "lg": {
-                  "mode": "auto"
-                }
-              },
-              "cells": [
-                {
-                  "id": "strongc268",
-                  "span": {
-                    "lg": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "strongw267",
-                      "type": "button-row",
-                      "v": 1,
-                      "settings": {
-                        "buttons": [
-                          {
-                            "label": "Open the calendar",
-                            "link": {
-                              "kind": "page",
-                              "pageId": "strongpcalendar"
-                            },
-                            "style": "primary"
-                          }
-                        ],
-                        "align": "left",
-                        "size": "medium",
-                        "look": "buttons",
-                        "fullWidth": true
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                }
-              ]
-            },
             {
               "id": "strongr272",
               "gap": {
@@ -4587,12 +4578,23 @@
                   "widgets": [
                     {
                       "id": "strongw270",
-                      "type": "hub-events",
+                      "type": "button-row",
                       "v": 1,
                       "settings": {
-                        "title": "Events and competitions",
-                        "limit": 6,
-                        "showFinished": false
+                        "buttons": [
+                          {
+                            "label": "Open the calendar",
+                            "link": {
+                              "kind": "page",
+                              "pageId": "strongpcalendar"
+                            },
+                            "style": "primary"
+                          }
+                        ],
+                        "align": "left",
+                        "size": "medium",
+                        "look": "buttons",
+                        "fullWidth": true
                       },
                       "unmet": "hide"
                     }
@@ -4625,13 +4627,12 @@
                   "widgets": [
                     {
                       "id": "strongw273",
-                      "type": "events",
+                      "type": "hub-events",
                       "v": 1,
                       "settings": {
-                        "title": "Coming up",
-                        "style": "list",
-                        "limit": 8,
-                        "showImages": true
+                        "title": "Events and competitions",
+                        "limit": 6,
+                        "showFinished": false
                       },
                       "unmet": "hide"
                     }
@@ -4664,23 +4665,13 @@
                   "widgets": [
                     {
                       "id": "strongw276",
-                      "type": "rs-today",
+                      "type": "events",
                       "v": 1,
                       "settings": {
-                        "title": "Today in RuneScape",
-                        "look": "tiles",
-                        "resets": true,
-                        "wildy": true,
-                        "cache": true,
-                        "vos": true,
-                        "merchant": true,
-                        "vorago": true,
-                        "rots": true,
-                        "araxxor": false,
-                        "spotlight": false,
-                        "circus": false,
-                        "sinkholes": false,
-                        "chinchompa": false
+                        "title": "Coming up",
+                        "style": "list",
+                        "limit": 8,
+                        "showImages": true
                       },
                       "unmet": "hide"
                     }
@@ -4713,6 +4704,55 @@
                   "widgets": [
                     {
                       "id": "strongw279",
+                      "type": "rs-today",
+                      "v": 1,
+                      "settings": {
+                        "title": "Today in RuneScape",
+                        "look": "tiles",
+                        "resets": true,
+                        "wildy": true,
+                        "cache": true,
+                        "vos": true,
+                        "merchant": true,
+                        "vorago": true,
+                        "rots": true,
+                        "araxxor": false,
+                        "spotlight": false,
+                        "circus": false,
+                        "sinkholes": false,
+                        "chinchompa": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "strongr284",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "strongc283",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw282",
                       "type": "ge-watch",
                       "v": 1,
                       "settings": {
@@ -4759,7 +4799,7 @@
       },
       "sections": [
         {
-          "id": "strongs286",
+          "id": "strongs289",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4777,7 +4817,7 @@
           },
           "rows": [
             {
-              "id": "strongr285",
+              "id": "strongr288",
               "gap": {
                 "lg": "md"
               },
@@ -4789,7 +4829,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc284",
+                  "id": "strongc287",
                   "span": {
                     "lg": 12
                   },
@@ -4800,7 +4840,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw283",
+                      "id": "strongw286",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -4820,7 +4860,7 @@
           ]
         },
         {
-          "id": "strongs290",
+          "id": "strongs293",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4838,7 +4878,7 @@
           },
           "rows": [
             {
-              "id": "strongr289",
+              "id": "strongr292",
               "gap": {
                 "lg": "md"
               },
@@ -4850,7 +4890,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc288",
+                  "id": "strongc291",
                   "span": {
                     "lg": 12
                   },
@@ -4861,7 +4901,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw287",
+                      "id": "strongw290",
                       "type": "events-calendar",
                       "v": 1,
                       "settings": {
@@ -4896,7 +4936,7 @@
       },
       "sections": [
         {
-          "id": "strongs294",
+          "id": "strongs297",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4914,7 +4954,7 @@
           },
           "rows": [
             {
-              "id": "strongr293",
+              "id": "strongr296",
               "gap": {
                 "lg": "md"
               },
@@ -4926,7 +4966,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc292",
+                  "id": "strongc295",
                   "span": {
                     "lg": 12
                   },
@@ -4937,7 +4977,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw291",
+                      "id": "strongw294",
                       "type": "event-detail",
                       "v": 1,
                       "settings": {
@@ -4967,7 +5007,7 @@
       },
       "sections": [
         {
-          "id": "strongs298",
+          "id": "strongs301",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4985,7 +5025,7 @@
           },
           "rows": [
             {
-              "id": "strongr297",
+              "id": "strongr300",
               "gap": {
                 "lg": "md"
               },
@@ -4997,7 +5037,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc296",
+                  "id": "strongc299",
                   "span": {
                     "lg": 12
                   },
@@ -5008,7 +5048,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw295",
+                      "id": "strongw298",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -5028,7 +5068,7 @@
           ]
         },
         {
-          "id": "strongs302",
+          "id": "strongs305",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -5046,7 +5086,7 @@
           },
           "rows": [
             {
-              "id": "strongr301",
+              "id": "strongr304",
               "gap": {
                 "lg": "md"
               },
@@ -5058,7 +5098,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc300",
+                  "id": "strongc303",
                   "span": {
                     "lg": 12
                   },
@@ -5069,7 +5109,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw299",
+                      "id": "strongw302",
                       "type": "signups",
                       "v": 1,
                       "settings": {
@@ -5087,7 +5127,7 @@
           ]
         },
         {
-          "id": "strongs306",
+          "id": "strongs309",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -5105,7 +5145,7 @@
           },
           "rows": [
             {
-              "id": "strongr305",
+              "id": "strongr308",
               "gap": {
                 "lg": "md"
               },
@@ -5117,7 +5157,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc304",
+                  "id": "strongc307",
                   "span": {
                     "lg": 12
                   },
@@ -5128,7 +5168,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw303",
+                      "id": "strongw306",
                       "type": "group-finder",
                       "v": 1,
                       "settings": {
@@ -5159,7 +5199,7 @@
       },
       "sections": [
         {
-          "id": "strongs310",
+          "id": "strongs313",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -5177,7 +5217,7 @@
           },
           "rows": [
             {
-              "id": "strongr309",
+              "id": "strongr312",
               "gap": {
                 "lg": "md"
               },
@@ -5189,7 +5229,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc308",
+                  "id": "strongc311",
                   "span": {
                     "lg": 12
                   },
@@ -5200,7 +5240,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw307",
+                      "id": "strongw310",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -5220,7 +5260,7 @@
           ]
         },
         {
-          "id": "strongs314",
+          "id": "strongs317",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -5238,7 +5278,7 @@
           },
           "rows": [
             {
-              "id": "strongr313",
+              "id": "strongr316",
               "gap": {
                 "lg": "md"
               },
@@ -5250,7 +5290,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc312",
+                  "id": "strongc315",
                   "span": {
                     "lg": 12
                   },
@@ -5261,7 +5301,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw311",
+                      "id": "strongw314",
                       "type": "polls",
                       "v": 1,
                       "settings": {
@@ -5288,7 +5328,7 @@
       "access": "public",
       "sections": [
         {
-          "id": "strongs318",
+          "id": "strongs321",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -5306,7 +5346,7 @@
           },
           "rows": [
             {
-              "id": "strongr317",
+              "id": "strongr320",
               "gap": {
                 "lg": "md"
               },
@@ -5318,7 +5358,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc316",
+                  "id": "strongc319",
                   "span": {
                     "lg": 12
                   },
@@ -5329,7 +5369,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw315",
+                      "id": "strongw318",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -5349,7 +5389,7 @@
           ]
         },
         {
-          "id": "strongs335",
+          "id": "strongs338",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -5367,7 +5407,7 @@
           },
           "rows": [
             {
-              "id": "strongr323",
+              "id": "strongr326",
               "gap": {
                 "lg": "md"
               },
@@ -5379,7 +5419,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc320",
+                  "id": "strongc323",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5391,7 +5431,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw319",
+                      "id": "strongw322",
                       "type": "recruiting",
                       "v": 1,
                       "settings": {
@@ -5404,7 +5444,7 @@
                   ]
                 },
                 {
-                  "id": "strongc322",
+                  "id": "strongc325",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5416,7 +5456,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw321",
+                      "id": "strongw324",
                       "type": "discord-join",
                       "v": 1,
                       "settings": {
@@ -5431,7 +5471,7 @@
               ]
             },
             {
-              "id": "strongr326",
+              "id": "strongr329",
               "gap": {
                 "lg": "md"
               },
@@ -5443,7 +5483,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc325",
+                  "id": "strongc328",
                   "span": {
                     "lg": 12
                   },
@@ -5454,7 +5494,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw324",
+                      "id": "strongw327",
                       "type": "application-form",
                       "v": 1,
                       "settings": {
@@ -5510,7 +5550,7 @@
               ]
             },
             {
-              "id": "strongr331",
+              "id": "strongr334",
               "gap": {
                 "lg": "md"
               },
@@ -5522,7 +5562,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc328",
+                  "id": "strongc331",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5534,7 +5574,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw327",
+                      "id": "strongw330",
                       "type": "countdown",
                       "v": 1,
                       "settings": {
@@ -5547,7 +5587,7 @@
                   ]
                 },
                 {
-                  "id": "strongc330",
+                  "id": "strongc333",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5559,7 +5599,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw329",
+                      "id": "strongw332",
                       "type": "faq",
                       "v": 1,
                       "settings": {
@@ -5586,7 +5626,7 @@
               ]
             },
             {
-              "id": "strongr334",
+              "id": "strongr337",
               "gap": {
                 "lg": "md"
               },
@@ -5598,7 +5638,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc333",
+                  "id": "strongc336",
                   "span": {
                     "lg": 12
                   },
@@ -5609,7 +5649,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw332",
+                      "id": "strongw335",
                       "type": "roster",
                       "v": 1,
                       "settings": {
@@ -5642,7 +5682,7 @@
       "template": "account",
       "sections": [
         {
-          "id": "strongs339",
+          "id": "strongs342",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -5660,7 +5700,7 @@
           },
           "rows": [
             {
-              "id": "strongr338",
+              "id": "strongr341",
               "gap": {
                 "lg": "md"
               },
@@ -5672,7 +5712,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc337",
+                  "id": "strongc340",
                   "span": {
                     "lg": 12
                   },
@@ -5683,7 +5723,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw336",
+                      "id": "strongw339",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -5703,7 +5743,7 @@
           ]
         },
         {
-          "id": "strongs363",
+          "id": "strongs366",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -5721,7 +5761,7 @@
           },
           "rows": [
             {
-              "id": "strongr344",
+              "id": "strongr347",
               "gap": {
                 "lg": "md"
               },
@@ -5733,7 +5773,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc341",
+                  "id": "strongc344",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5745,7 +5785,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw340",
+                      "id": "strongw343",
                       "type": "account-link",
                       "v": 1,
                       "settings": {
@@ -5755,45 +5795,6 @@
                     }
                   ]
                 },
-                {
-                  "id": "strongc343",
-                  "span": {
-                    "lg": 6,
-                    "md": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "strongw342",
-                      "type": "server-profile",
-                      "v": 1,
-                      "settings": {
-                        "title": "Your server profile",
-                        "showColour": true,
-                        "showOnline": true
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                }
-              ]
-            },
-            {
-              "id": "strongr349",
-              "gap": {
-                "lg": "md"
-              },
-              "align": "stretch",
-              "height": {
-                "lg": {
-                  "mode": "auto"
-                }
-              },
-              "cells": [
                 {
                   "id": "strongc346",
                   "span": {
@@ -5808,18 +5809,33 @@
                   "widgets": [
                     {
                       "id": "strongw345",
-                      "type": "my-goals",
+                      "type": "server-profile",
                       "v": 1,
                       "settings": {
-                        "title": "My goals",
-                        "showDone": true
+                        "title": "Your server profile",
+                        "showColour": true,
+                        "showOnline": true
                       },
                       "unmet": "hide"
                     }
                   ]
-                },
+                }
+              ]
+            },
+            {
+              "id": "strongr352",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
                 {
-                  "id": "strongc348",
+                  "id": "strongc349",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5831,31 +5847,17 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw347",
-                      "type": "my-notices",
+                      "id": "strongw348",
+                      "type": "my-goals",
                       "v": 1,
                       "settings": {
-                        "title": "Notices",
-                        "limit": 5
+                        "title": "My goals",
+                        "showDone": true
                       },
                       "unmet": "hide"
                     }
                   ]
-                }
-              ]
-            },
-            {
-              "id": "strongr354",
-              "gap": {
-                "lg": "md"
-              },
-              "align": "stretch",
-              "height": {
-                "lg": {
-                  "mode": "auto"
-                }
-              },
-              "cells": [
+                },
                 {
                   "id": "strongc351",
                   "span": {
@@ -5870,34 +5872,10 @@
                   "widgets": [
                     {
                       "id": "strongw350",
-                      "type": "my-events",
+                      "type": "my-notices",
                       "v": 1,
                       "settings": {
-                        "title": "My events",
-                        "showOpen": true
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                },
-                {
-                  "id": "strongc353",
-                  "span": {
-                    "lg": 6,
-                    "md": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "strongw352",
-                      "type": "my-signups",
-                      "v": 1,
-                      "settings": {
-                        "title": "Signups",
+                        "title": "Notices",
                         "limit": 5
                       },
                       "unmet": "hide"
@@ -5919,7 +5897,69 @@
               },
               "cells": [
                 {
+                  "id": "strongc354",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw353",
+                      "type": "my-events",
+                      "v": 1,
+                      "settings": {
+                        "title": "My events",
+                        "showOpen": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
                   "id": "strongc356",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw355",
+                      "type": "my-signups",
+                      "v": 1,
+                      "settings": {
+                        "title": "Signups",
+                        "limit": 5
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "strongr360",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "strongc359",
                   "span": {
                     "lg": 12
                   },
@@ -5930,7 +5970,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw355",
+                      "id": "strongw358",
                       "type": "my-polls",
                       "v": 1,
                       "settings": {
@@ -5945,7 +5985,7 @@
               ]
             },
             {
-              "id": "strongr362",
+              "id": "strongr365",
               "gap": {
                 "lg": "md"
               },
@@ -5957,7 +5997,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc359",
+                  "id": "strongc362",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5969,7 +6009,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw358",
+                      "id": "strongw361",
                       "type": "my-coffer",
                       "v": 1,
                       "settings": {
@@ -5981,7 +6021,7 @@
                   ]
                 },
                 {
-                  "id": "strongc361",
+                  "id": "strongc364",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5993,7 +6033,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw360",
+                      "id": "strongw363",
                       "type": "member-privacy",
                       "v": 1,
                       "settings": {

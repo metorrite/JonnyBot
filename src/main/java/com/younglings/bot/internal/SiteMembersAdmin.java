@@ -29,6 +29,7 @@ import java.util.function.Supplier;
  *   where the bot is in the server; a bot-less site can't see its members, so it lists only the people it names by user id (the owner who
  *   claimed it, site admins and editors), which its admins already see on the Roles page.</li>
  *   <li>{@code clan-site/cockpit...} (T-593): the Clan health page ({@link SiteCockpitAdmin})</li>
+ *   <li>{@code clan-site/seasons...} (T-596): the Seasons page ({@link SiteSeasons})</li>
  * </ul>
  */
 @BService
@@ -43,14 +44,16 @@ public class SiteMembersAdmin {
     private final SiteRoleGuard siteRoles;
     private final SiteCache cache;
     private final SiteCockpitAdmin cockpit;
+    private final SiteSeasons seasons;
     /** Searches per person: a burst of 5 (typing), then 2 a second. Reads aren't otherwise limited, and a search walks the member list. */
     private final RateLimiter searches = new RateLimiter(5, 500);
 
-    public SiteMembersAdmin(MemberProfileRepository profiles, SiteRoleGuard siteRoles, SiteCache cache, SiteCockpitAdmin cockpit) {
+    public SiteMembersAdmin(MemberProfileRepository profiles, SiteRoleGuard siteRoles, SiteCache cache, SiteCockpitAdmin cockpit, SiteSeasons seasons) {
         this.profiles = profiles;
         this.siteRoles = siteRoles;
         this.cache = cache;
         this.cockpit = cockpit;
+        this.seasons = seasons;
     }
 
     // ---------- the Clan health page (T-593) ----------
@@ -58,6 +61,11 @@ public class SiteMembersAdmin {
     /** {@code clan-site/cockpit...}; null for a path it doesn't serve. */
     DataObject cockpit(SiteCaller c, String method, String[] parts, Supplier<DataObject> body) {
         return cockpit.route(c, method, parts, body);
+    }
+
+    /** {@code clan-site/seasons...} (T-596): the Site Admin's Seasons page ({@link SiteSeasons}); null for a path it doesn't serve. */
+    DataObject seasons(SiteCaller c, String method, String[] parts, Supplier<DataObject> body) {
+        return seasons.route(c, method, parts, body);
     }
 
     // ---------- member privacy defaults (T-395) ----------
@@ -80,6 +88,7 @@ public class SiteMembersAdmin {
     void forget(long guildId) {
         profiles.deletePrivacyDefaults(guildId);
         cockpit.forget(guildId);
+        seasons.forget(guildId);
         cache.clear();
     }
 
