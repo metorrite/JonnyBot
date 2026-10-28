@@ -169,4 +169,46 @@ class XpTilesDatabaseTest {
         assertEquals(1, team.completions().get(FLETCHING_TILE.key()));
         assertEquals(0, tracker(repository).feedTiles(e), "complete: not asked again");
     }
+
+    @Test
+    void theFinalPassCountsAfterTheMoveToScoringAndNothingElseDoes() {
+        EventRepository.Event running = runningHunt();
+        service.moveStage(G, running.id(), Status.SCORING);
+        EventRepository.Event scoring = repository.eventById(running.id()).orElseThrow();
+        assertEquals(true, repository.scoringAt(scoring.id()).isPresent(), "the move to scoring is kept (T-706)");
+        assertEquals(List.of(scoring.id()), repository.scoringSince(ScavengerHuntTemplate.KEY, java.time.Instant.now().minusSeconds(600)).stream()
+                .filter(x -> x.guildId() == G).map(EventRepository.Event::id).toList());
+
+        hubSays(300_000, 0);
+        assertEquals(1, tracker(repository).feedTiles(scoring), "XP up to the move to scoring still counts");
+        assertEquals(300_000, total(scoring, MINING_TILE));
+        EventProblem refused = org.junit.jupiter.api.Assertions.assertThrows(EventProblem.class,
+                () -> service.recordProgress(G, scoring.id(), OTHER.key(), ALICE, 1, EventRules.Source.AUTO, "drop:late", null, ""));
+        assertEquals(409, refused.status(), "a plugin drop after the finish doesn't");
+    }
+
+    @Test
+    void aMoveToAnotherTeamIsKeptAndPuttingAPlayerOnTheTeamTheyAreOnIsNot() throws Exception {
+        long id = service.createEvent(G, 9L, new EventService.EventInput("Teams", "", ScavengerHuntTemplate.KEY, Scope.PRIVATE, ScoringMode.TEAM, null, null, 0,
+                DataObject.fromJson("{\"steps\":3}")));
+        long red = service.addTeam(G, id, "Red", null);
+        long blue = service.addTeam(G, id, "Blue", null);
+        service.moveStage(G, id, Status.SIGNUPS);
+        service.join(G, id, G, ALICE, null, true, null);
+        assertEquals(java.util.Map.of(), repository.teamJoinedAt(id), "never on a team yet");
+
+        repository.setTeam(id, ALICE, red);
+        java.time.Instant first = repository.teamJoinedAt(id).get(ALICE);
+        assertEquals(true, first != null);
+        try (Connection c = supplier.getConnection();
+             PreparedStatement s = c.prepareStatement("UPDATE younglings.event_participant SET team_joined_at = team_joined_at - INTERVAL '1 hour' WHERE event_id = ?")) {
+            s.setLong(1, id);
+            s.executeUpdate();
+        }
+        java.time.Instant earlier = repository.teamJoinedAt(id).get(ALICE);
+        repository.setTeams(id, java.util.Map.of(ALICE, red));
+        assertEquals(earlier, repository.teamJoinedAt(id).get(ALICE), "already on red: the time stands");
+        repository.setTeams(id, java.util.Map.of(ALICE, blue));
+        assertEquals(true, repository.teamJoinedAt(id).get(ALICE).isAfter(earlier), "moved to blue: from now");
+    }
 }
