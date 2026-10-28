@@ -55,7 +55,7 @@ import java.util.concurrent.TimeUnit;
  * <p>
  * The hub calls an XP tile pass makes stay bounded (T-706): a start of counting after the event's start is rounded up to the next
  * {@link #COALESCE} step, so players whose steps unlocked minutes apart share one read, and a pass makes at most {@link #MAX_TILE_CALLS_PER_PASS}
- * calls, reading the spans read longest ago first and using each other span's last answer meanwhile (a gain only grows, so an older answer can only
+ * calls, asking the spans asked longest ago first (one the hub failed on behind the rest) and using each other span's last answer meanwhile (a gain only grows, so an older answer can only
  * count less, never more). The first call that fails ends the pass. A player moved to another team counts for the new team from the move. Once an
  * organiser moves the event to scoring, one final pass (within {@link #FINAL_WINDOW}) reads every span, exactly, up to the planned end or the move
  * to scoring, whichever is sooner, so the last minutes before the finish aren't lost ({@link EventService#finalXpTile}).
@@ -103,8 +103,19 @@ public class PluginXpTracker {
     private final Map<Long, Object> passing = new ConcurrentHashMap<>();
     /** XP tiles: eventId → each span's last answer, so a pass that reads only some spans still adds up whole teams. */
     private final Map<Long, Map<Span, TileRead>> tileReads = new ConcurrentHashMap<>();
-    /** Events being scored whose final XP tile pass is done. */
-    private final Set<Long> finalised = ConcurrentHashMap.newKeySet();
+    /**
+     * XP tiles: eventId → when each span was last asked of the hub and whether that failed, so one that keeps failing goes to the back (behind
+     * those asked in the same pass that answered), not the front.
+     */
+    private final Map<Long, Map<Span, Tried>> tileTried = new ConcurrentHashMap<>();
+
+    /** When an XP tile span was last asked of the hub, and whether the hub failed to answer. */
+    private record Tried(Instant at, boolean failed) {
+        static final Tried NEVER = new Tried(Instant.MIN, false);
+        static final java.util.Comparator<Tried> ORDER = java.util.Comparator.comparing(Tried::at).thenComparing(Tried::failed);
+    }
+    /** Events being scored whose final XP tile pass is done, with the move to scoring it was for (a reopened and refinished event gets another). */
+    private final Map<Long, Instant> finalised = new ConcurrentHashMap<>();
     private Clock clock = Clock.systemUTC();
     private volatile boolean tiles;
 
@@ -213,7 +224,8 @@ public class PluginXpTracker {
             }
             for (Event event : tiles ? tileEvents() : List.<Event>of()) {
                 ids.add(event.id());
-                if (event.status() == EventRules.Status.SCORING && finalised.contains(event.id())) continue; // its final pass is done
+                if (event.status() == EventRules.Status.SCORING && finalised.containsKey(event.id())
+                        && repository.scoringAt(event.id()).map(at -> at.equals(finalised.get(event.id()))).orElse(true)) continue; // its final pass is done
                 try {
                     feedTiles(event);
                 } catch (RuntimeException e) {
@@ -224,7 +236,8 @@ public class PluginXpTracker {
             runeSyncPlayers.keySet().retainAll(ids);
             disagreements.keySet().retainAll(ids);
             tileReads.keySet().retainAll(ids);
-            finalised.retainAll(ids);
+            tileTried.keySet().retainAll(ids);
+            finalised.keySet().retainAll(ids);
         } catch (RuntimeException e) {
             log.warn("The RuneSync competition sweep failed", e);
         }
@@ -386,16 +399,19 @@ public class PluginXpTracker {
         if (xpTiles.isEmpty()) {
             notCounted.remove(event.id()); // the last XP tile was taken off: nothing to list any more
             tileReads.remove(event.id());
+            tileTried.remove(event.id());
             return 0;
         }
         Instant now = clock.instant();
         // the final pass of an event being scored reads up to when it moved to scoring, every span, exactly
         boolean last = event.status() == EventRules.Status.SCORING;
         Instant stop = now;
+        Instant scoringAt = null;
         if (last) {
             Optional<Instant> scoring = repository.scoringAt(event.id());
             if (scoring.isEmpty()) return 0;
-            if (scoring.get().isBefore(stop)) stop = scoring.get();
+            scoringAt = scoring.get();
+            if (scoringAt.isBefore(stop)) stop = scoringAt;
         }
         Instant started = repository.startedAt(event.id()).orElse(event.startsAt() == null ? now : event.startsAt());
         // only XP gained during the event counts: not before its advertised start (started early), not after its planned end (finished late)
@@ -443,11 +459,15 @@ public class PluginXpTracker {
             }
         }
 
-        // the spans read longest ago (or never) first, up to the pass's budget; the final pass reads them all
+        // back to running (an organiser reopened it): a later move to scoring gets its own final pass
+        if (!last) finalised.remove(event.id());
+        // the spans asked longest ago (or never) first, up to the pass's budget; the final pass reads them all
         Map<Span, TileRead> reads = tileReads.computeIfAbsent(event.id(), k -> new ConcurrentHashMap<>());
         reads.keySet().retainAll(asks.keySet());
+        Map<Span, Tried> tried = tileTried.computeIfAbsent(event.id(), k -> new ConcurrentHashMap<>());
+        tried.keySet().retainAll(asks.keySet());
         List<Span> order = new ArrayList<>(asks.keySet());
-        order.sort(java.util.Comparator.comparing(span -> reads.containsKey(span) ? reads.get(span).at() : Instant.MIN));
+        order.sort(java.util.Comparator.comparing(span -> tried.getOrDefault(span, Tried.NEVER), Tried.ORDER));
         int calls = 0;
         int fresh = 0;
         boolean failed = false;
@@ -457,13 +477,18 @@ public class PluginXpTracker {
             if (!last && calls > 0 && calls + need > MAX_TILE_CALLS_PER_PASS) break; // the rest is read on the next passes
             calls += need;
             Map<String, DataObject> rows = gains(event, span, who.keySet(), to);
+            tried.put(span, new Tried(now, rows == null));
             if (rows == null) {
-                // the hub couldn't answer: stop here, the other spans wait for the next pass
+                // the hub couldn't answer: stop here, the other spans wait for the next pass (this one behind them)
                 failed = true;
                 break;
             }
             reads.put(span, new TileRead(rows, now));
             fresh++;
+        }
+        if (last && failed && !now.isBefore(stop.plus(FINAL_WINDOW).minus(PERIOD))) {
+            log.warn("Event {}: the final XP tile pass couldn't read everything before its {} minutes ran out; the last minutes may be missing", event.id(),
+                    FINAL_WINDOW.toMinutes());
         }
         // the hub is down or its ledger is off: say nothing about who counts, try again next minute
         if (failed && fresh == 0) return 0;
@@ -507,7 +532,7 @@ public class PluginXpTracker {
             }
         }
         notCounted.put(event.id(), new NotCounted(Set.copyOf(missing), Set.of(), now));
-        if (last && !failed) finalised.add(event.id());
+        if (last && !failed) finalised.put(event.id(), scoringAt);
         return updated;
     }
 

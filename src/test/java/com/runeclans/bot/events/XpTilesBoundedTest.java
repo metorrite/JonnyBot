@@ -293,4 +293,84 @@ class XpTilesBoundedTest {
         // the progress goes to the event, in the host's server
         verify(service).recordProgress(eq(GUILD), eq(8L), eq(CompetitionTemplate.OBJECTIVE_KEY), eq(BOB), eq(1_000L), eq(Source.IMPORT), anyString(), isNull(), anyString());
     }
+
+    /** A clock the test moves on. */
+    private static final class MovingClock extends Clock {
+        Instant now;
+
+        MovingClock(Instant now) {
+            this.now = now;
+        }
+
+        @Override
+        public java.time.ZoneId getZone() {
+            return ZoneOffset.UTC;
+        }
+
+        @Override
+        public Clock withZone(java.time.ZoneId zone) {
+            return this;
+        }
+
+        @Override
+        public Instant instant() {
+            return now;
+        }
+    }
+
+    @Test
+    void aSpanThatKeepsFailingGoesBehindTheOthersInsteadOfStarvingThem() {
+        MovingClock clock = new MovingClock(NOW);
+        PluginXpTracker moving = new PluginXpTracker(repository, service, hub).withClock(clock).withTiles(true);
+        Event e = event(9, BingoTemplate.KEY, Status.RUNNING, ScoringMode.INDIVIDUAL, NOW.plusSeconds(86_400));
+        when(repository.objectives(9)).thenReturn(List.of(new ObjectiveSpec("t1", "Gain 1M Fletching XP", "", 1, Evidence.EITHER, 1, 1, List.of())));
+        when(repository.startedAt(9)).thenReturn(Optional.of(STARTED));
+        List<Participant> players = new ArrayList<>();
+        for (int i = 0; i < 3; i++) {
+            players.add(new Participant(9, user(i), GUILD, null, null, false, null, STARTED.plusSeconds(3600L * i + 60), null, null, null, null, null, null));
+            when(hub.aliasOf(user(i))).thenReturn(Optional.of(aliasOf(user(i))));
+        }
+        when(repository.participants(9)).thenReturn(players);
+        when(repository.progress(9)).thenReturn(List.of());
+        hubGives(2_000_000);
+        // the first player's span always fails (say the hub times out on it); the others are healthy
+        Instant broken = STARTED.plusSeconds(300);
+        Mockito.doReturn(new RuneClansHubClient.Answer(503, null)).when(hub).xpGains(anyLong(), any(), any(), eq(broken), any());
+
+        assertEquals(0, moving.feedTiles(e), "the broken span is tried first and ends the pass");
+        clock.now = NOW.plusSeconds(60);
+        assertEquals(2, moving.feedTiles(e), "next minute it goes behind the two never tried, which are read before it fails again");
+        verify(service).recordProgress(eq(GUILD), eq(9L), eq("t1"), eq(user(1)), eq(1L), eq(Source.AUTO), anyString(), isNull(), anyString());
+        verify(service).recordProgress(eq(GUILD), eq(9L), eq("t1"), eq(user(2)), eq(1L), eq(Source.AUTO), anyString(), isNull(), anyString());
+        clearInvocations(hub);
+        clock.now = NOW.plusSeconds(120);
+        moving.feedTiles(e);
+        assertEquals(List.of(STARTED.plusSeconds(3900), STARTED.plusSeconds(7500), broken), froms(), "asked longest ago first, the broken one last");
+    }
+
+    @Test
+    void anEventReopenedAndFinishedAgainGetsASecondFinalPass() {
+        Instant end = STARTED.plusSeconds(4 * 3600);
+        Event e = event(10, BingoTemplate.KEY, Status.SCORING, ScoringMode.INDIVIDUAL, end.plusSeconds(86_400));
+        when(repository.objectives(10)).thenReturn(List.of(new ObjectiveSpec("t1", "Gain 1M Fletching XP", "", 1, Evidence.EITHER, 1, 1, List.of())));
+        when(repository.startedAt(10)).thenReturn(Optional.of(STARTED));
+        when(repository.participants(10)).thenReturn(List.of(member(ALICE, GUILD, null)));
+        when(repository.progress(10)).thenReturn(List.of());
+        when(repository.runningEvents(any())).thenReturn(List.of());
+        when(repository.scoringSince(eq(BingoTemplate.KEY), any())).thenReturn(List.of(e));
+        when(repository.scoringSince(eq(ScavengerHuntTemplate.KEY), any())).thenReturn(List.of());
+        when(repository.scoringSince(eq(ClanVsClan.KEY), any())).thenReturn(List.of());
+        when(hub.aliasOf(ALICE)).thenReturn(Optional.of("a1_alice"));
+        hubGives(10);
+
+        when(repository.scoringAt(10)).thenReturn(Optional.of(NOW.minusSeconds(300)));
+        tracker.sweep();
+        tracker.sweep();
+        verify(hub, times(1)).xpGains(anyLong(), any(), any(), any(), any());
+        // an organiser reopened it and finished it again between two passes: the new move to scoring gets its own final pass
+        when(repository.scoringAt(10)).thenReturn(Optional.of(NOW.minusSeconds(20)));
+        tracker.sweep();
+        verify(hub, times(2)).xpGains(anyLong(), any(), any(), any(), any());
+        verify(hub).xpGains(eq(GUILD), eq(List.of("a1_alice")), isNull(), eq(STARTED), eq(NOW.minusSeconds(20)));
+    }
 }
