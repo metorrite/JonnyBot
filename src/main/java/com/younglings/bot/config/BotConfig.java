@@ -547,6 +547,14 @@ public class BotConfig {
         return raw != null && raw.trim().equalsIgnoreCase("true");
     }
 
+    /**
+     * How long after midnight UTC a day's XP points are settled (T-712), so XP still on its way to the hub counts. {@code PLUGIN_XP_POINTS_GRACE_MINUTES},
+     * default 15; {@link com.younglings.bot.plugin.PluginXpPoints} holds it to 1 minute to 12 hours.
+     */
+    public long getPluginXpPointsGraceMinutes() {
+        return positiveNumber("PLUGIN_XP_POINTS_GRACE_MINUTES", 15);
+    }
+
     private long positiveMinutes(String name, long fallback) {
         return positiveNumber(name, fallback);
     }

@@ -33,6 +33,8 @@ public final class ClanSiteLayoutRules {
     public static final int GRID = 12;
 
     public static final Set<String> THEMES = Set.of("modern", "parchment", "minimal", "clanhall");
+    /** Theme kits (runeclans T-575): a whole look over the theme, the website's layout.ts KITS. Optional: missing means no kit. */
+    public static final Set<String> KITS = Set.of("nightsky", "desertsun", "bloodline");
     public static final Set<String> MODES = Set.of("light", "dark");
     public static final Set<String> TONES = Set.of("plain", "panel", "accent");
     public static final Set<String> UNMET = Set.of("hide", "placeholder");
@@ -112,7 +114,7 @@ public final class ClanSiteLayoutRules {
         return progress;
     }
 
-    /** The site's look (both layout versions): template, light or dark, clan colour, logo and banner. */
+    /** The site's look (both layout versions): template, light or dark, clan colour, logo, banner and the optional theme kit. */
     static DataObject look(DataObject look, List<String> problems) {
         DataObject t = look == null ? DataObject.empty() : look;
         String theme = t.getString("theme", "modern");
@@ -131,6 +133,12 @@ public final class ClanSiteLayoutRules {
             if (url.isEmpty()) out.putNull(key);
             else if (!picture(url)) problems.add("The " + key + " must be an https picture address or an upload.");
             else out.put(key, url);
+        }
+        // the theme kit (T-575): kept only when set, so a site without one is stored exactly as before kits existed
+        if (t.hasKey("kit") && !t.isNull("kit")) {
+            String kit = t.getString("kit", "");
+            if (!KITS.contains(kit)) problems.add("Pick one of the theme kits.");
+            else out.put("kit", kit);
         }
         return out;
     }

@@ -3,6 +3,8 @@ package com.younglings.bot.commands.recap;
 import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.discord.Containers;
 import com.younglings.bot.i18n.Text;
+import com.younglings.bot.internal.RecapGate;
+import com.younglings.bot.member.MemberProfileRepository;
 import com.younglings.bot.permission.MemberAccess;
 import com.younglings.bot.runescape.PlayerLink;
 import com.younglings.bot.runescape.PlayerLinkRepository;
@@ -40,6 +42,10 @@ import java.util.concurrent.ConcurrentHashMap;
  * drawn by the website (one design, in one place, shared with the animated recap pages); the bot just fetches the
  * finished picture and shows it, with a button to the full animated version. If the website can't be reached, the
  * member still gets the link.
+ * <p>
+ * A member's recap is private until that member has opened it ({@link RecapGate}): asking for your own counts as opening it (the card is
+ * then posted for the channel, and the website, which draws it for an anonymous fetch, shows it too), unless you turned recaps off, when
+ * only you get the link. Someone else's recap is posted only once its member has opened it, otherwise the asker is told privately.
  */
 @Command
 public class WrappedCommand {
@@ -63,13 +69,15 @@ public class WrappedCommand {
     private final BotConfig botConfig;
     private final MemberAccess memberAccess;
     private final PlayerLinkRepository links;
+    private final RecapGate recapGate;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
     private final Map<Long, Long> lastUse = new ConcurrentHashMap<>();
 
-    public WrappedCommand(BotConfig botConfig, MemberAccess memberAccess, PlayerLinkRepository links) {
+    public WrappedCommand(BotConfig botConfig, MemberAccess memberAccess, PlayerLinkRepository links, MemberProfileRepository profiles) {
         this.botConfig = botConfig;
         this.memberAccess = memberAccess;
         this.links = links;
+        this.recapGate = new RecapGate(profiles);
     }
 
     @JDASlashCommand(name = "wrapped", description = "Your recap card — XP, Citadel, boss kills and more — for a week, month, year or all time")
@@ -115,6 +123,28 @@ public class WrappedCommand {
 
         String path = clan ? "/recap/clan/" + chosen.token : "/recap/member/" + URLEncoder.encode(rsn, StandardCharsets.UTF_8).replace("+", "%20") + "/" + chosen.token;
         String title = (clan ? "The clan" : rsn) + " — " + chosen.label;
+
+        if (!clan) {
+            // No spoilers: your own recap counts as opened now; someone else's only once they've opened it themselves.
+            RecapGate.Decision decision;
+            try {
+                decision = recapGate.check(guild.getIdLong(), rsn, chosen.token, member.getIdLong());
+            } catch (RuntimeException e) {
+                log.warn("Couldn't check who may see a recap in server {}", guild.getIdLong(), e);
+                Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "recap.couldn_t_check_that_recap"));
+                return;
+            }
+            if (decision.outcome() == RecapGate.Outcome.PRIVATE) {
+                Containers.replyEphemeral(event, Containers.INFO, Text.of(event, "recap.that_recap_is_private_until", rsn));
+                return;
+            }
+            if (decision.outcome() == RecapGate.Outcome.SUBJECT && !decision.sharedWithClan()) {
+                // they turned recaps off: the channel doesn't get it (and the website wouldn't draw it for anyone else)
+                event.replyComponents(List.of(Containers.card(Containers.INFO, TextDisplay.of("### " + title + "\n" + Text.of(event, "recap.only_you_can_see_your_recaps")),
+                        ActionRow.of(Button.link(site + path, "Open your recap"))))).useComponentsV2(true).setEphemeral(true).queue();
+                return;
+            }
+        }
 
         // The picture can take a moment to draw the first time, so acknowledge now and answer when it's ready.
         event.deferReply().queue();

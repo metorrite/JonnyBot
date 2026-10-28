@@ -68,7 +68,9 @@ Writes are rate limited per person and written to the server's audit log, as on 
 - `GET sites/{slug}`: as before, plus `"botless": true` for a bot-less site.
 - `GET sites/{slug}/data/{route}`: the clan's stats come from the database by server id, so `members`, `overview`, `leaderboard`, `recap`,
   `feed`, `records`, `citadel-grid`, `history`, `pvm`, `drops`, `bosses`, `boss`, `item`, `drop-log`, `member`, `member/skill`,
-  `member/recap` answer as usual. The Discord-only ones (`events`, `polls`, `signups`, `coffer`) answer `{"needsBot": true}`;
+  `member/recap` answer as usual, except that a member's recap (`member/recap`) is always `{"private": true}`: a member recap is shown
+  only to its member (by their linked name) and to others once that member has opened it, and without the bot nobody has a link. The
+  Discord-only ones (`events`, `polls`, `signups`, `coffer`) answer `{"needsBot": true}`;
   `notifications` has only the activity lines, empty events, polls and signups, and `needsBot: true`.
 - `GET sites/{slug}/data/discord/...` (any of them) and `GET|POST sites/{slug}/discord/me`: `{"needsBot": true}`.
 - `GET clans/{slug}/events` for a bot-less site's clan: `{"events": [], "needsBot": true, "generatedAt"}`.
