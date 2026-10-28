@@ -3,7 +3,11 @@ package com.younglings.bot.discord.jobs;
 import com.younglings.bot.discord.jobs.DiscordJobs.Fail;
 import com.younglings.bot.discord.jobs.DiscordJobs.Next;
 import com.younglings.bot.discord.jobs.DiscordJobs.Retry;
+import com.younglings.bot.discord.Shards;
+import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.exceptions.RateLimitedException;
+import net.dv8tion.jda.api.sharding.ShardManager;
+import net.dv8tion.jda.api.utils.data.DataObject;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -14,7 +18,10 @@ import java.util.concurrent.CompletionException;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class DiscordJobsTest {
     private static final Instant NOW = Instant.parse("2026-10-24T12:00:00Z");
@@ -54,6 +61,32 @@ class DiscordJobsTest {
     void aRefusalEndsTheJobWithItsReasonAndWrappedErrorsAreSeenThrough() {
         Fail refused = assertInstanceOf(Fail.class, DiscordJobs.after(new CompletionException(new DiscordJobs.Refused("That role no longer exists.")), 1, 0, true, NOW));
         assertEquals("That role no longer exists.", refused.reason());
+    }
+
+    /** T-668: a server on another shard that is in an outage (or whose shard isn't connected yet) waits; it is not "left". */
+    @Test
+    void aServerOnAnotherShardInAnOutageWaitsInsteadOfBeingRefused() {
+        long guildId = Long.parseLong("1".repeat(18));
+        DiscordJob job = new DiscordJob(5L, "member.nickname", guildId, Long.parseLong("2".repeat(18)), null, DataObject.empty(), DiscordJob.State.RUNNING, 1, 0,
+                null, null, null, null, null);
+        ShardManager manager = mock(ShardManager.class);
+        JDA local = mock(JDA.class);
+        JDA holder = mock(JDA.class);
+        when(local.getShardManager()).thenReturn(manager);
+        when(manager.getShardsTotal()).thenReturn(2);
+        int holderId = Shards.shardOf(guildId, 2);
+        when(manager.getShardById(holderId)).thenReturn(holder);
+        when(manager.getShardById(1 - holderId)).thenReturn(local);
+        when(local.isUnavailable(guildId)).thenReturn(false); // the local shard knows nothing of it
+        when(holder.isUnavailable(guildId)).thenReturn(true);
+        assertThrows(DiscordJobs.RetryLater.class, () -> DiscordJobs.guild(local, job));
+
+        when(manager.getShardById(holderId)).thenReturn(null); // that shard isn't running yet
+        assertThrows(DiscordJobs.RetryLater.class, () -> DiscordJobs.guild(local, job));
+
+        when(manager.getShardById(holderId)).thenReturn(holder);
+        when(holder.isUnavailable(guildId)).thenReturn(false);
+        assertThrows(DiscordJobs.Refused.class, () -> DiscordJobs.guild(local, job), "a server no shard holds is really gone");
     }
 
     @Test

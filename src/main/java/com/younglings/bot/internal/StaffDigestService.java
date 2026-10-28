@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.alerts.AutoPostRouter;
 import com.younglings.bot.discord.Containers;
 import com.younglings.bot.staffdigest.StaffDigestRepository;
@@ -120,7 +121,7 @@ public class StaffDigestService {
                 if (!s.enabled() || s.channelId() == null || !StaffDigestRules.due(now, s.weekday(), s.hour(), s.lastPostedOn())) continue;
                 // marked first: a failed send is not retried every 15 minutes all day
                 repository.markPosted(guildId, now.toLocalDate());
-                Guild guild = jda.getGuildById(guildId);
+                Guild guild = Shards.guild(jda, guildId);
                 if (guild == null) continue;
                 GuildMessageChannel target = AutoPostRouter.route(guild.getChannelById(GuildMessageChannel.class, s.channelId()), "Staff digest for " + guild.getName());
                 if (target == null || !target.canTalk()) continue;

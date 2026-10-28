@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.alliance.AllianceRepository;
 import com.younglings.bot.alliance.AllianceRepository.Alliance;
 import com.younglings.bot.alliance.AllianceRepository.Membership;
@@ -114,7 +115,7 @@ public class AllianceAdminApi implements AdminRouteExtension {
 
     private DataObject memberJson(Guild viewer, Alliance a, Membership m) {
         ClanProfile profile = profiles.get(m.guildId()).orElse(null);
-        Guild member = viewer.getJDA().getGuildById(m.guildId());
+        Guild member = Shards.guild(viewer.getJDA(), m.guildId());
         String name = profile != null && profile.displayName() != null && !profile.displayName().isBlank() ? profile.displayName() : member != null ? member.getName() : "A clan";
         return DataObject.empty().put("guildId", Long.toString(m.guildId())).put("name", name).put("slug", profile == null ? null : profile.slug())
                 .put("status", m.status().name()).put("founder", m.guildId() == a.createdByGuild()).put("you", m.guildId() == viewer.getIdLong());
@@ -180,7 +181,7 @@ public class AllianceAdminApi implements AdminRouteExtension {
         List<Row> rows = new ArrayList<>();
         for (Membership m : alliances.membersOf(id)) {
             if (m.status() != Status.ACTIVE) continue;
-            Guild member = guild.getJDA().getGuildById(m.guildId());
+            Guild member = Shards.guild(guild.getJDA(), m.guildId());
             if (member == null) continue;
             Map<Long, String> scopes = profiles.eventScopes(m.guildId());
             ClanProfile profile = profiles.get(m.guildId()).orElse(null);

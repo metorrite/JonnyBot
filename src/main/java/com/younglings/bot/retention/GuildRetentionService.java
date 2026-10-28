@@ -1,5 +1,6 @@
 package com.younglings.bot.retention;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.rolepanel.RolePanelRepository;
 import com.younglings.bot.starboard.StarboardRepository;
@@ -71,7 +72,7 @@ public class GuildRetentionService {
             Long home = botConfig.getGuildId();
             List<Long> due = repository.departedBefore(Instant.now().minus(Duration.ofDays(days)));
             for (long guildId : due) {
-                if (jda.getGuildById(guildId) != null) { // it came back without us noticing: not gone
+                if (Shards.guild(jda, guildId) != null) { // it came back without us noticing: not gone
                     repository.cancelDeparture(guildId);
                     continue;
                 }

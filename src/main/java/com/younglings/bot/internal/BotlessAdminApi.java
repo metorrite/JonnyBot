@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.discord.Shards;
 import com.sun.net.httpserver.HttpExchange;
 import com.younglings.bot.access.AccessArea;
 import com.younglings.bot.access.AccessGrantService;
@@ -192,7 +193,7 @@ public class BotlessAdminApi {
         long userId = raw != null && raw.strip().matches("[0-9]{15,20}") ? Long.parseLong(raw.strip()) : 0;
         DataArray guilds = DataArray.empty();
         if (userId != 0) {
-            for (net.dv8tion.jda.api.entities.Guild guild : editableGuilds(jda.getGuilds(), userId)) {
+            for (net.dv8tion.jda.api.entities.Guild guild : editableGuilds(Shards.guilds(jda), userId)) {
                 guilds.add(DataObject.empty().put("id", guild.getId()).put("name", guild.getName()).put("iconUrl", guild.getIconUrl()));
             }
         }

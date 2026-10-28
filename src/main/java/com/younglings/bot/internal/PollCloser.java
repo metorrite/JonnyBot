@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.alerts.AutoPostRouter;
 import com.younglings.bot.commands.poll.PollService;
 import com.younglings.bot.util.BotScheduler;
@@ -50,7 +51,7 @@ public class PollCloser {
         if (AutoPostRouter.diverting()) return; // closing a poll edits and announces in the real channel
         for (long pollId : settings.due(OffsetDateTime.now())) {
             var poll = polls.getSessionById(pollId);
-            Guild guild = poll == null ? null : jda.getGuildById(poll.guildId());
+            Guild guild = poll == null ? null : Shards.guild(jda, poll.guildId());
             if (guild == null) {
                 // the poll is gone, or the bot has left its server: either way there is nothing left to close
                 settings.clearSchedule(pollId);

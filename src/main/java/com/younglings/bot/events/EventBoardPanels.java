@@ -1,5 +1,6 @@
 package com.younglings.bot.events;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.alerts.AutoPostRouter;
 import com.younglings.bot.events.EventRepository.Event;
 import com.younglings.bot.events.EventRepository.Panel;
@@ -21,6 +22,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -45,6 +47,12 @@ public class EventBoardPanels {
     private final BingoTiles tiles;
     private final ScheduledExecutorService executor = BotScheduler.lane("event-board-panels");
     private final Map<Long, ScheduledFuture<?>> pending = new ConcurrentHashMap<>();
+    /** Boards held back by their event's update rules (T-650): since when, per event. Lost on a restart; the next approval holds it again. */
+    private final Map<Long, Held> held = new ConcurrentHashMap<>();
+    /** When each board was last redrawn after a change, for "at most once every N minutes". */
+    private final Map<Long, Instant> lastDrawn = new ConcurrentHashMap<>();
+
+    private record Held(long guildId, Instant since) {}
     private volatile JDA jda;
 
     public EventBoardPanels(EventRepository repository, EventService service, EventSpaceRepository space, EventChanges changes, BingoTiles tiles) {
@@ -58,6 +66,7 @@ public class EventBoardPanels {
     @BEventListener
     public void onJdaReady(InjectedJDAEvent event) {
         this.jda = event.getJda();
+        executor.scheduleWithFixedDelay(() -> flushHeld(Instant.now()), 60, 60, TimeUnit.SECONDS);
         log.info("Event boards are ready: they will be posted to Discord when a bingo starts.");
     }
 
@@ -65,22 +74,78 @@ public class EventBoardPanels {
         if (change.kind() == EventChanges.Kind.CLAIM_DECIDED) {
             executor.execute(() -> tellPlayer(change));
         }
-        schedule(change.guildId(), change.eventId());
+        // only progress (approvals, tracked progress) may be held back by the event's update rules (T-650); a start, a finish or a settings change
+        // always redraws the board straight away
+        boolean holdable = change.kind() == EventChanges.Kind.PROGRESS || change.kind() == EventChanges.Kind.CLAIM_DECIDED;
+        schedule(change.guildId(), change.eventId(), holdable);
     }
 
-    private void schedule(long guildId, long eventId) {
+    private void schedule(long guildId, long eventId, boolean holdable) {
         if (jda == null) return;
         ScheduledFuture<?> old = pending.put(eventId, executor.schedule(() -> {
             pending.remove(eventId);
-            if (AutoPostRouter.diverting()) return; // board posts are tracked and edited later: a bot that is not live makes none
-            try {
-                // always logged, so a board that didn't appear can be explained from the logs (the reason is also what the dashboard's button shows)
-                log.info("Board of event {}: {}", eventId, refresh(guildId, eventId));
-            } catch (RuntimeException e) {
-                log.warn("Could not refresh the board of event {}", eventId, e);
-            }
+            afterPause(guildId, eventId, holdable, Instant.now());
         }, DELAY_SECONDS, TimeUnit.SECONDS));
         if (old != null) old.cancel(false);
+    }
+
+    /**
+     * What happens once the short pause after a change is over: the board is redrawn now, or (progress on an event whose update rules batch the board or
+     * wait for the daily reset, T-650) it is held back until {@link #flushHeld} finds it due. An event that never saved update rules is always redrawn
+     * now, as before.
+     */
+    void afterPause(long guildId, long eventId, boolean holdable, Instant now) {
+        if (AutoPostRouter.diverting()) return; // board posts are tracked and edited later: a bot that is not live makes none
+        if (holdable) {
+            BoardUpdates.Settings rules = rulesOf(guildId, eventId);
+            if (rules.mode() != BoardUpdates.Mode.LIVE) {
+                Held before = held.putIfAbsent(eventId, new Held(guildId, now));
+                if (before == null) log.info("Board of event {}: held back until {} ({} updates)", eventId, BoardUpdates.dueAt(rules, now, lastDrawn.get(eventId)), rules.mode());
+                return;
+            }
+        }
+        redraw(guildId, eventId, now);
+    }
+
+    private void redraw(long guildId, long eventId, Instant now) {
+        held.remove(eventId);
+        lastDrawn.put(eventId, now);
+        try {
+            // always logged, so a board that didn't appear can be explained from the logs (the reason is also what the dashboard's button shows)
+            log.info("Board of event {}: {}", eventId, refresh(guildId, eventId));
+        } catch (RuntimeException e) {
+            log.warn("Could not refresh the board of event {}", eventId, e);
+        }
+    }
+
+    /** Redraws every held-back board whose time has come (T-650). Runs every minute; on the lane only (or in a test). */
+    void flushHeld(Instant now) {
+        if (AutoPostRouter.diverting()) return;
+        for (Map.Entry<Long, Held> entry : List.copyOf(held.entrySet())) {
+            long eventId = entry.getKey();
+            Held h = entry.getValue();
+            try {
+                BoardUpdates.Settings rules = rulesOf(h.guildId(), eventId);
+                if (BoardUpdates.due(rules, h.since(), lastDrawn.get(eventId), now)) redraw(h.guildId(), eventId, now);
+            } catch (RuntimeException e) {
+                log.warn("Could not check the held-back board of event {}", eventId, e);
+            }
+        }
+    }
+
+    /** When a board held back by its update rules will next be redrawn; null when nothing is waiting (or the board updates after every approval). */
+    public Instant nextUpdate(long eventId, BoardUpdates.Settings rules) {
+        Held h = held.get(eventId);
+        if (h == null || rules.mode() == BoardUpdates.Mode.LIVE) return null;
+        return BoardUpdates.dueAt(rules, h.since(), lastDrawn.get(eventId));
+    }
+
+    private BoardUpdates.Settings rulesOf(long guildId, long eventId) {
+        try {
+            return repository.event(guildId, eventId).map(e -> BoardUpdates.of(DataObject.fromJson(e.config()))).orElse(BoardUpdates.DEFAULTS);
+        } catch (RuntimeException e) {
+            return BoardUpdates.DEFAULTS;
+        }
     }
 
     private static boolean shown(Status status) {
@@ -94,7 +159,7 @@ public class EventBoardPanels {
     public String refresh(long guildId, long eventId) {
         JDA client = jda;
         if (client == null) return "The bot isn't connected to Discord yet.";
-        Guild guild = client.getGuildById(guildId);
+        Guild guild = Shards.guild(client, guildId);
         Event event = repository.event(guildId, eventId).orElse(null);
         if (guild == null || event == null) return "That event or server wasn't found.";
         if (!ClanVsClan.plays(event, BingoTemplate.KEY)) return "Only bingo events have a board.";
@@ -217,7 +282,7 @@ public class EventBoardPanels {
     private String refreshShared(long guildId, long eventId) {
         JDA client = jda;
         if (client == null) return "The bot isn't connected to Discord yet.";
-        Guild guild = client.getGuildById(guildId);
+        Guild guild = Shards.guild(client, guildId);
         Event event = repository.event(guildId, eventId).orElse(null);
         if (guild == null || event == null) return "That event or server wasn't found.";
         EventSettings settings = settingsOf(event);
@@ -355,7 +420,7 @@ public class EventBoardPanels {
     }
 
     /** A subject of the standings ("u:id" for a player, "t:id" for a team) as a name: the member's server name, or the team's name. */
-    private static String nameOf(Guild guild, String subject, List<EventRepository.Team> teams) {
+    static String nameOf(Guild guild, String subject, List<EventRepository.Team> teams) {
         long id = Long.parseLong(subject.substring(2));
         if (subject.startsWith("t:")) return teams.stream().filter(t -> t.id() == id).map(EventRepository.Team::name).findFirst().orElse("A team");
         Member member = guild.getMemberById(id);
@@ -388,7 +453,7 @@ public class EventBoardPanels {
         JDA client = jda;
         if (client == null || panel == null) return;
         try {
-            GuildMessageChannel channel = client.getChannelById(GuildMessageChannel.class, panel.channelId());
+            GuildMessageChannel channel = Shards.channel(client, GuildMessageChannel.class, panel.channelId());
             if (channel != null) channel.deleteMessageById(panel.messageId()).queue(ok -> { }, error -> log.debug("Could not remove an event's board message: {}", error.getMessage()));
         } catch (RuntimeException e) {
             log.debug("Could not remove an event's board message", e);
