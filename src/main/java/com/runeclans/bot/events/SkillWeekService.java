@@ -1,6 +1,8 @@
 package com.runeclans.bot.events;
 
+import com.runeclans.bot.alerts.AutoPostRouter;
 import com.runeclans.bot.discord.Shards;
+import com.runeclans.bot.discord.jobs.DiscordOutbox;
 import com.runeclans.bot.events.EventRepository.Event;
 import com.runeclans.bot.events.EventRules.Scope;
 import com.runeclans.bot.events.EventRules.ScoringMode;
@@ -41,6 +43,11 @@ import java.util.function.LongPredicate;
  * ({@link PluginXpTracker}, {@code xpSource = plugin}, {@code wholeSpan}), so the standings are the ledger's gains for that skill and span. Members
  * join it like any competition. Shortly after the week ends it is brought up to date one last time, its top {@value SkillWeekRules#WINNERS} kept
  * as the week's winners, and finished. Runs only while the bot talks to the hub ({@code RUNECLANS_HUB_ENABLED}).
+ * <p>
+ * Options (T-711), each off by default: members vote for next week's skill among the rota's ({@link SkillWeekRepository.Mode#VOTE}, on the clan
+ * website's widget); the week's skill and its winners are posted in a chosen channel through the Discord job outbox (never while this bot isn't
+ * live, {@link AutoPostRouter}); and members who share RuneSync XP with the bot are put in the week's competition once each, when the hub says
+ * they gained XP that week ({@link #autoEnrol}).
  */
 @BService
 public class SkillWeekService {
@@ -58,12 +65,14 @@ public class SkillWeekService {
     private final PlayerLinkService links;
     private final MemberProfileRepository profiles;
     private final PluginVisibilityRepository plugins;
+    private final DiscordOutbox outbox;
     private final ScheduledExecutorService executor = BotScheduler.lane("skill-of-the-week");
     private Clock clock = Clock.systemUTC();
     private volatile JDA jda;
 
     public SkillWeekService(SkillWeekRepository weeks, EventService service, EventRepository repository, PluginXpTracker tracker, RuneClansHubClient hub, PlayerLinkService links,
-                            MemberProfileRepository profiles, PluginVisibilityRepository plugins) {
+                            MemberProfileRepository profiles, PluginVisibilityRepository plugins, DiscordOutbox outbox) {
+        this.outbox = outbox;
         this.weeks = weeks;
         this.service = service;
         this.repository = repository;
@@ -117,6 +126,11 @@ public class SkillWeekService {
                 } catch (RuntimeException e) {
                     log.warn("Could not open skill of the week in {}", guildId, e);
                 }
+                try {
+                    autoEnrol(guildId, now);
+                } catch (RuntimeException e) {
+                    log.warn("Could not auto-enrol members in skill of the week in {}", guildId, e);
+                }
             }
         } catch (RuntimeException e) {
             log.warn("The skill of the week pass failed", e);
@@ -159,6 +173,7 @@ public class SkillWeekService {
         }
         start(guildId, eventId);
         log.info("Opened skill of the week in {}: {} (event {})", guildId, CompetitionTemplate.skillName(skill), eventId);
+        announce(guildId, settings.options(), eventId, "open:" + start, openText(skill, start, settings.options().mode()));
         return OptionalLong.of(eventId);
     }
 
@@ -221,8 +236,139 @@ public class SkillWeekService {
         for (Winner x : winners) json.add(DataObject.empty().put("rank", x.rank()).put("userId", String.valueOf(x.userId())).put("xp", x.xp()));
         // the competition is finished before the week is closed: if finishing fails (the database), the week stays open and a later pass tries again
         if (event.isPresent() && !finish(event.get())) return Optional.empty();
-        weeks.close(w.guildId(), w.start(), json.toString());
+        if (weeks.close(w.guildId(), w.start(), json.toString()) && counts) {
+            Settings settings = weeks.settings(w.guildId());
+            Names names = new Names(false, profiles.hiddenDiscordUsers(w.guildId()), profiles.hiddenRsns(w.guildId(), true));
+            List<DataObject> rows = winners.stream().map(x -> row(w.guildId(), names, x.rank(), x.userId(), x.xp())).toList();
+            announce(w.guildId(), settings.options(), event.get().id(), "winners:" + w.start(), winnersText(w.skillId(), w.start(), rows));
+        }
         return Optional.of(winners);
+    }
+
+    // ---------- announcements (T-711) ----------
+
+    /**
+     * Posts {@code text} in the server's announcement channel through the Discord outbox (a website-triggered or timed post is never sent from a
+     * web request, and never retried after an unclear failure). Nothing when no channel is chosen or this bot isn't live.
+     */
+    private void announce(long guildId, SkillWeekRepository.Options options, long eventId, String key, String text) {
+        if (options.announceChannelId() == null) return;
+        if (AutoPostRouter.diverting()) {
+            log.info("Skill of the week in {}: the {} post skipped, this bot is not live", guildId, key);
+            return;
+        }
+        try {
+            outbox.enqueue(EventUpdatePostJob.KIND, guildId, 0L, "skill-week:" + guildId + ":" + key,
+                    EventUpdatePostJob.payload(eventId, options.announceChannelId(), "skill-week-" + key, text));
+        } catch (RuntimeException e) {
+            log.warn("Skill of the week in {}: the {} post couldn't be queued: {}", guildId, key, e.getMessage());
+        }
+    }
+
+    /** "This week's skill is Fletching ..." for the week's opening post: no mentions, names only. */
+    static String openText(int skillId, Instant start, SkillWeekRepository.Mode mode) {
+        String skill = CompetitionTemplate.skillName(skillId);
+        return "**Skill of the week: " + skill + "**" + (mode == SkillWeekRepository.Mode.VOTE ? " (your vote)" : "") + "\n"
+                + "Monday " + day(start) + " to Sunday " + day(SkillWeekRules.weekEnd(start)) + " (UTC). Join the competition to take part: all your " + skill
+                + " XP this week counts, counted from RuneSync.";
+    }
+
+    /** The closed week's winners, as the clan website names them ("A member" for those who don't show their RuneSync activity). */
+    static String winnersText(int skillId, Instant start, List<DataObject> rows) {
+        StringBuilder text = new StringBuilder("**Skill of the week winners: " + CompetitionTemplate.skillName(skillId) + "** (" + day(start) + " to "
+                + day(SkillWeekRules.weekEnd(start)) + ")");
+        if (rows.isEmpty()) return text.append("\nNobody gained any ").append(CompetitionTemplate.skillName(skillId)).append(" XP that week.").toString();
+        for (DataObject r : rows) {
+            text.append("\n").append(r.getInt("rank")).append(". ").append(r.getString("name"));
+            if (!r.isNull("xp")) text.append(String.format(java.util.Locale.ROOT, " (%,d XP)", r.getLong("xp")));
+        }
+        return text.toString();
+    }
+
+    private static String day(Instant at) {
+        return java.time.format.DateTimeFormatter.ofPattern("d MMM", java.util.Locale.ENGLISH).withZone(java.time.ZoneOffset.UTC).format(at);
+    }
+
+    // ---------- auto-enrol (T-711) ----------
+
+    /**
+     * With auto-enrol on, puts each member who gained RuneSync XP this week (today's and yesterday's gainers by the hub, whose grant shares their
+     * Discord id) in this week's running competition, once each: one who leaves isn't put back. Only members the bot sees in the server. How many
+     * were added. The whole week's XP counts whenever a member joins, so nothing is lost by joining later.
+     */
+    public int autoEnrol(long guildId, Instant now) {
+        Settings settings = weeks.settings(guildId);
+        if (!settings.enabled() || !settings.options().autoEnrol()) return 0;
+        Instant start = SkillWeekRules.weekStart(now);
+        Optional<Week> week = weeks.week(guildId, start);
+        if (week.isEmpty() || week.get().eventId() == null || week.get().closedAt() != null) return 0;
+        long eventId = week.get().eventId();
+        Optional<Event> event = repository.event(guildId, eventId);
+        if (event.isEmpty() || event.get().status() != Status.RUNNING) return 0;
+        JDA current = jda;
+        net.dv8tion.jda.api.entities.Guild guild = current == null ? null : Shards.guild(current, guildId);
+        Set<Long> already = weeks.enrolled(guildId, start);
+        Set<Long> playing = new java.util.HashSet<>();
+        for (EventRepository.Participant p : repository.participants(eventId)) playing.add(p.userId());
+        java.time.LocalDate today = now.atZone(java.time.ZoneOffset.UTC).toLocalDate();
+        java.time.LocalDate first = start.atZone(java.time.ZoneOffset.UTC).toLocalDate();
+        int added = 0;
+        for (java.time.LocalDate day : today.isAfter(first) ? List.of(today.minusDays(1), today) : List.of(today)) {
+            RuneClansHubClient.Answer answer = hub.xpGainers(guildId, day);
+            if (answer == null || !answer.ok() || answer.json() == null) return added; // the hub is down or its ledger is off: next pass
+            DataArray rows = answer.json().optArray("players").orElse(DataArray.empty());
+            for (int i = 0; i < rows.length(); i++) {
+                long user;
+                try {
+                    user = Long.parseLong(rows.getObject(i).getString("discordId", ""));
+                } catch (NumberFormatException e) {
+                    continue; // their grant doesn't share who they are on Discord
+                }
+                if (playing.contains(user) || already.contains(user)) continue;
+                if (guild != null && guild.getMemberById(user) == null) continue; // not a member the bot sees here
+                if (guild == null && current != null) return added; // the bot isn't in the server (any more)
+                if (!weeks.markEnrolled(guildId, start, user)) continue;
+                already.add(user);
+                try {
+                    service.join(guildId, eventId, guildId, user, null, true, null);
+                    playing.add(user);
+                    added++;
+                } catch (EventProblem e) {
+                    log.debug("Skill of the week in {}: {} not auto-enrolled: {}", guildId, user, e.getMessage());
+                }
+            }
+        }
+        if (added > 0) log.info("Skill of the week in {}: {} member(s) auto-enrolled", guildId, added);
+        return added;
+    }
+
+    // ---------- the vote (T-711) ----------
+
+    /** The vote's state for the clan website: the week voted for, the rota's skills in order with their votes, and {@code mine} when given. */
+    public DataObject voteView(long guildId, Long userId) {
+        Settings settings = weeks.settings(guildId);
+        if (!settings.enabled() || settings.options().mode() != SkillWeekRepository.Mode.VOTE || settings.rota().isEmpty()) return DataObject.empty().put("open", false);
+        Instant week = SkillWeekRules.votingFor(clock.instant());
+        Map<Integer, Integer> votes = weeks.votes(guildId, week);
+        DataArray options = DataArray.empty();
+        for (int skill : settings.rota()) {
+            options.add(DataObject.empty().put("skillId", skill).put("skill", CompetitionTemplate.skillName(skill)).put("votes", votes.getOrDefault(skill, 0)));
+        }
+        DataObject out = DataObject.empty().put("open", true).put("week", week.toString()).put("end", SkillWeekRules.weekEnd(week).toString()).put("options", options);
+        if (userId != null) {
+            OptionalInt mine = weeks.vote(guildId, week, userId);
+            out.put("mine", mine.isPresent() ? mine.getAsInt() : null);
+        }
+        return out;
+    }
+
+    /** A member's vote for next week's skill; refused (409) unless the server votes, and (400) for a skill not on its ballot. */
+    public DataObject castVote(long guildId, long userId, int skillId) {
+        Settings settings = weeks.settings(guildId);
+        if (!settings.enabled() || settings.options().mode() != SkillWeekRepository.Mode.VOTE) throw new EventProblem(409, "This clan doesn't vote for its skill of the week.");
+        if (!settings.rota().contains(skillId)) throw new EventProblem(400, "Choose one of the skills on the list.");
+        weeks.vote(guildId, SkillWeekRules.votingFor(clock.instant()), userId, skillId);
+        return voteView(guildId, userId);
     }
 
     /** False when it couldn't be finished for now (not a refused step, which never changes on its own). */
@@ -272,8 +418,12 @@ public class SkillWeekService {
     private DataObject view(long guildId, int shown, Names names) {
         Instant now = clock.instant();
         Settings settings = weeks.settings(guildId);
+        SkillWeekRepository.Options options = settings.options();
         DataObject out = DataObject.empty().put("enabled", settings.enabled()).put("available", available()).put("rota", DataArray.fromCollection(settings.rota()))
-                .put("next", settings.rota().isEmpty() ? null : SkillWeekRules.skillAt(settings.rota(), settings.position()));
+                .put("next", settings.rota().isEmpty() ? null : SkillWeekRules.skillAt(settings.rota(), settings.position()))
+                .put("mode", options.mode().name().toLowerCase(java.util.Locale.ROOT)).put("vote", voteView(guildId, null));
+        // the announcement channel and auto-enrol are the dashboard's (staff) business, not the clan website's
+        if (names.staff()) out.put("announceChannelId", options.announceChannelId() == null ? null : String.valueOf(options.announceChannelId())).put("autoEnrol", options.autoEnrol());
         Instant start = SkillWeekRules.weekStart(now);
         DataObject current = null;
         DataObject last = null;
