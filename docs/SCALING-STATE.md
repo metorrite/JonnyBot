@@ -52,14 +52,14 @@ Each must-fix item maps to one follow-up. A follow-up is not done until its row 
 
 | Follow-up | Covers | Work | Status |
 |---|---|---|---|
-| F1 | M1, M2, M8 | Pin RuneMetrics polling and the Hiscores verify lane to one role (`api`); other roles forward `submit`. Later moves to the hub `poll_queue`. | open |
+| F1 | M1, M2, M8 | Pin RuneMetrics polling and the Hiscores verify lane to one role (`api`); other roles forward `submit`. Later moves to the hub `poll_queue`. | done (T-702), changed: polling, its budget and the event trackers are owned by the **gateway** role (their targets are the servers the bot is in, which only the gateway can see), so with one gateway process there is one budget; the Hiscores verify lane is api-owned. RuneMetrics shuts down 2026-11-10, so no forwarding was built |
 | F2 | M3, M4 | Outbox `claimed_by` / `claimed_at`; `recover()` touches only expired or own claims; claims filtered to this process's shards. | done (T-696): each process claims under its own `ProcessId`, refreshes its claims every 20 s on the `discord-job-claims` lane, and any process recovers claims not refreshed for 2 min (never its own); claims are filtered to the shards the process runs |
 | F3 | M5 | Load-through lookups for polls and signups; the boot maps become caches. | done (#473) |
 | F4 | M6 | Job table and per-event `pg_advisory_xact_lock` for event space, wrap-up export and role backfill jobs. | done (T-698): `jobs/JobRepository` keeps each slot's latest job in `younglings.dashboard_job` (an event's roles/channels and wrap-up steps, a server's role fix); a new job claims its slot under `pg_advisory_xact_lock`, a running job beats every 30 s and one silent for 2 minutes reads as failed and frees the slot. Finished exports live in `younglings.event_export_file` for an hour. The in-process `ReentrantLock` stays only to keep a job and that process's own role sync apart |
 | F5 | M7 | RuneLink code, start and DM limits in a Postgres sliding-window table (or the hub). | done (T-699) |
 | F6 | M9 | `ShardRouting.owns(guildId)` helper; fix the "null guild = gone" branches; retention uses the departure row only. | done (T-700): `ShardRouting.owns` / `ShardRouting.gone` (gone = this process runs the shard, it is connected, no outage, server missing). Poll end times, delayed autoroles, Twitch and Kick alerts and retention only drop work when `gone`; retention purges a departed server only from the process that runs its shard |
 | F7 | M10 | One `LISTEN/NOTIFY` channel (`bot_cache`) that the settings caches in section 4.3 subscribe to. | done (T-701); switch on with `BOT_CACHE_NOTIFY=true` in every process once there is more than one |
-| F8 | M11 | Each scheduler lane declares its `BOT_ROLE` (section 5); gateway lanes filter rows to their own shards. | open |
+| F8 | M11 | Each scheduler lane declares its `BOT_ROLE` (section 5); gateway lanes filter rows to their own shards. | done for B2 (T-702): `util/LaneOwners` names every lane's owner (a test fails on a lane missing from it); `BotScheduler` runs a repeating task only where its lane is owned; api-owned lanes run on the one api replica holding the leader lock (`database/ApiLeaderElection`). Staff digest and anniversaries skip servers on other shards. Filtering every gateway lane's rows to its own shards is left for B3 (several gateway processes, not built yet) |
 
 ## 4. Full inventory
 
@@ -168,7 +168,7 @@ Paths are under `src/main/java/com/runeclans/bot/cachebus/`.
 
 | State | Where | Decision |
 |---|---|---|
-| Application emoji mentions and upload guard | `runescape/SkillEmojiCatalog`, `tracking/TrackingIconCatalog`, `runescape/GuildIconEmojiCatalog` (`uploadInFlight`) | Per process is fine for the cache. Emojis belong to the application, so two processes starting together can both upload the same missing emoji. One owner for uploads (gateway process holding shard 0); others only read the list. Low risk: only on a first boot after adding an icon. |
+| Application emoji mentions and upload guard | `runescape/SkillEmojiCatalog`, `tracking/TrackingIconCatalog`, `runescape/GuildIconEmojiCatalog` (`uploadInFlight`) | Per process is fine for the cache. Emojis belong to the application, so two processes starting together can both upload the same missing emoji. One owner for uploads (gateway process holding shard 0); others only read the list. Low risk: only on a first boot after adding an icon. Done (T-702): only the gateway's shard 0 creates or replaces emojis (`discord/EmojiUploads`); the api role reads the list once at start. |
 | Privileged intent flags | `config/PrivilegedIntents` (static) | Per process is fine (same application, same answer) |
 | Dev-bot posting switch | `tracking/TrackingPostingToggle`, `alerts/AutoPostRouter` (static `instance`) | Per process is fine on the dev bot (it is one process by design); production starts ON from `LIVE_ENV` everywhere |
 | Premium and billing switches | `premium/PremiumSwitch` (static `forced`), `premium/Billing` (static `instance`) | Per process is fine (`forced` is a test hook; the switch comes from the environment, the same in every process) |
@@ -185,7 +185,7 @@ Per process is fine: `runescape/SkillEmojiCatalog.ICON_BYTES`, `tracking/Trackin
 
 ## 5. Scheduler lanes
 
-Every `BotScheduler.lane(...)` and which process should own it once roles exist. "gateway (own shards)" means the lane needs Discord and must
+Every `BotScheduler.lane(...)` and which process should own it once roles exist. Since T-702 the code's table is `util/LaneOwners` (the source of truth; it differs from the first plan below where a lane turned out to read the server list: polling, clan sync, clan points, the hub feed, skill of the week, plugin XP points, seasons, draws, board updates and retention are gateway-owned). "gateway (own shards)" means the lane needs Discord and must
 filter its rows to the servers on this process's shards; "api" means exactly one owner (the `api` role, guarded by an advisory lock while it
 has more than one replica).
 

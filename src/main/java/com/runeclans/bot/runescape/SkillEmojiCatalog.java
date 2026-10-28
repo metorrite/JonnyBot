@@ -5,6 +5,10 @@ import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.Icon;
 import net.dv8tion.jda.api.entities.emoji.ApplicationEmoji;
 import net.dv8tion.jda.api.events.session.ReadyEvent;
+import com.runeclans.bot.config.BotRole;
+import com.runeclans.bot.discord.EmojiUploads;
+import io.github.freya022.botcommands.api.core.annotations.BEventListener;
+import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,27 +67,37 @@ public class SkillEmojiCatalog extends ListenerAdapter {
 
     @Override
     public void onReady(ReadyEvent event) {
-        JDA jda = event.getJDA();
+        sync(event.getJDA());
+    }
+
+    /** The api role has no gateway, so no ReadyEvent: it reads the emoji list once its REST-only connection is up (T-702). */
+    @BEventListener
+    public void onJdaReady(InjectedJDAEvent event) {
+        if (!BotRole.current().gateway()) sync(event.getJda());
+    }
+
+    private void sync(JDA jda) {
+        boolean upload = EmojiUploads.mayUpload(jda);
         jda.retrieveApplicationEmojis().queue(existing -> {
             Map<String, ApplicationEmoji> byName = existing.stream()
                     .collect(Collectors.toMap(ApplicationEmoji::getName, e -> e, (a, b) -> a));
 
             for (int skillId = 0; skillId < RuneScapeSkillCatalog.skillCount(); skillId++) {
                 int id = skillId;
-                syncEmoji(jda, byName, emojiName(RuneScapeSkillCatalog.nameFor(skillId)), ICON_BYTES.get(skillId),
+                syncEmoji(jda, upload, byName, emojiName(RuneScapeSkillCatalog.nameFor(skillId)), ICON_BYTES.get(skillId),
                         mention -> mentionsBySkillId.put(id, mention));
             }
-            syncEmoji(jda, byName, emojiName("overall"), OVERALL_BYTES, mention -> overallMention = mention);
+            syncEmoji(jda, upload, byName, emojiName("overall"), OVERALL_BYTES, mention -> overallMention = mention);
         }, error -> log.warn("Failed to retrieve application emojis for RS3 skill icons", error));
     }
 
-    private void syncEmoji(JDA jda, Map<String, ApplicationEmoji> existing, String name, byte[] bytes, Consumer<String> onMention) {
+    private void syncEmoji(JDA jda, boolean upload, Map<String, ApplicationEmoji> existing, String name, byte[] bytes, Consumer<String> onMention) {
         ApplicationEmoji found = existing.get(name);
         if (found != null) {
             onMention.accept(found.getAsMention());
             return;
         }
-        if (bytes == null) return;
+        if (bytes == null || !upload) return; // only the gateway's shard 0 uploads (EmojiUploads)
 
         jda.createApplicationEmoji(name, Icon.from(bytes)).queue(
                 created -> onMention.accept(created.getAsMention()),
