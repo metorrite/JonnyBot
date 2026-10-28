@@ -3,7 +3,7 @@
   Starts the whole local setup in one go: exactly one JonnyBot Dev bot and the website on a branch that has every open website PR merged in.
 
 .DESCRIPTION
-  1. Stops every running bot (anything running com.younglings.bot.Main or JonnyBot.jar) and whatever is listening on the website's port, so there is never a second copy.
+  1. Stops every running bot (anything running com.runeclans.bot.Main, the old com.younglings.bot.Main, or JonnyBot.jar) and whatever is listening on the website's port, so there is never a second copy.
   2. Refreshes the website's local preview branch (local/wip-preview, never pushed): resets it to origin/dev and merges each open PR into it.
      A PR that conflicts is skipped and reported, the rest still go in.
   3. Builds the bot from whatever branch is checked out in this repository and starts it, with the environment of the IntelliJ "JonnyBot Dev" run
@@ -32,7 +32,7 @@ function Step($text) { Write-Host "`n== $text" -ForegroundColor Cyan }
 
 # 1. Stop old copies ---------------------------------------------------------------------------------------------------------------------------
 Step 'Stopping old bot and website processes'
-$bots = Get-CimInstance Win32_Process -Filter "Name='java.exe'" | Where-Object { $_.CommandLine -match 'JonnyBot\.jar|com\.younglings\.bot\.Main' }
+$bots = Get-CimInstance Win32_Process -Filter "Name='java.exe'" | Where-Object { $_.CommandLine -match 'JonnyBot\.jar|com\.(runeclans|younglings)\.bot\.Main' }
 foreach ($p in $bots) { Write-Host "  stopping bot process $($p.ProcessId)"; Stop-Process -Id $p.ProcessId -Force }
 foreach ($port in @($SitePort, 8081)) {
   Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue | ForEach-Object {
@@ -94,7 +94,7 @@ while ((Get-Date) -lt $deadline -and -not ($botUp -and $siteUp)) {
   if (-not $botUp)  { $botUp  = [bool](Get-NetTCPConnection -LocalPort 8081 -State Listen -ErrorAction SilentlyContinue) }
   if (-not $siteUp) { try { $siteUp = (Invoke-WebRequest "http://localhost:$SitePort/hub" -UseBasicParsing -TimeoutSec 5).StatusCode -lt 500 } catch { $siteUp = $false } }
 }
-$count = @(Get-CimInstance Win32_Process -Filter "Name='java.exe'" | Where-Object { $_.CommandLine -match 'JonnyBot\.jar|com\.younglings\.bot\.Main' }).Count
+$count = @(Get-CimInstance Win32_Process -Filter "Name='java.exe'" | Where-Object { $_.CommandLine -match 'JonnyBot\.jar|com\.(runeclans|younglings)\.bot\.Main' }).Count
 Write-Host ("  bot  (port 8081): " + $(if ($botUp) { 'up' } else { 'NOT UP, see %TEMP%\jonnybot-dev.err.log' }))
 Write-Host ("  site (port $SitePort): " + $(if ($siteUp) { 'up' } else { 'NOT UP, see %TEMP%\website-dev.err.log' }))
 Write-Host ("  bot processes running: $count" + $(if ($count -ne 1) { '  <-- should be exactly 1' } else { '' }))

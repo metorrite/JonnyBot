@@ -61,7 +61,7 @@ Each must-fix item maps to one follow-up. A follow-up is not done until its row 
 
 ## 4. Full inventory
 
-Paths are under `src/main/java/com/younglings/bot/`. "TTL" means the entry expires on its own.
+Paths are under `src/main/java/com/runeclans/bot/`. "TTL" means the entry expires on its own.
 
 ### 4.1 Budgets, rate limits and dedupe
 
@@ -152,7 +152,7 @@ With a TTL (stale for at most the TTL on another replica): **Per process is fine
 
 ### 4.5 How the cache signal works (M10)
 
-Paths are under `src/main/java/com/younglings/bot/cachebus/`.
+Paths are under `src/main/java/com/runeclans/bot/cachebus/`.
 
 - **Switch:** `BOT_CACHE_NOTIFY=true` (docs/DEV-SETUP.md 3c). Off by default; then nothing below runs and every cache behaves exactly as with one process. Turn it on in every process at the same time.
 - **Sending:** a cache that wrote calls `CacheBus.changed(area, guildId)` after its write committed (it has already updated or dropped its own entry, as before). The signal is queued on the `cache-bus-send` lane and sent with `SELECT pg_notify('bot_cache', 'area:guildId')` on a pool connection, so the web request that saved never waits for it. The same signal queued twice before it is sent goes once.

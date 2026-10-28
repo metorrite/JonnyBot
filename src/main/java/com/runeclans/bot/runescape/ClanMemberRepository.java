@@ -1,0 +1,215 @@
+package com.runeclans.bot.runescape;
+
+import com.runeclans.bot.internal.SiteInvalidator;
+import io.github.freya022.botcommands.api.core.db.ConnectionSupplier;
+import io.github.freya022.botcommands.api.core.service.annotations.BService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.List;
+
+@BService
+public class ClanMemberRepository {
+    private static final Logger log = LoggerFactory.getLogger(ClanMemberRepository.class);
+
+    private final ConnectionSupplier connectionSupplier;
+
+    public ClanMemberRepository(ConnectionSupplier connectionSupplier, RuneScapeDatabaseInitializer initializer) {
+        this.connectionSupplier = connectionSupplier;
+    }
+
+    public record ClanMemberRow(long id, long guildId, String rsn, String clanRank,
+                                 OffsetDateTime firstSeen, OffsetDateTime lastSeen, boolean active,
+                                 long totalXp, long kills, LocalDate clanJoinedAt) {
+    }
+
+    /**
+     * Inserts a newly-seen member, or refreshes an existing one's rank/XP/kills/last-seen and marks
+     * it active again if it had left. {@code totalXp}/{@code kills} are overwritten every sync from
+     * the Clan Hiscores CSV — see {@link RsnRenameService}, which reads the row's pre-update value
+     * for a name that just vanished from the roster.
+     * <p>
+     * T-593: a changed XP total stamps {@code xp_changed_at}, and the first sync that compares it stamps {@code xp_watched_since}, so the site
+     * admin's Clan health page can tell who gained no XP for a while from the clan Hiscores alone.
+     * <p>
+     * T-594: a changed clan rank (or the first sync that sees the row) stamps {@code rank_since} and keeps the XP total then as {@code rank_xp},
+     * so the rank-up advisor can count the XP gained at the current rank.
+     */
+    public void upsert(long guildId, String rsn, String clanRank, long totalXp, long kills) {
+        String sql = """
+                INSERT INTO younglings.clan_member (guild_id, rsn, clan_rank, total_xp, kills, xp_watched_since, rank_since, rank_xp)
+                VALUES (?, ?, ?, ?, ?, NOW(), NOW(), ?)
+                ON CONFLICT (guild_id, LOWER(rsn)) DO UPDATE SET
+                    rank_since = CASE WHEN clan_member.rank_since IS NULL OR clan_member.clan_rank <> EXCLUDED.clan_rank THEN NOW()
+                        ELSE clan_member.rank_since END,
+                    rank_xp = CASE WHEN clan_member.rank_xp IS NULL OR clan_member.clan_rank <> EXCLUDED.clan_rank THEN EXCLUDED.total_xp
+                        ELSE clan_member.rank_xp END,
+                    xp_changed_at = CASE WHEN clan_member.total_xp <> EXCLUDED.total_xp THEN NOW() ELSE clan_member.xp_changed_at END,
+                    xp_watched_since = COALESCE(clan_member.xp_watched_since, NOW()),
+                    clan_rank = EXCLUDED.clan_rank, total_xp = EXCLUDED.total_xp, kills = EXCLUDED.kills,
+                    last_seen = NOW(), active = TRUE
+                """;
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setLong(1, guildId);
+            statement.setString(2, rsn);
+            statement.setString(3, clanRank);
+            statement.setLong(4, totalXp);
+            statement.setLong(5, kills);
+            statement.setLong(6, totalXp);
+            statement.executeUpdate();
+
+            SiteInvalidator.signal(guildId, SiteInvalidator.Area.ROSTER);
+        } catch (SQLException e) {
+            log.error("Failed to upsert clan member '{}'", rsn, e);
+            throw new RuntimeException("Failed to upsert clan member", e);
+        }
+    }
+
+    public void markInactive(long guildId, String rsn) {
+        String sql = "UPDATE younglings.clan_member SET active = FALSE WHERE guild_id = ? AND LOWER(rsn) = LOWER(?)";
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setLong(1, guildId);
+            statement.setString(2, rsn);
+            statement.executeUpdate();
+
+            SiteInvalidator.signal(guildId, SiteInvalidator.Area.ROSTER);
+        } catch (SQLException e) {
+            log.error("Failed to mark clan member '{}' inactive", rsn, e);
+            throw new RuntimeException("Failed to mark clan member inactive", e);
+        }
+    }
+
+    /** A targeted existence check rather than fetching the whole roster — the tracking pipeline calls this once per polled player, so it stays a single indexed lookup even at a large roster size. */
+    public boolean isActiveMember(long guildId, String rsn) {
+        String sql = "SELECT 1 FROM younglings.clan_member WHERE guild_id = ? AND LOWER(rsn) = LOWER(?) AND active = TRUE";
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setLong(1, guildId);
+            statement.setString(2, rsn);
+
+            try (ResultSet rs = statement.executeQuery()) {
+                return rs.next();
+            }
+
+        } catch (SQLException e) {
+            log.error("Failed to check clan membership for '{}' in guild {}", rsn, guildId, e);
+            throw new RuntimeException("Failed to check clan membership", e);
+        }
+    }
+
+    /** Every server whose tracked clan currently has this RS name as a member: who a poll of them is announced to. */
+    public List<Long> activeGuildIds(String rsn) {
+        String sql = "SELECT guild_id FROM younglings.clan_member WHERE LOWER(rsn) = LOWER(?) AND active = TRUE";
+        List<Long> results = new ArrayList<>();
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, rsn);
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) results.add(rs.getLong(1));
+            }
+            return results;
+        } catch (SQLException e) {
+            log.error("Failed to find the clans '{}' is in", rsn, e);
+            throw new RuntimeException("Failed to find the clans a player is in", e);
+        }
+    }
+
+    /** Each RS name once, however many of the given servers' clans it is in: the first tier of the polling list. */
+    public List<String> activeRsnsInGuilds(java.util.Collection<Long> guildIds) {
+        if (guildIds.isEmpty()) return List.of();
+        String sql = "SELECT DISTINCT ON (LOWER(rsn)) rsn FROM younglings.clan_member WHERE active = TRUE AND guild_id = ANY (?) ORDER BY LOWER(rsn)";
+        List<String> results = new ArrayList<>();
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setArray(1, connection.createArrayOf("bigint", guildIds.toArray()));
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) results.add(rs.getString(1));
+            }
+            return results;
+        } catch (SQLException e) {
+            log.error("Failed to list the clan members to poll", e);
+            throw new RuntimeException("Failed to list the clan members to poll", e);
+        }
+    }
+
+    /** How many members the roster has (only the active ones when {@code activeOnly}), without reading the rows. */
+    public int count(long guildId, boolean activeOnly) {
+        String sql = "SELECT COUNT(*) FROM younglings.clan_member WHERE guild_id = ?" + (activeOnly ? " AND active = TRUE" : "");
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setLong(1, guildId);
+            try (ResultSet rs = statement.executeQuery()) {
+                return rs.next() ? rs.getInt(1) : 0;
+            }
+        } catch (SQLException e) {
+            log.error("Failed to count the clan members for guild {}", guildId, e);
+            throw new RuntimeException("Failed to count the clan members", e);
+        }
+    }
+
+    public List<ClanMemberRow> getAll(long guildId, boolean activeOnly) {
+        String sql = "SELECT id, guild_id, rsn, clan_rank, first_seen, last_seen, active, total_xp, kills, clan_joined_at FROM younglings.clan_member WHERE guild_id = ?"
+                + (activeOnly ? " AND active = TRUE" : "") + " ORDER BY LOWER(rsn)";
+
+        List<ClanMemberRow> results = new ArrayList<>();
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setLong(1, guildId);
+
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) {
+                    results.add(new ClanMemberRow(rs.getLong("id"), rs.getLong("guild_id"), rs.getString("rsn"),
+                            rs.getString("clan_rank"), rs.getObject("first_seen", OffsetDateTime.class),
+                            rs.getObject("last_seen", OffsetDateTime.class), rs.getBoolean("active"),
+                            rs.getLong("total_xp"), rs.getLong("kills"), rs.getObject("clan_joined_at", LocalDate.class)));
+                }
+            }
+            return results;
+
+        } catch (SQLException e) {
+            log.error("Failed to get clan members for guild {}", guildId, e);
+            throw new RuntimeException("Failed to get clan members", e);
+        }
+    }
+
+    /**
+     * Manual backfill for {@link ClanMemberRow#clanJoinedAt()} — see the column comment in
+     * {@link RuneScapeDatabaseInitializer} for why this isn't populated automatically yet. Returns
+     * {@code false} if {@code rsn} isn't a tracked clan member (nothing to update).
+     */
+    public boolean setClanJoinedAt(long guildId, String rsn, LocalDate joinedAt) {
+        String sql = "UPDATE younglings.clan_member SET clan_joined_at = ? WHERE guild_id = ? AND LOWER(rsn) = LOWER(?)";
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setObject(1, joinedAt);
+            statement.setLong(2, guildId);
+            statement.setString(3, rsn);
+            boolean changed = statement.executeUpdate() > 0;
+            if (changed) SiteInvalidator.signal(guildId, SiteInvalidator.Area.ROSTER);
+            return changed;
+
+        } catch (SQLException e) {
+            log.error("Failed to set clan join date for '{}'", rsn, e);
+            throw new RuntimeException("Failed to set clan join date", e);
+        }
+    }
+}
