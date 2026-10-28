@@ -7,6 +7,7 @@ import com.younglings.bot.events.EventRules.ObjectiveSpec;
 import com.younglings.bot.events.EventRules.Status;
 import com.younglings.bot.events.EventScoring.Standing;
 import com.younglings.bot.util.BotScheduler;
+import com.younglings.bot.discord.Shards;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -201,6 +202,6 @@ public class EventBoardUpdates {
 
     private Guild guild(long guildId) {
         JDA client = jda;
-        return client == null ? null : client.getGuildById(guildId);
+        return client == null ? null : Shards.guild(client, guildId);
     }
 }

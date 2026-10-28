@@ -1,5 +1,6 @@
 package com.younglings.bot.commands.ticket;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.i18n.Text;
 import com.younglings.bot.permission.AdminRoleFilter;
 import com.younglings.bot.permission.MemberAccess;
@@ -422,7 +423,7 @@ public class TicketService {
     private static String nameOf(Guild guild, long userId) {
         Member member = guild.getMemberById(userId);
         if (member != null) return member.getEffectiveName();
-        User user = guild.getJDA().getUserById(userId);
+        User user = Shards.user(guild.getJDA(), userId);
         return user != null ? user.getName() : "user " + userId;
     }
 
@@ -432,7 +433,7 @@ public class TicketService {
     public void escalateDue(JDA jda) {
         for (Ticket ticket : repository.getEscalationDue()) {
             try {
-                Guild guild = jda.getGuildById(ticket.guildId());
+                Guild guild = Shards.guild(jda, ticket.guildId());
                 Panel panel = ticket.panelId() == null ? null : repository.getPanel(ticket.panelId());
                 if (guild == null || panel == null || ticket.channelId() == null) continue;
 
@@ -455,7 +456,7 @@ public class TicketService {
 
     /** Deletes the channel of every closed ticket past its grace period — also catches ones whose delete was lost to a restart. */
     public void sweepClosed(JDA jda) {
-        for (Guild guild : jda.getGuilds()) {
+        for (Guild guild : Shards.guilds(jda)) {
             Settings settings = repository.getSettings(guild.getIdLong());
             OffsetDateTime cutoff = OffsetDateTime.now().minusSeconds(settings.closeDelaySeconds());
             for (Ticket ticket : repository.getClosedAwaitingDeletion(cutoff)) {
@@ -477,7 +478,7 @@ public class TicketService {
      * are looked at, and the last message is read from Discord (a ticket's messages are not kept in the database while it is open).
      */
     public void closeInactive(JDA jda) {
-        for (Guild guild : jda.getGuilds()) {
+        for (Guild guild : Shards.guilds(jda)) {
             Integer days = repository.getSettings(guild.getIdLong()).autoCloseDays();
             if (days == null) continue;
             OffsetDateTime mayBeDueBefore = OffsetDateTime.now().minusHours(12);
@@ -508,7 +509,7 @@ public class TicketService {
 
     /** Applies each server's transcript retention setting. */
     public void purgeOldTranscripts(JDA jda) {
-        for (Guild guild : jda.getGuilds()) {
+        for (Guild guild : Shards.guilds(jda)) {
             Settings settings = repository.getSettings(guild.getIdLong());
             if (settings.transcriptRetentionDays() == null) continue;
             int removed = repository.purgeTranscriptsBefore(guild.getIdLong(), OffsetDateTime.now().minusDays(settings.transcriptRetentionDays()));

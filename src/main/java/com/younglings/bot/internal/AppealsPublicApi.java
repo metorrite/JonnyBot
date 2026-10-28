@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.discord.Shards;
 import com.sun.net.httpserver.HttpExchange;
 import com.younglings.bot.appeal.AppealRules;
 import com.younglings.bot.appeal.AppealRules.Appeal;
@@ -63,7 +64,7 @@ public class AppealsPublicApi implements InternalRouteModule {
             InternalApiServer.sendJson(exchange, 404, error("Not found"));
             return;
         }
-        Guild guild = jda == null ? null : jda.getGuildById(rest);
+        Guild guild = jda == null ? null : Shards.guild(jda, rest);
         if (guild == null) {
             InternalApiServer.sendJson(exchange, 404, error("The bot isn't in that server."));
             return;

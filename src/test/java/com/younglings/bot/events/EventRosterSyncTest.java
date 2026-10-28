@@ -79,6 +79,8 @@ class EventRosterSyncTest {
         JDA jda = Mockito.mock(JDA.class, Mockito.RETURNS_DEEP_STUBS);
         Mockito.when(guild.getIdLong()).thenReturn(G);
         Mockito.when(guild.getJDA()).thenReturn(jda);
+        // a stand-alone JDA (deep stubs would otherwise hand back an empty mock ShardManager, T-668)
+        Mockito.when(jda.getShardManager()).thenReturn(null);
         Mockito.when(jda.getGuildById(G)).thenReturn(guild);
         Member member = Mockito.mock(Member.class);
         Mockito.when(member.getEffectiveName()).thenReturn("Someone");

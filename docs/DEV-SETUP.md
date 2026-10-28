@@ -72,7 +72,7 @@ Every environment variable the bot reads. Each one can also go in the git-ignore
 |---|---|---|
 | `DISCORD_TOKEN` | The bot's Discord token (the *dev* bot's, locally). | Required. |
 | `DATABASE_URL` | The bot's Postgres (`postgresql://USER:PASSWORD@host:port/db`). | Required. |
-| `LIVE_ENV` | `TRUE` on the live bot only. With `FALSE` the bot is "not live": automatic posts are diverted (see `DEV_ALERT_CHANNEL_ID`) and dev-only setup can run. | Required. |
+| `LIVE_ENV` | `TRUE` on the live bot only. With `FALSE` the bot is "not live": automatic posts are diverted (see `DEV_ALERT_CHANNEL_ID`), background sweeps that change the server by themselves (auto-clean, delayed autoroles, timed roles, event roles, event wrap-up, and the Member/Guest roles of the daily clan sync) are skipped (temp voice channels still work; `/dev toggleposting` turns them all on for testing), and dev-only setup can run. | Required. |
 | `GUILD_ID` | The home server. Outside production, commands register there as guild commands, and `@Test` commands only ever go there. Locally it is the **real** clan server (see above). | Commands register globally; `@Test` commands nowhere. The internal API stays off. |
 | `OWNER_IDS` | Comma-separated Discord ids of the bot's owners (RuneClan Admin's built-in admins, owner-only commands). | Nobody is an owner. |
 | `BETA_SEED_GUILDS` | The servers put on the beta list (whose admins may use the website while it is closed, and whose clan sites may show) when a database is first set up: comma-separated server ids, each optionally `id:label` (a label is cut to 60 characters, the most the website's Beta page accepts). Applied once per database (the marker table `beta_guild_seeded` records it), so a server removed on the website stays removed; a database that was seeded before, including by an older build that kept the first testers' ids in code, is left as it is. Entries that are not ids are skipped and named by position in the log. With `RUNECLANS_HUB_ACCESS=on` the hub's list is used instead. | Nothing is seeded: a new database starts with an empty beta list (the home server, `GUILD_ID`, always counts); add servers on the website. |
@@ -80,6 +80,7 @@ Every environment variable the bot reads. Each one can also go in the git-ignore
 | `BOT_STATUS` | The bot's Discord status text. | `bot.activity` from `config.properties`. |
 | `PREMIUM_ENABLED` | `1` (or `true`) brings Premium back for clan websites (T-422): free servers get the free page, widget, version and picture limits again. Keep it equal to the website's `PREMIUM_ENABLED`. | Off: everything is free for now; every server gets the website's Premium features and limits (nothing is granted or stored). Faster polling and the server profile still follow the plans. |
 | `LANGUAGE_PACKS_ENABLED` | `true` offers the machine-drafted language packs (T-099, docs/TRANSLATION.md) on the dashboard's Language page. | Off: only English can be picked (a server that already picked a pack keeps it). |
+| `SHARD_COUNT` | How many gateway shards the bot logs in with (T-668). Discord requires sharding from 2,500 servers and recommends about 1,000 servers per shard; raise it only when that comes close. The bot always uses exactly this total (never Discord's recommendation), and every bot-wide lookup (internal API, schedulers, server lookups) asks all shards. A value that isn't a whole number of 1 or more is treated as 1. | `1`: one shard, the single gateway connection the bot always had. |
 
 **Internal API and website**
 
@@ -94,6 +95,19 @@ Every environment variable the bot reads. Each one can also go in the git-ignore
 | `RUNECLAN_BOT_SITE_URL` | The address put in the User-Agent of every request the bot makes to a third party. | `https://jonnybot.rsyounglings.com`. |
 | `JONNYBOT_SITE_URL` | **Deprecated** old name of `RUNECLAN_BOT_SITE_URL` (T-662). Still read, exactly as before, when the new name is unset; the bot then logs a one-time note naming both variables. | |
 | `BOT_CACHE_NOTIFY` | `true` (or `1`) turns on cross-process cache invalidation (T-701, docs/SCALING-STATE.md M10): after a settings change, the process sends `NOTIFY bot_cache, 'area:guildId'`, and one extra connection of its own (outside the pool) listens and drops that server's cached settings, so a change saved through the website reaches the gateway process at once. Turn it on in every process once the bot runs as more than one. | Off: no listener, no signals; each process keeps its caches until it writes them itself, as with one process. |
+
+**Metrics, request log and ops alerts** (T-674; all off by default)
+
+| Setting | What it does | When unset |
+|---|---|---|
+| `METRICS_ENABLED` | `on` serves `GET /metrics` on the internal API port (`INTERNAL_API_PORT`): Prometheus text with internal API requests and latency per route, the Discord job outbox (due jobs, oldest age), the RuneMetrics poll queue and budget (used per minute, tokens, backoff, exhausted), Discord REST 429s, gateway events and ping, the database pool (in use, waiting, wait time) and JVM heap. Needs `METRICS_TOKEN`. A request that came through a public edge (`X-Forwarded-For`, `X-Real-Ip`, `Forwarded` or `CF-Connecting-IP` present) is refused, so it only answers over Railway's private network; every refusal is a plain 404. Never needs the internal secret. Needs the internal API (`INTERNAL_API_SECRET`, `GUILD_ID`). | Off: `/metrics` is a 404 and Discord's HTTP client is JDA's own. |
+| `METRICS_TOKEN` | The bearer token for `/metrics` (`Authorization: Bearer ...`), at least 24 characters. Never logged. | `/metrics` stays off (a warning is logged when `METRICS_ENABLED` is on). |
+| `REQUEST_LOG` | `on` logs one line per internal API request: `request id=<X-Request-Id> <method> <route> <status> <ms>` (the route is the path prefix plus one plain word, never ids). The request id is always taken from the website's `X-Request-Id` (or made), echoed, and sent on to the hub with the bot's hub calls in that request; this switch only adds the log line. | No request lines. |
+| `OPS_ALERTS` | `on` checks the ops alert rules every minute and posts to `OPS_ALERT_CHANNEL_ID`: a health address failing 3 checks in a row, the oldest due Discord job older than 5 minutes, the RuneMetrics budget used up for 15 minutes with work waiting, and a Discord 429 spike. One alert when a rule starts, a reminder each hour while it lasts, one line when it recovers. Posts follow the dev-bot switch (`DEV_ALERT_CHANNEL_ID`, `/dev toggleposting`) and ping nobody. | Off. |
+| `OPS_WEEKLY` | `on` posts the week's numbers (servers, website calls and errors, RuneMetrics use against the budget, the job queue, 429s, the database pool, memory, alerts firing) to `OPS_ALERT_CHANNEL_ID` on Mondays at 09:00 UTC. | Off. |
+| `OPS_ALERT_CHANNEL_ID` | The ops channel (a private channel in the owner's server) for `OPS_ALERTS` and `OPS_WEEKLY`. | Neither posts (a warning is logged if one is on). |
+| `OPS_HEALTH_URLS` | Comma-separated health addresses for the health rule, e.g. the website's `/api/health` and the hub's `/health/ready` (Railway private addresses work). A 2xx within 5 seconds is healthy. | No health rule. |
+| `OPS_429_THRESHOLD` | Discord 429 answers within 5 minutes that count as a spike. | `20`. |
 
 **Dev bot safety**
 
@@ -114,7 +128,7 @@ Every environment variable the bot reads. Each one can also go in the git-ignore
 | `RUNESCAPE_LINKED_POLL_WINDOW_MINUTES` | One pass over linked players not in a registered clan. | `480`. |
 | `RUNESCAPE_PREMIUM_POLL_WINDOW_MINUTES` | One pass over players in premium clans. | `60`. |
 | `RUNEMETRICS_TIME_ZONE` | The zone RuneMetrics' activity times are read in. The clock check warns if it looks wrong (for example `Etc/GMT-1`). Environment only. | `Europe/London`. |
-| `RUNEMETRICS` | Whether RuneMetrics is still asked. Jagex retires it on 2026-11-10: `auto` asks until then and stops after, `on` keeps asking (if Jagex extends it), `off` stops now. Also stops the RuneLink XP check reading it (the Hiscores alone decide). Environment only. | `auto`. |
+| `RUNEMETRICS` | Whether RuneMetrics is still asked. Jagex retires it on 2026-11-10: `auto` asks until then and stops after, `on` keeps asking (if Jagex extends it), `off` stops now. Also stops the RuneLink XP check reading it (the Hiscores alone decide). When off, Clan health's missed Citadel caps list and the rank-up advisor's caps parts show as unavailable (not counted). Environment only. | `auto`. |
 | `RSN_RENAME_ALERT_CHANNEL_ID` | Env-default channel for "this player may have renamed" alerts. | Renames are only logged. |
 | `RSN_VERIFICATION_CHANNEL_ID` | Env-default channel where RSN verification requests go for review. | Requests wait unnoticed. |
 | `VERIFIED_CLAN_ROLE_ID`, `VERIFIED_NON_CLAN_ROLE_ID`, `UNVERIFIED_ROLE_ID` | Env-default roles given or removed on verification (clan member, verified non-member, removed on verify). | Nothing is given or removed for that slot. |

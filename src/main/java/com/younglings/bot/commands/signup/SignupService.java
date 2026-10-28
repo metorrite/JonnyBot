@@ -1,5 +1,6 @@
 package com.younglings.bot.commands.signup;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.discord.Containers;
 import com.younglings.bot.discord.Pagination;
 import com.younglings.bot.signup.SignupRepository;
@@ -501,7 +502,7 @@ public class SignupService {
     public int closeAllActiveSignups(JDA jda) {
         int count = 0;
         for (SignupSession session : List.copyOf(activeSignupsById.values())) {
-            Guild guild = jda.getGuildById(session.guildId());
+            Guild guild = Shards.guild(jda, session.guildId());
             if (guild == null) continue;
             deleteSignup(guild, session.signupId());
             count++;
@@ -513,7 +514,7 @@ public class SignupService {
     public int autoCloseInactiveSignups(JDA jda, Instant cutoff) {
         int count = 0;
         for (SignupSession session : signupRepository.getInactiveSignups(cutoff)) {
-            Guild guild = jda.getGuildById(session.guildId());
+            Guild guild = Shards.guild(jda, session.guildId());
             if (guild == null) continue;
             deleteSignup(guild, session.signupId());
             count++;

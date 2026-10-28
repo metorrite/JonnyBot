@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.ticket.TicketModels.Ticket;
@@ -117,7 +118,7 @@ public class TicketFlagAdminApi implements AdminRouteExtension {
     private static String nameOf(Guild guild, long userId) {
         Member member = guild.getMemberById(userId);
         if (member != null) return member.getEffectiveName();
-        var user = guild.getJDA().getUserById(userId);
+        var user = Shards.user(guild.getJDA(), userId);
         return user == null ? null : user.getName();
     }
 

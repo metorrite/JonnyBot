@@ -1,5 +1,6 @@
 package com.younglings.bot.commands.signup;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.discord.Containers;
 import com.younglings.bot.i18n.Text;
@@ -63,7 +64,7 @@ public class SignupDevCommand {
 
         outer:
         for (var entry : byGuild.entrySet()) {
-            Guild guild = event.getJDA().getGuildById(entry.getKey());
+            Guild guild = Shards.guild(event.getJDA(), entry.getKey());
             sb.append("**").append(guild != null ? guild.getName() : "Unknown guild")
                     .append("** (`").append(entry.getKey()).append("`)\n");
 

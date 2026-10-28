@@ -107,7 +107,7 @@ public final class DiscordLookups {
 
     /** What is known about a user without asking Discord: JDA's cache, then ours. {@code null} when nothing is (or they don't exist). */
     public static UserInfo cachedUser(JDA jda, long userId) {
-        User user = jda.getUserById(userId);
+        User user = Shards.user(jda, userId);
         if (user != null) return UserInfo.of(user);
         Entry<UserInfo> known = fresh(users, userId);
         return known == null ? null : known.value();
@@ -115,7 +115,7 @@ public final class DiscordLookups {
 
     /** A user's name and avatar, waiting for Discord at most {@code budget}. */
     public static UserLookup user(JDA jda, long userId, Duration budget) {
-        User cached = jda.getUserById(userId);
+        User cached = Shards.user(jda, userId);
         if (cached != null) return new UserLookup(Outcome.FOUND, UserInfo.of(cached));
         Entry<UserInfo> known = fresh(users, userId);
         if (known != null) return new UserLookup(known.value() == null ? Outcome.ABSENT : Outcome.FOUND, known.value());

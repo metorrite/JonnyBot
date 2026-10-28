@@ -1,5 +1,6 @@
 package com.younglings.bot.tempvoice;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.tempvoice.TempVoiceRules.Hub;
 import com.younglings.bot.tempvoice.TempVoiceRules.Temp;
 import com.younglings.bot.util.BotScheduler;
@@ -120,7 +121,7 @@ public class TempVoiceService {
             JDA jda = this.jda;
             if (jda == null) return;
             for (Temp temp : repository.allChannels()) {
-                Guild guild = jda.getGuildById(temp.guildId());
+                Guild guild = Shards.guild(jda, temp.guildId());
                 if (guild == null) continue;
                 VoiceChannel channel = guild.getVoiceChannelById(temp.channelId());
                 if (channel == null) {
