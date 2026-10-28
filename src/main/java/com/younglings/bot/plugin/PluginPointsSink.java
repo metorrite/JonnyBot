@@ -1,5 +1,6 @@
 package com.younglings.bot.plugin;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.plugin.PluginPointsRules.Rule;
 import com.younglings.bot.points.PointsRepository;
 import com.younglings.bot.points.PointsRules.Category;
@@ -57,10 +58,10 @@ public class PluginPointsSink implements PluginEventSink {
     public void accepted(long userId, String rsn, List<PluginPayload.Event> events) {
         JDA current = jda;
         if (current == null || events.isEmpty()) return;
-        User user = current.getUserById(userId);
+        User user = Shards.user(current, userId);
         if (user == null) return;
         List<Long> guilds = new ArrayList<>();
-        for (Guild guild : user.getMutualGuilds()) guilds.add(guild.getIdLong());
+        for (Guild guild : Shards.mutualGuilds(user)) guilds.add(guild.getIdLong());
         pay(userId, guilds, events, Instant.now());
     }
 

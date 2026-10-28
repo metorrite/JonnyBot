@@ -1,5 +1,6 @@
 package com.younglings.bot.access;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.discord.DiscordLookups;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.JDA;
@@ -60,7 +61,7 @@ public class AccessGrantService {
                 if (grant.userId() == userId) return true;
                 continue;
             }
-            Guild guild = jda.getGuildById(grant.guildId());
+            Guild guild = Shards.guild(jda, grant.guildId());
             if (guild == null) continue;
             if (grant.level().satisfiedBy(memberIn(guild, userId))) return true;
         }

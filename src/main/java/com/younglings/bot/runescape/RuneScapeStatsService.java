@@ -1,5 +1,6 @@
 package com.younglings.bot.runescape;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.tracking.ClassifiedEntry;
 import com.younglings.bot.tracking.TrackingEventClassifier;
 import com.younglings.bot.tracking.TrackingEventRouter;
@@ -88,7 +89,7 @@ public class RuneScapeStatsService {
         if (currentJda == null) return;
         List<Guild> guilds = new ArrayList<>();
         for (long guildId : clanMemberRepository.activeGuildIds(rsn)) {
-            Guild guild = currentJda.getGuildById(guildId);
+            Guild guild = Shards.guild(currentJda, guildId);
             if (guild != null) guilds.add(guild);
         }
         if (guilds.isEmpty()) return;

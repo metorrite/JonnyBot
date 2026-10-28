@@ -1,5 +1,6 @@
 package com.younglings.bot.plugin;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.events.BingoBoardImage;
 import com.younglings.bot.events.BingoBoardView;
 import com.younglings.bot.events.BingoTemplate;
@@ -81,10 +82,10 @@ public class RuneSyncPanelService {
     List<Guild> clans(long userId) {
         JDA current = jda;
         if (current == null) return List.of();
-        User user = current.getUserById(userId);
+        User user = Shards.user(current, userId);
         if (user == null) return List.of();
         List<Guild> on = new ArrayList<>();
-        for (Guild guild : user.getMutualGuilds()) {
+        for (Guild guild : Shards.mutualGuilds(user)) {
             if (repository.clanPanelOn(guild.getIdLong())) on.add(guild);
         }
         return on;
@@ -190,7 +191,7 @@ public class RuneSyncPanelService {
     /** A teammate's name as the clan sees it in the server, or "A teammate" when the bot can't tell. */
     String displayName(long guildId, long userId) {
         JDA current = jda;
-        Guild guild = current == null ? null : current.getGuildById(guildId);
+        Guild guild = current == null ? null : Shards.guild(current, guildId);
         var member = guild == null ? null : guild.getMemberById(userId);
         return member == null ? "A teammate" : member.getEffectiveName();
     }

@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.clansite.ClanSite;
 import com.younglings.bot.clansite.ClanSiteService;
 import com.younglings.bot.twitch.TwitchClient.Stream;
@@ -42,7 +43,7 @@ public class DirectorySiteStreamRoutes implements DirectoryRouteModule {
             return true;
         }
         long guildId = site.get().guildId();
-        if (request.jda().getGuildById(guildId) == null) {
+        if (Shards.guild(request.jda(), guildId) == null) {
             if (sites.botless(guildId)) request.send(200, SiteApi.needsBot());
             else request.sendError(404, "Not found");
             return true;

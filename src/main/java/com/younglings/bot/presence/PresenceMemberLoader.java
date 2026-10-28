@@ -1,5 +1,6 @@
 package com.younglings.bot.presence;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.BotListener;
 import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -45,7 +46,7 @@ public class PresenceMemberLoader extends ListenerAdapter implements BotListener
             long guildId = d.getUnsignedLong("guild_id");
             long userId = d.getObject("user").getUnsignedLong("id");
             JDA jda = event.getJDA();
-            Guild guild = jda.getGuildById(guildId);
+            Guild guild = Shards.guild(jda, guildId);
             if (guild == null || guild.getMemberById(userId) != null) return;
             boolean schedule;
             synchronized (batch) {
@@ -62,7 +63,7 @@ public class PresenceMemberLoader extends ListenerAdapter implements BotListener
         synchronized (batch) {
             requests = batch.drain(guildId, System.currentTimeMillis());
         }
-        Guild guild = jda.getGuildById(guildId);
+        Guild guild = Shards.guild(jda, guildId);
         if (guild == null) return;
         for (List<Long> ids : requests) {
             // includePresence: the member arrives with their status, so the ONLINE cache policy keeps them

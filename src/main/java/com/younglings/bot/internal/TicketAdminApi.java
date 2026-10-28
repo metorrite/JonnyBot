@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.access.AccessArea;
 import com.younglings.bot.access.AccessGrantService;
 import com.younglings.bot.beta.BetaAccessService;
@@ -239,7 +240,7 @@ public class TicketAdminApi {
             long actorId = actorIdOf(exchange);
             if (actorId != 0) {
                 // asked of every server at once, with one shared wait: a server Discord is slow about is left out this time, not waited on
-                List<Guild> all = jda.getGuilds();
+                List<Guild> all = Shards.guilds(jda);
                 List<DiscordLookups.MemberLookup> found = DiscordLookups.memberInEach(all, actorId, GUILD_LIST_BUDGET);
                 for (int i = 0; i < all.size(); i++) {
                     Guild guild = all.get(i);
@@ -1029,7 +1030,7 @@ public class TicketAdminApi {
     private static String cachedNameOf(Guild guild, long userId) {
         Member member = guild.getMemberById(userId);
         if (member != null) return member.getEffectiveName();
-        var user = guild.getJDA().getUserById(userId);
+        var user = Shards.user(guild.getJDA(), userId);
         return user == null ? null : user.getName();
     }
 

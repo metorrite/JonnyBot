@@ -1,5 +1,6 @@
 package com.younglings.bot.feed;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.alerts.AutoPostRouter;
 import com.younglings.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
@@ -65,7 +66,7 @@ public class FeedService {
             Set<String> failedThisRun = new HashSet<>();
             boolean readAny = false;
             for (FeedSubscription sub : repository.allEnabled()) {
-                Guild guild = jda.getGuildById(sub.guildId());
+                Guild guild = Shards.guild(jda, sub.guildId());
                 if (guild == null) continue;
                 GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, sub.channelId());
                 if (channel == null || problemWith(channel) != null) continue;
