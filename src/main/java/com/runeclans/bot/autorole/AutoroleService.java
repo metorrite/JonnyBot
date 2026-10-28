@@ -1,6 +1,7 @@
 package com.runeclans.bot.autorole;
 
 import com.runeclans.bot.alerts.AutoPostRouter;
+import com.runeclans.bot.discord.ShardRouting;
 import com.runeclans.bot.discord.Shards;
 import com.runeclans.bot.internal.MemberApi;
 import com.runeclans.bot.util.BotScheduler;
@@ -68,7 +69,8 @@ public class AutoroleService {
             for (AutoroleRepository.Pending due : repository.duePending(Instant.now(), 100)) {
                 Guild guild = Shards.guild(jda, due.guildId());
                 if (guild == null) {
-                    repository.removePending(due.guildId(), due.userId());
+                    // only a server this process can see is missing from is really left; another shard's server waits for its owner (T-700)
+                    if (ShardRouting.gone(jda, due.guildId())) repository.removePending(due.guildId(), due.userId());
                     continue;
                 }
                 // looked up afresh: they may have left in the meantime, and a settings change during the wait should apply

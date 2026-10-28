@@ -57,7 +57,7 @@ Each must-fix item maps to one follow-up. A follow-up is not done until its row 
 | F3 | M5 | Load-through lookups for polls and signups; the boot maps become caches. | done (#473) |
 | F4 | M6 | Job table and per-event `pg_advisory_xact_lock` for event space, wrap-up export and role backfill jobs. | open |
 | F5 | M7 | RuneLink code, start and DM limits in a Postgres sliding-window table (or the hub). | done (T-699) |
-| F6 | M9 | `ShardRouting.owns(guildId)` helper; fix the "null guild = gone" branches; retention uses the departure row only. | open |
+| F6 | M9 | `ShardRouting.owns(guildId)` helper; fix the "null guild = gone" branches; retention uses the departure row only. | done (T-700): `ShardRouting.owns` / `ShardRouting.gone` (gone = this process runs the shard, it is connected, no outage, server missing). Poll end times, delayed autoroles, Twitch and Kick alerts and retention only drop work when `gone`; retention purges a departed server only from the process that runs its shard |
 | F7 | M10 | One `LISTEN/NOTIFY` channel (`bot_cache`) that the settings caches in section 4.3 subscribe to. | done (T-701); switch on with `BOT_CACHE_NOTIFY=true` in every process once there is more than one |
 | F8 | M11 | Each scheduler lane declares its `BOT_ROLE` (section 5); gateway lanes filter rows to their own shards. | open |
 

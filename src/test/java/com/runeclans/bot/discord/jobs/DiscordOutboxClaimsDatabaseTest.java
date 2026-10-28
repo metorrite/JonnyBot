@@ -124,6 +124,44 @@ class DiscordOutboxClaimsDatabaseTest {
         }
     }
 
+    @Test
+    void twoProcessesClaimingAtOnceNeverTakeTheSameJob() throws Exception {
+        ConnectionSupplier connections = LocalDatabase.supplier();
+        DiscordJobRepository repository = new DiscordJobRepository(connections);
+        try {
+            clean(connections);
+            java.util.Set<Long> queued = new java.util.HashSet<>();
+            for (int i = 0; i < 40; i++) queued.add(repository.enqueue("test.nickname", GUILD, ACTOR, null, DataObject.empty()).id());
+            java.util.concurrent.CyclicBarrier start = new java.util.concurrent.CyclicBarrier(2);
+            java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+            try {
+                java.util.function.Function<String, java.util.concurrent.Callable<List<Long>>> drain = who -> () -> {
+                    start.await();
+                    List<Long> taken = new java.util.ArrayList<>();
+                    while (true) {
+                        List<DiscordJob> batch = ours(repository.claimDue(who, 3, null));
+                        if (batch.isEmpty()) return taken;
+                        for (DiscordJob job : batch) taken.add(job.id());
+                    }
+                };
+                var a = pool.submit(drain.apply(A));
+                var b = pool.submit(drain.apply(B));
+                List<Long> byA = a.get(30, java.util.concurrent.TimeUnit.SECONDS);
+                List<Long> byB = b.get(30, java.util.concurrent.TimeUnit.SECONDS);
+                java.util.Set<Long> both = new java.util.HashSet<>(byA);
+                both.retainAll(byB);
+                assertTrue(both.isEmpty(), "no job taken twice: " + both);
+                java.util.Set<Long> all = new java.util.HashSet<>(byA);
+                all.addAll(byB);
+                assertEquals(queued, all, "every job taken once");
+            } finally {
+                pool.shutdownNow();
+            }
+        } finally {
+            clean(connections);
+        }
+    }
+
     /** Only the jobs of the test servers (the table may hold others). */
     private static List<DiscordJob> ours(List<DiscordJob> jobs) {
         return jobs.stream().filter(j -> j.guildId() == GUILD || j.guildId() == OTHER_GUILD || j.guildId() == OTHER_GUILD + (1L << 22)).toList();
