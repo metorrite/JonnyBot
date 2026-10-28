@@ -1,6 +1,7 @@
 package com.younglings.bot.plugin;
 
 import com.younglings.bot.config.BotConfig;
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.plugin.PluginPointsRepository.XpDay;
 import com.younglings.bot.plugin.PluginPointsRepository.XpRuleOn;
 import com.younglings.bot.plugin.PluginPointsRules.XpRule;
@@ -9,7 +10,6 @@ import com.younglings.bot.points.PointsRules.Category;
 import com.younglings.bot.points.PointsService;
 import com.younglings.bot.runeclans.RuneClansHubClient;
 import com.younglings.bot.util.BotScheduler;
-import com.younglings.bot.discord.Shards;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -248,7 +248,7 @@ public class PluginXpPoints implements PluginEventSink {
         int[] lookups = {0};
         for (XpRuleOn rule : guilds) {
             long guildId = rule.guildId();
-            Guild guild = current.getGuildById(guildId);
+            Guild guild = Shards.guild(current, guildId);
             if (guild == null) continue; // the bot left the server (or isn't ready): nothing is paid there from the hub
             LocalDate start = rule.since() != null && rule.since().isAfter(from) ? rule.since() : from;
             for (LocalDate day = start; day.isBefore(before); day = day.plusDays(1)) {
