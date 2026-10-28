@@ -61,6 +61,15 @@ public class EventExportRepository {
                 );
                 """,
                 // the zip is compressed already: store it out of line without trying to compress it again
+                // a table made before the server id was added (a test database at most): its rows are an hour's exports, so start it afresh
+                """
+                DO $$ BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'younglings' AND table_name = 'event_export_file' AND column_name = 'guild_id') THEN
+                        DELETE FROM younglings.event_export_file;
+                        ALTER TABLE younglings.event_export_file ADD COLUMN guild_id BIGINT NOT NULL;
+                    END IF;
+                END $$;
+                """,
                 "ALTER TABLE younglings.event_export_file ALTER COLUMN data SET STORAGE EXTERNAL;"
         ));
         long every = SWEEP_EVERY.toSeconds();
@@ -142,8 +151,7 @@ public class EventExportRepository {
                         rs.getInt("images"), rs.getInt("links"));
             }
         } catch (SQLException e) {
-            log.warn("Could not read the export of event {}", eventId, e);
-            return null;
+            throw new IllegalStateException("Could not read the export of event " + eventId, e);
         }
     }
 

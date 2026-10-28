@@ -53,6 +53,8 @@ public class JobRepository {
     /** The first key of this repository's advisory locks, so they never meet another feature's. */
     private static final int LOCK_SPACE = 0x1409;
     private static final int FINAL_ATTEMPTS = 3;
+    /** {@link #saveFinal} stops trying once this has passed since its first try. */
+    private static final Duration FINAL_DEADLINE = Duration.ofSeconds(5);
 
     /**
      * One job: {@code state} is running, done or failed; {@code message} says what it is doing or why it stopped. {@code runId} is set when the job
@@ -117,7 +119,9 @@ public class JobRepository {
                     updated_at TIMESTAMPTZ NOT NULL,
                     PRIMARY KEY (scope, job_key)
                 );
-                """
+                """,
+                // a table made before runs had ids (a test database at most): old rows read as another run's, so they can't be written over
+                "ALTER TABLE younglings.dashboard_job ADD COLUMN IF NOT EXISTS run_id TEXT NOT NULL DEFAULT '';"
         ));
     }
 
@@ -185,11 +189,12 @@ public class JobRepository {
 
     /** {@link #save} for the job's last word (done or failed), tried a few times so a short database blip doesn't leave it showing as stopped. */
     public boolean saveFinal(String scope, long key, Row row) {
+        long giveUpAt = System.nanoTime() + FINAL_DEADLINE.toNanos(); // a job holding its event's lock shouldn't wait out a long outage here
         for (int attempt = 1; ; attempt++) {
             try {
                 return update(scope, key, row.stampedAt(now()));
             } catch (SQLException | RuntimeException e) {
-                if (attempt >= FINAL_ATTEMPTS) {
+                if (attempt >= FINAL_ATTEMPTS || System.nanoTime() + finalRetryMillis * 1_000_000L > giveUpAt) {
                     log.warn("Could not save how the {} job {} ended", scope, key, e);
                     return true;
                 }

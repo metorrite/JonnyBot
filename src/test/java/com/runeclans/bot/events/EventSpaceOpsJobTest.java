@@ -99,15 +99,20 @@ class EventSpaceOpsJobTest {
     void aJobThatWentQuietAndWasTakenOverCannotOverwriteTheNewOne() throws Exception {
         CountDownLatch release = new CountDownLatch(1);
         CountDownLatch oldDone = new CountDownLatch(1);
+        java.util.concurrent.atomic.AtomicBoolean keptWorking = new java.util.concurrent.atomic.AtomicBoolean();
         EventSpaceOps.Job old = one.start(EVENT, "setup", job -> {
             try {
                 release.await(5, TimeUnit.SECONDS);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
-            job.step("A late step.");
-            job.finish("Late finish.");
-            oldDone.countDown();
+            try {
+                job.step("A late step."); // its first report after the takeover ends the work
+                keptWorking.set(true);
+                job.finish("Late finish.");
+            } finally {
+                oldDone.countDown();
+            }
         });
         clock.now = clock.now.plus(JobRepository.STALE).plusSeconds(1); // the old job went silent
         CountDownLatch hold = new CountDownLatch(1);
@@ -127,10 +132,30 @@ class EventSpaceOpsJobTest {
         assertTrue(oldDone.await(5, TimeUnit.SECONDS));
 
         assertTrue(old.superseded());
+        org.junit.jupiter.api.Assertions.assertFalse(keptWorking.get(), "the old job stopped changing roles and channels");
         EventSpaceOps.Job seen = one.job(EVENT);
         assertEquals("removal", seen.kind());
         assertEquals("running", seen.state(), "the old job's finish didn't free the slot");
         assertEquals("Removing #general…", seen.message());
         hold.countDown();
+    }
+
+    @Test
+    void whenTheDatabaseCannotSayTheProgressPollAnswersTryAgain() {
+        JobRepository down = mock(JobRepository.class);
+        org.mockito.Mockito.when(down.latest(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyLong())).thenThrow(new IllegalStateException("down"));
+        EventSpaceOps ops = new EventSpaceOps(mock(EventRepository.class), mock(EventService.class), mock(EventSpaceRepository.class), mock(EventSpaces.class), new EventChanges(), null, down);
+        EventProblem problem = assertThrows(EventProblem.class, () -> ops.job(EVENT));
+        assertEquals(503, problem.status());
+    }
+
+    @Test
+    void whenTheDatabaseCannotTakeTheSlotTheStartAnswersTryAgain() {
+        JobRepository down = mock(JobRepository.class);
+        org.mockito.Mockito.when(down.claim(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyString()))
+                .thenThrow(new IllegalStateException("lock timeout"));
+        EventSpaceOps ops = new EventSpaceOps(mock(EventRepository.class), mock(EventService.class), mock(EventSpaceRepository.class), mock(EventSpaces.class), new EventChanges(), null, down);
+        EventProblem problem = assertThrows(EventProblem.class, () -> ops.start(EVENT, "setup", job -> job.finish("never")));
+        assertEquals(503, problem.status());
     }
 }

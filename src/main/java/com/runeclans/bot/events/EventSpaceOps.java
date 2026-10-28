@@ -158,23 +158,34 @@ public class EventSpaceOps {
 
         private void lost() {
             superseded = true;
-            log.warn("The {} job for event {} went quiet and another job took over; it stops reporting", kind, eventId);
+            log.warn("The {} job for event {} went quiet and another job took over; it stops here", kind, eventId);
+        }
+
+        /** Ends the work of a job that lost its slot: its next progress report throws {@link Superseded}, which {@code run} catches quietly. */
+        void stopIfSuperseded() {
+            if (superseded) throw new Superseded();
         }
 
         void total(int count) {
+            stopIfSuperseded();
             total = count;
             saved();
+            stopIfSuperseded();
         }
 
         void say(String text) {
+            stopIfSuperseded();
             message = text;
             saved();
+            stopIfSuperseded();
         }
 
         void step(String what) {
+            stopIfSuperseded();
             message = what;
             done++;
             saved();
+            stopIfSuperseded();
         }
 
         void finish(String text) {
@@ -189,6 +200,13 @@ public class EventSpaceOps {
             state = "failed";
             finishedAt = Instant.now();
             savedFinal();
+        }
+    }
+
+    /** Thrown out of a job's work once another job has taken its slot over, so it stops changing roles and channels (T-698). */
+    static final class Superseded extends RuntimeException {
+        Superseded() {
+            super("Another job took this event over", null, false, false);
         }
     }
 
@@ -301,7 +319,10 @@ public class EventSpaceOps {
         lock.lock();
         try {
             work.accept(job);
+        } catch (Superseded e) {
+            log.info("The {} job for event {} stopped: another job holds the event now", job.kind(), eventId);
         } catch (RuntimeException e) {
+            if (job.superseded()) return; // its failure isn't the event's news any more: the new job reports
             log.error("The roles and channels job for event {} failed", eventId, e);
             job.fail(sentence(e));
         } finally {

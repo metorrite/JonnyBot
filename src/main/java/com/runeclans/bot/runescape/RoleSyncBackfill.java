@@ -187,6 +187,9 @@ public class RoleSyncBackfill {
         boolean mine = true;
         try {
             for (Entry entry : todo) {
+                // before each change: a run that went quiet and was taken over stops before it touches anyone else
+                mine = save(guild.getIdLong(), started, todo.size(), done, failed, true);
+                if (!mine) break;
                 try {
                     Member member = guild.retrieveMemberById(entry.userId()).complete();
                     List<Role> add = entry.add().stream().map(guild::getRoleById).filter(r -> r != null).toList();

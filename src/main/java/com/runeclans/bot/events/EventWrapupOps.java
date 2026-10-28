@@ -529,6 +529,7 @@ public class EventWrapupOps {
         requireOver(event);
         return ops.start(event.id(), "export", job -> {
             Export made = buildExport(guild, event, job);
+            job.stopIfSuperseded(); // another job holds the event now: its result is the one to keep
             // kept for the hour in Postgres; the repository's expiry lane deletes it after that, restarts or not
             exports.save(event.guildId(), event.id(), made, made.madeAt().plus(EXPORT_KEEP_MINUTES, java.time.temporal.ChronoUnit.MINUTES));
             wrapup.exported(event.id());
@@ -544,7 +545,11 @@ public class EventWrapupOps {
 
     /** What {@link #export} would hand out, without its bytes, or null. */
     public EventExportRepository.Summary exportSummary(long eventId) {
-        return exports.summary(eventId, Instant.now());
+        try {
+            return exports.summary(eventId, Instant.now());
+        } catch (IllegalStateException e) {
+            throw new EventProblem(503, "The bot could not reach its database just now. Try again in a moment.");
+        }
     }
 
     private Export buildExport(Guild guild, Event event, Job job) {

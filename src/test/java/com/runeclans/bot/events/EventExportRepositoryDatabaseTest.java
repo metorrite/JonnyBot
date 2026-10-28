@@ -88,6 +88,19 @@ class EventExportRepositoryDatabaseTest {
     }
 
     @Test
+    void aTableFromBeforeTheServerIdIsUpgradedInPlace() throws Exception {
+        try (Connection c = db.getConnection(); var s = c.createStatement()) {
+            s.execute("ALTER TABLE younglings.event_export_file DROP COLUMN guild_id");
+            s.execute("INSERT INTO younglings.event_export_file (event_id, name, data, made_at, channels, messages, images, links, expires_at) VALUES ("
+                    + OTHER + ", 'old.zip', '\\x00', now(), 0, 0, 0, 0, now() + interval '1 hour')");
+        }
+        EventExportRepository upgraded = new EventExportRepository(db);
+        assertNull(upgraded.get(OTHER, MADE), "an hour's exports from before are let go");
+        upgraded.save(GUILD, EVENT, export("new"), EXPIRES);
+        assertEquals(3, upgraded.summary(EVENT, MADE).size());
+    }
+
+    @Test
     void retentionFindsTheExportsByServer() throws Exception {
         assertTrue(new com.runeclans.bot.retention.GuildRetentionRepository(db).serverTables().contains("event_export_file"),
                 "a departed server's exports are deleted with its other data");

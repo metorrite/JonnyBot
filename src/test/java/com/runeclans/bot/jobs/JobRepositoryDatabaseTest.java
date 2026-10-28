@@ -121,6 +121,18 @@ class JobRepositoryDatabaseTest {
     }
 
     @Test
+    void aTableFromBeforeRunIdsIsUpgradedInPlace() throws Exception {
+        try (Connection c = db.getConnection(); var s = c.createStatement()) {
+            s.execute("ALTER TABLE younglings.dashboard_job DROP COLUMN run_id");
+            s.execute("INSERT INTO younglings.dashboard_job (scope, job_key, kind, state, started_at, updated_at) VALUES ('event', " + KEY + ", 'setup', 'done', now(), now())");
+        }
+        JobRepository upgraded = new JobRepository(db);
+        upgraded.clock = Clock.fixed(T0, ZoneOffset.UTC);
+        assertEquals("", upgraded.latest(JobRepository.EVENT, KEY).orElseThrow().runId());
+        assertTrue(upgraded.claim(JobRepository.EVENT, KEY, "setup").won());
+    }
+
+    @Test
     void racingClaimsFromManyProcessesHaveOneWinner() throws Exception {
         List<JobRepository> processes = new ArrayList<>();
         for (int i = 0; i < 6; i++) {
