@@ -121,13 +121,13 @@ public class PluginService {
     }
 
     /**
-     * A batch signed through RS Link (RUNESYNC-DESIGN.md section 3): the link says this Discord account owns {@code linkedRsn}, which counts
+     * A batch signed through RuneLink (RUNESYNC-DESIGN.md section 3): the link says this Discord account owns {@code linkedRsn}, which counts
      * for ingest only (whether it also makes a JonnyBot player link is T-121's call). The batch's name must be that name, compared the
      * way the game compares names; otherwise it is refused like the token path's "not your name".
      */
     public IngestResult ingestVerified(long userId, String linkedRsn, PluginPayload.Parsed batch) {
         if (linkedRsn == null || !sameName(linkedRsn, batch.rsn())) {
-            return new IngestResult(0, 0, List.of(), Set.of(), "That RuneScape name isn't the one linked through RS Link. Report only for the character you are logged in as.");
+            return new IngestResult(0, 0, List.of(), Set.of(), "That RuneScape name isn't the one linked through RuneLink. Report only for the character you are logged in as.");
         }
         return store(userId, batch.rsn(), batch);
     }

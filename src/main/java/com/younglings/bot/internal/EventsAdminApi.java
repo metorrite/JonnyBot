@@ -710,7 +710,8 @@ public class EventsAdminApi implements AdminRouteExtension {
         }
         DataObject answer = DataObject.empty().put("scoringMode", event.scoringMode().name()).put("standings", array);
         if (ClanVsClan.is(event.template())) answer.put("clanVsClan", clanVsClanJson(guild, event));
-        if (pluginXp != null) pluginXp.notCounted(id).ifPresent(n -> answer.put("pluginXp", pluginXpJson(guild, n)));
+        // bingo and scavenger XP tiles (T-543) list the same "not counted (no RuneSync)" players, marked so the page words it for tiles
+        if (pluginXp != null) pluginXp.notCounted(id).ifPresent(n -> answer.put("pluginXp", pluginXpJson(guild, n).put("xpTiles", !com.younglings.bot.events.ClanVsClan.plays(event, com.younglings.bot.events.CompetitionTemplate.KEY))));
         if (pluginXp != null && com.younglings.bot.events.CompetitionTemplate.countsAuto(DataObject.fromJson(event.config()))) answer.put("autoXp", autoXpJson(guild, id));
         return answer;
     }
@@ -719,7 +720,7 @@ public class EventsAdminApi implements AdminRouteExtension {
     private DataObject pluginXpJson(Guild guild, com.younglings.bot.events.PluginXpTracker.NotCounted n) {
         DataArray list = DataArray.empty();
         n.userIds().stream().sorted().forEach(u -> list.add(DataObject.empty().put("userId", Long.toString(u)).put("name", name(guild, u))));
-        // "count confirmed links only" (T-552): counted by the hub, but their RS Link isn't confirmed yet
+        // "count confirmed links only" (T-552): counted by the hub, but their RuneLink isn't confirmed yet
         DataArray unconfirmed = DataArray.empty();
         n.unconfirmed().stream().sorted().forEach(u -> unconfirmed.add(DataObject.empty().put("userId", Long.toString(u)).put("name", name(guild, u))));
         return DataObject.empty().put("notCounted", list).put("unconfirmed", unconfirmed).put("checkedAt", n.checkedAt().toString());

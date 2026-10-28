@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.access.AccessLevel;
 import com.younglings.bot.beta.BetaAccessService;
 import com.younglings.bot.beta.BetaGuildRepository;
@@ -28,7 +29,7 @@ import java.util.function.Supplier;
 @BService
 public class BetaAdminApi implements AdminRouteExtension {
     private static final Logger log = LoggerFactory.getLogger(BetaAdminApi.class);
-    private static final int MAX_LABEL = 60;
+    private static final int MAX_LABEL = BetaGuildRepository.MAX_LABEL;
     /** The levels a beta server may have, most restrictive first. "Any member" is left out: that is what a per-area access grant is for. */
     static final List<AccessLevel> LEVELS = List.of(AccessLevel.OWNER, AccessLevel.ADMINISTRATOR, AccessLevel.MANAGE_SERVER);
     static final AccessLevel DEFAULT_LEVEL = AccessLevel.ADMINISTRATOR;
@@ -64,7 +65,7 @@ public class BetaAdminApi implements AdminRouteExtension {
         // The list names other servers, so only the owner sees it (like the premium list); anyone else gets it empty.
         if (owner) {
             for (var beta : repository.all()) {
-                Guild known = guild.getJDA().getGuildById(beta.guildId());
+                Guild known = Shards.guild(guild.getJDA(), beta.guildId());
                 guilds.add(DataObject.empty().put("guildId", Long.toString(beta.guildId())).put("label", beta.label())
                         .put("botPresent", known != null).put("name", known == null ? null : known.getName())
                         .put("iconUrl", known == null ? null : known.getIconUrl())

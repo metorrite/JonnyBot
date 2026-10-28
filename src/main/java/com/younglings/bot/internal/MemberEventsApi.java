@@ -16,6 +16,8 @@ import com.younglings.bot.events.EventStandings;
 import com.younglings.bot.events.EventService;
 import com.younglings.bot.events.EventRoster;
 import com.younglings.bot.events.EventSettings;
+import com.younglings.bot.events.PluginObjectiveMatcher;
+import com.younglings.bot.events.PluginXpTracker;
 import com.younglings.bot.i18n.Text;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
@@ -45,9 +47,16 @@ public class MemberEventsApi {
     private final ClanProfileRepository profiles;
     private final EventSpaceRepository space;
     private final JoinLinks joinLinks;
+    private final com.younglings.bot.events.EventUpdateRepository updatePosts;
+    private final com.younglings.bot.events.EventDrawRepository draws;
+    private final PluginXpTracker pluginXp;
 
-    public MemberEventsApi(EventService service, EventRepository repository, ClanProfileRepository profiles, EventSpaceRepository space, JoinLinks joinLinks) {
+    public MemberEventsApi(EventService service, EventRepository repository, ClanProfileRepository profiles, EventSpaceRepository space, JoinLinks joinLinks,
+                           com.younglings.bot.events.EventUpdateRepository updatePosts, com.younglings.bot.events.EventDrawRepository draws, PluginXpTracker pluginXp) {
+        this.draws = draws;
         this.joinLinks = joinLinks;
+        this.updatePosts = updatePosts;
+        this.pluginXp = pluginXp;
         this.service = service;
         this.repository = repository;
         this.profiles = profiles;
@@ -129,6 +138,7 @@ public class MemberEventsApi {
      * team and teammates, their progress (and their board for a bingo), the top of the standings, their own submissions with how each was decided, their
      * verification status, and links to the channels they can use. A member can open an event they are in, or one that is taking signups (to read it
      * and join); anything else, and any event of another server, is "not found". Other players' submissions, prizes and buy-ins are never included.
+     * While XP tiles are counted (T-707), also the XP tiles ({@link #xpTiles}) and whether the last XP pass listed this player as not counted.
      */
     public DataObject detail(Guild guild, long userId, long eventId) {
         long guildId = guild.getIdLong();
@@ -142,6 +152,8 @@ public class MemberEventsApi {
         boolean scored = event.status() == Status.RUNNING || event.status() == Status.SCORING || event.status() == Status.DONE;
         List<EventRepository.Team> teams = repository.teams(eventId);
         List<Participant> players = repository.participants(eventId);
+        var objectives = service.objectives(eventId);
+        DataArray xpTiles = xpTiles(event, objectives);
 
         DataObject out = DataObject.empty();
         out.put("event", DataObject.empty().put("id", Long.toString(event.id())).put("name", event.name()).put("description", event.description()).put("template", event.template())
@@ -152,6 +164,7 @@ public class MemberEventsApi {
                 .put("buyIn", DataObject.empty().put("enabled", settings.buyIn().enabled()).put("amount", settings.buyIn().amount()))
                 .put("verificationRequired", settings.verification().required())
                 .put("verificationInstructions", settings.verification().required() ? EventRoster.askText(settings.verification()) : ""));
+        if (xpTiles != null) out.put("xpTiles", xpTiles); // off (the default): the answer is as before
 
         if (me == null) {
             out.put("me", (DataObject) null);
@@ -166,6 +179,7 @@ public class MemberEventsApi {
                 .put("verification", DataObject.empty().put("required", settings.verification().required()).put("state", verification.name())
                         .put("note", me.verification() == EventRoster.Verification.REJECTED ? me.verificationNote() : "")
                         .put("waitingProof", repository.pendingVerificationClaimsFor(eventId, userId) > 0)));
+        if (xpTiles != null) out.getObject("me").put("xpNotCounted", notCounted(pluginXp, eventId, userId));
 
         DataArray teammates = DataArray.empty();
         if (teamEvent && me.teamId() != null) {
@@ -193,7 +207,6 @@ public class MemberEventsApi {
         out.put("standings", DataObject.empty().put("rows", rows).put("of", shown ? standings.size() : 0).put("myRank", myRank).put("myPoints", mineStanding == null ? 0 : mineStanding.points())
                 .put("hidden", !shown).put("hiddenText", shown ? null : EventStandings.hiddenText(visibility)));
 
-        var objectives = service.objectives(eventId);
         DataArray progress = DataArray.empty();
         if (scored && !me.waiting()) {
             for (var o : objectives) {
@@ -235,7 +248,39 @@ public class MemberEventsApi {
 
         out.put("channels", channels(guild, eventId, me, teamEvent));
         out.put("canSubmit", !me.waiting() && event.status() == Status.RUNNING);
+        out.put("updates", com.younglings.bot.events.ClanVsClan.plays(event, BingoTemplate.KEY) ? updates(eventId, config, event.status()) : null);
+        out.put("win", win(guild, eventId, config, teams, shown));
         return out;
+    }
+
+    /**
+     * The XP tiles of a bingo or scavenger hunt counted from RuneSync (T-543), as their labels, so the page can say that only RuneSync XP counts there;
+     * null while {@code EVENT_XP_TILES_ENABLED} is off or none can be shown yet ({@link PluginObjectiveMatcher#shownXpTiles}). The hub event page uses it too.
+     */
+    static DataArray xpTiles(Event event, List<com.younglings.bot.events.EventRules.ObjectiveSpec> objectives) {
+        if (!PluginObjectiveMatcher.xpTilesOffered()) return null;
+        List<String> labels = PluginObjectiveMatcher.shownXpTiles(com.younglings.bot.events.ClanVsClan.game(event), event.status(), objectives);
+        return labels.isEmpty() ? null : DataArray.fromCollection(labels);
+    }
+
+    /** Whether the last XP pass listed this player as not counted (no RuneSync), so their XP tiles make no progress. */
+    static boolean notCounted(PluginXpTracker pluginXp, long eventId, long userId) {
+        return pluginXp != null && pluginXp.notCounted(eventId).map(n -> n.userIds().contains(userId)).orElse(false);
+    }
+
+    /**
+     * How the event is won (T-649), when it isn't the usual "most points": the rules in words, and the prize draw (winners, seed and entries, so anyone
+     * can check it) once it has happened. Null for an event won on points, so the page looks as before. While the standings are hidden from players
+     * ({@code standingsShown} false) the entry list is left out too, as each entry carries a finished-tile count.
+     */
+    private DataObject win(Guild guild, long eventId, DataObject config, List<EventRepository.Team> teams, boolean standingsShown) {
+        var rules = com.younglings.bot.events.WinModes.of(config);
+        if (rules.isDefault()) return null;
+        DataArray lines = DataArray.empty();
+        com.younglings.bot.events.WinModes.describe(rules).forEach(lines::add);
+        var rounds = draws.rounds(eventId);
+        return DataObject.empty().put("mode", rules.mode().name()).put("rules", lines)
+                .put("draw", rounds.isEmpty() ? null : EventWinApi.drawJson(guild, teams, rounds, false, standingsShown));
     }
 
     private DataArray prizes(Event event) {
@@ -328,5 +373,24 @@ public class MemberEventsApi {
                 .put("buyIn", DataObject.empty().put("enabled", settings.buyIn().enabled()).put("amount", settings.buyIn().amount()).put("status", me.buyIn().name()))
                 .put("rank", rank).put("of", standings.size()).put("points", mineStanding == null ? 0 : mineStanding.points())
                 .put("objectives", objectives).put("pendingProof", repository.pendingClaimsFor(event.id(), userId)).put("awards", awards);
+    }
+
+    /** How many of the event's recaps and milestone posts a player is shown. */
+    static final int UPDATES_SHOWN = 8;
+
+    /**
+     * A bingo's board update rules in words and its latest recaps and milestones (T-650), for the player's event page. Null when the event uses today's
+     * rules and has posted nothing, so the page shows nothing new.
+     */
+    private DataObject updates(long eventId, DataObject config, Status status) {
+        var rules = com.younglings.bot.events.BoardUpdates.of(config);
+        var recent = updatePosts.recent(eventId, UPDATES_SHOWN);
+        if (rules.isDefault() && recent.isEmpty()) return null;
+        DataArray lines = DataArray.empty();
+        boolean hidden = !com.younglings.bot.events.EventStandings.tableShown(com.younglings.bot.events.EventStandings.of(config), status);
+        com.younglings.bot.events.BoardUpdates.describe(rules, hidden).forEach(lines::add);
+        DataArray posts = DataArray.empty();
+        for (var p : recent) posts.add(DataObject.empty().put("key", p.key()).put("kind", p.kind()).put("text", p.text()).put("at", p.at().toString()));
+        return DataObject.empty().put("mode", rules.mode().name()).put("rules", lines).put("posts", posts);
     }
 }

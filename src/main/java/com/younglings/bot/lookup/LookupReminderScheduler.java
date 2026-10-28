@@ -1,5 +1,6 @@
 package com.younglings.bot.lookup;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.discord.Mentions;
 import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.tracking.TrackingPostingToggle;
@@ -93,7 +94,7 @@ public class LookupReminderScheduler {
     }
 
     private void post(JDA jda, LookupReminder reminder, String key, String text) {
-        Guild guild = jda.getGuildById(reminder.guildId());
+        Guild guild = Shards.guild(jda, reminder.guildId());
         if (guild == null || reminder.channelId() == null) return;
         GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, reminder.channelId());
         if (channel == null || !channel.canTalk()) return;

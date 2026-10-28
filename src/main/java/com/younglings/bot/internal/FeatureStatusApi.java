@@ -60,7 +60,7 @@ public class FeatureStatusApi implements AdminRouteExtension {
             "/messages/post", "/messages/scheduled", "/messages/server-reminders", "/messages/autoresponder", "/messages/custom-tags", "/messages/embedder",
             "/alerts/feeds", "/alerts/twitch", "/alerts/kick", "/alerts/highlights",
             "/community/polls", "/community/giveaways", "/community/suggestions", "/community/starboard", "/community/tickets", "/community/forms",
-            "/levels/points", "/levels/chat-levels",
+            "/levels/points", "/levels/chat-levels", "/levels/skill-week",
             "/voice/temp-voice", "/voice/voice-text",
             "/event-tools/event-manager", "/event-tools/event-announcer", "/event-tools/discord-events", "/event-tools/citadel-wheel", "/event-tools/bingo-pool",
             "/event-tools/coffer",

@@ -18,6 +18,7 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -33,7 +34,10 @@ import java.util.UUID;
  * <b>Names claimed twice</b> (section 11 plus the 2026-10-20 research): when a tracked claim meets a name another tracked character
  * reported within 30 days, the newcomer is <em>not</em> refused. Both links are kept, the new one as {@code disputed}, and a
  * {@code dispute} row is opened for the owner's abuse view (T-118) and, later, the automatic tie-breaker (T-122). A link stronger than
- * {@link Verification#IMPLICIT} can't be disputed by an implicit one; that claim is refused instead.
+ * {@link Verification#IMPLICIT} can't be disputed by an implicit one; that claim is refused instead. A tracked claim on a name another
+ * Discord account holds with a tracking-less link goes to a dispute the same way; only the same Discord account's own tracking-less link
+ * is replaced outright. A tracking-less character is shared by every claim without a tracking id, so it takes a tracking id only while
+ * one active link stands on it alone, and forget-me on it deletes only the caller's links while others hold some.
  */
 public final class LinkService {
     private static final Logger log = LoggerFactory.getLogger(LinkService.class);
@@ -57,12 +61,14 @@ public final class LinkService {
     private final SecureRandom random;
     private final LinkDm dmFlow;
 
-    private final WindowLimiter startPerIp = new WindowLimiter(LinkLimits.START_PER_IP);
-    private final WindowLimiter startPerTracking = new WindowLimiter(LinkLimits.START_PER_TRACKING);
-    private final WindowLimiter startPerRsn = new WindowLimiter(LinkLimits.START_PER_RSN);
-    private final WindowLimiter codePerIpMinute = new WindowLimiter(LinkLimits.WEB_CODE_PER_IP_MINUTE);
-    private final WindowLimiter codePerIpHour = new WindowLimiter(LinkLimits.WEB_CODE_PER_IP_HOUR);
-    private final WindowLimiter wrongCodesPerDiscord = new WindowLimiter(LinkLimits.WRONG_CODES_PER_DISCORD);
+    // Security limits, shared by every replica through the link database (SCALING-STATE.md M7).
+    private final SharedWindowLimiter startPerIp;
+    private final SharedWindowLimiter startPerTracking;
+    private final SharedWindowLimiter startPerRsn;
+    private final SharedWindowLimiter codePerIpMinute;
+    private final SharedWindowLimiter codePerIpHour;
+    private final SharedWindowLimiter wrongCodesPerDiscord;
+    // Anti-flood limits on routes that already need a valid token or sign-in: per process is fine.
     private final WindowLimiter tokenRoutes = new WindowLimiter(LinkLimits.TOKEN_ROUTES_PER_TOKEN);
     private final WindowLimiter aliasRoute = new WindowLimiter(LinkLimits.ALIAS_PER_TOKEN);
     private final WindowLimiter webAccount = new WindowLimiter(LinkLimits.WEB_ACCOUNT_PER_DISCORD);
@@ -77,6 +83,13 @@ public final class LinkService {
         this.settings = settings;
         this.database = database;
         this.store = new LinkStore(settings.schema());
+        String schema = settings.schema();
+        this.startPerIp = new SharedWindowLimiter(schema, "start_ip", LinkLimits.START_PER_IP);
+        this.startPerTracking = new SharedWindowLimiter(schema, "start_tracking", LinkLimits.START_PER_TRACKING);
+        this.startPerRsn = new SharedWindowLimiter(schema, "start_rsn", LinkLimits.START_PER_RSN);
+        this.codePerIpMinute = new SharedWindowLimiter(schema, "code_ip_minute", LinkLimits.WEB_CODE_PER_IP_MINUTE);
+        this.codePerIpHour = new SharedWindowLimiter(schema, "code_ip_hour", LinkLimits.WEB_CODE_PER_IP_HOUR);
+        this.wrongCodesPerDiscord = new SharedWindowLimiter(schema, "wrong_codes_discord", LinkLimits.WRONG_CODES_PER_DISCORD);
         this.crypto = new LinkCrypto(settings, random);
         this.signer = new AliasSigner(settings.signingSeed(), settings.publicBaseUrl());
         this.dm = dm;
@@ -115,7 +128,8 @@ public final class LinkService {
             refuseIfBlocked(c, now, SUBJECT_RSN, crypto.lookup(SUBJECT_RSN, rsnKey));
             limit(c, startPerIp, "ip:" + hex(ipLookup), now, SUBJECT_IP, ipLookup);
             if (trackingLookup != null) limit(c, startPerTracking, "tr:" + hex(trackingLookup), now, SUBJECT_TRACKING, trackingLookup);
-            limit(c, startPerRsn, "rsn:" + rsnKey, now, SUBJECT_RSN, crypto.lookup(SUBJECT_RSN, rsnKey));
+            byte[] rsnLookup = crypto.lookup(SUBJECT_RSN, rsnKey);
+            limit(c, startPerRsn, "rsn:" + hex(rsnLookup), now, SUBJECT_RSN, rsnLookup);
 
             String deviceSecret = LinkCodes.newDeviceSecret(random);
             UUID id = UUID.randomUUID();
@@ -176,6 +190,7 @@ public final class LinkService {
         return tx(c -> {
             TokenAuth auth = authenticate(c, token, tokenRoutes, now);
             Character ch = auth.character();
+            Link current = auth.link();
             byte[] trackingLookup = tracking == null ? null : crypto.lookup(SUBJECT_TRACKING, tracking);
             String rsnKey = LinkCodes.rsnLookup(rsn);
             if (ch.tracked()) {
@@ -186,20 +201,31 @@ public final class LinkService {
                 if (trackingLookup == null && !ch.rsnLookup().equals(rsnKey)) {
                     throw new LinkException(409, "character_mismatch", "This link belongs to another character. Link this character on its own.");
                 }
-                // Same tracking id: a new name is a rename, which the link and its aliases survive.
-                if (!ch.rsnDisplay().equals(rsn)) store.renameCharacter(c, ch, rsn, rsnKey, now);
+                // Same tracking id: a new name is a rename, which the link and its aliases survive. Moving onto a name another character
+                // holds is refused; taking it goes through a new claim.
+                if (!ch.rsnLookup().equals(rsnKey)) current = renameOntoNewName(c, current, ch, rsn, rsnKey, now);
+                else if (!ch.rsnDisplay().equals(rsn)) store.renameCharacter(c, ch, rsn, rsnKey, now);
                 else store.touchCharacter(c, ch.id(), now);
             } else {
                 if (!ch.rsnLookup().equals(rsnKey)) {
                     // Without a tracking id there is no way to tell a rename from another character using this token.
                     throw new LinkException(409, "character_mismatch", "This link belongs to another character. Link this character on its own.");
                 }
-                if (trackingLookup != null && store.characterByTracking(c, trackingLookup).isEmpty()) store.setTracking(c, ch.id(), trackingLookup);
+                // The tracking-less character is shared by every claim on this name without a tracking id. A tracking id is attached
+                // only for an active link that is the character's one current link: while another Discord account has an active or
+                // disputed link here, the character stays tracking-less, so the claim rules keep treating every side alike.
+                if (trackingLookup != null && current.status().equals("active")
+                        && !store.otherDiscordHasLinkOn(c, ch.id(), current.discordUserId(), true)
+                        && store.characterByTracking(c, trackingLookup).isEmpty()) {
+                    store.setTracking(c, ch.id(), trackingLookup);
+                }
                 if (!ch.rsnDisplay().equals(rsn)) store.renameCharacter(c, ch, rsn, rsnKey, now);
                 else store.touchCharacter(c, ch.id(), now);
             }
             store.touchToken(c, auth.tokenId(), now);
-            Link link = runVerifiers(c, auth.link(), ch, rsn, Map.of("kind", "session", "rsn", rsnKey), now);
+            // The verifiers check the name as it now stands, not the one the token was issued for.
+            Character named = new Character(ch.id(), ch.trackingLookup(), rsn, rsnKey, now, ch.createdAt());
+            Link link = runVerifiers(c, current, named, rsn, Map.of("kind", "session", "rsn", rsnKey), now);
             boolean disputed = !store.openDisputesFor(c, link.id()).isEmpty() || link.status().equals("disputed");
             return DataObject.empty().put("linked", link.status().equals("active")).put("disputed", disputed).put("verification", link.verification())
                     .put("discordName", discordName(c, link.discordUserId())).put("xpReports", wantsXpReports(link));
@@ -271,14 +297,23 @@ public final class LinkService {
         });
     }
 
-    /** {@code POST /v1/forget-me}: deletes this character, its links, tokens and name history at once. */
+    /**
+     * {@code POST /v1/forget-me}: deletes this character, its links, tokens and name history at once. When another Discord account also
+     * has an active or disputed link on the character (a tracking-less character is shared by every claim without a tracking id), only
+     * the caller's own links are ended and deleted; the character and the others' links stay. Other accounts' ended links don't count.
+     */
     public DataObject forgetMe(String token, String confirm) {
         if (!"DELETE".equals(confirm)) throw LinkException.bad("confirm_required", "Send \"confirm\": \"DELETE\" to delete this character's data.");
         Instant now = clock.instant();
         return tx(c -> {
             TokenAuth auth = authenticate(c, token, tokenRoutes, now);
             endLink(c, auth.link(), "unlinked", "player", now);
-            store.deleteCharacter(c, auth.character().id());
+            UUID characterId = auth.character().id();
+            if (store.otherDiscordHasLinkOn(c, characterId, auth.link().discordUserId(), true)) {
+                store.deleteLinksOf(c, characterId, auth.link().discordUserId());
+            } else {
+                store.deleteCharacter(c, characterId);
+            }
             log.info("A character's link data was deleted from the plugin (link {})", auth.link().id());
             return DataObject.empty().put("deleted", true);
         });
@@ -337,7 +372,7 @@ public final class LinkService {
             refuseIfBlocked(c, now, SUBJECT_IP, ipLookup);
             if (discordLookup != null) {
                 refuseIfBlocked(c, now, SUBJECT_DISCORD, discordLookup);
-                if (!wrongCodesPerDiscord.wouldAllow("d:" + hex(discordLookup), now.toEpochMilli())) throw LinkException.slowDown(30 * 60);
+                if (!wrongCodesPerDiscord.wouldAllow(c, "d:" + hex(discordLookup), now.toEpochMilli())) throw LinkException.slowDown(30 * 60);
             }
             limit(c, codePerIpMinute, "ip:" + hex(ipLookup), now, SUBJECT_IP, ipLookup);
             limit(c, codePerIpHour, "ip:" + hex(ipLookup), now, SUBJECT_IP, ipLookup);
@@ -351,8 +386,8 @@ public final class LinkService {
             }
             if (p == null || (p.browserSessionHash() != null && !MessageDigest.isEqual(p.browserSessionHash(), sessionHash))) {
                 store.abuseEvent(c, "wrong_code", SUBJECT_IP, ipLookup, null, now);
-                if (discordLookup != null && wrongCodesPerDiscord.tryAcquire("d:" + hex(discordLookup), now.toEpochMilli()) == 0
-                        && !wrongCodesPerDiscord.wouldAllow("d:" + hex(discordLookup), now.toEpochMilli())) {
+                if (discordLookup != null && wrongCodesPerDiscord.tryAcquire(c, "d:" + hex(discordLookup), now.toEpochMilli()) == 0
+                        && !wrongCodesPerDiscord.wouldAllow(c, "d:" + hex(discordLookup), now.toEpochMilli())) {
                     lockout(c, SUBJECT_DISCORD, discordLookup, "wrong_codes", now);
                 }
                 if (p != null) {
@@ -482,8 +517,8 @@ public final class LinkService {
     public int[] sweep() {
         Instant now = clock.instant();
         int[] counts = tx(c -> store.sweep(c, now));
-        log.info("Link retention sweep: expired {} pairings, deleted {} pairings, {} links, revoked {} unused tokens, deleted {} events, {} blocks, {} characters, {} DM records",
-                counts[0], counts[1], counts[2], counts[3], counts[4], counts[5], counts[6], counts[7]);
+        log.info("Link retention sweep: expired {} pairings, deleted {} pairings, {} links, revoked {} unused tokens, deleted {} events, {} blocks, {} characters, {} DM records, {} rate windows",
+                counts[0], counts[1], counts[2], counts[3], counts[4], counts[5], counts[6], counts[7], counts[8]);
         return counts;
     }
 
@@ -503,18 +538,41 @@ public final class LinkService {
 
         // Same character, same Discord: reuse the link (same id, so the same aliases); the poll hands out a new token.
         Link mine = ch == null ? null : store.currentLink(c, ch.id(), discordUserId).orElse(null);
+        // A different name held by another character's link (active or disputed) is not a plain rename: the claim rules below decide it,
+        // and the character's old link makes way for the new one.
+        Link replaced = null;
+        if (mine != null && !ch.rsnLookup().equals(p.rsnLookup())
+                && store.currentHoldersOfName(c, p.rsnLookup()).stream().anyMatch(h -> !h.character().id().equals(ch.id()))) {
+            replaced = mine;
+            mine = null;
+        }
         if (mine != null) {
+            if (!ch.rsnLookup().equals(p.rsnLookup()) && Verification.of(mine.verification()).strongerThan(Verification.IMPLICIT)) {
+                // Its proof was for the old name.
+                store.setVerification(c, mine.id(), Verification.IMPLICIT.key(), null, now);
+                mine = new Link(mine.id(), mine.characterId(), mine.discordUserId(), mine.status(), mine.method(), Verification.IMPLICIT.key(),
+                        mine.createdAt(), mine.endedAt());
+            }
             store.renameCharacter(c, ch, p.rsnDisplay(), p.rsnLookup(), now);
             store.approvePairing(c, p.id(), discordUserId, mine.id(), "reused");
             log.info("Link pairing {} approved: reusing link {}", p.id(), mine.id());
             return new Outcome(mine.status().equals("disputed") ? "disputed" : "linked", mine);
         }
-        if (store.countCurrentLinks(c, discordUserId) >= LinkLimits.MAX_ACTIVE_LINKS_PER_DISCORD) {
+        if (store.countCurrentLinks(c, discordUserId) - (replaced == null ? 0 : 1) >= LinkLimits.MAX_ACTIVE_LINKS_PER_DISCORD) {
             throw new LinkException(409, "too_many_links", "This Discord account already has " + LinkLimits.MAX_ACTIVE_LINKS_PER_DISCORD
                     + " linked characters. Unlink one first.");
         }
 
         // First decide, then write: a refusal must leave nothing half-done behind (refusals still commit their abuse record).
+        if (ch != null && !ch.tracked()) {
+            // A claim on the shared tracking-less character disputes another Discord's link there, and an implicit claim can't dispute
+            // a link verified above implicit (section 11): refused instead.
+            Link sharing = store.activeLink(c, ch.id()).orElse(null);
+            if (sharing != null && !sharing.discordUserId().equals(discordUserId)
+                    && Verification.of(sharing.verification()).strongerThan(Verification.IMPLICIT)) {
+                return refuse(c, p, now);
+            }
+        }
         List<TokenAuth> holders = store.activeHoldersOfName(c, p.rsnLookup()).stream()
                 .filter(h -> ch == null || !h.character().id().equals(ch.id())).toList();
         boolean tracked = p.trackingLookup() != null;
@@ -525,13 +583,28 @@ public final class LinkService {
                     && Verification.of(h.link().verification()).strongerThan(Verification.IMPLICIT)))) {
                 return refuse(c, p, now);
             }
+            // Another Discord account's tracking-less link verified above implicit refuses a tracked claim, as a verified link refuses an
+            // implicit claim anywhere.
+            if (!h.character().tracked() && !h.link().discordUserId().equals(discordUserId)
+                    && Verification.of(h.link().verification()).strongerThan(Verification.IMPLICIT)) {
+                return refuse(c, p, now);
+            }
         }
 
         Link incumbentToDispute = null;
+        // Links this claim replaces for the same owner: their open disputes pass to the new link instead of being settled for the claimant.
+        List<UUID> handedOver = new ArrayList<>();
         for (TokenAuth h : holders) {
             if (!h.character().tracked()) {
-                // A tracked claim takes over a tracking-less link for the same name (after the confirm step, which this is).
-                endLink(c, h.link(), "superseded", "tracked_claim", now);
+                if (h.link().discordUserId().equals(discordUserId)) {
+                    // The same Discord account pairing its tracking-less character again with a tracking id: the new link replaces its own,
+                    // and keeps the name in any dispute the old one was defending (an unproven claimant never wins by the owner's upgrade).
+                    handedOver.addAll(supersedeKeepingDisputes(c, h.link(), "tracked_claim", now));
+                } else {
+                    // A tracked claim on a name another Discord account holds with a tracking-less link goes to a dispute, as two
+                    // tracking-less claims do. The incumbent stays linked until the dispute is settled.
+                    incumbentToDispute = h.link();
+                }
             } else if (h.character().lastSeenAt().isBefore(recycledBefore)) {
                 // The old character hasn't reported this name for 30 days: it is clearly no longer theirs.
                 endLink(c, h.link(), "released", "recycled", now);
@@ -542,6 +615,8 @@ public final class LinkService {
                 incumbentToDispute = h.link();
             }
         }
+
+        if (replaced != null) handedOver.addAll(supersedeKeepingDisputes(c, replaced, "renamed", now));
 
         Character character = ch;
         if (character == null) {
@@ -555,7 +630,7 @@ public final class LinkService {
         if (activeOther != null) {
             if (character.tracked()) {
                 // Only someone running the plugin as this character can present its tracking id: the owner moving to another Discord.
-                endLink(c, activeOther, "superseded", "moved_discord", now);
+                handedOver.addAll(supersedeKeepingDisputes(c, activeOther, "moved_discord", now));
             } else {
                 // The tracking-less character is shared by every claim without a tracking id, so another Discord's link there is a dispute.
                 incumbentToDispute = activeOther;
@@ -565,6 +640,7 @@ public final class LinkService {
         String status = incumbentToDispute == null ? "active" : "disputed";
         Link link = new Link(UUID.randomUUID(), character.id(), discordUserId, status, method, Verification.IMPLICIT.key(), now, null);
         store.insertLink(c, link);
+        for (UUID disputeId : handedOver) store.setDisputeIncumbent(c, disputeId, link.id());
         if (incumbentToDispute != null) {
             UUID disputeId = UUID.randomUUID();
             store.insertDispute(c, disputeId, p.rsnLookup(), p.rsnDisplay(), incumbentToDispute.id(), link.id(), now);
@@ -577,6 +653,25 @@ public final class LinkService {
         store.approvePairing(c, p.id(), discordUserId, link.id(), status.equals("active") ? "linked" : "disputed");
         link = runVerifiers(c, link, character, character.rsnDisplay(), null, now);
         return new Outcome(status.equals("active") ? "linked" : "disputed", link);
+    }
+
+    /**
+     * A character reporting a different name. Under the new name's lock, any other character's link on that name, active or waiting
+     * in a dispute, refuses the rename: taking a held name needs the pairing and confirm step, whose rules ({@link #applyLink}) settle
+     * who keeps it. A rename that goes ahead drops the link back to implicit; the verifiers can raise it again for the new name.
+     */
+    private Link renameOntoNewName(Connection c, Link link, Character ch, String rsn, String rsnKey, Instant now) throws SQLException {
+        lockName(c, rsnKey);
+        boolean held = store.currentHoldersOfName(c, rsnKey).stream().anyMatch(h -> !h.character().id().equals(ch.id()));
+        if (held) {
+            store.abuseEvent(c, "rename_refused", SUBJECT_RSN, crypto.lookup(SUBJECT_RSN, rsnKey), null, now);
+            log.info("Link {}: rename refused, the new name is held by another character's link", link.id());
+            throw new LinkException(409, "name_unavailable", "This name is linked to another character. If it is yours, link it again from the plugin.");
+        }
+        store.renameCharacter(c, ch, rsn, rsnKey, now);
+        if (!Verification.of(link.verification()).strongerThan(Verification.IMPLICIT)) return link;
+        store.setVerification(c, link.id(), Verification.IMPLICIT.key(), null, now);
+        return new Link(link.id(), link.characterId(), link.discordUserId(), link.status(), link.method(), Verification.IMPLICIT.key(), link.createdAt(), link.endedAt());
     }
 
     private Outcome refuse(Connection c, Pairing p, Instant now) throws SQLException {
@@ -603,6 +698,26 @@ public final class LinkService {
                 store.resolveDispute(c, d.id(), "withdrawn", "system", "claimant " + why, now);
             }
         }
+    }
+
+    /**
+     * Ends a link that a new link of the same owner replaces (a re-pair with a tracking id, a re-pair under another name, or the tracked
+     * character moving to another Discord). Unlike {@link #endLink}, a dispute where this link holds the name is not settled for the
+     * claimant: it stays open and the caller points it at the new link, so the claimant stays disputed. A dispute where this link is the
+     * claimant is withdrawn as usual. Returns the disputes to re-point.
+     */
+    private List<UUID> supersedeKeepingDisputes(Connection c, Link link, String why, Instant now) throws SQLException {
+        store.endLink(c, link.id(), "superseded", now);
+        List<UUID> keep = new ArrayList<>();
+        for (LinkStore.Dispute d : store.openDisputesFor(c, link.id())) {
+            if (link.id().equals(d.incumbentLinkId())) {
+                keep.add(d.id());
+                log.info("Dispute {} passes from link {} to its replacement ({})", d.id(), link.id(), why);
+            } else {
+                store.resolveDispute(c, d.id(), "withdrawn", "system", "claimant " + why, now);
+            }
+        }
+        return keep;
     }
 
     /** Runs every {@link LinkVerifier}; the strongest result above the current level is stored. Returns the link as it now stands. */
@@ -783,8 +898,8 @@ public final class LinkService {
     }
 
     /** Counts one action; when the window is full, records a lockout (three in a day block the subject) and refuses. */
-    private void limit(Connection c, WindowLimiter limiter, String key, Instant now, String kind, byte[] lookup) throws SQLException {
-        int wait = limiter.tryAcquire(key, now.toEpochMilli());
+    private void limit(Connection c, SharedWindowLimiter limiter, String key, Instant now, String kind, byte[] lookup) throws SQLException {
+        int wait = limiter.tryAcquire(c, key, now.toEpochMilli());
         if (wait == 0) return;
         store.abuseEvent(c, "rate_limited", kind, lookup, null, now);
         if (store.countEvents(c, "rate_limited", kind, lookup, now.minusSeconds(wait + 1L)) == 1) lockout(c, kind, lookup, "rate_limited", now);

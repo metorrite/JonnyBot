@@ -1,5 +1,6 @@
 package com.younglings.bot.giveaway;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.alerts.AutoPostRouter;
 import com.younglings.bot.discord.jobs.DiscordJobs;
 import com.younglings.bot.internal.MemberApi;
@@ -176,7 +177,7 @@ public class GiveawayService {
         if (AutoPostRouter.diverting()) return; // ending a giveaway posts winners and DMs them
         try {
             for (Giveaway g : repository.due(Instant.now(), 20)) {
-                Guild guild = jda.getGuildById(g.guildId());
+                Guild guild = Shards.guild(jda, g.guildId());
                 if (guild == null) continue;
                 try {
                     end(guild, g);

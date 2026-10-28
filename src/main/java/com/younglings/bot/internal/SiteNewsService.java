@@ -202,6 +202,16 @@ public class SiteNewsService {
         return out.toString();
     }
 
+    /** An embed's picture as Discord's own proxied copy (media.discordapp.net), the only picture hosts the website draws. */
+    static String embedImageUrl(MessageEmbed.ImageInfo image) {
+        return image == null ? null : image.getProxyUrl();
+    }
+
+    /** An embed's thumbnail as Discord's own proxied copy, like {@link #embedImageUrl}. */
+    static String embedThumbnailUrl(MessageEmbed.Thumbnail thumbnail) {
+        return thumbnail == null ? null : thumbnail.getProxyUrl();
+    }
+
     private DataObject toPost(Guild guild, GuildMessageChannel channel, NewsChannel configured, Message message) {
         // Plain text, plus the text and pictures inside Components V2 messages (which have no "content").
         List<String> parts = new ArrayList<>();
@@ -220,8 +230,8 @@ public class SiteNewsService {
             embeds.add(DataObject.empty()
                     .put("title", clean(guild, embed.getTitle())).put("description", clean(guild, embed.getDescription())).put("url", embed.getUrl())
                     .put("color", embed.getColorRaw() & 0xFFFFFF)
-                    .put("image", embed.getImage() == null ? null : embed.getImage().getUrl())
-                    .put("thumbnail", embed.getThumbnail() == null ? null : embed.getThumbnail().getUrl())
+                    .put("image", embedImageUrl(embed.getImage()))
+                    .put("thumbnail", embedThumbnailUrl(embed.getThumbnail()))
                     .put("author", embed.getAuthor() == null ? null : embed.getAuthor().getName())
                     .put("footer", embed.getFooter() == null ? null : embed.getFooter().getText())
                     .put("fields", fields));
@@ -233,8 +243,9 @@ public class SiteNewsService {
         DataArray imageArray = DataArray.empty();
         images.forEach(imageArray::add);
 
-        var member = message.getMember();
-        String author = member != null ? member.getEffectiveName() : message.getAuthor().getName();
+        // a message read from history carries no member, so the name the server shows comes from the member cache, else the global name
+        var member = message.getMember() != null ? message.getMember() : guild.getMember(message.getAuthor());
+        String author = member != null ? member.getEffectiveName() : message.getAuthor().getEffectiveName();
         String avatar = member != null ? member.getEffectiveAvatarUrl() : message.getAuthor().getEffectiveAvatarUrl();
 
         return DataObject.empty()

@@ -46,6 +46,8 @@ public class GiveawayRepository {
                 """,
                 "CREATE INDEX IF NOT EXISTS giveaway_guild ON younglings.giveaway (guild_id, id DESC);",
                 "CREATE INDEX IF NOT EXISTS giveaway_due ON younglings.giveaway (status, ends_at);",
+                // Every reaction on a giveaway message looks the giveaway up by its message.
+                "CREATE INDEX IF NOT EXISTS giveaway_message ON younglings.giveaway (message_id) WHERE message_id IS NOT NULL;",
                 """
                 CREATE TABLE IF NOT EXISTS younglings.giveaway_entry (
                     giveaway_id BIGINT NOT NULL REFERENCES younglings.giveaway (id) ON DELETE CASCADE,

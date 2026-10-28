@@ -34,7 +34,7 @@ import com.younglings.bot.config.BotBrand;
  * The plugin API, under {@code /internal/plugin/}. {@link InternalApiServer} has already checked the shared secret (the public website
  * is what faces the internet and forwards to this), then there are two halves:
  * <ul>
- *   <li><b>The plugin</b>, identified by its token in {@code X-Plugin-Token} or, for an upload from RuneSync, by an RS Link signed assertion in
+ *   <li><b>The plugin</b>, identified by its token in {@code X-Plugin-Token} or, for an upload from RuneSync, by a RuneLink signed assertion in
  *       {@code Authorization: RSLink ...} (see {@link RsLinkAuth}): {@code POST ingest} (a batch of events, schema v1) and
  *       {@code GET whoami} (which names it may report for and what the player has allowed); and RuneSync's own routes (T-202):
  *       {@code GET runesync/config}, {@code PUT runesync/consent}, {@code POST runesync/diagnostics} and {@code GET runesync/panel}.</li>
@@ -61,7 +61,7 @@ public class PluginApi {
     /** RuneSync's settings and diagnostics calls: a client asks every ~10 minutes, so this is generous. */
     private final RateLimiter runeSyncLimit = new RateLimiter(10, 6_000);
 
-    /** Who a plugin call is from: the Discord account, the RSN RS Link vouches for (null on the token path) and the key for rate limits. */
+    /** Who a plugin call is from: the Discord account, the RSN RuneLink vouches for (null on the token path) and the key for rate limits. */
     private record Caller(long userId, String linkedRsn, String limitKey) {}
 
     public PluginApi(PluginService service, RsLinkAuth rsLink, RuneSyncService runeSync, RuneSyncPanelService panel, PluginVisibilityRepository visibility) {
@@ -117,7 +117,7 @@ public class PluginApi {
     }
 
     /**
-     * Who is calling: either RuneSync signed through RS Link ({@code Authorization: RSLink <assertion>}), or a manual token
+     * Who is calling: either RuneSync signed through RuneLink ({@code Authorization: RuneLink <assertion>}, or the older {@code RSLink}), or a manual token
      * ({@code X-Plugin-Token}). Empty when the answer has already been sent (401, or 503 while linking is unavailable).
      */
     private Optional<Caller> caller(HttpExchange exchange) throws IOException {
@@ -132,7 +132,7 @@ public class PluginApi {
                 return Optional.empty();
             }
             if (identity.isEmpty()) {
-                send(exchange, 401, error("That RS Link proof isn't valid any more. Check the link in RS Link."));
+                send(exchange, 401, error("That RuneLink proof isn't valid any more. Check the link in RuneLink."));
                 return Optional.empty();
             }
             return Optional.of(new Caller(identity.get().discordUserId(), identity.get().rsn(), "rsl:" + identity.get().discordUserId()));
@@ -247,7 +247,7 @@ public class PluginApi {
                     // a malformed %-escape: the device card just won't name the client
                 }
             }
-            runeSync.checkIn(userId, clientName, "true".equals(query(exchange, "paused")), Instant.now());
+            runeSync.checkIn(userId, clientName, caller.get().linkedRsn(), "true".equals(query(exchange, "paused")), Instant.now());
             send(exchange, 200, runeSync.config(userId));
             return;
         }

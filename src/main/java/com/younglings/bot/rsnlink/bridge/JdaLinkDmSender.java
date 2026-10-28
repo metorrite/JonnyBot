@@ -1,5 +1,6 @@
 package com.younglings.bot.rsnlink.bridge;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.rsnlink.LinkDmSender;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
@@ -54,11 +55,11 @@ public final class JdaLinkDmSender implements LinkDmSender {
         JDA current = jda;
         if (current == null) return Optional.empty();
         Set<Long> found = new HashSet<>();
-        current.getUserCache().forEach(u -> {
+        Shards.userCache(current).forEach(u -> {
             if (u.getName().equals(username)) found.add(u.getIdLong());
         });
         if (found.isEmpty()) {
-            for (Guild guild : current.getGuilds()) {
+            for (Guild guild : Shards.guilds(current)) {
                 try {
                     List<Member> members = guild.retrieveMembersByPrefix(username, 10).get();
                     for (Member m : members) if (m.getUser().getName().equals(username)) found.add(m.getIdLong());
@@ -92,7 +93,7 @@ public final class JdaLinkDmSender implements LinkDmSender {
 
     /** Section 13.3: neutral, no clan name, no invite, no links. RSNs hold only letters, digits, space, - and _, so escaping _ is enough. */
     static String text(String rsnDisplay, String userCode, long expiresInMinutes) {
-        return "Someone playing RuneScape as **" + rsnDisplay.replace("_", "\\_") + "** asked to link this Discord account using the RS Link plugin.\n"
+        return "Someone playing RuneScape as **" + rsnDisplay.replace("_", "\\_") + "** asked to link this Discord account using the RuneLink plugin.\n"
                 + "If that was you, type this code into the plugin: **" + userCode + "** (expires in " + expiresInMinutes + " minutes).\n"
                 + "If it wasn't you, ignore this message. Nothing is linked without the code.";
     }

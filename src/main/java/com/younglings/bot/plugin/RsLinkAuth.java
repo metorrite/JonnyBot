@@ -28,8 +28,8 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Lets the plugin ingest accept RuneSync uploads signed through RS Link (RUNESYNC-DESIGN.md section 3, ticket T-200):
- * {@code Authorization: RSLink <assertion>}, a compact JWS the RS Link service signed for the plugin "runesync".
+ * Lets the plugin ingest accept RuneSync uploads signed through RuneLink (RUNESYNC-DESIGN.md section 3, ticket T-200):
+ * {@code Authorization: RuneLink <assertion>} (or the older {@code RSLink}), a compact JWS the RuneLink service signed for the plugin "runesync".
  * <ol>
  *   <li>The signature and expiry are checked here, against the link service's public key set ({@code /internal/rsnlink/v1/keys}, cached
  *       10 minutes and fetched again for a key id it hasn't seen).</li>
@@ -43,7 +43,10 @@ import java.util.concurrent.ConcurrentHashMap;
 @BService
 public class RsLinkAuth {
     private static final Logger log = LoggerFactory.getLogger(RsLinkAuth.class);
-    public static final String SCHEME = "RSLink ";
+    /** The {@code Authorization} scheme RuneSync sends its RuneLink assertion with. */
+    public static final String SCHEME = "RuneLink ";
+    /** The scheme's name before RuneLink became RuneLink; still accepted (T-659). */
+    public static final String LEGACY_SCHEME = "RSLink ";
     static final String PLUGIN = "runesync";
     private static final Duration KEYS_FOR = Duration.ofMinutes(10);
     private static final Duration RESOLVED_FOR = Duration.ofSeconds(60);
@@ -64,7 +67,7 @@ public class RsLinkAuth {
     /** The link service couldn't be reached: the upload should be retried later, not treated as a bad assertion. */
     public static final class Unavailable extends RuntimeException {
         Unavailable() {
-            super("RS Link unavailable", null, false, false);
+            super("RuneLink unavailable", null, false, false);
         }
     }
 
@@ -91,10 +94,12 @@ public class RsLinkAuth {
         };
     }
 
-    /** The assertion in an {@code Authorization} header, or null when the header isn't the RS Link scheme. */
+    /** The assertion in an {@code Authorization} header, or null when the header isn't the RuneLink scheme (or the older RSLink one). */
     public static String assertionFrom(String authorization) {
-        if (authorization == null || !authorization.startsWith(SCHEME)) return null;
-        String value = authorization.substring(SCHEME.length()).strip();
+        if (authorization == null) return null;
+        String scheme = authorization.startsWith(SCHEME) ? SCHEME : authorization.startsWith(LEGACY_SCHEME) ? LEGACY_SCHEME : null;
+        if (scheme == null) return null;
+        String value = authorization.substring(scheme.length()).strip();
         return value.isEmpty() || value.length() > 4096 ? null : value;
     }
 
@@ -161,7 +166,7 @@ public class RsLinkAuth {
         private Optional<Identity> resolveRemotely(String assertion) {
             Answer answer = transport.call("POST", "/internal/rsnlink/resolve", DataObject.empty().put("assertion", assertion).toString());
             if (answer == null || answer.status() >= 500) {
-                log.warn("RS Link couldn't be reached to resolve a plugin upload");
+                log.warn("RuneLink couldn't be reached to resolve a plugin upload");
                 throw new Unavailable();
             }
             if (answer.status() != 200 || answer.json() == null) return Optional.empty();

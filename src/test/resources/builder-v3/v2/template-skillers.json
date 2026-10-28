@@ -239,7 +239,8 @@
                           }
                         ],
                         "columns": "4",
-                        "numbers": "accent"
+                        "numbers": "accent",
+                        "captions": "full"
                       },
                       "unmet": "hide"
                     }
@@ -333,10 +334,12 @@
                       "settings": {
                         "title": "Top gainers",
                         "limit": 10,
+                        "topFive": false,
                         "showDay": true,
                         "showWeek": true,
                         "showMonth": true,
                         "defaultTab": "week",
+                        "totals": false,
                         "bars": "under",
                         "barColour": "accent"
                       },
@@ -529,10 +532,13 @@
                       "v": 1,
                       "settings": {
                         "title": "XP gained",
+                        "layout": "board",
                         "metric": "xp",
                         "period": "week",
                         "visitorPeriods": true,
+                        "showPeriod": true,
                         "limit": 15,
+                        "topFive": false,
                         "bars": "under",
                         "barColour": "accent"
                       },
@@ -558,10 +564,13 @@
                       "v": 1,
                       "settings": {
                         "title": "XP gained this month",
+                        "layout": "board",
                         "metric": "xp",
                         "period": "month",
                         "visitorPeriods": false,
+                        "showPeriod": true,
                         "limit": 15,
+                        "topFive": false,
                         "bars": "under",
                         "barColour": "accent"
                       },
@@ -603,6 +612,7 @@
                         "title": "Highest total XP",
                         "metric": "xp",
                         "limit": 15,
+                        "topFive": false,
                         "bars": "under",
                         "barColour": "accent"
                       },
@@ -630,6 +640,7 @@
                         "title": "Highest total level",
                         "metric": "level",
                         "limit": 15,
+                        "topFive": false,
                         "bars": "under",
                         "barColour": "accent"
                       },
@@ -904,6 +915,7 @@
                         "tabs": true,
                         "filter": "all",
                         "look": "lines",
+                        "filters": "groups",
                         "more": null,
                         "moreText": "See all"
                       },

@@ -366,7 +366,8 @@
                           }
                         ],
                         "columns": "4",
-                        "numbers": "accent"
+                        "numbers": "accent",
+                        "captions": "full"
                       },
                       "unmet": "hide"
                     }
@@ -405,10 +406,12 @@
                       "settings": {
                         "title": "Top XP gainers",
                         "limit": 5,
+                        "topFive": false,
                         "showDay": true,
                         "showWeek": true,
                         "showMonth": true,
                         "defaultTab": "week",
+                        "totals": false,
                         "bars": "under",
                         "barColour": "accent"
                       },
@@ -533,7 +536,8 @@
                       "settings": {
                         "title": "Have your say",
                         "limit": 1,
-                        "showClosed": false
+                        "showClosed": false,
+                        "look": "list"
                       },
                       "unmet": "hide"
                     }

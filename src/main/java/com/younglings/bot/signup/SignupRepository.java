@@ -165,6 +165,31 @@ public class SignupRepository {
         }
     }
 
+    /** One open (not deleted) signup by id, or null: the load-through behind {@code SignupService.getSessionById}. */
+    public SignupSession getOpenSignupById(long signupId) {
+        String sql = """
+                SELECT signup_id, guild_id, title, notification_message, max_signups,
+                       signup_type, submission_field_label, group_role_id
+                FROM younglings.signup
+                WHERE signup_id = ?
+                  AND deleted_at IS NULL
+                """;
+
+        try (Connection connection = connectionSupplier.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setLong(1, signupId);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                return resultSet.next() ? mapSignupSession(resultSet) : null;
+            }
+
+        } catch (SQLException e) {
+            log.error("Failed to get signup {}", signupId, e);
+            throw new RuntimeException("Failed to get signup", e);
+        }
+    }
+
     /** Signups untouched (no new entries) since before {@code cutoff} — candidates for auto-close. */
     public List<SignupSession> getInactiveSignups(Instant cutoff) {
         String sql = """

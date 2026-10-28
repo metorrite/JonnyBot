@@ -1,6 +1,7 @@
 package com.younglings.bot.internal;
 
 import com.younglings.bot.coffer.CofferRepository;
+import com.younglings.bot.discord.DiscordLookups;
 import com.younglings.bot.commands.coffer.CofferHolder;
 import com.younglings.bot.commands.coffer.GpAmountParser;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
@@ -187,15 +188,12 @@ public class CofferAdminApi implements AdminRouteExtension {
         }
     }
 
-    /** Refuses someone who isn't in the server (the cache only holds who is online, so they are looked up). */
+    /**
+     * Refuses someone who isn't in the server (the cache only holds who is online, so they are looked up, waiting at most
+     * {@link DiscordLookups#BUDGET}). When Discord doesn't answer in time this throws {@link DiscordLookups.Slow} (a 503), never a wrong "not in this server".
+     */
     private static void requireMember(Guild guild, long userId, String problem) {
         if (guild.getMemberById(userId) != null) return;
-        Member found;
-        try {
-            found = guild.retrieveMemberById(userId).complete();
-        } catch (RuntimeException e) {
-            found = null;
-        }
-        if (found == null) throw new ApiError(400, problem);
+        if (DiscordLookups.memberOrSlow(guild, userId) == null) throw new ApiError(400, problem);
     }
 }

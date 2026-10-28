@@ -10,6 +10,10 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -75,6 +79,43 @@ class ClanSiteLayoutDatabaseTest {
 
         layouts.delete(GUILD);
         assertTrue(layouts.byGuild(GUILD).isEmpty());
+    }
+
+    @Test
+    void publishFromAnOlderRevisionIsRefused() {
+        layouts.saveDraft(GUILD, "{\"v\":1,\"x\":1}", 0, ACTOR);
+        assertEquals(2, layouts.saveDraft(GUILD, "{\"v\":1,\"x\":2}", 1, OTHER_ACTOR));
+        assertEquals(-1, layouts.publishDraft(GUILD, ACTOR, null, 1), "the editor loaded revision 1");
+        assertNull(layouts.byGuild(GUILD).orElseThrow().published(), "nothing went public");
+        assertTrue(layouts.versions(GUILD, 30).isEmpty(), "no version was recorded");
+        assertEquals(2, layouts.publishDraft(GUILD, ACTOR, null, 2));
+        assertEquals(0, layouts.publishDraft(OTHER_GUILD, ACTOR, null, 1), "no draft at all");
+    }
+
+    /** Tab A's save holds the row while tab B's publish (made from the older revision) waits on it: once A commits, B is refused. */
+    @Test
+    void publishInterleavedWithASaveIsRefused() throws Exception {
+        layouts.saveDraft(GUILD, "{\"v\":1,\"x\":1}", 0, ACTOR);
+        ExecutorService pool = Executors.newSingleThreadExecutor();
+        try (Connection tabA = db.getConnection()) {
+            tabA.setAutoCommit(false);
+            try (PreparedStatement s = tabA.prepareStatement(
+                    "UPDATE younglings.clan_site_layout SET draft = ?, draft_rev = draft_rev + 1 WHERE guild_id = ? AND draft_rev = 1")) {
+                s.setString(1, "{\"v\":1,\"x\":2}");
+                s.setLong(2, GUILD);
+                assertEquals(1, s.executeUpdate());
+            }
+            Future<Integer> tabB = pool.submit(() -> layouts.publishDraft(GUILD, OTHER_ACTOR, null, 1));
+            Thread.sleep(300);
+            assertFalse(tabB.isDone(), "the publish waits on the save's row lock");
+            tabA.commit();
+            assertEquals(-1, tabB.get(10, TimeUnit.SECONDS));
+        } finally {
+            pool.shutdownNow();
+        }
+        var saved = layouts.byGuild(GUILD).orElseThrow();
+        assertNull(saved.published(), "nothing went public");
+        assertEquals(2, saved.draftRev());
     }
 
     // ---------- versions (T-363) ----------

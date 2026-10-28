@@ -6,12 +6,12 @@ import java.util.function.Function;
 
 /**
  * Whether JonnyBot reads and writes plugin data through the RuneClans hub (runeclans-hub docs/HUB-DESIGN.md section 7). Off unless
- * {@code RUNECLANS_HUB_ENABLED=true} and both {@code RUNECLANS_HUB_URL} and {@code RUNECLANS_HUB_API_KEY} are set; off, the bot's own RS Link
+ * {@code RUNECLANS_HUB_ENABLED=true} and both {@code RUNECLANS_HUB_URL} and {@code RUNECLANS_HUB_API_KEY} are set; off, the bot's own RuneLink
  * and plugin ingest code does everything exactly as before. The key is never logged ({@link #toString()} hides it).
  *
  * @param enabled whether the hub is used
  * @param baseUrl the hub's address without a trailing slash, e.g. {@code https://api.runeclans.com}, or inside the Railway project
- *                {@code http://runeclans-hub.railway.internal:8090}
+ *                {@code http://<service>.railway.internal:8090}
  * @param apiKey  JonnyBot's first-party API key ({@code rsh_...}) with {@code link:resolve}, {@code players:read}, {@code feed:read},
  *                {@code guilds:write}
  * @param problem why the hub is off although {@code RUNECLANS_HUB_ENABLED} is true (names variables, never values), or null

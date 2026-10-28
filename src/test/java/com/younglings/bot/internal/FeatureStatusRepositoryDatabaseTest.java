@@ -47,7 +47,7 @@ class FeatureStatusRepositoryDatabaseTest {
             com.younglings.bot.anniversary.AnniversaryRepository.class, com.younglings.bot.alliance.AllianceRepository.class,
             com.younglings.bot.plugin.RuneSyncRepository.class, com.younglings.bot.devtools.DevSnapshotRepository.class,
             com.younglings.bot.lookup.LookupReminderRepository.class, com.younglings.bot.tracking.TrackingDatabaseInitializer.class,
-            com.younglings.bot.coffer.CofferDatabaseInitializer.class);
+            com.younglings.bot.coffer.CofferDatabaseInitializer.class, com.younglings.bot.events.SkillWeekRepository.class);
     private static final List<String> TOUCHED = List.of("goodbye_config", "self_role", "clan_profile", "lookup_reminder", "role_toolkit_allow",
             "tracking_group_config", "tracking_destination");
     private static ConnectionSupplier supplier;

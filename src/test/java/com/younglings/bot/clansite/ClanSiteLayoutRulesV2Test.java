@@ -449,6 +449,30 @@ class ClanSiteLayoutRulesV2Test {
     }
 
     @Test
+    void themeKitIsKeptOnlyWhenSetAndChecked() {
+        // the website's theme kits (runeclans T-575): look.kit survives a save, a site without one gains nothing, an unknown one is refused
+        for (String kit : ClanSiteLayoutRules.KITS) {
+            DataObject withKit = good();
+            withKit.getObject("look").put("kit", kit);
+            assertTrue(problems(withKit).isEmpty(), problems(withKit).toString());
+            DataObject clean = DataObject.fromJson(ClanSiteLayoutRulesV2.clean(withKit, ClanSiteLayoutRulesV2.Limits.PREMIUM, new ArrayList<>()));
+            assertEquals(kit, clean.getObject("look").getString("kit"));
+        }
+
+        DataObject plain = DataObject.fromJson(ClanSiteLayoutRulesV2.clean(good(), ClanSiteLayoutRulesV2.Limits.PREMIUM, new ArrayList<>()));
+        assertFalse(plain.getObject("look").hasKey("kit"), "nothing is added to a layout that doesn't set it");
+
+        DataObject cleared = good();
+        cleared.getObject("look").putNull("kit");
+        assertTrue(problems(cleared).isEmpty());
+        assertFalse(DataObject.fromJson(ClanSiteLayoutRulesV2.clean(cleared, ClanSiteLayoutRulesV2.Limits.PREMIUM, new ArrayList<>())).getObject("look").hasKey("kit"));
+
+        DataObject bad = good();
+        bad.getObject("look").put("kit", "crystal");
+        assertTrue(has(problems(bad), "theme kits"));
+    }
+
+    @Test
     void motionStyleIsKeptAndChecked() {
         // the site admin's animation style (runeclans docs/MOTION.md): stored only when set, one of the three styles
         DataObject look = good();
@@ -551,6 +575,20 @@ class ClanSiteLayoutRulesV2Test {
         assertTrue(has(found, "unknown position"));
         assertTrue(has(found, "current page"));
         assertTrue(has(found, "hide setting"));
+    }
+
+    @Test
+    void phoneMenuRow() {
+        // runeclans T-518: the header's links in a scrolling row on phones
+        DataObject look = good();
+        look.getObject("header").put("mobile", "row");
+        assertTrue(problems(look).isEmpty(), problems(look).toString());
+        DataObject clean = DataObject.fromJson(ClanSiteLayoutRulesV2.clean(look, ClanSiteLayoutRulesV2.Limits.PREMIUM, new ArrayList<>()));
+        assertEquals("row", clean.getObject("header").getString("mobile"));
+
+        DataObject bad = good();
+        bad.getObject("header").put("mobile", "carousel");
+        assertTrue(has(problems(bad), "phone menu"));
     }
 
     @Test

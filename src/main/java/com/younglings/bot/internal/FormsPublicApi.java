@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.discord.Shards;
 import com.sun.net.httpserver.HttpExchange;
 import com.younglings.bot.discord.DiscordLookups;
 import com.younglings.bot.forms.WebFormRepository;
@@ -19,7 +20,9 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -31,6 +34,8 @@ import java.util.Optional;
  * <ul>
  *   <li>{@code GET {guildId}/{formId}?userId=}: the form, and whether this person may send it now</li>
  *   <li>{@code POST {guildId}/{formId}/submit} {@code {userId, answers: {questionId: text}}}</li>
+ *   <li>{@code POST {guildId}/{formId}/site-application} {@code {userId, site, answers: [{label, value}]}} (T-590, a clan site's application
+ *       form widget; the person needn't be in the server)</li>
  * </ul>
  */
 @BService
@@ -62,7 +67,7 @@ public class FormsPublicApi {
             }
             long guildId = parseId(parts[0]);
             long formId = parseId(parts[1]);
-            Guild guild = jda.getGuildById(guildId);
+            Guild guild = Shards.guild(jda, guildId);
             Form form = guild == null ? null : repository.get(formId).filter(f -> f.guildId() == guildId && f.enabled()).orElse(null);
             if (guild == null || form == null) {
                 InternalApiServer.sendJson(exchange, 404, DataObject.empty().put("error", "That form does not exist or is closed."));
@@ -77,6 +82,10 @@ public class FormsPublicApi {
                 long userId = optionalUser(exchange.getRequestURI().getRawQuery());
                 if (userId != 0 && !reads.tryAcquire(Long.toString(userId))) throw new FormProblem(429, "Slow down a moment.");
                 InternalApiServer.sendJson(exchange, 200, definition(guild, form, userId));
+                return;
+            }
+            if (parts[2].equals("site-application") && method.equals("POST")) {
+                siteApplication(exchange, guild, formId);
                 return;
             }
             if (!parts[2].equals("submit") || !method.equals("POST")) {
@@ -112,6 +121,34 @@ public class FormsPublicApi {
             log.error("Forms API request {} failed", exchange.getRequestURI().getPath(), e);
             InternalApiServer.sendJson(exchange, 500, DataObject.empty().put("error", "Internal error"));
         }
+    }
+
+    /**
+     * T-590: {@code POST {guildId}/{formId}/site-application} {@code {userId, site, answers: [{label, value}]}}: an application from the clan site's
+     * application form widget, delivered where this form sends answers ({@link WebFormService#submitFromSite}). The applicant needn't be in the
+     * server. Same per-person limit as a normal send.
+     */
+    private void siteApplication(HttpExchange exchange, Guild guild, long formId) throws IOException {
+        DataObject body = DataObject.fromJson(new String(exchange.getRequestBody().readNBytes(MAX_BODY), StandardCharsets.UTF_8));
+        long userId = parseId(body.getString("userId", ""));
+        if (!submits.tryAcquire(Long.toString(userId))) throw new FormProblem(429, "You are sending that too fast. Wait a moment and try again.");
+        List<String> labels = new ArrayList<>();
+        List<String> values = new ArrayList<>();
+        DataArray raw = body.optArray("answers").orElse(DataArray.empty());
+        for (int i = 0; i < raw.length() && labels.size() < WebForms.MAX_SITE_ANSWERS; i++) {
+            if (!raw.isType(i, net.dv8tion.jda.api.utils.data.DataType.OBJECT)) continue;
+            DataObject a = raw.getObject(i);
+            String label = a.getString("label", "").strip();
+            if (label.isEmpty() || label.replaceAll("\\p{Cntrl}", "").isEmpty()) continue;
+            labels.add(label);
+            values.add(a.getString("value", ""));
+        }
+        String site = body.getString("site", "").strip();
+        if (!site.matches("[a-z0-9][a-z0-9-]{0,39}")) site = null;
+        var outcome = service.submitFromSite(guild, userId, formId, labels, values, site);
+        DataArray notes = DataArray.empty();
+        outcome.notes().forEach(notes::add);
+        InternalApiServer.sendJson(exchange, 200, DataObject.empty().put("ok", true).put("ticketOpened", outcome.ticketOpened()).put("notes", notes));
     }
 
     private DataObject definition(Guild guild, Form form, long userId) {

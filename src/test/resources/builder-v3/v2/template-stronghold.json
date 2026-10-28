@@ -48,7 +48,7 @@
     "mobile": "drawer",
     "nav": [
       {
-        "id": "strongn354",
+        "id": "strongn373",
         "label": "Home",
         "link": {
           "kind": "page",
@@ -56,11 +56,11 @@
         }
       },
       {
-        "id": "strongn355",
+        "id": "strongn374",
         "label": "Clan",
         "children": [
           {
-            "id": "strongn356",
+            "id": "strongn375",
             "label": "Members",
             "link": {
               "kind": "page",
@@ -68,7 +68,7 @@
             }
           },
           {
-            "id": "strongn357",
+            "id": "strongn376",
             "label": "About us",
             "link": {
               "kind": "page",
@@ -76,7 +76,7 @@
             }
           },
           {
-            "id": "strongn358",
+            "id": "strongn377",
             "label": "Hall of fame",
             "link": {
               "kind": "page",
@@ -84,7 +84,7 @@
             }
           },
           {
-            "id": "strongn359",
+            "id": "strongn378",
             "label": "History",
             "link": {
               "kind": "page",
@@ -92,7 +92,7 @@
             }
           },
           {
-            "id": "strongn360",
+            "id": "strongn379",
             "label": "Compare",
             "link": {
               "kind": "page",
@@ -102,11 +102,11 @@
         ]
       },
       {
-        "id": "strongn361",
+        "id": "strongn380",
         "label": "Stats",
         "children": [
           {
-            "id": "strongn362",
+            "id": "strongn381",
             "label": "Clan stats",
             "link": {
               "kind": "page",
@@ -114,7 +114,7 @@
             }
           },
           {
-            "id": "strongn363",
+            "id": "strongn382",
             "label": "Leaderboards",
             "link": {
               "kind": "page",
@@ -122,7 +122,7 @@
             }
           },
           {
-            "id": "strongn364",
+            "id": "strongn383",
             "label": "Recaps",
             "link": {
               "kind": "page",
@@ -130,7 +130,7 @@
             }
           },
           {
-            "id": "strongn365",
+            "id": "strongn384",
             "label": "Citadel",
             "link": {
               "kind": "page",
@@ -138,7 +138,7 @@
             }
           },
           {
-            "id": "strongn366",
+            "id": "strongn385",
             "label": "Coffer",
             "link": {
               "kind": "page",
@@ -148,11 +148,11 @@
         ]
       },
       {
-        "id": "strongn367",
+        "id": "strongn386",
         "label": "PvM",
         "children": [
           {
-            "id": "strongn368",
+            "id": "strongn387",
             "label": "Bosses",
             "link": {
               "kind": "page",
@@ -160,7 +160,7 @@
             }
           },
           {
-            "id": "strongn369",
+            "id": "strongn388",
             "label": "Drop log",
             "link": {
               "kind": "page",
@@ -170,11 +170,11 @@
         ]
       },
       {
-        "id": "strongn370",
+        "id": "strongn389",
         "label": "Events",
         "children": [
           {
-            "id": "strongn371",
+            "id": "strongn390",
             "label": "Upcoming",
             "link": {
               "kind": "page",
@@ -182,7 +182,7 @@
             }
           },
           {
-            "id": "strongn372",
+            "id": "strongn391",
             "label": "Calendar",
             "link": {
               "kind": "page",
@@ -190,7 +190,7 @@
             }
           },
           {
-            "id": "strongn373",
+            "id": "strongn392",
             "label": "Signups",
             "link": {
               "kind": "page",
@@ -198,7 +198,7 @@
             }
           },
           {
-            "id": "strongn374",
+            "id": "strongn393",
             "label": "Polls",
             "link": {
               "kind": "page",
@@ -208,7 +208,7 @@
         ]
       },
       {
-        "id": "strongn375",
+        "id": "strongn394",
         "label": "Join",
         "link": {
           "kind": "page",
@@ -377,7 +377,7 @@
           ]
         },
         {
-          "id": "strongs020",
+          "id": "strongs021",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -395,7 +395,7 @@
           },
           "rows": [
             {
-              "id": "strongr016",
+              "id": "strongr017",
               "gap": {
                 "lg": "md"
               },
@@ -430,10 +430,12 @@
                       "settings": {
                         "title": "Top XP gainers",
                         "limit": 8,
+                        "topFive": false,
                         "showDay": true,
                         "showWeek": true,
                         "showMonth": true,
                         "defaultTab": "week",
+                        "totals": false,
                         "bars": "under",
                         "barColour": "accent"
                       },
@@ -471,6 +473,7 @@
                         "title": "Citadel",
                         "weeks": 6,
                         "series": "both",
+                        "look": "simple",
                         "more": null,
                         "moreText": "Attendance"
                       },
@@ -523,7 +526,8 @@
                           }
                         ],
                         "columns": "4",
-                        "numbers": "accent"
+                        "numbers": "accent",
+                        "captions": "full"
                       },
                       "unmet": "hide"
                     },
@@ -545,7 +549,7 @@
                   ]
                 },
                 {
-                  "id": "strongc015",
+                  "id": "strongc016",
                   "span": {
                     "lg": 3,
                     "md": 6,
@@ -573,6 +577,16 @@
                     },
                     {
                       "id": "strongw014",
+                      "type": "in-game-now",
+                      "v": 1,
+                      "settings": {
+                        "title": "In game now",
+                        "who": "members"
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "strongw015",
                       "type": "spotlight",
                       "v": 1,
                       "settings": {
@@ -590,7 +604,7 @@
               ]
             },
             {
-              "id": "strongr019",
+              "id": "strongr020",
               "gap": {
                 "lg": "md"
               },
@@ -602,7 +616,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc018",
+                  "id": "strongc019",
                   "span": {
                     "lg": 12
                   },
@@ -613,7 +627,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw017",
+                      "id": "strongw018",
                       "type": "live-streams",
                       "v": 1,
                       "settings": {
@@ -643,7 +657,7 @@
       },
       "sections": [
         {
-          "id": "strongs024",
+          "id": "strongs025",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -661,7 +675,7 @@
           },
           "rows": [
             {
-              "id": "strongr023",
+              "id": "strongr024",
               "gap": {
                 "lg": "md"
               },
@@ -673,7 +687,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc022",
+                  "id": "strongc023",
                   "span": {
                     "lg": 12
                   },
@@ -684,7 +698,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw021",
+                      "id": "strongw022",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -704,7 +718,7 @@
           ]
         },
         {
-          "id": "strongs033",
+          "id": "strongs034",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -722,7 +736,7 @@
           },
           "rows": [
             {
-              "id": "strongr029",
+              "id": "strongr030",
               "gap": {
                 "lg": "md"
               },
@@ -734,7 +748,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc026",
+                  "id": "strongc027",
                   "span": {
                     "lg": 9,
                     "md": 12
@@ -746,7 +760,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw025",
+                      "id": "strongw026",
                       "type": "member-directory",
                       "v": 1,
                       "settings": {
@@ -769,7 +783,7 @@
                   ]
                 },
                 {
-                  "id": "strongc028",
+                  "id": "strongc029",
                   "span": {
                     "lg": 3,
                     "md": 12
@@ -781,7 +795,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw027",
+                      "id": "strongw028",
                       "type": "rank-breakdown",
                       "v": 1,
                       "settings": {
@@ -797,7 +811,7 @@
               ]
             },
             {
-              "id": "strongr032",
+              "id": "strongr033",
               "gap": {
                 "lg": "md"
               },
@@ -809,7 +823,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc031",
+                  "id": "strongc032",
                   "span": {
                     "lg": 12
                   },
@@ -820,7 +834,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw030",
+                      "id": "strongw031",
                       "type": "rank-ladder",
                       "v": 1,
                       "settings": {
@@ -853,7 +867,7 @@
       },
       "sections": [
         {
-          "id": "strongs042",
+          "id": "strongs043",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -871,7 +885,7 @@
           },
           "rows": [
             {
-              "id": "strongr036",
+              "id": "strongr037",
               "gap": {
                 "lg": "md"
               },
@@ -883,7 +897,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc035",
+                  "id": "strongc036",
                   "span": {
                     "lg": 12
                   },
@@ -894,10 +908,13 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw034",
+                      "id": "strongw035",
                       "type": "member-card",
                       "v": 1,
                       "settings": {
+                        "look": "card",
+                        "back": null,
+                        "backText": "All members",
                         "showStrip": false,
                         "showBio": true,
                         "showTotals": true,
@@ -920,7 +937,7 @@
               ]
             },
             {
-              "id": "strongr041",
+              "id": "strongr042",
               "gap": {
                 "lg": "md"
               },
@@ -932,7 +949,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc038",
+                  "id": "strongc039",
                   "span": {
                     "lg": 6
                   },
@@ -943,18 +960,19 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw037",
+                      "id": "strongw038",
                       "type": "member-gains",
                       "v": 1,
                       "settings": {
-                        "title": ""
+                        "title": "",
+                        "look": "box"
                       },
                       "unmet": "hide"
                     }
                   ]
                 },
                 {
-                  "id": "strongc040",
+                  "id": "strongc041",
                   "span": {
                     "lg": 6
                   },
@@ -965,11 +983,12 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw039",
+                      "id": "strongw040",
                       "type": "member-xp-split",
                       "v": 1,
                       "settings": {
                         "title": "Where the XP went",
+                        "look": "ring",
                         "period": "week",
                         "tabs": true,
                         "slices": 7
@@ -983,7 +1002,7 @@
           ]
         },
         {
-          "id": "strongs061",
+          "id": "strongs062",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1001,7 +1020,7 @@
           },
           "rows": [
             {
-              "id": "strongr047",
+              "id": "strongr048",
               "gap": {
                 "lg": "md"
               },
@@ -1013,7 +1032,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc044",
+                  "id": "strongc045",
                   "span": {
                     "lg": 8,
                     "md": 12
@@ -1025,11 +1044,12 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw043",
+                      "id": "strongw044",
                       "type": "member-xp-chart",
                       "v": 1,
                       "settings": {
                         "title": "XP over time",
+                        "look": "bars",
                         "days": "90",
                         "gains": "week"
                       },
@@ -1038,7 +1058,7 @@
                   ]
                 },
                 {
-                  "id": "strongc046",
+                  "id": "strongc047",
                   "span": {
                     "lg": 4,
                     "md": 12
@@ -1050,7 +1070,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw045",
+                      "id": "strongw046",
                       "type": "member-badges",
                       "v": 1,
                       "settings": {
@@ -1065,7 +1085,7 @@
               ]
             },
             {
-              "id": "strongr050",
+              "id": "strongr051",
               "gap": {
                 "lg": "md"
               },
@@ -1077,7 +1097,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc049",
+                  "id": "strongc050",
                   "span": {
                     "lg": 12
                   },
@@ -1088,7 +1108,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw048",
+                      "id": "strongw049",
                       "type": "member-skills",
                       "v": 1,
                       "settings": {
@@ -1106,7 +1126,7 @@
               ]
             },
             {
-              "id": "strongr055",
+              "id": "strongr056",
               "gap": {
                 "lg": "md"
               },
@@ -1118,7 +1138,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc052",
+                  "id": "strongc053",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -1130,11 +1150,12 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw051",
+                      "id": "strongw052",
                       "type": "member-citadel",
                       "v": 1,
                       "settings": {
                         "title": "Citadel",
+                        "look": "facts",
                         "weeks": 12,
                         "showGrid": true
                       },
@@ -1143,7 +1164,7 @@
                   ]
                 },
                 {
-                  "id": "strongc054",
+                  "id": "strongc055",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -1155,11 +1176,12 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw053",
+                      "id": "strongw054",
                       "type": "member-points",
                       "v": 1,
                       "settings": {
                         "title": "Clan points",
+                        "look": "list",
                         "limit": 8,
                         "showChart": true
                       },
@@ -1170,7 +1192,7 @@
               ]
             },
             {
-              "id": "strongr060",
+              "id": "strongr061",
               "gap": {
                 "lg": "md"
               },
@@ -1182,7 +1204,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc057",
+                  "id": "strongc058",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -1194,12 +1216,13 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw056",
+                      "id": "strongw057",
                       "type": "member-adventure-log",
                       "v": 1,
                       "settings": {
                         "title": "Adventure log",
                         "limit": 10,
+                        "look": "dated",
                         "showDetails": false
                       },
                       "unmet": "hide"
@@ -1207,7 +1230,7 @@
                   ]
                 },
                 {
-                  "id": "strongc059",
+                  "id": "strongc060",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -1219,7 +1242,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw058",
+                      "id": "strongw059",
                       "type": "member-recap",
                       "v": 1,
                       "settings": {
@@ -1249,7 +1272,7 @@
       },
       "sections": [
         {
-          "id": "strongs065",
+          "id": "strongs066",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1267,7 +1290,7 @@
           },
           "rows": [
             {
-              "id": "strongr064",
+              "id": "strongr065",
               "gap": {
                 "lg": "md"
               },
@@ -1279,7 +1302,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc063",
+                  "id": "strongc064",
                   "span": {
                     "lg": 12
                   },
@@ -1290,7 +1313,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw062",
+                      "id": "strongw063",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -1310,7 +1333,7 @@
           ]
         },
         {
-          "id": "strongs069",
+          "id": "strongs070",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1328,7 +1351,7 @@
           },
           "rows": [
             {
-              "id": "strongr068",
+              "id": "strongr069",
               "gap": {
                 "lg": "md"
               },
@@ -1340,7 +1363,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc067",
+                  "id": "strongc068",
                   "span": {
                     "lg": 12
                   },
@@ -1351,7 +1374,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw066",
+                      "id": "strongw067",
                       "type": "compare",
                       "v": 1,
                       "settings": {
@@ -1382,7 +1405,7 @@
       },
       "sections": [
         {
-          "id": "strongs073",
+          "id": "strongs074",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1400,7 +1423,7 @@
           },
           "rows": [
             {
-              "id": "strongr072",
+              "id": "strongr073",
               "gap": {
                 "lg": "md"
               },
@@ -1412,7 +1435,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc071",
+                  "id": "strongc072",
                   "span": {
                     "lg": 12
                   },
@@ -1423,7 +1446,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw070",
+                      "id": "strongw071",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -1443,7 +1466,7 @@
           ]
         },
         {
-          "id": "strongs082",
+          "id": "strongs083",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1461,7 +1484,7 @@
           },
           "rows": [
             {
-              "id": "strongr078",
+              "id": "strongr079",
               "gap": {
                 "lg": "md"
               },
@@ -1473,7 +1496,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc075",
+                  "id": "strongc076",
                   "span": {
                     "lg": 8,
                     "md": 12
@@ -1485,7 +1508,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw074",
+                      "id": "strongw075",
                       "type": "hall-of-fame",
                       "v": 1,
                       "settings": {
@@ -1494,14 +1517,16 @@
                         "showClub": true,
                         "showStreaks": true,
                         "showVeterans": true,
-                        "limit": 8
+                        "limit": 8,
+                        "look": "plain",
+                        "barColour": "accent"
                       },
                       "unmet": "hide"
                     }
                   ]
                 },
                 {
-                  "id": "strongc077",
+                  "id": "strongc078",
                   "span": {
                     "lg": 4,
                     "md": 12
@@ -1513,7 +1538,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw076",
+                      "id": "strongw077",
                       "type": "milestones",
                       "v": 1,
                       "settings": {
@@ -1531,7 +1556,7 @@
               ]
             },
             {
-              "id": "strongr081",
+              "id": "strongr082",
               "gap": {
                 "lg": "md"
               },
@@ -1543,7 +1568,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc080",
+                  "id": "strongc081",
                   "span": {
                     "lg": 12
                   },
@@ -1554,7 +1579,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw079",
+                      "id": "strongw080",
                       "type": "badge-catalogue",
                       "v": 1,
                       "settings": {
@@ -1584,7 +1609,7 @@
       },
       "sections": [
         {
-          "id": "strongs086",
+          "id": "strongs087",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1602,7 +1627,7 @@
           },
           "rows": [
             {
-              "id": "strongr085",
+              "id": "strongr086",
               "gap": {
                 "lg": "md"
               },
@@ -1614,7 +1639,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc084",
+                  "id": "strongc085",
                   "span": {
                     "lg": 12
                   },
@@ -1625,7 +1650,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw083",
+                      "id": "strongw084",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -1645,7 +1670,7 @@
           ]
         },
         {
-          "id": "strongs092",
+          "id": "strongs093",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1663,7 +1688,7 @@
           },
           "rows": [
             {
-              "id": "strongr091",
+              "id": "strongr092",
               "gap": {
                 "lg": "md"
               },
@@ -1675,7 +1700,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc088",
+                  "id": "strongc089",
                   "span": {
                     "lg": 5,
                     "md": 12
@@ -1687,7 +1712,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw087",
+                      "id": "strongw088",
                       "type": "joins-chart",
                       "v": 1,
                       "settings": {
@@ -1699,7 +1724,7 @@
                   ]
                 },
                 {
-                  "id": "strongc090",
+                  "id": "strongc091",
                   "span": {
                     "lg": 7,
                     "md": 12
@@ -1711,7 +1736,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw089",
+                      "id": "strongw090",
                       "type": "clan-history",
                       "v": 1,
                       "settings": {
@@ -1740,7 +1765,7 @@
       "access": "public",
       "sections": [
         {
-          "id": "strongs096",
+          "id": "strongs097",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1758,7 +1783,7 @@
           },
           "rows": [
             {
-              "id": "strongr095",
+              "id": "strongr096",
               "gap": {
                 "lg": "md"
               },
@@ -1770,7 +1795,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc094",
+                  "id": "strongc095",
                   "span": {
                     "lg": 12
                   },
@@ -1781,7 +1806,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw093",
+                      "id": "strongw094",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -1801,7 +1826,7 @@
           ]
         },
         {
-          "id": "strongs110",
+          "id": "strongs111",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1819,7 +1844,7 @@
           },
           "rows": [
             {
-              "id": "strongr101",
+              "id": "strongr102",
               "gap": {
                 "lg": "md"
               },
@@ -1831,7 +1856,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc098",
+                  "id": "strongc099",
                   "span": {
                     "lg": 7,
                     "md": 12
@@ -1843,7 +1868,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw097",
+                      "id": "strongw098",
                       "type": "text",
                       "v": 1,
                       "settings": {
@@ -1856,7 +1881,7 @@
                   ]
                 },
                 {
-                  "id": "strongc100",
+                  "id": "strongc101",
                   "span": {
                     "lg": 5,
                     "md": 12
@@ -1868,7 +1893,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw099",
+                      "id": "strongw100",
                       "type": "image",
                       "v": 2,
                       "settings": {
@@ -1888,7 +1913,7 @@
               ]
             },
             {
-              "id": "strongr104",
+              "id": "strongr105",
               "gap": {
                 "lg": "md"
               },
@@ -1900,7 +1925,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc103",
+                  "id": "strongc104",
                   "span": {
                     "lg": 12
                   },
@@ -1911,7 +1936,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw102",
+                      "id": "strongw103",
                       "type": "gallery",
                       "v": 1,
                       "settings": {
@@ -1972,7 +1997,7 @@
               ]
             },
             {
-              "id": "strongr109",
+              "id": "strongr110",
               "gap": {
                 "lg": "md"
               },
@@ -1984,7 +2009,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc106",
+                  "id": "strongc107",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -1996,7 +2021,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw105",
+                      "id": "strongw106",
                       "type": "video",
                       "v": 1,
                       "settings": {
@@ -2009,7 +2034,7 @@
                   ]
                 },
                 {
-                  "id": "strongc108",
+                  "id": "strongc109",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -2021,7 +2046,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw107",
+                      "id": "strongw108",
                       "type": "clan-stats",
                       "v": 1,
                       "settings": {
@@ -2036,7 +2061,7 @@
           ]
         },
         {
-          "id": "strongs134",
+          "id": "strongs135",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -2054,7 +2079,7 @@
           },
           "rows": [
             {
-              "id": "strongr113",
+              "id": "strongr114",
               "gap": {
                 "lg": "md"
               },
@@ -2066,7 +2091,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc112",
+                  "id": "strongc113",
                   "span": {
                     "lg": 12
                   },
@@ -2077,7 +2102,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw111",
+                      "id": "strongw112",
                       "type": "divider",
                       "v": 1,
                       "settings": {
@@ -2093,7 +2118,7 @@
               ]
             },
             {
-              "id": "strongr118",
+              "id": "strongr119",
               "gap": {
                 "lg": "md"
               },
@@ -2105,7 +2130,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc115",
+                  "id": "strongc116",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -2117,7 +2142,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw114",
+                      "id": "strongw115",
                       "type": "clan-goals",
                       "v": 1,
                       "settings": {
@@ -2140,7 +2165,7 @@
                   ]
                 },
                 {
-                  "id": "strongc117",
+                  "id": "strongc118",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -2152,7 +2177,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw116",
+                      "id": "strongw117",
                       "type": "event-standings",
                       "v": 1,
                       "settings": {
@@ -2166,7 +2191,7 @@
               ]
             },
             {
-              "id": "strongr121",
+              "id": "strongr122",
               "gap": {
                 "lg": "md"
               },
@@ -2178,7 +2203,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc120",
+                  "id": "strongc121",
                   "span": {
                     "lg": 12
                   },
@@ -2189,7 +2214,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw119",
+                      "id": "strongw120",
                       "type": "alliances",
                       "v": 1,
                       "settings": {
@@ -2203,7 +2228,7 @@
               ]
             },
             {
-              "id": "strongr126",
+              "id": "strongr127",
               "gap": {
                 "lg": "md"
               },
@@ -2215,7 +2240,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc123",
+                  "id": "strongc124",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -2227,7 +2252,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw122",
+                      "id": "strongw123",
                       "type": "adventure-log",
                       "v": 1,
                       "settings": {
@@ -2236,6 +2261,7 @@
                         "tabs": true,
                         "filter": "all",
                         "look": "lines",
+                        "filters": "groups",
                         "more": null,
                         "moreText": "See all"
                       },
@@ -2244,7 +2270,7 @@
                   ]
                 },
                 {
-                  "id": "strongc125",
+                  "id": "strongc126",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -2256,7 +2282,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw124",
+                      "id": "strongw125",
                       "type": "runesync-activity",
                       "v": 1,
                       "settings": {
@@ -2270,7 +2296,7 @@
               ]
             },
             {
-              "id": "strongr129",
+              "id": "strongr130",
               "gap": {
                 "lg": "md"
               },
@@ -2282,7 +2308,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc128",
+                  "id": "strongc129",
                   "span": {
                     "lg": 12
                   },
@@ -2293,7 +2319,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw127",
+                      "id": "strongw128",
                       "type": "quick-links",
                       "v": 1,
                       "settings": {
@@ -2337,7 +2363,7 @@
               ]
             },
             {
-              "id": "strongr133",
+              "id": "strongr134",
               "gap": {
                 "lg": "md"
               },
@@ -2349,7 +2375,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc132",
+                  "id": "strongc133",
                   "span": {
                     "lg": 12
                   },
@@ -2360,7 +2386,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw130",
+                      "id": "strongw131",
                       "type": "spacer",
                       "v": 1,
                       "settings": {
@@ -2370,7 +2396,7 @@
                       "unmet": "hide"
                     },
                     {
-                      "id": "strongw131",
+                      "id": "strongw132",
                       "type": "links",
                       "v": 2,
                       "settings": {
@@ -2414,7 +2440,7 @@
       },
       "sections": [
         {
-          "id": "strongs138",
+          "id": "strongs139",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -2432,7 +2458,7 @@
           },
           "rows": [
             {
-              "id": "strongr137",
+              "id": "strongr138",
               "gap": {
                 "lg": "md"
               },
@@ -2444,7 +2470,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc136",
+                  "id": "strongc137",
                   "span": {
                     "lg": 12
                   },
@@ -2455,7 +2481,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw135",
+                      "id": "strongw136",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -2475,7 +2501,7 @@
           ]
         },
         {
-          "id": "strongs167",
+          "id": "strongs170",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -2493,7 +2519,7 @@
           },
           "rows": [
             {
-              "id": "strongr141",
+              "id": "strongr142",
               "gap": {
                 "lg": "md"
               },
@@ -2505,7 +2531,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc140",
+                  "id": "strongc141",
                   "span": {
                     "lg": 12
                   },
@@ -2516,7 +2542,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw139",
+                      "id": "strongw140",
                       "type": "stat-tiles",
                       "v": 2,
                       "settings": {
@@ -2543,7 +2569,8 @@
                           }
                         ],
                         "columns": "4",
-                        "numbers": "accent"
+                        "numbers": "accent",
+                        "captions": "full"
                       },
                       "unmet": "hide"
                     }
@@ -2552,7 +2579,7 @@
               ]
             },
             {
-              "id": "strongr146",
+              "id": "strongr147",
               "gap": {
                 "lg": "md"
               },
@@ -2564,7 +2591,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc143",
+                  "id": "strongc144",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -2576,7 +2603,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw142",
+                      "id": "strongw143",
                       "type": "xp-chart",
                       "v": 1,
                       "settings": {
@@ -2588,7 +2615,7 @@
                   ]
                 },
                 {
-                  "id": "strongc145",
+                  "id": "strongc146",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -2600,13 +2627,14 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw144",
+                      "id": "strongw145",
                       "type": "citadel-chart",
                       "v": 1,
                       "settings": {
                         "title": "Citadel caps and visits per week",
                         "weeks": 12,
                         "series": "both",
+                        "look": "simple",
                         "more": null,
                         "moreText": "Attendance"
                       },
@@ -2617,7 +2645,7 @@
               ]
             },
             {
-              "id": "strongr151",
+              "id": "strongr152",
               "gap": {
                 "lg": "md"
               },
@@ -2629,7 +2657,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc148",
+                  "id": "strongc149",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -2641,7 +2669,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw147",
+                      "id": "strongw148",
                       "type": "joins-chart",
                       "v": 1,
                       "settings": {
@@ -2653,7 +2681,7 @@
                   ]
                 },
                 {
-                  "id": "strongc150",
+                  "id": "strongc151",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -2665,7 +2693,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw149",
+                      "id": "strongw150",
                       "type": "rank-breakdown",
                       "v": 1,
                       "settings": {
@@ -2681,7 +2709,7 @@
               ]
             },
             {
-              "id": "strongr158",
+              "id": "strongr159",
               "gap": {
                 "lg": "md"
               },
@@ -2693,7 +2721,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc153",
+                  "id": "strongc154",
                   "span": {
                     "lg": 4,
                     "md": 6
@@ -2705,13 +2733,14 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw152",
+                      "id": "strongw153",
                       "type": "top-list",
                       "v": 1,
                       "settings": {
                         "title": "Highest total XP",
                         "metric": "xp",
                         "limit": 10,
+                        "topFive": false,
                         "bars": "under",
                         "barColour": "accent"
                       },
@@ -2720,7 +2749,7 @@
                   ]
                 },
                 {
-                  "id": "strongc155",
+                  "id": "strongc156",
                   "span": {
                     "lg": 4,
                     "md": 6
@@ -2732,15 +2761,18 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw154",
+                      "id": "strongw155",
                       "type": "leaderboard",
                       "v": 1,
                       "settings": {
                         "title": "Most Citadel caps",
+                        "layout": "board",
                         "metric": "citadel",
                         "period": "all",
                         "visitorPeriods": false,
+                        "showPeriod": true,
                         "limit": 10,
+                        "topFive": false,
                         "bars": "under",
                         "barColour": "accent"
                       },
@@ -2749,7 +2781,7 @@
                   ]
                 },
                 {
-                  "id": "strongc157",
+                  "id": "strongc158",
                   "span": {
                     "lg": 4,
                     "md": 12
@@ -2761,7 +2793,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw156",
+                      "id": "strongw157",
                       "type": "kill-tracker",
                       "v": 1,
                       "settings": {
@@ -2776,7 +2808,7 @@
               ]
             },
             {
-              "id": "strongr163",
+              "id": "strongr164",
               "gap": {
                 "lg": "md"
               },
@@ -2788,7 +2820,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc160",
+                  "id": "strongc161",
                   "span": {
                     "lg": 4,
                     "md": 12
@@ -2800,13 +2832,14 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw159",
+                      "id": "strongw160",
                       "type": "clan-top",
                       "v": 1,
                       "settings": {
                         "title": "Most clan points",
                         "metric": "points",
                         "limit": 10,
+                        "topFive": false,
                         "bars": "under",
                         "barColour": "accent"
                       },
@@ -2815,7 +2848,7 @@
                   ]
                 },
                 {
-                  "id": "strongc162",
+                  "id": "strongc163",
                   "span": {
                     "lg": 8,
                     "md": 12
@@ -2827,7 +2860,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw161",
+                      "id": "strongw162",
                       "type": "skill-leaders",
                       "v": 1,
                       "settings": {
@@ -2842,7 +2875,7 @@
               ]
             },
             {
-              "id": "strongr166",
+              "id": "strongr169",
               "gap": {
                 "lg": "md"
               },
@@ -2854,7 +2887,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc165",
+                  "id": "strongc166",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -2866,12 +2899,38 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw164",
+                      "id": "strongw165",
                       "type": "joins-weekly",
                       "v": 1,
                       "settings": {
                         "title": "Joins and leaves per week",
-                        "weeks": 12
+                        "weeks": 12,
+                        "look": "simple"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "strongc168",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw167",
+                      "type": "leaderboard-race",
+                      "v": 1,
+                      "settings": {
+                        "title": "The race this month",
+                        "metric": "xp",
+                        "limit": 10
                       },
                       "unmet": "hide"
                     }
@@ -2882,7 +2941,7 @@
           ]
         },
         {
-          "id": "strongs171",
+          "id": "strongs177",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -2900,7 +2959,7 @@
           },
           "rows": [
             {
-              "id": "strongr170",
+              "id": "strongr173",
               "gap": {
                 "lg": "md"
               },
@@ -2912,7 +2971,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc169",
+                  "id": "strongc172",
                   "span": {
                     "lg": 12
                   },
@@ -2923,7 +2982,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw168",
+                      "id": "strongw171",
                       "type": "activity-heatmap",
                       "v": 1,
                       "settings": {
@@ -2932,6 +2991,46 @@
                         "days": "180",
                         "showWeek": true,
                         "bestTimes": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "strongr176",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "strongc175",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw174",
+                      "type": "season-standings",
+                      "v": 1,
+                      "settings": {
+                        "title": "Clan season",
+                        "limit": 10,
+                        "showBreakdown": true,
+                        "showLast": true,
+                        "showWrapped": true
                       },
                       "unmet": "hide"
                     }
@@ -2955,7 +3054,7 @@
       },
       "sections": [
         {
-          "id": "strongs175",
+          "id": "strongs181",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -2963,67 +3062,6 @@
           "padding": {
             "lg": {
               "y": "md",
-              "x": "md"
-            }
-          },
-          "height": {
-            "lg": {
-              "mode": "auto"
-            }
-          },
-          "rows": [
-            {
-              "id": "strongr174",
-              "gap": {
-                "lg": "md"
-              },
-              "align": "stretch",
-              "height": {
-                "lg": {
-                  "mode": "auto"
-                }
-              },
-              "cells": [
-                {
-                  "id": "strongc173",
-                  "span": {
-                    "lg": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "strongw172",
-                      "type": "heading",
-                      "v": 1,
-                      "settings": {
-                        "text": "Leaderboards",
-                        "subtitle": "Who gained the most XP, who capped the Citadel, and who joined, for any time frame you pick.",
-                        "size": "large",
-                        "align": "left",
-                        "colour": "",
-                        "level": "h1"
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "id": "strongs186",
-          "width": "wide",
-          "background": {
-            "kind": "none"
-          },
-          "padding": {
-            "lg": {
-              "y": "lg",
               "x": "md"
             }
           },
@@ -3046,39 +3084,9 @@
               },
               "cells": [
                 {
-                  "id": "strongc177",
-                  "span": {
-                    "lg": 6,
-                    "md": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "strongw176",
-                      "type": "leaderboard",
-                      "v": 1,
-                      "settings": {
-                        "title": "Top XP gainers",
-                        "metric": "xp",
-                        "period": "month",
-                        "visitorPeriods": true,
-                        "limit": 15,
-                        "bars": "under",
-                        "barColour": "accent"
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                },
-                {
                   "id": "strongc179",
                   "span": {
-                    "lg": 6,
-                    "md": 12
+                    "lg": 12
                   },
                   "padding": {
                     "lg": "none"
@@ -3088,25 +3096,44 @@
                   "widgets": [
                     {
                       "id": "strongw178",
-                      "type": "leaderboard",
+                      "type": "heading",
                       "v": 1,
                       "settings": {
-                        "title": "Most Citadel caps",
-                        "metric": "citadel",
-                        "period": "month",
-                        "visitorPeriods": true,
-                        "limit": 15,
-                        "bars": "under",
-                        "barColour": "accent"
+                        "text": "Leaderboards",
+                        "subtitle": "Who gained the most XP, who capped the Citadel, and who joined, for any time frame you pick.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
                       },
                       "unmet": "hide"
                     }
                   ]
                 }
               ]
-            },
+            }
+          ]
+        },
+        {
+          "id": "strongs195",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
             {
-              "id": "strongr185",
+              "id": "strongr184",
               "gap": {
                 "lg": "md"
               },
@@ -3118,7 +3145,43 @@
               },
               "cells": [
                 {
-                  "id": "strongc182",
+                  "id": "strongc183",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw182",
+                      "type": "period-bar",
+                      "v": 1,
+                      "settings": {
+                        "start": "month"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "strongr189",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "strongc186",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -3130,15 +3193,18 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw181",
+                      "id": "strongw185",
                       "type": "leaderboard",
                       "v": 1,
                       "settings": {
-                        "title": "Newest members",
-                        "metric": "joins",
+                        "title": "Top XP gainers",
+                        "layout": "board",
+                        "metric": "xp",
                         "period": "month",
                         "visitorPeriods": true,
+                        "showPeriod": true,
                         "limit": 15,
+                        "topFive": false,
                         "bars": "under",
                         "barColour": "accent"
                       },
@@ -3147,7 +3213,7 @@
                   ]
                 },
                 {
-                  "id": "strongc184",
+                  "id": "strongc188",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -3159,16 +3225,96 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw183",
+                      "id": "strongw187",
+                      "type": "leaderboard",
+                      "v": 1,
+                      "settings": {
+                        "title": "Most Citadel caps",
+                        "layout": "board",
+                        "metric": "citadel",
+                        "period": "month",
+                        "visitorPeriods": true,
+                        "showPeriod": true,
+                        "limit": 15,
+                        "topFive": false,
+                        "bars": "under",
+                        "barColour": "accent"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "strongr194",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "strongc191",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw190",
+                      "type": "leaderboard",
+                      "v": 1,
+                      "settings": {
+                        "title": "Newest members",
+                        "layout": "board",
+                        "metric": "joins",
+                        "period": "month",
+                        "visitorPeriods": true,
+                        "showPeriod": true,
+                        "limit": 15,
+                        "topFive": false,
+                        "bars": "under",
+                        "barColour": "accent"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "strongc193",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw192",
                       "type": "top-xp",
                       "v": 1,
                       "settings": {
                         "title": "Top XP this week",
                         "limit": 8,
+                        "topFive": false,
                         "showDay": true,
                         "showWeek": true,
                         "showMonth": true,
                         "defaultTab": "week",
+                        "totals": false,
                         "bars": "under",
                         "barColour": "accent"
                       },
@@ -3194,7 +3340,7 @@
       },
       "sections": [
         {
-          "id": "strongs190",
+          "id": "strongs199",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3212,7 +3358,7 @@
           },
           "rows": [
             {
-              "id": "strongr189",
+              "id": "strongr198",
               "gap": {
                 "lg": "md"
               },
@@ -3224,7 +3370,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc188",
+                  "id": "strongc197",
                   "span": {
                     "lg": 12
                   },
@@ -3235,7 +3381,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw187",
+                      "id": "strongw196",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -3245,66 +3391,6 @@
                         "align": "left",
                         "colour": "",
                         "level": "h1"
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "id": "strongs194",
-          "width": "wide",
-          "background": {
-            "kind": "none"
-          },
-          "padding": {
-            "lg": {
-              "y": "lg",
-              "x": "md"
-            }
-          },
-          "height": {
-            "lg": {
-              "mode": "auto"
-            }
-          },
-          "rows": [
-            {
-              "id": "strongr193",
-              "gap": {
-                "lg": "md"
-              },
-              "align": "stretch",
-              "height": {
-                "lg": {
-                  "mode": "auto"
-                }
-              },
-              "cells": [
-                {
-                  "id": "strongc192",
-                  "span": {
-                    "lg": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "strongw191",
-                      "type": "wrapped-recap",
-                      "v": 1,
-                      "settings": {
-                        "title": "",
-                        "period": "month",
-                        "visitorPeriods": true,
-                        "members": true,
-                        "autoplay": true
                       },
                       "unmet": "hide"
                     }
@@ -3333,70 +3419,6 @@
           },
           "rows": [
             {
-              "id": "strongr199",
-              "gap": {
-                "lg": "md"
-              },
-              "align": "stretch",
-              "height": {
-                "lg": {
-                  "mode": "auto"
-                }
-              },
-              "cells": [
-                {
-                  "id": "strongc196",
-                  "span": {
-                    "lg": 7,
-                    "md": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "strongw195",
-                      "type": "recap",
-                      "v": 1,
-                      "settings": {
-                        "title": "The whole clan",
-                        "period": "last-week",
-                        "visitorPeriods": true,
-                        "showTop": true
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                },
-                {
-                  "id": "strongc198",
-                  "span": {
-                    "lg": 5,
-                    "md": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "strongw197",
-                      "type": "weekly-recap",
-                      "v": 1,
-                      "settings": {
-                        "title": "Last week",
-                        "showTop": true
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                }
-              ]
-            },
-            {
               "id": "strongr202",
               "gap": {
                 "lg": "md"
@@ -3421,6 +3443,130 @@
                   "widgets": [
                     {
                       "id": "strongw200",
+                      "type": "wrapped-recap",
+                      "v": 1,
+                      "settings": {
+                        "title": "",
+                        "period": "month",
+                        "visitorPeriods": true,
+                        "members": true,
+                        "autoplay": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "strongs212",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "strongr208",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "strongc205",
+                  "span": {
+                    "lg": 7,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw204",
+                      "type": "recap",
+                      "v": 1,
+                      "settings": {
+                        "title": "The whole clan",
+                        "period": "last-week",
+                        "visitorPeriods": true,
+                        "showTop": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "strongc207",
+                  "span": {
+                    "lg": 5,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw206",
+                      "type": "weekly-recap",
+                      "v": 1,
+                      "settings": {
+                        "title": "Last week",
+                        "showTop": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "strongr211",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "strongc210",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw209",
                       "type": "recap-picker",
                       "v": 1,
                       "settings": {
@@ -3450,7 +3596,7 @@
       },
       "sections": [
         {
-          "id": "strongs207",
+          "id": "strongs216",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3467,134 +3613,6 @@
             }
           },
           "rows": [
-            {
-              "id": "strongr206",
-              "gap": {
-                "lg": "md"
-              },
-              "align": "stretch",
-              "height": {
-                "lg": {
-                  "mode": "auto"
-                }
-              },
-              "cells": [
-                {
-                  "id": "strongc205",
-                  "span": {
-                    "lg": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "strongw204",
-                      "type": "heading",
-                      "v": 1,
-                      "settings": {
-                        "text": "Citadel attendance",
-                        "subtitle": "Every member by every Citadel week: who capped and who visited.",
-                        "size": "large",
-                        "align": "left",
-                        "colour": "",
-                        "level": "h1"
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "id": "strongs216",
-          "width": "wide",
-          "background": {
-            "kind": "none"
-          },
-          "padding": {
-            "lg": {
-              "y": "lg",
-              "x": "md"
-            }
-          },
-          "height": {
-            "lg": {
-              "mode": "auto"
-            }
-          },
-          "rows": [
-            {
-              "id": "strongr212",
-              "gap": {
-                "lg": "md"
-              },
-              "align": "stretch",
-              "height": {
-                "lg": {
-                  "mode": "auto"
-                }
-              },
-              "cells": [
-                {
-                  "id": "strongc209",
-                  "span": {
-                    "lg": 4,
-                    "md": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "strongw208",
-                      "type": "citadel-timer",
-                      "v": 1,
-                      "settings": {
-                        "title": "Weekly reset",
-                        "day": "3",
-                        "hour": 0,
-                        "daily": true
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                },
-                {
-                  "id": "strongc211",
-                  "span": {
-                    "lg": 8,
-                    "md": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "strongw210",
-                      "type": "citadel-chart",
-                      "v": 1,
-                      "settings": {
-                        "title": "Caps and visits per week",
-                        "weeks": 12,
-                        "series": "both",
-                        "more": null,
-                        "moreText": "Attendance"
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                }
-              ]
-            },
             {
               "id": "strongr215",
               "gap": {
@@ -3620,12 +3638,142 @@
                   "widgets": [
                     {
                       "id": "strongw213",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Citadel attendance",
+                        "subtitle": "Every member by every Citadel week: who capped and who visited.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "strongs225",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "strongr221",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "strongc218",
+                  "span": {
+                    "lg": 4,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw217",
+                      "type": "citadel-timer",
+                      "v": 1,
+                      "settings": {
+                        "title": "Weekly reset",
+                        "day": "3",
+                        "hour": 0,
+                        "daily": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "strongc220",
+                  "span": {
+                    "lg": 8,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw219",
+                      "type": "citadel-chart",
+                      "v": 1,
+                      "settings": {
+                        "title": "Caps and visits per week",
+                        "weeks": 12,
+                        "series": "both",
+                        "look": "simple",
+                        "more": null,
+                        "moreText": "Attendance"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "strongr224",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "strongc223",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw222",
                       "type": "citadel-grid",
                       "v": 1,
                       "settings": {
                         "title": "",
                         "weeks": 12,
-                        "limit": 50
+                        "limit": 50,
+                        "look": "bars"
                       },
                       "unmet": "hide"
                     }
@@ -3649,7 +3797,7 @@
       },
       "sections": [
         {
-          "id": "strongs220",
+          "id": "strongs229",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3667,7 +3815,7 @@
           },
           "rows": [
             {
-              "id": "strongr219",
+              "id": "strongr228",
               "gap": {
                 "lg": "md"
               },
@@ -3679,7 +3827,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc218",
+                  "id": "strongc227",
                   "span": {
                     "lg": 12
                   },
@@ -3690,7 +3838,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw217",
+                      "id": "strongw226",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -3710,7 +3858,7 @@
           ]
         },
         {
-          "id": "strongs224",
+          "id": "strongs233",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3728,7 +3876,7 @@
           },
           "rows": [
             {
-              "id": "strongr223",
+              "id": "strongr232",
               "gap": {
                 "lg": "md"
               },
@@ -3740,7 +3888,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc222",
+                  "id": "strongc231",
                   "span": {
                     "lg": 12
                   },
@@ -3751,7 +3899,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw221",
+                      "id": "strongw230",
                       "type": "coffer",
                       "v": 1,
                       "settings": {
@@ -3759,6 +3907,7 @@
                         "showDonors": true,
                         "showGiveaways": true,
                         "limit": 10,
+                        "look": "box",
                         "bars": "under",
                         "barColour": "accent"
                       },
@@ -3784,7 +3933,7 @@
       },
       "sections": [
         {
-          "id": "strongs228",
+          "id": "strongs237",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3802,7 +3951,7 @@
           },
           "rows": [
             {
-              "id": "strongr227",
+              "id": "strongr236",
               "gap": {
                 "lg": "md"
               },
@@ -3814,7 +3963,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc226",
+                  "id": "strongc235",
                   "span": {
                     "lg": 12
                   },
@@ -3825,7 +3974,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw225",
+                      "id": "strongw234",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -3845,7 +3994,7 @@
           ]
         },
         {
-          "id": "strongs243",
+          "id": "strongs252",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3863,7 +4012,7 @@
           },
           "rows": [
             {
-              "id": "strongr231",
+              "id": "strongr240",
               "gap": {
                 "lg": "md"
               },
@@ -3875,7 +4024,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc230",
+                  "id": "strongc239",
                   "span": {
                     "lg": 12
                   },
@@ -3886,7 +4035,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw229",
+                      "id": "strongw238",
                       "type": "button-row",
                       "v": 1,
                       "settings": {
@@ -3912,7 +4061,7 @@
               ]
             },
             {
-              "id": "strongr234",
+              "id": "strongr243",
               "gap": {
                 "lg": "md"
               },
@@ -3924,7 +4073,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc233",
+                  "id": "strongc242",
                   "span": {
                     "lg": 12
                   },
@@ -3935,14 +4084,17 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw232",
+                      "id": "strongw241",
                       "type": "boss-grid",
                       "v": 1,
                       "settings": {
                         "title": "Bosses",
                         "period": "all",
                         "showQuiet": true,
-                        "limit": 60
+                        "limit": 60,
+                        "look": "cards",
+                        "timeFrame": true,
+                        "dropsPage": null
                       },
                       "unmet": "hide"
                     }
@@ -3951,7 +4103,7 @@
               ]
             },
             {
-              "id": "strongr239",
+              "id": "strongr248",
               "gap": {
                 "lg": "md"
               },
@@ -3963,7 +4115,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc236",
+                  "id": "strongc245",
                   "span": {
                     "lg": 7,
                     "md": 12
@@ -3975,7 +4127,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw235",
+                      "id": "strongw244",
                       "type": "kill-tracker",
                       "v": 1,
                       "settings": {
@@ -3988,7 +4140,7 @@
                   ]
                 },
                 {
-                  "id": "strongc238",
+                  "id": "strongc247",
                   "span": {
                     "lg": 5,
                     "md": 12
@@ -4000,7 +4152,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw237",
+                      "id": "strongw246",
                       "type": "drops",
                       "v": 1,
                       "settings": {
@@ -4014,7 +4166,7 @@
               ]
             },
             {
-              "id": "strongr242",
+              "id": "strongr251",
               "gap": {
                 "lg": "md"
               },
@@ -4026,7 +4178,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc241",
+                  "id": "strongc250",
                   "span": {
                     "lg": 12
                   },
@@ -4037,7 +4189,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw240",
+                      "id": "strongw249",
                       "type": "rare-drops",
                       "v": 1,
                       "settings": {
@@ -4070,7 +4222,7 @@
       },
       "sections": [
         {
-          "id": "strongs247",
+          "id": "strongs256",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4088,7 +4240,7 @@
           },
           "rows": [
             {
-              "id": "strongr246",
+              "id": "strongr255",
               "gap": {
                 "lg": "md"
               },
@@ -4100,7 +4252,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc245",
+                  "id": "strongc254",
                   "span": {
                     "lg": 12
                   },
@@ -4111,10 +4263,14 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw244",
+                      "id": "strongw253",
                       "type": "boss-detail",
                       "v": 1,
                       "settings": {
+                        "look": "box",
+                        "back": null,
+                        "backText": "All bosses",
+                        "timeFrame": true,
                         "period": "all",
                         "limit": 25,
                         "header": true,
@@ -4144,7 +4300,7 @@
       },
       "sections": [
         {
-          "id": "strongs251",
+          "id": "strongs260",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4162,7 +4318,7 @@
           },
           "rows": [
             {
-              "id": "strongr250",
+              "id": "strongr259",
               "gap": {
                 "lg": "md"
               },
@@ -4174,7 +4330,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc249",
+                  "id": "strongc258",
                   "span": {
                     "lg": 12
                   },
@@ -4185,7 +4341,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw248",
+                      "id": "strongw257",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -4205,7 +4361,7 @@
           ]
         },
         {
-          "id": "strongs255",
+          "id": "strongs264",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4223,7 +4379,7 @@
           },
           "rows": [
             {
-              "id": "strongr254",
+              "id": "strongr263",
               "gap": {
                 "lg": "md"
               },
@@ -4235,7 +4391,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc253",
+                  "id": "strongc262",
                   "span": {
                     "lg": 12
                   },
@@ -4246,7 +4402,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw252",
+                      "id": "strongw261",
                       "type": "drop-log",
                       "v": 1,
                       "settings": {
@@ -4254,7 +4410,9 @@
                         "period": "all",
                         "showGrid": true,
                         "limit": 25,
-                        "bossFilter": true
+                        "bossFilter": true,
+                        "look": "list",
+                        "timeFrame": false
                       },
                       "unmet": "hide"
                     }
@@ -4279,7 +4437,7 @@
       },
       "sections": [
         {
-          "id": "strongs259",
+          "id": "strongs268",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4297,7 +4455,7 @@
           },
           "rows": [
             {
-              "id": "strongr258",
+              "id": "strongr267",
               "gap": {
                 "lg": "md"
               },
@@ -4309,7 +4467,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc257",
+                  "id": "strongc266",
                   "span": {
                     "lg": 12
                   },
@@ -4320,11 +4478,15 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw256",
+                      "id": "strongw265",
                       "type": "item-detail",
                       "v": 1,
                       "settings": {
+                        "look": "box",
                         "period": "all",
+                        "timeFrame": true,
+                        "back": null,
+                        "backText": "Drop log",
                         "limit": 25
                       },
                       "unmet": "hide"
@@ -4349,7 +4511,7 @@
       },
       "sections": [
         {
-          "id": "strongs263",
+          "id": "strongs272",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4367,7 +4529,7 @@
           },
           "rows": [
             {
-              "id": "strongr262",
+              "id": "strongr271",
               "gap": {
                 "lg": "md"
               },
@@ -4379,7 +4541,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc261",
+                  "id": "strongc270",
                   "span": {
                     "lg": 12
                   },
@@ -4390,7 +4552,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw260",
+                      "id": "strongw269",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -4410,7 +4572,7 @@
           ]
         },
         {
-          "id": "strongs279",
+          "id": "strongs291",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4427,132 +4589,6 @@
             }
           },
           "rows": [
-            {
-              "id": "strongr266",
-              "gap": {
-                "lg": "md"
-              },
-              "align": "stretch",
-              "height": {
-                "lg": {
-                  "mode": "auto"
-                }
-              },
-              "cells": [
-                {
-                  "id": "strongc265",
-                  "span": {
-                    "lg": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "strongw264",
-                      "type": "button-row",
-                      "v": 1,
-                      "settings": {
-                        "buttons": [
-                          {
-                            "label": "Open the calendar",
-                            "link": {
-                              "kind": "page",
-                              "pageId": "strongpcalendar"
-                            },
-                            "style": "primary"
-                          }
-                        ],
-                        "align": "left",
-                        "size": "medium",
-                        "look": "buttons",
-                        "fullWidth": true
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                }
-              ]
-            },
-            {
-              "id": "strongr269",
-              "gap": {
-                "lg": "md"
-              },
-              "align": "stretch",
-              "height": {
-                "lg": {
-                  "mode": "auto"
-                }
-              },
-              "cells": [
-                {
-                  "id": "strongc268",
-                  "span": {
-                    "lg": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "strongw267",
-                      "type": "hub-events",
-                      "v": 1,
-                      "settings": {
-                        "title": "Events and competitions",
-                        "limit": 6,
-                        "showFinished": false
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                }
-              ]
-            },
-            {
-              "id": "strongr272",
-              "gap": {
-                "lg": "md"
-              },
-              "align": "stretch",
-              "height": {
-                "lg": {
-                  "mode": "auto"
-                }
-              },
-              "cells": [
-                {
-                  "id": "strongc271",
-                  "span": {
-                    "lg": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "strongw270",
-                      "type": "events",
-                      "v": 1,
-                      "settings": {
-                        "title": "Coming up",
-                        "style": "list",
-                        "limit": 8,
-                        "showImages": true
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                }
-              ]
-            },
             {
               "id": "strongr275",
               "gap": {
@@ -4578,23 +4614,23 @@
                   "widgets": [
                     {
                       "id": "strongw273",
-                      "type": "rs-today",
+                      "type": "button-row",
                       "v": 1,
                       "settings": {
-                        "title": "Today in RuneScape",
-                        "look": "tiles",
-                        "resets": true,
-                        "wildy": true,
-                        "cache": true,
-                        "vos": true,
-                        "merchant": true,
-                        "vorago": true,
-                        "rots": true,
-                        "araxxor": false,
-                        "spotlight": false,
-                        "circus": false,
-                        "sinkholes": false,
-                        "chinchompa": false
+                        "buttons": [
+                          {
+                            "label": "Open the calendar",
+                            "link": {
+                              "kind": "page",
+                              "pageId": "strongpcalendar"
+                            },
+                            "style": "primary"
+                          }
+                        ],
+                        "align": "left",
+                        "size": "medium",
+                        "look": "buttons",
+                        "fullWidth": true
                       },
                       "unmet": "hide"
                     }
@@ -4627,6 +4663,132 @@
                   "widgets": [
                     {
                       "id": "strongw276",
+                      "type": "hub-events",
+                      "v": 1,
+                      "settings": {
+                        "title": "Events and competitions",
+                        "limit": 6,
+                        "showFinished": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "strongr281",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "strongc280",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw279",
+                      "type": "events",
+                      "v": 1,
+                      "settings": {
+                        "title": "Coming up",
+                        "style": "list",
+                        "limit": 8,
+                        "showImages": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "strongr284",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "strongc283",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw282",
+                      "type": "rs-today",
+                      "v": 1,
+                      "settings": {
+                        "title": "Today in RuneScape",
+                        "look": "tiles",
+                        "resets": true,
+                        "wildy": true,
+                        "cache": true,
+                        "vos": true,
+                        "merchant": true,
+                        "vorago": true,
+                        "rots": true,
+                        "araxxor": false,
+                        "spotlight": false,
+                        "circus": false,
+                        "sinkholes": false,
+                        "chinchompa": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "strongr287",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "strongc286",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw285",
                       "type": "ge-watch",
                       "v": 1,
                       "settings": {
@@ -4656,174 +4818,7 @@
                   ]
                 }
               ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "strongpcalendar",
-      "title": "Event calendar",
-      "path": "calendar",
-      "hidden": false,
-      "access": "public",
-      "origin": {
-        "template": "calendar",
-        "v": 1
-      },
-      "sections": [
-        {
-          "id": "strongs283",
-          "width": "wide",
-          "background": {
-            "kind": "none"
-          },
-          "padding": {
-            "lg": {
-              "y": "md",
-              "x": "md"
-            }
-          },
-          "height": {
-            "lg": {
-              "mode": "auto"
-            }
-          },
-          "rows": [
-            {
-              "id": "strongr282",
-              "gap": {
-                "lg": "md"
-              },
-              "align": "stretch",
-              "height": {
-                "lg": {
-                  "mode": "auto"
-                }
-              },
-              "cells": [
-                {
-                  "id": "strongc281",
-                  "span": {
-                    "lg": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "strongw280",
-                      "type": "heading",
-                      "v": 1,
-                      "settings": {
-                        "text": "Event calendar",
-                        "subtitle": "Upcoming events by day. Times are shown in your own timezone.",
-                        "size": "large",
-                        "align": "left",
-                        "colour": "",
-                        "level": "h1"
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "id": "strongs287",
-          "width": "wide",
-          "background": {
-            "kind": "none"
-          },
-          "padding": {
-            "lg": {
-              "y": "lg",
-              "x": "md"
-            }
-          },
-          "height": {
-            "lg": {
-              "mode": "auto"
-            }
-          },
-          "rows": [
-            {
-              "id": "strongr286",
-              "gap": {
-                "lg": "md"
-              },
-              "align": "stretch",
-              "height": {
-                "lg": {
-                  "mode": "auto"
-                }
-              },
-              "cells": [
-                {
-                  "id": "strongc285",
-                  "span": {
-                    "lg": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "strongw284",
-                      "type": "events-calendar",
-                      "v": 1,
-                      "settings": {
-                        "title": "",
-                        "showDiscord": true,
-                        "showHub": true,
-                        "weekStart": "mon"
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "strongpeventpage",
-      "title": "Event page",
-      "path": "event",
-      "hidden": false,
-      "access": "public",
-      "template": "event",
-      "origin": {
-        "template": "event",
-        "v": 1
-      },
-      "sections": [
-        {
-          "id": "strongs291",
-          "width": "wide",
-          "background": {
-            "kind": "none"
-          },
-          "padding": {
-            "lg": {
-              "y": "lg",
-              "x": "md"
-            }
-          },
-          "height": {
-            "lg": {
-              "mode": "auto"
-            }
-          },
-          "rows": [
+            },
             {
               "id": "strongr290",
               "gap": {
@@ -4849,12 +4844,12 @@
                   "widgets": [
                     {
                       "id": "strongw288",
-                      "type": "event-detail",
+                      "type": "skill-week",
                       "v": 1,
                       "settings": {
-                        "showPrizes": true,
-                        "showStandings": true,
-                        "limit": 10
+                        "title": "Skill of the week",
+                        "limit": 5,
+                        "showLast": true
                       },
                       "unmet": "hide"
                     }
@@ -4867,13 +4862,13 @@
       ]
     },
     {
-      "id": "strongpsignups",
-      "title": "Signups",
-      "path": "signups",
+      "id": "strongpcalendar",
+      "title": "Event calendar",
+      "path": "calendar",
       "hidden": false,
       "access": "public",
       "origin": {
-        "template": "signups",
+        "template": "calendar",
         "v": 1
       },
       "sections": [
@@ -4923,8 +4918,8 @@
                       "type": "heading",
                       "v": 1,
                       "settings": {
-                        "text": "Signups",
-                        "subtitle": "Sign up for events and groups. It's the same list as the one on Discord.",
+                        "text": "Event calendar",
+                        "subtitle": "Upcoming events by day. Times are shown in your own timezone.",
                         "size": "large",
                         "align": "left",
                         "colour": "",
@@ -4981,12 +4976,16 @@
                   "widgets": [
                     {
                       "id": "strongw296",
-                      "type": "signups",
+                      "type": "events-calendar",
                       "v": 1,
                       "settings": {
                         "title": "",
-                        "limit": 10,
-                        "showNames": true
+                        "showDiscord": true,
+                        "showHub": true,
+                        "weekStart": "mon",
+                        "look": "box",
+                        "listPage": null,
+                        "listText": "Event list"
                       },
                       "unmet": "hide"
                     }
@@ -4999,13 +4998,14 @@
       ]
     },
     {
-      "id": "strongppolls",
-      "title": "Polls",
-      "path": "polls",
+      "id": "strongpeventpage",
+      "title": "Event page",
+      "path": "event",
       "hidden": false,
       "access": "public",
+      "template": "event",
       "origin": {
-        "template": "polls",
+        "template": "event",
         "v": 1
       },
       "sections": [
@@ -5017,7 +5017,7 @@
           },
           "padding": {
             "lg": {
-              "y": "md",
+              "y": "lg",
               "x": "md"
             }
           },
@@ -5052,15 +5052,12 @@
                   "widgets": [
                     {
                       "id": "strongw300",
-                      "type": "heading",
+                      "type": "event-detail",
                       "v": 1,
                       "settings": {
-                        "text": "Polls",
-                        "subtitle": "The clan's polls. Members vote here or on Discord.",
-                        "size": "large",
-                        "align": "left",
-                        "colour": "",
-                        "level": "h1"
+                        "showPrizes": true,
+                        "showStandings": true,
+                        "limit": 10
                       },
                       "unmet": "hide"
                     }
@@ -5069,7 +5066,20 @@
               ]
             }
           ]
-        },
+        }
+      ]
+    },
+    {
+      "id": "strongpsignups",
+      "title": "Signups",
+      "path": "signups",
+      "hidden": false,
+      "access": "public",
+      "origin": {
+        "template": "signups",
+        "v": 1
+      },
+      "sections": [
         {
           "id": "strongs307",
           "width": "wide",
@@ -5078,7 +5088,7 @@
           },
           "padding": {
             "lg": {
-              "y": "lg",
+              "y": "md",
               "x": "md"
             }
           },
@@ -5113,12 +5123,15 @@
                   "widgets": [
                     {
                       "id": "strongw304",
-                      "type": "polls",
+                      "type": "heading",
                       "v": 1,
                       "settings": {
-                        "title": "",
-                        "limit": 10,
-                        "showClosed": true
+                        "text": "Signups",
+                        "subtitle": "Sign up for events and groups. It's the same list as the one on Discord.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
                       },
                       "unmet": "hide"
                     }
@@ -5127,16 +5140,7 @@
               ]
             }
           ]
-        }
-      ]
-    },
-    {
-      "id": "strongpjoin",
-      "title": "Join us",
-      "path": "join",
-      "hidden": false,
-      "access": "public",
-      "sections": [
+        },
         {
           "id": "strongs311",
           "width": "wide",
@@ -5145,7 +5149,7 @@
           },
           "padding": {
             "lg": {
-              "y": "md",
+              "y": "lg",
               "x": "md"
             }
           },
@@ -5180,6 +5184,266 @@
                   "widgets": [
                     {
                       "id": "strongw308",
+                      "type": "signups",
+                      "v": 1,
+                      "settings": {
+                        "title": "",
+                        "limit": 10,
+                        "showNames": true,
+                        "look": "list"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "strongs315",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "strongr314",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "strongc313",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw312",
+                      "type": "group-finder",
+                      "v": 1,
+                      "settings": {
+                        "title": "Group finder",
+                        "intro": "Looking for people? Post a group and others can take a place.",
+                        "roles": "Any, Base, DPS, Tank, Healer",
+                        "showForm": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "strongppolls",
+      "title": "Polls",
+      "path": "polls",
+      "hidden": false,
+      "access": "public",
+      "origin": {
+        "template": "polls",
+        "v": 1
+      },
+      "sections": [
+        {
+          "id": "strongs319",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "strongr318",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "strongc317",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw316",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Polls",
+                        "subtitle": "The clan's polls. Members vote here or on Discord.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "strongs323",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "strongr322",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "strongc321",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw320",
+                      "type": "polls",
+                      "v": 1,
+                      "settings": {
+                        "title": "",
+                        "limit": 10,
+                        "showClosed": true,
+                        "look": "list"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "strongpjoin",
+      "title": "Join us",
+      "path": "join",
+      "hidden": false,
+      "access": "public",
+      "sections": [
+        {
+          "id": "strongs327",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "md",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "strongr326",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "strongc325",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw324",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -5199,7 +5463,7 @@
           ]
         },
         {
-          "id": "strongs325",
+          "id": "strongs344",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -5217,7 +5481,7 @@
           },
           "rows": [
             {
-              "id": "strongr316",
+              "id": "strongr332",
               "gap": {
                 "lg": "md"
               },
@@ -5229,7 +5493,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc313",
+                  "id": "strongc329",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5241,7 +5505,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw312",
+                      "id": "strongw328",
                       "type": "recruiting",
                       "v": 1,
                       "settings": {
@@ -5254,7 +5518,7 @@
                   ]
                 },
                 {
-                  "id": "strongc315",
+                  "id": "strongc331",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5266,7 +5530,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw314",
+                      "id": "strongw330",
                       "type": "discord-join",
                       "v": 1,
                       "settings": {
@@ -5281,7 +5545,7 @@
               ]
             },
             {
-              "id": "strongr321",
+              "id": "strongr335",
               "gap": {
                 "lg": "md"
               },
@@ -5293,7 +5557,86 @@
               },
               "cells": [
                 {
-                  "id": "strongc318",
+                  "id": "strongc334",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw333",
+                      "type": "application-form",
+                      "v": 1,
+                      "settings": {
+                        "title": "Apply to join {clan}",
+                        "intro": "Tell us a little about yourself. A member of the team will get back to you.",
+                        "questions": [
+                          {
+                            "label": "RuneScape name",
+                            "kind": "rsn",
+                            "required": true,
+                            "choices": ""
+                          },
+                          {
+                            "label": "How old are you?",
+                            "kind": "short",
+                            "required": false,
+                            "choices": ""
+                          },
+                          {
+                            "label": "Your timezone and when you usually play",
+                            "kind": "short",
+                            "required": true,
+                            "choices": ""
+                          },
+                          {
+                            "label": "Why do you want to join?",
+                            "kind": "paragraph",
+                            "required": true,
+                            "choices": ""
+                          },
+                          {
+                            "label": "Which clans are you in now, or have you been in?",
+                            "kind": "paragraph",
+                            "required": false,
+                            "choices": ""
+                          },
+                          {
+                            "label": "I have read the rules and agree to follow them",
+                            "kind": "checkbox",
+                            "required": true,
+                            "choices": ""
+                          }
+                        ],
+                        "buttonLabel": "Send application",
+                        "thanks": "Thanks! Your application was sent. We'll get back to you on Discord.",
+                        "sendToDiscord": true,
+                        "hideWhenClosed": false
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "strongr340",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "strongc337",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5305,7 +5648,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw317",
+                      "id": "strongw336",
                       "type": "countdown",
                       "v": 1,
                       "settings": {
@@ -5318,7 +5661,7 @@
                   ]
                 },
                 {
-                  "id": "strongc320",
+                  "id": "strongc339",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5330,7 +5673,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw319",
+                      "id": "strongw338",
                       "type": "faq",
                       "v": 1,
                       "settings": {
@@ -5357,7 +5700,7 @@
               ]
             },
             {
-              "id": "strongr324",
+              "id": "strongr343",
               "gap": {
                 "lg": "md"
               },
@@ -5369,7 +5712,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc323",
+                  "id": "strongc342",
                   "span": {
                     "lg": 12
                   },
@@ -5380,7 +5723,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw322",
+                      "id": "strongw341",
                       "type": "roster",
                       "v": 1,
                       "settings": {
@@ -5413,7 +5756,7 @@
       "template": "account",
       "sections": [
         {
-          "id": "strongs329",
+          "id": "strongs348",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -5430,253 +5773,6 @@
             }
           },
           "rows": [
-            {
-              "id": "strongr328",
-              "gap": {
-                "lg": "md"
-              },
-              "align": "stretch",
-              "height": {
-                "lg": {
-                  "mode": "auto"
-                }
-              },
-              "cells": [
-                {
-                  "id": "strongc327",
-                  "span": {
-                    "lg": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "strongw326",
-                      "type": "heading",
-                      "v": 1,
-                      "settings": {
-                        "text": "Your account",
-                        "subtitle": "Your linked name, goals, events and privacy.",
-                        "size": "large",
-                        "align": "left",
-                        "colour": "",
-                        "level": "h1"
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "id": "strongs353",
-          "width": "wide",
-          "background": {
-            "kind": "none"
-          },
-          "padding": {
-            "lg": {
-              "y": "lg",
-              "x": "md"
-            }
-          },
-          "height": {
-            "lg": {
-              "mode": "auto"
-            }
-          },
-          "rows": [
-            {
-              "id": "strongr334",
-              "gap": {
-                "lg": "md"
-              },
-              "align": "stretch",
-              "height": {
-                "lg": {
-                  "mode": "auto"
-                }
-              },
-              "cells": [
-                {
-                  "id": "strongc331",
-                  "span": {
-                    "lg": 6,
-                    "md": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "strongw330",
-                      "type": "account-link",
-                      "v": 1,
-                      "settings": {
-                        "title": "Your RuneScape name"
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                },
-                {
-                  "id": "strongc333",
-                  "span": {
-                    "lg": 6,
-                    "md": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "strongw332",
-                      "type": "server-profile",
-                      "v": 1,
-                      "settings": {
-                        "title": "Your server profile",
-                        "showColour": true,
-                        "showOnline": true
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                }
-              ]
-            },
-            {
-              "id": "strongr339",
-              "gap": {
-                "lg": "md"
-              },
-              "align": "stretch",
-              "height": {
-                "lg": {
-                  "mode": "auto"
-                }
-              },
-              "cells": [
-                {
-                  "id": "strongc336",
-                  "span": {
-                    "lg": 6,
-                    "md": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "strongw335",
-                      "type": "my-goals",
-                      "v": 1,
-                      "settings": {
-                        "title": "My goals",
-                        "showDone": true
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                },
-                {
-                  "id": "strongc338",
-                  "span": {
-                    "lg": 6,
-                    "md": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "strongw337",
-                      "type": "my-notices",
-                      "v": 1,
-                      "settings": {
-                        "title": "Notices",
-                        "limit": 5
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                }
-              ]
-            },
-            {
-              "id": "strongr344",
-              "gap": {
-                "lg": "md"
-              },
-              "align": "stretch",
-              "height": {
-                "lg": {
-                  "mode": "auto"
-                }
-              },
-              "cells": [
-                {
-                  "id": "strongc341",
-                  "span": {
-                    "lg": 6,
-                    "md": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "strongw340",
-                      "type": "my-events",
-                      "v": 1,
-                      "settings": {
-                        "title": "My events",
-                        "showOpen": true
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                },
-                {
-                  "id": "strongc343",
-                  "span": {
-                    "lg": 6,
-                    "md": 12
-                  },
-                  "padding": {
-                    "lg": "none"
-                  },
-                  "valign": "start",
-                  "surface": "none",
-                  "widgets": [
-                    {
-                      "id": "strongw342",
-                      "type": "my-signups",
-                      "v": 1,
-                      "settings": {
-                        "title": "Signups",
-                        "limit": 5
-                      },
-                      "unmet": "hide"
-                    }
-                  ]
-                }
-              ]
-            },
             {
               "id": "strongr347",
               "gap": {
@@ -5702,6 +5798,253 @@
                   "widgets": [
                     {
                       "id": "strongw345",
+                      "type": "heading",
+                      "v": 1,
+                      "settings": {
+                        "text": "Your account",
+                        "subtitle": "Your linked name, goals, events and privacy.",
+                        "size": "large",
+                        "align": "left",
+                        "colour": "",
+                        "level": "h1"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "strongs372",
+          "width": "wide",
+          "background": {
+            "kind": "none"
+          },
+          "padding": {
+            "lg": {
+              "y": "lg",
+              "x": "md"
+            }
+          },
+          "height": {
+            "lg": {
+              "mode": "auto"
+            }
+          },
+          "rows": [
+            {
+              "id": "strongr353",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "strongc350",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw349",
+                      "type": "account-link",
+                      "v": 1,
+                      "settings": {
+                        "title": "Your RuneScape name"
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "strongc352",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw351",
+                      "type": "server-profile",
+                      "v": 1,
+                      "settings": {
+                        "title": "Your server profile",
+                        "showColour": true,
+                        "showOnline": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "strongr358",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "strongc355",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw354",
+                      "type": "my-goals",
+                      "v": 1,
+                      "settings": {
+                        "title": "My goals",
+                        "showDone": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "strongc357",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw356",
+                      "type": "my-notices",
+                      "v": 1,
+                      "settings": {
+                        "title": "Notices",
+                        "limit": 5
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "strongr363",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "strongc360",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw359",
+                      "type": "my-events",
+                      "v": 1,
+                      "settings": {
+                        "title": "My events",
+                        "showOpen": true
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                },
+                {
+                  "id": "strongc362",
+                  "span": {
+                    "lg": 6,
+                    "md": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw361",
+                      "type": "my-signups",
+                      "v": 1,
+                      "settings": {
+                        "title": "Signups",
+                        "limit": 5
+                      },
+                      "unmet": "hide"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "strongr366",
+              "gap": {
+                "lg": "md"
+              },
+              "align": "stretch",
+              "height": {
+                "lg": {
+                  "mode": "auto"
+                }
+              },
+              "cells": [
+                {
+                  "id": "strongc365",
+                  "span": {
+                    "lg": 12
+                  },
+                  "padding": {
+                    "lg": "none"
+                  },
+                  "valign": "start",
+                  "surface": "none",
+                  "widgets": [
+                    {
+                      "id": "strongw364",
                       "type": "my-polls",
                       "v": 1,
                       "settings": {
@@ -5716,7 +6059,7 @@
               ]
             },
             {
-              "id": "strongr352",
+              "id": "strongr371",
               "gap": {
                 "lg": "md"
               },
@@ -5728,7 +6071,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc349",
+                  "id": "strongc368",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5740,7 +6083,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw348",
+                      "id": "strongw367",
                       "type": "my-coffer",
                       "v": 1,
                       "settings": {
@@ -5752,7 +6095,7 @@
                   ]
                 },
                 {
-                  "id": "strongc351",
+                  "id": "strongc370",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5764,7 +6107,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw350",
+                      "id": "strongw369",
                       "type": "member-privacy",
                       "v": 1,
                       "settings": {

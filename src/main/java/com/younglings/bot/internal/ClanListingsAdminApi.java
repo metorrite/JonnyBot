@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.clanprofile.ClanProfile;
 import com.younglings.bot.clanprofile.ClanProfileRepository;
 import com.younglings.bot.clanprofile.ClanProfileService;
@@ -77,7 +78,7 @@ public class ClanListingsAdminApi implements AdminRouteExtension {
             for (var r : open) reportCount.merge(r.guildId(), 1, Integer::sum);
             for (ClanProfile p : repository.all()) {
                 if (p.visibility() == ClanProfile.Visibility.PRIVATE && !p.suspended() && !reportCount.containsKey(p.guildId())) continue;
-                Guild known = guild.getJDA().getGuildById(p.guildId());
+                Guild known = Shards.guild(guild.getJDA(), p.guildId());
                 String clan = service.clanNameOf(p.guildId());
                 listings.add(DataObject.empty().put("guildId", Long.toString(p.guildId())).put("serverName", known == null ? null : known.getName())
                         .put("slug", p.slug()).put("displayName", p.displayName()).put("visibility", p.visibility().name())

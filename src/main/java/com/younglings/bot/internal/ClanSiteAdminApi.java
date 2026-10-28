@@ -45,13 +45,18 @@ import com.younglings.bot.config.BotBrand;
  *   {@link ClanSiteLayoutRules}), {@code POST clan-site/layout/publish} (the draft becomes the public layout and the site is published), and
  *   {@code POST clan-site/delete} {@code {confirm}} (the whole website, after typing its address)</li>
  *   <li>builder v3 (T-363): the layout routes also take layout v2 (checked by {@code ClanSiteLayoutRulesV2} with this server's plan limits);
- *   {@code POST clan-site/layout/publish} takes an optional {@code {label}} and records a version; {@code GET clan-site/layout/versions},
+ *   {@code POST clan-site/layout/publish} takes an optional {@code {label, baseRev}} and records a version (409 when the draft moved past
+ *   {@code baseRev}); {@code GET clan-site/layout/versions},
  *   {@code GET clan-site/layout/versions/{id}} (with its layout) and {@code POST clan-site/layout/versions/{id}/restore} {@code {baseRev?}}
  *   (copies it into the draft; never publishes)</li>
  *   <li>connections (N7): {@code GET|PUT clan-site/connections} and {@code POST clan-site/connections/connect|disconnect}, the site
- *   admin's Discord server, data provider and Discord features ({@link SiteDiscordService})</li>
+ *   admin's Discord server, data provider and Discord features ({@link SiteDiscordService}); {@code GET|PUT clan-site/connections/invite}, the
+ *   server's Discord invite ({@link SiteInviteRoutes})</li>
  *   <li>members ({@link SiteMembersAdmin}): {@code GET|PUT clan-site/member-privacy} (T-395) and {@code GET clan-site/roles/people?q=&role=&page=}
  *   (T-396), admin; for a GET, {@code body} holds the query string's parameters</li>
+ *   <li>Clan health (T-593, {@link SiteCockpitAdmin}): {@code GET clan-site/cockpit} and {@code POST clan-site/cockpit/marks} (admin),
+ *   {@code PUT clan-site/cockpit/settings} (owner)</li>
+ *   <li>Seasons (T-596, {@link SiteSeasons}): {@code GET clan-site/seasons} (admin), {@code PUT clan-site/seasons/settings} (owner)</li>
  * </ul>
  * Reached only through {@link TicketAdminApi}, which has already checked the asker may use the dashboard here and audit-logs every write.
  */
@@ -77,10 +82,12 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
     private final SiteAddressRoutes address;
     private final SiteMemberOptionsAdminApi memberOptions;
     private final SiteMembersAdmin members;
+    private final SiteInviteRoutes invite;
 
     public ClanSiteAdminApi(ClanSiteRepository repository, ClanSiteLayoutRepository layouts, ClanSiteService sites, ClanProfileService profiles, BotOwners owners,
                             Premium premium, SiteRoleGuard siteRoles, SiteDiscordService discord, SiteAddressRoutes address,
-                            SiteMemberOptionsAdminApi memberOptions, SiteMembersAdmin members) {
+                            SiteMemberOptionsAdminApi memberOptions, SiteMembersAdmin members, SiteInviteRoutes invite) {
+        this.invite = invite;
         this.address = address;
         this.memberOptions = memberOptions;
         this.members = members;
@@ -115,6 +122,8 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
             case "roles" -> parts.length == 3 && (parts[2].equals("hand-over") || (parts[2].equals("admin-access") && !get))
                     ? SiteRoles.Action.OWN : SiteRoles.Action.SETTINGS;
             case "delete" -> SiteRoles.Action.OWN;
+            case SiteCockpitAdmin.PATH -> SiteCockpitAdmin.actionFor(method, parts);
+            case SiteSeasons.PATH -> SiteSeasons.actionFor(method, parts);
             case "takedown", "restore" -> null;
             default -> SiteRoles.Action.SETTINGS;
         };
@@ -148,6 +157,8 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
         }
         if (parts.length >= 2 && parts[1].equals("roles")) return roles(c, method, parts, body);
         if (parts.length == 2 && parts[1].equals("member-privacy")) return members.privacy(c, method, body);
+        if (parts.length >= 2 && parts[1].equals(SiteCockpitAdmin.PATH)) return members.cockpit(c, method, parts, body);
+        if (parts.length >= 2 && parts[1].equals(SiteSeasons.PATH)) return members.seasons(c, method, parts, body);
         if (parts.length >= 2 && parts[1].equals("connections")) return connections(c, method, parts, body);
         if (parts.length >= 2 && parts.length <= 3 && parts[1].equals("address")) return address.route(c.guildId(), method, parts.length == 3 ? parts[2] : "", body);
         // the site admin's own way to the member options (site admins who aren't dashboard admins included): needs the bot in the server
@@ -299,18 +310,24 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
 
     DataObject publish(SiteCaller c, boolean publish) {
         ClanSite current = sites.of(c.guildId());
-        if (publish) {
-            requireBeta(c);
-            List<String> problems = new ArrayList<>();
-            if (!current.enabled()) problems.add("Switch the website on first.");
-            String profile = profileProblem(c.guildId(), profiles.profileOf(c.guildId()));
-            if (profile != null) problems.add(profile);
-            if (current.takedownReason() != null && !current.takedownReason().isBlank()) problems.add("This website was taken down by " + BotBrand.NAME + "'s owner: " + current.takedownReason());
-            if (!problems.isEmpty()) throw new ApiError(400, Text.of(c.guildId(), "dashboard.the_website_can_t_be_published"), problems);
-        }
+        if (publish) requirePublishable(c, current);
+        savePublished(c, current, publish);
+        return get(c);
+    }
+
+    private void savePublished(SiteCaller c, ClanSite current, boolean publish) {
         repository.save(new ClanSite(current.guildId(), current.enabled(), publish, current.template(), current.theme(), current.pages(), c.userId(),
                 Instant.now(), publish ? Instant.now() : current.publishedAt(), current.takedownReason()));
-        return get(c);
+    }
+
+    private void requirePublishable(SiteCaller c, ClanSite current) {
+        requireBeta(c);
+        List<String> problems = new ArrayList<>();
+        if (!current.enabled()) problems.add("Switch the website on first.");
+        String profile = profileProblem(c.guildId(), profiles.profileOf(c.guildId()));
+        if (profile != null) problems.add(profile);
+        if (current.takedownReason() != null && !current.takedownReason().isBlank()) problems.add("This website was taken down by " + BotBrand.NAME + "'s owner: " + current.takedownReason());
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(c.guildId(), "dashboard.the_website_can_t_be_published"), problems);
     }
 
     /** The owner takes a site down (with a reason the clan sees) or lets it be published again ({@code reason} null). */
@@ -377,7 +394,8 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
 
     /**
      * Publishes the draft: the same checks as v1's publish (switched on, profile can carry a site, not taken down), then the copy, which is
-     * also recorded as a version with the optional {@code label} (up to {@link ClanSiteLayoutRepository#MAX_VERSION_LABEL} characters).
+     * also recorded as a version with the optional {@code label} (up to {@link ClanSiteLayoutRepository#MAX_VERSION_LABEL} characters). With
+     * {@code baseRev} (the editor's draft revision) it is refused with 409 when another save landed since, checked in the same update as the copy.
      */
     DataObject publishLayout(SiteCaller c, DataObject body) {
         if (layouts.byGuild(c.guildId()).isEmpty()) {
@@ -388,8 +406,13 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
             throw new ApiError(400, Text.of(c.guildId(), "dashboard.the_website_can_t_be_published"),
                     List.of("Keep the version name to " + ClanSiteLayoutRepository.MAX_VERSION_LABEL + " characters."));
         }
-        publish(c, true);
-        layouts.publishDraft(c.guildId(), c.userId(), label);
+        requirePublishable(c, sites.of(c.guildId()));
+        if (layouts.publishDraft(c.guildId(), c.userId(), label, Math.max(0, body.getInt("baseRev", 0))) < 0) {
+            throw new ApiError(409, Text.of(c.guildId(), "dashboard.the_website_can_t_be_published"),
+                    List.of("Someone saved this site from another tab or window. Reload to see the newest version."));
+        }
+        // checked above, before the copy: only the save is left, so nothing after the copy can refuse a publish that already went live
+        savePublished(c, sites.of(c.guildId()), true);
         return layout(c);
     }
 
@@ -496,9 +519,11 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
     /**
      * {@code GET|PUT clan-site/connections}, {@code POST clan-site/connections/connect} {@code {guildId}} and {@code POST
      * clan-site/connections/disconnect}: the site's Discord server, its data provider and its Discord features ({@link SiteDiscordService}).
-     * Admin, like the site's other settings.
+     * {@code GET|PUT clan-site/connections/invite}: the server's Discord invite ({@link SiteInviteRoutes}, T-633). Admin, like the site's other
+     * settings.
      */
     DataObject connections(SiteCaller c, String method, String[] parts, Supplier<DataObject> body) {
+        if (parts.length == 3 && parts[2].equals("invite")) return invite.route(c.guildId(), method, body);
         if (parts.length == 2) {
             if (method.equals("GET")) return botPresence(c, discord.connectionState(c));
             AdminRouteExtension.requireMethod(method, "PUT");

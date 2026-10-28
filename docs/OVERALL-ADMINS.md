@@ -64,7 +64,7 @@ Routes: `GET clan-site/roles` now carries `adminAccess: {userIds, roleIds, staff
 **People who aren't in the server, or who have no dashboard access, where the bot IS in the server:** `TicketAdminApi` asks
 `SiteAccessRoutes` before its 403. When the site lets the person in, only the site's own paths open: `clan-site...` (each route checks its own
 role), `site-pictures...` (editors), `GET structure` and `GET audit` (site admins; the audit is always filtered to `clan-site`). Every write
-is rate limited and audit-logged ("RuneClans admin" or "Site admin" when the person isn't a member). Editors without dashboard access now come
+is rate limited and audit-logged ("A RuneClan Admin" or "A Site Admin" when the person isn't a member). Editors without dashboard access now come
 in this way too, with the same rights as before.
 
 **Bot-less sites:** overall admins and people let in by the site's admin access come in without being on the beta list themselves (the site's

@@ -2,16 +2,16 @@
 
 Ticket T-062. Step 7 of the clan-platform plan: features that only the RS3 plugin API makes possible. Status: **design with defaults**. Nothing here is built. Each feature lists what it would take, what Jagex's rules allow, a default, and the questions only Drake can answer.
 
-Read with: `docs/RUNESYNC-DESIGN.md` (RuneSync, T-002), `docs/LINK-SYSTEM.md` (RS Link), and the local API library `CLAUDE_RESOURCES/rs-api-library` (`notes/capability-map.md`, `docs/submission.md`, `docs/game-coords.md`, `docs/game-entities.md`).
+Read with: `docs/RUNESYNC-DESIGN.md` (RuneSync, T-002), `docs/LINK-SYSTEM.md` (RuneLink), and Jagex's plugin API guide (kept outside this repository).
 
 ## 0. The rules that decide everything
 
 From the API library (Jagex's pages, October 2026):
 
-- **Exporting any information about other players is prohibited.** A plugin may only send its own player's data. Clan-wide views are built on JonnyBot's server, from many members who each report only themselves.
+- **Exporting any information about other players is prohibited.** A plugin may only send its own player's data. Clan-wide views are built on RuneClan Bot's server, from many members who each report only themselves.
 - **Obtaining information about other players is "subject to review".** Moderators look harder at it, and they also look harder at a plugin that depends on plugins that need review.
 - **Combat state** (HP, prayer, adrenaline of others), predictions, and "extra player info in PvP" are prohibited or heavily reviewed. Overlays of non-combat information are allowed.
-- **No clan data API** today: clan vars and clan rank are "currently unavailable". JonnyBot knows clan membership from the RuneMetrics roster, which is public.
+- **No clan data API** today: clan vars and clan rank are "currently unavailable". RuneClan Bot knows clan membership from the RuneMetrics roster, which is public.
 - **HTTP only**, GET/POST to the manifest URLs, with no websockets. Anything "live" is polling, at best every few seconds.
 - **Mobile** must work: no keyboard, mouse or console.
 
@@ -80,14 +80,14 @@ There's no location, no HP, no gear. It refreshes every 60 s and reuses the T-20
 - It must hide in PvP areas and never show non-clan players' info.
 - Expect extra review rounds. It shouldn't go into RuneSync's first submission.
 
-**Default:** a **separate optional plugin** ("Clan Titles", depending on RS Link), so RuneSync's review stays simple.
+**Default:** a **separate optional plugin** ("Clan Titles", depending on RuneLink), so RuneSync's review stays simple.
 - Off by default, with a clan switch on the dashboard.
 - Only clan members who opted in on their profile ("Show my clan title over my head") get a title.
 - Hidden in PvP and in combat instances; text only, no icons from other players.
 
 **Questions for Drake:** Q4, Q5.
 
-## 5. What JonnyBot needs on the server (shared)
+## 5. What RuneClan Bot needs on the server (shared)
 
 | Piece | For | Exists? |
 |---|---|---|
@@ -106,7 +106,7 @@ Every switch is **website first**, so each one has a dashboard or profile contro
 4. Q4. Overhead titles: worth a separate plugin and its own review, or park until the API has clan data? [park until after RuneSync's first approval, then a separate plugin]
 5. Q5. Titles source: clan rank from RuneMetrics, a custom title per member set by staff, or both? [rank, with an optional custom title]
 
-## 7. Proposed tickets (for the master thread to number)
+## 7. Proposed work items (not yet numbered)
 
 | Ticket | Repo | Size | Depends on |
 |---|---|---|---|

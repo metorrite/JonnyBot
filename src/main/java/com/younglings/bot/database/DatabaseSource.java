@@ -16,6 +16,8 @@ import java.time.Duration;
 public class DatabaseSource implements ConnectionSupplier {
 
     private final HikariDataSource dataSource;
+    private final java.util.concurrent.atomic.LongAdder waitNanos = new java.util.concurrent.atomic.LongAdder();
+    private final java.util.concurrent.atomic.LongAdder borrows = new java.util.concurrent.atomic.LongAdder();
 
     public DatabaseSource(BotConfig botConfig) {
         HikariConfig hikariConfig = createHikariConfig(botConfig.getDatabaseUrl());
@@ -36,7 +38,22 @@ public class DatabaseSource implements ConnectionSupplier {
 
     @Override
     public @NonNull Connection getConnection() throws SQLException {
-        return dataSource.getConnection();
+        long started = System.nanoTime();
+        try {
+            return dataSource.getConnection();
+        } finally {
+            waitNanos.add(System.nanoTime() - started);
+            borrows.increment();
+        }
+    }
+
+    /** The pool right now and since start (T-674 metrics): connections in use, idle, threads waiting for one, and the time spent waiting. */
+    public record PoolStats(int active, int idle, int waiting, int max, long borrows, double waitSeconds) {}
+
+    public PoolStats poolStats() {
+        var pool = dataSource.getHikariPoolMXBean();
+        return new PoolStats(pool == null ? 0 : pool.getActiveConnections(), pool == null ? 0 : pool.getIdleConnections(),
+                pool == null ? 0 : pool.getThreadsAwaitingConnection(), dataSource.getMaximumPoolSize(), borrows.sum(), waitNanos.sum() / 1e9);
     }
 
     private static HikariConfig createHikariConfig(String databaseUrl) {

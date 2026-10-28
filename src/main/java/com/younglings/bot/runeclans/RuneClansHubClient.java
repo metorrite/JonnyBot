@@ -49,6 +49,13 @@ public class RuneClansHubClient {
         }
     }
 
+    /** The hub couldn't be asked (down, busy or failing), as opposed to answering "nobody": {@link #aliasOf}. */
+    public static final class Unreachable extends RuntimeException {
+        public Unreachable(String message) {
+            super(message);
+        }
+    }
+
     /** A {@link #read} answer: from the cache or not, and stale when the hub couldn't be asked and the cached copy is past its fresh time. */
     public record Read(Answer answer, boolean fromCache, boolean stale) {}
 
@@ -166,12 +173,25 @@ public class RuneClansHubClient {
 
     /**
      * JonnyBot's alias for the player behind a Discord account ({@code GET /v1/links/discord/{id}}): only when they granted JonnyBot identity.
-     * Empty when they didn't, have no link, or the hub can't be reached.
+     * Empty when they didn't, have no link, or the hub client is off; {@link Unreachable} when the hub can't be asked right now, so a caller
+     * never takes "the hub is down" for "no link".
      */
     public Optional<String> aliasOf(long discordId) {
         Answer a = call("GET", "/v1/links/discord/" + discordId, null);
+        if (enabled() && (a == null || a.status() >= 500 || a.status() == 429)) throw new Unreachable("The hub couldn't look up a link (" + (a == null ? "no answer" : a.status()) + ")");
         if (a == null || !a.ok() || a.json() == null) return Optional.empty();
         return Optional.ofNullable(a.json().getString("alias", null));
+    }
+
+    /**
+     * {@link #aliasOf} for work that must not take an outage for an answer: empty only when the hub said the player has no alias for JonnyBot
+     * ({@code 404}), and null when it couldn't be asked or answered anything else.
+     */
+    public Optional<String> aliasIfAnswered(long discordId) {
+        Answer a = call("GET", "/v1/links/discord/" + discordId, null);
+        if (a == null) return null;
+        if (a.status() == 404) return Optional.empty();
+        return a.ok() && a.json() != null ? Optional.ofNullable(a.json().getString("alias", null)) : null;
     }
 
     /**
@@ -184,6 +204,15 @@ public class RuneClansHubClient {
                 .put("catchup", "exclude").put("suspect", "exclude");
         if (skillId != null) body.put("skills", String.valueOf(skillId));
         return call("POST", "/v1/guilds/" + guildId + "/xp/gains", body.toString());
+    }
+
+    /**
+     * {@code POST /v1/guilds/{id}/xp/gainers} (T-712): who among the server's members gained timed RuneSync XP on one UTC day, and how much, with
+     * their Discord id when their grant shares it. Null when the hub can't be reached; {@code 404} from a hub without the route, with its ledger
+     * off, or when the server isn't registered.
+     */
+    public Answer xpGainers(long guildId, java.time.LocalDate day) {
+        return call("POST", "/v1/guilds/" + guildId + "/xp/gainers", DataObject.empty().put("day", day.toString()).toString());
     }
 
     /**
@@ -226,13 +255,16 @@ public class RuneClansHubClient {
         return URLEncoder.encode(s, StandardCharsets.UTF_8);
     }
 
-    private static Transport http(RuneClansSettings settings) {
+    static Transport http(RuneClansSettings settings) {
         // one client for the bot's life: HTTP/1.1 keeps its connections to the hub open between calls (no connect cost per call)
         HttpClient client = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).connectTimeout(Duration.ofSeconds(3)).build();
         return (method, path, body) -> {
             try {
                 HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(settings.baseUrl() + path)).timeout(Duration.ofSeconds(8))
                         .header("Authorization", "Bearer " + settings.apiKey()).header("Content-Type", "application/json").header("User-Agent", "JonnyBot runeclans-client");
+                // the website's request id, when this call is part of an internal API request (T-674), so the hub's log line carries it too
+                String requestId = com.younglings.bot.ops.OpsTelemetry.currentRequestId();
+                if (requestId != null) request.header(com.younglings.bot.ops.RequestIds.HEADER, requestId);
                 request = body == null ? request.method(method, HttpRequest.BodyPublishers.noBody()) : request.method(method, HttpRequest.BodyPublishers.ofString(body));
                 HttpResponse<String> response = client.send(request.build(), HttpResponse.BodyHandlers.ofString());
                 DataObject json = null;

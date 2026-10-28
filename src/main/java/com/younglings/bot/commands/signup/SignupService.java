@@ -1,8 +1,10 @@
 package com.younglings.bot.commands.signup;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.discord.Containers;
 import com.younglings.bot.discord.Pagination;
 import com.younglings.bot.signup.SignupRepository;
+import com.younglings.bot.util.TtlCache;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.Guild;
@@ -33,10 +35,19 @@ import java.util.concurrent.ThreadLocalRandom;
 public class SignupService {
     private static final Logger log = LoggerFactory.getLogger(SignupService.class);
 
+    /**
+     * How long a lookup that found no open signup is remembered. A stale button clicked over and over then costs one query per window,
+     * and a signup another process makes (the website's {@code api} process) is never hidden for longer than this.
+     */
+    static final Duration MISS_TTL = Duration.ofSeconds(10);
+
+    // Postgres is the source of truth; this map is a cache of the open signups (warmed at start-up, filled on a miss by
+    // getSessionById, so a signup made by another process works without a restart).
     // ConcurrentHashMap: JDA/BotCommands can dispatch interaction callbacks (button clicks,
     // modal submits) from a pooled executor rather than a single thread, so this map can be
     // read/written concurrently from separate signups' interactions.
     private final Map<Long, SignupSession> activeSignupsById = new ConcurrentHashMap<>();
+    private final TtlCache<Long, Boolean> recentMisses = new TtlCache<>(MISS_TTL);
     // Keyed by the Discord user building it — one in-progress /signupbuilder SUBMISSION draft per
     // user at a time. Never persisted: abandoned drafts just sit here harmlessly until finished,
     // cancelled, or the bot restarts (same tradeoff TeamformingService makes for its own staged state).
@@ -58,8 +69,36 @@ public class SignupService {
         }
     }
 
+    /**
+     * The open signup with this id, or null. A cache miss reads the one row from the database (load-through), so a signup made by
+     * another process (the website) works here without a restart. A miss that finds nothing is remembered for {@link #MISS_TTL} only.
+     */
     public SignupSession getSessionById(long signupId) {
-        return activeSignupsById.get(signupId);
+        SignupSession cached = activeSignupsById.get(signupId);
+        return cached != null ? cached : loadThrough(signupId);
+    }
+
+    private SignupSession loadThrough(long signupId) {
+        if (recentMisses.get(signupId).isPresent()) return null;
+        SignupSession stored;
+        try {
+            stored = signupRepository.getOpenSignupById(signupId);
+        } catch (RuntimeException e) {
+            log.warn("Could not look up signup {} after a cache miss", signupId, e);
+            return null; // a failed read is not remembered
+        }
+        if (stored == null) {
+            recentMisses.put(signupId, Boolean.TRUE);
+            return null;
+        }
+        SignupSession raced = activeSignupsById.putIfAbsent(signupId, stored);
+        return raced != null ? raced : stored;
+    }
+
+    /** Keeps the open signups a list query just read, so the per-signup lookups that follow it don't each go back to the database. */
+    private List<SignupSession> remember(List<SignupSession> open) {
+        for (SignupSession session : open) activeSignupsById.putIfAbsent(session.signupId(), session);
+        return open;
     }
 
     public SignupSession getSessionFromComponentId(String componentId) {
@@ -224,7 +263,7 @@ public class SignupService {
         String newStatus = "ACTIVE".equalsIgnoreCase(currentStatus) ? "PAUSED" : "ACTIVE";
         signupRepository.setSignupStatus(signupId, newStatus);
 
-        SignupSession session = activeSignupsById.get(signupId);
+        SignupSession session = getSessionById(signupId);
         if (session != null) {
             log.info("Toggled signup {} '{}' to {}", signupId, session.title(), newStatus);
         }
@@ -235,7 +274,7 @@ public class SignupService {
     // --- Entry management ---
 
     public boolean addUser(Guild guild, long signupId, long userId, String rsn, String submissionValue) {
-        SignupSession session = activeSignupsById.get(signupId);
+        SignupSession session = getSessionById(signupId);
         if (session == null) return false;
         if (!isSignupActive(signupId)) return false;
 
@@ -255,7 +294,7 @@ public class SignupService {
 
     public boolean addManualUser(Guild guild, long signupId, long userId, String rsn,
                                   String submissionValue, long addedByUserId) {
-        SignupSession session = activeSignupsById.get(signupId);
+        SignupSession session = getSessionById(signupId);
         if (session == null) return false;
 
         if (session.maxSignups() != null
@@ -273,7 +312,7 @@ public class SignupService {
     }
 
     public boolean removeUser(Guild guild, long signupId, long userId) {
-        SignupSession session = activeSignupsById.get(signupId);
+        SignupSession session = getSessionById(signupId);
         if (session == null) return false;
 
         boolean removed = signupRepository.removeEntryByUserId(signupId, userId);
@@ -286,16 +325,21 @@ public class SignupService {
     }
 
     public List<SignupEntry> getEntries(long signupId) {
-        if (!activeSignupsById.containsKey(signupId)) return List.of();
+        if (getSessionById(signupId) == null) return List.of();
         return signupRepository.getEntries(signupId);
     }
 
     public List<SignupSession> getVisibleSignups(long guildId) {
-        return signupRepository.getVisibleSignups(guildId);
+        List<SignupSession> open = remember(signupRepository.getVisibleSignups(guildId));
+        // Deleted by another process: drop them here too (a later lookup reads the row again, so a race here only costs a query).
+        java.util.Set<Long> ids = new java.util.HashSet<>();
+        for (SignupSession session : open) ids.add(session.signupId());
+        activeSignupsById.values().removeIf(session -> session.guildId() == guildId && !ids.contains(session.signupId()));
+        return open;
     }
 
     public List<SignupSession> searchVisibleSignups(long guildId, String query) {
-        return signupRepository.searchVisibleSignups(guildId, query);
+        return remember(signupRepository.searchVisibleSignups(guildId, query));
     }
 
     public String getSignupStatus(long signupId) {
@@ -305,28 +349,28 @@ public class SignupService {
     // --- Queue-only operations ---
 
     public SignupEntry getFirst(long signupId) {
-        if (!activeSignupsById.containsKey(signupId)) return null;
+        if (getSessionById(signupId) == null) return null;
         List<SignupEntry> entries = signupRepository.getEntries(signupId);
         return entries.isEmpty() ? null : entries.getFirst();
     }
 
     public SignupEntry next(long signupId) {
-        if (!activeSignupsById.containsKey(signupId)) return null;
+        if (getSessionById(signupId) == null) return null;
         return signupRepository.next(signupId);
     }
 
     public SignupEntry skip(long signupId) {
-        if (!activeSignupsById.containsKey(signupId)) return null;
+        if (getSessionById(signupId) == null) return null;
         return signupRepository.skipFirst(signupId);
     }
 
     public SignupEntry remove(long signupId) {
-        if (!activeSignupsById.containsKey(signupId)) return null;
+        if (getSessionById(signupId) == null) return null;
         return signupRepository.removeFirst(signupId);
     }
 
     public void clear(Guild guild, long signupId) {
-        SignupSession session = activeSignupsById.get(signupId);
+        SignupSession session = getSessionById(signupId);
         if (session == null) return;
 
         if (session.type() == SignupType.GROUP && session.groupRoleId() != null) {
@@ -346,7 +390,7 @@ public class SignupService {
 
     /** Picks a random entry without removing it or closing the signup. */
     public SignupEntry pickRandom(long signupId) {
-        if (!activeSignupsById.containsKey(signupId)) return null;
+        if (getSessionById(signupId) == null) return null;
 
         List<SignupEntry> entries = signupRepository.getEntries(signupId);
         if (entries.isEmpty()) return null;
@@ -411,7 +455,7 @@ public class SignupService {
     // --- Delete ---
 
     public void deleteSignup(Guild guild, long signupId) {
-        SignupSession session = activeSignupsById.get(signupId);
+        SignupSession session = getSessionById(signupId);
         if (session == null) return;
 
         if (session.type() == SignupType.GROUP && session.groupRoleId() != null) {
@@ -458,7 +502,7 @@ public class SignupService {
     public int closeAllActiveSignups(JDA jda) {
         int count = 0;
         for (SignupSession session : List.copyOf(activeSignupsById.values())) {
-            Guild guild = jda.getGuildById(session.guildId());
+            Guild guild = Shards.guild(jda, session.guildId());
             if (guild == null) continue;
             deleteSignup(guild, session.signupId());
             count++;
@@ -470,7 +514,7 @@ public class SignupService {
     public int autoCloseInactiveSignups(JDA jda, Instant cutoff) {
         int count = 0;
         for (SignupSession session : signupRepository.getInactiveSignups(cutoff)) {
-            Guild guild = jda.getGuildById(session.guildId());
+            Guild guild = Shards.guild(jda, session.guildId());
             if (guild == null) continue;
             deleteSignup(guild, session.signupId());
             count++;
@@ -516,12 +560,12 @@ public class SignupService {
     // --- Panel posting ---
 
     public SignupMessage getFirstActivePublicMessage(long signupId) {
-        if (!activeSignupsById.containsKey(signupId)) return null;
+        if (getSessionById(signupId) == null) return null;
         return signupRepository.getFirstActivePublicMessage(signupId);
     }
 
     public void postSignupEmbed(Guild guild, TextChannel channel, long signupId, SignupPanelType panelType) {
-        SignupSession session = activeSignupsById.get(signupId);
+        SignupSession session = getSessionById(signupId);
 
         if (session == null) {
             throw new IllegalArgumentException("No active signup found for ID: " + signupId);
@@ -550,7 +594,7 @@ public class SignupService {
     }
 
     public void updateMessages(Guild guild, long signupId) {
-        SignupSession session = activeSignupsById.get(signupId);
+        SignupSession session = getSessionById(signupId);
         if (session == null) return;
 
         List<SignupMessage> messages = signupRepository.getActiveMessages(signupId);

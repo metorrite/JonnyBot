@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.TicketAdminApi.ApiError;
 import com.younglings.bot.notice.BotOwners;
@@ -114,7 +115,7 @@ public class PremiumAdminApi implements AdminRouteExtension {
         DataArray endingSoon = DataArray.empty();
         if (owner) {
             for (Grant grant : repository.grants()) {
-                Guild known = guild.getJDA().getGuildById(grant.guildId());
+                Guild known = Shards.guild(guild.getJDA(), grant.guildId());
                 DataObject json = DataObject.empty().put("guildId", Long.toString(grant.guildId())).put("label", grant.label())
                         .put("botPresent", known != null).put("name", known == null ? null : known.getName())
                         .put("tier", grant.tier()).put("expiresAt", grant.expiresAt() == null ? null : grant.expiresAt().toString())

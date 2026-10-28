@@ -7,7 +7,10 @@ import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.utils.data.DataObject;
 
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Competition: who gains the most XP in one skill (or overall) while the event runs. The bot reads each player's linked account from the
@@ -19,6 +22,9 @@ import java.util.List;
  * RuneClans hub's XP ledger fed by RuneSync ({@link PluginXpTracker}, T-537), or {@value #SOURCE_AUTO} (T-557): RuneSync for each player the hub
  * can count, RuneMetrics for the rest, and RuneMetrics checks the RuneSync players' numbers. A player stays with whichever counted them first
  * ({@link CompetitionTracking#owners}). The plugin and auto choices are offered only while the bot is connected to the hub.
+ * <p>
+ * {@code wholeSpan} (set by skill of the week, T-541, never offered on the form): a RuneSync competition counts everyone's gains from the planned
+ * start to the planned end, whenever they joined, so its standings are exactly the ledger's gains for that span.
  */
 @BService
 public class CompetitionTemplate implements EventTemplate {
@@ -48,7 +54,7 @@ public class CompetitionTemplate implements EventTemplate {
 
     @Override
     public java.util.Set<String> fixedSettings() {
-        return java.util.Set.of("skillId", "xpPerPoint", "xpSource", "confirmedLinksOnly");
+        return java.util.Set.of("skillId", "xpPerPoint", "xpSource", "confirmedLinksOnly", "wholeSpan");
     }
 
     @Override
@@ -77,7 +83,7 @@ public class CompetitionTemplate implements EventTemplate {
                             + "else from RuneMetrics. It can't be changed once the event exists.", EventOptions.Step.RULES, SOURCE_RUNEMETRICS,
                     List.of(new EventOptions.Choice(SOURCE_RUNEMETRICS, "RuneMetrics (public profiles)"), new EventOptions.Choice(SOURCE_PLUGIN, "RuneSync plugin"),
                             new EventOptions.Choice(SOURCE_AUTO, "Auto (RuneSync where players run it, else RuneMetrics)"))));
-            list.add(EventOptions.Option.of("config.confirmedLinksOnly", "Count confirmed links only", "Only players whose RS Link the RuneClans hub has confirmed from "
+            list.add(EventOptions.Option.of("config.confirmedLinksOnly", "Count confirmed links only", "Only players whose RuneLink the RuneClans hub has confirmed from "
                             + "public data score. The others are listed as not confirmed yet. It can't be changed once the event exists.", EventOptions.Step.RULES,
                     EventOptions.Type.BOOL, false).showWhen(EventOptions.When.is("config.xpSource", SOURCE_PLUGIN)));
         }
@@ -114,10 +120,61 @@ public class CompetitionTemplate implements EventTemplate {
         return SOURCE_PLUGIN.equals(xpSourceOf(config));
     }
 
-    /** A RuneSync competition that counts only players whose RS Link the hub confirmed (T-552). Off unless it says so. */
+    /** A RuneSync competition that counts only players whose RuneLink the hub confirmed (T-552). Off unless it says so. */
     public static boolean confirmedLinksOnly(DataObject config) {
         return countsFromPlugin(config) && config.hasKey("confirmedLinksOnly") && !config.isNull("confirmedLinksOnly")
                 && "true".equalsIgnoreCase(String.valueOf(config.get("confirmedLinksOnly")));
+    }
+
+    /** A RuneSync competition counted over its whole planned span (T-541). Off unless it says so. */
+    public static boolean countsWholeSpan(DataObject config) {
+        return countsFromPlugin(config) && config.hasKey("wholeSpan") && !config.isNull("wholeSpan") && "true".equalsIgnoreCase(String.valueOf(config.get("wholeSpan")));
+    }
+
+    /** Each player's XP counted from the tracker on the XP objective ({@link EventRules.Source#IMPORT} only, so an organiser's correction never changes it). */
+    public static Map<Long, Long> importedXp(List<EventRepository.Progress> progress) {
+        Map<Long, Long> xp = new HashMap<>();
+        for (EventRepository.Progress p : progress) {
+            if (p.source() == EventRules.Source.IMPORT && p.objectiveKey().equals(OBJECTIVE_KEY)) xp.merge(p.userId(), p.amount(), Long::sum);
+        }
+        return xp;
+    }
+
+    /**
+     * A {@code wholeSpan} competition (skill of the week, T-541) is ranked by the XP itself: its points are each player's XP gained, most first and
+     * the earlier id first on equal XP, so its standings are in the same order as {@link SkillWeekRules#winners}. Others keep the usual standings.
+     */
+    @Override
+    public List<EventScoring.Standing> standings(EventRepository.Event event, List<ObjectiveSpec> objectives, List<EventRepository.Progress> progress,
+                                                 List<EventScoring.Standing> usual) {
+        if (event.scoringMode() != EventRules.ScoringMode.INDIVIDUAL || !countsWholeSpan(config(event))) return null;
+        return byXp(usual, importedXp(progress));
+    }
+
+    static List<EventScoring.Standing> byXp(List<EventScoring.Standing> usual, Map<Long, Long> xp) {
+        List<EventScoring.Standing> out = new ArrayList<>();
+        for (EventScoring.Standing s : usual) {
+            long gained = Math.max(0, xp.getOrDefault(userOf(s), 0L));
+            out.add(new EventScoring.Standing(s.subject(), gained, s.objectivesCompleted(), s.completions(), s.lastCompletedAt()));
+        }
+        out.sort(Comparator.comparingLong(EventScoring.Standing::points).reversed().thenComparingLong(CompetitionTemplate::userOf));
+        return out;
+    }
+
+    private static long userOf(EventScoring.Standing s) {
+        try {
+            return Long.parseLong(s.subject().substring(2));
+        } catch (RuntimeException e) {
+            return Long.MAX_VALUE;
+        }
+    }
+
+    private static DataObject config(EventRepository.Event event) {
+        try {
+            return DataObject.fromJson(event.config());
+        } catch (RuntimeException e) {
+            return DataObject.empty();
+        }
     }
 
     /** Auto (T-557): RuneSync for the players the hub counts, RuneMetrics for the others. */
@@ -166,7 +223,9 @@ public class CompetitionTemplate implements EventTemplate {
         long per = xpPerPoint(config);
         String name = skillName(skill);
         String from = countsFromPlugin(config) ? " Counted from RuneSync." : countsAuto(config) ? " Counted from RuneSync where players run it, RuneMetrics for the rest." : "";
-        return List.of(new ObjectiveSpec(OBJECTIVE_KEY, name + " XP gained", "One point for every " + String.format("%,d", per) + " XP gained while the event runs." + from,
+        String rule = countsWholeSpan(config) ? "Ranked by the XP gained from the start to the end, whenever you joined." // standings(): a point is an XP
+                : "One point for every " + String.format("%,d", per) + " XP gained while the event runs.";
+        return List.of(new ObjectiveSpec(OBJECTIVE_KEY, name + " XP gained", rule + from,
                 1, Evidence.AUTO, per, EventRules.MAX_REPEAT, List.of()));
     }
 }

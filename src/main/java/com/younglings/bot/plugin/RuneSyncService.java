@@ -108,7 +108,12 @@ public class RuneSyncService {
 
     /** The plugin asked for its settings: remember the client and its local pause for the profile's device card. */
     public void checkIn(long userId, String client, boolean paused, Instant now) {
-        repository.recordCheckIn(userId, cleanClient(client), paused, now);
+        checkIn(userId, client, null, paused, now);
+    }
+
+    /** {@link #checkIn(long, String, boolean, Instant)} with the RuneLink name of the character playing (T-586), or null for a token client. */
+    public void checkIn(long userId, String client, String linkedRsn, boolean paused, Instant now) {
+        repository.recordCheckIn(userId, cleanClient(client), PluginPayload.normaliseRsn(linkedRsn), paused, now);
     }
 
     /** A batch was ingested: keep its result for the profile's device card ("last batch result"). */
@@ -153,7 +158,7 @@ public class RuneSyncService {
                 .put("diagnosticsKeptDays", SNAPSHOT_KEPT.toDays());
     }
 
-    /** One snapshot for the owner's Super admin view, or null when the id is unknown or expired. It was redacted when stored. */
+    /** One snapshot for the owner's view in RuneClan Admin (runeclans.com/admin), or null when the id is unknown or expired. It was redacted when stored. */
     public DataObject diagnostic(String rawId, Instant now) {
         String id = normaliseId(rawId);
         if (id == null) throw new RuneSyncException(400, "That isn't a diagnostics id (they look like RS-7K2M9Q).");

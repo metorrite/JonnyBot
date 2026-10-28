@@ -1,5 +1,6 @@
 package com.younglings.bot.premium;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.clansite.BotlessSiteRepository;
 import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.premium.BillingRules.Decision;
@@ -127,7 +128,7 @@ public class Billing {
     /** Whether the bot is in the server; true while Discord isn't connected yet (see {@link #plan}). */
     public boolean botPresent(long guildId) {
         JDA current = jda;
-        return current == null || current.getGuildById(guildId) != null;
+        return current == null || Shards.guild(current, guildId) != null;
     }
 
     /**
@@ -136,7 +137,7 @@ public class Billing {
      */
     public boolean mayManage(long guildId, long userId) {
         JDA current = jda;
-        Guild guild = current == null ? null : current.getGuildById(guildId);
+        Guild guild = current == null ? null : Shards.guild(current, guildId);
         return guild != null && guild.getOwnerIdLong() == userId;
     }
 

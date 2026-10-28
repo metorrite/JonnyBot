@@ -1,7 +1,9 @@
 package com.younglings.bot.commands.runescape;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.discord.Containers;
 import com.younglings.bot.i18n.Text;
+import com.younglings.bot.permission.AdminRoleFilter;
 import com.younglings.bot.runescape.PlayerLink;
 import com.younglings.bot.runescape.PlayerLinkService;
 import com.younglings.bot.runescape.RsnRenameRepository;
@@ -9,17 +11,17 @@ import com.younglings.bot.runescape.RsnRenameService;
 import com.younglings.bot.runescape.VerificationRoleSyncService;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Confirm/Reject buttons for a possible rename {@link RsnRenameService} detected — these arrive on
- * both the admin alert channel message and the linked player's own DM (if one was sent), so unlike
- * every other listener in this package, this one deliberately never touches {@code event.getGuild()}
- * — a DM interaction has none, and nothing here needs one (the candidate row already carries its
- * guild ID for {@link RsnRenameService} to use internally).
+ * Confirm/Reject buttons for a possible rename {@link RsnRenameService} detected. They arrive on both
+ * the admin alert channel message and the linked player's own DM (if one was sent), so who may press
+ * them depends on where the press came from (see {@link #mayResolve}): in a server, only Support-tier
+ * staff of the server the candidate belongs to; in a DM, only the player linked to the old name.
  */
 @BService
 public class RsnRenameInteractionListener extends ListenerAdapter {
@@ -28,12 +30,28 @@ public class RsnRenameInteractionListener extends ListenerAdapter {
     private final RsnRenameService renameService;
     private final PlayerLinkService linkService;
     private final VerificationRoleSyncService roleSyncService;
+    private final AdminRoleFilter adminRoleFilter;
 
     public RsnRenameInteractionListener(RsnRenameService renameService, PlayerLinkService linkService,
-                                        VerificationRoleSyncService roleSyncService) {
+                                        VerificationRoleSyncService roleSyncService, AdminRoleFilter adminRoleFilter) {
         this.renameService = renameService;
         this.linkService = linkService;
         this.roleSyncService = roleSyncService;
+        this.adminRoleFilter = adminRoleFilter;
+    }
+
+    /**
+     * A press in a server counts only from that candidate's own server and from Support-tier staff. A press
+     * in a DM counts only from the player the old name is linked to (the DM the service sends them).
+     */
+    private boolean mayResolve(ButtonInteractionEvent event, RsnRenameRepository.RenameCandidate candidate) {
+        Guild guild = event.getGuild();
+        if (guild != null) {
+            Member member = event.getMember();
+            return guild.getIdLong() == candidate.guildId() && member != null && adminRoleFilter.isSupportTier(guild, member);
+        }
+        PlayerLink link = linkService.getLinkForRsn(candidate.guildId(), candidate.oldRsn());
+        return link != null && link.discordUserId() == event.getUser().getIdLong();
     }
 
     @Override
@@ -49,6 +67,10 @@ public class RsnRenameInteractionListener extends ListenerAdapter {
             RsnRenameRepository.RenameCandidate candidate = renameService.getCandidate(candidateId);
             if (candidate == null) {
                 Containers.edit(event, Containers.WARNING, Text.of(event, "runescape.this_rename_report_no_longer_exists"));
+                return;
+            }
+            if (!mayResolve(event, candidate)) {
+                Containers.replyEphemeral(event, Containers.WARNING, Text.of(event, "runescape.only_staff_can_do_this"));
                 return;
             }
             if (!"PENDING".equals(candidate.status())) {
@@ -68,7 +90,7 @@ public class RsnRenameInteractionListener extends ListenerAdapter {
             // The roster sync left this player's roles alone while the rename was open. Now that it's said to be
             // somebody else, the old name really has left the clan, so the player goes back to Guest.
             if (!isConfirm) {
-                Guild guild = event.getJDA().getGuildById(candidate.guildId());
+                Guild guild = Shards.guild(event.getJDA(), candidate.guildId());
                 PlayerLink link = linkService.getLinkForRsn(candidate.guildId(), candidate.oldRsn());
                 if (guild != null && link != null) roleSyncService.syncLeftClan(guild, link.discordUserId());
             }

@@ -1,5 +1,6 @@
 package com.younglings.bot.kick;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.discord.Mentions;
 import com.younglings.bot.alerts.AutoPostRouter;
 import com.younglings.bot.kick.KickClient.Stream;
@@ -109,7 +110,7 @@ public class KickService {
     private void announce(JDA jda, Streamer streamer, Stream stream) {
         // claim first: if two rounds overlap, only one gets to send
         if (!repository.claim(streamer.id(), stream.id(), streamer.postedStream())) return;
-        Guild guild = jda.getGuildById(streamer.guildId());
+        Guild guild = Shards.guild(jda, streamer.guildId());
         GuildMessageChannel channel = guild == null ? null : guild.getChannelById(GuildMessageChannel.class, streamer.channelId());
         if (channel == null || problemWith(channel) != null) {
             log.warn("Kick alert for {} in guild {}: the channel is gone or JonnyBot cannot post there", streamer.login(), streamer.guildId());
@@ -134,7 +135,7 @@ public class KickService {
 
     private void end(JDA jda, Streamer streamer) {
         Settings settings = repository.settings(streamer.guildId());
-        Guild guild = jda.getGuildById(streamer.guildId());
+        Guild guild = Shards.guild(jda, streamer.guildId());
         if (guild != null && streamer.postedMessageId() != null && streamer.postedChannelId() != null && settings.offlineAction() != OfflineAction.KEEP) {
             GuildMessageChannel channel = guild.getChannelById(GuildMessageChannel.class, streamer.postedChannelId());
             if (channel != null) {

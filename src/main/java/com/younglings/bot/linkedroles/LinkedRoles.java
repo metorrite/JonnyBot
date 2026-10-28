@@ -23,8 +23,8 @@ import java.util.function.LongPredicate;
  * in on the website's {@code /linked-roles} page, and the website hands the OAuth tokens here ({@link LinkedRolesApi}). This service:
  * <ul>
  *   <li>keeps the tokens sealed ({@link TokenBox}) and sends the person's metadata to Discord right away;</li>
- *   <li>every hour, asks the RuneClans hub for each connected person's current RS Link name ({@link RsLinkSource}, T-349), works out their
- *       values from that and what the bot already keeps, and sends them again when they changed (a level-up, a new clan, an RS Link unlink)
+ *   <li>every hour, asks the RuneClans hub for each connected person's current RuneLink name ({@link RsLinkSource}, T-349), works out their
+ *       values from that and what the bot already keeps, and sends them again when they changed (a level-up, a new clan, a RuneLink unlink)
  *       or when a day has passed since the last send, one person at a time with a pause between calls;</li>
  *   <li>forgets the tokens when Discord says the grant is gone, or when the person unlinks (their values are cleared first, so the roles
  *       drop);</li>
@@ -44,7 +44,7 @@ public class LinkedRoles {
 
     /**
      * What was shared with Discord, for the website's result page. {@code values} are the metadata exactly as sent. {@code unconfirmedRsLink}
-     * is the person's RS Link name when it isn't counted because the bot requires confirmed links and the hub hasn't confirmed it yet
+     * is the person's RuneLink name when it isn't counted because the bot requires confirmed links and the hub hasn't confirmed it yet
      * (T-552), else null.
      */
     public record Shared(Profile profile, java.util.Map<String, String> values, Instant pushedAt, String unconfirmedRsLink) {}
@@ -90,7 +90,7 @@ public class LinkedRoles {
         return forTest(settings, store, discord, listed, RsLinkSource.NONE, clock);
     }
 
-    /** The same with a stand-in for the hub's RS Link answers. */
+    /** The same with a stand-in for the hub's RuneLink answers. */
     static LinkedRoles forTest(LinkedRolesSettings settings, LinkedRolesStore store, DiscordRoleApi discord, LongPredicate listed, RsLinkSource rsLinks,
                                Clock clock) {
         return new LinkedRoles(settings, store, discord, listed, rsLinks, clock, 0, "bot-token-for-tests");
@@ -139,7 +139,7 @@ public class LinkedRoles {
     }
 
     /**
-     * A person just verified on the website: keep their tokens and send their values now. {@code rsLinkRsn} is their active RS Link name from
+     * A person just verified on the website: keep their tokens and send their values now. {@code rsLinkRsn} is their active RuneLink name from
      * runeclans-hub, if the website found one (used only when the bot has no linked name of its own for them).
      */
     public Shared connect(long userId, String accessToken, String refreshToken, long expiresInSeconds, String rsLinkRsn, Instant rsLinkSince) throws Problem {
@@ -188,14 +188,14 @@ public class LinkedRoles {
         return true;
     }
 
-    /** A RuneScape name as RS Link shows it (1 to 12 letters, digits, spaces, _ or -), stripped; null when it isn't one. */
+    /** A RuneScape name as RuneLink shows it (1 to 12 letters, digits, spaces, _ or -), stripped; null when it isn't one. */
     static String cleanRsn(String raw) {
         String rs = raw == null || raw.isBlank() ? null : raw.strip();
         return rs != null && rs.matches("[A-Za-z0-9 _-]{1,12}") ? rs : null;
     }
 
     /**
-     * One hourly pass: bring each person's RS Link name up to date from the hub, then send everyone whose values changed, or who hasn't been
+     * One hourly pass: bring each person's RuneLink name up to date from the hub, then send everyone whose values changed, or who hasn't been
      * sent for a day.
      */
     int tick() {
@@ -212,7 +212,7 @@ public class LinkedRoles {
                 if (updateRsLink(userId, current.get().get(userId), now)) updated++;
             }
         }
-        if (updated > 0) log.info("Linked Roles: {} RS Link name(s) changed since sign-in", updated);
+        if (updated > 0) log.info("Linked Roles: {} RuneLink name(s) changed since sign-in", updated);
         for (long userId : userIds) {
             Optional<Row> found = store.find(userId);
             if (found.isEmpty()) continue;
@@ -231,13 +231,13 @@ public class LinkedRoles {
         try {
             return rsLinks.current(batch);
         } catch (RuntimeException e) {
-            log.info("Linked Roles: asking the hub for RS Link names failed ({}); keeping the names from sign-in", e.getClass().getSimpleName());
+            log.info("Linked Roles: asking the hub for RuneLink names failed ({}); keeping the names from sign-in", e.getClass().getSimpleName());
             return Optional.empty();
         }
     }
 
     /**
-     * Stores the person's current RS Link name when it differs from the one kept ({@code current} null: no link any more). A new name with no
+     * Stores the person's current RuneLink name when it differs from the one kept ({@code current} null: no link any more). A new name with no
      * link date counts from {@code now}; the same name keeps its date unless the hub gives another. True when something changed.
      */
     private boolean updateRsLink(long userId, RsLinkSource.Current current, Instant now) {
@@ -316,7 +316,7 @@ public class LinkedRoles {
         log.info("Linked Roles: forgot a person's tokens: {}", why);
     }
 
-    /** With {@code LINKED_ROLES_REQUIRE_CONFIRMED}, an RS Link name counts only once the hub has confirmed it (T-552). */
+    /** With {@code LINKED_ROLES_REQUIRE_CONFIRMED}, a RuneLink name counts only once the hub has confirmed it (T-552). */
     private Profile profile(Row row) {
         String rsLink = settings.requireConfirmed() && !row.rsLinkConfirmed() ? null : row.rsLinkRsn();
         return store.profile(row.discordUserId(), rsLink, rsLink == null ? null : row.rsLinkSince(), listedClan);
@@ -326,7 +326,7 @@ public class LinkedRoles {
         return settings.requireConfirmed() && !row.rsLinkConfirmed() ? row.rsLinkRsn() : null;
     }
 
-    /** Whether RS Link names count only once confirmed ({@code LINKED_ROLES_REQUIRE_CONFIRMED}). */
+    /** Whether RuneLink names count only once confirmed ({@code LINKED_ROLES_REQUIRE_CONFIRMED}). */
     public boolean requireConfirmed() {
         return settings.requireConfirmed();
     }

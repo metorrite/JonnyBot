@@ -18,7 +18,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/** The routes runeclans-hub calls to have the bot DM RS Link codes (T-166), and the DM's buttons going back to the hub. Discord is faked. */
+/** The routes runeclans-hub calls to have the bot DM RuneLink codes (T-166), and the DM's buttons going back to the hub. Discord is faked. */
 class HubDmRelayTest {
     private static final String ID = "1".repeat(18);
     private static final String PAIRING = "0f8fad5b-d9cb-469f-a165-70867728950e";
@@ -87,6 +87,18 @@ class HubDmRelayTest {
         assertFalse(HubDmRelay.secretMatches(secret, null));
         assertFalse(HubDmRelay.secretMatches(null, secret), "unset means closed");
         assertFalse(HubDmRelay.secretMatches(null, null));
+    }
+
+    @Test
+    void theRuneLinkHeaderIsReadFirstAndTheOldOneStillWorks() {
+        var both = new com.sun.net.httpserver.Headers();
+        both.add("X-RuneLink-Dm-Secret", "new");
+        both.add("X-RsLink-Dm-Secret", "old");
+        assertEquals("new", HubDmRelay.providedSecret(both));
+        var old = new com.sun.net.httpserver.Headers();
+        old.add("X-RsLink-Dm-Secret", "old");
+        assertEquals("old", HubDmRelay.providedSecret(old), "a hub that still sends the old header keeps working");
+        assertNull(HubDmRelay.providedSecret(new com.sun.net.httpserver.Headers()));
     }
 
     @Test

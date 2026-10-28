@@ -6,6 +6,7 @@ import com.younglings.bot.access.AccessGrantService;
 import com.younglings.bot.access.GateSource;
 import com.younglings.bot.clanprofile.ClanProfileRepository;
 import com.younglings.bot.clanprofile.ClanProfileService;
+import com.younglings.bot.clanprofile.ClanRecruitingRepository;
 import com.younglings.bot.clansite.BotlessSiteRepository;
 import com.younglings.bot.clansite.ClanSiteLayoutRepository;
 import com.younglings.bot.clansite.ClanSiteRepository;
@@ -112,7 +113,7 @@ class BotlessSiteEndToEndDatabaseTest {
         ClanSiteAdminApi clanSite = new ClanSiteAdminApi(sites, layouts, siteService, profiles, owners, mock(Premium.class), roles,
                 new SiteDiscordService(new SiteConnectionStore(db, new SiteDiscordSettings(db), new SiteNewsService(db, com.younglings.bot.testsupport.SiteMappings.off(db)), com.younglings.bot.testsupport.SiteMappings.off(db)), new SiteDiscordSettings(db),
                         new SiteNewsService(db, com.younglings.bot.testsupport.SiteMappings.off(db)), mock(MemberProfileRepository.class), new SiteCache(), com.younglings.bot.hubsites.HubSites.off()), mock(SiteAddressRoutes.class),
-                mock(SiteMemberOptionsAdminApi.class), mock(SiteMembersAdmin.class));
+                mock(SiteMemberOptionsAdminApi.class), mock(SiteMembersAdmin.class), new SiteInviteRoutes(settings, new ClanRecruitingRepository(db), profiles));
         ImageUploadService images = new ImageUploadService(new UploadedImageRepository(db, new UploadedImageDatabaseInitializer(db)));
         grants = new AccessGrantRepository(db);
         grantService = new AccessGrantService(GateSource.ownTables(null, grants::all, null));
@@ -160,7 +161,7 @@ class BotlessSiteEndToEndDatabaseTest {
     private static void clean() throws Exception {
         try (Connection c = db.getConnection()) {
             for (String table : new String[]{"clan_site_layout_version", "clan_site_layout", "clan_site_block", "clan_site", "clan_profile", "clan_slug_hold",
-                    "clan_site_roles", "botless_site", "guild_settings", "admin_audit", "site_connection", "site_connection_channel"}) {
+                    "clan_site_roles", "botless_site", "guild_settings", "admin_audit", "site_connection", "site_connection_channel", "clan_recruiting"}) {
                 try (PreparedStatement s = c.prepareStatement("DELETE FROM younglings." + table + " WHERE guild_id IN (?, ?)")) {
                     s.setLong(1, BOTLESS);
                     s.setLong(2, HOME);
@@ -314,6 +315,28 @@ class BotlessSiteEndToEndDatabaseTest {
         assertTrue(back.body().getObject("server").getBoolean("connected"));
         assertEquals(Long.toString(ADMIN), back.body().getObject("server").getString("connectedBy"));
         assertEquals("names+avatars", back.body().getObject("online").getString("mode"), "the features were kept");
+    }
+
+    @Test
+    void aSiteAdminSetsTheDiscordInviteTheSiteShows() throws Exception {
+        onBeta(ADMIN);
+        onBeta(EDITOR);
+        Answer none = as(ADMIN, true, "GET", "clan-site/connections/invite", null);
+        assertEquals(200, none.status(), none.body().toString());
+        assertTrue(none.body().isNull("inviteUrl"));
+        assertTrue(none.body().isNull("joinLink"));
+
+        assertEquals(400, as(ADMIN, true, "PUT", "clan-site/connections/invite", "{\"inviteUrl\":\"https://example.com/join\"}").status(), "only a Discord invite");
+        Answer saved = as(ADMIN, true, "PUT", "clan-site/connections/invite", "{\"inviteUrl\":\"discord.com/invite/abc123\"}");
+        assertEquals(200, saved.status(), saved.body().toString());
+        assertEquals("https://discord.gg/abc123", saved.body().getString("inviteUrl"), "stored in its short form");
+        assertEquals("https://discord.gg/abc123", saved.body().getString("joinLink"), "the typed invite is the one the site shows");
+        assertEquals("https://discord.gg/abc123", settings.getEffective(BOTLESS).inviteUrl());
+
+        assertEquals(403, as(EDITOR, false, "PUT", "clan-site/connections/invite", "{\"inviteUrl\":null}").status(), "admins only");
+        Answer cleared = as(ADMIN, true, "PUT", "clan-site/connections/invite", "{\"inviteUrl\":\"\"}");
+        assertEquals(200, cleared.status());
+        assertTrue(cleared.body().isNull("inviteUrl"));
     }
 
     @Test
