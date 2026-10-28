@@ -95,6 +95,22 @@ class PluginXpTrackerTest {
     }
 
     @Test
+    void aGainThisMinutesKeyAlreadyCountedWaitsForTheNextMinuteAndThePassIsntComplete() {
+        Event e = event(1, "{\"skillId\":9,\"xpSource\":\"plugin\"}");
+        when(repository.startedAt(1)).thenReturn(Optional.of(STARTED));
+        when(repository.participants(1)).thenReturn(List.of(player(ALICE, STARTED.minusSeconds(60))));
+        // the minute sweep already counted 1,000 this minute; a new ledger row has come in since
+        when(repository.progress(1)).thenReturn(List.of(new Progress(1, 1, CompetitionTemplate.OBJECTIVE_KEY, ALICE, null, 1_000, Source.IMPORT,
+                CompetitionTracking.pluginSourceKey(ALICE, NOW), null, null, NOW)));
+        when(hub.aliasOf(ALICE)).thenReturn(Optional.of("a1_alice"));
+        when(hub.xpGains(eq(GUILD), any(), eq(9), eq(STARTED), eq(NOW))).thenReturn(gains("a1_alice", "1500"));
+
+        PluginXpTracker.Pass pass = tracker.pass(e);
+        assertFalse(pass.complete(), "a closing pass must try again rather than close without the gain");
+        verify(service, never()).recordProgress(anyLong(), anyLong(), any(), anyLong(), anyLong(), any(), any(), any(), any());
+    }
+
+    @Test
     void aLateJoinerCountsFromWhenTheyJoinedInTheirOwnCall() {
         Event e = event(2, "{\"xpSource\":\"plugin\"}");
         Instant joined = STARTED.plusSeconds(1800);

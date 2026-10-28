@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.clansite.ClanSite;
 import com.younglings.bot.clansite.ClanSiteService;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -97,7 +98,7 @@ public class DirectorySiteDiscordRoutes implements DirectoryRouteModule {
 
     private Guild guild(DirectoryRequest request, String slug) {
         Optional<ClanSite> site = request.viewable(slug).flatMap(p -> sites.visible(p.guildId()));
-        return site.isEmpty() ? null : request.jda().getGuildById(site.get().guildId());
+        return site.isEmpty() ? null : Shards.guild(request.jda(), site.get().guildId());
     }
 
     /** Whether the site at {@code slug} is a live bot-less one. */

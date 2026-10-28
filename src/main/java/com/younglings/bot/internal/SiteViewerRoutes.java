@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.clanprofile.ClanProfile;
 import com.younglings.bot.clansite.ClanSiteService;
 import com.younglings.bot.clansite.SiteRoleGuard;
@@ -43,7 +44,7 @@ public class SiteViewerRoutes implements DirectoryRouteModule {
         if (parts.length != 3 || !request.head().equals("sites") || !parts[2].equals("viewer")) return false;
         if (!request.requireGet()) return true;
         Optional<ClanProfile> profile = request.viewable(parts[1]);
-        Guild guild = profile.map(p -> request.jda().getGuildById(p.guildId())).orElse(null);
+        Guild guild = profile.map(p -> Shards.guild(request.jda(), p.guildId())).orElse(null);
         // a bot-less site (the bot isn't in its server): owner and editors by user id, everyone else a guest
         Long botless = guild == null && profile.isPresent() && sites.botless(profile.get().guildId()) ? profile.get().guildId() : null;
         if (guild == null && botless == null) {

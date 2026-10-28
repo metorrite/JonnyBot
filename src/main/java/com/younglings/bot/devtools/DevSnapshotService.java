@@ -1,5 +1,6 @@
 package com.younglings.bot.devtools;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.configure.GuildSettingsService;
 import com.younglings.bot.runescape.polling.PollCoordinator;
@@ -219,8 +220,8 @@ public class DevSnapshotService {
                 .put("botCommit", botCommit).put("siteCommit", siteCommit.isEmpty() ? null : siteCommit)
                 .put("startedAtUtc", Instant.ofEpochMilli(System.currentTimeMillis() - uptimeMs).toString())
                 .put("uptimeSeconds", uptimeMs / 1000)
-                .put("gateway", DataObject.empty().put("status", jda.getStatus().name()).put("pingMs", jda.getGatewayPing()).put("intents", intents)
-                        .put("servers", jda.getGuilds().size()))
+                .put("gateway", DataObject.empty().put("status", Shards.status(jda).name()).put("pingMs", Shards.gatewayPing(jda)).put("intents", intents)
+                        .put("servers", Shards.guilds(jda).size()).put("shards", Shards.total(jda)))
                 .put("java", System.getProperty("java.version"))
                 .put("memoryUsedMb", (rt.totalMemory() - rt.freeMemory()) / (1024 * 1024)).put("memoryMaxMb", rt.maxMemory() / (1024 * 1024))
                 .put("databaseTimeUtc", databaseTime())

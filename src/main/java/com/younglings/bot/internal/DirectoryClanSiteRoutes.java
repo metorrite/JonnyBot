@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.clanprofile.ClanProfile;
 import com.younglings.bot.clanprofile.ClanProfileRepository;
 import com.younglings.bot.clansite.ClanSite;
@@ -79,7 +80,7 @@ public class DirectoryClanSiteRoutes implements DirectoryRouteModule {
             if (!request.requireGet()) return true;
             String route = parts.length == 4 ? parts[3] : parts[3] + "/" + parts[4]; // member/skill is the one two-part answer
             Optional<ClanSite> site = request.viewable(parts[1]).flatMap(p -> sites.visible(p.guildId()));
-            Guild guild = site.isEmpty() ? null : request.jda().getGuildById(site.get().guildId());
+            Guild guild = site.isEmpty() ? null : Shards.guild(request.jda(), site.get().guildId());
             // A bot-less site's clan data is stored by server id like any other; its Discord-only routes answer {"needsBot": true}.
             boolean botless = guild == null && site.isPresent() && sites.botless(site.get().guildId());
             DataObject data = guild != null ? siteApi.tenant(guild, route, request.exchange())
@@ -122,10 +123,10 @@ public class DirectoryClanSiteRoutes implements DirectoryRouteModule {
             blocks.add(DataObject.empty().put("page", b.page()).put("position", b.position()).put("kind", b.kind().name()).put("body", jsonObject(b.body())));
         }
         return DataObject.empty().put("slug", p.slug()).put("clan", request.clanJson(p)).put("template", site.template().name())
-                .put("botless", sites.botless(site.guildId()) && request.jda().getGuildById(site.guildId()) == null)
+                .put("botless", sites.botless(site.guildId()) && Shards.guild(request.jda(), site.guildId()) == null)
                 .put("theme", jsonObject(site.theme())).put("pages", jsonArray(site.pages())).put("blocks", blocks)
                 .put("publishedAt", site.publishedAt() == null ? null : site.publishedAt().toString())
-                .put("plan", com.younglings.bot.premium.Billing.planJson(site.guildId(), request.jda().getGuildById(site.guildId()) != null)) // T-366
+                .put("plan", com.younglings.bot.premium.Billing.planJson(site.guildId(), Shards.guild(request.jda(), site.guildId()) != null)) // T-366
                 .put("layout", layouts.byGuild(site.guildId()).map(l -> l.published()).filter(raw -> raw != null && !raw.isBlank()).map(DirectoryClanSiteRoutes::jsonObject).orElse(null));
     }
 

@@ -1,5 +1,6 @@
 package com.younglings.bot.runescape;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.tracking.ClanPointsService;
 import com.younglings.bot.util.BotScheduler;
@@ -66,7 +67,7 @@ public class ClanPointsScheduler {
     }
 
     private void runForAllGuilds(JDA jda) {
-        for (Guild guild : jda.getGuilds()) {
+        for (Guild guild : Shards.guilds(jda)) {
             if (clanSyncService.getClanName(guild.getIdLong()) == null) continue; // nothing configured to check
 
             try {
