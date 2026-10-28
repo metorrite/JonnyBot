@@ -58,6 +58,10 @@ public class MemberProfileRepository {
                 // member privacy defaults may hide them too; a toggle they turned on always stays on.
                 "ALTER TABLE younglings.member_profile ADD COLUMN IF NOT EXISTS privacy_chosen BOOLEAN NOT NULL DEFAULT FALSE;",
 
+                // Added later: the member turned their recaps off for everyone else. Not one of the privacy toggles: saving it never sets
+                // privacy_chosen, and the server's defaults don't touch it (a recap is shown once its member opened it, unless they said no).
+                "ALTER TABLE younglings.member_profile ADD COLUMN IF NOT EXISTS hide_recap BOOLEAN NOT NULL DEFAULT FALSE;",
+
                 // The server's member privacy defaults (T-395, site admin's Member privacy page): what is hidden for members who haven't chosen.
                 """
                 CREATE TABLE IF NOT EXISTS younglings.member_privacy_default (
@@ -105,6 +109,19 @@ public class MemberProfileRepository {
                     sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     PRIMARY KEY (event_id, discord_user_id)
                 );
+                """,
+
+                // When a member first opened their own recap for one period (rsn lower-cased; period_key from RecapPeriod.key): until then
+                // nobody else sees it, so a recap is never a spoiler. Kept by name, as recaps are; discord_user_id is who opened it.
+                """
+                CREATE TABLE IF NOT EXISTS younglings.member_recap_seen (
+                    guild_id BIGINT NOT NULL,
+                    rsn TEXT NOT NULL,
+                    period_key TEXT NOT NULL,
+                    discord_user_id BIGINT NOT NULL,
+                    seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    PRIMARY KEY (guild_id, rsn, period_key)
+                );
                 """
         ));
     }
@@ -114,17 +131,28 @@ public class MemberProfileRepository {
     /**
      * {@code privacyChosen}: the member saved their privacy toggles, so the server's {@link PrivacyDefaults} no longer apply to them. Saving
      * never turns it back off.
+     * <p>
+     * {@code hideRecap}: the member turned their recaps off for everyone else (off unless they say so: a recap is shown to the clan once its
+     * member has opened it). It is not one of the privacy toggles: the server's defaults never change it and saving it doesn't count as
+     * choosing them.
      */
     public record Profile(long guildId, long userId, String bio, String accentColor, Integer pinnedSkill, boolean hideAdventureLog,
-                          boolean hideFromLeaderboards, boolean dmGoals, boolean dmEvents, boolean hideDiscordLink, boolean privacyChosen) {
+                          boolean hideFromLeaderboards, boolean dmGoals, boolean dmEvents, boolean hideDiscordLink, boolean privacyChosen,
+                          boolean hideRecap) {
         public static Profile defaults(long guildId, long userId) {
-            return new Profile(guildId, userId, "", null, null, false, false, true, false, false, false);
+            return new Profile(guildId, userId, "", null, null, false, false, true, false, false, false, false);
         }
 
-        /** A profile whose privacy toggles weren't chosen (yet). */
+        /** A profile whose privacy toggles weren't chosen (yet), recaps not hidden. */
         public Profile(long guildId, long userId, String bio, String accentColor, Integer pinnedSkill, boolean hideAdventureLog,
                        boolean hideFromLeaderboards, boolean dmGoals, boolean dmEvents, boolean hideDiscordLink) {
             this(guildId, userId, bio, accentColor, pinnedSkill, hideAdventureLog, hideFromLeaderboards, dmGoals, dmEvents, hideDiscordLink, false);
+        }
+
+        /** A profile with recaps not hidden. */
+        public Profile(long guildId, long userId, String bio, String accentColor, Integer pinnedSkill, boolean hideAdventureLog,
+                       boolean hideFromLeaderboards, boolean dmGoals, boolean dmEvents, boolean hideDiscordLink, boolean privacyChosen) {
+            this(guildId, userId, bio, accentColor, pinnedSkill, hideAdventureLog, hideFromLeaderboards, dmGoals, dmEvents, hideDiscordLink, privacyChosen, false);
         }
 
         /**
@@ -134,7 +162,7 @@ public class MemberProfileRepository {
         public Profile withDefaults(PrivacyDefaults d) {
             if (privacyChosen || d == null) return this;
             return new Profile(guildId, userId, bio, accentColor, pinnedSkill, hideAdventureLog || d.hideAdventureLog(),
-                    hideFromLeaderboards || d.hideFromLeaderboards(), dmGoals, dmEvents, hideDiscordLink || d.hideDiscordLink(), false);
+                    hideFromLeaderboards || d.hideFromLeaderboards(), dmGoals, dmEvents, hideDiscordLink || d.hideDiscordLink(), false, hideRecap);
         }
     }
 
@@ -196,7 +224,8 @@ public class MemberProfileRepository {
     public Profile getProfile(long guildId, long userId) {
         try (Connection c = connectionSupplier.getConnection();
              PreparedStatement s = c.prepareStatement("""
-                     SELECT bio, accent_color, pinned_skill, hide_adventure_log, hide_from_leaderboards, dm_goals, dm_events, hide_discord_link, privacy_chosen
+                     SELECT bio, accent_color, pinned_skill, hide_adventure_log, hide_from_leaderboards, dm_goals, dm_events, hide_discord_link, privacy_chosen,
+                         hide_recap
                      FROM younglings.member_profile WHERE guild_id = ? AND discord_user_id = ?""")) {
             s.setLong(1, guildId);
             s.setLong(2, userId);
@@ -204,7 +233,7 @@ public class MemberProfileRepository {
                 if (!rs.next()) return Profile.defaults(guildId, userId);
                 return new Profile(guildId, userId, rs.getString("bio"), rs.getString("accent_color"), (Integer) rs.getObject("pinned_skill"),
                         rs.getBoolean("hide_adventure_log"), rs.getBoolean("hide_from_leaderboards"), rs.getBoolean("dm_goals"), rs.getBoolean("dm_events"), rs.getBoolean("hide_discord_link"),
-                        rs.getBoolean("privacy_chosen"));
+                        rs.getBoolean("privacy_chosen"), rs.getBoolean("hide_recap"));
             }
         } catch (SQLException e) {
             throw fail("read a member profile", e);
@@ -215,13 +244,14 @@ public class MemberProfileRepository {
         try (Connection c = connectionSupplier.getConnection();
              PreparedStatement s = c.prepareStatement("""
                      INSERT INTO younglings.member_profile (guild_id, discord_user_id, bio, accent_color, pinned_skill, hide_adventure_log,
-                         hide_from_leaderboards, dm_goals, dm_events, hide_discord_link, privacy_chosen, updated_at)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                         hide_from_leaderboards, dm_goals, dm_events, hide_discord_link, privacy_chosen, hide_recap, updated_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
                      ON CONFLICT (guild_id, discord_user_id) DO UPDATE SET bio = EXCLUDED.bio, accent_color = EXCLUDED.accent_color,
                          pinned_skill = EXCLUDED.pinned_skill, hide_adventure_log = EXCLUDED.hide_adventure_log,
                          hide_from_leaderboards = EXCLUDED.hide_from_leaderboards, dm_goals = EXCLUDED.dm_goals,
                          dm_events = EXCLUDED.dm_events, hide_discord_link = EXCLUDED.hide_discord_link,
-                         privacy_chosen = younglings.member_profile.privacy_chosen OR EXCLUDED.privacy_chosen, updated_at = NOW()""")) {
+                         privacy_chosen = younglings.member_profile.privacy_chosen OR EXCLUDED.privacy_chosen, hide_recap = EXCLUDED.hide_recap,
+                         updated_at = NOW()""")) {
             s.setLong(1, p.guildId());
             s.setLong(2, p.userId());
             s.setString(3, p.bio());
@@ -233,6 +263,7 @@ public class MemberProfileRepository {
             s.setBoolean(9, p.dmEvents());
             s.setBoolean(10, p.hideDiscordLink());
             s.setBoolean(11, p.privacyChosen());
+            s.setBoolean(12, p.hideRecap());
             s.executeUpdate();
         } catch (SQLException e) {
             throw fail("save a member profile", e);
@@ -243,7 +274,8 @@ public class MemberProfileRepository {
     public Profile getProfileForRsn(long guildId, String rsn) {
         try (Connection c = connectionSupplier.getConnection();
              PreparedStatement s = c.prepareStatement("""
-                     SELECT p.discord_user_id, p.bio, p.accent_color, p.pinned_skill, p.hide_adventure_log, p.hide_from_leaderboards, p.dm_goals, p.dm_events, p.hide_discord_link, p.privacy_chosen
+                     SELECT p.discord_user_id, p.bio, p.accent_color, p.pinned_skill, p.hide_adventure_log, p.hide_from_leaderboards, p.dm_goals, p.dm_events, p.hide_discord_link, p.privacy_chosen,
+                         p.hide_recap
                      FROM younglings.player_link l JOIN younglings.member_profile p ON p.guild_id = l.guild_id AND p.discord_user_id = l.discord_user_id
                      WHERE l.guild_id = ? AND LOWER(l.rsn) = LOWER(?)""")) {
             s.setLong(1, guildId);
@@ -252,7 +284,7 @@ public class MemberProfileRepository {
                 if (!rs.next()) return null;
                 return new Profile(guildId, rs.getLong("discord_user_id"), rs.getString("bio"), rs.getString("accent_color"), (Integer) rs.getObject("pinned_skill"),
                         rs.getBoolean("hide_adventure_log"), rs.getBoolean("hide_from_leaderboards"), rs.getBoolean("dm_goals"), rs.getBoolean("dm_events"), rs.getBoolean("hide_discord_link"),
-                        rs.getBoolean("privacy_chosen"));
+                        rs.getBoolean("privacy_chosen"), rs.getBoolean("hide_recap"));
             }
         } catch (SQLException e) {
             throw fail("read a profile by name", e);
@@ -318,6 +350,57 @@ public class MemberProfileRepository {
             return hidden;
         } catch (SQLException e) {
             throw fail("read hidden discord links", e);
+        }
+    }
+
+    // ---------- who may see a member's recap (RecapGate) ----------
+
+    /**
+     * The member a RuneScape name belongs to on this server, for its recap: their Discord user id, whether they turned recaps off for
+     * everyone else ({@code hideRecap}; no profile row means not), and whether they have opened the recap with this period key
+     * ({@code seen}, always false for a null key or a mark someone else left on the name).
+     */
+    public record RecapOwner(long userId, boolean hideRecap, boolean seen) {}
+
+    /** {@link RecapOwner} for {@code rsn} (any case) on this server; {@code null} when nobody linked it (a name has one link per server). */
+    public RecapOwner recapOwner(long guildId, String rsn, String periodKey) {
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("""
+                     SELECT l.discord_user_id, COALESCE(p.hide_recap, FALSE) AS hide_recap,
+                         EXISTS (SELECT 1 FROM younglings.member_recap_seen r WHERE r.guild_id = l.guild_id AND r.rsn = LOWER(?) AND r.period_key = ?
+                             AND r.discord_user_id = l.discord_user_id) AS seen
+                     FROM younglings.player_link l
+                     LEFT JOIN younglings.member_profile p ON p.guild_id = l.guild_id AND p.discord_user_id = l.discord_user_id
+                     WHERE l.guild_id = ? AND LOWER(l.rsn) = LOWER(?)""")) {
+            s.setString(1, rsn.trim());
+            if (periodKey == null) s.setNull(2, Types.VARCHAR); else s.setString(2, periodKey);
+            s.setLong(3, guildId);
+            s.setString(4, rsn.trim());
+            try (ResultSet rs = s.executeQuery()) {
+                return rs.next() ? new RecapOwner(rs.getLong("discord_user_id"), rs.getBoolean("hide_recap"), rs.getBoolean("seen")) : null;
+            }
+        } catch (SQLException e) {
+            throw fail("read a recap's member", e);
+        }
+    }
+
+    /**
+     * Records that {@code userId}, who has {@code rsn} linked, opened its recap for {@code periodKey}. The first time is kept; if the name has
+     * since passed to someone else, their own first opening replaces the old mark (it was never theirs).
+     */
+    public void markRecapSeen(long guildId, String rsn, String periodKey, long userId) {
+        try (Connection c = connectionSupplier.getConnection();
+             PreparedStatement s = c.prepareStatement("""
+                     INSERT INTO younglings.member_recap_seen (guild_id, rsn, period_key, discord_user_id) VALUES (?, LOWER(?), ?, ?)
+                     ON CONFLICT (guild_id, rsn, period_key) DO UPDATE SET discord_user_id = EXCLUDED.discord_user_id, seen_at = NOW()
+                     WHERE younglings.member_recap_seen.discord_user_id <> EXCLUDED.discord_user_id""")) {
+            s.setLong(1, guildId);
+            s.setString(2, rsn.trim());
+            s.setString(3, periodKey);
+            s.setLong(4, userId);
+            s.executeUpdate();
+        } catch (SQLException e) {
+            throw fail("record an opened recap", e);
         }
     }
 
