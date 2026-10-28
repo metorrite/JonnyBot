@@ -996,13 +996,21 @@ public class EventService {
     // ---------- progress ----------
 
     /**
+     * XP tile progress from {@link PluginXpTracker}'s final pass while the event is being scored (T-706): XP gained up to the planned end (or the move to
+     * scoring, if sooner) still counts, so the last minute or two before an organiser finishes isn't lost. Nothing else is taken once the event stops running.
+     */
+    static boolean finalXpTile(Event event, Source source, String sourceKey) {
+        return event.status() == Status.SCORING && source == Source.AUTO && sourceKey != null && sourceKey.startsWith(PluginXpTracker.TILE_KEY_PREFIX);
+    }
+
+    /**
      * Records progress for a player. Checks the event is running, the player is in it, the objective accepts progress from this source, its
      * prerequisites are done, and it can still count; trims the amount so an objective never goes past its last completion. An organiser
      * ({@link Source#MANUAL}) may also enter a negative amount to undo earlier progress. {@code sourceKey} makes a retry harmless.
      */
     public Recorded recordProgress(long guildId, long id, String objectiveKey, long userId, long amount, Source source, String sourceKey, Long actorId, String note) {
         Event event = event(guildId, id);
-        if (!EventRules.acceptsProgress(event.status())) throw new EventProblem(409, Text.of(guildId, "events.problem.this_event_isn_t_running_so"));
+        if (!EventRules.acceptsProgress(event.status()) && !finalXpTile(event, source, sourceKey)) throw new EventProblem(409, Text.of(guildId, "events.problem.this_event_isn_t_running_so"));
         if (amount == 0) throw new EventProblem(400, Text.of(guildId, "events.problem.the_amount_can_t_be_zero"));
         if (amount < 0 && source != Source.MANUAL) throw new EventProblem(400, Text.of(guildId, "events.problem.only_an_organiser_can_take_progress"));
         String cleanNote = clean(note);

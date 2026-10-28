@@ -52,6 +52,13 @@ import java.util.concurrent.TimeUnit;
  * goal ({@link PluginObjectiveMatcher#xpProgress}). Each entry is keyed by the player or team, the tile and the progress it builds on, so a re-read
  * (or two passes at once, even from two bot instances) never counts twice: whichever writes first wins and the other is refused. Players without
  * RuneSync (RuneMetrics only) make no progress and are listed by {@link #notCounted} like a competition's.
+ * <p>
+ * The hub calls an XP tile pass makes stay bounded (T-706): a start of counting after the event's start is rounded up to the next
+ * {@link #COALESCE} step, so players whose steps unlocked minutes apart share one read, and a pass makes at most {@link #MAX_TILE_CALLS_PER_PASS}
+ * calls, asking the spans asked longest ago first (one the hub failed on behind the rest) and using each other span's last answer meanwhile (a gain only grows, so an older answer can only
+ * count less, never more). The first call that fails ends the pass. A player moved to another team counts for the new team from the move. Once an
+ * organiser moves the event to scoring, one final pass (within {@link #FINAL_WINDOW}) reads every span, exactly, up to the planned end or the move
+ * to scoring, whichever is sooner, so the last minutes before the finish aren't lost ({@link EventService#finalXpTile}).
  */
 @BService
 public class PluginXpTracker {
@@ -63,6 +70,12 @@ public class PluginXpTracker {
     static final Duration ALIAS_RETRY = Duration.ofMinutes(1);
     /** The hub takes at most this many players per gains call. */
     static final int MAX_PLAYERS_PER_CALL = 500;
+    /** XP tiles: a start of counting after the event's start is rounded up to a step of this, so nearby unlocks share one hub read. */
+    static final Duration COALESCE = Duration.ofMinutes(5);
+    /** XP tiles: at most this many hub calls per event per pass while it runs (the final pass reads everything). */
+    static final int MAX_TILE_CALLS_PER_PASS = 6;
+    /** How long after an event moves to scoring its final XP tile pass is still tried. */
+    static final Duration FINAL_WINDOW = Duration.ofMinutes(10);
 
     /** Who in one competition scored nothing on the last pass, and when that was: {@code unconfirmed} only for "count confirmed links only". */
     public record NotCounted(Set<Long> userIds, Set<Long> unconfirmed, Instant checkedAt) {}
@@ -71,6 +84,9 @@ public class PluginXpTracker {
     public record Disagreement(long userId, long runeSyncXp, long runeMetricsXp, Instant checkedAt) {}
 
     private record CachedAlias(Optional<String> alias, Instant until) {}
+
+    /** One XP tile span's last gains answer (rows by alias), and when it was read. */
+    private record TileRead(Map<String, DataObject> rows, Instant at) {}
 
     private final EventRepository repository;
     private final EventService service;
@@ -85,6 +101,21 @@ public class PluginXpTracker {
     private final Map<Long, Map<Long, Disagreement>> disagreements = new ConcurrentHashMap<>();
     /** One lock per competition, so {@link #pass} never runs twice at once for it (kept for the bot's lifetime: one small object per competition). */
     private final Map<Long, Object> passing = new ConcurrentHashMap<>();
+    /** XP tiles: eventId → each span's last answer, so a pass that reads only some spans still adds up whole teams. */
+    private final Map<Long, Map<Span, TileRead>> tileReads = new ConcurrentHashMap<>();
+    /**
+     * XP tiles: eventId → when each span was last asked of the hub and whether that failed, so one that keeps failing goes to the back (behind
+     * those asked in the same pass that answered), not the front.
+     */
+    private final Map<Long, Map<Span, Tried>> tileTried = new ConcurrentHashMap<>();
+
+    /** When an XP tile span was last asked of the hub, and whether the hub failed to answer. */
+    private record Tried(Instant at, boolean failed) {
+        static final Tried NEVER = new Tried(Instant.MIN, false);
+        static final java.util.Comparator<Tried> ORDER = java.util.Comparator.comparing(Tried::at).thenComparing(Tried::failed);
+    }
+    /** Events being scored whose final XP tile pass is done, with the move to scoring it was for (a reopened and refinished event gets another). */
+    private final Map<Long, Instant> finalised = new ConcurrentHashMap<>();
     private Clock clock = Clock.systemUTC();
     private volatile boolean tiles;
 
@@ -153,11 +184,20 @@ public class PluginXpTracker {
         return all;
     }
 
-    /** Every running bingo and scavenger hunt (also as a clan-vs-clan game), for their XP tiles. */
+    /**
+     * Every running bingo and scavenger hunt (also as a clan-vs-clan game), for their XP tiles, and those moved to scoring within the last
+     * {@link #FINAL_WINDOW}, for their final pass.
+     */
     private List<Event> tileEvents() {
-        List<Event> all = new ArrayList<>(repository.runningEvents(BingoTemplate.KEY));
-        all.addAll(repository.runningEvents(ScavengerHuntTemplate.KEY));
-        for (Event e : repository.runningEvents(ClanVsClan.KEY)) if (ClanVsClan.plays(e, BingoTemplate.KEY) || ClanVsClan.plays(e, ScavengerHuntTemplate.KEY)) all.add(e);
+        Instant since = clock.instant().minus(FINAL_WINDOW);
+        List<Event> all = new ArrayList<>();
+        for (String template : List.of(BingoTemplate.KEY, ScavengerHuntTemplate.KEY)) {
+            all.addAll(repository.runningEvents(template));
+            all.addAll(repository.scoringSince(template, since));
+        }
+        List<Event> clanVsClan = new ArrayList<>(repository.runningEvents(ClanVsClan.KEY));
+        clanVsClan.addAll(repository.scoringSince(ClanVsClan.KEY, since));
+        for (Event e : clanVsClan) if (ClanVsClan.plays(e, BingoTemplate.KEY) || ClanVsClan.plays(e, ScavengerHuntTemplate.KEY)) all.add(e);
         return all;
     }
 
@@ -184,6 +224,8 @@ public class PluginXpTracker {
             }
             for (Event event : tiles ? tileEvents() : List.<Event>of()) {
                 ids.add(event.id());
+                if (event.status() == EventRules.Status.SCORING && finalised.containsKey(event.id())
+                        && repository.scoringAt(event.id()).map(at -> at.equals(finalised.get(event.id()))).orElse(true)) continue; // its final pass is done
                 try {
                     feedTiles(event);
                 } catch (RuntimeException e) {
@@ -193,6 +235,9 @@ public class PluginXpTracker {
             notCounted.keySet().retainAll(ids);
             runeSyncPlayers.keySet().retainAll(ids);
             disagreements.keySet().retainAll(ids);
+            tileReads.keySet().retainAll(ids);
+            tileTried.keySet().retainAll(ids);
+            finalised.keySet().retainAll(ids);
         } catch (RuntimeException e) {
             log.warn("The RuneSync competition sweep failed", e);
         }
@@ -236,8 +281,9 @@ public class PluginXpTracker {
         boolean confirmedOnly = CompetitionTemplate.confirmedLinksOnly(settings);
         Set<Long> missing = new LinkedHashSet<>();
         Set<Long> unconfirmed = new LinkedHashSet<>();
-        // players by alias, grouped by when they started counting: one hub call per group (nearly always one)
-        Map<Instant, Map<String, Participant>> groups = new LinkedHashMap<>();
+        // players by alias, grouped by their server (a clan-vs-clan guest is read under their clan's) and when they started counting: one hub call
+        // per group (nearly always one)
+        Map<Span, Map<String, Participant>> groups = new LinkedHashMap<>();
         // players whose alias the hub couldn't be asked for and none was ever kept: what the last pass said about them stands
         Set<Long> unknown = new LinkedHashSet<>();
         boolean complete = true;
@@ -262,7 +308,8 @@ public class PluginXpTracker {
                 missing.add(p.userId());
                 continue;
             }
-            groups.computeIfAbsent(wholeSpan ? started : CompetitionTracking.countsFrom(started, p.joinedAt()), k -> new LinkedHashMap<>()).put(alias.get(), p);
+            Span span = new Span(p.guildId(), wholeSpan ? started : CompetitionTracking.countsFrom(started, p.joinedAt()));
+            groups.computeIfAbsent(span, k -> new LinkedHashMap<>()).put(alias.get(), p);
         }
 
         Map<Long, Long> counted = new HashMap<>();
@@ -272,12 +319,12 @@ public class PluginXpTracker {
             if (p.sourceKey() != null) keys.add(p.sourceKey());
         }
         int updated = 0;
-        for (Map.Entry<Instant, Map<String, Participant>> group : groups.entrySet()) {
-            if (!group.getKey().isBefore(until)) continue; // hasn't started counting yet
+        for (Map.Entry<Span, Map<String, Participant>> group : groups.entrySet()) {
+            if (!group.getKey().from().isBefore(until)) continue; // hasn't started counting yet
             List<String> all = new ArrayList<>(group.getValue().keySet());
             for (int i = 0; i < all.size(); i += MAX_PLAYERS_PER_CALL) {
                 List<String> part = all.subList(i, Math.min(all.size(), i + MAX_PLAYERS_PER_CALL));
-                RuneClansHubClient.Answer answer = hub.xpGains(event.guildId(), part, skillId, group.getKey(), until);
+                RuneClansHubClient.Answer answer = hub.xpGains(group.getKey().guildId(), part, skillId, group.getKey().from(), until);
                 if (answer == null || !answer.ok() || answer.json() == null) {
                     // the hub is down or its ledger is off: say nothing about who counts, try again next minute
                     if (answer != null && answer.status() != 404) log.warn("Competition {}: the hub answered {} for XP gains", event.id(), answer.status());
@@ -335,7 +382,7 @@ public class PluginXpTracker {
 
     /**
      * Brings the XP tiles of one bingo or scavenger hunt up to date from the hub: one gains call (all skills) per server and start of counting
-     * (nearly always one), for the span the event runs. Returns how many progress entries were added. An event with no XP tiles costs nothing, and
+     * (rounded to {@link #COALESCE}, at most {@link #MAX_TILE_CALLS_PER_PASS} a pass), for the span the event runs. Returns how many progress entries were added. An event with no XP tiles costs nothing, and
      * a tile already complete (however it got there) or still locked is not read.
      * <ul>
      *   <li>A tile's subject is the player, or their team when the event scores by team (clan-vs-clan always does): the team's members' gains add
@@ -351,14 +398,28 @@ public class PluginXpTracker {
         Map<EventRules.ObjectiveSpec, PluginObjectiveMatcher.XpGoal> xpTiles = PluginObjectiveMatcher.xpTiles(ClanVsClan.game(event), objectives);
         if (xpTiles.isEmpty()) {
             notCounted.remove(event.id()); // the last XP tile was taken off: nothing to list any more
+            tileReads.remove(event.id());
+            tileTried.remove(event.id());
             return 0;
         }
         Instant now = clock.instant();
+        // the final pass of an event being scored reads up to when it moved to scoring, every span, exactly
+        boolean last = event.status() == EventRules.Status.SCORING;
+        Instant stop = now;
+        Instant scoringAt = null;
+        if (last) {
+            Optional<Instant> scoring = repository.scoringAt(event.id());
+            if (scoring.isEmpty()) return 0;
+            scoringAt = scoring.get();
+            if (scoringAt.isBefore(stop)) stop = scoringAt;
+        }
         Instant started = repository.startedAt(event.id()).orElse(event.startsAt() == null ? now : event.startsAt());
         // only XP gained during the event counts: not before its advertised start (started early), not after its planned end (finished late)
         if (event.startsAt() != null && event.startsAt().isAfter(started)) started = event.startsAt();
-        Instant to = event.endsAt() != null && event.endsAt().isBefore(now) ? event.endsAt() : now;
+        Instant to = event.endsAt() != null && event.endsAt().isBefore(stop) ? event.endsAt() : stop;
         boolean byTeam = event.scoringMode() == EventRules.ScoringMode.TEAM;
+        // a player moved to another team counts for it from the move: what they gained before counted for their old team
+        Map<Long, Instant> movedAt = byTeam ? repository.teamJoinedAt(event.id()) : Map.of();
         Map<String, EventRules.ObjectiveSpec> byKey = new HashMap<>();
         for (EventRules.ObjectiveSpec o : objectives) byKey.put(o.key(), o);
         // each subject's progress (a player's, or their team's), in the order it was written
@@ -387,7 +448,10 @@ public class PluginXpTracker {
                 Instant unlocked = unlockedAt(tile, history, byKey);
                 if (unlocked == null) continue; // a step still locked behind another
                 Instant from = CompetitionTracking.countsFrom(started, p.joinedAt());
+                Instant moved = movedAt.get(p.userId());
+                if (moved != null && moved.isAfter(from)) from = moved;
                 if (unlocked.isAfter(from)) from = unlocked;
+                if (!last) from = coalesced(started, from);
                 if (!from.isBefore(to)) continue; // hasn't started counting yet, or joined after the event ended
                 Span span = new Span(p.guildId(), from);
                 asks.computeIfAbsent(span, k -> new LinkedHashMap<>()).put(alias.get(), p);
@@ -395,17 +459,53 @@ public class PluginXpTracker {
             }
         }
 
-        Map<Span, Map<String, DataObject>> read = new HashMap<>();
-        for (Map.Entry<Span, Map<String, Participant>> ask : asks.entrySet()) {
-            Map<String, DataObject> rows = gains(event, ask.getKey(), ask.getValue().keySet(), to);
-            if (rows == null) continue; // the hub couldn't answer for these players: they wait for the next pass
-            read.put(ask.getKey(), rows);
-            ask.getValue().forEach((alias, p) -> {
-                if (!rows.containsKey(alias)) missing.add(p.userId());
-            });
+        // back to running (an organiser reopened it): a later move to scoring gets its own final pass
+        if (!last) finalised.remove(event.id());
+        // the spans asked longest ago (or never) first, up to the pass's budget; the final pass reads them all
+        Map<Span, TileRead> reads = tileReads.computeIfAbsent(event.id(), k -> new ConcurrentHashMap<>());
+        reads.keySet().retainAll(asks.keySet());
+        Map<Span, Tried> tried = tileTried.computeIfAbsent(event.id(), k -> new ConcurrentHashMap<>());
+        tried.keySet().retainAll(asks.keySet());
+        List<Span> order = new ArrayList<>(asks.keySet());
+        order.sort(java.util.Comparator.comparing(span -> tried.getOrDefault(span, Tried.NEVER), Tried.ORDER));
+        int calls = 0;
+        int fresh = 0;
+        boolean failed = false;
+        for (Span span : order) {
+            Map<String, Participant> who = asks.get(span);
+            int need = (who.size() + MAX_PLAYERS_PER_CALL - 1) / MAX_PLAYERS_PER_CALL;
+            if (!last && calls > 0 && calls + need > MAX_TILE_CALLS_PER_PASS) break; // the rest is read on the next passes
+            calls += need;
+            Map<String, DataObject> rows = gains(event, span, who.keySet(), to);
+            tried.put(span, new Tried(now, rows == null));
+            if (rows == null) {
+                // the hub couldn't answer: stop here, the other spans wait for the next pass (this one behind them)
+                failed = true;
+                break;
+            }
+            reads.put(span, new TileRead(rows, now));
+            fresh++;
+        }
+        if (last && failed && !now.isBefore(stop.plus(FINAL_WINDOW).minus(PERIOD))) {
+            log.warn("Event {}: the final XP tile pass couldn't read everything before its {} minutes ran out; the last minutes may be missing", event.id(),
+                    FINAL_WINDOW.toMinutes());
         }
         // the hub is down or its ledger is off: say nothing about who counts, try again next minute
-        if (!asks.isEmpty() && read.isEmpty()) return 0;
+        if (failed && fresh == 0) return 0;
+
+        // who the hub counts, from each span's latest answer; a player in no span answered yet keeps what the last pass said
+        Set<Long> counted = new HashSet<>();
+        Set<Long> unread = new HashSet<>();
+        for (Map.Entry<Span, Map<String, Participant>> ask : asks.entrySet()) {
+            TileRead read = reads.get(ask.getKey());
+            ask.getValue().forEach((alias, p) -> {
+                if (read == null) unread.add(p.userId());
+                else if (read.rows().containsKey(alias)) counted.add(p.userId());
+                else missing.add(p.userId());
+            });
+        }
+        NotCounted before = notCounted.get(event.id());
+        for (long user : unread) if (!counted.contains(user) && before != null && before.userIds().contains(user)) missing.add(user);
 
         int updated = 0;
         for (Map.Entry<Long, Map<EventRules.ObjectiveSpec, List<Reader>>> subject : open.entrySet()) {
@@ -415,7 +515,8 @@ public class PluginXpTracker {
                 long most = -1;
                 Participant top = null;
                 for (Reader r : tile.getValue()) {
-                    DataObject row = read.getOrDefault(r.span(), Map.of()).get(r.alias());
+                    TileRead read = reads.get(r.span());
+                    DataObject row = read == null ? null : read.rows().get(r.alias());
                     if (row == null) continue;
                     long gain = gainedIn(row, goal.skillId());
                     gained += gain;
@@ -431,7 +532,19 @@ public class PluginXpTracker {
             }
         }
         notCounted.put(event.id(), new NotCounted(Set.copyOf(missing), Set.of(), now));
+        if (last && !failed) finalised.put(event.id(), scoringAt);
         return updated;
+    }
+
+    /**
+     * Where an XP tile span starts reading: a start after the event's start is rounded up to the next {@link #COALESCE} step from it, so players
+     * whose steps unlocked (or who joined or moved) minutes apart share one read. Rounding up never counts XP from before the start it rounds.
+     */
+    static Instant coalesced(Instant started, Instant from) {
+        if (!from.isAfter(started)) return from;
+        long step = COALESCE.toNanos();
+        long steps = (Duration.between(started, from).toNanos() + step - 1) / step;
+        return started.plus(COALESCE.multipliedBy(steps));
     }
 
     /** One span's gains rows by alias (asked in parts of {@link #MAX_PLAYERS_PER_CALL}); null when the hub couldn't answer. */
