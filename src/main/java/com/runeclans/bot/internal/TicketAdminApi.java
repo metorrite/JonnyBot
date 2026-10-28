@@ -153,13 +153,14 @@ public class TicketAdminApi {
             OwnerOverride override = access.ownerOverride();
             // the bot owner's "lift restrictions" mode (T-445): started and ended here, by the owner alone, after the website's acknowledgement
             if (parts.length == 1 && parts[0].equals("owner-override")) {
-                InternalApiServer.sendJson(exchange, 200, ownerOverrideRoute(exchange, guild, askerId, method));
+                InternalApiServer.sendJson(exchange, 200, OwnerOverrideRoute.handle(override, id -> overviewAdmin.isOwner(guild, id), () -> body(exchange),
+                        auditStore::audit, () -> ownerName(guild, askerId), guild.getIdLong(), askerId, method));
                 return;
             }
             boolean overriding = askerId != 0 && override.active(guild.getIdLong(), askerId);
             Member found = actorOf(exchange, guild);
             // while it runs, the owner is this server's Admin even when they aren't a member of it: a stand-in with no roles or Discord rights
-            Member actor = found == null && overriding ? OwnerStandIn.of(guild, askerId) : found;
+            Member actor = OwnerOverrideRoute.actorFor(found, overriding, () -> OwnerStandIn.of(guild, askerId));
             Tier tier = actor == null ? Tier.NONE : access.tierOf(guild, actor);
             boolean coordinator = actor != null && tier == Tier.NONE && access.isEventCoordinator(guild, actor);
 
@@ -171,7 +172,8 @@ public class TicketAdminApi {
                 if (coordinator) who.put("coordinator", true).put("guildId", guild.getId()).put("guildName", guild.getName()).put("guildIconUrl", guild.getIconUrl());
                 if (actor != null && tier != Tier.NONE) who.put("isOwner", overviewAdmin.isOwner(guild, actor.getIdLong()));
                 // the bot owner may lift the restrictions for this server (T-445); say whether they did and until when
-                if (askerId != 0 && overviewAdmin.isOwner(guild, askerId)) who.put("ownerOverride", overrideJson(guild, askerId));
+                // from what is already known (no Discord call inside the web request); the lift itself checks with Discord
+                if (askerId != 0 && overviewAdmin.isKnownOwner(askerId)) who.put("ownerOverride", OwnerOverrideRoute.state(override, guild.getIdLong(), askerId));
                 // Whether this person may use JonnyBot's website while it is closed: the clan's own admins, or admins of a trusted beta server.
                 // Worked out from the asker's id alone, because a beta tester usually isn't a member of the clan's server.
                 // an overall RuneClans admin (N5) may open this server's site admin and editor, member or not
@@ -223,8 +225,7 @@ public class TicketAdminApi {
             // Every change made from the dashboard is written to the audit log (never the request body, which may hold private text).
             if (!method.equals("GET")) {
                 // the clan sees the owner's changes in its own log, marked as made with restrictions lifted (T-445)
-                String name = overriding ? actor.getEffectiveName() + OVERRIDE_MARK : actor.getEffectiveName();
-                auditStore.audit(guild.getIdLong(), actor.getId(), name, method, route, 200);
+                auditStore.audit(guild.getIdLong(), actor.getId(), auditName(guild, actor), method, route, 200);
             }
             InternalApiServer.sendJson(exchange, 200, result);
         } catch (ApiError e) {
@@ -278,45 +279,9 @@ public class TicketAdminApi {
 
     // ---------- the bot owner's override (T-445) ----------
 
-    /** Added to the name in the server's audit log for every change made with restrictions lifted. */
-    static final String OVERRIDE_MARK = " (bot owner, restrictions lifted)";
-
-    /**
-     * {@code owner-override}: {@code GET} the state, {@code POST {"acknowledged": true, "minutes": n}} lifts the restrictions on this server for
-     * {@code minutes} (the Switches panel's {@code owner-override-minutes}, kept within {@link OwnerOverride#MIN_MINUTES} to
-     * {@link OwnerOverride#MAX_MINUTES}; 30 when left out), {@code DELETE} ends it now. The bot's owner only; both changes go to the server's audit log.
-     */
-    private DataObject ownerOverrideRoute(HttpExchange exchange, Guild guild, long askerId, String method) {
-        if (askerId == 0 || !overviewAdmin.isOwner(guild, askerId)) throw new ApiError(403, "Only the bot's owner can lift the restrictions on a server.");
-        OwnerOverride override = access.ownerOverride();
-        switch (method) {
-            case "GET" -> {
-            }
-            case "POST" -> {
-                DataObject body = body(exchange);
-                if (!body.getBoolean("acknowledged", false)) {
-                    throw new ApiError(400, "Confirm that you understand you are changing another clan's settings before lifting the restrictions.");
-                }
-                Integer minutes = body.isType("minutes", net.dv8tion.jda.api.utils.data.DataType.INT) ? body.getInt("minutes") : null;
-                override.lift(guild.getIdLong(), askerId, minutes);
-                auditStore.audit(guild.getIdLong(), Long.toString(askerId), ownerName(guild, askerId) + OVERRIDE_MARK, "POST", "owner-override", 200);
-            }
-            case "DELETE" -> {
-                if (override.end(guild.getIdLong(), askerId)) {
-                    auditStore.audit(guild.getIdLong(), Long.toString(askerId), ownerName(guild, askerId) + " (bot owner)", "DELETE", "owner-override", 200);
-                }
-            }
-            default -> throw new ApiError(405, Text.en("dashboard.method_not_allowed"));
-        }
-        return overrideJson(guild, askerId);
-    }
-
-    /** {@code {active, until}} ({@code until} an ISO time, or null), plus how long the last lift was for. */
-    private DataObject overrideJson(Guild guild, long askerId) {
-        OwnerOverride override = access.ownerOverride();
-        long until = override.until(guild.getIdLong(), askerId);
-        return DataObject.empty().put("active", until != 0).put("until", until == 0 ? null : java.time.Instant.ofEpochMilli(until).toString())
-                .put("minutes", override.length(guild.getIdLong(), askerId));
+    /** The name a dashboard change is logged under: marked when the bot owner made it with restrictions lifted (T-445). */
+    private String auditName(Guild guild, Member actor) {
+        return OwnerOverrideRoute.auditName(actor.getEffectiveName(), access.ownerOverride().active(guild.getIdLong(), actor.getIdLong()));
     }
 
     private static String ownerName(Guild guild, long userId) {
@@ -389,7 +354,7 @@ public class TicketAdminApi {
                 }
                 case BOUNDED -> {
                     return AdminReads.bounded(guild, () -> routeNow(exchange, guild, actor, method, parts),
-                            () -> auditStore.audit(guild.getIdLong(), actor.getId(), actor.getEffectiveName(), method, String.join("/", parts), 202));
+                            () -> auditStore.audit(guild.getIdLong(), actor.getId(), auditName(guild, actor), method, String.join("/", parts), 202));
                 }
                 default -> {
                     return routeNow(exchange, guild, actor, method, parts);

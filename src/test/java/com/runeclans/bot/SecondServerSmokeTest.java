@@ -126,7 +126,7 @@ class SecondServerSmokeTest {
     void theDashboardOpensForWhoeverRunsTheNewServerAndRefusesEveryoneElse() {
         AdminRoleFilter adminFilter = mock(AdminRoleFilter.class);
         PermissionGroupService groups = mock(PermissionGroupService.class);
-        DashboardAccess access = new DashboardAccess(adminFilter, groups, config, new OwnerOverride());
+        DashboardAccess access = new DashboardAccess(adminFilter, groups, config, new OwnerOverride(mock(com.runeclans.bot.notice.BotOwners.class)));
         Guild guild = mock(Guild.class);
         when(guild.getIdLong()).thenReturn(NEW);
 

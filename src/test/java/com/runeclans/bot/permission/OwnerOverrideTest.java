@@ -1,6 +1,7 @@
 package com.runeclans.bot.permission;
 
 import com.runeclans.bot.config.BotConfig;
+import com.runeclans.bot.notice.BotOwners;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import org.junit.jupiter.api.Test;
@@ -24,9 +25,13 @@ class OwnerOverrideTest {
     private static final long HALF_HOUR = 30 * 60_000L;
 
     private final AtomicLong now = new AtomicLong(1_000_000L);
+    private boolean stillOwner = true;
 
     private OwnerOverride override() {
-        OwnerOverride o = new OwnerOverride();
+        BotOwners owners = mock(BotOwners.class);
+        when(owners.isKnownOwner(OWNER)).thenReturn(stillOwner);
+        when(owners.isKnownOwner(SOMEONE)).thenReturn(true);
+        OwnerOverride o = new OwnerOverride(owners);
         o.clock = now::get;
         return o;
     }
@@ -74,6 +79,14 @@ class OwnerOverrideTest {
         assertEquals(now.get() + OwnerOverride.MAX_MINUTES * 60_000L, o.lift(GUILD, OWNER, 100_000), "never longer than the maximum");
         assertEquals(OwnerOverride.DEFAULT_MINUTES, OwnerOverride.minutes(null), "30 when the website doesn't say");
         assertEquals(OwnerOverride.DEFAULT_MINUTES, o.length(OTHER_GUILD, OWNER));
+    }
+
+    @Test
+    void someoneWhoNoLongerOwnsTheBotLosesTheOverride() {
+        stillOwner = false;
+        OwnerOverride o = override();
+        o.lift(GUILD, OWNER, null);
+        assertFalse(o.active(GUILD, OWNER), "checked again on every use, from what is already known");
     }
 
     @Test

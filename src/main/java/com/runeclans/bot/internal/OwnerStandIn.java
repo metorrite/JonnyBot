@@ -14,9 +14,10 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * The bot owner as the dashboard's actor in a server they aren't a member of, while their "lift restrictions" override runs (T-445). The
- * dashboard's routes take a {@link Member}, mostly for its id and name; this one has the owner's id and name, holds no roles and no Discord
- * permissions, and can't be acted on by role hierarchy, so a route that needs a real member's Discord rights refuses as it would for anyone
- * without them. Anything else a real member has (join date, voice state...) throws, which the admin API answers as an error.
+ * dashboard's routes take a {@link Member}, mostly for its id and name; this one has the owner's id and name, holds no roles, has no Discord
+ * permissions and out-ranks nobody ({@code canInteract} is always false), so a route that checks the actor's own Discord rights refuses as it
+ * would for any member without them. It is never the server's owner. Anything else a real member has (join date, voice state...) throws,
+ * which the admin API answers as an error. Only {@link OwnerOverrideRoute#actorFor} makes one, and only while the owner's override runs.
  */
 final class OwnerStandIn {
     private OwnerStandIn() {}
