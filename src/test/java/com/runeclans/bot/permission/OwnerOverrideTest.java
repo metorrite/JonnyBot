@@ -21,6 +21,8 @@ class OwnerOverrideTest {
     private static final long OWNER = BASE + 3;
     private static final long SOMEONE = BASE + 4;
 
+    private static final long HALF_HOUR = 30 * 60_000L;
+
     private final AtomicLong now = new AtomicLong(1_000_000L);
 
     private OwnerOverride override() {
@@ -33,14 +35,14 @@ class OwnerOverrideTest {
     void liftingLastsHalfAnHourForThatServerAndPersonOnly() {
         OwnerOverride o = override();
         assertFalse(o.active(GUILD, OWNER));
-        long until = o.lift(GUILD, OWNER);
-        assertEquals(now.get() + OwnerOverride.DURATION_MS, until);
+        long until = o.lift(GUILD, OWNER, null);
+        assertEquals(now.get() + HALF_HOUR, until);
         assertTrue(o.active(GUILD, OWNER));
         assertFalse(o.active(OTHER_GUILD, OWNER), "only the server it was lifted for");
         assertFalse(o.active(GUILD, SOMEONE), "only the person who lifted it");
         assertFalse(o.active(GUILD, 0), "nobody signed in never matches");
 
-        now.addAndGet(OwnerOverride.DURATION_MS - 1);
+        now.addAndGet(HALF_HOUR - 1);
         assertTrue(o.active(GUILD, OWNER), "still running a moment before the end");
         now.addAndGet(1);
         assertFalse(o.active(GUILD, OWNER), "ends on its own");
@@ -50,17 +52,28 @@ class OwnerOverrideTest {
     @Test
     void endingStopsItAtOnceAndLiftingAgainRenews() {
         OwnerOverride o = override();
-        o.lift(GUILD, OWNER);
+        o.lift(GUILD, OWNER, null);
         now.addAndGet(20 * 60_000L);
-        long renewed = o.lift(GUILD, OWNER);
-        assertEquals(now.get() + OwnerOverride.DURATION_MS, renewed, "a second acknowledgement starts a fresh half hour");
+        long renewed = o.lift(GUILD, OWNER, null);
+        assertEquals(now.get() + HALF_HOUR, renewed, "a second acknowledgement starts a fresh half hour");
         assertTrue(o.end(GUILD, OWNER));
         assertFalse(o.active(GUILD, OWNER));
         assertFalse(o.end(GUILD, OWNER), "nothing left to end");
 
-        o.lift(GUILD, OWNER);
-        now.addAndGet(OwnerOverride.DURATION_MS);
+        o.lift(GUILD, OWNER, null);
+        now.addAndGet(HALF_HOUR);
         assertFalse(o.end(GUILD, OWNER), "an override that already ran out doesn't count as ended now");
+    }
+
+    @Test
+    void theLengthComesFromTheSwitchesPanelKeptWithinItsRange() {
+        OwnerOverride o = override();
+        assertEquals(now.get() + 60 * 60_000L, o.lift(GUILD, OWNER, 60), "the panel's number of minutes");
+        assertEquals(60, o.length(GUILD, OWNER));
+        assertEquals(now.get() + OwnerOverride.MIN_MINUTES * 60_000L, o.lift(GUILD, OWNER, 0), "never shorter than the minimum");
+        assertEquals(now.get() + OwnerOverride.MAX_MINUTES * 60_000L, o.lift(GUILD, OWNER, 100_000), "never longer than the maximum");
+        assertEquals(OwnerOverride.DEFAULT_MINUTES, OwnerOverride.minutes(null), "30 when the website doesn't say");
+        assertEquals(OwnerOverride.DEFAULT_MINUTES, o.length(OTHER_GUILD, OWNER));
     }
 
     @Test
@@ -77,10 +90,10 @@ class OwnerOverrideTest {
         DashboardAccess access = new DashboardAccess(filter, groups, config, o);
 
         assertEquals(DashboardAccess.Tier.NONE, access.tierOf(guild, owner), "restrictions in place: no dashboard");
-        o.lift(GUILD, OWNER);
+        o.lift(GUILD, OWNER, null);
         assertEquals(DashboardAccess.Tier.ADMIN, access.tierOf(guild, owner));
         assertFalse(access.isEventCoordinator(guild, owner));
-        now.addAndGet(OwnerOverride.DURATION_MS);
+        now.addAndGet(HALF_HOUR);
         assertEquals(DashboardAccess.Tier.NONE, access.tierOf(guild, owner), "back to no dashboard when it runs out");
     }
 }

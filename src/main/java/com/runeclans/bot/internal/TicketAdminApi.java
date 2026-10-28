@@ -282,8 +282,9 @@ public class TicketAdminApi {
     static final String OVERRIDE_MARK = " (bot owner, restrictions lifted)";
 
     /**
-     * {@code owner-override}: {@code GET} the state, {@code POST {"acknowledged": true}} lifts the restrictions on this server for
-     * {@link OwnerOverride#DURATION_MS}, {@code DELETE} ends it now. The bot's owner only; both changes go to the server's audit log.
+     * {@code owner-override}: {@code GET} the state, {@code POST {"acknowledged": true, "minutes": n}} lifts the restrictions on this server for
+     * {@code minutes} (the Switches panel's {@code owner-override-minutes}, kept within {@link OwnerOverride#MIN_MINUTES} to
+     * {@link OwnerOverride#MAX_MINUTES}; 30 when left out), {@code DELETE} ends it now. The bot's owner only; both changes go to the server's audit log.
      */
     private DataObject ownerOverrideRoute(HttpExchange exchange, Guild guild, long askerId, String method) {
         if (askerId == 0 || !overviewAdmin.isOwner(guild, askerId)) throw new ApiError(403, "Only the bot's owner can lift the restrictions on a server.");
@@ -292,10 +293,12 @@ public class TicketAdminApi {
             case "GET" -> {
             }
             case "POST" -> {
-                if (!body(exchange).getBoolean("acknowledged", false)) {
+                DataObject body = body(exchange);
+                if (!body.getBoolean("acknowledged", false)) {
                     throw new ApiError(400, "Confirm that you understand you are changing another clan's settings before lifting the restrictions.");
                 }
-                override.lift(guild.getIdLong(), askerId);
+                Integer minutes = body.isType("minutes", net.dv8tion.jda.api.utils.data.DataType.INT) ? body.getInt("minutes") : null;
+                override.lift(guild.getIdLong(), askerId, minutes);
                 auditStore.audit(guild.getIdLong(), Long.toString(askerId), ownerName(guild, askerId) + OVERRIDE_MARK, "POST", "owner-override", 200);
             }
             case "DELETE" -> {
@@ -308,11 +311,12 @@ public class TicketAdminApi {
         return overrideJson(guild, askerId);
     }
 
-    /** {@code {active, until}} ({@code until} an ISO time, or null), plus how long one lift lasts. */
+    /** {@code {active, until}} ({@code until} an ISO time, or null), plus how long the last lift was for. */
     private DataObject overrideJson(Guild guild, long askerId) {
-        long until = access.ownerOverride().until(guild.getIdLong(), askerId);
+        OwnerOverride override = access.ownerOverride();
+        long until = override.until(guild.getIdLong(), askerId);
         return DataObject.empty().put("active", until != 0).put("until", until == 0 ? null : java.time.Instant.ofEpochMilli(until).toString())
-                .put("minutes", OwnerOverride.DURATION_MS / 60_000L);
+                .put("minutes", override.length(guild.getIdLong(), askerId));
     }
 
     private static String ownerName(Guild guild, long userId) {

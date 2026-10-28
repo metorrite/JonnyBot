@@ -97,9 +97,11 @@ viewer call. Both sides pin the same fixed vector (`ServerFactsTest`, `packages/
 - **Restrictions stay on by default.** Like every overall admin, the bot owner reaches only the site, layout and site-role routes of a server
   (section 3) unless they lift the restrictions.
 - **Lifting the restrictions** (bot owner only, `BotOwners`): `owner-override` on the guild-scoped admin API.
-  - `GET` the state, `POST {"acknowledged": true}` lifts it, `DELETE` ends it now. All three answer `{active, until (ISO or null), minutes}`;
-    anyone else gets 403, and a `POST` without the acknowledgement 400.
-  - While it runs (`OwnerOverride.DURATION_MS`, 30 minutes), `DashboardAccess.tierOf` answers ADMIN for that person in that one server, so
+  - `GET` the state, `POST {"acknowledged": true, "minutes": n}` lifts it, `DELETE` ends it now. All three answer
+    `{active, until (ISO or null), minutes}`; anyone else gets 403, and a `POST` without the acknowledgement 400.
+  - `minutes` is the Switches panel's number `owner-override-minutes` (RuneClan Admin > Switches, default 30), which the website reads and
+    sends; the bot keeps it within 5 to 240 and uses 30 when it is left out.
+  - While it runs, `DashboardAccess.tierOf` answers ADMIN for that person in that one server, so
     `whoami` says `allowed` and the whole dashboard opens. A bot owner who isn't a member gets a stand-in member (`OwnerStandIn`): their id
     and name, no roles and no Discord permissions, so anything needing real Discord rights still refuses.
   - The lift, the end and every change are written to the server's audit log, changes as `<name> (bot owner, restrictions lifted)`.
