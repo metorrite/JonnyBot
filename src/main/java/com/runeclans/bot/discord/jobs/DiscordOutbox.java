@@ -57,6 +57,8 @@ public class DiscordOutbox {
     private final ScheduledExecutorService claims = BotScheduler.lane("discord-job-claims");
     private final String claimant = ProcessId.get();
     private volatile JDA jda;
+    /** Set when the process is stopping: it takes no more jobs. */
+    private volatile boolean stopping;
 
     public DiscordOutbox(DiscordJobRepository repository, List<DiscordJobHandler> handlers) {
         this.repository = repository;
@@ -76,17 +78,24 @@ public class DiscordOutbox {
         claims.scheduleWithFixedDelay(keepGoing("recover", this::recover), 0, RECOVER_EVERY.toSeconds(), TimeUnit.SECONDS);
         lane.scheduleWithFixedDelay(keepGoing("drain", this::drain), 2, 1, TimeUnit.SECONDS);
         // a graceful stop ends this process's running jobs at once, as a restart always did, instead of after the claim expires
-        Runtime.getRuntime().addShutdownHook(new Thread(keepGoing("release claims", this::release), "discord-jobs-release"));
+        Runtime.getRuntime().addShutdownHook(new Thread(keepGoing("release claims", () -> {
+            stop(); // first, so this process claims nothing more while it stops
+            release();
+        }), "discord-jobs-release"));
         lane.scheduleWithFixedDelay(keepGoing("sweep", () -> repository.sweep(Instant.now().minus(KEEP_FINISHED))), 10, 60 * 60, TimeUnit.SECONDS);
     }
 
     /** A repeating task that logs a failure and keeps its schedule, instead of being cancelled by it. */
     static Runnable keepGoing(String what, Runnable task) {
+        // the stack trace only for the first failure in a row: a database outage would otherwise log one every second
+        java.util.concurrent.atomic.AtomicInteger failures = new java.util.concurrent.atomic.AtomicInteger();
         return () -> {
             try {
                 task.run();
+                if (failures.getAndSet(0) > 0) log.info("Discord jobs: {} works again", what);
             } catch (Throwable t) {
-                log.warn("Discord jobs: {} failed; trying again on the next turn", what, t);
+                if (failures.getAndIncrement() == 0) log.warn("Discord jobs: {} failed; trying again on the next turn", what, t);
+                else log.debug("Discord jobs: {} failed again: {}", what, t.toString());
             }
         };
     }
@@ -96,6 +105,11 @@ public class DiscordOutbox {
         int recovered = repository.recover(claimant, idempotentKinds(), CLAIM_EXPIRY);
         if (recovered > 0) log.info("Discord jobs: {} left running by a bot process that stopped were put back or ended", recovered);
         return recovered;
+    }
+
+    /** Stops taking jobs (the shutdown hook; tests). */
+    void stop() {
+        stopping = true;
     }
 
     /** Ends this process's own running jobs (graceful shutdown). */
@@ -162,7 +176,7 @@ public class DiscordOutbox {
     /** Runs every job that is due, a batch at a time. On the lane only (or in a test). */
     void drain(JDA jda) {
         DiscordJobRepository.ShardSet shards = ownShards(jda);
-        while (true) {
+        while (!stopping) {
             List<DiscordJob> due = repository.claimDue(claimant, BATCH, shards);
             for (DiscordJob job : due) runOne(jda, job);
             if (due.size() < BATCH) return;
