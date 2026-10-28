@@ -15,7 +15,7 @@ class BotRoleTest {
     }
 
     @Test
-    void unsetBlankOrUnknownIsAll() {
+    void readsEachRoleAndFallsBackToAll() {
         assertEquals(BotRole.ALL, BotRole.parse(null));
         assertEquals(BotRole.ALL, BotRole.parse(""));
         assertEquals(BotRole.ALL, BotRole.parse("  "));

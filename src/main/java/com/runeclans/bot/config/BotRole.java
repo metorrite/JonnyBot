@@ -16,6 +16,10 @@ import java.util.Locale;
  * Every scheduler lane names the role that runs it ({@code util/LaneOwners}, T-702). A split still waits for the api role's internal API to
  * get server and member answers from the gateway process; until then {@link #splitReady()} is false and a process started as gateway or
  * api stops at once with a plain reason instead of running half a bot.
+ * <p>
+ * The interlock matters because an api process has no server cache: code that isn't role-aware reads every server as missing, and some of
+ * it (poll closing, delayed autoroles, departed-server cleanup, stream alerts) deletes rows for a missing server. {@code ShardRouting} and
+ * the lane owners keep that work on the gateway; anything new that acts on a missing server must check the role too.
  */
 public enum BotRole {
     ALL,
@@ -68,13 +72,17 @@ public enum BotRole {
         return role;
     }
 
-    /** {@code BOT_ROLE}'s value: unset or blank is {@link #ALL}; anything that isn't a role is {@link #ALL} with a warning. */
+    /**
+     * {@code BOT_ROLE}'s value: unset or blank is {@link #ALL}. Anything that isn't a role is {@link #ALL} with a warning while a split isn't
+     * possible; once it is, a typo stops the process, since falling back to all would run everything twice next to the real processes.
+     */
     public static BotRole parse(String raw) {
         if (raw == null || raw.isBlank()) return ALL;
         try {
             return valueOf(raw.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
-            LoggerFactory.getLogger(BotRole.class).warn("BOT_ROLE must be all, gateway or api; using all");
+            if (splitReady()) throw new IllegalStateException("BOT_ROLE='" + raw.trim() + "' isn't a role: use all, gateway or api");
+            LoggerFactory.getLogger(BotRole.class).warn("BOT_ROLE='{}' isn't a role (all, gateway or api); using all", raw.trim());
             return ALL;
         }
     }
