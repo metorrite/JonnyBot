@@ -108,7 +108,12 @@ public class RuneSyncService {
 
     /** The plugin asked for its settings: remember the client and its local pause for the profile's device card. */
     public void checkIn(long userId, String client, boolean paused, Instant now) {
-        repository.recordCheckIn(userId, cleanClient(client), paused, now);
+        checkIn(userId, client, null, paused, now);
+    }
+
+    /** {@link #checkIn(long, String, boolean, Instant)} with the RuneLink name of the character playing (T-586), or null for a token client. */
+    public void checkIn(long userId, String client, String linkedRsn, boolean paused, Instant now) {
+        repository.recordCheckIn(userId, cleanClient(client), PluginPayload.normaliseRsn(linkedRsn), paused, now);
     }
 
     /** A batch was ingested: keep its result for the profile's device card ("last batch result"). */
