@@ -322,7 +322,10 @@ public class EventSpaceOps {
         } catch (Superseded e) {
             log.info("The {} job for event {} stopped: another job holds the event now", job.kind(), eventId);
         } catch (RuntimeException e) {
-            if (job.superseded()) return; // its failure isn't the event's news any more: the new job reports
+            if (job.superseded()) { // its failure isn't the event's news any more: the new job reports
+                log.warn("The superseded {} job for event {} failed after another job took over", job.kind(), eventId, e);
+                return;
+            }
             log.error("The roles and channels job for event {} failed", eventId, e);
             job.fail(sentence(e));
         } finally {
@@ -350,6 +353,8 @@ public class EventSpaceOps {
         job.total((int) (plan.newRoles() + plan.newChannels() + plan.count(Action.REPAIR) + (removeUnneeded ? plan.count(Action.REMOVE) : 0)) + 1);
         try {
             make(guild, event, gathered, plan, actorId, removeUnneeded, job);
+        } catch (Superseded s) {
+            throw s; // another job holds the event now: what it does next is the truth, not this job's note
         } catch (RuntimeException e) {
             // what was made is recorded; say what is still missing so the checklist and the page tell the truth
             try {

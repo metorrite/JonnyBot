@@ -60,7 +60,6 @@ public class EventExportRepository {
                     expires_at TIMESTAMPTZ NOT NULL
                 );
                 """,
-                // the zip is compressed already: store it out of line without trying to compress it again
                 // a table made before the server id was added (a test database at most): its rows are an hour's exports, so start it afresh
                 """
                 DO $$ BEGIN
@@ -70,6 +69,7 @@ public class EventExportRepository {
                     END IF;
                 END $$;
                 """,
+                // the zip is compressed already: store it out of line without trying to compress it again
                 "ALTER TABLE younglings.event_export_file ALTER COLUMN data SET STORAGE EXTERNAL;"
         ));
         long every = SWEEP_EVERY.toSeconds();
