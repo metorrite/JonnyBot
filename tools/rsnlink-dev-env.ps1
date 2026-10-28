@@ -16,12 +16,12 @@
 .PARAMETER EnvFile
   The .env file to write. Default: .env in the repository root (git-ignored).
 .PARAMETER PublicBaseUrl
-  The address the plugin shows players. Default: http://localhost:3000/link (the link page on the local website; the site's
-  root is the clan site, so players typing only localhost:3000 found nowhere to enter the code, beta test 2026-10-22).
+  The address the plugin shows players. Default: http://localhost:3200/plugins/link (the RuneLink page on the local runeclans.com app,
+  the only site that has it).
 #>
 param(
   [string]$EnvFile = (Join-Path $PSScriptRoot '..\.env'),
-  [string]$PublicBaseUrl = 'http://localhost:3000/link'
+  [string]$PublicBaseUrl = 'http://localhost:3200/plugins/link'
 )
 
 $ErrorActionPreference = 'Stop'

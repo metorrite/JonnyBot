@@ -362,9 +362,9 @@ No clan name, no invite, no links other than the configured base URL.
 > We store your RuneScape name (and the plugin's tracking number, if you allowed it) and your Discord account id. Your Discord id is encrypted, sign-in tokens are stored only as fingerprints, and we never see your Discord password or email. Plugins that use this link only see whether you are linked and a code that is different for every plugin; they never see your Discord account. You can unlink or delete everything at any time on this page.
 
 **Config:**
-- `LINK_PUBLIC_BASE_URL` (bot and website): used for `verifyUrl`, DM text, assertions' `iss`, and the page's own links. Local: `http://localhost:3000/link` for the bot (`tools/rsnlink-dev-env.ps1` writes it), so players are sent to the link page and not the clan site's home page; the website may leave it unset (it falls back to `NEXTAUTH_URL` for its Discord redirect).
-- `LINK_HOST` (website): the hostname that gets the link face; unset = the face is reachable only under `/link` (dev), like the `JONNYBOT_SUBDOMAIN` flag pattern.
-- Plugin `plugin.json`: `"urls": { "link": "<base URL>" }`. Dev builds point at `http://localhost:3000` (the beta client allows plain http to localhost). The release value is set in T-120 once Drake picks the domain; changing it after release means a plugin update and a new Jagex review, so pick before submitting.
+- `LINK_PUBLIC_BASE_URL` (bot and website): used for `verifyUrl`, DM text, assertions' `iss`, and the page's own links. Local: `http://localhost:3200/plugins/link` for the bot (`tools/rsnlink-dev-env.ps1` writes it), the RuneLink page on the local runeclans.com app; live: `https://runeclans.com/plugins/link`; the website may leave it unset (it falls back to `NEXTAUTH_URL` for its Discord redirect).
+- The RuneLink pages live only on runeclans.com (`/plugins/link`); rsyounglings.com and its `LINK_HOST` face no longer have them.
+- Plugin `plugin.json`: `"urls": { "link": "<base URL>" }`. Dev builds point at `http://localhost:3200`, the local runeclans.com app (the beta client allows plain http to localhost). The release value is `https://runeclans.com`; changing it after release means a plugin update and a new Jagex review.
 - The address should be short enough to type from the panel (e.g. a 2-word host, no path).
 
 ## 15. Plugin name: RuneLink (decided)
