@@ -158,6 +158,30 @@ public final class WebForms {
         return lines;
     }
 
+    // ---------- answers sent from a clan site (T-590) ----------
+
+    /** The most a clan site's application form sends (its widget's limit is the same as {@link #MAX_QUESTIONS}). */
+    public static final int MAX_SITE_ANSWERS = MAX_QUESTIONS;
+
+    /**
+     * The form as a clan site's application form widget asked it (T-590): the widget has its own questions, so the answers keep the words the
+     * site showed and every one is a paragraph the bot doesn't check again (the website did, with these same rules). Everything else (where
+     * answers go, the wait between sends) is the form's. Labels are trimmed to {@link #MAX_LABEL}; blank ones and anything past
+     * {@link #MAX_SITE_ANSWERS} are left out.
+     */
+    public static Form asSiteForm(Form form, List<String> labels) {
+        List<Question> questions = new ArrayList<>();
+        for (String raw : labels) {
+            if (questions.size() >= MAX_SITE_ANSWERS) break;
+            String label = raw == null ? "" : raw.strip().replaceAll("\\p{Cntrl}", "");
+            if (label.isEmpty()) continue;
+            if (label.length() > MAX_LABEL) label = label.substring(0, MAX_LABEL);
+            questions.add(new Question("q" + (questions.size() + 1), label, Kind.PARAGRAPH, false, List.of(), MAX_ANSWER_LENGTH));
+        }
+        return new Form(form.id(), form.guildId(), form.name(), form.title(), form.description(), form.enabled(), form.panelId(), form.channelId(),
+                form.roleId(), form.onePerUser(), form.cooldownHours(), questions);
+    }
+
     // ---------- templates ----------
 
     /** A form to start from, switched off with nowhere for answers to go until the owner chooses. */
