@@ -92,17 +92,19 @@ public final class InGameNowRules {
     }
 
     /**
-     * The RuneScape name the list shows, from the member's names in this order: the character RuneSync checked in with (its RuneLink name), the
-     * names linked in this server, their other linked names. The first that is on the clan's roster wins (in the roster's spelling), else the
-     * first at all; null when they have none. Only RuneScape names are ever shown, never a Discord name or id: a server member without one is
-     * only counted ({@code unnamed}).
+     * The RuneScape name the list shows. {@code names} are all the member's names in this order: the character RuneSync checked in with (its
+     * RuneLink name), the names linked in this server, their accounts from other servers. The first that is on the clan's roster wins (in the
+     * roster's spelling). Else the first of {@code own} (the character playing and this server's links): an account linked only in another server
+     * is never shown here unless the clan's own roster already names it, because running {@code /rs} in a server is the opt-in to appear there.
+     * Null when there is none. Only RuneScape names are ever shown, never a Discord name or id: a server member without one is only counted
+     * ({@code unnamed}).
      */
-    public static String displayName(List<String> names, List<String> roster) {
+    public static String displayName(List<String> names, List<String> own, List<String> roster) {
         for (String n : names) {
             if (n == null || n.isBlank()) continue;
             for (String r : roster) if (r != null && key(r).equals(key(n))) return r.strip();
         }
-        for (String n : names) if (n != null && !n.isBlank()) return n.strip();
+        for (String n : own) if (n != null && !n.isBlank()) return n.strip();
         return null;
     }
 

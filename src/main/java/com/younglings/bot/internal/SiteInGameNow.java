@@ -26,7 +26,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * makes ({@code plugin_client_status}), for members who switched on the Presence category. The rules are {@link InGameNowRules}. Works for a
  * site without the bot too, by matching RuneLink names against the clan's roster.
  * <p>
- * Served at {@code GET sites/{slug}/data/plugin/in-game} ({@link DirectoryClanSiteRoutes}). The website shows the list only to the viewers the
+ * Served at {@code GET sites/{slug}/data/in-game} ({@link DirectoryInGameRoutes}). The website shows the list only to the viewers the
  * site allows (signed-in clan members by default). Answers are cached {@link #CACHE} per server.
  */
 @BService
@@ -89,13 +89,14 @@ public class SiteInGameNow {
         int unnamed = 0;
         for (RuneSyncRepository.Present p : present) {
             Member member = guild == null ? null : guild.getMemberById(p.discordUserId());
-            // the character playing first (its RuneLink name), then the names linked in this server, then their other linked names
-            List<String> all = new ArrayList<>();
-            if (p.rsn() != null) all.add(p.rsn());
-            if (guild != null) links.getLinksForUser(guildId, p.discordUserId()).stream().map(PlayerLink::rsn).forEach(all::add);
+            // the character playing first (its RuneLink name), then the names linked in this server; other servers' accounts only match the roster
+            List<String> own = new ArrayList<>();
+            if (p.rsn() != null) own.add(p.rsn());
+            if (guild != null) links.getLinksForUser(guildId, p.discordUserId()).stream().map(PlayerLink::rsn).forEach(own::add);
+            List<String> all = new ArrayList<>(own);
             links.getAccountsForUser(p.discordUserId()).stream().map(PlayerLinkRepository.PlayerAccount::rsn).forEach(all::add);
             if (!InGameNowRules.inClan(member != null, all, rosterKeys)) continue;
-            String name = InGameNowRules.displayName(all, roster);
+            String name = InGameNowRules.displayName(all, own, roster);
             if (name != null) names.add(name);
             else unnamed++;
         }

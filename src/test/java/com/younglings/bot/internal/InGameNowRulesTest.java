@@ -52,9 +52,20 @@ class InGameNowRulesTest {
     @Test
     void showsTheRosterSpellingFirst() {
         List<String> roster = List.of("Skill Queen");
-        assertEquals("Skill Queen", InGameNowRules.displayName(List.of("Alt Account", "skill_queen"), roster), "the name on the roster wins");
-        assertEquals("Playing Now", InGameNowRules.displayName(List.of("Playing Now", "Elsewhere"), roster), "else the character playing");
-        assertNull(InGameNowRules.displayName(List.of(), roster), "no RuneScape name: never a Discord name");
+        assertEquals("Skill Queen", InGameNowRules.displayName(List.of("Alt Account", "skill_queen"), List.of("Alt Account"), roster),
+                "the name on the roster wins");
+        assertEquals("Playing Now", InGameNowRules.displayName(List.of("Playing Now", "Elsewhere"), List.of("Playing Now"), roster),
+                "else the character playing");
+        assertNull(InGameNowRules.displayName(List.of(), List.of(), roster), "no RuneScape name: never a Discord name");
+    }
+
+    @Test
+    void neverShowsAnAccountLinkedOnlyInAnotherServer() {
+        List<String> roster = List.of("Skill Queen");
+        assertNull(InGameNowRules.displayName(List.of("Other Server Alt"), List.of(), roster),
+                "an account from another server, not on this clan's roster: counted, not named");
+        assertEquals("Skill Queen", InGameNowRules.displayName(List.of("skill queen"), List.of(), roster),
+                "unless this clan's roster already names it");
     }
 
     @Test
