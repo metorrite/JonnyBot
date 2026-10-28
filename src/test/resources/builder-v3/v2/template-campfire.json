@@ -363,7 +363,8 @@
                       "settings": {
                         "title": "Have your say",
                         "limit": 2,
-                        "showClosed": false
+                        "showClosed": false,
+                        "look": "list"
                       },
                       "unmet": "hide"
                     }

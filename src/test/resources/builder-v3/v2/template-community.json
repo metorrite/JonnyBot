@@ -438,7 +438,8 @@
                       "settings": {
                         "title": "Have your say",
                         "limit": 1,
-                        "showClosed": false
+                        "showClosed": false,
+                        "look": "list"
                       },
                       "unmet": "hide"
                     }
@@ -605,7 +606,8 @@
                           }
                         ],
                         "columns": "2",
-                        "numbers": "accent"
+                        "numbers": "accent",
+                        "captions": "full"
                       },
                       "unmet": "hide"
                     }
@@ -844,6 +846,9 @@
                       "type": "member-card",
                       "v": 1,
                       "settings": {
+                        "look": "card",
+                        "back": null,
+                        "backText": "All members",
                         "showStrip": false,
                         "showBio": true,
                         "showTotals": true,
@@ -912,6 +917,7 @@
                       "v": 1,
                       "settings": {
                         "title": "XP over time",
+                        "look": "bars",
                         "days": "90",
                         "gains": "week"
                       },
@@ -1017,6 +1023,7 @@
                       "v": 1,
                       "settings": {
                         "title": "Citadel",
+                        "look": "facts",
                         "weeks": 12,
                         "showGrid": true
                       },
@@ -1042,6 +1049,7 @@
                       "v": 1,
                       "settings": {
                         "title": "Clan points",
+                        "look": "list",
                         "limit": 8,
                         "showChart": false
                       },
@@ -1082,6 +1090,7 @@
                       "settings": {
                         "title": "Adventure log",
                         "limit": 10,
+                        "look": "dated",
                         "showDetails": false
                       },
                       "unmet": "hide"
@@ -1626,7 +1635,8 @@
                       "settings": {
                         "title": "Open signups",
                         "limit": 3,
-                        "showNames": true
+                        "showNames": true,
+                        "look": "list"
                       },
                       "unmet": "hide"
                     }
@@ -1759,7 +1769,10 @@
                         "title": "",
                         "showDiscord": true,
                         "showHub": true,
-                        "weekStart": "mon"
+                        "weekStart": "mon",
+                        "look": "box",
+                        "listPage": null,
+                        "listText": "Event list"
                       },
                       "unmet": "hide"
                     }
@@ -1963,7 +1976,8 @@
                       "settings": {
                         "title": "",
                         "limit": 10,
-                        "showNames": true
+                        "showNames": true,
+                        "look": "list"
                       },
                       "unmet": "hide"
                     }
@@ -2095,7 +2109,8 @@
                       "settings": {
                         "title": "",
                         "limit": 10,
-                        "showClosed": true
+                        "showClosed": true,
+                        "look": "list"
                       },
                       "unmet": "hide"
                     }
