@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 
 /**
  * A small, private HTTP API for the companion website (younglings-website) to read live guild
@@ -72,6 +73,8 @@ import java.util.concurrent.TimeUnit;
 public class InternalApiServer {
     private static final Logger log = LoggerFactory.getLogger(InternalApiServer.class);
     private static final String SECRET_HEADER = "X-Internal-Secret";
+    /** Worker threads in the api role, where a request mostly waits for the gateway's answer. */
+    static final int FORWARDING_THREADS = 32;
     private static final String GUILD_HEADER = "X-Guild-Id";
 
     private final BotConfig botConfig;
@@ -116,9 +119,12 @@ public class InternalApiServer {
         start();
     }
 
-    /** One route: answered here, or (in the api role, for a route that needs Discord state) passed on to the gateway. */
-    private static void route(HttpServer server, GatewayForward forward, String path, HttpHandler handler) {
-        OpsTelemetry.context(server, path, forward == null ? handler : forward.handlerFor(path, handler));
+    /**
+     * One route: answered here, or (in the api role, for a route that needs Discord state) passed on to the gateway once the caller passes
+     * {@code authorized}, the route's own check.
+     */
+    private static void route(HttpServer server, GatewayForward forward, String path, HttpHandler handler, Predicate<HttpExchange> authorized) {
+        OpsTelemetry.context(server, path, forward == null ? handler : forward.handlerFor(path, handler, authorized));
     }
 
     private void start() {
@@ -140,29 +146,37 @@ public class InternalApiServer {
             // T-746: the api role has no servers or members of its own, so it passes those routes on to the gateway process
             GatewayForward forward = BotRole.current().forwardsToGateway() ? new GatewayForward(botConfig.getGatewayInternalUrl()) : null;
             if (forward != null) log.info("BOT_ROLE=api: routes that need servers or members are answered by the gateway process");
+            Predicate<HttpExchange> internal = exchange -> {
+                String provided = exchange.getRequestHeaders().getFirst(SECRET_HEADER);
+                return provided != null && constantTimeEquals(provided, secret);
+            };
 
-            route(server, forward, "/internal/online-members", exchange -> handleOnlineMembers(exchange, secret, guildId));
-            route(server, forward, "/internal/events", exchange -> handleEvents(exchange, secret, guildId));
-            route(server, forward, "/internal/member", exchange -> handleGetMember(exchange, secret, guildId));
-            route(server, forward, "/internal/nickname", exchange -> handleSetNickname(exchange, secret, guildId));
-            route(server, forward, "/internal/color-role", exchange -> handleSetColorRole(exchange, secret, guildId));
+            route(server, forward, "/internal/online-members", exchange -> handleOnlineMembers(exchange, secret, guildId), internal);
+            route(server, forward, "/internal/events", exchange -> handleEvents(exchange, secret, guildId), internal);
+            route(server, forward, "/internal/member", exchange -> handleGetMember(exchange, secret, guildId), internal);
+            route(server, forward, "/internal/nickname", exchange -> handleSetNickname(exchange, secret, guildId), internal);
+            route(server, forward, "/internal/color-role", exchange -> handleSetColorRole(exchange, secret, guildId), internal);
 
-            route(server, forward, "/internal/admin/", exchange -> handleAdmin(exchange, secret, guildId));
-            route(server, forward, "/internal/site/", exchange -> handleSite(exchange, secret, guildId));
-            route(server, forward, "/internal/directory/", exchange -> handleDirectory(exchange, secret));
-            route(server, forward, "/internal/plugin/", exchange -> handlePlugin(exchange, secret));
-            route(server, forward, "/internal/me/", exchange -> handleMe(exchange, secret, guildId));
-            route(server, forward, "/internal/image/", exchange -> handleImage(exchange, secret));
-            route(server, forward, "/internal/forms/", exchange -> handleForms(exchange, secret));
-            route(server, forward, "/internal/wheel-gif/", exchange -> handleWheelGif(exchange, secret));
-            for (InternalRouteModule module : routeModules) route(server, forward, module.prefix(), exchange -> handleModule(exchange, secret, module));
+            route(server, forward, "/internal/admin/", exchange -> handleAdmin(exchange, secret, guildId), internal);
+            route(server, forward, "/internal/site/", exchange -> handleSite(exchange, secret, guildId), internal);
+            route(server, forward, "/internal/directory/", exchange -> handleDirectory(exchange, secret), internal);
+            route(server, forward, "/internal/plugin/", exchange -> handlePlugin(exchange, secret), internal);
+            route(server, forward, "/internal/me/", exchange -> handleMe(exchange, secret, guildId), internal);
+            route(server, forward, "/internal/image/", exchange -> handleImage(exchange, secret), internal);
+            route(server, forward, "/internal/forms/", exchange -> handleForms(exchange, secret), internal);
+            route(server, forward, "/internal/wheel-gif/", exchange -> handleWheelGif(exchange, secret), internal);
+            for (InternalRouteModule module : routeModules) {
+                route(server, forward, module.prefix(), exchange -> handleModule(exchange, secret, module), exchange -> module.authorized(exchange, secret));
+            }
 
             // A fixed crew with a bounded queue. When it's full the accepting thread runs the work itself, which slows
             // new connections down (back-pressure) instead of letting an unbounded backlog build up behind a flood.
-            server.setExecutor(new ThreadPoolExecutor(6, 6, 0L, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<>(64), new ThreadPoolExecutor.CallerRunsPolicy()));
+            // In the api role most requests only wait on the gateway (up to 7 s each), so it gets more threads: waiting, not working (T-746).
+            int threads = forward == null ? 6 : FORWARDING_THREADS;
+            server.setExecutor(new ThreadPoolExecutor(threads, threads, 0L, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<>(64), new ThreadPoolExecutor.CallerRunsPolicy()));
             server.start();
             log.info("Internal API listening on port {}", port);
-        } catch (IOException e) {
+        } catch (IOException | IllegalArgumentException e) {
             log.error("Failed to start internal API server", e);
         }
     }

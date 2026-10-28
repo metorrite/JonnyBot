@@ -38,17 +38,14 @@ class BotRoleTest {
     @Test
     void eachRoleRunsItsPart() {
         assertTrue(BotRole.ALL.gateway());
-        assertTrue(BotRole.ALL.internalApi());
         assertTrue(BotRole.ALL.outbox());
 
         assertTrue(BotRole.GATEWAY.gateway());
-        assertTrue(BotRole.GATEWAY.internalApi(), "answers the api process on the private network (T-746)");
         assertFalse(BotRole.GATEWAY.forwardsToGateway());
         assertFalse(BotRole.ALL.forwardsToGateway(), "one process answers everything itself");
         assertTrue(BotRole.GATEWAY.outbox());
 
         assertFalse(BotRole.API.gateway(), "no gateway login");
-        assertTrue(BotRole.API.internalApi());
         assertTrue(BotRole.API.forwardsToGateway(), "it has no servers or members of its own");
         assertFalse(BotRole.API.outbox(), "jobs need the gateway's servers");
     }
@@ -62,16 +59,17 @@ class BotRoleTest {
 
     @Test
     void aSplitProcessStartsOnlyWithWhatItNeeds() {
-        String gateway = "http://bot-gateway.internal:8081";
         assertTrue(BotRole.splitReady(), "every lane has an owner (T-702) and the api role asks the gateway (T-746)");
-        assertEquals(BotRole.ALL, BotRole.checkedForStart(BotRole.ALL, null, false), "one process needs nothing new");
-        assertEquals(BotRole.GATEWAY, BotRole.checkedForStart(BotRole.GATEWAY, null, true));
-        assertEquals(BotRole.API, BotRole.checkedForStart(BotRole.API, gateway, true));
+        assertEquals(BotRole.ALL, BotRole.checkedForStart(BotRole.ALL, false, false, false), "one process needs nothing new");
+        assertEquals(BotRole.GATEWAY, BotRole.checkedForStart(BotRole.GATEWAY, false, true, true));
+        assertEquals(BotRole.API, BotRole.checkedForStart(BotRole.API, true, true, true));
 
-        IllegalStateException noSignals = assertThrows(IllegalStateException.class, () -> BotRole.checkedForStart(BotRole.GATEWAY, null, false));
+        IllegalStateException noSignals = assertThrows(IllegalStateException.class, () -> BotRole.checkedForStart(BotRole.GATEWAY, false, false, true));
         assertTrue(noSignals.getMessage().contains("BOT_CACHE_NOTIFY"), noSignals.getMessage());
-        assertThrows(IllegalStateException.class, () -> BotRole.checkedForStart(BotRole.API, gateway, false));
-        IllegalStateException noGateway = assertThrows(IllegalStateException.class, () -> BotRole.checkedForStart(BotRole.API, " ", true));
+        assertThrows(IllegalStateException.class, () -> BotRole.checkedForStart(BotRole.API, true, false, true));
+        IllegalStateException noApi = assertThrows(IllegalStateException.class, () -> BotRole.checkedForStart(BotRole.GATEWAY, false, true, false));
+        assertTrue(noApi.getMessage().contains("INTERNAL_API_SECRET"), noApi.getMessage());
+        IllegalStateException noGateway = assertThrows(IllegalStateException.class, () -> BotRole.checkedForStart(BotRole.API, false, true, true));
         assertTrue(noGateway.getMessage().contains("GATEWAY_INTERNAL_URL"), noGateway.getMessage());
     }
 }

@@ -33,6 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * that server". Real HTTP on loopback, no Discord.
  */
 class GatewayForwardTest {
+    private static final String SECRET = "s3cret";
     private final List<HttpServer> servers = new ArrayList<>();
     private final HttpClient client = HttpClient.newHttpClient();
 
@@ -51,6 +52,7 @@ class GatewayForwardTest {
         assertTrue(GatewayForward.local("/internal/image/"));
         assertTrue(GatewayForward.local("/internal/wheel-gif/"));
         assertTrue(GatewayForward.local("/metrics"), "each process reports its own numbers");
+        assertFalse(GatewayForward.local("/metrics-x/"), "only the exact routes");
     }
 
     @Test
@@ -91,7 +93,7 @@ class GatewayForwardTest {
         });
         HttpServer api = front(new GatewayForward(url(gateway)));
 
-        HttpResponse<String> answer = client.send(HttpRequest.newBuilder(URI.create(url(api) + "/internal/admin/thing")).DELETE().build(),
+        HttpResponse<String> answer = client.send(HttpRequest.newBuilder(URI.create(url(api) + "/internal/admin/thing")).header("X-Internal-Secret", SECRET).DELETE().build(),
                 HttpResponse.BodyHandlers.ofString());
 
         assertEquals(204, answer.statusCode());
@@ -106,7 +108,7 @@ class GatewayForwardTest {
         }
         HttpServer api = front(new GatewayForward("http://127.0.0.1:" + closed + "/"));
 
-        HttpResponse<String> answer = client.send(HttpRequest.newBuilder(URI.create(url(api) + "/internal/member?id=7")).GET().build(),
+        HttpResponse<String> answer = client.send(HttpRequest.newBuilder(URI.create(url(api) + "/internal/member?id=7")).header("X-Internal-Secret", SECRET).GET().build(),
                 HttpResponse.BodyHandlers.ofString());
 
         assertEquals(503, answer.statusCode());
@@ -127,7 +129,7 @@ class GatewayForwardTest {
         });
         HttpServer api = front(new GatewayForward(url(gateway), Duration.ofMillis(300), Duration.ofSeconds(1)));
         try {
-            HttpResponse<String> answer = client.send(HttpRequest.newBuilder(URI.create(url(api) + "/internal/online-members")).GET().build(),
+            HttpResponse<String> answer = client.send(HttpRequest.newBuilder(URI.create(url(api) + "/internal/online-members")).header("X-Internal-Secret", SECRET).GET().build(),
                     HttpResponse.BodyHandlers.ofString());
             assertEquals(503, answer.statusCode());
         } finally {
@@ -144,7 +146,7 @@ class GatewayForwardTest {
         OpsTelemetry.context(api, "/internal/image/", forward.handlerFor("/internal/image/", exchange -> {
             exchange.sendResponseHeaders(200, -1);
             exchange.close();
-        }));
+        }, exchange -> false));
         api.start();
 
         HttpResponse<String> answer = client.send(HttpRequest.newBuilder(URI.create(url(api) + "/internal/image/abc")).GET().build(),
@@ -154,6 +156,165 @@ class GatewayForwardTest {
         assertNull(answer.headers().firstValue("X-Answered-By").orElse(null));
     }
 
+    @Test
+    void onlyAnHttpAddressWithAHostIsAGateway() {
+        assertEquals("http://bot-gateway.internal:8081", String.valueOf(GatewayForward.parse(" http://bot-gateway.internal:8081/ ")));
+        assertEquals("https://gw.internal/base", String.valueOf(GatewayForward.parse("https://gw.internal/base")));
+        for (String wrong : new String[] {null, "", "bot-gateway.internal:8081", "http://bad host", "ftp://gw.internal", "http://", "http://gw?x=1",
+                "http://user:pw@gw.internal"}) {
+            assertNull(GatewayForward.parse(wrong), String.valueOf(wrong));
+        }
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class, () -> new GatewayForward("bot-gateway.internal:8081"));
+    }
+
+    @Test
+    void aStrangerNeverReachesTheGateway() throws Exception {
+        AtomicReference<String> seen = new AtomicReference<>();
+        HttpServer gateway = server(exchange -> {
+            seen.set("called");
+            exchange.sendResponseHeaders(200, -1);
+            exchange.close();
+        });
+        HttpServer api = front(new GatewayForward(url(gateway)));
+
+        HttpResponse<String> answer = client.send(HttpRequest.newBuilder(URI.create(url(api) + "/internal/member?id=7"))
+                .header("X-Internal-Secret", "wrong").GET().build(), HttpResponse.BodyHandlers.ofString());
+
+        assertEquals(401, answer.statusCode());
+        assertNull(seen.get());
+    }
+
+    @Test
+    void theGatewaysRefusalsComeBackAsTheyAre() throws Exception {
+        for (int status : new int[] {401, 404, 503}) {
+            HttpServer gateway = server(exchange -> {
+                byte[] answer = ("{\"error\":\"" + status + "\"}").getBytes(StandardCharsets.UTF_8);
+                exchange.sendResponseHeaders(status, answer.length);
+                try (OutputStream out = exchange.getResponseBody()) {
+                    out.write(answer);
+                }
+            });
+            HttpServer api = front(new GatewayForward(url(gateway)));
+            HttpResponse<String> answer = client.send(HttpRequest.newBuilder(URI.create(url(api) + "/internal/member"))
+                    .header("X-Internal-Secret", SECRET).GET().build(), HttpResponse.BodyHandlers.ofString());
+            assertEquals(status, answer.statusCode());
+            assertEquals("{\"error\":\"" + status + "\"}", answer.body());
+        }
+    }
+
+    @Test
+    void aGatewayAddressPointingAtAnotherApiProcessStopsAtOneHop() throws Exception {
+        AtomicReference<String> seen = new AtomicReference<>();
+        HttpServer gateway = server(exchange -> {
+            seen.set(exchange.getRequestHeaders().getFirst(GatewayForward.HOP_HEADER));
+            exchange.sendResponseHeaders(200, -1);
+            exchange.close();
+        });
+        HttpServer api = front(new GatewayForward(url(gateway)));
+
+        client.send(HttpRequest.newBuilder(URI.create(url(api) + "/internal/member")).header("X-Internal-Secret", SECRET).GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertEquals("1", seen.get(), "every passed-on request is marked");
+
+        HttpResponse<String> looped = client.send(HttpRequest.newBuilder(URI.create(url(api) + "/internal/member"))
+                .header("X-Internal-Secret", SECRET).header(GatewayForward.HOP_HEADER, "1").GET().build(), HttpResponse.BodyHandlers.ofString());
+        assertEquals(508, looped.statusCode());
+    }
+
+    @Test
+    void aBodyOverTheCapIsRefusedBeforeTheGatewaySeesIt() throws Exception {
+        AtomicReference<String> seen = new AtomicReference<>();
+        HttpServer gateway = server(exchange -> {
+            seen.set("called");
+            exchange.sendResponseHeaders(200, -1);
+            exchange.close();
+        });
+        HttpServer api = front(new GatewayForward(url(gateway)));
+
+        HttpResponse<String> answer = client.send(HttpRequest.newBuilder(URI.create(url(api) + "/internal/admin/upload"))
+                .header("X-Internal-Secret", SECRET).POST(HttpRequest.BodyPublishers.ofByteArray(new byte[GatewayForward.MAX_BODY_BYTES + 1])).build(),
+                HttpResponse.BodyHandlers.ofString());
+
+        assertEquals(413, answer.statusCode());
+        assertNull(seen.get());
+    }
+
+    @Test
+    void headersOnlyTheConnectionMayCarryAreNotPassedOn() throws Exception {
+        AtomicReference<String> seen = new AtomicReference<>();
+        HttpServer gateway = server(exchange -> {
+            seen.set(exchange.getRequestHeaders().getFirst("Host") + " " + exchange.getRequestHeaders().getFirst("Upgrade") + " "
+                    + exchange.getRequestHeaders().getFirst("X-Custom"));
+            exchange.sendResponseHeaders(200, -1);
+            exchange.close();
+        });
+        HttpServer api = front(new GatewayForward(url(gateway)));
+        String sentAs;
+        try (java.net.Socket socket = new java.net.Socket("127.0.0.1", api.getAddress().getPort())) {
+            socket.getOutputStream().write(("GET /internal/member HTTP/1.1\r\nHost: evil.example\r\nUpgrade: h2c\r\nConnection: close\r\n"
+                    + "X-Internal-Secret: " + SECRET + "\r\nX-Custom: kept\r\n\r\n").getBytes(StandardCharsets.US_ASCII));
+            socket.getOutputStream().flush();
+            sentAs = new String(socket.getInputStream().readAllBytes(), StandardCharsets.US_ASCII);
+        }
+        assertTrue(sentAs.startsWith("HTTP/1.1 200"), sentAs);
+        assertEquals("127.0.0.1:" + gateway.getAddress().getPort() + " null kept", seen.get(), "the gateway's own host, no upgrade");
+    }
+
+    @Test
+    void aHeadRequestGetsHeadersOnly() throws Exception {
+        HttpServer gateway = server(exchange -> {
+            exchange.getResponseHeaders().set("X-Answered-By", "gateway");
+            exchange.sendResponseHeaders(200, -1);
+            exchange.close();
+        });
+        HttpServer api = front(new GatewayForward(url(gateway)));
+
+        HttpResponse<String> answer = client.send(HttpRequest.newBuilder(URI.create(url(api) + "/internal/member"))
+                .header("X-Internal-Secret", SECRET).method("HEAD", HttpRequest.BodyPublishers.noBody()).build(), HttpResponse.BodyHandlers.ofString());
+
+        assertEquals(200, answer.statusCode());
+        assertEquals("gateway", answer.headers().firstValue("X-Answered-By").orElse(null));
+        assertEquals("", answer.body());
+    }
+
+    @Test
+    void aChangeTheGatewayDidNotAnswerInTimeMayHaveHappened() throws Exception {
+        CountDownLatch release = new CountDownLatch(1);
+        HttpServer gateway = server(exchange -> {
+            try {
+                release.await(5, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            exchange.sendResponseHeaders(200, -1);
+            exchange.close();
+        });
+        HttpServer api = front(new GatewayForward(url(gateway), Duration.ofMillis(300), Duration.ofSeconds(1)));
+        try {
+            HttpResponse<String> answer = client.send(HttpRequest.newBuilder(URI.create(url(api) + "/internal/admin/nickname"))
+                    .header("X-Internal-Secret", SECRET).POST(HttpRequest.BodyPublishers.ofString("{}")).build(), HttpResponse.BodyHandlers.ofString());
+            assertEquals(503, answer.statusCode());
+            assertEquals(GatewayForward.NO_ANSWER, DataObject.fromJson(answer.body()).getString("code"), "not the safe-to-repeat try again");
+        } finally {
+            release.countDown();
+        }
+    }
+
+    @Test
+    void aGatewayThatIsDownMeansTryAgainEvenForAChange() throws Exception {
+        int closed;
+        try (ServerSocket socket = new ServerSocket(0)) {
+            closed = socket.getLocalPort();
+        }
+        HttpServer api = front(new GatewayForward("http://127.0.0.1:" + closed));
+
+        HttpResponse<String> answer = client.send(HttpRequest.newBuilder(URI.create(url(api) + "/internal/admin/nickname"))
+                .header("X-Internal-Secret", SECRET).POST(HttpRequest.BodyPublishers.ofString("{}")).build(), HttpResponse.BodyHandlers.ofString());
+
+        assertEquals(503, answer.statusCode());
+        assertNull(DataObject.fromJson(answer.body()).getString("code", null), "nothing was sent, so it can safely be tried again");
+    }
+
     /** The api process's side: every route the way {@code InternalApiServer} registers it, through the request filter. */
     private HttpServer front(GatewayForward forward) throws IOException {
         HttpServer api = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -161,7 +322,7 @@ class GatewayForwardTest {
         for (String route : List.of("/internal/admin/", "/internal/member", "/internal/online-members")) {
             OpsTelemetry.context(api, route, forward.handlerFor(route, exchange -> {
                 throw new AssertionError("the api process must not answer " + route + " itself");
-            }));
+            }, exchange -> SECRET.equals(exchange.getRequestHeaders().getFirst("X-Internal-Secret"))));
         }
         api.start();
         return api;

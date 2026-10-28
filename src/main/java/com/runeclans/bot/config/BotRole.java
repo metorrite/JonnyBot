@@ -46,11 +46,6 @@ public enum BotRole {
         return this != API;
     }
 
-    /** Whether this role serves an internal HTTP API: every role does (the gateway's answers the api process, T-746). */
-    public boolean internalApi() {
-        return true;
-    }
-
     /** Whether this role's internal API passes routes that need servers or members on to the gateway process (T-746). */
     public boolean forwardsToGateway() {
         return this == API;
@@ -63,7 +58,8 @@ public enum BotRole {
 
     /**
      * Whether the bot can be split into gateway and api processes: every scheduler lane names its owner role (T-702, {@code util/LaneOwners})
-     * and the api role's internal API asks the gateway for servers and members (T-746).
+     * and the api role's internal API asks the gateway for servers and members (T-746). Kept as a kill switch: setting it back to false
+     * makes a split process refuse to start, and makes a mistyped {@code BOT_ROLE} fall back to all again.
      */
     public static boolean splitReady() {
         return true;
@@ -71,18 +67,24 @@ public enum BotRole {
 
     /**
      * The role a process may start with: {@code role} itself, or a plain refusal when a split process lacks what it needs. Both split roles
-     * need the cache signals on ({@code BOT_CACHE_NOTIFY}), or each would keep serving its own stale copy of what the other changed; the api
-     * role needs the gateway's address ({@code GATEWAY_INTERNAL_URL}).
+     * need the cache signals on ({@code BOT_CACHE_NOTIFY}), or each would keep serving its own stale copy of what the other changed, and
+     * the internal API set up ({@code INTERNAL_API_SECRET} and {@code GUILD_ID}), since the website reaches the api process through it and
+     * the api process reaches the gateway the same way; the api role needs the gateway's address ({@code GATEWAY_INTERNAL_URL}, an http(s)
+     * address). The reasons name settings, never their values.
      */
-    public static BotRole checkedForStart(BotRole role, String gatewayInternalUrl, boolean cacheSignalsOn) {
+    public static BotRole checkedForStart(BotRole role, boolean gatewayAddressValid, boolean cacheSignalsOn, boolean internalApiSetUp) {
         if (role == ALL) return role;
         String name = "BOT_ROLE=" + role.name().toLowerCase(Locale.ROOT);
         if (!splitReady()) throw new IllegalStateException(name + " can't run yet. Leave BOT_ROLE unset (all) for now.");
         if (!cacheSignalsOn) {
             throw new IllegalStateException(name + " needs BOT_CACHE_NOTIFY=true in every bot process, so each hears what the others change.");
         }
-        if (role == API && (gatewayInternalUrl == null || gatewayInternalUrl.isBlank())) {
-            throw new IllegalStateException(name + " needs GATEWAY_INTERNAL_URL: the gateway process's internal API on the private network.");
+        if (!internalApiSetUp) {
+            throw new IllegalStateException(name + " needs INTERNAL_API_SECRET and GUILD_ID: the processes talk through the internal API.");
+        }
+        if (role == API && !gatewayAddressValid) {
+            throw new IllegalStateException(name + " needs GATEWAY_INTERNAL_URL set to the gateway process's internal API, an http(s) address"
+                    + " on the private network (for example http://bot-gateway.railway.internal:8081).");
         }
         return role;
     }
