@@ -220,8 +220,7 @@ public class HubEventsApi {
      */
     DataArray xpTilesOf(Event e) {
         if (!com.younglings.bot.events.PluginObjectiveMatcher.xpTilesOffered()) return null;
-        List<String> labels = com.younglings.bot.events.PluginObjectiveMatcher.shownXpTiles(com.younglings.bot.events.ClanVsClan.game(e), e.status(), service.objectives(e.id()));
-        return labels.isEmpty() ? null : DataArray.fromCollection(labels);
+        return MemberEventsApi.xpTiles(e, service.objectives(e.id()));
     }
 
     /** The viewer's links to the event's channels (only the ones they can use), from the host's own player page. */

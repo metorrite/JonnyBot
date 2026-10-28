@@ -159,6 +159,30 @@ class MemberApiClanSiteTest {
     }
 
     @Test
+    void hideRecapIsReadAndSavedWithoutChoosingThePrivacyToggles() throws Exception {
+        java.util.concurrent.atomic.AtomicReference<Profile> stored = new java.util.concurrent.atomic.AtomicReference<>(Profile.defaults(CLAN_GUILD, USER));
+        when(profiles.getProfile(CLAN_GUILD, USER)).thenAnswer(i -> stored.get());
+        doAnswer(i -> {
+            stored.set(i.getArgument(0));
+            return null;
+        }).when(profiles).saveProfile(any());
+
+        assertFalse(call("GET", "settings", "userId=" + USER, null, true).body().getBoolean("hideRecap"), "recaps are shown unless the member says no");
+
+        Reply saved = call("PUT", "settings", null, "{\"userId\":\"" + USER + "\",\"hideRecap\":true}", true);
+        assertEquals(200, saved.status());
+        assertTrue(saved.body().getBoolean("hideRecap"));
+        assertFalse(stored.get().privacyChosen(), "not one of the privacy toggles: the server's defaults still apply to those");
+        assertFalse(saved.body().getBoolean("privacyChosen"));
+        assertTrue(call("GET", "settings", "userId=" + USER, null, true).body().getBoolean("hideRecap"));
+
+        call("PUT", "settings", null, "{\"userId\":\"" + USER + "\",\"bio\":\"Hi\"}", true);
+        assertTrue(stored.get().hideRecap(), "a save that leaves it out keeps it");
+        call("PUT", "settings", null, "{\"userId\":\"" + USER + "\",\"hideRecap\":false}", true);
+        assertFalse(stored.get().hideRecap(), "and it can be turned back on for the clan");
+    }
+
+    @Test
     void goalsAndEventsUseTheClanSitesServer() throws Exception {
         assertEquals(200, call("GET", "goals", "userId=" + USER, null, true).status());
         verify(profiles).goalsFor(CLAN_GUILD, USER);
