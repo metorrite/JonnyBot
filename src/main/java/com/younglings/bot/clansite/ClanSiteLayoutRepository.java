@@ -177,7 +177,14 @@ public class ClanSiteLayoutRepository {
                 }
                 if (rev == 0) {
                     connection.rollback();
-                    return baseRev > 0 && byGuild(guildId).isPresent() ? -1 : 0;
+                    if (baseRev <= 0) return 0;
+                    // asked on this connection: a second one from the small pool while this one is held could wait on the pool
+                    try (PreparedStatement e = connection.prepareStatement("SELECT 1 FROM younglings.clan_site_layout WHERE guild_id = ?")) {
+                        e.setLong(1, guildId);
+                        try (ResultSet rs = e.executeQuery()) {
+                            return rs.next() ? -1 : 0;
+                        }
+                    }
                 }
                 String clean = label == null || label.isBlank() ? null : label.strip();
                 if (clean != null && clean.length() > MAX_VERSION_LABEL) clean = clean.substring(0, MAX_VERSION_LABEL);

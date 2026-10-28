@@ -308,9 +308,13 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
     DataObject publish(SiteCaller c, boolean publish) {
         ClanSite current = sites.of(c.guildId());
         if (publish) requirePublishable(c, current);
+        savePublished(c, current, publish);
+        return get(c);
+    }
+
+    private void savePublished(SiteCaller c, ClanSite current, boolean publish) {
         repository.save(new ClanSite(current.guildId(), current.enabled(), publish, current.template(), current.theme(), current.pages(), c.userId(),
                 Instant.now(), publish ? Instant.now() : current.publishedAt(), current.takedownReason()));
-        return get(c);
     }
 
     private void requirePublishable(SiteCaller c, ClanSite current) {
@@ -404,7 +408,8 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
             throw new ApiError(409, Text.of(c.guildId(), "dashboard.the_website_can_t_be_published"),
                     List.of("Someone saved this site from another tab or window. Reload to see the newest version."));
         }
-        publish(c, true);
+        // checked above, before the copy: only the save is left, so nothing after the copy can refuse a publish that already went live
+        savePublished(c, sites.of(c.guildId()), true);
         return layout(c);
     }
 
