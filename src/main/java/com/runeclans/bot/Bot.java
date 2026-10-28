@@ -180,14 +180,8 @@ public class Bot extends JDAService {
 
         // T-136: no message pings @everyone, @here or a role unless the feature names exactly what it pings
         Mentions.installDefault();
-        // T-670: BOT_ROLE (default all) picks which part of the bot this process runs; see BotRole
-        BotRole role = botConfig.getRole();
-        if (role != BotRole.ALL && !BotRole.splitReady()) {
-            throw new IllegalStateException("BOT_ROLE=" + role.name().toLowerCase(java.util.Locale.ROOT)
-                    + " can't run yet: not every scheduler lane names its owner role (T-702). Leave BOT_ROLE unset (all) for now.");
-        }
-        BotRole.install(role);
-        if (!role.gateway()) {
+        // T-670: BOT_ROLE (default all, installed by Main) picks which part of the bot this process runs; see BotRole
+        if (!BotRole.current().gateway()) {
             // the api role: REST only, no gateway login, so no events, no interaction listeners and no server cache
             RestOnlyJda.create(botConfig.getToken(), eventManager);
             return;

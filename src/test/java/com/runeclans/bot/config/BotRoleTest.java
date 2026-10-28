@@ -50,5 +50,9 @@ class BotRoleTest {
     @Test
     void aSplitWaitsForEveryLaneToNameItsOwner() {
         assertFalse(BotRole.splitReady(), "T-702 turns this on");
+        assertEquals(BotRole.ALL, BotRole.checkedForStart(BotRole.ALL));
+        IllegalStateException refused = org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> BotRole.checkedForStart(BotRole.API));
+        assertTrue(refused.getMessage().contains("BOT_ROLE=api can't run yet"), refused.getMessage());
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> BotRole.checkedForStart(BotRole.GATEWAY));
     }
 }

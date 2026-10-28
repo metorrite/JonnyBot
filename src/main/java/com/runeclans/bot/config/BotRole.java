@@ -58,6 +58,15 @@ public enum BotRole {
         return false;
     }
 
+    /** The role a process may start with: {@code role} itself, or a plain refusal while a split isn't ready (see {@link #splitReady()}). */
+    public static BotRole checkedForStart(BotRole role) {
+        if (role != ALL && !splitReady()) {
+            throw new IllegalStateException("BOT_ROLE=" + role.name().toLowerCase(Locale.ROOT)
+                    + " can't run yet: not every scheduler lane names its owner role (T-702). Leave BOT_ROLE unset (all) for now.");
+        }
+        return role;
+    }
+
     /** {@code BOT_ROLE}'s value: unset or blank is {@link #ALL}; anything that isn't a role is {@link #ALL} with a warning. */
     public static BotRole parse(String raw) {
         if (raw == null || raw.isBlank()) return ALL;
