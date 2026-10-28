@@ -2,6 +2,7 @@ package com.younglings.bot.internal;
 
 import com.younglings.bot.clansite.SiteRoleGuard;
 import com.younglings.bot.clansite.SiteRoles;
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.discord.jobs.DiscordOutbox;
 import com.younglings.bot.events.EventRepository;
 import com.younglings.bot.events.EventScoring.Standing;
@@ -209,7 +210,7 @@ public class SiteSeasons {
     /** The optional season-end post (off by default): through the Discord job outbox, never from a dev bot with posting off, no pings. */
     private void post(JDA jda, long guildId, Season season, Settings settings, List<Row> rows) {
         if (!settings.postOn() || settings.postChannelId() == null || jda == null || !posting.isEnabled()) return;
-        Guild guild = jda.getGuildById(guildId);
+        Guild guild = Shards.guild(jda, guildId);
         if (guild == null) return;
         String text = SeasonRules.postText(season, escaped(rows.stream().limit(SeasonRules.BADGE_PLACES).toList()));
         outbox.enqueue(SeasonPostJob.KIND, guildId, 0L, "season-end:" + guildId + ":" + season.token(), SeasonPostJob.payload(settings.postChannelId(), text));
