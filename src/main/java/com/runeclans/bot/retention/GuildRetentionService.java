@@ -1,5 +1,6 @@
 package com.runeclans.bot.retention;
 
+import com.runeclans.bot.discord.ShardRouting;
 import com.runeclans.bot.discord.Shards;
 import com.runeclans.bot.config.BotConfig;
 import com.runeclans.bot.rolepanel.RolePanelRepository;
@@ -77,6 +78,9 @@ public class GuildRetentionService {
                     continue;
                 }
                 if (home != null && home == guildId) continue;
+                // the departure row says it left; only the process that runs its shard, connected and with no outage, confirms it is
+                // still away. Another shard's server (or one not loaded yet) is never purged from here (T-700).
+                if (!ShardRouting.gone(jda, guildId)) continue;
                 purge(guildId, dryRun);
             }
         } catch (Exception e) {
