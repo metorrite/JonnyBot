@@ -1,0 +1,177 @@
+package com.runeclans.bot.commands.ticket;
+
+import com.runeclans.bot.ticket.TicketModels.Field;
+import com.runeclans.bot.ticket.TicketModels.FieldKind;
+import com.runeclans.bot.ticket.TicketModels.FieldPurpose;
+import com.runeclans.bot.ticket.TicketModels.HelpKind;
+import com.runeclans.bot.ticket.TicketModels.HelpSettings;
+import com.runeclans.bot.ticket.TicketModels.Option;
+import com.runeclans.bot.ticket.TicketModels.Panel;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+/**
+ * The PvM Help system's decisions, with no Discord calls in them: whether a ticket pings anyone when it opens and how long it waits
+ * before escalating, whether a guest must describe earlier attempts, and what a valid set of settings is. Kept apart so every rule
+ * can be tested directly.
+ */
+public final class HelpRules {
+    private HelpRules() {}
+
+    public static final int MIN_HOURS = 1;
+    public static final int MAX_HOURS = 720;
+
+    /** The Combat Mastery tiers, easiest first, as helpers pick them in their ping settings. */
+    public static final List<String> TIERS = List.of("Easy", "Medium", "Hard", "Elite", "Master", "Grandmaster");
+    /** The ping choice for a ticket where nobody picked a tier (general PvM help can leave it blank). */
+    public static final String GENERAL = "General";
+
+    /**
+     * The tiers this helper may be pinged for: PVM Helper+ gets every tier, PVM Helper everything below the Master-and-above tiers
+     * (the same names the earlier-attempts rule uses), and both can opt in to general help tickets. A PVM Helper can still see and
+     * join a Master or Grandmaster ticket, they just can't be pinged for it.
+     */
+    public static List<String> allowedTiers(HelpSettings settings, boolean helperPlus) {
+        List<String> high = highTierLabels(settings);
+        List<String> allowed = new ArrayList<>();
+        for (String tier : TIERS) {
+            if (helperPlus || high.stream().noneMatch(tier::equalsIgnoreCase)) allowed.add(tier);
+        }
+        allowed.add(GENERAL);
+        return allowed;
+    }
+
+    /** The ping group a ticket falls in: its tier ("Master"...) when that is one of ours, otherwise {@link #GENERAL}. */
+    public static String pingGroup(String tierLabel) {
+        if (tierLabel == null) return GENERAL;
+        return TIERS.stream().filter(t -> t.equalsIgnoreCase(tierLabel.strip())).findFirst().orElse(GENERAL);
+    }
+
+    /** The label of the option picked in the question marked as the tier, or {@code null} if there is none or it was left blank. */
+    public static String tierOf(List<Field> fields, Map<Long, String> rawValues) {
+        for (Field field : fields) {
+            if (field.purpose() != FieldPurpose.TIER || field.kind() != FieldKind.SELECT) continue;
+            String picked = rawValues.get(field.id());
+            return field.options().stream().filter(o -> String.valueOf(o.id()).equals(picked)).map(Option::label).findFirst().orElse(null);
+        }
+        return null;
+    }
+
+    /** How a ticket's pings are set up as it opens: whether the helpers are pinged right away, and the hours before the next role up is pinged ({@code null} = never). */
+    public record Pings(boolean pingOnOpen, Integer escalationHours) {}
+
+    /**
+     * A member's ticket follows the member settings. A guest's pings nobody unless guest pings are switched on, and then follows the
+     * guest settings. (A guest is anyone who isn't a clan member, whether or not they have linked a RuneScape name.)
+     */
+    public static Pings pingsFor(HelpSettings settings, boolean member) {
+        if (member) return new Pings(settings.memberPingOnOpen(), settings.memberEscalationHours());
+        if (!settings.guestPingsEnabled()) return new Pings(false, null);
+        return new Pings(settings.guestPingOnOpen(), settings.guestEscalationHours());
+    }
+
+    /** The tier names that count as Master and above, trimmed and without blanks. */
+    public static List<String> highTierLabels(HelpSettings settings) {
+        if (settings.highTierLabels() == null) return List.of();
+        return Arrays.stream(settings.highTierLabels().split(","))
+                .map(String::strip)
+                .filter(label -> !label.isEmpty())
+                .toList();
+    }
+
+    /**
+     * On a CA Help panel, a guest who picks a Master or Grandmaster tier has to say what they have already tried. Returns the sentence to
+     * show them when they haven't, or empty when the ticket may open. Members, other tiers, other panels and a panel with no attempts
+     * question are never held up.
+     *
+     * @param rawValues each question's submitted value by field id (a dropdown's value is the chosen option's id)
+     */
+    public static Optional<String> attemptsProblem(HelpSettings settings, Panel panel, List<Field> fields, Map<Long, String> rawValues, boolean member) {
+        if (member || panel.helpKind() != HelpKind.CA || !settings.guestHighTierNeedsAttempts()) return Optional.empty();
+
+        Field tier = fields.stream().filter(f -> f.purpose() == FieldPurpose.TIER && f.kind() == FieldKind.SELECT).findFirst().orElse(null);
+        Field attempts = fields.stream().filter(f -> f.purpose() == FieldPurpose.ATTEMPTS).findFirst().orElse(null);
+        if (tier == null || attempts == null) return Optional.empty();
+
+        String picked = rawValues.get(tier.id());
+        String pickedLabel = tier.options().stream().filter(o -> String.valueOf(o.id()).equals(picked)).map(Option::label).findFirst().orElse(null);
+        if (pickedLabel == null || highTierLabels(settings).stream().noneMatch(pickedLabel::equalsIgnoreCase)) return Optional.empty();
+
+        String said = rawValues.get(attempts.id());
+        boolean madeAttempts = attempts.kind() == FieldKind.CHECKBOX ? "true".equalsIgnoreCase(said) : said != null && !said.isBlank();
+        if (madeAttempts) return Optional.empty();
+        return Optional.of(attempts.kind() == FieldKind.CHECKBOX
+                ? "**" + pickedLabel + "** tickets are for people who have already made their own attempts. Start again and answer **Yes** to \"" + attempts.label() + "\" once you have."
+                : "**" + pickedLabel + "** tickets need a note of your earlier attempts in \"" + attempts.label() + "\". Open the ticket again and fill that in.");
+    }
+
+    /** Everything wrong with a set of settings, one sentence each — empty if they can be saved. */
+    public static List<String> validate(HelpSettings settings) {
+        List<String> problems = new ArrayList<>();
+        checkHours(problems, settings.memberEscalationHours(), "The member escalation wait");
+        checkHours(problems, settings.guestEscalationHours(), "The guest escalation wait");
+        if (settings.guidelines() != null && settings.guidelines().length() > HelpSettings.MAX_GUIDELINES) {
+            problems.add("The guidelines must be " + HelpSettings.MAX_GUIDELINES + " characters or fewer.");
+        }
+        if (settings.highTierLabels() == null || settings.highTierLabels().length() > 200) problems.add("The Master and above tier names must be 200 characters or fewer.");
+        else if (settings.guestHighTierNeedsAttempts() && highTierLabels(settings).isEmpty()) problems.add("Name at least one tier for the earlier-attempts rule, or switch the rule off.");
+        return problems;
+    }
+
+    private static void checkHours(List<String> problems, Integer hours, String what) {
+        if (hours != null && (hours < MIN_HOURS || hours > MAX_HOURS)) problems.add(what + " must be between " + MIN_HOURS + " and " + MAX_HOURS + " hours.");
+    }
+
+    private static String describe(FieldPurpose purpose) {
+        return switch (purpose) {
+            case BOSS -> "boss";
+            case TIER -> "tier";
+            case ACHIEVEMENT -> "achievement";
+            case ATTEMPTS -> "earlier attempts";
+            case NONE -> "other";
+        };
+    }
+
+    /** Problems with how a panel's questions are marked for the help rules; the dashboard's Save adds these to the general panel checks. */
+    public static List<String> validatePanelHelp(Panel panel, List<Field> fields) {
+        List<String> problems = new ArrayList<>();
+        long marked = fields.stream().filter(f -> f.purpose() != FieldPurpose.NONE).count();
+
+        if (!panel.isHelpPanel()) {
+            if (marked > 0) problems.add("Questions can only be marked for the help rules (boss, tier, achievement, earlier attempts) on a PvM Help or CA Help panel.");
+            return problems;
+        }
+        for (FieldPurpose purpose : FieldPurpose.values()) {
+            if (purpose != FieldPurpose.NONE && fields.stream().filter(f -> f.purpose() == purpose).count() > 1) {
+                problems.add("Only one question can be marked as the " + describe(purpose) + ".");
+            }
+        }
+        for (Field field : fields) {
+            boolean written = field.kind() == FieldKind.SHORT || field.kind() == FieldKind.PARAGRAPH;
+            switch (field.purpose()) {
+                case TIER -> {
+                    if (field.kind() != FieldKind.SELECT) problems.add("The question marked as the tier (\"" + field.label() + "\") has to be a dropdown.");
+                }
+                case BOSS, ACHIEVEMENT -> {
+                    if (!written) problems.add("The question marked as the " + describe(field.purpose()) + " (\"" + field.label() + "\") has to be a written answer; members choose it from a list.");
+                }
+                case ATTEMPTS -> {
+                    if (!written && field.kind() != FieldKind.CHECKBOX) problems.add("The question marked as earlier attempts (\"" + field.label() + "\") has to be a written answer or a yes/no checkbox.");
+                }
+                default -> { }
+            }
+        }
+        if (fields.stream().anyMatch(f -> f.purpose() == FieldPurpose.BOSS) && fields.stream().noneMatch(f -> f.purpose() == FieldPurpose.TIER)) {
+            problems.add("A panel with a boss question also needs a question marked as the tier.");
+        }
+        if (panel.helpKind() == HelpKind.CA) {
+            boolean requiredTier = fields.stream().anyMatch(f -> f.purpose() == FieldPurpose.TIER && f.kind() == FieldKind.SELECT && f.required());
+            if (!requiredTier) problems.add("A CA Help panel needs a required dropdown marked as the tier.");
+        }
+        return problems;
+    }
+}

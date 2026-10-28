@@ -1,7 +1,7 @@
-package com.younglings.bot.events;
+package com.runeclans.bot.events;
 
-import com.younglings.bot.events.BingoBoardImage.TileView;
-import com.younglings.bot.events.BingoLayout.Slot;
+import com.runeclans.bot.events.BingoBoardImage.TileView;
+import com.runeclans.bot.events.BingoLayout.Slot;
 import org.junit.jupiter.api.Test;
 
 import javax.imageio.ImageIO;
@@ -734,7 +734,7 @@ class BingoSkinScratchTest {
     void gridPreview() throws Exception {
         Files.createDirectories(OUT);
         BingoTemplate template = new BingoTemplate();
-        BingoTiles icons = new BingoTiles(new com.younglings.bot.internal.WikiCatalog());
+        BingoTiles icons = new BingoTiles(new com.runeclans.bot.internal.WikiCatalog());
         for (int size : new int[]{3, 5, 7}) {
             var sample = BingoSampleEvent.buildGrid(template, size, icons::iconKeyFor, 20261016L);
             for (String look : new String[]{BingoLooks.CLASSIC, BingoLooks.RUNESCAPE}) {
@@ -757,7 +757,7 @@ class BingoSkinScratchTest {
         Path out = Path.of(System.getProperty("bingo.looks.dir", "target/bingo-looks"));
         Files.createDirectories(out);
         BingoTemplate template = new BingoTemplate();
-        BingoTiles icons = new BingoTiles(new com.younglings.bot.internal.WikiCatalog());
+        BingoTiles icons = new BingoTiles(new com.runeclans.bot.internal.WikiCatalog());
         for (BingoLayout l : BingoLayout.all()) {
             var sample = BingoSampleEvent.build(template, l, icons::iconKeyFor, 20261016L);
             for (String look : BingoLooks.ids()) {

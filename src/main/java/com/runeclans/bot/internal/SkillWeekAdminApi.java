@@ -1,0 +1,79 @@
+package com.runeclans.bot.internal;
+
+import com.runeclans.bot.events.SkillWeekRepository;
+import com.runeclans.bot.events.SkillWeekRules;
+import com.runeclans.bot.events.SkillWeekService;
+import com.runeclans.bot.internal.TicketAdminApi.ApiError;
+import com.runeclans.bot.runescape.RuneScapeSkillCatalog;
+import io.github.freya022.botcommands.api.core.service.annotations.BService;
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.utils.data.DataArray;
+import net.dv8tion.jda.api.utils.data.DataObject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Supplier;
+
+/**
+ * The dashboard's Skill of the week (T-541), reached through {@link TicketAdminApi} (dashboard access already checked, writes audit-logged):
+ * <ul>
+ *     <li>{@code GET skill-week}: the switch, the rota, the skill next in line, this week and its standings, last week's winners, and the skills to
+ *     choose from</li>
+ *     <li>{@code PUT skill-week} {@code {enabled, rota: [skillId...]}}: saves them. Switching on needs the bot connected to the RuneClans hub
+ *     (the weeks are counted from its XP ledger) and at least one skill. Switching on opens this week's competition straight away.</li>
+ * </ul>
+ */
+@BService
+public class SkillWeekAdminApi implements AdminRouteExtension {
+    private static final Logger log = LoggerFactory.getLogger(SkillWeekAdminApi.class);
+
+    private final SkillWeekService weeks;
+    private final SkillWeekRepository repository;
+
+    public SkillWeekAdminApi(SkillWeekService weeks, SkillWeekRepository repository) {
+        this.weeks = weeks;
+        this.repository = repository;
+    }
+
+    @Override
+    public DataObject route(Guild guild, Member actor, String method, String[] parts, Supplier<DataObject> body) {
+        if (parts.length != 1 || !parts[0].equals("skill-week")) return null;
+        if (method.equals("PUT")) return save(guild.getIdLong(), actor.getIdLong(), body.get());
+        AdminRouteExtension.requireMethod(method, "GET");
+        return overview(guild.getIdLong());
+    }
+
+    DataObject overview(long guildId) {
+        DataArray skills = DataArray.empty();
+        for (int id = 0; id < RuneScapeSkillCatalog.skillCount(); id++) skills.add(DataObject.empty().put("id", id).put("name", RuneScapeSkillCatalog.nameFor(id)));
+        return weeks.view(guildId, 10).put("skills", skills).put("maxRota", SkillWeekRules.MAX_ROTA);
+    }
+
+    DataObject save(long guildId, long actorId, DataObject body) {
+        boolean enabled = body.getBoolean("enabled", false);
+        List<Integer> rota = new ArrayList<>();
+        try {
+            DataArray raw = body.optArray("rota").orElse(DataArray.empty());
+            for (int i = 0; i < raw.length(); i++) rota.add(raw.getInt(i));
+        } catch (RuntimeException e) {
+            throw new ApiError(400, "Choose each skill from the list.");
+        }
+        List<String> problems = SkillWeekRules.rotaProblems(rota, enabled);
+        if (enabled && !weeks.available()) problems.add("Skill of the week counts XP from RuneSync, through the RuneClans hub, and this bot isn't connected to it.");
+        if (!problems.isEmpty()) throw new ApiError(400, "Skill of the week can't be saved.", problems);
+        repository.save(guildId, enabled, rota, actorId);
+        log.info("Dashboard: {} saved skill of the week ({}, {} skills)", actorId, enabled ? "on" : "off", rota.size());
+        if (enabled) {
+            // this week starts now rather than at the next pass
+            try {
+                weeks.open(guildId, java.time.Instant.now());
+            } catch (RuntimeException e) {
+                log.warn("Could not open skill of the week in {} on saving", guildId, e);
+            }
+        }
+        return overview(guildId);
+    }
+}

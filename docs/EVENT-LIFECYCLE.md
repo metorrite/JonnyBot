@@ -36,7 +36,7 @@ Clan staff run RuneScape clan events (bingo, scavenger hunts, XP competitions, b
 
 Nothing from these slices is on `master`: it needs Drake's explicit go-ahead (it deploys). After slice 8 comes refinement.
 
-## How the engine fits together (bot, `com.younglings.bot.events`)
+## How the engine fits together (bot, `com.runeclans.bot.events`)
 
 - `EventService` applies the rules; `EventRepository` owns the tables (`SchemaBootstrapper` creates them at startup, `ALTER ... IF NOT EXISTS` for new columns). Standings are never stored: `EventScoring` works them out from the append-only progress log.
 - Stages: DRAFT, SIGNUPS, RUNNING, SCORING, DONE, CANCELLED (`EventRules`).
@@ -58,7 +58,7 @@ What it does, per event that switches it on (`config.channels.enabled`, off by d
 
 ### Where it lives
 
-Bot (`com.younglings.bot.events`): `EventNaming` (names from patterns, Discord's style), `EventSpace` (pure: the settings `config.channels`, who sees what per kind of channel, the readiness rule, the `Plan` of what to create/keep/remove with Discord's limits, who should hold each role), `EventSpaceRepository` (tables `event_role`, `event_channel`, `event_role_member`; the applied/complete/note state is on `event_setup`), `EventSpaces` (reads the roster, teams, staff roles, server room and permissions, and previews), `EventSpaceOps` (does it on Discord: background setup and removal jobs, role holders kept in step on roster/team/stage changes, member joins and a 15-minute sweep). Dashboard routes: `internal/EventSpaceApi` (`GET events/{id}/space`, `PUT .../space/settings`, `POST .../space/preview|apply|remove|sync`). Tests: `EventNamingTest`, `EventSpaceTest`, `EventSpaceRepositoryTest`, `EventSpaceApiTest`, `EventSpaceOpsTest` (a pretend Discord server), and the checklist step in `EventPrepTest`.
+Bot (`com.runeclans.bot.events`): `EventNaming` (names from patterns, Discord's style), `EventSpace` (pure: the settings `config.channels`, who sees what per kind of channel, the readiness rule, the `Plan` of what to create/keep/remove with Discord's limits, who should hold each role), `EventSpaceRepository` (tables `event_role`, `event_channel`, `event_role_member`; the applied/complete/note state is on `event_setup`), `EventSpaces` (reads the roster, teams, staff roles, server room and permissions, and previews), `EventSpaceOps` (does it on Discord: background setup and removal jobs, role holders kept in step on roster/team/stage changes, member joins and a 15-minute sweep). Dashboard routes: `internal/EventSpaceApi` (`GET events/{id}/space`, `PUT .../space/settings`, `POST .../space/preview|apply|remove|sync`). Tests: `EventNamingTest`, `EventSpaceTest`, `EventSpaceRepositoryTest`, `EventSpaceApiTest`, `EventSpaceOpsTest` (a pretend Discord server), and the checklist step in `EventPrepTest`.
 
 Website: `components/dashboard/space/ChannelsTab.tsx` (the Channels tab), `lib/eventSpace.ts` (pure helpers), types in `lib/eventTypes.ts`, allow-list entries in `event-manager/actions.ts`, a button on the checklist step in `EventManager.tsx`.
 

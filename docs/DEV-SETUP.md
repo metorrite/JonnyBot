@@ -2,7 +2,7 @@
 
 What a machine needs to build, run and test the bot, and where each piece comes from (how the bot, the websites and the hub fit together: [ECOSYSTEM.md](ECOSYSTEM.md)). **No secrets are in this file**: where a secret is needed it says which one, never its value.
 
-Some names in code and tooling still say JonnyBot and stay that way for now: the repository, the jar, the Java package `com.younglings.bot`, the database schema `younglings`, the IntelliJ run configuration "JonnyBot Dev", the local `jonnybot_*` databases and the deprecated `JONNYBOT_*` setting names.
+Some names in code and tooling still say JonnyBot and stay that way for now: the repository, the jar, the database schema `younglings`, the IntelliJ run configuration "JonnyBot Dev", the local `jonnybot_*` databases and the deprecated `JONNYBOT_*` setting names.
 
 ## 1. What to install
 
@@ -41,9 +41,11 @@ Keep these in a password manager. Never commit them.
 
 | Name | Main class | Environment variables |
 |---|---|---|
-| JonnyBot Dev | `com.younglings.bot.Main` | `DATABASE_URL`, `DISCORD_TOKEN`, `GUILD_ID`, `INTERNAL_API_SECRET`, `LIVE_ENV`, `REMOVE_COMMANDS_ON_SHUTDOWN` |
-| Initialize Database (optional; the bot initialises its tables itself) | `com.younglings.bot.util.InitializeDatabase` | `DATABASE_URL` |
-| Icon Image Update and Download (a tool) | `com.younglings.bot.tools.IconDownloader` | none |
+| JonnyBot Dev | `com.runeclans.bot.Main` | `DATABASE_URL`, `DISCORD_TOKEN`, `GUILD_ID`, `INTERNAL_API_SECRET`, `LIVE_ENV`, `REMOVE_COMMANDS_ON_SHUTDOWN` |
+| Initialize Database (optional; the bot initialises its tables itself) | `com.runeclans.bot.util.InitializeDatabase` | `DATABASE_URL` |
+| Icon Image Update and Download (a tool) | `com.runeclans.bot.tools.IconDownloader` | none |
+
+The Java package was `com.younglings.bot` until 2026-10-28 (T-663). On a machine set up before that: change each run configuration's main class to the `com.runeclans.bot` one above, and delete any leftover `src/test/java/com/younglings` folder after pulling (git-excluded scratch tests stay behind there and no longer compile).
 
 The scripts in `tools/` read the bot's environment from the "JonnyBot Dev" run configuration (`dev-start.ps1`, `db_query.py` and `rsnlink-dev-env.ps1` from `.idea/runConfigurations/JonnyBot_Dev.xml`, `dev_api.py` from `.idea/workspace.xml`), so keep that name. An `.idea` folder copied from another machine carries the secrets: move it the way you would move a password.
 
@@ -199,7 +201,7 @@ Check the whole tree by hand: `gitleaks dir . --redact=100 --no-banner`.
 2. Get data into it. Either let the bot create empty tables on first start (it also creates BotCommands' own tables, schema `bc`; if the log ever complains they are missing, load `docs/bc-schema.sql` once as that file says), or restore a dump you are allowed to use. A dump of live data holds real members' data: keep it private, and **the dev bot must not run against that data in the real server**.
 3. IntelliJ: open this repository, set the JDK to 21, import the Maven project, create the "JonnyBot Dev" run configuration with the variables above, build, run. Success looks like `Internal API listening on port 8081` and `Finished Loading!` in the log.
 4. Website: in the website checkout, `npm ci; npm run dev` (port 3000). Sign in with Discord, open `http://localhost:3000/dashboard/<your-server-id>/event-manager`.
-5. Only one bot instance may run per token: starting "JonnyBot Dev" again does **not** stop the old one (the second logs "Address already in use" for port 8081). Stop the old `com.younglings.bot.Main` java process first.
+5. Only one bot instance may run per token: starting "JonnyBot Dev" again does **not** stop the old one (the second logs "Address already in use" for port 8081). Stop the old `com.runeclans.bot.Main` java process first.
 
 Checking the running bot without the browser: `python tools/dev_api.py GET events/12/space --actor <your discord user id>` calls the same internal admin routes the dashboard uses (it reads the secret from the run configuration and never prints it). A GET only reads; remember the dev bot sits in the real server, so POST/PUT/DELETE change real things.
 
@@ -242,4 +244,4 @@ Website: `npx tsc --noEmit` (ignore the one `LayoutProps` error in a worktree: N
 
 - The IntelliJ run configurations (`.idea`, with the secrets above; section 3 says how to recreate them) and the website's `.env.local`.
 - The local databases: `jonnybot_dev` (and any copy of live data, which holds real clan data: treat a dump of it as private). Moving data is optional: `pg_dump -U postgres -Fc jonnybot_dev -f jonnybot_dev.dump` on one machine and `pg_restore -U postgres -d jonnybot_dev --clean --if-exists jonnybot_dev.dump` on the other. A fresh empty database works too.
-- Git-excluded scratch files: bot `src/test/java/com/younglings/bot/DevDb*SmokeTest.java` and `tools/DevDbSmokeTest.java.txt` (throwaway tests that run repository SQL against the local dev database), `src/test/.../BingoSkinScratchTest.java` (generates the bingo look preview pictures; a copy of the generator is in `tools/BingoSkinGenerator.java.txt`), `tools/DevDbPluginE2eTest.java.txt`.
+- Git-excluded scratch files: bot `src/test/java/com/runeclans/bot/DevDb*SmokeTest.java` and `tools/DevDbSmokeTest.java.txt` (throwaway tests that run repository SQL against the local dev database), `src/test/.../BingoSkinScratchTest.java` (generates the bingo look preview pictures; a copy of the generator is in `tools/BingoSkinGenerator.java.txt`), `tools/DevDbPluginE2eTest.java.txt`.
