@@ -10,11 +10,19 @@ import net.dv8tion.jda.api.utils.data.DataArray;
 import net.dv8tion.jda.api.utils.data.DataObject;
 
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
@@ -28,6 +36,12 @@ final class DirectoryPlayerLogic {
     private static final Pattern RSN = Pattern.compile("[A-Za-z0-9 _-]{1,12}");
     /** As many snapshots as a clan site's member page reads, so the month's gain reaches back as far. */
     static final int SNAPSHOTS = 2000;
+    /** Days of total XP history the profile's charts draw (one point per UTC day). */
+    static final int HISTORY_DAYS = 90;
+    /** Players on the "top players" list of the website's Find a player page. */
+    static final int TOP_PLAYERS = 10;
+    /** Clans read for the top players list, as many as the clan leaderboards read. */
+    static final int TOP_PLAYER_CLANS = 100;
 
     private DirectoryPlayerLogic() {
     }
@@ -51,6 +65,19 @@ final class DirectoryPlayerLogic {
         List<StatsSnapshotRow> snapshots(String rsn);
 
         List<SkillValue> skills(long snapshotId);
+    }
+
+    /** What the top players list reads: every shared clan profile, and each clan's members' XP gained since a moment. */
+    interface TopSource {
+        List<ClanProfile> sharedClans();
+
+        String clanName(long guildId);
+
+        /** {@link SiteStatsRepository#xpGains}: each active member's XP gained since {@code since}. */
+        List<SiteStatsRepository.Gain> gains(long guildId, OffsetDateTime since);
+
+        /** {@link SiteApi#visibleMember}: the roster row when the member page is public (not hidden from the rankings), else null. */
+        MemberRow visibleMember(long guildId, String rsn);
     }
 
     record Membership(ClanProfile clan, MemberRow row, int maxRankOrder) {}
@@ -103,7 +130,8 @@ final class DirectoryPlayerLogic {
         snapshots.sort(Comparator.comparing(StatsSnapshotRow::snapshotAt).reversed());
         StatsSnapshotRow latest = snapshots.getFirst();
         DataArray skills = DataArray.empty();
-        for (SkillValue skill : source.skills(latest.snapshotId())) {
+        List<SkillValue> latestSkills = source.skills(latest.snapshotId());
+        for (SkillValue skill : latestSkills) {
             skills.add(DataObject.empty().put("id", skill.skillId()).put("name", RuneScapeSkillCatalog.nameFor(skill.skillId())).put("level", skill.level())
                     .put("xp", skill.xp()).put("rank", skill.rank()));
         }
@@ -113,6 +141,94 @@ final class DirectoryPlayerLogic {
                 .put("gains", DataObject.empty()
                         .put("day", SiteApi.gainSince(snapshots, now.minus(Duration.ofDays(1))))
                         .put("week", SiteApi.gainSince(snapshots, now.minus(Duration.ofDays(7))))
-                        .put("month", SiteApi.gainSince(snapshots, now.minus(Duration.ofDays(30)))));
+                        .put("month", SiteApi.gainSince(snapshots, now.minus(Duration.ofDays(30)))))
+                .put("history", history(snapshots, now))
+                .put("skillGains", DataObject.empty()
+                        .put("week", skillGains(snapshots, latestSkills, now.minus(Duration.ofDays(7)), source))
+                        .put("month", skillGains(snapshots, latestSkills, now.minus(Duration.ofDays(30)), source)));
+    }
+
+    /** One point per UTC day over the last {@link #HISTORY_DAYS} days (that day's newest snapshot), oldest first: {@code [{date, totalXp, totalLevel}]}. */
+    static DataArray history(List<StatsSnapshotRow> newestFirst, OffsetDateTime now) {
+        LocalDate first = now.withOffsetSameInstant(ZoneOffset.UTC).toLocalDate().minusDays(HISTORY_DAYS - 1L);
+        Map<LocalDate, StatsSnapshotRow> byDay = new LinkedHashMap<>();
+        for (StatsSnapshotRow row : newestFirst) {
+            LocalDate day = row.snapshotAt().withOffsetSameInstant(ZoneOffset.UTC).toLocalDate();
+            if (day.isBefore(first)) break;
+            byDay.putIfAbsent(day, row);
+        }
+        List<LocalDate> days = new ArrayList<>(byDay.keySet());
+        days.sort(null);
+        DataArray out = DataArray.empty();
+        for (LocalDate day : days) {
+            StatsSnapshotRow row = byDay.get(day);
+            out.add(DataObject.empty().put("date", day.toString()).put("totalXp", row.totalXp()).put("totalLevel", row.totalLevel()));
+        }
+        return out;
+    }
+
+    /**
+     * XP gained in each skill since {@code since}, biggest first, skills with no gain left out: {@code [{id, name, xp}]}. The baseline is the
+     * newest snapshot at or before {@code since}, else the oldest there is (as {@link SiteApi#gainSince}); one snapshot alone gains nothing.
+     */
+    static DataArray skillGains(List<StatsSnapshotRow> newestFirst, List<SkillValue> latestSkills, OffsetDateTime since, Source source) {
+        DataArray out = DataArray.empty();
+        if (newestFirst.size() < 2) return out;
+        StatsSnapshotRow baseline = null;
+        for (StatsSnapshotRow row : newestFirst) {
+            if (!row.snapshotAt().isAfter(since)) {
+                baseline = row;
+                break;
+            }
+        }
+        if (baseline == null) baseline = newestFirst.getLast();
+        if (baseline.snapshotId() == newestFirst.getFirst().snapshotId()) return out;
+        Map<Integer, Long> before = new HashMap<>();
+        for (SkillValue skill : source.skills(baseline.snapshotId())) before.put(skill.skillId(), skill.xp());
+        List<long[]> gains = new ArrayList<>();
+        for (SkillValue skill : latestSkills) {
+            Long was = before.get(skill.skillId());
+            if (was != null && skill.xp() > was) gains.add(new long[]{skill.skillId(), skill.xp() - was});
+        }
+        gains.sort(Comparator.comparingLong((long[] g) -> g[1]).reversed().thenComparingLong(g -> g[0]));
+        for (long[] g : gains) {
+            out.add(DataObject.empty().put("id", (int) g[0]).put("name", RuneScapeSkillCatalog.nameFor((int) g[0])).put("xp", g[1]));
+        }
+        return out;
+    }
+
+    /**
+     * The players who gained the most XP since {@code since}, across the clans on the public clan leaderboards ({@link ProfileRules#listing}
+     * {@code LISTED} and opted in): {@code {since, entries: [{rank, rsn, xpGained, clan: {slug, name}}]}}. Only members whose member page is
+     * public and who haven't hidden themselves from the rankings ({@link TopSource#visibleMember}), so nothing here is new: each clan's own
+     * leaderboard already shows it. A player in two clans is counted once, with the bigger gain.
+     */
+    static DataObject topPlayers(TopSource source, OffsetDateTime since, int limit) {
+        record Candidate(ClanProfile clan, String rsn, long xp) {}
+        List<Candidate> candidates = new ArrayList<>();
+        int clans = 0;
+        for (ClanProfile p : source.sharedClans()) {
+            if (clans >= TOP_PLAYER_CLANS) break;
+            if (!p.leaderboardOptIn() || p.slug() == null || p.slug().isBlank()) continue;
+            if (ProfileRules.listing(p, source.clanName(p.guildId())) != ProfileRules.Listing.LISTED) continue;
+            clans++;
+            for (SiteStatsRepository.Gain g : source.gains(p.guildId(), since)) {
+                if (g.xp() > 0 && g.rsn() != null) candidates.add(new Candidate(p, g.rsn(), g.xp()));
+            }
+        }
+        candidates.sort(Comparator.comparingLong(Candidate::xp).reversed().thenComparing(Candidate::rsn, String.CASE_INSENSITIVE_ORDER));
+        DataArray entries = DataArray.empty();
+        Set<String> seen = new HashSet<>();
+        for (Candidate c : candidates) {
+            if (entries.length() >= limit) break;
+            String key = c.rsn().toLowerCase(Locale.ROOT);
+            if (seen.contains(key)) continue;
+            MemberRow row = source.visibleMember(c.clan().guildId(), c.rsn());
+            if (row == null) continue;
+            seen.add(key);
+            entries.add(DataObject.empty().put("rank", entries.length() + 1).put("rsn", row.rsn()).put("xpGained", c.xp())
+                    .put("clan", DataObject.empty().put("slug", c.clan().slug()).put("name", c.clan().displayName())));
+        }
+        return DataObject.empty().put("since", since.toInstant().toString()).put("entries", entries);
     }
 }

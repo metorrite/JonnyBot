@@ -23,7 +23,9 @@ import java.util.Optional;
 /**
  * A player's clans and stats for their public profile on runeclans.com: {@code GET players/{rsn}} answers
  * {@code {rsn, clans: [{slug, name, rank, rankOrder, maxRankOrder, firstSeen, joined, joinedExact, lastPolled}], stats: {snapshotAt, totalLevel,
- * totalXp, combatLevel, questsComplete, skills: [{id, name, level, xp, rank}], gains: {day, week, month}} | null}}.
+ * totalXp, combatLevel, questsComplete, skills: [{id, name, level, xp, rank}], gains: {day, week, month}, history: [{date, totalXp, totalLevel}],
+ * skillGains: {week, month: [{id, name, xp}]}} | null}}. {@code GET players} answers the top players of the last seven days across the clan
+ * leaderboards ({@link DirectoryPlayerLogic#topPlayers}), for the website's Find a player page.
  * <p>
  * Only clans the public directory lists, where the player's member page is public ({@link DirectoryPlayerLogic}); 404 when there is none, so a
  * hidden member looks the same as a name nobody knows; 400 for a name that isn't a RuneScape name. Everything here is already on those clans'
@@ -33,10 +35,13 @@ import java.util.Optional;
 @BService
 public class DirectoryPlayerRoutes implements DirectoryRouteModule {
     private static final long TTL_MILLIS = 60_000;
+    /** The top players list reads every leaderboard clan's gains, so it is kept a little longer. */
+    private static final long TOP_TTL_MILLIS = 120_000;
     /** Key prefix in the shared cache. Names are typed by visitors; the cache's own sweep drops names nobody asks for again. */
     static final String CACHE_PREFIX = "directory-player:";
 
     private final DirectoryPlayerLogic.Source source;
+    private final DirectoryPlayerLogic.TopSource top;
     private final SiteCache cache;
 
     public DirectoryPlayerRoutes(ClanProfileRepository profiles, ClanProfileService service, SiteApi siteApi, SiteStatsRepository stats,
@@ -78,13 +83,40 @@ public class DirectoryPlayerRoutes implements DirectoryRouteModule {
                 return links.getSkillsForSnapshot(snapshotId);
             }
         };
+        this.top = new DirectoryPlayerLogic.TopSource() {
+            @Override
+            public List<ClanProfile> sharedClans() {
+                return profiles.shared();
+            }
+
+            @Override
+            public String clanName(long guildId) {
+                return service.clanNameOf(guildId);
+            }
+
+            @Override
+            public List<SiteStatsRepository.Gain> gains(long guildId, OffsetDateTime since) {
+                return stats.xpGains(guildId, since);
+            }
+
+            @Override
+            public MemberRow visibleMember(long guildId, String rsn) {
+                return siteApi.visibleMember(guildId, rsn);
+            }
+        };
     }
 
     @Override
     public boolean route(DirectoryRequest request) throws IOException {
         String[] parts = request.parts();
-        if (!request.head().equals("players") || parts.length != 2) return false;
+        if (!request.head().equals("players") || parts.length > 2) return false;
         if (!request.requireGet()) return true;
+        if (parts.length == 1) {
+            request.send(200, cache.get(CACHE_PREFIX + "#top", TOP_TTL_MILLIS, () -> DirectoryPlayerLogic
+                    .topPlayers(top, OffsetDateTime.now(ZoneOffset.UTC).minusDays(7), DirectoryPlayerLogic.TOP_PLAYERS)
+                    .put("generatedAt", Instant.now().toString())));
+            return true;
+        }
         String rsn = DirectoryPlayerLogic.cleanRsn(parts[1]);
         if (rsn == null) {
             request.sendError(400, "That isn't a RuneScape name.");

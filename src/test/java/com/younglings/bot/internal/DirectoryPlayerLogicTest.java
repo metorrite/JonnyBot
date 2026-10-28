@@ -213,4 +213,111 @@ class DirectoryPlayerLogicTest {
         assertTrue(answer.isNull("stats"));
         assertEquals(1, answer.getArray("clans").length());
     }
+
+    @Test
+    void historyIsOnePointPerDayForTheLastNinetyDaysOldestFirst() {
+        Fake fake = new Fake().clan(GUILD_A, "alpha", "Alpha", Visibility.PUBLIC, "Player", NOW);
+        fake.snapshots.add(snapshot(1, NOW.minusDays(120), 500));
+        fake.snapshots.add(snapshot(2, NOW.minusDays(2).withHour(3), 1_000));
+        fake.snapshots.add(snapshot(3, NOW.minusDays(2).withHour(20), 1_200));
+        fake.snapshots.add(snapshot(4, NOW.minusMinutes(5), 1_500));
+
+        DataArray history = DirectoryPlayerLogic.answer("Player", fake, NOW).getObject("stats").getArray("history");
+        assertEquals(2, history.length(), "the 120-day-old snapshot is outside the window, two the same day count once");
+        assertEquals(NOW.minusDays(2).toLocalDate().toString(), history.getObject(0).getString("date"));
+        assertEquals(1_200, history.getObject(0).getLong("totalXp"), "that day's newest snapshot");
+        assertEquals(NOW.toLocalDate().toString(), history.getObject(1).getString("date"));
+        assertEquals(1_500, history.getObject(1).getLong("totalXp"));
+        assertEquals(2004, history.getObject(1).getInt("totalLevel"));
+    }
+
+    @Test
+    void skillGainsCompareTheNewestSkillsWithTheBaselineBiggestFirst() {
+        Fake fake = new Fake().clan(GUILD_A, "alpha", "Alpha", Visibility.PUBLIC, "Player", NOW);
+        fake.snapshots.add(snapshot(1, NOW.minusDays(40), 1_000));
+        fake.snapshots.add(snapshot(2, NOW.minusDays(10), 1_100));
+        fake.snapshots.add(snapshot(3, NOW.minusMinutes(5), 1_500));
+        fake.skills.put(1L, List.of(new SkillValue(0, 50, 100_000, 1), new SkillValue(1, 50, 100_000, 1), new SkillValue(2, 50, 100_000, 1)));
+        fake.skills.put(2L, List.of(new SkillValue(0, 50, 150_000, 1), new SkillValue(1, 50, 100_000, 1), new SkillValue(2, 50, 100_000, 1)));
+        fake.skills.put(3L, List.of(new SkillValue(0, 60, 160_000, 1), new SkillValue(1, 60, 300_000, 1), new SkillValue(2, 50, 100_000, 1)));
+
+        DataObject gains = DirectoryPlayerLogic.answer("Player", fake, NOW).getObject("stats").getObject("skillGains");
+        DataArray week = gains.getArray("week");
+        assertEquals(2, week.length(), "Strength gained nothing and is left out");
+        assertEquals(1, week.getObject(0).getInt("id"));
+        assertEquals("Defence", week.getObject(0).getString("name"));
+        assertEquals(200_000, week.getObject(0).getLong("xp"));
+        assertEquals(10_000, week.getObject(1).getLong("xp"), "Attack since the snapshot 10 days ago");
+        DataArray month = gains.getArray("month");
+        assertEquals(200_000, month.getObject(0).getLong("xp"));
+        assertEquals(60_000, month.getObject(1).getLong("xp"), "Attack since the one 40 days ago");
+    }
+
+    @Test
+    void oneSnapshotGainsNothingPerSkill() {
+        Fake fake = new Fake().clan(GUILD_A, "alpha", "Alpha", Visibility.PUBLIC, "Player", NOW);
+        fake.snapshots.add(snapshot(1, NOW.minusMinutes(5), 1_000));
+        fake.skills.put(1L, List.of(new SkillValue(0, 50, 100_000, 1)));
+        DataObject stats = DirectoryPlayerLogic.answer("Player", fake, NOW).getObject("stats");
+        assertEquals(0, stats.getObject("skillGains").getArray("week").length());
+        assertEquals(1, stats.getArray("history").length());
+    }
+
+    /** A top-players source: shared clans, their gains, and the members hidden from the rankings. */
+    private static final class FakeTop implements DirectoryPlayerLogic.TopSource {
+        final List<ClanProfile> clans = new ArrayList<>();
+        final Map<Long, String> clanNames = new HashMap<>();
+        final Map<Long, List<SiteStatsRepository.Gain>> gains = new HashMap<>();
+        final Set<String> hidden = new HashSet<>();
+
+        FakeTop clan(long guildId, String slug, String name, boolean optIn, SiteStatsRepository.Gain... members) {
+            clans.add(new ClanProfile(guildId, Visibility.PUBLIC, slug, name, "", "", null, null, null, EnumSet.noneOf(ClanProfile.Focus.class),
+                    ClanProfile.Recruiting.CLOSED, "", null, optIn, name, Instant.EPOCH, null, null, null, null));
+            clanNames.put(guildId, name);
+            gains.put(guildId, List.of(members));
+            return this;
+        }
+
+        @Override
+        public List<ClanProfile> sharedClans() {
+            return clans;
+        }
+
+        @Override
+        public String clanName(long guildId) {
+            return clanNames.get(guildId);
+        }
+
+        @Override
+        public List<SiteStatsRepository.Gain> gains(long guildId, OffsetDateTime since) {
+            return gains.getOrDefault(guildId, List.of());
+        }
+
+        @Override
+        public MemberRow visibleMember(long guildId, String rsn) {
+            return hidden.contains(rsn.toLowerCase()) ? null : row(rsn, NOW);
+        }
+    }
+
+    @Test
+    void topPlayersComeFromOptedInListedClansOnlyVisibleMembersOncePerName() {
+        FakeTop top = new FakeTop()
+                .clan(GUILD_A, "alpha", "Alpha", true, new SiteStatsRepository.Gain("Big", 900), new SiteStatsRepository.Gain("Shy", 800),
+                        new SiteStatsRepository.Gain("Both", 300), new SiteStatsRepository.Gain("Idle", 0))
+                .clan(GUILD_B, "beta", "Beta", true, new SiteStatsRepository.Gain("Both", 500), new SiteStatsRepository.Gain("Small", 100))
+                .clan(GUILD_C, "gamma", "Gamma", false, new SiteStatsRepository.Gain("OptedOut", 5_000));
+        top.hidden.add("shy");
+
+        DataArray entries = DirectoryPlayerLogic.topPlayers(top, NOW.minusDays(7), 10).getArray("entries");
+        assertEquals(3, entries.length());
+        assertEquals("Big", entries.getObject(0).getString("rsn"));
+        assertEquals(1, entries.getObject(0).getInt("rank"));
+        assertEquals("alpha", entries.getObject(0).getObject("clan").getString("slug"));
+        assertEquals("Both", entries.getObject(1).getString("rsn"));
+        assertEquals(500, entries.getObject(1).getLong("xpGained"), "the bigger of the two clans' gains");
+        assertEquals("beta", entries.getObject(1).getObject("clan").getString("slug"));
+        assertEquals(2, entries.getObject(1).getInt("rank"));
+        assertEquals("Small", entries.getObject(2).getString("rsn"));
+        assertEquals(1, DirectoryPlayerLogic.topPlayers(top, NOW.minusDays(7), 1).getArray("entries").length());
+    }
 }

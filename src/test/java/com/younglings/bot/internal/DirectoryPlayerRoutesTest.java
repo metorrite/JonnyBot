@@ -154,8 +154,26 @@ class DirectoryPlayerRoutesTest {
 
     @Test
     void otherShapesAreLeftToTheOtherModules() throws Exception {
-        assertFalse(call("GET", "players").handled());
         assertFalse(call("GET", "players/a/b").handled());
         assertFalse(call("GET", "clans/a").handled());
+    }
+
+    @Test
+    void theBarePathAnswersTheTopPlayers() throws Exception {
+        ClanProfile profile = new ClanProfile(GUILD, ClanProfile.Visibility.PUBLIC, "alpha", "Alpha", "", "", null, null, null, EnumSet.noneOf(ClanProfile.Focus.class),
+                ClanProfile.Recruiting.CLOSED, "", null, true, "Alpha", Instant.EPOCH, null, null, null, null);
+        when(profiles.shared()).thenReturn(List.of(profile));
+        when(service.clanNameOf(GUILD)).thenReturn("Alpha");
+        when(stats.xpGains(eq(GUILD), any(OffsetDateTime.class))).thenReturn(List.of(new SiteStatsRepository.Gain("Grinder", 1_000)));
+        when(siteApi.visibleMember(eq(GUILD), anyString())).thenReturn(new MemberRow("Grinder", "Owner", 11, 1, 0, null, OffsetDateTime.now(), 0, false, false, null, null, null));
+
+        Outcome ok = call("GET", "players");
+        assertTrue(ok.handled());
+        assertEquals(200, ok.status());
+        DataObject body = DataObject.fromJson(ok.body());
+        assertEquals("Grinder", body.getArray("entries").getObject(0).getString("rsn"));
+        assertEquals(1_000, body.getArray("entries").getObject(0).getLong("xpGained"));
+        assertEquals(405, call("POST", "players").status());
+        verifyNoInteractions(jda);
     }
 }
