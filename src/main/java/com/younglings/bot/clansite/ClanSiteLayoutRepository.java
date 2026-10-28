@@ -144,7 +144,17 @@ public class ClanSiteLayoutRepository {
      * {@link #KEPT_VERSIONS}; all in one transaction. False when the server has no draft.
      */
     public boolean publishDraft(long guildId, long actorId, String label) {
-        String publish = "UPDATE younglings.clan_site_layout SET published = draft, published_rev = draft_rev, published_at = ?, updated_by = ? WHERE guild_id = ?";
+        return publishDraft(guildId, actorId, label, 0) > 0;
+    }
+
+    /**
+     * As {@link #publishDraft(long, long, String)}, but with {@code baseRev} above 0 only when the draft is still at that revision: the check
+     * and the copy are one conditional update, so a save landing in between can't slip into the public site. Returns the published revision,
+     * 0 when the server has no draft, or -1 when the draft moved past {@code baseRev}.
+     */
+    public int publishDraft(long guildId, long actorId, String label, int baseRev) {
+        String publish = "UPDATE younglings.clan_site_layout SET published = draft, published_rev = draft_rev, published_at = ?, updated_by = ? "
+                + "WHERE guild_id = ? AND (? = 0 OR draft_rev = ?) RETURNING published_rev";
         String record = "INSERT INTO younglings.clan_site_layout_version (guild_id, layout, rev, label, published_by, published_at) "
                 + "SELECT guild_id, draft, draft_rev, ?, ?, ? FROM younglings.clan_site_layout WHERE guild_id = ?";
         String prune = "DELETE FROM younglings.clan_site_layout_version WHERE guild_id = ? AND id NOT IN "
@@ -153,15 +163,21 @@ public class ClanSiteLayoutRepository {
         try (Connection connection = connectionSupplier.getConnection()) {
             boolean autoCommit = connection.getAutoCommit();
             connection.setAutoCommit(false);
+            int rev;
             try (PreparedStatement p = connection.prepareStatement(publish);
                  PreparedStatement r = connection.prepareStatement(record);
                  PreparedStatement d = connection.prepareStatement(prune)) {
                 p.setTimestamp(1, now);
                 p.setLong(2, actorId);
                 p.setLong(3, guildId);
-                if (p.executeUpdate() != 1) {
+                p.setInt(4, Math.max(0, baseRev));
+                p.setInt(5, Math.max(0, baseRev));
+                try (ResultSet rs = p.executeQuery()) {
+                    rev = rs.next() ? rs.getInt(1) : 0;
+                }
+                if (rev == 0) {
                     connection.rollback();
-                    return false;
+                    return baseRev > 0 && byGuild(guildId).isPresent() ? -1 : 0;
                 }
                 String clean = label == null || label.isBlank() ? null : label.strip();
                 if (clean != null && clean.length() > MAX_VERSION_LABEL) clean = clean.substring(0, MAX_VERSION_LABEL);
@@ -182,7 +198,7 @@ public class ClanSiteLayoutRepository {
                 connection.setAutoCommit(autoCommit);
             }
             SiteInvalidator.signal(guildId, SiteInvalidator.Area.HUB);
-            return true;
+            return rev;
         } catch (SQLException e) {
             log.error("Failed to publish the clan website layout of guild {}", guildId, e);
             throw new RuntimeException("Failed to publish the clan website layout", e);
