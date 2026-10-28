@@ -1,5 +1,6 @@
 package com.runeclans.bot.discord;
 
+import com.runeclans.bot.config.BotRole;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.sharding.ShardManager;
 
@@ -20,6 +21,8 @@ public final class ShardRouting {
 
     /** Whether this process runs the shard that holds this server (always true for a stand-alone {@code JDA}). */
     public static boolean owns(JDA jda, long guildId) {
+        // the api role's REST-only connection runs no shard (T-702): it owns no server's gateway work
+        if (!BotRole.current().gateway()) return false;
         ShardManager manager = jda.getShardManager();
         if (manager == null) return true;
         return manager.getShardById(Shards.shardOf(guildId, manager.getShardsTotal())) != null;
@@ -30,6 +33,8 @@ public final class ShardRouting {
      * Discord reports no outage for it, and it isn't there. False whenever this process can't tell, so callers try again later.
      */
     public static boolean gone(JDA jda, long guildId) {
+        // the api role has no server list at all, so it can never tell that the bot left a server (T-702)
+        if (!BotRole.current().gateway()) return false;
         ShardManager manager = jda.getShardManager();
         if (manager == null) return Shards.guild(jda, guildId) == null;
         JDA shard = manager.getShardById(Shards.shardOf(guildId, manager.getShardsTotal()));

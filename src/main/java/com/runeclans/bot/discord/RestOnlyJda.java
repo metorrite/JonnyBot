@@ -19,6 +19,9 @@ import net.dv8tion.jda.internal.utils.config.ThreadingConfig;
  * before the gateway: start the thread pools and the request queue (with BotCommands' rate limiter, as every JDA of this bot), then check the
  * token with {@code GET /users/@me}, which also fills {@link JDA#getSelfUser()}. Last it reports itself connected through the event manager,
  * which is what makes BotCommands hand the JDA to every service ({@code InjectedJDAEvent}) exactly as after a gateway login.
+ *
+ * <p>Built on JDA internals ({@code JDAImpl} and its config classes), which can change in any JDA release: {@code RestOnlyJdaTest} is the
+ * check, so a JDA upgrade must keep it green.
  */
 public final class RestOnlyJda {
     private RestOnlyJda() {}

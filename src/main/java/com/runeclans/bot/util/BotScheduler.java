@@ -33,6 +33,11 @@ import java.util.concurrent.atomic.AtomicReference;
  * Each service gets its own {@link #lane}, a {@link ScheduledExecutorService} that keeps what the single-thread scheduler promised: its
  * tasks never run at the same time as each other, in the order they became due. A repeating task that throws stops repeating, as before.
  * While a lane's task runs, the thread carries the lane's name, so logs read as they did.
+ * <p>
+ * Every lane has an owner role ({@link LaneOwners}, T-702). A repeating task (fixed rate or fixed delay) only does its work in a process
+ * whose {@code BOT_ROLE} owns the lane; elsewhere it stays scheduled and each turn does nothing. One-off work ({@code execute},
+ * {@code schedule}) always runs, since it answers something that happened in this process. With {@code BOT_ROLE=all} (the default) every
+ * process owns every lane, exactly as before.
  */
 public final class BotScheduler {
     private static final Logger log = LoggerFactory.getLogger(BotScheduler.class);
@@ -126,6 +131,13 @@ public final class BotScheduler {
             if (shutdown) throw new RejectedExecutionException(name + " is shut down");
         }
 
+        /** A repeating task that does its work only in a process that owns this lane right now (asked each turn: the leader can change). */
+        private Runnable owned(Runnable command) {
+            return () -> {
+                if (LaneOwners.runsHere(name)) command.run();
+            };
+        }
+
         @Override
         public void execute(Runnable command) {
             open();
@@ -157,8 +169,9 @@ public final class BotScheduler {
         }
 
         @Override
-        public ScheduledFuture<?> scheduleAtFixedRate(Runnable command, long initialDelay, long period, TimeUnit unit) {
+        public ScheduledFuture<?> scheduleAtFixedRate(Runnable given, long initialDelay, long period, TimeUnit unit) {
             open();
+            Runnable command = owned(given);
             LaneFuture<Void> future = new LaneFuture<>(this);
             AtomicBoolean waiting = new AtomicBoolean();
             // like the JDK's: a run that is late or long delays the next one, never overlaps it
@@ -178,8 +191,9 @@ public final class BotScheduler {
         }
 
         @Override
-        public ScheduledFuture<?> scheduleWithFixedDelay(Runnable command, long initialDelay, long delay, TimeUnit unit) {
+        public ScheduledFuture<?> scheduleWithFixedDelay(Runnable given, long initialDelay, long delay, TimeUnit unit) {
             open();
+            Runnable command = owned(given);
             LaneFuture<Void> future = new LaneFuture<>(this);
             Runnable[] fire = new Runnable[1];
             fire[0] = () -> enqueue(() -> {
