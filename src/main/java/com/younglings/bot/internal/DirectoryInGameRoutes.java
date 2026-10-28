@@ -2,6 +2,7 @@ package com.younglings.bot.internal;
 
 import com.younglings.bot.clansite.ClanSite;
 import com.younglings.bot.clansite.ClanSiteService;
+import com.younglings.bot.discord.Shards;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 
 import java.io.IOException;
@@ -34,7 +35,7 @@ public class DirectoryInGameRoutes implements DirectoryRouteModule {
             return true;
         }
         long guildId = site.get().guildId();
-        request.send(200, inGame.answer(guildId, request.jda().getGuildById(guildId)));
+        request.send(200, inGame.answer(guildId, Shards.guild(request.jda(), guildId)));
         return true;
     }
 }
