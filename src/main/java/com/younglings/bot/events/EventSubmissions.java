@@ -1,5 +1,6 @@
 package com.younglings.bot.events;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.events.EventRepository.Claim;
 import com.younglings.bot.events.EventRepository.Event;
 import com.younglings.bot.events.EventRepository.Participant;
@@ -139,7 +140,7 @@ public class EventSubmissions {
         try {
             Claim claim = repository.claim(change.eventId(), change.claimId()).orElse(null);
             if (claim == null || claim.receiptChannelId() == null || claim.receiptMessageId() == null) return;
-            TextChannel channel = client.getTextChannelById(claim.receiptChannelId());
+            TextChannel channel = Shards.textChannel(client, claim.receiptChannelId());
             if (channel == null) return;
             String status = STATUS_PREFIX + statusText(claim.kind(), change.approved(), change.note());
             channel.retrieveMessageById(claim.receiptMessageId()).queue(message -> {

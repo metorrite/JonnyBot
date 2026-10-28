@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.discord.Shards;
 import com.sun.net.httpserver.HttpExchange;
 import com.younglings.bot.access.OverallAdminRepository;
 import com.younglings.bot.access.OverallAdmins;
@@ -222,7 +223,7 @@ public class OverallAdminApi {
 
     private Guild home(JDA jda) {
         Long id = config.getGuildId();
-        Guild home = id == null ? null : jda.getGuildById(id);
+        Guild home = id == null ? null : Shards.guild(jda, id);
         if (home == null) throw new ApiError(503, "The bot's home server isn't available yet. Try again in a minute.");
         return home;
     }

@@ -1,5 +1,6 @@
 package com.younglings.bot.roletools;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.configure.GuildSettings;
 import com.younglings.bot.configure.GuildSettingsService;
 import com.younglings.bot.internal.MemberApi;
@@ -160,7 +161,7 @@ public class RoleToolkitService {
             while (true) {
                 Job job = repository.get(guildId, jobId).orElse(null);
                 if (job == null || job.status() != Status.RUNNING) return; // paused or cancelled by a person
-                Guild guild = jda == null ? null : jda.getGuildById(guildId);
+                Guild guild = jda == null ? null : Shards.guild(jda, guildId);
                 if (guild == null) {
                     repository.move(jobId, Status.RUNNING, Status.PAUSED);
                     return;

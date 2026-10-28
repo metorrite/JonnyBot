@@ -22,6 +22,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -29,12 +30,14 @@ import java.util.function.Supplier;
  * through {@link BotlessAdminApi}), which has already checked the site role each route needs:
  * <ul>
  *   <li>{@code GET clan-site/cockpit} (site admins): members gone quiet (no XP on the clan Hiscores for the site's threshold), missed Citadel
- *   caps (2 of the last 4 finished weeks, weeks with no cap data at all left out), new members not linked in the server, and leaves of the
+ *   caps (2 of the last 4 finished weeks, weeks with no cap data at all left out; {@code available: false} with a {@code reason} and no rows
+ *   once RuneMetrics is off, {@link CitadelCaps}), new members not linked in the server, and leaves of the
  *   last 7 days, each row with the staff's "done" mark when there is one. {@code canChangeSettings} says whether the asker may change the
  *   threshold.</li>
  *   <li>{@code PUT clan-site/cockpit/settings} {@code {quietDays}} (the site's owner): 7 to 90 days; answers the page.</li>
  *   <li>{@code POST clan-site/cockpit/marks} {@code {kind, rsn, done, name?}} (site admins): marks a row done or clears the mark; {@code name}
  *   is how the website shows the asker (used where the bot can't see them). Answers {@code {mark}} (null when cleared).</li>
+ *   <li>{@code clan-site/cockpit/ranks...} (T-594): the rank-up advisor ({@link SiteRankAdvisor}); its rules are the owner's.</li>
  * </ul>
  * Read-only on Discord: a linked member's Discord name comes from the bot's member cache only, never a request.
  */
@@ -47,11 +50,15 @@ public class SiteCockpitAdmin {
     private final SiteStatsRepository stats;
     private final AdminToolsStore activity;
     private final SiteRoleGuard siteRoles;
+    private final SiteRankAdvisor ranks;
     /** Marks per person: a burst of 10 (working down a list), then 2 a second. */
     private final RateLimiter marks = new RateLimiter(10, 500);
+    /** Whether Citadel caps can be counted (T-725): off once the bot stops asking RuneMetrics. See {@link CitadelCaps}. */
+    private final BooleanSupplier capsAvailable = CitadelCaps.fromEnv();
 
-    public SiteCockpitAdmin(SiteCockpitStore store, SiteStatsRepository stats, AdminToolsStore activity, SiteRoleGuard siteRoles) {
+    public SiteCockpitAdmin(SiteCockpitStore store, SiteStatsRepository stats, AdminToolsStore activity, SiteRoleGuard siteRoles, SiteRankAdvisor ranks) {
         this.store = store;
+        this.ranks = ranks;
         this.stats = stats;
         this.activity = activity;
         this.siteRoles = siteRoles;
@@ -59,6 +66,7 @@ public class SiteCockpitAdmin {
 
     /** The site role a cockpit route needs: changing the threshold is the owner's (Drake's planning answer); the rest is any site admin. */
     static SiteRoles.Action actionFor(String method, String[] parts) {
+        if (parts.length >= 3 && parts[2].equals(SiteRankAdvisor.PATH)) return SiteRankAdvisor.actionFor(method, parts);
         return parts.length == 3 && parts[2].equals("settings") && !method.equals("GET") ? SiteRoles.Action.OWN : SiteRoles.Action.SETTINGS;
     }
 
@@ -68,6 +76,7 @@ public class SiteCockpitAdmin {
             AdminRouteExtension.requireMethod(method, "GET");
             return view(c, OffsetDateTime.now(ZoneOffset.UTC));
         }
+        if (parts[2].equals(SiteRankAdvisor.PATH)) return ranks.route(c, method, parts, body);
         if (parts.length != 3) return null;
         return switch (parts[2]) {
             case "settings" -> {
@@ -85,6 +94,7 @@ public class SiteCockpitAdmin {
     /** Drops the page's settings and marks with the server's deleted website. */
     void forget(long guildId) {
         store.forget(guildId);
+        ranks.forget(guildId);
     }
 
     // ---------- the page ----------
@@ -105,19 +115,16 @@ public class SiteCockpitAdmin {
                     .put("mark", markJson(CockpitRules.activeMark(marks, "quiet", q.member().key(), q.lastXpAt(), now))));
         }
 
-        LocalDate thisWeek = RecapPeriod.citadelWeekStart(now.toLocalDate());
-        List<CapWeek> grid = stats.citadelGrid(guildId, CockpitRules.CAP_WEEKS + 1).stream()
-                .map(w -> new CapWeek(w.rsn(), w.weekStart(), w.capped())).toList();
-        Caps caps = CockpitRules.caps(members, grid, activity.lastActivity(guildId), thisWeek);
-        DataArray capRows = DataArray.empty();
-        for (Missed m : caps.rows()) {
-            DataArray weeks = DataArray.empty();
-            for (Boolean w : m.weeks()) weeks.add(w);
-            capRows.add(person(c, m.member().rsn(), m.member().discordId()).put("rank", m.member().rank()).put("weeks", weeks).put("missed", m.missed())
-                    .put("mark", markJson(CockpitRules.activeMark(marks, "caps", m.member().key(), null, now))));
+        // T-725: caps come from the Adventurer's Log via RuneMetrics; see CitadelCaps and runeclans-hub docs/RUNEMETRICS-SUNSET.md
+        DataObject capsJson;
+        if (capsAvailable.getAsBoolean()) {
+            LocalDate thisWeek = RecapPeriod.citadelWeekStart(now.toLocalDate());
+            List<CapWeek> grid = stats.citadelGrid(guildId, CockpitRules.CAP_WEEKS + 1).stream()
+                    .map(w -> new CapWeek(w.rsn(), w.weekStart(), w.capped())).toList();
+            capsJson = capsJson(c, CockpitRules.caps(members, grid, activity.lastActivity(guildId), thisWeek), marks, now);
+        } else {
+            capsJson = capsUnavailableJson();
         }
-        DataArray capWeeks = DataArray.empty();
-        for (CockpitRules.Week w : caps.weeks()) capWeeks.add(DataObject.empty().put("start", w.start().toString()).put("hasData", w.hasData()));
 
         DataArray unlinked = DataArray.empty();
         if (!c.botless()) {
@@ -145,10 +152,30 @@ public class SiteCockpitAdmin {
                 .put("roster", DataObject.empty().put("size", members.size()).put("checkedAt", iso(checkedAt))
                         .put("stale", CockpitRules.rosterStale(checkedAt, now)).put("xpWatchStarted", iso(CockpitRules.watchStarted(members))))
                 .put("quiet", quiet)
-                .put("caps", DataObject.empty().put("weeks", capWeeks).put("noLog", caps.noLog()).put("rows", capRows))
+                .put("caps", capsJson)
                 .put("unlinked", DataObject.empty().put("available", !c.botless()).put("rows", unlinked))
                 .put("left", left)
                 .put("generatedAt", now.toString());
+    }
+
+    /** The missed-caps section: {@code available} true, the counted weeks, members with no log, and who missed caps. */
+    static DataObject capsJson(SiteCaller c, Caps caps, Map<String, Mark> marks, OffsetDateTime now) {
+        DataArray capRows = DataArray.empty();
+        for (Missed m : caps.rows()) {
+            DataArray weeks = DataArray.empty();
+            for (Boolean w : m.weeks()) weeks.add(w);
+            capRows.add(person(c, m.member().rsn(), m.member().discordId()).put("rank", m.member().rank()).put("weeks", weeks).put("missed", m.missed())
+                    .put("mark", markJson(CockpitRules.activeMark(marks, "caps", m.member().key(), null, now))));
+        }
+        DataArray capWeeks = DataArray.empty();
+        for (CockpitRules.Week w : caps.weeks()) capWeeks.add(DataObject.empty().put("start", w.start().toString()).put("hasData", w.hasData()));
+        return DataObject.empty().put("available", true).put("reason", null).put("weeks", capWeeks).put("noLog", caps.noLog()).put("rows", capRows);
+    }
+
+    /** The missed-caps section once RuneMetrics is off (T-725): unavailable, with the reason, and no rows (never "nobody missed caps"). */
+    static DataObject capsUnavailableJson() {
+        return DataObject.empty().put("available", false).put("reason", CitadelCaps.UNAVAILABLE_REASON).put("weeks", DataArray.empty())
+                .put("noLog", 0).put("rows", DataArray.empty());
     }
 
     /** A row's name and, where the bot is in the server and the name is linked, the Discord account (its name from the cache only). */

@@ -1,5 +1,6 @@
 package com.younglings.bot.internal;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.i18n.Text;
 import com.younglings.bot.internal.SiteStatsRepository.MemberRow;
@@ -310,7 +311,7 @@ public class AdminOpsApi {
     /** Posts everything that is due; called by the runner. A failure is recorded on the post rather than retried forever. */
     void runDue(net.dv8tion.jda.api.JDA jda) {
         for (var due : store.due()) {
-            Guild guild = jda.getGuildById(due.getKey());
+            Guild guild = Shards.guild(jda, due.getKey());
             var post = due.getValue();
             if (guild == null) continue; // not connected yet — try again next tick
             try {

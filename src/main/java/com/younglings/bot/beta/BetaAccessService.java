@@ -1,5 +1,6 @@
 package com.younglings.bot.beta;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.access.GateSource;
 import com.younglings.bot.discord.DiscordLookups;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -38,7 +39,7 @@ public class BetaAccessService {
 
         boolean allowed = false;
         for (BetaGuildRepository.BetaGuild beta : gates.betaGuilds()) {
-            Guild guild = jda.getGuildById(beta.guildId());
+            Guild guild = Shards.guild(jda, beta.guildId());
             if (guild == null) continue;
             if (beta.level() == null) continue; // a level the code no longer knows lets nobody in
             Member member = memberIn(guild, userId);

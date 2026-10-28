@@ -1,5 +1,6 @@
 package com.younglings.bot.runescape;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.config.BotConfig;
 import com.younglings.bot.runescape.polling.PollCoordinator;
 import com.younglings.bot.runescape.polling.PollPriority;
@@ -91,7 +92,7 @@ public class WeeklyDigestScheduler {
         OffsetDateTime windowStart = window[0];
         OffsetDateTime windowEnd = window[1];
 
-        for (Guild guild : jda.getGuilds()) {
+        for (Guild guild : Shards.guilds(jda)) {
             if (clanSyncService.getClanName(guild.getIdLong()) == null) continue; // nothing configured to report on
 
             try {

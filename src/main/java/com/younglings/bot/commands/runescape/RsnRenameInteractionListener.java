@@ -1,5 +1,6 @@
 package com.younglings.bot.commands.runescape;
 
+import com.younglings.bot.discord.Shards;
 import com.younglings.bot.discord.Containers;
 import com.younglings.bot.i18n.Text;
 import com.younglings.bot.permission.AdminRoleFilter;
@@ -89,7 +90,7 @@ public class RsnRenameInteractionListener extends ListenerAdapter {
             // The roster sync left this player's roles alone while the rename was open. Now that it's said to be
             // somebody else, the old name really has left the clan, so the player goes back to Guest.
             if (!isConfirm) {
-                Guild guild = event.getJDA().getGuildById(candidate.guildId());
+                Guild guild = Shards.guild(event.getJDA(), candidate.guildId());
                 PlayerLink link = linkService.getLinkForRsn(candidate.guildId(), candidate.oldRsn());
                 if (guild != null && link != null) roleSyncService.syncLeftClan(guild, link.discordUserId());
             }

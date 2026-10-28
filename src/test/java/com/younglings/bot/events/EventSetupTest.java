@@ -291,6 +291,16 @@ class EventSetupTest {
     }
 
     @Test
+    void wholeSpanIsSkillOfTheWeeksOwnAndNeverSetFromTheSetup() {
+        DataObject answers = EventOptions.standard(new CompetitionTemplate(), NOW);
+        EventOptions.set(answers, "config.skillId", 9);
+        EventOptions.set(answers, "config.wholeSpan", true);
+        DataObject config = DataObject.fromJson(event(setup.create(G, ACTOR, answers)).config());
+        assertFalse(config.hasKey("wholeSpan"));
+        assertEquals(9, config.getInt("skillId"));
+    }
+
+    @Test
     void savedTemplatesHaveUniqueNamesCanBeRenamedAndDeleted() {
         long id = setup.createStandard(G, ACTOR, "custom", null, NOW);
         Blueprint first = setup.saveTemplateFromEvent(G, ACTOR, id, "Clan night", "");

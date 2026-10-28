@@ -18,6 +18,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -58,6 +59,8 @@ public class PluginXpTracker {
     private static final Duration PERIOD = Duration.ofMinutes(1);
     /** How long a Discord account's alias (or the lack of one) is kept before the hub is asked again. */
     static final Duration ALIAS_KEPT = Duration.ofMinutes(15);
+    /** After the hub couldn't be asked for an alias, how long no alias lookup is tried at all (one try per pass while it is down). */
+    static final Duration ALIAS_RETRY = Duration.ofMinutes(1);
     /** The hub takes at most this many players per gains call. */
     static final int MAX_PLAYERS_PER_CALL = 500;
 
@@ -74,11 +77,14 @@ public class PluginXpTracker {
     private final RuneClansHubClient hub;
     private final ScheduledExecutorService executor = BotScheduler.lane("plugin-xp-tracker");
     private final Map<Long, CachedAlias> aliases = new ConcurrentHashMap<>();
+    private volatile Instant aliasLookupsPausedUntil = Instant.MIN;
     private final Map<Long, NotCounted> notCounted = new ConcurrentHashMap<>();
     /** Auto competitions: the players this tracker counts (eventId → userIds), so {@link EventTracker} leaves them alone. */
     private final Map<Long, Set<Long>> runeSyncPlayers = new ConcurrentHashMap<>();
     /** Auto competitions: eventId → userId → the latest disagreement. */
     private final Map<Long, Map<Long, Disagreement>> disagreements = new ConcurrentHashMap<>();
+    /** One lock per competition, so {@link #pass} never runs twice at once for it (kept for the bot's lifetime: one small object per competition). */
+    private final Map<Long, Object> passing = new ConcurrentHashMap<>();
     private Clock clock = Clock.systemUTC();
     private volatile boolean tiles;
 
@@ -192,14 +198,38 @@ public class PluginXpTracker {
         }
     }
 
+    /** One {@link #pass}: how many players got new progress, and whether every player was asked of the hub (false when it couldn't be). */
+    public record Pass(int updated, boolean complete) {}
+
     /** Brings one competition up to date from the hub. Returns how many players got new progress. */
     public int feed(Event event) {
+        return pass(event).updated();
+    }
+
+    /**
+     * {@link #feed}, saying too whether the hub answered for everyone, so a closing pass can tell "nothing new" from "couldn't ask" (T-541).
+     * One pass at a time per competition: each reads what is already counted and adds the rest under a per-minute key, so two passes at once
+     * (this sweep and skill of the week's closing pass) would both add the same gain.
+     */
+    public Pass pass(Event event) {
+        Object lock = passing.computeIfAbsent(event.id(), k -> new Object());
+        synchronized (lock) {
+            return passLocked(event);
+        }
+    }
+
+    private Pass passLocked(Event event) {
         DataObject settings = DataObject.fromJson(event.config());
         boolean auto = CompetitionTemplate.countsAuto(settings);
         int skill = CompetitionTemplate.skillOf(settings);
         Integer skillId = skill == CompetitionTemplate.OVERALL ? null : skill;
         Instant now = clock.instant();
-        Instant started = repository.startedAt(event.id()).orElse(event.startsAt() == null ? now : event.startsAt());
+        // skill of the week (T-541): from the planned start to the planned end for everyone, so a late pass never counts past the end
+        // the hub's span is [from, to) and endsAt is the span's last second, so the end it is asked up to is the second after it
+        boolean wholeSpan = CompetitionTemplate.countsWholeSpan(settings) && event.startsAt() != null;
+        Instant end = wholeSpan && event.endsAt() != null ? event.endsAt().plusSeconds(1) : null;
+        Instant until = end != null && end.isBefore(now) ? end : now;
+        Instant started = wholeSpan ? event.startsAt() : repository.startedAt(event.id()).orElse(event.startsAt() == null ? now : event.startsAt());
         List<EventRepository.Progress> progress = repository.progress(event.id());
         Map<Long, CompetitionTracking.Counter> owners = auto ? CompetitionTracking.owners(progress) : Map.of();
 
@@ -208,32 +238,50 @@ public class PluginXpTracker {
         Set<Long> unconfirmed = new LinkedHashSet<>();
         // players by alias, grouped by when they started counting: one hub call per group (nearly always one)
         Map<Instant, Map<String, Participant>> groups = new LinkedHashMap<>();
+        // players whose alias the hub couldn't be asked for and none was ever kept: what the last pass said about them stands
+        Set<Long> unknown = new LinkedHashSet<>();
+        boolean complete = true;
         for (Participant p : repository.participants(event.id())) {
             if (p.waiting()) continue;
             if (owners.get(p.userId()) == CompetitionTracking.Counter.RUNEMETRICS) continue; // auto: RuneMetrics counted them first
-            Optional<String> alias = alias(p.userId(), now);
+            if (end != null && p.joinedAt() != null && !p.joinedAt().isBefore(end)) continue; // whole span: joined after it ended, so not in it
+            Optional<String> alias;
+            try {
+                alias = alias(p.userId(), now);
+            } catch (RuneClansHubClient.Unreachable e) {
+                // the hub is down: an expired alias still beats none, and the pass isn't complete either way
+                complete = false;
+                CachedAlias kept = aliases.get(p.userId());
+                if (kept == null) {
+                    unknown.add(p.userId());
+                    continue;
+                }
+                alias = kept.alias();
+            }
             if (alias.isEmpty()) {
                 missing.add(p.userId());
                 continue;
             }
-            groups.computeIfAbsent(CompetitionTracking.countsFrom(started, p.joinedAt()), k -> new LinkedHashMap<>()).put(alias.get(), p);
+            groups.computeIfAbsent(wholeSpan ? started : CompetitionTracking.countsFrom(started, p.joinedAt()), k -> new LinkedHashMap<>()).put(alias.get(), p);
         }
 
         Map<Long, Long> counted = new HashMap<>();
+        Set<String> keys = new HashSet<>();
         for (EventRepository.Progress p : progress) {
             if (p.source() == Source.IMPORT && p.objectiveKey().equals(CompetitionTemplate.OBJECTIVE_KEY)) counted.merge(p.userId(), p.amount(), Long::sum);
+            if (p.sourceKey() != null) keys.add(p.sourceKey());
         }
         int updated = 0;
         for (Map.Entry<Instant, Map<String, Participant>> group : groups.entrySet()) {
-            if (!group.getKey().isBefore(now)) continue; // hasn't started counting yet
+            if (!group.getKey().isBefore(until)) continue; // hasn't started counting yet
             List<String> all = new ArrayList<>(group.getValue().keySet());
             for (int i = 0; i < all.size(); i += MAX_PLAYERS_PER_CALL) {
                 List<String> part = all.subList(i, Math.min(all.size(), i + MAX_PLAYERS_PER_CALL));
-                RuneClansHubClient.Answer answer = hub.xpGains(event.guildId(), part, skillId, group.getKey(), now);
+                RuneClansHubClient.Answer answer = hub.xpGains(event.guildId(), part, skillId, group.getKey(), until);
                 if (answer == null || !answer.ok() || answer.json() == null) {
                     // the hub is down or its ledger is off: say nothing about who counts, try again next minute
                     if (answer != null && answer.status() != 404) log.warn("Competition {}: the hub answered {} for XP gains", event.id(), answer.status());
-                    return updated;
+                    return new Pass(updated, false);
                 }
                 Set<String> seen = new LinkedHashSet<>();
                 DataArray players = answer.json().optArray("players").orElse(DataArray.empty());
@@ -246,7 +294,13 @@ public class PluginXpTracker {
                         unconfirmed.add(p.userId());
                         continue;
                     }
-                    if (record(event, p, row.getLong("xp", 0), counted.getOrDefault(p.userId(), 0L), now)) updated++;
+                    long add = CompetitionTracking.toRecord(0, row.getLong("xp", 0), counted.getOrDefault(p.userId(), 0L));
+                    if (add > 0 && keys.contains(CompetitionTracking.pluginSourceKey(p.userId(), now))) {
+                        // another pass already counted this player this minute: the rest is added next minute, and this pass isn't complete
+                        complete = false;
+                        continue;
+                    }
+                    if (record(event, p, add, now)) updated++;
                 }
                 for (String alias : part) if (!seen.contains(alias)) missing.add(group.getValue().get(alias).userId());
             }
@@ -258,11 +312,19 @@ public class PluginXpTracker {
             owners.forEach((user, counter) -> {
                 if (counter == CompetitionTracking.Counter.RUNESYNC) mine.add(user);
             });
+            for (long user : unknown) if (runeSyncPlayers(event.id()).contains(user)) mine.add(user);
             runeSyncPlayers.put(event.id(), Set.copyOf(mine));
         } else {
+            NotCounted before = notCounted.get(event.id());
+            if (before != null) {
+                for (long user : unknown) {
+                    if (before.userIds().contains(user)) missing.add(user);
+                    if (before.unconfirmed().contains(user)) unconfirmed.add(user);
+                }
+            }
             notCounted.put(event.id(), new NotCounted(Set.copyOf(missing), Set.copyOf(unconfirmed), now));
         }
-        return updated;
+        return new Pass(updated, complete);
     }
 
     /** One XP gains read: the players' server (the hub counts a player only where their grant covers that server) and where counting starts. */
@@ -458,8 +520,7 @@ public class PluginXpTracker {
         return level.equals("public_data_corroborated") || level.equals("jagex_signed");
     }
 
-    private boolean record(Event event, Participant player, long gain, long alreadyCounted, Instant now) {
-        long add = CompetitionTracking.toRecord(0, gain, alreadyCounted);
+    private boolean record(Event event, Participant player, long add, Instant now) {
         if (add == 0) return false;
         try {
             service.recordProgress(event.guildId(), event.id(), CompetitionTemplate.OBJECTIVE_KEY, player.userId(), add, Source.IMPORT,
@@ -472,11 +533,22 @@ public class PluginXpTracker {
         return true;
     }
 
-    /** The player's alias for this bot, asked of the hub at most every {@link #ALIAS_KEPT}. */
+    /**
+     * The player's alias for this bot, asked of the hub at most every {@link #ALIAS_KEPT}. A failed lookup throws {@link RuneClansHubClient.Unreachable}
+     * and keeps the expired alias, and for {@link #ALIAS_RETRY} after it no lookup is tried at all, so a hub that is down or busy is asked once
+     * per pass, not once per player.
+     */
     private Optional<String> alias(long userId, Instant now) {
         CachedAlias cached = aliases.get(userId);
         if (cached != null && cached.until().isAfter(now)) return cached.alias();
-        Optional<String> alias = hub.aliasOf(userId);
+        if (now.isBefore(aliasLookupsPausedUntil)) throw new RuneClansHubClient.Unreachable("The hub couldn't look up links a moment ago");
+        Optional<String> alias;
+        try {
+            alias = hub.aliasOf(userId);
+        } catch (RuneClansHubClient.Unreachable e) {
+            aliasLookupsPausedUntil = now.plus(ALIAS_RETRY);
+            throw e;
+        }
         aliases.put(userId, new CachedAlias(alias, now.plus(ALIAS_KEPT)));
         if (aliases.size() > 50_000) aliases.entrySet().removeIf(e -> !e.getValue().until().isAfter(now));
         return alias;
