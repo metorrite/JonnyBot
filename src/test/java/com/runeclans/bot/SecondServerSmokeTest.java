@@ -6,6 +6,7 @@ import com.runeclans.bot.configure.GuildSettingsRepository;
 import com.runeclans.bot.configure.GuildSettingsService;
 import com.runeclans.bot.permission.AdminRoleFilter;
 import com.runeclans.bot.permission.DashboardAccess;
+import com.runeclans.bot.permission.OwnerOverride;
 import com.runeclans.bot.permission.PermissionGroupService;
 import com.runeclans.bot.retention.GuildRetentionRepository;
 import com.runeclans.bot.retention.GuildRetentionService;
@@ -125,7 +126,7 @@ class SecondServerSmokeTest {
     void theDashboardOpensForWhoeverRunsTheNewServerAndRefusesEveryoneElse() {
         AdminRoleFilter adminFilter = mock(AdminRoleFilter.class);
         PermissionGroupService groups = mock(PermissionGroupService.class);
-        DashboardAccess access = new DashboardAccess(adminFilter, groups, config);
+        DashboardAccess access = new DashboardAccess(adminFilter, groups, config, new OwnerOverride());
         Guild guild = mock(Guild.class);
         when(guild.getIdLong()).thenReturn(NEW);
 

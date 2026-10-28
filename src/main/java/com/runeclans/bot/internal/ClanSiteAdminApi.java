@@ -705,13 +705,23 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
         return c.botless() ? answer.put("botPresent", false).put("botless", true) : answer;
     }
 
-    /** The asker's own role on the site and what it lets them do, so the editor shows only what will work. */
+    /**
+     * The asker's own role on the site and what it lets them do, so the editor shows only what will work. {@code asRuneClanAdmin}: they own it
+     * only as a RuneClan Admin, so the editor and site admin say so and their changes are marked in the site's history (T-445).
+     */
     private DataObject youJson(SiteCaller c) {
         SiteRoles.Role role = c.role(siteRoles);
         SiteRoles.Settings s = siteRoles.settings(c.guildId());
+        SiteRoles.Facts facts = c.facts() != null ? c.facts() : c.member() != null ? siteRoles.facts(c.guild(), c.userId(), c.member()) : null;
+        boolean overall = facts != null ? facts.overallAdmin() : siteRoles.overallAdmin(c.jda(), c.userId());
         return DataObject.empty().put("role", role.key()).put("canPublish", SiteRoles.allows(role, SiteRoles.Action.PUBLISH, s))
                 .put("canChangeSettings", SiteRoles.allows(role, SiteRoles.Action.SETTINGS, s)).put("isOwner", role == SiteRoles.Role.OWNER)
-                .put("overallAdmin", c.facts() != null ? c.facts().overallAdmin() : siteRoles.overallAdmin(c.jda(), c.userId()));
+                .put("overallAdmin", overall).put("asRuneClanAdmin", SiteRoles.onlyAsOverallAdmin(facts, s));
+    }
+
+    /** The site's role settings, for naming a change in its history ({@link TicketAdminApi#siteAuditName}). */
+    SiteRoles.Settings siteSettings(long guildId) {
+        return siteRoles.settings(guildId);
     }
 
     private static DataArray idsJson(List<Long> ids) {
