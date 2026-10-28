@@ -1118,7 +1118,8 @@
                       "settings": {
                         "title": "Skill of the week",
                         "limit": 5,
-                        "showLast": true
+                        "showLast": true,
+                        "showVote": true
                       },
                       "unmet": "hide"
                     }

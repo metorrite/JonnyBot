@@ -89,6 +89,7 @@ public class SkillWeekAdminApi implements AdminRouteExtension {
         SkillWeekRepository.Options options = new SkillWeekRepository.Options(mode.equals("vote") ? SkillWeekRepository.Mode.VOTE : SkillWeekRepository.Mode.ROTA,
                 channelOf(body), body.getBoolean("autoEnrol", false));
         List<String> problems = SkillWeekRules.rotaProblems(rota, enabled);
+        if (enabled && options.mode() == SkillWeekRepository.Mode.VOTE && rota.size() < 2) problems.add("A vote needs at least two skills to choose from.");
         if (enabled && !weeks.available()) problems.add("Skill of the week counts XP from RuneSync, through the RuneClans hub, and this bot isn't connected to it.");
         if (!problems.isEmpty()) throw new ApiError(400, "Skill of the week can't be saved.", problems);
         repository.save(guildId, enabled, rota, options, actorId);

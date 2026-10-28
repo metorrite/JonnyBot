@@ -54,4 +54,16 @@ class SkillWeekAdminApiTest {
         verify(repository).save(GUILD, false, List.of(), com.runeclans.bot.events.SkillWeekRepository.Options.OFF, ADMIN);
         verify(service, never()).open(anyLong(), any());
     }
+    @Test
+    void aVoteNeedsTwoSkillsWhenSwitchedOn() {
+        when(service.available()).thenReturn(true);
+        TicketAdminApi.ApiError one = assertThrows(TicketAdminApi.ApiError.class, () -> api.save(GUILD, ADMIN, body(true, 9).put("mode", "vote")));
+        assertEquals(400, one.status);
+        assertThrows(TicketAdminApi.ApiError.class, () -> api.save(GUILD, ADMIN, body(true, 9).put("mode", "pick")));
+        verify(repository, never()).save(anyLong(), anyBoolean(), any(), any(), anyLong());
+        when(service.view(eq(GUILD), Mockito.anyInt())).thenReturn(DataObject.empty());
+        api.save(GUILD, ADMIN, body(true, 9, 15).put("mode", "vote"));
+        verify(repository).save(GUILD, true, List.of(9, 15),
+                new com.runeclans.bot.events.SkillWeekRepository.Options(com.runeclans.bot.events.SkillWeekRepository.Mode.VOTE, null, false), ADMIN);
+    }
 }
