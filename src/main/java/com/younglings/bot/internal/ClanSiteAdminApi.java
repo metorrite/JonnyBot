@@ -45,7 +45,8 @@ import com.younglings.bot.config.BotBrand;
  *   {@link ClanSiteLayoutRules}), {@code POST clan-site/layout/publish} (the draft becomes the public layout and the site is published), and
  *   {@code POST clan-site/delete} {@code {confirm}} (the whole website, after typing its address)</li>
  *   <li>builder v3 (T-363): the layout routes also take layout v2 (checked by {@code ClanSiteLayoutRulesV2} with this server's plan limits);
- *   {@code POST clan-site/layout/publish} takes an optional {@code {label}} and records a version; {@code GET clan-site/layout/versions},
+ *   {@code POST clan-site/layout/publish} takes an optional {@code {label, baseRev}} and records a version (409 when the draft moved past
+ *   {@code baseRev}); {@code GET clan-site/layout/versions},
  *   {@code GET clan-site/layout/versions/{id}} (with its layout) and {@code POST clan-site/layout/versions/{id}/restore} {@code {baseRev?}}
  *   (copies it into the draft; never publishes)</li>
  *   <li>connections (N7): {@code GET|PUT clan-site/connections} and {@code POST clan-site/connections/connect|disconnect}, the site
@@ -309,18 +310,24 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
 
     DataObject publish(SiteCaller c, boolean publish) {
         ClanSite current = sites.of(c.guildId());
-        if (publish) {
-            requireBeta(c);
-            List<String> problems = new ArrayList<>();
-            if (!current.enabled()) problems.add("Switch the website on first.");
-            String profile = profileProblem(c.guildId(), profiles.profileOf(c.guildId()));
-            if (profile != null) problems.add(profile);
-            if (current.takedownReason() != null && !current.takedownReason().isBlank()) problems.add("This website was taken down by " + BotBrand.NAME + "'s owner: " + current.takedownReason());
-            if (!problems.isEmpty()) throw new ApiError(400, Text.of(c.guildId(), "dashboard.the_website_can_t_be_published"), problems);
-        }
+        if (publish) requirePublishable(c, current);
+        savePublished(c, current, publish);
+        return get(c);
+    }
+
+    private void savePublished(SiteCaller c, ClanSite current, boolean publish) {
         repository.save(new ClanSite(current.guildId(), current.enabled(), publish, current.template(), current.theme(), current.pages(), c.userId(),
                 Instant.now(), publish ? Instant.now() : current.publishedAt(), current.takedownReason()));
-        return get(c);
+    }
+
+    private void requirePublishable(SiteCaller c, ClanSite current) {
+        requireBeta(c);
+        List<String> problems = new ArrayList<>();
+        if (!current.enabled()) problems.add("Switch the website on first.");
+        String profile = profileProblem(c.guildId(), profiles.profileOf(c.guildId()));
+        if (profile != null) problems.add(profile);
+        if (current.takedownReason() != null && !current.takedownReason().isBlank()) problems.add("This website was taken down by " + BotBrand.NAME + "'s owner: " + current.takedownReason());
+        if (!problems.isEmpty()) throw new ApiError(400, Text.of(c.guildId(), "dashboard.the_website_can_t_be_published"), problems);
     }
 
     /** The owner takes a site down (with a reason the clan sees) or lets it be published again ({@code reason} null). */
@@ -387,7 +394,8 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
 
     /**
      * Publishes the draft: the same checks as v1's publish (switched on, profile can carry a site, not taken down), then the copy, which is
-     * also recorded as a version with the optional {@code label} (up to {@link ClanSiteLayoutRepository#MAX_VERSION_LABEL} characters).
+     * also recorded as a version with the optional {@code label} (up to {@link ClanSiteLayoutRepository#MAX_VERSION_LABEL} characters). With
+     * {@code baseRev} (the editor's draft revision) it is refused with 409 when another save landed since, checked in the same update as the copy.
      */
     DataObject publishLayout(SiteCaller c, DataObject body) {
         if (layouts.byGuild(c.guildId()).isEmpty()) {
@@ -398,8 +406,13 @@ public class ClanSiteAdminApi implements AdminRouteExtension {
             throw new ApiError(400, Text.of(c.guildId(), "dashboard.the_website_can_t_be_published"),
                     List.of("Keep the version name to " + ClanSiteLayoutRepository.MAX_VERSION_LABEL + " characters."));
         }
-        publish(c, true);
-        layouts.publishDraft(c.guildId(), c.userId(), label);
+        requirePublishable(c, sites.of(c.guildId()));
+        if (layouts.publishDraft(c.guildId(), c.userId(), label, Math.max(0, body.getInt("baseRev", 0))) < 0) {
+            throw new ApiError(409, Text.of(c.guildId(), "dashboard.the_website_can_t_be_published"),
+                    List.of("Someone saved this site from another tab or window. Reload to see the newest version."));
+        }
+        // checked above, before the copy: only the save is left, so nothing after the copy can refuse a publish that already went live
+        savePublished(c, sites.of(c.guildId()), true);
         return layout(c);
     }
 
