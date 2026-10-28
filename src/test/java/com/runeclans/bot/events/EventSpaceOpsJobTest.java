@@ -17,7 +17,28 @@ import static org.mockito.Mockito.mock;
 class EventSpaceOpsJobTest {
     private static final long EVENT = 9;
 
-    private final JobRepository jobs = JobRepository.inMemory(Clock.systemUTC());
+    /** A clock the test can move forward, shared by both "processes". */
+    private static final class MovableClock extends Clock {
+        private volatile java.time.Instant now = java.time.Instant.now();
+
+        @Override
+        public java.time.ZoneId getZone() {
+            return java.time.ZoneOffset.UTC;
+        }
+
+        @Override
+        public Clock withZone(java.time.ZoneId zone) {
+            return this;
+        }
+
+        @Override
+        public java.time.Instant instant() {
+            return now;
+        }
+    }
+
+    private final MovableClock clock = new MovableClock();
+    private final JobRepository jobs = JobRepository.inMemory(clock);
     private final EventSpaceOps one = ops();
     private final EventSpaceOps two = ops();
 
@@ -72,5 +93,44 @@ class EventSpaceOpsJobTest {
         for (int i = 0; i < 100 && (two.job(EVENT) == null || two.job(EVENT).running()); i++) Thread.sleep(20);
         assertEquals("failed", two.job(EVENT).state());
         assertEquals("Discord said no.", two.job(EVENT).message());
+    }
+
+    @Test
+    void aJobThatWentQuietAndWasTakenOverCannotOverwriteTheNewOne() throws Exception {
+        CountDownLatch release = new CountDownLatch(1);
+        CountDownLatch oldDone = new CountDownLatch(1);
+        EventSpaceOps.Job old = one.start(EVENT, "setup", job -> {
+            try {
+                release.await(5, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            job.step("A late step.");
+            job.finish("Late finish.");
+            oldDone.countDown();
+        });
+        clock.now = clock.now.plus(JobRepository.STALE).plusSeconds(1); // the old job went silent
+        CountDownLatch hold = new CountDownLatch(1);
+        CountDownLatch said = new CountDownLatch(1);
+        two.start(EVENT, "removal", job -> {
+            job.say("Removing #general…");
+            said.countDown();
+            try {
+                hold.await(5, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            job.finish("Removed.");
+        });
+        assertTrue(said.await(5, TimeUnit.SECONDS));
+        release.countDown();
+        assertTrue(oldDone.await(5, TimeUnit.SECONDS));
+
+        assertTrue(old.superseded());
+        EventSpaceOps.Job seen = one.job(EVENT);
+        assertEquals("removal", seen.kind());
+        assertEquals("running", seen.state(), "the old job's finish didn't free the slot");
+        assertEquals("Removing #general…", seen.message());
+        hold.countDown();
     }
 }

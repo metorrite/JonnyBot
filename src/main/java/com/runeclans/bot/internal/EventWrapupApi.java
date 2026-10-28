@@ -113,7 +113,12 @@ public class EventWrapupApi implements AdminRouteExtension {
     }
 
     private DataObject file(long id) {
-        EventWrapupOps.Export export = wrapupOps.export(id);
+        EventWrapupOps.Export export;
+        try {
+            export = wrapupOps.export(id);
+        } catch (IllegalStateException e) {
+            throw new ApiError(503, "The bot could not reach its database just now. Try again in a moment.");
+        }
         if (export == null) throw new ApiError(404, Text.en("dashboard.there_is_no_export_waiting_make"));
         return DataObject.empty().put("name", export.name()).put("size", export.data().length).put("base64", Base64.getEncoder().encodeToString(export.data()));
     }

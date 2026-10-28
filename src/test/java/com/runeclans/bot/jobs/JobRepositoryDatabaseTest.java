@@ -53,8 +53,8 @@ class JobRepositoryDatabaseTest {
 
     @Test
     void progressSavedByOneProcessIsReadByAnother() {
-        assertTrue(a.claim(JobRepository.EVENT, KEY, "setup").won());
-        a.save(JobRepository.EVENT, KEY, new JobRepository.Row("setup", "running", 2, 5, 0, "Making the channel #general…", T0, null, T0));
+        String run = a.claim(JobRepository.EVENT, KEY, "setup").row().runId();
+        assertTrue(a.save(JobRepository.EVENT, KEY, new JobRepository.Row(run, "setup", "running", 2, 5, 0, "Making the channel #general…", T0, null, T0)));
         JobRepository.Row seen = b.latest(JobRepository.EVENT, KEY).orElseThrow();
         assertEquals("setup", seen.kind());
         assertEquals(2, seen.done());
@@ -73,8 +73,8 @@ class JobRepositoryDatabaseTest {
 
     @Test
     void aFinishedJobFreesTheSlot() {
-        assertTrue(a.claim(JobRepository.EVENT, KEY, "setup").won());
-        a.save(JobRepository.EVENT, KEY, new JobRepository.Row("setup", "done", 5, 5, 0, "Done.", T0, T0, T0));
+        String run = a.claim(JobRepository.EVENT, KEY, "setup").row().runId();
+        assertTrue(a.saveFinal(JobRepository.EVENT, KEY, new JobRepository.Row(run, "setup", "done", 5, 5, 0, "Done.", T0, T0, T0)));
         assertTrue(b.claim(JobRepository.EVENT, KEY, "removal").won());
         assertEquals("removal", a.latest(JobRepository.EVENT, KEY).orElseThrow().kind());
     }
@@ -91,12 +91,33 @@ class JobRepositoryDatabaseTest {
 
     @Test
     void theHeartbeatKeepsTheSlotHeld() {
-        assertTrue(a.claim(JobRepository.EVENT, KEY, "export").won());
+        String run = a.claim(JobRepository.EVENT, KEY, "export").row().runId();
         a.clock = Clock.fixed(T0.plus(JobRepository.HEARTBEAT), ZoneOffset.UTC);
-        a.touch(JobRepository.EVENT, KEY);
+        a.touch(JobRepository.EVENT, KEY, run);
         b.clock = Clock.fixed(T0.plus(JobRepository.STALE).plusSeconds(1), ZoneOffset.UTC);
         assertFalse(b.claim(JobRepository.EVENT, KEY, "setup").won(), "heard from " + JobRepository.HEARTBEAT + " in: still alive");
         assertEquals(T0.plus(JobRepository.HEARTBEAT).truncatedTo(ChronoUnit.MILLIS), b.latest(JobRepository.EVENT, KEY).orElseThrow().updatedAt().truncatedTo(ChronoUnit.MILLIS));
+    }
+
+    @Test
+    void aSupersededJobsLateProgressFinishAndHeartbeatChangeNothing() {
+        String old = a.claim(JobRepository.EVENT, KEY, "setup").row().runId();
+        Instant later = T0.plus(JobRepository.STALE).plusSeconds(1);
+        b.clock = Clock.fixed(later, ZoneOffset.UTC);
+        String next = b.claim(JobRepository.EVENT, KEY, "removal").row().runId();
+
+        a.clock = Clock.fixed(later.plusSeconds(5), ZoneOffset.UTC);
+        assertFalse(a.save(JobRepository.EVENT, KEY, new JobRepository.Row(old, "setup", "running", 3, 5, 0, "Late step", T0, null, T0)));
+        assertFalse(a.saveFinal(JobRepository.EVENT, KEY, new JobRepository.Row(old, "setup", "done", 5, 5, 0, "Late finish", T0, later, T0)));
+        a.touch(JobRepository.EVENT, KEY, old);
+
+        JobRepository.Row stored = b.latest(JobRepository.EVENT, KEY).orElseThrow();
+        assertEquals(next, stored.runId());
+        assertEquals("removal", stored.kind());
+        assertEquals("running", stored.state());
+        assertEquals("Starting…", stored.message());
+        assertEquals(later.truncatedTo(ChronoUnit.MILLIS), stored.updatedAt().truncatedTo(ChronoUnit.MILLIS));
+        assertFalse(a.claim(JobRepository.EVENT, KEY, "setup").won(), "the new job still holds the slot");
     }
 
     @Test

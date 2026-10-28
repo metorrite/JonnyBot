@@ -41,7 +41,7 @@ class JobRepositoryTest {
 
     @Test
     void aFinishedRowNeverHoldsItsSlot() {
-        JobRepository.Row done = new JobRepository.Row("setup", "done", 3, 3, 0, "Done.", T0, T0, T0);
+        JobRepository.Row done = new JobRepository.Row("run-1", "setup", "done", 3, 3, 0, "Done.", T0, T0, T0);
         assertFalse(done.live(T0));
         assertSame(done, done.seenAt(T0.plus(Duration.ofDays(1))));
     }
@@ -67,12 +67,33 @@ class JobRepositoryTest {
     @Test
     void theHeartbeatKeepsALongStepLive() {
         JobRepository jobs = at(T0);
-        assertTrue(jobs.claim(JobRepository.EVENT, EVENT, "export").won());
+        JobRepository.Claim claim = jobs.claim(JobRepository.EVENT, EVENT, "export");
+        assertTrue(claim.won());
         Instant later = T0.plus(JobRepository.STALE).minusSeconds(5);
         jobs.clock = Clock.fixed(later, ZoneOffset.UTC);
-        jobs.touch(JobRepository.EVENT, EVENT); // what keepAlive runs every HEARTBEAT
+        jobs.touch(JobRepository.EVENT, EVENT, claim.row().runId()); // what keepAlive runs every HEARTBEAT
         jobs.clock = Clock.fixed(later.plus(JobRepository.STALE).minusSeconds(1), ZoneOffset.UTC);
         assertFalse(jobs.claim(JobRepository.EVENT, EVENT, "setup").won());
+    }
+
+    @Test
+    void aJobThatLostItsSlotCanNoLongerWriteOrKeepItAlive() {
+        JobRepository jobs = at(T0);
+        JobRepository.Row old = jobs.claim(JobRepository.EVENT, EVENT, "setup").row();
+        Instant later = T0.plus(JobRepository.STALE).plusSeconds(1);
+        jobs.clock = Clock.fixed(later, ZoneOffset.UTC);
+        JobRepository.Row next = jobs.claim(JobRepository.EVENT, EVENT, "removal").row();
+
+        JobRepository.Row lateFinish = new JobRepository.Row(old.runId(), "setup", "done", 4, 4, 0, "All set up.", T0, later, later);
+        assertFalse(jobs.save(JobRepository.EVENT, EVENT, lateFinish), "the old job learns it was superseded");
+        assertFalse(jobs.saveFinal(JobRepository.EVENT, EVENT, lateFinish));
+        jobs.clock = Clock.fixed(later.plus(JobRepository.STALE).minusSeconds(1), ZoneOffset.UTC);
+        jobs.touch(JobRepository.EVENT, EVENT, old.runId());
+        JobRepository.Row stored = jobs.latest(JobRepository.EVENT, EVENT).orElseThrow();
+        assertEquals(next.runId(), stored.runId());
+        assertEquals("removal", stored.kind());
+        assertEquals("running", stored.state(), "the old job's finish didn't free the new job's slot");
+        assertEquals(later, stored.updatedAt(), "the old job's heartbeat didn't refresh the new job");
     }
 
     @Test

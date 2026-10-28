@@ -75,22 +75,28 @@ public class EventSpaceOps {
         private volatile int total;
         private volatile String message = "Starting…";
         private volatile Instant finishedAt;
-        /** Saves the job after each change; does nothing for a read-back copy. */
-        private final java.util.function.Consumer<JobRepository.Row> saver;
+        /** The run this job's writes name, and where they go; null for a read-back copy, which saves nothing. */
+        private final String runId;
+        private final JobRepository store;
+        private final long eventId;
+        /** Set once another job has taken the event's slot over: this one stops writing (T-698). */
+        private volatile boolean superseded;
 
         Job(String kind) {
-            this(kind, Instant.now(), row -> {});
+            this(kind, Instant.now(), null, null, 0);
         }
 
-        Job(String kind, Instant startedAt, java.util.function.Consumer<JobRepository.Row> saver) {
+        Job(String kind, Instant startedAt, String runId, JobRepository store, long eventId) {
             this.kind = kind;
             this.startedAt = startedAt;
-            this.saver = saver;
+            this.runId = runId;
+            this.store = store;
+            this.eventId = eventId;
         }
 
         /** A read-only copy of a stored job. */
         static Job of(JobRepository.Row row) {
-            Job job = new Job(row.kind(), row.startedAt(), r -> {});
+            Job job = new Job(row.kind(), row.startedAt(), null, null, 0);
             job.state = row.state();
             job.done = row.done();
             job.total = row.total();
@@ -131,12 +137,28 @@ public class EventSpaceOps {
             return state.equals("running");
         }
 
+        /** Whether another job took the event's slot over while this one ran (it went quiet for too long). */
+        public boolean superseded() {
+            return superseded;
+        }
+
         JobRepository.Row row() {
-            return new JobRepository.Row(kind, state, done, total, 0, message, startedAt, finishedAt, Instant.now());
+            return new JobRepository.Row(runId, kind, state, done, total, 0, message, startedAt, finishedAt, Instant.now());
         }
 
         private void saved() {
-            saver.accept(row());
+            if (store == null || superseded) return;
+            if (!store.save(JobRepository.EVENT, eventId, row())) lost();
+        }
+
+        private void savedFinal() {
+            if (store == null || superseded) return;
+            if (!store.saveFinal(JobRepository.EVENT, eventId, row())) lost();
+        }
+
+        private void lost() {
+            superseded = true;
+            log.warn("The {} job for event {} went quiet and another job took over; it stops reporting", kind, eventId);
         }
 
         void total(int count) {
@@ -159,14 +181,14 @@ public class EventSpaceOps {
             message = text;
             state = "done";
             finishedAt = Instant.now();
-            saved();
+            savedFinal();
         }
 
         void fail(String text) {
             message = text;
             state = "failed";
             finishedAt = Instant.now();
-            saved();
+            savedFinal();
         }
     }
 
@@ -220,7 +242,11 @@ public class EventSpaceOps {
 
     /** The latest background job of the event, running or finished, or null. */
     public Job job(long eventId) {
-        return jobs.latest(JobRepository.EVENT, eventId).map(row -> Job.of(row.seenAt(jobs.now()))).orElse(null);
+        try {
+            return jobs.latest(JobRepository.EVENT, eventId).map(row -> Job.of(row.seenAt(jobs.now()))).orElse(null);
+        } catch (IllegalStateException e) {
+            throw new EventProblem(503, "The bot could not reach its database just now. Try again in a moment.");
+        }
     }
 
     private ReentrantLock lockOf(long eventId) {
@@ -258,22 +284,30 @@ public class EventSpaceOps {
             throw new EventProblem(503, "The bot could not reach its database just now. Try again in a moment.");
         }
         if (!claim.won()) throw new EventProblem(409, Text.en("events.problem.this_event_roles_and_channels_are", claim.row().kind()));
-        Job job = new Job(kind, claim.row().startedAt(), row -> jobs.save(JobRepository.EVENT, eventId, row));
-        ScheduledFuture<?> alive = jobs.keepAlive(JobRepository.EVENT, eventId);
-        executor.execute(() -> {
-            ReentrantLock lock = lockOf(eventId);
-            lock.lock();
-            try {
-                work.accept(job);
-            } catch (RuntimeException e) {
-                log.error("The roles and channels job for event {} failed", eventId, e);
-                job.fail(sentence(e));
-            } finally {
-                alive.cancel(false);
-                lock.unlock();
-            }
-        });
+        Job job = new Job(kind, claim.row().startedAt(), claim.row().runId(), jobs, eventId);
+        ScheduledFuture<?> alive = jobs.keepAlive(JobRepository.EVENT, eventId, claim.row().runId());
+        try {
+            executor.execute(() -> run(eventId, job, work, alive));
+        } catch (RuntimeException e) {
+            alive.cancel(false);
+            job.fail("The bot is busy. Try again in a moment.");
+            throw e;
+        }
         return job;
+    }
+
+    private void run(long eventId, Job job, java.util.function.Consumer<Job> work, ScheduledFuture<?> alive) {
+        ReentrantLock lock = lockOf(eventId);
+        lock.lock();
+        try {
+            work.accept(job);
+        } catch (RuntimeException e) {
+            log.error("The roles and channels job for event {} failed", eventId, e);
+            job.fail(sentence(e));
+        } finally {
+            alive.cancel(false);
+            lock.unlock();
+        }
     }
 
     private static String sentence(RuntimeException e) {
@@ -694,7 +728,12 @@ public class EventSpaceOps {
         }
     }
 
+    /** Whether a job holds the event; when the database can't say, assume one does (the sweep then leaves the event alone this round). */
     private boolean jobRunning(long eventId) {
-        return jobs.latest(JobRepository.EVENT, eventId).map(row -> row.live(jobs.now())).orElse(false);
+        try {
+            return jobs.latest(JobRepository.EVENT, eventId).map(row -> row.live(jobs.now())).orElse(false);
+        } catch (IllegalStateException e) {
+            return true;
+        }
     }
 }

@@ -132,7 +132,10 @@ public class RoleSyncBackfill {
 
     // ---------- the button ----------
 
-    /** Progress of the last run in this server, or null if none ran. A run whose process stopped part way reads as not running. */
+    /**
+     * Progress of the last run in this server, or null if none ran. A run whose process stopped part way reads as not running. Throws
+     * {@link IllegalStateException} when the database can't be reached, so a caller never reads that as "nothing running".
+     */
     public Progress progress(long guildId) {
         return jobs.latest(JobRepository.ROLE_FIX, guildId).map(row -> new Progress(row.total(), row.done(), row.failed(), row.live(jobs.now()))).orElse(null);
     }
@@ -144,7 +147,12 @@ public class RoleSyncBackfill {
     public String start(Guild guild, Set<Long> selected, long actorId) {
         if (selected.isEmpty()) return "Select at least one person.";
         if (selected.size() > MAX_PER_RUN) return "Select at most " + MAX_PER_RUN + " people at a time.";
-        Progress current = progress(guild.getIdLong());
+        Progress current;
+        try {
+            current = progress(guild.getIdLong());
+        } catch (IllegalStateException e) {
+            return "The bot could not reach its database just now. Try again in a moment.";
+        }
         if (current != null && current.running()) return "A fix is already running in this server.";
         Plan plan = plan(guild);
         if (plan.problem() != null) return plan.problem();
@@ -165,15 +173,18 @@ public class RoleSyncBackfill {
         return null;
     }
 
-    private void save(long guildId, JobRepository.Row started, int total, int done, int failed, boolean running) {
-        jobs.save(JobRepository.ROLE_FIX, guildId, new JobRepository.Row(started.kind(), running ? "running" : "done", done, total, failed, "", started.startedAt(),
-                running ? null : jobs.now(), jobs.now()));
+    /** Saves the run's progress; false once another run has taken the server's slot over (this one went quiet too long), so it must stop. */
+    private boolean save(long guildId, JobRepository.Row started, int total, int done, int failed, boolean running) {
+        JobRepository.Row row = new JobRepository.Row(started.runId(), started.kind(), running ? "running" : "done", done, total, failed, "", started.startedAt(),
+                running ? null : jobs.now(), jobs.now());
+        return running ? jobs.save(JobRepository.ROLE_FIX, guildId, row) : jobs.saveFinal(JobRepository.ROLE_FIX, guildId, row);
     }
 
     void run(Guild guild, List<Entry> todo, long actorId, JobRepository.Row started) {
         int done = 0;
         int failed = 0;
-        ScheduledFuture<?> alive = jobs.keepAlive(JobRepository.ROLE_FIX, guild.getIdLong());
+        ScheduledFuture<?> alive = jobs.keepAlive(JobRepository.ROLE_FIX, guild.getIdLong(), started.runId());
+        boolean mine = true;
         try {
             for (Entry entry : todo) {
                 try {
@@ -190,14 +201,18 @@ public class RoleSyncBackfill {
                     log.debug("Role fix: could not change user {}: {}", entry.userId(), e.getMessage());
                     failed++;
                 }
-                save(guild.getIdLong(), started, todo.size(), done, failed, true);
+                mine = save(guild.getIdLong(), started, todo.size(), done, failed, true);
+                if (!mine) {
+                    log.warn("Role fix in guild {}: another run took over after this one went quiet; stopping", guild.getIdLong());
+                    break;
+                }
                 Thread.sleep(pauseMillis);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } finally {
             alive.cancel(false);
-            save(guild.getIdLong(), started, todo.size(), done, failed, false);
+            if (mine) save(guild.getIdLong(), started, todo.size(), done, failed, false);
         }
     }
 }

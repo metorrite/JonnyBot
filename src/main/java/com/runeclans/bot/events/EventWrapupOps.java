@@ -529,10 +529,9 @@ public class EventWrapupOps {
         requireOver(event);
         return ops.start(event.id(), "export", job -> {
             Export made = buildExport(guild, event, job);
-            exports.save(event.id(), made, made.madeAt().plus(EXPORT_KEEP_MINUTES, java.time.temporal.ChronoUnit.MINUTES));
+            // kept for the hour in Postgres; the repository's expiry lane deletes it after that, restarts or not
+            exports.save(event.guildId(), event.id(), made, made.madeAt().plus(EXPORT_KEEP_MINUTES, java.time.temporal.ChronoUnit.MINUTES));
             wrapup.exported(event.id());
-            // the next save drops it too; this frees the bytes on time when no other export follows
-            executor.schedule(() -> exports.deleteExpired(Instant.now()), EXPORT_KEEP_MINUTES + 1, TimeUnit.MINUTES);
             job.finish("The export is ready: " + made.channels() + " channels, " + made.messages() + " messages, " + made.images() + " images kept" + (made.links() > 0 ? " (" + made.links() + " more stay as links)" : "")
                     + ". Download it within the hour.");
         });

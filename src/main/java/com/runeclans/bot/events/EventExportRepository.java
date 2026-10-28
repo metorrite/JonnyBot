@@ -1,6 +1,7 @@
 package com.runeclans.bot.events;
 
 import com.runeclans.bot.database.SchemaBootstrapper;
+import com.runeclans.bot.util.BotScheduler;
 import io.github.freya022.botcommands.api.core.db.ConnectionSupplier;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
 import org.jspecify.annotations.Nullable;
@@ -12,10 +13,13 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 /**
  * The finished wrap-up export of each event, kept until it expires (T-698, docs SCALING-STATE M6). It used to live in the memory of the process
@@ -25,10 +29,16 @@ import java.util.concurrent.ConcurrentHashMap;
 public class EventExportRepository {
     private static final Logger log = LoggerFactory.getLogger(EventExportRepository.class);
 
+    /** The largest export kept (a zip is already compressed); a bigger one fails the export job with a clear message. */
+    public static final int MAX_BYTES = 64 * 1024 * 1024;
+    /** How often expired exports are deleted (also once soon after start-up), so their bytes never outlive the hour even across restarts. */
+    static final Duration SWEEP_EVERY = Duration.ofMinutes(10);
+
     /** What the wrap-up page shows about an export, without its bytes. */
     public record Summary(String name, long size, Instant madeAt, int channels, int messages, int images, int links) {}
 
     private final @Nullable ConnectionSupplier connectionSupplier;
+    private final ScheduledExecutorService expiry = BotScheduler.lane("event-export-expiry");
 
     /** {@code connectionSupplier} is null only for {@link #inMemory}. */
     public EventExportRepository(@Nullable ConnectionSupplier connectionSupplier) {
@@ -39,6 +49,7 @@ public class EventExportRepository {
                 """
                 CREATE TABLE IF NOT EXISTS younglings.event_export_file (
                     event_id BIGINT PRIMARY KEY,
+                    guild_id BIGINT NOT NULL,
                     name TEXT NOT NULL,
                     data BYTEA NOT NULL,
                     made_at TIMESTAMPTZ NOT NULL,
@@ -48,8 +59,21 @@ public class EventExportRepository {
                     links INT NOT NULL,
                     expires_at TIMESTAMPTZ NOT NULL
                 );
-                """
+                """,
+                // the zip is compressed already: store it out of line without trying to compress it again
+                "ALTER TABLE younglings.event_export_file ALTER COLUMN data SET STORAGE EXTERNAL;"
         ));
+        long every = SWEEP_EVERY.toSeconds();
+        expiry.scheduleWithFixedDelay(this::sweep, 60, every, TimeUnit.SECONDS);
+    }
+
+    /** One expiry pass. Never throws: a lane stops repeating a task that throws. */
+    void sweep() {
+        try {
+            deleteExpired(Instant.now());
+        } catch (Throwable t) {
+            log.warn("The event export expiry pass failed", t);
+        }
     }
 
     /** A store kept in this process's memory, for tests. */
@@ -57,24 +81,32 @@ public class EventExportRepository {
         return new Memory();
     }
 
-    /** Keeps the export until {@code expiresAt}, replacing the event's earlier one, and drops every expired export. */
-    public void save(long eventId, EventWrapupOps.Export export, Instant expiresAt) {
+    /**
+     * Keeps the export until {@code expiresAt}, replacing the event's earlier one, and drops every expired export. The server id lets the data
+     * retention sweep delete it with the rest of a departed server's data. Refuses an export over {@link #MAX_BYTES}.
+     */
+    public void save(long guildId, long eventId, EventWrapupOps.Export export, Instant expiresAt) {
+        if (export.data().length > MAX_BYTES) {
+            throw new IllegalArgumentException("The export came to " + (export.data().length / (1024 * 1024)) + " MB, more than the " + (MAX_BYTES / (1024 * 1024))
+                    + " MB the bot can keep. Archive or compress the busiest channels first, then export again.");
+        }
         String sql = """
-                INSERT INTO younglings.event_export_file (event_id, name, data, made_at, channels, messages, images, links, expires_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT (event_id) DO UPDATE SET name = EXCLUDED.name, data = EXCLUDED.data, made_at = EXCLUDED.made_at, channels = EXCLUDED.channels,
+                INSERT INTO younglings.event_export_file (event_id, guild_id, name, data, made_at, channels, messages, images, links, expires_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (event_id) DO UPDATE SET guild_id = EXCLUDED.guild_id, name = EXCLUDED.name, data = EXCLUDED.data, made_at = EXCLUDED.made_at, channels = EXCLUDED.channels,
                     messages = EXCLUDED.messages, images = EXCLUDED.images, links = EXCLUDED.links, expires_at = EXCLUDED.expires_at
                 """;
         try (Connection c = connection(); PreparedStatement s = c.prepareStatement(sql)) {
             s.setLong(1, eventId);
-            s.setString(2, export.name());
-            s.setBytes(3, export.data());
-            s.setTimestamp(4, Timestamp.from(export.madeAt()));
-            s.setInt(5, export.channels());
-            s.setInt(6, export.messages());
-            s.setInt(7, export.images());
-            s.setInt(8, export.links());
-            s.setTimestamp(9, Timestamp.from(expiresAt));
+            s.setLong(2, guildId);
+            s.setString(3, export.name());
+            s.setBytes(4, export.data());
+            s.setTimestamp(5, Timestamp.from(export.madeAt()));
+            s.setInt(6, export.channels());
+            s.setInt(7, export.messages());
+            s.setInt(8, export.images());
+            s.setInt(9, export.links());
+            s.setTimestamp(10, Timestamp.from(expiresAt));
             s.executeUpdate();
         } catch (SQLException e) {
             throw new IllegalStateException("Could not keep the export: the database did not answer", e);
@@ -82,7 +114,7 @@ public class EventExportRepository {
         deleteExpired(export.madeAt());
     }
 
-    /** The event's export if it hasn't expired at {@code now}, with its bytes, or null. */
+    /** The event's export if it hasn't expired at {@code now}, with its bytes, or null. Throws when the database can't be reached (never "no export"). */
     public EventWrapupOps.@Nullable Export get(long eventId, Instant now) {
         try (Connection c = connection();
              PreparedStatement s = c.prepareStatement("SELECT name, data, made_at, channels, messages, images, links FROM younglings.event_export_file WHERE event_id = ? AND expires_at > ?")) {
@@ -94,8 +126,7 @@ public class EventExportRepository {
                         rs.getInt("images"), rs.getInt("links"));
             }
         } catch (SQLException e) {
-            log.warn("Could not read the export of event {}", eventId, e);
-            return null;
+            throw new IllegalStateException("Could not read the export of event " + eventId, e);
         }
     }
 
@@ -142,7 +173,8 @@ public class EventExportRepository {
         }
 
         @Override
-        public void save(long eventId, EventWrapupOps.Export export, Instant expiresAt) {
+        public void save(long guildId, long eventId, EventWrapupOps.Export export, Instant expiresAt) {
+            if (export.data().length > MAX_BYTES) throw new IllegalArgumentException("too big");
             kept.put(eventId, new Kept(export, expiresAt));
         }
 
