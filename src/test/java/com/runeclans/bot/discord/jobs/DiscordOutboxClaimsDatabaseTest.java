@@ -83,6 +83,29 @@ class DiscordOutboxClaimsDatabaseTest {
     }
 
     @Test
+    void aGracefulStopEndsOnlyItsOwnJobsAtOnce() throws Exception {
+        ConnectionSupplier connections = LocalDatabase.supplier();
+        DiscordJobRepository repository = new DiscordJobRepository(connections);
+        try {
+            clean(connections);
+            DiscordJob nick = repository.enqueue("test.nickname", GUILD, ACTOR, null, DataObject.empty());
+            DiscordJob post = repository.enqueue("test.post", GUILD, ACTOR, null, DataObject.empty());
+            assertEquals(2, ours(repository.claimDue(A, 50, null)).size());
+            DiscordJob others = repository.enqueue("test.nickname", OTHER_GUILD, ACTOR, null, DataObject.empty());
+            assertEquals(1, ours(repository.claimDue(B, 50, null)).size());
+
+            assertEquals(2, repository.release(A, IDEMPOTENT));
+            assertEquals(State.RETRYING, repository.get(nick.id()).orElseThrow().state());
+            assertEquals(State.FAILED, repository.get(post.id()).orElseThrow().state());
+            assertEquals(State.RUNNING, repository.get(others.id()).orElseThrow().state(), "B's job is B's");
+            repository.done(A, post.id(), DataObject.empty());
+            assertEquals(State.FAILED, repository.get(post.id()).orElseThrow().state(), "a job finishing after the release changes nothing");
+        } finally {
+            clean(connections);
+        }
+    }
+
+    @Test
     void aJobTakenBeforeClaimsExistedIsRecoveredOnceItIsOld() throws Exception {
         ConnectionSupplier connections = LocalDatabase.supplier();
         DiscordJobRepository repository = new DiscordJobRepository(connections);
