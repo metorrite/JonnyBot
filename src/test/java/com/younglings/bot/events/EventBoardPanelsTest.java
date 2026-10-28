@@ -200,4 +200,19 @@ class EventBoardPanelsTest {
         event(BingoTemplate.KEY, Status.RUNNING, "{" + BOARD.replace("\"size\":3}", "\"size\":3,\"display\":\"OWN\"}") + "}");
         assertEquals("No own boards yet: nobody is in the event.", panels.refresh(GUILD, EVENT));
     }
+
+    @Test
+    void theBoardSaysXpTilesCountRuneSyncXpOnlyWhileTheyAreCounted() {
+        Instant at = Instant.parse("2026-10-20T18:00:00Z");
+        Event bingo = new Event(EVENT, GUILD, BingoTemplate.KEY, "Bingo", "", Status.RUNNING, null, ScoringMode.INDIVIDUAL, at, at.plusSeconds(86_400), 0, "{}", 1, at, null, false);
+        List<ObjectiveSpec> tiles = List.of(new ObjectiveSpec("t1", "Gain 1M Fletching XP", "", 1, Evidence.EITHER, 1, 1, List.of()));
+        try {
+            assertEquals("", EventBoardPanels.xpTilesNote(bingo, tiles), "off (the default): the board is as before");
+            PluginObjectiveMatcher.offerXpTiles(true);
+            assertTrue(EventBoardPanels.xpTilesNote(bingo, tiles).contains("XP tiles count RuneSync XP only"));
+            assertEquals("", EventBoardPanels.xpTilesNote(bingo, List.of(new ObjectiveSpec("t2", "Nex: Torva boots", "", 1, Evidence.EITHER, 1, 1, List.of()))), "no XP tile");
+        } finally {
+            PluginObjectiveMatcher.offerXpTiles(false);
+        }
+    }
 }
