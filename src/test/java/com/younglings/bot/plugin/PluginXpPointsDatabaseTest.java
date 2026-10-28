@@ -8,6 +8,10 @@ import com.younglings.bot.points.RewardsRepository;
 import com.younglings.bot.runeclans.RuneClansHubClient;
 import com.younglings.bot.testsupport.LocalDatabase;
 import io.github.freya022.botcommands.api.core.db.ConnectionSupplier;
+import net.dv8tion.jda.api.JDA;
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.requests.restaction.CacheRestAction;
 import net.dv8tion.jda.api.utils.data.DataArray;
 import net.dv8tion.jda.api.utils.data.DataObject;
 import org.junit.jupiter.api.AfterEach;
@@ -18,18 +22,24 @@ import org.junit.jupiter.api.Test;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /** Points for XP gained over real SQL (T-542): a day pays each member once, and a re-run of the day pays nothing. Skipped without a local Postgres. */
@@ -67,7 +77,7 @@ class PluginXpPointsDatabaseTest {
     @AfterEach
     void cleanUp() throws Exception {
         try (Connection c = supplier.getConnection()) {
-            for (String table : List.of("plugin_xp_points_day", "plugin_xp_points_rule", "points_ledger", "points_settings")) {
+            for (String table : List.of("plugin_xp_points_day", "plugin_xp_points_hub_day", "plugin_xp_points_rule", "points_ledger", "points_settings")) {
                 try (PreparedStatement s = c.prepareStatement("DELETE FROM younglings." + table + " WHERE guild_id = ?")) {
                     s.setLong(1, GUILD);
                     s.executeUpdate();
@@ -105,10 +115,63 @@ class PluginXpPointsDatabaseTest {
     }
 
     @Test
+    void aMemberWhoseXpReachesOnlyTheHubIsPaidAndTheDayIsntAskedAgainAfterARestart() {
+        repository.saveXpRule(GUILD, new XpRule(true, 10, 100_000, 50), 1L, NOW.minus(Duration.ofDays(3)));
+        assertTrue(repository.xpRuleGuilds().contains(new PluginPointsRepository.XpRuleOn(GUILD, DAY.minusDays(2))));
+        // the bot never saw Alice's XP: only the hub did (T-712); she is offline, so not in the member cache, but Discord says she's in the server
+        JDA jda = mock(JDA.class);
+        Guild guild = mock(Guild.class);
+        when(jda.getGuildById(GUILD)).thenReturn(guild);
+        @SuppressWarnings("unchecked")
+        CacheRestAction<Member> lookup = mock(CacheRestAction.class);
+        when(lookup.submit()).thenReturn(CompletableFuture.completedFuture(mock(Member.class)));
+        when(guild.retrieveMemberById(ALICE)).thenReturn(lookup);
+        DataArray gainers = DataArray.empty().add(DataObject.empty().put("alias", "a1_alice").put("discordId", Long.toString(ALICE)).put("xp", 1_250_000L));
+        // the other days the sweep asks about had no gainers
+        when(hub.xpGainers(eq(GUILD), any())).thenReturn(new RuneClansHubClient.Answer(200, DataObject.empty().put("players", DataArray.empty())));
+        when(hub.xpGainers(GUILD, DAY)).thenReturn(new RuneClansHubClient.Answer(200, DataObject.empty().put("day", DAY.toString()).put("players", gainers)));
+
+        xpPoints.withJda(jda).sweep();
+        assertEquals(50, points.balance(GUILD, ALICE));
+        assertTrue(repository.openXpDays(DAY.minusDays(7), DAY.plusDays(1)).isEmpty(), "settled");
+        assertTrue(repository.hubAskedDays(DAY.minusDays(7)).contains(new PluginPointsRepository.XpDay(GUILD, DAY)));
+
+        // a restart: a new instance remembers the day was asked
+        BotConfig config = mock(BotConfig.class);
+        when(config.getPluginXpPointsEnabled()).thenReturn(true);
+        new PluginXpPoints(repository, points, new PointsService(points, new RewardsRepository(supplier)), hub, config)
+                .withClock(Clock.fixed(NOW, ZoneOffset.UTC)).withJda(jda).sweep();
+        verify(hub, times(1)).xpGainers(GUILD, DAY);
+        assertEquals(50, points.balance(GUILD, ALICE));
+    }
+
+    @Test
+    void theHubIsntAskedAboutDaysBeforeTheRuleWasSwitchedOn() {
+        // off for a while, then switched on today: the days before (the rule off) pay nothing, even though the hub saw Alice gain XP then
+        repository.saveXpRule(GUILD, new XpRule(true, 10, 100_000, 50), 1L, NOW.minus(Duration.ofDays(20)));
+        repository.saveXpRule(GUILD, new XpRule(false, 10, 100_000, 50), 1L, NOW.minus(Duration.ofDays(9)));
+        repository.saveXpRule(GUILD, new XpRule(true, 10, 100_000, 50), 1L, NOW);
+        repository.saveXpRule(GUILD, new XpRule(true, 20, 100_000, 50), 1L, NOW.plus(Duration.ofHours(30))); // a later edit keeps the day
+        assertTrue(repository.xpRuleGuilds().contains(new PluginPointsRepository.XpRuleOn(GUILD, DAY.plusDays(1))));
+        JDA jda = mock(JDA.class);
+        Guild guild = mock(Guild.class);
+        when(jda.getGuildById(GUILD)).thenReturn(guild);
+        when(guild.getMemberById(ALICE)).thenReturn(mock(Member.class));
+        DataArray gainers = DataArray.empty().add(DataObject.empty().put("alias", "a1_alice").put("discordId", Long.toString(ALICE)).put("xp", 1_250_000L));
+        when(hub.xpGainers(eq(GUILD), any())).thenReturn(new RuneClansHubClient.Answer(200, DataObject.empty().put("players", gainers)));
+
+        xpPoints.withJda(jda).sweep();
+        verify(hub, never()).xpGainers(eq(GUILD), any());
+        assertTrue(repository.openXpMembers(GUILD, DAY.minusDays(2)).isEmpty());
+        assertEquals(0, points.balance(GUILD, ALICE));
+    }
+
+    @Test
     void noAwardWhileTheRuleIsOff() {
         repository.saveXpRule(GUILD, new XpRule(true, 10, 100_000, 0), 1L, NOW);
         xpPoints.note(ALICE, List.of(GUILD), Set.of(DAY), NOW);
         repository.saveXpRule(GUILD, new XpRule(false, 10, 100_000, 0), 1L, NOW); // switched off before the day was settled
+        assertTrue(repository.xpRuleGuilds().stream().noneMatch(r -> r.guildId() == GUILD), "the hub isn't asked for a server whose rule is off");
 
         xpPoints.sweep();
         assertEquals(0, points.balance(GUILD, ALICE));
