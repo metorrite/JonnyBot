@@ -4,7 +4,7 @@ A message catalogue, a per-server language setting and a fallback to English. Th
 
 ## How it works
 
-**Bot** (`com.younglings.bot.i18n`)
+**Bot** (`com.runeclans.bot.i18n`)
 
 - `Messages` (a `@BService`) looks a message up by key: `messages.text(guild, "split.people.range", 25)`. The language is the server's setting (`LanguageRepository`, table `younglings.guild_language`; no row means English).
 - Lookup order: the server's language, then English, then the key itself (and a warning in the log). A test (`MessagesTest`) fails the build if code asks for a key English lacks, or if a language pack has different keys or `{0}` placeholders than English, so a user should never see a key.

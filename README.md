@@ -21,7 +21,7 @@ Without a database the database-backed tests skip silently, so run the full suit
 
 ## Names
 
-The product is RuneClan Bot. Some technical names keep the old one for now: this repository, the jar (`JonnyBot`), the Java package `com.younglings.bot`, the database schema `younglings`, and the deprecated `JONNYBOT_*` settings (the bot reads `RUNECLAN_BOT_*` first).
+The product is RuneClan Bot. Some technical names keep the old one for now: this repository, the jar (`JonnyBot`), the database schema `younglings`, and the deprecated `JONNYBOT_*` settings (the bot reads `RUNECLAN_BOT_*` first).
 
 ## Contributing
 
