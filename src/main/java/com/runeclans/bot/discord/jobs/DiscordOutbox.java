@@ -1,5 +1,6 @@
 package com.runeclans.bot.discord.jobs;
 
+import com.runeclans.bot.config.BotRole;
 import com.runeclans.bot.discord.jobs.DiscordJobs.Fail;
 import com.runeclans.bot.discord.jobs.DiscordJobs.Next;
 import com.runeclans.bot.discord.jobs.DiscordJobs.Retry;
@@ -66,6 +67,8 @@ public class DiscordOutbox {
 
     @BEventListener
     public void onJdaReady(InjectedJDAEvent event) {
+        // T-670: jobs need the gateway's servers, so the api role only queues them (its jda stays null: enqueue doesn't drain here)
+        if (!BotRole.current().outbox()) return;
         jda = event.getJda();
         claims.scheduleWithFixedDelay(() -> repository.heartbeat(claimant), HEARTBEAT.toSeconds(), HEARTBEAT.toSeconds(), TimeUnit.SECONDS);
         claims.scheduleWithFixedDelay(this::recover, 0, RECOVER_EVERY.toSeconds(), TimeUnit.SECONDS);
