@@ -48,7 +48,7 @@
     "mobile": "drawer",
     "nav": [
       {
-        "id": "strongn363",
+        "id": "strongn364",
         "label": "Home",
         "link": {
           "kind": "page",
@@ -56,11 +56,11 @@
         }
       },
       {
-        "id": "strongn364",
+        "id": "strongn365",
         "label": "Clan",
         "children": [
           {
-            "id": "strongn365",
+            "id": "strongn366",
             "label": "Members",
             "link": {
               "kind": "page",
@@ -68,7 +68,7 @@
             }
           },
           {
-            "id": "strongn366",
+            "id": "strongn367",
             "label": "About us",
             "link": {
               "kind": "page",
@@ -76,7 +76,7 @@
             }
           },
           {
-            "id": "strongn367",
+            "id": "strongn368",
             "label": "Hall of fame",
             "link": {
               "kind": "page",
@@ -84,7 +84,7 @@
             }
           },
           {
-            "id": "strongn368",
+            "id": "strongn369",
             "label": "History",
             "link": {
               "kind": "page",
@@ -92,7 +92,7 @@
             }
           },
           {
-            "id": "strongn369",
+            "id": "strongn370",
             "label": "Compare",
             "link": {
               "kind": "page",
@@ -102,11 +102,11 @@
         ]
       },
       {
-        "id": "strongn370",
+        "id": "strongn371",
         "label": "Stats",
         "children": [
           {
-            "id": "strongn371",
+            "id": "strongn372",
             "label": "Clan stats",
             "link": {
               "kind": "page",
@@ -114,7 +114,7 @@
             }
           },
           {
-            "id": "strongn372",
+            "id": "strongn373",
             "label": "Leaderboards",
             "link": {
               "kind": "page",
@@ -122,7 +122,7 @@
             }
           },
           {
-            "id": "strongn373",
+            "id": "strongn374",
             "label": "Recaps",
             "link": {
               "kind": "page",
@@ -130,7 +130,7 @@
             }
           },
           {
-            "id": "strongn374",
+            "id": "strongn375",
             "label": "Citadel",
             "link": {
               "kind": "page",
@@ -138,7 +138,7 @@
             }
           },
           {
-            "id": "strongn375",
+            "id": "strongn376",
             "label": "Coffer",
             "link": {
               "kind": "page",
@@ -148,11 +148,11 @@
         ]
       },
       {
-        "id": "strongn376",
+        "id": "strongn377",
         "label": "PvM",
         "children": [
           {
-            "id": "strongn377",
+            "id": "strongn378",
             "label": "Bosses",
             "link": {
               "kind": "page",
@@ -160,7 +160,7 @@
             }
           },
           {
-            "id": "strongn378",
+            "id": "strongn379",
             "label": "Drop log",
             "link": {
               "kind": "page",
@@ -170,11 +170,11 @@
         ]
       },
       {
-        "id": "strongn379",
+        "id": "strongn380",
         "label": "Events",
         "children": [
           {
-            "id": "strongn380",
+            "id": "strongn381",
             "label": "Upcoming",
             "link": {
               "kind": "page",
@@ -182,7 +182,7 @@
             }
           },
           {
-            "id": "strongn381",
+            "id": "strongn382",
             "label": "Calendar",
             "link": {
               "kind": "page",
@@ -190,7 +190,7 @@
             }
           },
           {
-            "id": "strongn382",
+            "id": "strongn383",
             "label": "Signups",
             "link": {
               "kind": "page",
@@ -198,7 +198,7 @@
             }
           },
           {
-            "id": "strongn383",
+            "id": "strongn384",
             "label": "Polls",
             "link": {
               "kind": "page",
@@ -208,7 +208,7 @@
         ]
       },
       {
-        "id": "strongn384",
+        "id": "strongn385",
         "label": "Join",
         "link": {
           "kind": "page",
@@ -377,7 +377,7 @@
           ]
         },
         {
-          "id": "strongs020",
+          "id": "strongs021",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -395,7 +395,7 @@
           },
           "rows": [
             {
-              "id": "strongr016",
+              "id": "strongr017",
               "gap": {
                 "lg": "md"
               },
@@ -549,7 +549,7 @@
                   ]
                 },
                 {
-                  "id": "strongc015",
+                  "id": "strongc016",
                   "span": {
                     "lg": 3,
                     "md": 6,
@@ -577,6 +577,16 @@
                     },
                     {
                       "id": "strongw014",
+                      "type": "in-game-now",
+                      "v": 1,
+                      "settings": {
+                        "title": "In game now",
+                        "who": "members"
+                      },
+                      "unmet": "hide"
+                    },
+                    {
+                      "id": "strongw015",
                       "type": "spotlight",
                       "v": 1,
                       "settings": {
@@ -594,7 +604,7 @@
               ]
             },
             {
-              "id": "strongr019",
+              "id": "strongr020",
               "gap": {
                 "lg": "md"
               },
@@ -606,7 +616,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc018",
+                  "id": "strongc019",
                   "span": {
                     "lg": 12
                   },
@@ -617,7 +627,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw017",
+                      "id": "strongw018",
                       "type": "live-streams",
                       "v": 1,
                       "settings": {
@@ -647,7 +657,7 @@
       },
       "sections": [
         {
-          "id": "strongs024",
+          "id": "strongs025",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -665,7 +675,7 @@
           },
           "rows": [
             {
-              "id": "strongr023",
+              "id": "strongr024",
               "gap": {
                 "lg": "md"
               },
@@ -677,7 +687,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc022",
+                  "id": "strongc023",
                   "span": {
                     "lg": 12
                   },
@@ -688,7 +698,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw021",
+                      "id": "strongw022",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -708,7 +718,7 @@
           ]
         },
         {
-          "id": "strongs033",
+          "id": "strongs034",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -726,7 +736,7 @@
           },
           "rows": [
             {
-              "id": "strongr029",
+              "id": "strongr030",
               "gap": {
                 "lg": "md"
               },
@@ -738,7 +748,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc026",
+                  "id": "strongc027",
                   "span": {
                     "lg": 9,
                     "md": 12
@@ -750,7 +760,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw025",
+                      "id": "strongw026",
                       "type": "member-directory",
                       "v": 1,
                       "settings": {
@@ -773,7 +783,7 @@
                   ]
                 },
                 {
-                  "id": "strongc028",
+                  "id": "strongc029",
                   "span": {
                     "lg": 3,
                     "md": 12
@@ -785,7 +795,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw027",
+                      "id": "strongw028",
                       "type": "rank-breakdown",
                       "v": 1,
                       "settings": {
@@ -801,7 +811,7 @@
               ]
             },
             {
-              "id": "strongr032",
+              "id": "strongr033",
               "gap": {
                 "lg": "md"
               },
@@ -813,7 +823,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc031",
+                  "id": "strongc032",
                   "span": {
                     "lg": 12
                   },
@@ -824,7 +834,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw030",
+                      "id": "strongw031",
                       "type": "rank-ladder",
                       "v": 1,
                       "settings": {
@@ -857,7 +867,7 @@
       },
       "sections": [
         {
-          "id": "strongs042",
+          "id": "strongs043",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -875,7 +885,7 @@
           },
           "rows": [
             {
-              "id": "strongr036",
+              "id": "strongr037",
               "gap": {
                 "lg": "md"
               },
@@ -887,7 +897,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc035",
+                  "id": "strongc036",
                   "span": {
                     "lg": 12
                   },
@@ -898,7 +908,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw034",
+                      "id": "strongw035",
                       "type": "member-card",
                       "v": 1,
                       "settings": {
@@ -927,7 +937,7 @@
               ]
             },
             {
-              "id": "strongr041",
+              "id": "strongr042",
               "gap": {
                 "lg": "md"
               },
@@ -939,7 +949,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc038",
+                  "id": "strongc039",
                   "span": {
                     "lg": 6
                   },
@@ -950,7 +960,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw037",
+                      "id": "strongw038",
                       "type": "member-gains",
                       "v": 1,
                       "settings": {
@@ -962,7 +972,7 @@
                   ]
                 },
                 {
-                  "id": "strongc040",
+                  "id": "strongc041",
                   "span": {
                     "lg": 6
                   },
@@ -973,7 +983,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw039",
+                      "id": "strongw040",
                       "type": "member-xp-split",
                       "v": 1,
                       "settings": {
@@ -992,7 +1002,7 @@
           ]
         },
         {
-          "id": "strongs061",
+          "id": "strongs062",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1010,7 +1020,7 @@
           },
           "rows": [
             {
-              "id": "strongr047",
+              "id": "strongr048",
               "gap": {
                 "lg": "md"
               },
@@ -1022,7 +1032,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc044",
+                  "id": "strongc045",
                   "span": {
                     "lg": 8,
                     "md": 12
@@ -1034,7 +1044,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw043",
+                      "id": "strongw044",
                       "type": "member-xp-chart",
                       "v": 1,
                       "settings": {
@@ -1048,7 +1058,7 @@
                   ]
                 },
                 {
-                  "id": "strongc046",
+                  "id": "strongc047",
                   "span": {
                     "lg": 4,
                     "md": 12
@@ -1060,7 +1070,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw045",
+                      "id": "strongw046",
                       "type": "member-badges",
                       "v": 1,
                       "settings": {
@@ -1075,7 +1085,7 @@
               ]
             },
             {
-              "id": "strongr050",
+              "id": "strongr051",
               "gap": {
                 "lg": "md"
               },
@@ -1087,7 +1097,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc049",
+                  "id": "strongc050",
                   "span": {
                     "lg": 12
                   },
@@ -1098,7 +1108,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw048",
+                      "id": "strongw049",
                       "type": "member-skills",
                       "v": 1,
                       "settings": {
@@ -1116,7 +1126,7 @@
               ]
             },
             {
-              "id": "strongr055",
+              "id": "strongr056",
               "gap": {
                 "lg": "md"
               },
@@ -1128,7 +1138,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc052",
+                  "id": "strongc053",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -1140,7 +1150,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw051",
+                      "id": "strongw052",
                       "type": "member-citadel",
                       "v": 1,
                       "settings": {
@@ -1154,7 +1164,7 @@
                   ]
                 },
                 {
-                  "id": "strongc054",
+                  "id": "strongc055",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -1166,7 +1176,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw053",
+                      "id": "strongw054",
                       "type": "member-points",
                       "v": 1,
                       "settings": {
@@ -1182,7 +1192,7 @@
               ]
             },
             {
-              "id": "strongr060",
+              "id": "strongr061",
               "gap": {
                 "lg": "md"
               },
@@ -1194,7 +1204,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc057",
+                  "id": "strongc058",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -1206,7 +1216,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw056",
+                      "id": "strongw057",
                       "type": "member-adventure-log",
                       "v": 1,
                       "settings": {
@@ -1220,7 +1230,7 @@
                   ]
                 },
                 {
-                  "id": "strongc059",
+                  "id": "strongc060",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -1232,7 +1242,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw058",
+                      "id": "strongw059",
                       "type": "member-recap",
                       "v": 1,
                       "settings": {
@@ -1262,7 +1272,7 @@
       },
       "sections": [
         {
-          "id": "strongs065",
+          "id": "strongs066",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1280,7 +1290,7 @@
           },
           "rows": [
             {
-              "id": "strongr064",
+              "id": "strongr065",
               "gap": {
                 "lg": "md"
               },
@@ -1292,7 +1302,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc063",
+                  "id": "strongc064",
                   "span": {
                     "lg": 12
                   },
@@ -1303,7 +1313,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw062",
+                      "id": "strongw063",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -1323,7 +1333,7 @@
           ]
         },
         {
-          "id": "strongs069",
+          "id": "strongs070",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1341,7 +1351,7 @@
           },
           "rows": [
             {
-              "id": "strongr068",
+              "id": "strongr069",
               "gap": {
                 "lg": "md"
               },
@@ -1353,7 +1363,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc067",
+                  "id": "strongc068",
                   "span": {
                     "lg": 12
                   },
@@ -1364,7 +1374,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw066",
+                      "id": "strongw067",
                       "type": "compare",
                       "v": 1,
                       "settings": {
@@ -1395,7 +1405,7 @@
       },
       "sections": [
         {
-          "id": "strongs073",
+          "id": "strongs074",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1413,7 +1423,7 @@
           },
           "rows": [
             {
-              "id": "strongr072",
+              "id": "strongr073",
               "gap": {
                 "lg": "md"
               },
@@ -1425,7 +1435,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc071",
+                  "id": "strongc072",
                   "span": {
                     "lg": 12
                   },
@@ -1436,7 +1446,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw070",
+                      "id": "strongw071",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -1456,7 +1466,7 @@
           ]
         },
         {
-          "id": "strongs082",
+          "id": "strongs083",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1474,7 +1484,7 @@
           },
           "rows": [
             {
-              "id": "strongr078",
+              "id": "strongr079",
               "gap": {
                 "lg": "md"
               },
@@ -1486,7 +1496,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc075",
+                  "id": "strongc076",
                   "span": {
                     "lg": 8,
                     "md": 12
@@ -1498,7 +1508,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw074",
+                      "id": "strongw075",
                       "type": "hall-of-fame",
                       "v": 1,
                       "settings": {
@@ -1516,7 +1526,7 @@
                   ]
                 },
                 {
-                  "id": "strongc077",
+                  "id": "strongc078",
                   "span": {
                     "lg": 4,
                     "md": 12
@@ -1528,7 +1538,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw076",
+                      "id": "strongw077",
                       "type": "milestones",
                       "v": 1,
                       "settings": {
@@ -1546,7 +1556,7 @@
               ]
             },
             {
-              "id": "strongr081",
+              "id": "strongr082",
               "gap": {
                 "lg": "md"
               },
@@ -1558,7 +1568,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc080",
+                  "id": "strongc081",
                   "span": {
                     "lg": 12
                   },
@@ -1569,7 +1579,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw079",
+                      "id": "strongw080",
                       "type": "badge-catalogue",
                       "v": 1,
                       "settings": {
@@ -1599,7 +1609,7 @@
       },
       "sections": [
         {
-          "id": "strongs086",
+          "id": "strongs087",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1617,7 +1627,7 @@
           },
           "rows": [
             {
-              "id": "strongr085",
+              "id": "strongr086",
               "gap": {
                 "lg": "md"
               },
@@ -1629,7 +1639,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc084",
+                  "id": "strongc085",
                   "span": {
                     "lg": 12
                   },
@@ -1640,7 +1650,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw083",
+                      "id": "strongw084",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -1660,7 +1670,7 @@
           ]
         },
         {
-          "id": "strongs092",
+          "id": "strongs093",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1678,7 +1688,7 @@
           },
           "rows": [
             {
-              "id": "strongr091",
+              "id": "strongr092",
               "gap": {
                 "lg": "md"
               },
@@ -1690,7 +1700,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc088",
+                  "id": "strongc089",
                   "span": {
                     "lg": 5,
                     "md": 12
@@ -1702,7 +1712,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw087",
+                      "id": "strongw088",
                       "type": "joins-chart",
                       "v": 1,
                       "settings": {
@@ -1714,7 +1724,7 @@
                   ]
                 },
                 {
-                  "id": "strongc090",
+                  "id": "strongc091",
                   "span": {
                     "lg": 7,
                     "md": 12
@@ -1726,7 +1736,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw089",
+                      "id": "strongw090",
                       "type": "clan-history",
                       "v": 1,
                       "settings": {
@@ -1755,7 +1765,7 @@
       "access": "public",
       "sections": [
         {
-          "id": "strongs096",
+          "id": "strongs097",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1773,7 +1783,7 @@
           },
           "rows": [
             {
-              "id": "strongr095",
+              "id": "strongr096",
               "gap": {
                 "lg": "md"
               },
@@ -1785,7 +1795,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc094",
+                  "id": "strongc095",
                   "span": {
                     "lg": 12
                   },
@@ -1796,7 +1806,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw093",
+                      "id": "strongw094",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -1816,7 +1826,7 @@
           ]
         },
         {
-          "id": "strongs110",
+          "id": "strongs111",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -1834,7 +1844,7 @@
           },
           "rows": [
             {
-              "id": "strongr101",
+              "id": "strongr102",
               "gap": {
                 "lg": "md"
               },
@@ -1846,7 +1856,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc098",
+                  "id": "strongc099",
                   "span": {
                     "lg": 7,
                     "md": 12
@@ -1858,7 +1868,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw097",
+                      "id": "strongw098",
                       "type": "text",
                       "v": 1,
                       "settings": {
@@ -1871,7 +1881,7 @@
                   ]
                 },
                 {
-                  "id": "strongc100",
+                  "id": "strongc101",
                   "span": {
                     "lg": 5,
                     "md": 12
@@ -1883,7 +1893,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw099",
+                      "id": "strongw100",
                       "type": "image",
                       "v": 2,
                       "settings": {
@@ -1903,7 +1913,7 @@
               ]
             },
             {
-              "id": "strongr104",
+              "id": "strongr105",
               "gap": {
                 "lg": "md"
               },
@@ -1915,7 +1925,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc103",
+                  "id": "strongc104",
                   "span": {
                     "lg": 12
                   },
@@ -1926,7 +1936,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw102",
+                      "id": "strongw103",
                       "type": "gallery",
                       "v": 1,
                       "settings": {
@@ -1987,7 +1997,7 @@
               ]
             },
             {
-              "id": "strongr109",
+              "id": "strongr110",
               "gap": {
                 "lg": "md"
               },
@@ -1999,7 +2009,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc106",
+                  "id": "strongc107",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -2011,7 +2021,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw105",
+                      "id": "strongw106",
                       "type": "video",
                       "v": 1,
                       "settings": {
@@ -2024,7 +2034,7 @@
                   ]
                 },
                 {
-                  "id": "strongc108",
+                  "id": "strongc109",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -2036,7 +2046,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw107",
+                      "id": "strongw108",
                       "type": "clan-stats",
                       "v": 1,
                       "settings": {
@@ -2051,7 +2061,7 @@
           ]
         },
         {
-          "id": "strongs134",
+          "id": "strongs135",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -2069,7 +2079,7 @@
           },
           "rows": [
             {
-              "id": "strongr113",
+              "id": "strongr114",
               "gap": {
                 "lg": "md"
               },
@@ -2081,7 +2091,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc112",
+                  "id": "strongc113",
                   "span": {
                     "lg": 12
                   },
@@ -2092,7 +2102,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw111",
+                      "id": "strongw112",
                       "type": "divider",
                       "v": 1,
                       "settings": {
@@ -2108,7 +2118,7 @@
               ]
             },
             {
-              "id": "strongr118",
+              "id": "strongr119",
               "gap": {
                 "lg": "md"
               },
@@ -2120,7 +2130,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc115",
+                  "id": "strongc116",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -2132,7 +2142,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw114",
+                      "id": "strongw115",
                       "type": "clan-goals",
                       "v": 1,
                       "settings": {
@@ -2155,7 +2165,7 @@
                   ]
                 },
                 {
-                  "id": "strongc117",
+                  "id": "strongc118",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -2167,7 +2177,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw116",
+                      "id": "strongw117",
                       "type": "event-standings",
                       "v": 1,
                       "settings": {
@@ -2181,7 +2191,7 @@
               ]
             },
             {
-              "id": "strongr121",
+              "id": "strongr122",
               "gap": {
                 "lg": "md"
               },
@@ -2193,7 +2203,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc120",
+                  "id": "strongc121",
                   "span": {
                     "lg": 12
                   },
@@ -2204,7 +2214,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw119",
+                      "id": "strongw120",
                       "type": "alliances",
                       "v": 1,
                       "settings": {
@@ -2218,7 +2228,7 @@
               ]
             },
             {
-              "id": "strongr126",
+              "id": "strongr127",
               "gap": {
                 "lg": "md"
               },
@@ -2230,7 +2240,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc123",
+                  "id": "strongc124",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -2242,7 +2252,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw122",
+                      "id": "strongw123",
                       "type": "adventure-log",
                       "v": 1,
                       "settings": {
@@ -2260,7 +2270,7 @@
                   ]
                 },
                 {
-                  "id": "strongc125",
+                  "id": "strongc126",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -2272,7 +2282,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw124",
+                      "id": "strongw125",
                       "type": "runesync-activity",
                       "v": 1,
                       "settings": {
@@ -2286,7 +2296,7 @@
               ]
             },
             {
-              "id": "strongr129",
+              "id": "strongr130",
               "gap": {
                 "lg": "md"
               },
@@ -2298,7 +2308,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc128",
+                  "id": "strongc129",
                   "span": {
                     "lg": 12
                   },
@@ -2309,7 +2319,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw127",
+                      "id": "strongw128",
                       "type": "quick-links",
                       "v": 1,
                       "settings": {
@@ -2353,7 +2363,7 @@
               ]
             },
             {
-              "id": "strongr133",
+              "id": "strongr134",
               "gap": {
                 "lg": "md"
               },
@@ -2365,7 +2375,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc132",
+                  "id": "strongc133",
                   "span": {
                     "lg": 12
                   },
@@ -2376,7 +2386,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw130",
+                      "id": "strongw131",
                       "type": "spacer",
                       "v": 1,
                       "settings": {
@@ -2386,7 +2396,7 @@
                       "unmet": "hide"
                     },
                     {
-                      "id": "strongw131",
+                      "id": "strongw132",
                       "type": "links",
                       "v": 2,
                       "settings": {
@@ -2430,7 +2440,7 @@
       },
       "sections": [
         {
-          "id": "strongs138",
+          "id": "strongs139",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -2448,7 +2458,7 @@
           },
           "rows": [
             {
-              "id": "strongr137",
+              "id": "strongr138",
               "gap": {
                 "lg": "md"
               },
@@ -2460,7 +2470,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc136",
+                  "id": "strongc137",
                   "span": {
                     "lg": 12
                   },
@@ -2471,7 +2481,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw135",
+                      "id": "strongw136",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -2491,7 +2501,7 @@
           ]
         },
         {
-          "id": "strongs169",
+          "id": "strongs170",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -2509,7 +2519,7 @@
           },
           "rows": [
             {
-              "id": "strongr141",
+              "id": "strongr142",
               "gap": {
                 "lg": "md"
               },
@@ -2521,7 +2531,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc140",
+                  "id": "strongc141",
                   "span": {
                     "lg": 12
                   },
@@ -2532,7 +2542,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw139",
+                      "id": "strongw140",
                       "type": "stat-tiles",
                       "v": 2,
                       "settings": {
@@ -2569,7 +2579,7 @@
               ]
             },
             {
-              "id": "strongr146",
+              "id": "strongr147",
               "gap": {
                 "lg": "md"
               },
@@ -2581,7 +2591,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc143",
+                  "id": "strongc144",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -2593,7 +2603,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw142",
+                      "id": "strongw143",
                       "type": "xp-chart",
                       "v": 1,
                       "settings": {
@@ -2605,7 +2615,7 @@
                   ]
                 },
                 {
-                  "id": "strongc145",
+                  "id": "strongc146",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -2617,7 +2627,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw144",
+                      "id": "strongw145",
                       "type": "citadel-chart",
                       "v": 1,
                       "settings": {
@@ -2635,7 +2645,7 @@
               ]
             },
             {
-              "id": "strongr151",
+              "id": "strongr152",
               "gap": {
                 "lg": "md"
               },
@@ -2647,7 +2657,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc148",
+                  "id": "strongc149",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -2659,7 +2669,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw147",
+                      "id": "strongw148",
                       "type": "joins-chart",
                       "v": 1,
                       "settings": {
@@ -2671,7 +2681,7 @@
                   ]
                 },
                 {
-                  "id": "strongc150",
+                  "id": "strongc151",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -2683,7 +2693,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw149",
+                      "id": "strongw150",
                       "type": "rank-breakdown",
                       "v": 1,
                       "settings": {
@@ -2699,7 +2709,7 @@
               ]
             },
             {
-              "id": "strongr158",
+              "id": "strongr159",
               "gap": {
                 "lg": "md"
               },
@@ -2711,7 +2721,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc153",
+                  "id": "strongc154",
                   "span": {
                     "lg": 4,
                     "md": 6
@@ -2723,7 +2733,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw152",
+                      "id": "strongw153",
                       "type": "top-list",
                       "v": 1,
                       "settings": {
@@ -2739,7 +2749,7 @@
                   ]
                 },
                 {
-                  "id": "strongc155",
+                  "id": "strongc156",
                   "span": {
                     "lg": 4,
                     "md": 6
@@ -2751,7 +2761,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw154",
+                      "id": "strongw155",
                       "type": "leaderboard",
                       "v": 1,
                       "settings": {
@@ -2771,7 +2781,7 @@
                   ]
                 },
                 {
-                  "id": "strongc157",
+                  "id": "strongc158",
                   "span": {
                     "lg": 4,
                     "md": 12
@@ -2783,7 +2793,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw156",
+                      "id": "strongw157",
                       "type": "kill-tracker",
                       "v": 1,
                       "settings": {
@@ -2798,7 +2808,7 @@
               ]
             },
             {
-              "id": "strongr163",
+              "id": "strongr164",
               "gap": {
                 "lg": "md"
               },
@@ -2810,7 +2820,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc160",
+                  "id": "strongc161",
                   "span": {
                     "lg": 4,
                     "md": 12
@@ -2822,7 +2832,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw159",
+                      "id": "strongw160",
                       "type": "clan-top",
                       "v": 1,
                       "settings": {
@@ -2838,7 +2848,7 @@
                   ]
                 },
                 {
-                  "id": "strongc162",
+                  "id": "strongc163",
                   "span": {
                     "lg": 8,
                     "md": 12
@@ -2850,7 +2860,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw161",
+                      "id": "strongw162",
                       "type": "skill-leaders",
                       "v": 1,
                       "settings": {
@@ -2865,7 +2875,7 @@
               ]
             },
             {
-              "id": "strongr168",
+              "id": "strongr169",
               "gap": {
                 "lg": "md"
               },
@@ -2877,7 +2887,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc165",
+                  "id": "strongc166",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -2889,7 +2899,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw164",
+                      "id": "strongw165",
                       "type": "joins-weekly",
                       "v": 1,
                       "settings": {
@@ -2902,7 +2912,7 @@
                   ]
                 },
                 {
-                  "id": "strongc167",
+                  "id": "strongc168",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -2914,7 +2924,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw166",
+                      "id": "strongw167",
                       "type": "leaderboard-race",
                       "v": 1,
                       "settings": {
@@ -2931,7 +2941,7 @@
           ]
         },
         {
-          "id": "strongs173",
+          "id": "strongs174",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -2949,7 +2959,7 @@
           },
           "rows": [
             {
-              "id": "strongr172",
+              "id": "strongr173",
               "gap": {
                 "lg": "md"
               },
@@ -2961,7 +2971,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc171",
+                  "id": "strongc172",
                   "span": {
                     "lg": 12
                   },
@@ -2972,7 +2982,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw170",
+                      "id": "strongw171",
                       "type": "activity-heatmap",
                       "v": 1,
                       "settings": {
@@ -3004,7 +3014,7 @@
       },
       "sections": [
         {
-          "id": "strongs177",
+          "id": "strongs178",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3022,7 +3032,7 @@
           },
           "rows": [
             {
-              "id": "strongr176",
+              "id": "strongr177",
               "gap": {
                 "lg": "md"
               },
@@ -3034,7 +3044,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc175",
+                  "id": "strongc176",
                   "span": {
                     "lg": 12
                   },
@@ -3045,7 +3055,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw174",
+                      "id": "strongw175",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -3065,7 +3075,7 @@
           ]
         },
         {
-          "id": "strongs188",
+          "id": "strongs189",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3083,7 +3093,7 @@
           },
           "rows": [
             {
-              "id": "strongr182",
+              "id": "strongr183",
               "gap": {
                 "lg": "md"
               },
@@ -3095,7 +3105,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc179",
+                  "id": "strongc180",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -3107,7 +3117,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw178",
+                      "id": "strongw179",
                       "type": "leaderboard",
                       "v": 1,
                       "settings": {
@@ -3127,7 +3137,7 @@
                   ]
                 },
                 {
-                  "id": "strongc181",
+                  "id": "strongc182",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -3139,7 +3149,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw180",
+                      "id": "strongw181",
                       "type": "leaderboard",
                       "v": 1,
                       "settings": {
@@ -3161,7 +3171,7 @@
               ]
             },
             {
-              "id": "strongr187",
+              "id": "strongr188",
               "gap": {
                 "lg": "md"
               },
@@ -3173,7 +3183,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc184",
+                  "id": "strongc185",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -3185,7 +3195,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw183",
+                      "id": "strongw184",
                       "type": "leaderboard",
                       "v": 1,
                       "settings": {
@@ -3205,7 +3215,7 @@
                   ]
                 },
                 {
-                  "id": "strongc186",
+                  "id": "strongc187",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -3217,7 +3227,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw185",
+                      "id": "strongw186",
                       "type": "top-xp",
                       "v": 1,
                       "settings": {
@@ -3254,7 +3264,7 @@
       },
       "sections": [
         {
-          "id": "strongs192",
+          "id": "strongs193",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3272,7 +3282,7 @@
           },
           "rows": [
             {
-              "id": "strongr191",
+              "id": "strongr192",
               "gap": {
                 "lg": "md"
               },
@@ -3284,7 +3294,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc190",
+                  "id": "strongc191",
                   "span": {
                     "lg": 12
                   },
@@ -3295,7 +3305,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw189",
+                      "id": "strongw190",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -3315,7 +3325,7 @@
           ]
         },
         {
-          "id": "strongs196",
+          "id": "strongs197",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3333,7 +3343,7 @@
           },
           "rows": [
             {
-              "id": "strongr195",
+              "id": "strongr196",
               "gap": {
                 "lg": "md"
               },
@@ -3345,7 +3355,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc194",
+                  "id": "strongc195",
                   "span": {
                     "lg": 12
                   },
@@ -3356,7 +3366,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw193",
+                      "id": "strongw194",
                       "type": "wrapped-recap",
                       "v": 1,
                       "settings": {
@@ -3375,7 +3385,7 @@
           ]
         },
         {
-          "id": "strongs205",
+          "id": "strongs206",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3393,7 +3403,7 @@
           },
           "rows": [
             {
-              "id": "strongr201",
+              "id": "strongr202",
               "gap": {
                 "lg": "md"
               },
@@ -3405,7 +3415,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc198",
+                  "id": "strongc199",
                   "span": {
                     "lg": 7,
                     "md": 12
@@ -3417,7 +3427,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw197",
+                      "id": "strongw198",
                       "type": "recap",
                       "v": 1,
                       "settings": {
@@ -3431,7 +3441,7 @@
                   ]
                 },
                 {
-                  "id": "strongc200",
+                  "id": "strongc201",
                   "span": {
                     "lg": 5,
                     "md": 12
@@ -3443,7 +3453,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw199",
+                      "id": "strongw200",
                       "type": "weekly-recap",
                       "v": 1,
                       "settings": {
@@ -3457,7 +3467,7 @@
               ]
             },
             {
-              "id": "strongr204",
+              "id": "strongr205",
               "gap": {
                 "lg": "md"
               },
@@ -3469,7 +3479,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc203",
+                  "id": "strongc204",
                   "span": {
                     "lg": 12
                   },
@@ -3480,7 +3490,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw202",
+                      "id": "strongw203",
                       "type": "recap-picker",
                       "v": 1,
                       "settings": {
@@ -3510,7 +3520,7 @@
       },
       "sections": [
         {
-          "id": "strongs209",
+          "id": "strongs210",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3528,7 +3538,7 @@
           },
           "rows": [
             {
-              "id": "strongr208",
+              "id": "strongr209",
               "gap": {
                 "lg": "md"
               },
@@ -3540,7 +3550,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc207",
+                  "id": "strongc208",
                   "span": {
                     "lg": 12
                   },
@@ -3551,7 +3561,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw206",
+                      "id": "strongw207",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -3571,7 +3581,7 @@
           ]
         },
         {
-          "id": "strongs218",
+          "id": "strongs219",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3589,7 +3599,7 @@
           },
           "rows": [
             {
-              "id": "strongr214",
+              "id": "strongr215",
               "gap": {
                 "lg": "md"
               },
@@ -3601,7 +3611,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc211",
+                  "id": "strongc212",
                   "span": {
                     "lg": 4,
                     "md": 12
@@ -3613,7 +3623,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw210",
+                      "id": "strongw211",
                       "type": "citadel-timer",
                       "v": 1,
                       "settings": {
@@ -3627,7 +3637,7 @@
                   ]
                 },
                 {
-                  "id": "strongc213",
+                  "id": "strongc214",
                   "span": {
                     "lg": 8,
                     "md": 12
@@ -3639,7 +3649,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw212",
+                      "id": "strongw213",
                       "type": "citadel-chart",
                       "v": 1,
                       "settings": {
@@ -3657,7 +3667,7 @@
               ]
             },
             {
-              "id": "strongr217",
+              "id": "strongr218",
               "gap": {
                 "lg": "md"
               },
@@ -3669,7 +3679,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc216",
+                  "id": "strongc217",
                   "span": {
                     "lg": 12
                   },
@@ -3680,7 +3690,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw215",
+                      "id": "strongw216",
                       "type": "citadel-grid",
                       "v": 1,
                       "settings": {
@@ -3711,7 +3721,7 @@
       },
       "sections": [
         {
-          "id": "strongs222",
+          "id": "strongs223",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3729,7 +3739,7 @@
           },
           "rows": [
             {
-              "id": "strongr221",
+              "id": "strongr222",
               "gap": {
                 "lg": "md"
               },
@@ -3741,7 +3751,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc220",
+                  "id": "strongc221",
                   "span": {
                     "lg": 12
                   },
@@ -3752,7 +3762,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw219",
+                      "id": "strongw220",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -3772,7 +3782,7 @@
           ]
         },
         {
-          "id": "strongs226",
+          "id": "strongs227",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3790,7 +3800,7 @@
           },
           "rows": [
             {
-              "id": "strongr225",
+              "id": "strongr226",
               "gap": {
                 "lg": "md"
               },
@@ -3802,7 +3812,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc224",
+                  "id": "strongc225",
                   "span": {
                     "lg": 12
                   },
@@ -3813,7 +3823,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw223",
+                      "id": "strongw224",
                       "type": "coffer",
                       "v": 1,
                       "settings": {
@@ -3847,7 +3857,7 @@
       },
       "sections": [
         {
-          "id": "strongs230",
+          "id": "strongs231",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3865,7 +3875,7 @@
           },
           "rows": [
             {
-              "id": "strongr229",
+              "id": "strongr230",
               "gap": {
                 "lg": "md"
               },
@@ -3877,7 +3887,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc228",
+                  "id": "strongc229",
                   "span": {
                     "lg": 12
                   },
@@ -3888,7 +3898,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw227",
+                      "id": "strongw228",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -3908,7 +3918,7 @@
           ]
         },
         {
-          "id": "strongs245",
+          "id": "strongs246",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -3926,7 +3936,7 @@
           },
           "rows": [
             {
-              "id": "strongr233",
+              "id": "strongr234",
               "gap": {
                 "lg": "md"
               },
@@ -3938,7 +3948,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc232",
+                  "id": "strongc233",
                   "span": {
                     "lg": 12
                   },
@@ -3949,7 +3959,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw231",
+                      "id": "strongw232",
                       "type": "button-row",
                       "v": 1,
                       "settings": {
@@ -3975,7 +3985,7 @@
               ]
             },
             {
-              "id": "strongr236",
+              "id": "strongr237",
               "gap": {
                 "lg": "md"
               },
@@ -3987,7 +3997,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc235",
+                  "id": "strongc236",
                   "span": {
                     "lg": 12
                   },
@@ -3998,7 +4008,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw234",
+                      "id": "strongw235",
                       "type": "boss-grid",
                       "v": 1,
                       "settings": {
@@ -4017,7 +4027,7 @@
               ]
             },
             {
-              "id": "strongr241",
+              "id": "strongr242",
               "gap": {
                 "lg": "md"
               },
@@ -4029,7 +4039,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc238",
+                  "id": "strongc239",
                   "span": {
                     "lg": 7,
                     "md": 12
@@ -4041,7 +4051,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw237",
+                      "id": "strongw238",
                       "type": "kill-tracker",
                       "v": 1,
                       "settings": {
@@ -4054,7 +4064,7 @@
                   ]
                 },
                 {
-                  "id": "strongc240",
+                  "id": "strongc241",
                   "span": {
                     "lg": 5,
                     "md": 12
@@ -4066,7 +4076,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw239",
+                      "id": "strongw240",
                       "type": "drops",
                       "v": 1,
                       "settings": {
@@ -4080,7 +4090,7 @@
               ]
             },
             {
-              "id": "strongr244",
+              "id": "strongr245",
               "gap": {
                 "lg": "md"
               },
@@ -4092,7 +4102,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc243",
+                  "id": "strongc244",
                   "span": {
                     "lg": 12
                   },
@@ -4103,7 +4113,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw242",
+                      "id": "strongw243",
                       "type": "rare-drops",
                       "v": 1,
                       "settings": {
@@ -4136,7 +4146,7 @@
       },
       "sections": [
         {
-          "id": "strongs249",
+          "id": "strongs250",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4154,7 +4164,7 @@
           },
           "rows": [
             {
-              "id": "strongr248",
+              "id": "strongr249",
               "gap": {
                 "lg": "md"
               },
@@ -4166,7 +4176,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc247",
+                  "id": "strongc248",
                   "span": {
                     "lg": 12
                   },
@@ -4177,7 +4187,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw246",
+                      "id": "strongw247",
                       "type": "boss-detail",
                       "v": 1,
                       "settings": {
@@ -4214,7 +4224,7 @@
       },
       "sections": [
         {
-          "id": "strongs253",
+          "id": "strongs254",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4232,7 +4242,7 @@
           },
           "rows": [
             {
-              "id": "strongr252",
+              "id": "strongr253",
               "gap": {
                 "lg": "md"
               },
@@ -4244,7 +4254,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc251",
+                  "id": "strongc252",
                   "span": {
                     "lg": 12
                   },
@@ -4255,7 +4265,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw250",
+                      "id": "strongw251",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -4275,7 +4285,7 @@
           ]
         },
         {
-          "id": "strongs257",
+          "id": "strongs258",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4293,7 +4303,7 @@
           },
           "rows": [
             {
-              "id": "strongr256",
+              "id": "strongr257",
               "gap": {
                 "lg": "md"
               },
@@ -4305,7 +4315,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc255",
+                  "id": "strongc256",
                   "span": {
                     "lg": 12
                   },
@@ -4316,7 +4326,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw254",
+                      "id": "strongw255",
                       "type": "drop-log",
                       "v": 1,
                       "settings": {
@@ -4351,7 +4361,7 @@
       },
       "sections": [
         {
-          "id": "strongs261",
+          "id": "strongs262",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4369,7 +4379,7 @@
           },
           "rows": [
             {
-              "id": "strongr260",
+              "id": "strongr261",
               "gap": {
                 "lg": "md"
               },
@@ -4381,7 +4391,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc259",
+                  "id": "strongc260",
                   "span": {
                     "lg": 12
                   },
@@ -4392,7 +4402,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw258",
+                      "id": "strongw259",
                       "type": "item-detail",
                       "v": 1,
                       "settings": {
@@ -4425,7 +4435,7 @@
       },
       "sections": [
         {
-          "id": "strongs265",
+          "id": "strongs266",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4443,7 +4453,7 @@
           },
           "rows": [
             {
-              "id": "strongr264",
+              "id": "strongr265",
               "gap": {
                 "lg": "md"
               },
@@ -4455,7 +4465,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc263",
+                  "id": "strongc264",
                   "span": {
                     "lg": 12
                   },
@@ -4466,7 +4476,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw262",
+                      "id": "strongw263",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -4486,7 +4496,7 @@
           ]
         },
         {
-          "id": "strongs281",
+          "id": "strongs282",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4504,7 +4514,7 @@
           },
           "rows": [
             {
-              "id": "strongr268",
+              "id": "strongr269",
               "gap": {
                 "lg": "md"
               },
@@ -4516,7 +4526,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc267",
+                  "id": "strongc268",
                   "span": {
                     "lg": 12
                   },
@@ -4527,7 +4537,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw266",
+                      "id": "strongw267",
                       "type": "button-row",
                       "v": 1,
                       "settings": {
@@ -4553,7 +4563,7 @@
               ]
             },
             {
-              "id": "strongr271",
+              "id": "strongr272",
               "gap": {
                 "lg": "md"
               },
@@ -4565,7 +4575,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc270",
+                  "id": "strongc271",
                   "span": {
                     "lg": 12
                   },
@@ -4576,7 +4586,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw269",
+                      "id": "strongw270",
                       "type": "hub-events",
                       "v": 1,
                       "settings": {
@@ -4591,7 +4601,7 @@
               ]
             },
             {
-              "id": "strongr274",
+              "id": "strongr275",
               "gap": {
                 "lg": "md"
               },
@@ -4603,7 +4613,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc273",
+                  "id": "strongc274",
                   "span": {
                     "lg": 12
                   },
@@ -4614,7 +4624,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw272",
+                      "id": "strongw273",
                       "type": "events",
                       "v": 1,
                       "settings": {
@@ -4630,7 +4640,7 @@
               ]
             },
             {
-              "id": "strongr277",
+              "id": "strongr278",
               "gap": {
                 "lg": "md"
               },
@@ -4642,7 +4652,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc276",
+                  "id": "strongc277",
                   "span": {
                     "lg": 12
                   },
@@ -4653,7 +4663,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw275",
+                      "id": "strongw276",
                       "type": "rs-today",
                       "v": 1,
                       "settings": {
@@ -4679,7 +4689,7 @@
               ]
             },
             {
-              "id": "strongr280",
+              "id": "strongr281",
               "gap": {
                 "lg": "md"
               },
@@ -4691,7 +4701,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc279",
+                  "id": "strongc280",
                   "span": {
                     "lg": 12
                   },
@@ -4702,7 +4712,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw278",
+                      "id": "strongw279",
                       "type": "ge-watch",
                       "v": 1,
                       "settings": {
@@ -4749,7 +4759,7 @@
       },
       "sections": [
         {
-          "id": "strongs285",
+          "id": "strongs286",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4767,7 +4777,7 @@
           },
           "rows": [
             {
-              "id": "strongr284",
+              "id": "strongr285",
               "gap": {
                 "lg": "md"
               },
@@ -4779,7 +4789,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc283",
+                  "id": "strongc284",
                   "span": {
                     "lg": 12
                   },
@@ -4790,7 +4800,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw282",
+                      "id": "strongw283",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -4810,7 +4820,7 @@
           ]
         },
         {
-          "id": "strongs289",
+          "id": "strongs290",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4828,7 +4838,7 @@
           },
           "rows": [
             {
-              "id": "strongr288",
+              "id": "strongr289",
               "gap": {
                 "lg": "md"
               },
@@ -4840,7 +4850,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc287",
+                  "id": "strongc288",
                   "span": {
                     "lg": 12
                   },
@@ -4851,7 +4861,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw286",
+                      "id": "strongw287",
                       "type": "events-calendar",
                       "v": 1,
                       "settings": {
@@ -4886,7 +4896,7 @@
       },
       "sections": [
         {
-          "id": "strongs293",
+          "id": "strongs294",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4904,7 +4914,7 @@
           },
           "rows": [
             {
-              "id": "strongr292",
+              "id": "strongr293",
               "gap": {
                 "lg": "md"
               },
@@ -4916,7 +4926,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc291",
+                  "id": "strongc292",
                   "span": {
                     "lg": 12
                   },
@@ -4927,7 +4937,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw290",
+                      "id": "strongw291",
                       "type": "event-detail",
                       "v": 1,
                       "settings": {
@@ -4957,7 +4967,7 @@
       },
       "sections": [
         {
-          "id": "strongs297",
+          "id": "strongs298",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -4975,7 +4985,7 @@
           },
           "rows": [
             {
-              "id": "strongr296",
+              "id": "strongr297",
               "gap": {
                 "lg": "md"
               },
@@ -4987,7 +4997,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc295",
+                  "id": "strongc296",
                   "span": {
                     "lg": 12
                   },
@@ -4998,7 +5008,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw294",
+                      "id": "strongw295",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -5018,7 +5028,7 @@
           ]
         },
         {
-          "id": "strongs301",
+          "id": "strongs302",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -5036,7 +5046,7 @@
           },
           "rows": [
             {
-              "id": "strongr300",
+              "id": "strongr301",
               "gap": {
                 "lg": "md"
               },
@@ -5048,7 +5058,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc299",
+                  "id": "strongc300",
                   "span": {
                     "lg": 12
                   },
@@ -5059,7 +5069,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw298",
+                      "id": "strongw299",
                       "type": "signups",
                       "v": 1,
                       "settings": {
@@ -5077,7 +5087,7 @@
           ]
         },
         {
-          "id": "strongs305",
+          "id": "strongs306",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -5095,7 +5105,7 @@
           },
           "rows": [
             {
-              "id": "strongr304",
+              "id": "strongr305",
               "gap": {
                 "lg": "md"
               },
@@ -5107,7 +5117,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc303",
+                  "id": "strongc304",
                   "span": {
                     "lg": 12
                   },
@@ -5118,7 +5128,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw302",
+                      "id": "strongw303",
                       "type": "group-finder",
                       "v": 1,
                       "settings": {
@@ -5149,7 +5159,7 @@
       },
       "sections": [
         {
-          "id": "strongs309",
+          "id": "strongs310",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -5167,7 +5177,7 @@
           },
           "rows": [
             {
-              "id": "strongr308",
+              "id": "strongr309",
               "gap": {
                 "lg": "md"
               },
@@ -5179,7 +5189,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc307",
+                  "id": "strongc308",
                   "span": {
                     "lg": 12
                   },
@@ -5190,7 +5200,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw306",
+                      "id": "strongw307",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -5210,7 +5220,7 @@
           ]
         },
         {
-          "id": "strongs313",
+          "id": "strongs314",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -5228,7 +5238,7 @@
           },
           "rows": [
             {
-              "id": "strongr312",
+              "id": "strongr313",
               "gap": {
                 "lg": "md"
               },
@@ -5240,7 +5250,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc311",
+                  "id": "strongc312",
                   "span": {
                     "lg": 12
                   },
@@ -5251,7 +5261,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw310",
+                      "id": "strongw311",
                       "type": "polls",
                       "v": 1,
                       "settings": {
@@ -5278,7 +5288,7 @@
       "access": "public",
       "sections": [
         {
-          "id": "strongs317",
+          "id": "strongs318",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -5296,7 +5306,7 @@
           },
           "rows": [
             {
-              "id": "strongr316",
+              "id": "strongr317",
               "gap": {
                 "lg": "md"
               },
@@ -5308,7 +5318,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc315",
+                  "id": "strongc316",
                   "span": {
                     "lg": 12
                   },
@@ -5319,7 +5329,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw314",
+                      "id": "strongw315",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -5339,7 +5349,7 @@
           ]
         },
         {
-          "id": "strongs334",
+          "id": "strongs335",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -5357,7 +5367,7 @@
           },
           "rows": [
             {
-              "id": "strongr322",
+              "id": "strongr323",
               "gap": {
                 "lg": "md"
               },
@@ -5369,7 +5379,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc319",
+                  "id": "strongc320",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5381,7 +5391,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw318",
+                      "id": "strongw319",
                       "type": "recruiting",
                       "v": 1,
                       "settings": {
@@ -5394,7 +5404,7 @@
                   ]
                 },
                 {
-                  "id": "strongc321",
+                  "id": "strongc322",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5406,7 +5416,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw320",
+                      "id": "strongw321",
                       "type": "discord-join",
                       "v": 1,
                       "settings": {
@@ -5421,7 +5431,7 @@
               ]
             },
             {
-              "id": "strongr325",
+              "id": "strongr326",
               "gap": {
                 "lg": "md"
               },
@@ -5433,7 +5443,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc324",
+                  "id": "strongc325",
                   "span": {
                     "lg": 12
                   },
@@ -5444,7 +5454,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw323",
+                      "id": "strongw324",
                       "type": "application-form",
                       "v": 1,
                       "settings": {
@@ -5500,7 +5510,7 @@
               ]
             },
             {
-              "id": "strongr330",
+              "id": "strongr331",
               "gap": {
                 "lg": "md"
               },
@@ -5512,7 +5522,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc327",
+                  "id": "strongc328",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5524,7 +5534,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw326",
+                      "id": "strongw327",
                       "type": "countdown",
                       "v": 1,
                       "settings": {
@@ -5537,7 +5547,7 @@
                   ]
                 },
                 {
-                  "id": "strongc329",
+                  "id": "strongc330",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5549,7 +5559,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw328",
+                      "id": "strongw329",
                       "type": "faq",
                       "v": 1,
                       "settings": {
@@ -5576,7 +5586,7 @@
               ]
             },
             {
-              "id": "strongr333",
+              "id": "strongr334",
               "gap": {
                 "lg": "md"
               },
@@ -5588,7 +5598,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc332",
+                  "id": "strongc333",
                   "span": {
                     "lg": 12
                   },
@@ -5599,7 +5609,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw331",
+                      "id": "strongw332",
                       "type": "roster",
                       "v": 1,
                       "settings": {
@@ -5632,7 +5642,7 @@
       "template": "account",
       "sections": [
         {
-          "id": "strongs338",
+          "id": "strongs339",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -5650,7 +5660,7 @@
           },
           "rows": [
             {
-              "id": "strongr337",
+              "id": "strongr338",
               "gap": {
                 "lg": "md"
               },
@@ -5662,7 +5672,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc336",
+                  "id": "strongc337",
                   "span": {
                     "lg": 12
                   },
@@ -5673,7 +5683,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw335",
+                      "id": "strongw336",
                       "type": "heading",
                       "v": 1,
                       "settings": {
@@ -5693,7 +5703,7 @@
           ]
         },
         {
-          "id": "strongs362",
+          "id": "strongs363",
           "width": "wide",
           "background": {
             "kind": "none"
@@ -5711,7 +5721,7 @@
           },
           "rows": [
             {
-              "id": "strongr343",
+              "id": "strongr344",
               "gap": {
                 "lg": "md"
               },
@@ -5723,7 +5733,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc340",
+                  "id": "strongc341",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5735,7 +5745,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw339",
+                      "id": "strongw340",
                       "type": "account-link",
                       "v": 1,
                       "settings": {
@@ -5746,7 +5756,7 @@
                   ]
                 },
                 {
-                  "id": "strongc342",
+                  "id": "strongc343",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5758,7 +5768,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw341",
+                      "id": "strongw342",
                       "type": "server-profile",
                       "v": 1,
                       "settings": {
@@ -5773,7 +5783,7 @@
               ]
             },
             {
-              "id": "strongr348",
+              "id": "strongr349",
               "gap": {
                 "lg": "md"
               },
@@ -5785,7 +5795,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc345",
+                  "id": "strongc346",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5797,7 +5807,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw344",
+                      "id": "strongw345",
                       "type": "my-goals",
                       "v": 1,
                       "settings": {
@@ -5809,7 +5819,7 @@
                   ]
                 },
                 {
-                  "id": "strongc347",
+                  "id": "strongc348",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5821,7 +5831,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw346",
+                      "id": "strongw347",
                       "type": "my-notices",
                       "v": 1,
                       "settings": {
@@ -5835,7 +5845,7 @@
               ]
             },
             {
-              "id": "strongr353",
+              "id": "strongr354",
               "gap": {
                 "lg": "md"
               },
@@ -5847,7 +5857,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc350",
+                  "id": "strongc351",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5859,7 +5869,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw349",
+                      "id": "strongw350",
                       "type": "my-events",
                       "v": 1,
                       "settings": {
@@ -5871,7 +5881,7 @@
                   ]
                 },
                 {
-                  "id": "strongc352",
+                  "id": "strongc353",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5883,7 +5893,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw351",
+                      "id": "strongw352",
                       "type": "my-signups",
                       "v": 1,
                       "settings": {
@@ -5897,7 +5907,7 @@
               ]
             },
             {
-              "id": "strongr356",
+              "id": "strongr357",
               "gap": {
                 "lg": "md"
               },
@@ -5909,7 +5919,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc355",
+                  "id": "strongc356",
                   "span": {
                     "lg": 12
                   },
@@ -5920,7 +5930,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw354",
+                      "id": "strongw355",
                       "type": "my-polls",
                       "v": 1,
                       "settings": {
@@ -5935,7 +5945,7 @@
               ]
             },
             {
-              "id": "strongr361",
+              "id": "strongr362",
               "gap": {
                 "lg": "md"
               },
@@ -5947,7 +5957,7 @@
               },
               "cells": [
                 {
-                  "id": "strongc358",
+                  "id": "strongc359",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5959,7 +5969,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw357",
+                      "id": "strongw358",
                       "type": "my-coffer",
                       "v": 1,
                       "settings": {
@@ -5971,7 +5981,7 @@
                   ]
                 },
                 {
-                  "id": "strongc360",
+                  "id": "strongc361",
                   "span": {
                     "lg": 6,
                     "md": 12
@@ -5983,7 +5993,7 @@
                   "surface": "none",
                   "widgets": [
                     {
-                      "id": "strongw359",
+                      "id": "strongw360",
                       "type": "member-privacy",
                       "v": 1,
                       "settings": {
