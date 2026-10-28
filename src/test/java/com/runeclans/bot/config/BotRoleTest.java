@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** {@code BOT_ROLE} (T-670): the default is the bot as it always was, and each role runs only its part. */
@@ -15,11 +16,11 @@ class BotRoleTest {
     }
 
     @Test
-    void readsEachRoleAndFallsBackToAll() {
+    void readsEachRoleAndUnsetIsAll() {
         assertEquals(BotRole.ALL, BotRole.parse(null));
         assertEquals(BotRole.ALL, BotRole.parse(""));
         assertEquals(BotRole.ALL, BotRole.parse("  "));
-        assertEquals(BotRole.ALL, BotRole.parse("both"));
+        assertThrows(IllegalStateException.class, () -> BotRole.parse("both"), "a typo stops the process now that a split is possible");
         assertEquals(BotRole.ALL, BotRole.parse("all"));
         assertEquals(BotRole.GATEWAY, BotRole.parse(" Gateway "));
         assertEquals(BotRole.API, BotRole.parse("API"));
@@ -28,7 +29,7 @@ class BotRoleTest {
     @Test
     void aMistypedRoleStopsTheProcessOnceASplitIsPossible() {
         assertEquals(BotRole.ALL, BotRole.parse("gatway", false), "one process: all is still the bot as before");
-        IllegalStateException refused = org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> BotRole.parse(" gatway ", true));
+        IllegalStateException refused = assertThrows(IllegalStateException.class, () -> BotRole.parse(" gatway ", true));
         assertTrue(refused.getMessage().contains("'gatway'"), refused.getMessage());
         assertEquals(BotRole.ALL, BotRole.parse(" ", true), "unset is still all");
         assertEquals(BotRole.GATEWAY, BotRole.parse("gateway", true));
@@ -41,11 +42,14 @@ class BotRoleTest {
         assertTrue(BotRole.ALL.outbox());
 
         assertTrue(BotRole.GATEWAY.gateway());
-        assertFalse(BotRole.GATEWAY.internalApi(), "the website talks to the api process");
+        assertTrue(BotRole.GATEWAY.internalApi(), "answers the api process on the private network (T-746)");
+        assertFalse(BotRole.GATEWAY.forwardsToGateway());
+        assertFalse(BotRole.ALL.forwardsToGateway(), "one process answers everything itself");
         assertTrue(BotRole.GATEWAY.outbox());
 
         assertFalse(BotRole.API.gateway(), "no gateway login");
         assertTrue(BotRole.API.internalApi());
+        assertTrue(BotRole.API.forwardsToGateway(), "it has no servers or members of its own");
         assertFalse(BotRole.API.outbox(), "jobs need the gateway's servers");
     }
 
@@ -57,11 +61,17 @@ class BotRoleTest {
     }
 
     @Test
-    void aSplitWaitsForEveryLaneToNameItsOwner() {
-        assertFalse(BotRole.splitReady(), "waits for the api role to read servers through the gateway");
-        assertEquals(BotRole.ALL, BotRole.checkedForStart(BotRole.ALL));
-        IllegalStateException refused = org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> BotRole.checkedForStart(BotRole.API));
-        assertTrue(refused.getMessage().contains("BOT_ROLE=api can't run yet"), refused.getMessage());
-        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> BotRole.checkedForStart(BotRole.GATEWAY));
+    void aSplitProcessStartsOnlyWithWhatItNeeds() {
+        String gateway = "http://bot-gateway.internal:8081";
+        assertTrue(BotRole.splitReady(), "every lane has an owner (T-702) and the api role asks the gateway (T-746)");
+        assertEquals(BotRole.ALL, BotRole.checkedForStart(BotRole.ALL, null, false), "one process needs nothing new");
+        assertEquals(BotRole.GATEWAY, BotRole.checkedForStart(BotRole.GATEWAY, null, true));
+        assertEquals(BotRole.API, BotRole.checkedForStart(BotRole.API, gateway, true));
+
+        IllegalStateException noSignals = assertThrows(IllegalStateException.class, () -> BotRole.checkedForStart(BotRole.GATEWAY, null, false));
+        assertTrue(noSignals.getMessage().contains("BOT_CACHE_NOTIFY"), noSignals.getMessage());
+        assertThrows(IllegalStateException.class, () -> BotRole.checkedForStart(BotRole.API, gateway, false));
+        IllegalStateException noGateway = assertThrows(IllegalStateException.class, () -> BotRole.checkedForStart(BotRole.API, " ", true));
+        assertTrue(noGateway.getMessage().contains("GATEWAY_INTERNAL_URL"), noGateway.getMessage());
     }
 }

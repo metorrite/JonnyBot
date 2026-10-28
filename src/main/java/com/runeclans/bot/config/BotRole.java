@@ -9,17 +9,19 @@ import java.util.Locale;
  * role:
  * <ul>
  *   <li>{@link #ALL} (the default): everything in one process, exactly the bot as it always was.</li>
- *   <li>{@link #GATEWAY}: logs in to Discord, handles events and interactions, and drains the Discord job outbox. No internal HTTP API.</li>
- *   <li>{@link #API}: the internal HTTP API for the website, with a REST-only Discord connection (no gateway login, so no events and no
- *   cache of servers or members). Jobs the website queues are run by a gateway process.</li>
+ *   <li>{@link #GATEWAY}: logs in to Discord, handles events and interactions, and drains the Discord job outbox. Its internal HTTP API
+ *   answers the api process on the private network.</li>
+ *   <li>{@link #API}: the internal HTTP API the website calls, with a REST-only Discord connection (no gateway login, so no events and no
+ *   cache of servers or members). Routes that need servers or members are passed on to the gateway ({@code GATEWAY_INTERNAL_URL},
+ *   {@code internal/GatewayForward}, T-746); jobs the website queues are run by a gateway process.</li>
  * </ul>
- * Every scheduler lane names the role that runs it ({@code util/LaneOwners}, T-702). A split still waits for the api role's internal API to
- * get server and member answers from the gateway process; until then {@link #splitReady()} is false and a process started as gateway or
- * api stops at once with a plain reason instead of running half a bot.
+ * Every scheduler lane names the role that runs it ({@code util/LaneOwners}, T-702). A split needs both processes to hear each other's cache
+ * changes ({@code BOT_CACHE_NOTIFY}) and the api process to know where the gateway is; {@link #checkedForStart} stops a process at once,
+ * with a plain reason, when either is missing.
  * <p>
- * The interlock matters because an api process has no server cache: code that isn't role-aware reads every server as missing, and some of
- * it (poll closing, delayed autoroles, departed-server cleanup, stream alerts) deletes rows for a missing server. {@code ShardRouting} and
- * the lane owners keep that work on the gateway; anything new that acts on a missing server must check the role too.
+ * An api process has no server cache: code that isn't role-aware reads every server as missing, and some of it (poll closing, delayed
+ * autoroles, departed-server cleanup, stream alerts) deletes rows for a missing server. {@code ShardRouting} and the lane owners keep that
+ * work on the gateway, and the internal API passes such routes on; anything new that acts on a missing server must check the role too.
  */
 public enum BotRole {
     ALL,
@@ -44,9 +46,14 @@ public enum BotRole {
         return this != API;
     }
 
-    /** Whether this role serves the internal HTTP API the website calls. */
+    /** Whether this role serves an internal HTTP API: every role does (the gateway's answers the api process, T-746). */
     public boolean internalApi() {
-        return this != GATEWAY;
+        return true;
+    }
+
+    /** Whether this role's internal API passes routes that need servers or members on to the gateway process (T-746). */
+    public boolean forwardsToGateway() {
+        return this == API;
     }
 
     /** Whether this role runs the Discord job outbox (the jobs need the gateway's servers). */
@@ -55,19 +62,27 @@ public enum BotRole {
     }
 
     /**
-     * Whether the bot can be split into gateway and api processes yet. Every scheduler lane names its owner role (T-702,
-     * {@code util/LaneOwners}), but the api role's internal API still has no server or member list: routes that read one would answer as
-     * if the bot weren't in the server until they ask the gateway process instead. False until that is built.
+     * Whether the bot can be split into gateway and api processes: every scheduler lane names its owner role (T-702, {@code util/LaneOwners})
+     * and the api role's internal API asks the gateway for servers and members (T-746).
      */
     public static boolean splitReady() {
-        return false;
+        return true;
     }
 
-    /** The role a process may start with: {@code role} itself, or a plain refusal while a split isn't ready (see {@link #splitReady()}). */
-    public static BotRole checkedForStart(BotRole role) {
-        if (role != ALL && !splitReady()) {
-            throw new IllegalStateException("BOT_ROLE=" + role.name().toLowerCase(Locale.ROOT)
-                    + " can't run yet: the api role's internal API can't read servers or members yet. Leave BOT_ROLE unset (all) for now.");
+    /**
+     * The role a process may start with: {@code role} itself, or a plain refusal when a split process lacks what it needs. Both split roles
+     * need the cache signals on ({@code BOT_CACHE_NOTIFY}), or each would keep serving its own stale copy of what the other changed; the api
+     * role needs the gateway's address ({@code GATEWAY_INTERNAL_URL}).
+     */
+    public static BotRole checkedForStart(BotRole role, String gatewayInternalUrl, boolean cacheSignalsOn) {
+        if (role == ALL) return role;
+        String name = "BOT_ROLE=" + role.name().toLowerCase(Locale.ROOT);
+        if (!splitReady()) throw new IllegalStateException(name + " can't run yet. Leave BOT_ROLE unset (all) for now.");
+        if (!cacheSignalsOn) {
+            throw new IllegalStateException(name + " needs BOT_CACHE_NOTIFY=true in every bot process, so each hears what the others change.");
+        }
+        if (role == API && (gatewayInternalUrl == null || gatewayInternalUrl.isBlank())) {
+            throw new IllegalStateException(name + " needs GATEWAY_INTERNAL_URL: the gateway process's internal API on the private network.");
         }
         return role;
     }

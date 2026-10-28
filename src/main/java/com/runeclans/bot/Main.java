@@ -1,5 +1,6 @@
 package com.runeclans.bot;
 
+import com.runeclans.bot.cachebus.CacheBus;
 import com.runeclans.bot.config.BotConfig;
 import com.runeclans.bot.config.BotRole;
 import dev.freya02.botcommands.restarter.api.BotCommandsRestarter;
@@ -10,7 +11,7 @@ public class Main {
     public static void main(String[] args) {
         final var config = BotConfig.getInstance();
         // T-670: the role is known before any service is built, so every service and lane can ask BotRole.current()
-        BotRole.install(BotRole.checkedForStart(config.getRole()));
+        BotRole.install(BotRole.checkedForStart(config.getRole(), config.getGatewayInternalUrl(), CacheBus.on()));
 
         if(!config.getLiveEnvironment()) {
             BotCommandsRestarter.initialize(args, builder -> {
