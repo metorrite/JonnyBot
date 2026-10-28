@@ -12,6 +12,7 @@ import com.runeclans.bot.events.EventSpace.Plan;
 import com.runeclans.bot.events.EventSpace.Principal;
 import com.runeclans.bot.events.EventSpace.RoleItem;
 import com.runeclans.bot.i18n.Text;
+import com.runeclans.bot.jobs.JobRepository;
 import io.github.freya022.botcommands.api.core.annotations.BEventListener;
 import io.github.freya022.botcommands.api.core.events.InjectedJDAEvent;
 import io.github.freya022.botcommands.api.core.service.annotations.BService;
@@ -62,18 +63,40 @@ public class EventSpaceOps {
     private static final long SWEEP_MINUTES = 15;
     private static final int NOTE_LIMIT = 500;
 
-    /** How far a background job got: {@code state} is running, done or failed, and {@code message} says what it is doing or why it stopped. */
+    /**
+     * How far a background job got: {@code state} is running, done or failed, and {@code message} says what it is doing or why it stopped. The job
+     * that runs saves each change to {@link JobRepository}; {@link #job} reads it back there, so any bot process can answer (T-698).
+     */
     public static final class Job {
         private final String kind;
-        private final Instant startedAt = Instant.now();
+        private final Instant startedAt;
         private volatile String state = "running";
         private volatile int done;
         private volatile int total;
         private volatile String message = "Starting…";
         private volatile Instant finishedAt;
+        /** Saves the job after each change; does nothing for a read-back copy. */
+        private final java.util.function.Consumer<JobRepository.Row> saver;
 
         Job(String kind) {
+            this(kind, Instant.now(), row -> {});
+        }
+
+        Job(String kind, Instant startedAt, java.util.function.Consumer<JobRepository.Row> saver) {
             this.kind = kind;
+            this.startedAt = startedAt;
+            this.saver = saver;
+        }
+
+        /** A read-only copy of a stored job. */
+        static Job of(JobRepository.Row row) {
+            Job job = new Job(row.kind(), row.startedAt(), r -> {});
+            job.state = row.state();
+            job.done = row.done();
+            job.total = row.total();
+            job.message = row.message();
+            job.finishedAt = row.finishedAt();
+            return job;
         }
 
         public String kind() {
@@ -108,29 +131,42 @@ public class EventSpaceOps {
             return state.equals("running");
         }
 
+        JobRepository.Row row() {
+            return new JobRepository.Row(kind, state, done, total, 0, message, startedAt, finishedAt, Instant.now());
+        }
+
+        private void saved() {
+            saver.accept(row());
+        }
+
         void total(int count) {
             total = count;
+            saved();
         }
 
         void say(String text) {
             message = text;
+            saved();
         }
 
         void step(String what) {
             message = what;
             done++;
+            saved();
         }
 
         void finish(String text) {
             message = text;
             state = "done";
             finishedAt = Instant.now();
+            saved();
         }
 
         void fail(String text) {
             message = text;
             state = "failed";
             finishedAt = Instant.now();
+            saved();
         }
     }
 
@@ -146,14 +182,16 @@ public class EventSpaceOps {
         thread.setDaemon(true);
         return thread;
     });
-    private final Map<Long, Job> jobs = new ConcurrentHashMap<>();
+    /** Every event's latest job, shared by all bot processes (T-698); the event's job slot is {@link JobRepository#EVENT} + its id. */
+    private final JobRepository jobs;
     private final Map<Long, ReentrantLock> locks = new ConcurrentHashMap<>();
     private final Map<Long, ScheduledFuture<?>> pending = new ConcurrentHashMap<>();
     private volatile JDA jda;
 
     public EventSpaceOps(EventRepository events, EventService service, EventSpaceRepository space, EventSpaces spaces, EventChanges changes,
-                         com.runeclans.bot.config.BotConfig botConfig) {
+                         com.runeclans.bot.config.BotConfig botConfig, JobRepository jobs) {
         this.botConfig = botConfig;
+        this.jobs = jobs;
         this.events = events;
         this.service = service;
         this.space = space;
@@ -182,7 +220,7 @@ public class EventSpaceOps {
 
     /** The latest background job of the event, running or finished, or null. */
     public Job job(long eventId) {
-        return jobs.get(eventId);
+        return jobs.latest(JobRepository.EVENT, eventId).map(row -> Job.of(row.seenAt(jobs.now()))).orElse(null);
     }
 
     private ReentrantLock lockOf(long eventId) {
@@ -207,14 +245,21 @@ public class EventSpaceOps {
         return start(event.id(), "removal", job -> runRemoval(guild, event.guildId(), event.id(), job));
     }
 
-    /** Runs {@code work} in the background as the event's one job at a time (shared with the wrap-up, which also changes channels and roles). */
+    /**
+     * Runs {@code work} in the background as the event's one job at a time (shared with the wrap-up, which also changes channels and roles). The slot is
+     * taken in Postgres, so a second bot process can't start another job for the same event either (T-698).
+     */
     Job start(long eventId, String kind, java.util.function.Consumer<Job> work) {
-        Job job = new Job(kind);
-        synchronized (jobs) {
-            Job running = jobs.get(eventId);
-            if (running != null && running.running()) throw new EventProblem(409, Text.en("events.problem.this_event_roles_and_channels_are", running.kind()));
-            jobs.put(eventId, job);
+        JobRepository.Claim claim;
+        try {
+            claim = jobs.claim(JobRepository.EVENT, eventId, kind);
+        } catch (IllegalStateException e) {
+            log.warn("Could not start the {} job for event {}", kind, eventId, e);
+            throw new EventProblem(503, "The bot could not reach its database just now. Try again in a moment.");
         }
+        if (!claim.won()) throw new EventProblem(409, Text.en("events.problem.this_event_roles_and_channels_are", claim.row().kind()));
+        Job job = new Job(kind, claim.row().startedAt(), row -> jobs.save(JobRepository.EVENT, eventId, row));
+        ScheduledFuture<?> alive = jobs.keepAlive(JobRepository.EVENT, eventId);
         executor.execute(() -> {
             ReentrantLock lock = lockOf(eventId);
             lock.lock();
@@ -224,6 +269,7 @@ public class EventSpaceOps {
                 log.error("The roles and channels job for event {} failed", eventId, e);
                 job.fail(sentence(e));
             } finally {
+                alive.cancel(false);
                 lock.unlock();
             }
         });
@@ -246,7 +292,7 @@ public class EventSpaceOps {
         }
         // from here the event counts as set up (or part way), so it can't be deleted while its roles and channels exist
         events.markSpace(eventId, actorId, false, "Setting up…");
-        job.total = (int) (plan.newRoles() + plan.newChannels() + plan.count(Action.REPAIR) + (removeUnneeded ? plan.count(Action.REMOVE) : 0)) + 1;
+        job.total((int) (plan.newRoles() + plan.newChannels() + plan.count(Action.REPAIR) + (removeUnneeded ? plan.count(Action.REMOVE) : 0)) + 1);
         try {
             make(guild, event, gathered, plan, actorId, removeUnneeded, job);
         } catch (RuntimeException e) {
@@ -272,14 +318,14 @@ public class EventSpaceOps {
             if (r.action() != Action.REPAIR || r.id() == null) continue;
             Role role = guild.getRoleById(r.id());
             if (role == null) continue;
-            job.message = "Putting the role " + r.name() + " back…";
+            job.say("Putting the role " + r.name() + " back…");
             role.getManager().setName(r.name()).reason("Putting back a role of the event " + event.name()).complete();
             space.saveRole(eventId, r.key(), role.getIdLong(), r.name());
             job.step("Put the role " + r.name() + " back.");
         }
         for (RoleItem r : plan.roles()) {
             if (r.action() != Action.CREATE) continue;
-            job.message = "Making the role " + r.name() + "…";
+            job.say("Making the role " + r.name() + "…");
             Role role = guild.createRole().setName(r.name()).setPermissions(0L).setMentionable(false).setHoisted(false).reason("Roles for the event " + event.name()).complete();
             space.saveRole(eventId, r.key(), role.getIdLong(), role.getName());
             roleIds.put(r.key(), role.getIdLong());
@@ -308,7 +354,7 @@ public class EventSpaceOps {
         }
         for (ChannelItem c : plan.channels()) {
             if (c.kind() != Kind.CATEGORY || c.action() != Action.CREATE) continue;
-            job.message = "Making the category " + c.name() + "…";
+            job.say("Making the category " + c.name() + "…");
             ChannelAction<Category> action = guild.createCategory(c.name());
             for (Overwrite o : EventSpace.overwrites(c.access(), idsOf)) action = o.isRole() ? action.addRolePermissionOverride(o.id(), o.allow(), o.deny()) : action.addMemberPermissionOverride(o.id(), o.allow(), o.deny());
             Category made = action.reason("Channels for the event " + event.name()).complete();
@@ -330,7 +376,7 @@ public class EventSpaceOps {
             if (c.action() != Action.CREATE) continue;
             Category parent = categories.get(c.parent());
             if (parent == null) throw new EventProblem(500, Text.of(guildId, "events.problem.the_category_for_wasn_t_made", c.name()));
-            job.message = "Making the channel #" + c.name() + "…";
+            job.say("Making the channel #" + c.name() + "…");
             ChannelAction<net.dv8tion.jda.api.entities.channel.concrete.TextChannel> action = guild.createTextChannel(c.name(), parent).setTopic(topicOf(c, event, teamNames));
             for (Overwrite o : EventSpace.overwrites(c.access(), idsOf)) action = o.isRole() ? action.addRolePermissionOverride(o.id(), o.allow(), o.deny()) : action.addMemberPermissionOverride(o.id(), o.allow(), o.deny());
             var made = action.reason("Channels for the event " + event.name()).complete();
@@ -343,7 +389,7 @@ public class EventSpaceOps {
         for (ChannelItem c : plan.channels()) {
             if (c.action() != Action.REPAIR || c.id() == null) continue;
             if (!(guild.getGuildChannelById(c.id()) instanceof IPermissionContainer container)) continue;
-            job.message = "Putting #" + c.name() + " back…";
+            job.say("Putting #" + c.name() + " back…");
             var manager = container.getManager();
             if (c.kind() != Kind.PLAYER && !container.getName().equals(c.name())) manager.setName(c.name());
             EventSpace.Drift drift = EventSpace.drift(EventSpace.overwrites(c.access(), idsOf), EventSpaces.overwritesOf(container));
@@ -370,7 +416,7 @@ public class EventSpaceOps {
             }
         }
 
-        job.message = "Giving out the roles…";
+        job.say("Giving out the roles…");
         int failed = syncMembers(guild, service.event(guildId, eventId));
         job.step("Gave out the roles.");
         Plan after = EventSpace.plan(spaces.gather(guild, service.event(guildId, eventId)).facts());
@@ -460,7 +506,7 @@ public class EventSpaceOps {
     private void runRemoval(Guild guild, long guildId, long eventId, Job job) {
         List<EventSpaceRepository.ChannelRow> channels = space.channels(eventId);
         List<EventSpaceRepository.RoleRow> roles = space.roles(eventId);
-        job.total = (int) (channels.stream().filter(EventSpaceRepository.ChannelRow::owned).count() + roles.size()) + 1;
+        job.total((int) (channels.stream().filter(EventSpaceRepository.ChannelRow::owned).count() + roles.size()) + 1);
         Event event = service.event(guildId, eventId);
         DataObject config = DataObject.fromJson(event.config());
         // children before the categories that hold them
@@ -471,7 +517,7 @@ public class EventSpaceOps {
                 space.deleteChannel(eventId, c.key());
                 continue;
             }
-            job.message = "Removing #" + c.name() + "…";
+            job.say("Removing #" + c.name() + "…");
             deleteChannel(guild, eventId, c.key(), c.channelId());
             for (String key : new String[]{"boardChannelId", "reviewChannelId"}) {
                 if (config.hasKey(key) && !config.isNull(key) && Long.toString(c.channelId()).equals(config.getString(key))) config.remove(key);
@@ -479,7 +525,7 @@ public class EventSpaceOps {
             job.step("Removed #" + c.name() + ".");
         }
         for (EventSpaceRepository.RoleRow r : roles) {
-            job.message = "Removing the role " + r.name() + "…";
+            job.say("Removing the role " + r.name() + "…");
             deleteRole(guild, eventId, r.key(), r.roleId());
             job.step("Removed the role " + r.name() + ".");
         }
@@ -649,7 +695,6 @@ public class EventSpaceOps {
     }
 
     private boolean jobRunning(long eventId) {
-        Job job = jobs.get(eventId);
-        return job != null && job.running();
+        return jobs.latest(JobRepository.EVENT, eventId).map(row -> row.live(jobs.now())).orElse(false);
     }
 }

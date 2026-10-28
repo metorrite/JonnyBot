@@ -134,8 +134,8 @@ public class EventWrapupApi implements AdminRouteExtension {
         EventSpaceOps.Job job = spaceOps.job(id);
         DataObject jobJson = job == null ? null : DataObject.empty().put("kind", job.kind()).put("state", job.state()).put("done", job.done()).put("total", job.total()).put("message", job.message())
                 .put("startedAt", job.startedAt().toString()).put("finishedAt", job.finishedAt() == null ? null : job.finishedAt().toString());
-        EventWrapupOps.Export export = wrapupOps.export(id);
-        DataObject exportJson = export == null ? null : DataObject.empty().put("name", export.name()).put("size", export.data().length).put("madeAt", export.madeAt().toString())
+        var export = wrapupOps.exportSummary(id);
+        DataObject exportJson = export == null ? null : DataObject.empty().put("name", export.name()).put("size", export.size()).put("madeAt", export.madeAt().toString())
                 .put("channels", export.channels()).put("messages", export.messages()).put("images", export.images()).put("links", export.links());
 
         return DataObject.empty().put("over", over).put("status", event.status().name()).put("settings", EventWrapup.toJson(setting)).put("state", state).put("schedule", schedule)

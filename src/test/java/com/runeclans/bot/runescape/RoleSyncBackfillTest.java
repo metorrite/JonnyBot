@@ -23,6 +23,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -47,6 +48,7 @@ class RoleSyncBackfillTest {
     private ClanMemberRepository clan;
     private PlayerLinkService links;
     private RoleSyncBackfill backfill;
+    private com.runeclans.bot.jobs.JobRepository jobs;
     private Guild guild;
     private Role member;
     private Role guest;
@@ -57,7 +59,8 @@ class RoleSyncBackfillTest {
         settings = mock(GuildSettingsService.class);
         clan = mock(ClanMemberRepository.class);
         links = mock(PlayerLinkService.class);
-        backfill = new RoleSyncBackfill(settings, clan, links);
+        jobs = com.runeclans.bot.jobs.JobRepository.inMemory(java.time.Clock.systemUTC());
+        backfill = new RoleSyncBackfill(settings, clan, links, jobs);
         backfill.pauseMillis = 0;
         guild = mock(Guild.class);
         when(guild.getIdLong()).thenReturn(GUILD);
@@ -194,6 +197,25 @@ class RoleSyncBackfillTest {
         verify(guild).modifyMemberRoles(org.mockito.ArgumentMatchers.eq(bob), org.mockito.ArgumentMatchers.argThat((Collection<Role> add) -> add.contains(member)),
                 org.mockito.ArgumentMatchers.argThat((Collection<Role> remove) -> remove.contains(guest)));
         assertEquals(1, backfill.progress(GUILD).done());
+    }
+
+    /** T-698: the run's progress is in the shared job table, so another bot process shows it and won't start a second run. */
+    @Test
+    void anotherProcessSeesTheRunAndWillNotStartASecondOne() throws Exception {
+        when(links.getAllLinks(GUILD)).thenReturn(List.of(link(5, "bob")));
+        when(clan.isActiveMember(GUILD, "bob")).thenReturn(true);
+        Member bob = discord(5, "Bob", guest);
+        members(bob);
+        stubLookupAndModify(bob);
+        RoleSyncBackfill elsewhere = new RoleSyncBackfill(settings, clan, links, jobs);
+        backfill.pauseMillis = 300; // keeps the run going while the other process looks
+
+        assertNull(backfill.start(guild, Set.of(5L), 1));
+        assertTrue(elsewhere.progress(GUILD).running());
+        assertEquals("A fix is already running in this server.", elsewhere.start(guild, Set.of(5L), 1));
+        waitUntilDone();
+        assertEquals(1, elsewhere.progress(GUILD).done());
+        assertFalse(elsewhere.progress(GUILD).running());
     }
 
     @Test
